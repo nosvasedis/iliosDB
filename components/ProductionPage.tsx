@@ -2716,6 +2716,34 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                         {/* RESULTS DROPDOWN */}
                         {finderTerm.length >= 2 && (
                             <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 max-h-[70vh] overflow-y-auto custom-scrollbar p-2 space-y-2 w-[900px] max-w-[calc(100vw-3rem)]">
+                                {foundBatches.length > 0 && (
+                                    <div className="flex items-center justify-between px-1 pb-1 border-b border-slate-100 mb-1">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                            {foundBatches.length} αποτελέσματα
+                                        </span>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                const allSelected = foundBatches.every(b => multiSelectIds.has(b.id));
+                                                setMultiSelectIds(prev => {
+                                                    const next = new Set(prev);
+                                                    if (allSelected) {
+                                                        foundBatches.forEach(b => next.delete(b.id));
+                                                    } else {
+                                                        foundBatches.forEach(b => next.add(b.id));
+                                                    }
+                                                    return next;
+                                                });
+                                            }}
+                                            className="text-[10px] font-black text-blue-600 hover:text-blue-800 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors"
+                                        >
+                                            {foundBatches.every(b => multiSelectIds.has(b.id))
+                                                ? <><Square size={11} /> Αποεπιλογή Όλων</>
+                                                : <><CheckSquare size={11} /> Επιλογή Όλων</>
+                                            }
+                                        </button>
+                                    </div>
+                                )}
                                 {foundBatches.map((b, index) => {
                                     const stageConf = STAGES.find(s => s.id === b.current_stage);
                                     const colors = STAGE_COLORS[stageConf?.color as keyof typeof STAGE_COLORS] || STAGE_COLORS['slate'];
@@ -2723,46 +2751,61 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                     const age = getAgeInfo(b.updated_at);
                                     const { finish } = getVariantComponents(b.variant_suffix || '', b.product_details?.gender);
                                     const finderMetalClass = FINDER_METAL_CONTAINER_STYLES[finish.code] || FINDER_METAL_CONTAINER_STYLES[''];
+                                    const isSelected = multiSelectIds.has(b.id);
 
                                     return (
                                         <div
                                             key={b.id}
                                             onClick={() => setViewBuildBatch(b)}
-                                            className={`rounded-xl p-3 hover:bg-white transition-all group cursor-pointer border hover:border-emerald-300 ${finderMetalClass} ${index > 0 ? 'border-t border-t-slate-100 mt-1 pt-3' : ''}`}
+                                            className={`rounded-xl p-3 hover:bg-white transition-all group cursor-pointer border hover:border-emerald-300 ${finderMetalClass} ${isSelected ? 'ring-2 ring-blue-400 ring-offset-0 border-blue-300 bg-blue-50/30' : ''} ${index > 0 ? 'border-t border-t-slate-100 mt-1 pt-3' : ''}`}
                                         >
                                             <div className="flex justify-between items-start">
-                                                <div className={`flex items-start gap-3 border-l-4 pl-2 ${
-                                                    stageConf?.color
-                                                        ? STAGE_COLORS[stageConf.color as keyof typeof STAGE_COLORS].border
-                                                        : 'border-slate-200'
-                                                }`}>
-                                                    {/* Image */}
-                                                    <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0 relative">
-                                                        {b.product_image ? <img src={b.product_image} className="w-full h-full object-cover" /> : <ImageIcon size={16} className="m-auto text-slate-300" />}
-                                                        {/* AMOUNT INDICATOR ADDED HERE */}
-                                                        <div className="absolute bottom-0 right-0 bg-slate-900 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-tl-lg leading-none">
-                                                            x{b.quantity}
-                                                        </div>
-                                                    </div>
+                                                <div className="flex items-start gap-2">
+                                                    {/* Selection checkbox */}
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); toggleBatchSelect(b.id); }}
+                                                        className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                                                            isSelected
+                                                                ? 'bg-blue-500 border-blue-500 shadow-sm shadow-blue-200'
+                                                                : 'bg-white border-slate-300 hover:border-blue-400'
+                                                        }`}
+                                                        title={isSelected ? 'Αποεπιλογή' : 'Επιλογή'}
+                                                    >
+                                                        {isSelected && <Check size={11} className="text-white" />}
+                                                    </button>
 
-                                                    <div>
-                                                        <div className="flex items-center gap-2">
-                                                            <SkuColored sku={b.sku} suffix={b.variant_suffix} gender={b.product_details?.gender} />
-                                                            <span className="bg-slate-900 text-white px-2 py-0.5 rounded-md text-xs font-bold shadow-sm">x{b.quantity}</span>
-                                                            {b.size_info && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-black flex items-center gap-1"><Hash size={10} /> {b.size_info}</span>}
-                                                            {b.on_hold && <span className="bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded text-[10px] font-black flex items-center gap-1"><PauseCircle size={10} /> Σε Αναμονή</span>}
+                                                    <div className={`flex items-start gap-3 border-l-4 pl-2 ${
+                                                        stageConf?.color
+                                                            ? STAGE_COLORS[stageConf.color as keyof typeof STAGE_COLORS].border
+                                                            : 'border-slate-200'
+                                                    }`}>
+                                                        {/* Image */}
+                                                        <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0 relative">
+                                                            {b.product_image ? <img src={b.product_image} className="w-full h-full object-cover" /> : <ImageIcon size={16} className="m-auto text-slate-300" />}
+                                                            <div className="absolute bottom-0 right-0 bg-slate-900 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-tl-lg leading-none">
+                                                                x{b.quantity}
+                                                            </div>
                                                         </div>
-                                                        <div className="flex items-center justify-between mt-1 gap-2 min-w-[200px]">
-                                                            <span className="font-bold text-slate-700 text-xs">{b.customer_name || 'Unknown'}</span>
-                                                            {b.on_hold ? (
-                                                                <div className="text-[9px] font-black px-1.5 py-0.5 rounded border flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200">
-                                                                    <PauseCircle size={10} /> Hold
-                                                                </div>
-                                                            ) : (
-                                                                <div className={`text-[9px] font-black px-1.5 py-0.5 rounded border flex items-center gap-1 ${age.style}`}>
-                                                                    <Clock size={10} /> {age.label}
-                                                                </div>
-                                                            )}
+
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <SkuColored sku={b.sku} suffix={b.variant_suffix} gender={b.product_details?.gender} />
+                                                                <span className="bg-slate-900 text-white px-2 py-0.5 rounded-md text-xs font-bold shadow-sm">x{b.quantity}</span>
+                                                                {b.size_info && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-black flex items-center gap-1"><Hash size={10} /> {b.size_info}</span>}
+                                                                {b.on_hold && <span className="bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded text-[10px] font-black flex items-center gap-1"><PauseCircle size={10} /> Σε Αναμονή</span>}
+                                                            </div>
+                                                            <div className="flex items-center justify-between mt-1 gap-2 min-w-[200px]">
+                                                                <span className="font-bold text-slate-700 text-xs">{b.customer_name || 'Unknown'}</span>
+                                                                {b.on_hold ? (
+                                                                    <div className="text-[9px] font-black px-1.5 py-0.5 rounded border flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200">
+                                                                        <PauseCircle size={10} /> Hold
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className={`text-[9px] font-black px-1.5 py-0.5 rounded border flex items-center gap-1 ${age.style}`}>
+                                                                        <Clock size={10} /> {age.label}
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
