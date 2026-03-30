@@ -20,6 +20,7 @@ import { getRemainingOrderItems } from '../utils/shipmentUtils';
 interface Props {
     products: Product[];
     onPrintOrder?: (order: Order) => void;
+    onPrintRemainingOrder?: (order: Order) => void;
     onPrintShipment?: (payload: { order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] }) => void;
     onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail' }[]) => void;
     materials: Material[];
@@ -268,10 +269,11 @@ const OrderPartSelectorModal = ({
     );
 };
 
-const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintShipment, onPrintLabels, products, allBatches, showToast, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintAnalytics, onShowPartSelector }: {
+const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder, onPrintShipment, onPrintLabels, products, allBatches, showToast, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintAnalytics, onShowPartSelector }: {
     order: Order;
     onClose: () => void;
     onPrintOrder?: (order: Order) => void;
+    onPrintRemainingOrder?: (order: Order) => void;
     onPrintShipment?: (payload: { order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] }) => void;
     onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail' }[]) => void;
     onPrintAggregated: (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => void;
@@ -514,69 +516,6 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintShipment, onPr
                 </div>
             </div>
         </div>
-        {false && showShipmentPrompt && latestShipmentData && (
-            <div className="fixed inset-0 z-[170] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-                <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
-                    <div className="p-6 border-b border-slate-100 bg-amber-50">
-                        <h3 className="text-xl font-bold text-slate-900">Υπάρχει Μερική Αποστολή</h3>
-                        <p className="text-sm text-slate-600 mt-1">
-                            Η παραγγελία έχει καταχωρημένη μερική αποστολή #{latestShipmentData.shipment.shipment_number}. Τι θέλετε να εκτυπώσετε;
-                        </p>
-                    </div>
-                    <div className="p-6 space-y-3">
-                        <button
-                            onClick={() => {
-                                onPrintShipment?.({ order, shipment: latestShipmentData.shipment, shipmentItems: latestShipmentData.shipmentItems });
-                                setShowShipmentPrompt(false);
-                                onClose();
-                            }}
-                            className="w-full p-4 rounded-2xl border-2 border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors text-left"
-                        >
-                            <div className="font-bold">Εκτύπωση Μερικής Αποστολής</div>
-                            <div className="text-xs mt-1 opacity-80">
-                                Μόνο τα προϊόντα που στάλθηκαν στη μερική αποστολή #{latestShipmentData.shipment.shipment_number}.
-                            </div>
-                        </button>
-                        <button
-                            onClick={() => {
-                                onPrintOrder?.(latestShipmentData.remainingOrder);
-                                setShowShipmentPrompt(false);
-                                onClose();
-                            }}
-                            className="w-full p-4 rounded-2xl border-2 border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100 transition-colors text-left"
-                        >
-                            <div className="font-bold">Ξ•ΞΊΟ„ΟΟ€Ο‰ΟƒΞ· Ξ¥Ο€ΞΏΞ»ΞΏΞ―Ο€Ο‰Ξ½ Ξ•ΞΉΞ΄ΟΞ½</div>
-                            <div className="text-xs mt-1 opacity-80">
-                                ΞΟΞ½ΞΏ Ο„Ξ± batch/SKU Ο€ΞΏΟ… Ξ΄ΞµΞ½ Ξ­Ο‡ΞΏΟ…Ξ½ Ξ±ΞΊΟΞΌΞ± Ξ±Ο€ΞΏΟƒΟ„Ξ±Ξ»ΞµΞ―, ΞΌΞµ Ο„ΞΉΟ‚ Ο…Ο€ΟΞ»ΞΏΞΉΟ€ΞµΟ‚ Ο€ΞΏΟƒΟΟ„Ξ·Ο„ΞµΟ‚.
-                            </div>
-                        </button>
-                        <button
-                            onClick={() => {
-                                setShowShipmentPrompt(false);
-                                if (hasMultipleShipments && onShowPartSelector) {
-                                    onShowPartSelector();
-                                } else {
-                                    onPrintOrder?.(order);
-                                    onClose();
-                                }
-                            }}
-                            className="w-full p-4 rounded-2xl border-2 border-slate-200 bg-white text-slate-800 hover:bg-slate-50 transition-colors text-left"
-                        >
-                            <div className="font-bold">Εκτύπωση Παραστατικού Παραγγελίας</div>
-                            <div className="text-xs mt-1 opacity-80">
-                                Εκτυπώνει το κανονικό παραστατικό της παραγγελίας.
-                            </div>
-                        </button>
-                        <button
-                            onClick={() => setShowShipmentPrompt(false)}
-                            className="w-full py-3 rounded-2xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition-colors"
-                        >
-                            Κλείσιμο
-                        </button>
-                    </div>
-                </div>
-            </div>
-        )}
         {showShipmentPrompt && latestShipmentData && (
             <div className="fixed inset-0 z-[170] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
                 <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
@@ -602,7 +541,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintShipment, onPr
                         </button>
                         <button
                             onClick={() => {
-                                onPrintOrder?.(latestShipmentData.remainingOrder);
+                                onPrintRemainingOrder?.(latestShipmentData.remainingOrder);
                                 setShowShipmentPrompt(false);
                                 onClose();
                             }}
@@ -610,7 +549,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintShipment, onPr
                         >
                             <div className="font-bold">{'\u0395\u03BA\u03C4\u03CD\u03C0\u03C9\u03C3\u03B7 \u03A5\u03C0\u03BF\u03BB\u03BF\u03AF\u03C0\u03C9\u03BD \u0395\u03B9\u03B4\u03CE\u03BD'}</div>
                             <div className="text-xs mt-1 opacity-80">
-                                {'\u039C\u03CC\u03BD\u03BF \u03C4\u03B1 batch/SKU \u03C0\u03BF\u03C5 \u03B4\u03B5\u03BD \u03AD\u03C7\u03BF\u03C5\u03BD \u03B1\u03BA\u03CC\u03BC\u03B1 \u03B1\u03C0\u03BF\u03C3\u03C4\u03B1\u03BB\u03B5\u03AF, \u03BC\u03B5 \u03C4\u03B9\u03C2 \u03C5\u03C0\u03CC\u03BB\u03BF\u03B9\u03C0\u03B5\u03C2 \u03C0\u03BF\u03C3\u03CC\u03C4\u03B7\u03C4\u03B5\u03C2.'}
+                                {'\u039C\u03CC\u03BD\u03BF \u03C4\u03B1 \u03C5\u03C0\u03CC\u03BB\u03BF\u03B9\u03C0\u03B1 \u03B5\u03AF\u03B4\u03B7 \u03C0\u03BF\u03C5 \u03B4\u03B5\u03BD \u03AD\u03C7\u03BF\u03C5\u03BD \u03C3\u03C4\u03B1\u03BB\u03B5\u03AF \u03B1\u03BA\u03CC\u03BC\u03B1.'}
                             </div>
                         </button>
                         <button
@@ -644,7 +583,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintShipment, onPr
     );
 };
 
-export default function OrdersPage({ products, onPrintOrder, onPrintShipment, onPrintLabels, materials, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintAnalytics, onPrintPartialOrder, onOpenDeliveries }: Props) {
+export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrder, onPrintShipment, onPrintLabels, materials, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintAnalytics, onPrintPartialOrder, onOpenDeliveries }: Props) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { profile } = useAuth();
@@ -1300,6 +1239,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintShipment, on
                     order={printModalOrder}
                     onClose={() => { setPrintModalOrder(null); setShowPartSelector(false); }}
                     onPrintOrder={onPrintOrder}
+                    onPrintRemainingOrder={onPrintRemainingOrder}
                     onPrintShipment={onPrintShipment}
                     onPrintLabels={onPrintLabels}
                     onPrintAggregated={onPrintAggregated}

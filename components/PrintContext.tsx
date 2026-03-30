@@ -15,6 +15,8 @@ interface PrintContextType {
     setPrintItems: (items: PrintItem[]) => void;
     orderToPrint: Order | null;
     setOrderToPrint: (order: Order | null) => void;
+    remainingOrderToPrint: Order | null;
+    setRemainingOrderToPrint: (order: Order | null) => void;
     shipmentToPrint: { order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] } | null;
     setShipmentToPrint: (shipment: { order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] } | null) => void;
     offerToPrint: Offer | null;
@@ -52,6 +54,7 @@ export const usePrint = () => {
 export const PrintProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [printItems, setPrintItems] = useState<PrintItem[]>([]);
     const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
+    const [remainingOrderToPrint, setRemainingOrderToPrint] = useState<Order | null>(null);
     const [shipmentToPrint, setShipmentToPrint] = useState<{ order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] } | null>(null);
     const [offerToPrint, setOfferToPrint] = useState<Offer | null>(null);
     const [supplierOrderToPrint, setSupplierOrderToPrint] = useState<SupplierOrder | null>(null);
@@ -69,6 +72,7 @@ export const PrintProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             value={{
                 printItems, setPrintItems,
                 orderToPrint, setOrderToPrint,
+                remainingOrderToPrint, setRemainingOrderToPrint,
                 shipmentToPrint, setShipmentToPrint,
                 offerToPrint, setOfferToPrint,
                 supplierOrderToPrint, setSupplierOrderToPrint,
