@@ -36,7 +36,7 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
 
     const company = {
         name: "ILIOS KOSMIMA",
-        address: "Ξ‘Ξ²Ξ­ΟΟ‰Ο† 73, ΞΞΏΟΟ…Ξ΄Ξ±Ξ»Ξ»ΟΟ‚, 18120",
+        address: "Αβέρωφ 73, Κορυδαλλός, 18120",
         phone: "2104905405",
         email: "ilioskosmima@gmail.com"
     };
@@ -56,9 +56,9 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                 </div>
 
                 <div className="text-right">
-                    <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-none mb-0.5">Ξ”ΞµΞ»Ο„ΞΉΞΏ Ξ‘Ο€ΞΏΟƒΟ„ΞΏΞ»Ξ·Ο‚</h1>
+                    <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-none mb-0.5">Δελτίο Αποστολής</h1>
                     <div className="flex items-center justify-end gap-3 text-[10px] text-slate-700 font-medium">
-                        <span className="flex items-center gap-1"><Truck size={10}/> Ξ‘Ο€ΞΏΟƒΟ„ΞΏΞ»Ξ® #{shipment.shipment_number}</span>
+                        <span className="flex items-center gap-1"><Truck size={10}/> Αποστολή #{shipment.shipment_number}</span>
                         <span className="text-slate-300">|</span>
                         <span className="flex items-center gap-1"><Hash size={10}/> {formatOrderId(order.id)}</span>
                         <span className="text-slate-300">|</span>
@@ -71,7 +71,7 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
             <div className="flex gap-4 mb-3 shrink-0 bg-slate-50 rounded-lg border border-slate-200 p-2">
                 <div className="flex-1 flex flex-col justify-center">
                     <div className="flex items-baseline gap-2 mb-0.5">
-                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Ξ ΞµΞ»Ξ±Ο„Ξ·Ο‚</span>
+                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Πελάτης</span>
                         <span className="font-black text-slate-900 text-sm leading-none">{customer?.full_name || order.customer_name}</span>
                     </div>
                     <div className="flex items-center gap-3 text-[10px] text-slate-700">
@@ -82,7 +82,7 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                             <span className="flex items-center gap-1"><MapPin size={10} className="text-slate-400"/> {customer.address}</span>
                         )}
                         {customer?.vat_number && (
-                            <span className="font-mono text-slate-600">AΞ¦Ξ: {customer.vat_number}</span>
+                            <span className="font-mono text-slate-600">ΑΦΜ: {customer.vat_number}</span>
                         )}
                     </div>
                 </div>
@@ -90,14 +90,14 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                 <div className="w-px bg-slate-200 my-0.5"></div>
 
                 <div className="flex flex-col justify-center items-end px-2 min-w-[120px]">
-                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Ξ‘ΞΎΞΉΞ± Ξ‘Ο€ΞΏΟƒΟ„ΞΏΞ»Ξ·Ο‚</span>
+                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Αξία Αποστολής</span>
                     <span className="font-black text-xl text-slate-900 leading-none">{grandTotal.toFixed(2).replace('.', ',')}&#8364;</span>
                 </div>
             </div>
 
             {/* Shipment meta */}
             <div className="flex gap-4 mb-3 text-[10px] text-slate-600 font-medium bg-amber-50 rounded-lg border border-amber-100 px-3 py-2">
-                <span>Ξ‘Ο€ΞµΟƒΟ„Ξ±Ξ»Ξ· Ξ±Ο€ΞΏ: <span className="font-bold text-slate-800">{shipment.shipped_by}</span></span>
+                <span>Απεστάλη από: <span className="font-bold text-slate-800">{shipment.shipped_by}</span></span>
                 {shipment.notes && (
                     <>
                         <span className="text-slate-300">|</span>
@@ -112,18 +112,18 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                     <div className="flex-1 flex items-center pr-3">
                         <div className="w-6 text-center text-slate-400">#</div>
                         <div className="w-8 text-center">Eik.</div>
-                        <div className="flex-1 px-1">Ξ ΞµΟΞΉΞ³ΟΞ±Ο†Ξ·</div>
-                        <div className="w-8 text-center">Ξ ΞΏΟƒ.</div>
-                        <div className="w-12 text-right">Ξ¤ΞΉΞΌΞ·</div>
-                        <div className="w-14 text-right">Ξ£Ο…Ξ½ΞΏΞ»ΞΏ</div>
+                        <div className="flex-1 px-1">Περιγραφή</div>
+                        <div className="w-8 text-center">Ποσ.</div>
+                        <div className="w-12 text-right">Τιμή</div>
+                        <div className="w-14 text-right">Σύνολο</div>
                     </div>
                     <div className="flex-1 flex items-center pl-3 border-l border-slate-300">
                         <div className="w-6 text-center text-slate-400">#</div>
                         <div className="w-8 text-center">Eik.</div>
-                        <div className="flex-1 px-1">Ξ ΞµΟΞΉΞ³ΟΞ±Ο†Ξ·</div>
-                        <div className="w-8 text-center">Ξ ΞΏΟƒ.</div>
-                        <div className="w-12 text-right">Ξ¤ΞΉΞΌΞ·</div>
-                        <div className="w-14 text-right">Ξ£Ο…Ξ½ΞΏΞ»ΞΏ</div>
+                        <div className="flex-1 px-1">Περιγραφή</div>
+                        <div className="w-8 text-center">Ποσ.</div>
+                        <div className="w-12 text-right">Τιμή</div>
+                        <div className="w-14 text-right">Σύνολο</div>
                     </div>
                 </div>
 
@@ -133,7 +133,7 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                         const variant = product?.variants?.find(v => v.suffix === item.variant_suffix);
                         const fullSku = item.sku + (item.variant_suffix || '');
                         const imageUrl = product?.image_url;
-                        const description = variant?.description || product?.category || 'Ξ ΟΞΏΟΟΞ½';
+                        const description = variant?.description || product?.category || 'Προϊόν';
 
                         return (
                             <div
@@ -158,8 +158,8 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                                         <div className="flex items-baseline gap-1">
                                             <span className="font-bold text-slate-900">{fullSku}</span>
                                             {item.size_info && <span className="text-[9px] bg-slate-100 px-1 rounded text-slate-600 border border-slate-200 font-bold whitespace-nowrap">{item.size_info}</span>}
-                                            {item.cord_color && <span className="text-[9px] bg-amber-50 px-1 rounded text-amber-700 border border-amber-100 font-bold whitespace-nowrap">ΞΞΏΟΞ΄ΟΞ½ΞΉ: {getProductOptionColorLabel(item.cord_color)}</span>}
-                                            {item.enamel_color && <span className="text-[9px] bg-rose-50 px-1 rounded text-rose-700 border border-rose-100 font-bold whitespace-nowrap">Ξ£ΞΌΞ¬Ξ»Ο„ΞΏ: {getProductOptionColorLabel(item.enamel_color)}</span>}
+                                            {item.cord_color && <span className="text-[9px] bg-amber-50 px-1 rounded text-amber-700 border border-amber-100 font-bold whitespace-nowrap">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
+                                            {item.enamel_color && <span className="text-[9px] bg-rose-50 px-1 rounded text-rose-700 border border-rose-100 font-bold whitespace-nowrap">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
                                         </div>
                                         <span className="text-[10px] text-slate-600 truncate max-w-[200px] font-medium">{description}</span>
                                     </div>
@@ -176,34 +176,34 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
             {/* FOOTER */}
             <footer className="mt-2 pt-2 border-t-2 border-slate-900 flex justify-between items-start shrink-0">
                 <div className="text-[9px] text-slate-600 max-w-xs leading-snug">
-                    <p className="font-bold uppercase text-slate-500 mb-0.5">Ξ£Ξ·ΞΌΞµΞΉΟΟƒΞµΞΉΟ‚</p>
-                    <p className="italic bg-slate-50 p-1.5 rounded border border-slate-100">{shipment.notes || order.notes || "Ξ”ΞµΞ½ Ο…Ο€Ξ¬ΟΟ‡ΞΏΟ…Ξ½ ΟƒΞ·ΞΌΞµΞΉΟΟƒΞµΞΉΟ‚."}</p>
+                    <p className="font-bold uppercase text-slate-500 mb-0.5">Σημειώσεις</p>
+                    <p className="italic bg-slate-50 p-1.5 rounded border border-slate-100">{shipment.notes || order.notes || "Δεν υπάρχουν σημειώσεις."}</p>
                 </div>
 
                 <div className="w-48 text-[11px]">
                     <div className="flex justify-between items-center text-slate-600 mb-0.5">
-                        <span>ΞΞ±ΞΈΞ±ΟΞ® Ξ‘ΞΎΞ―Ξ±:</span>
+                        <span>Καθαρή Αξία:</span>
                         <span className="tabular-nums font-bold">{subtotal.toFixed(2).replace('.', ',')}&#8364;</span>
                     </div>
                     {discountAmount > 0 && (
                         <div className="flex justify-between items-center text-rose-600 mb-0.5">
-                            <span>ΞΞΊΟ€Ο„Ο‰ΟƒΞ· ({discountPercent}%):</span>
+                            <span>Έκπτωση ({discountPercent}%):</span>
                             <span className="tabular-nums font-bold">-{discountAmount.toFixed(2).replace('.', ',')}&#8364;</span>
                         </div>
                     )}
                     <div className="flex justify-between items-center text-slate-600 mb-1 pb-1 border-b border-slate-200">
-                        <span>Ξ¦.Ξ .Ξ‘. ({(vatRate * 100).toFixed(0)}%):</span>
+                        <span>Φ.Π.Α. ({(vatRate * 100).toFixed(0)}%):</span>
                         <span className="tabular-nums font-bold">{vatAmount.toFixed(2).replace('.', ',')}&#8364;</span>
                     </div>
 
                     <div className="flex justify-between items-center text-slate-900 font-black text-sm">
-                        <span className="uppercase">Ξ“ΞµΞ½ΞΉΞΊΞΏ Ξ£Ο…Ξ½ΞΏΞ»ΞΏ:</span>
+                        <span className="uppercase">Γενικό Σύνολο:</span>
                         <span className="tabular-nums text-base">{grandTotal.toFixed(2).replace('.', ',')}&#8364;</span>
                     </div>
                 </div>
             </footer>
             <div className="mt-4 text-center text-[8px] text-slate-400 uppercase tracking-widest font-bold">
-                Ξ”ΞµΞ»Ο„Ξ―ΞΏ ΞΞµΟΞΉΞΊΞ®Ο‚ Ξ‘Ο€ΞΏΟƒΟ„ΞΏΞ»Ξ®Ο‚ #{shipment.shipment_number} &bull; Ilios Kosmima ERP &bull; {new Date().toLocaleTimeString()}
+                Δελτίο Μερικής Αποστολής #{shipment.shipment_number} &bull; Ilios Kosmima ERP &bull; {new Date().toLocaleTimeString()}
             </div>
         </div>
     );
