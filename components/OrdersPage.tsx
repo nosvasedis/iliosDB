@@ -311,7 +311,31 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintShipment, onPr
         const remainingItems = getRemainingOrderItems(order, shipmentData.items);
         if (remainingItems.length === 0) return null;
 
-        return { shipment: latestShipment, shipmentItems: latestShipmentItems };
+        const subtotal = remainingItems.reduce((sum, item) => sum + item.price_at_order * item.quantity, 0);
+        const discountFactor = 1 - ((order.discount_percent || 0) / 100);
+        const discountedSubtotal = subtotal * discountFactor;
+        const vatRate = order.vat_rate !== undefined ? order.vat_rate : 0.24;
+        const grandTotal = discountedSubtotal * (1 + vatRate);
+
+        const remainingOrderItems = remainingItems
+            .map((remainingItem) => {
+                const existingItem = order.items.find(i => buildItemIdentityKey(i) === buildItemIdentityKey(remainingItem as any));
+                if (!existingItem) return null;
+                return {
+                    ...existingItem,
+                    quantity: remainingItem.quantity,
+                    price_at_order: remainingItem.price_at_order
+                };
+            })
+            .filter((item): item is Order['items'][number] => item !== null);
+
+        const remainingOrder: Order = {
+            ...order,
+            items: remainingOrderItems,
+            total_price: grandTotal
+        };
+
+        return { shipment: latestShipment, shipmentItems: latestShipmentItems, remainingOrder };
     }, [order, shipmentsQuery.data]);
 
     const handlePrintOrder = () => {
@@ -511,6 +535,19 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintShipment, onPr
                             <div className="font-bold">Εκτύπωση Μερικής Αποστολής</div>
                             <div className="text-xs mt-1 opacity-80">
                                 Μόνο τα προϊόντα που στάλθηκαν στη μερική αποστολή #{latestShipmentData.shipment.shipment_number}.
+                            </div>
+                        </button>
+                        <button
+                            onClick={() => {
+                                onPrintOrder?.(latestShipmentData.remainingOrder);
+                                setShowShipmentPrompt(false);
+                                onClose();
+                            }}
+                            className="w-full p-4 rounded-2xl border-2 border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100 transition-colors text-left"
+                        >
+                            <div className="font-bold">Ξ•ΞΊΟ„ΟΟ€Ο‰ΟƒΞ· Ξ¥Ο€ΞΏΞ»ΞΏΞ―Ο€Ο‰Ξ½ Ξ•ΞΉΞ΄ΟΞ½</div>
+                            <div className="text-xs mt-1 opacity-80">
+                                ΞΟΞ½ΞΏ Ο„Ξ± batch/SKU Ο€ΞΏΟ… Ξ΄ΞµΞ½ Ξ­Ο‡ΞΏΟ…Ξ½ Ξ±ΞΊΟΞΌΞ± Ξ±Ο€ΞΏΟƒΟ„Ξ±Ξ»ΞµΞ―, ΞΌΞµ Ο„ΞΉΟ‚ Ο…Ο€ΟΞ»ΞΏΞΉΟ€ΞµΟ‚ Ο€ΞΏΟƒΟΟ„Ξ·Ο„ΞµΟ‚.
                             </div>
                         </button>
                         <button
