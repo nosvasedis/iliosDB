@@ -19,8 +19,8 @@ const ProductGridCard: React.FC<{ product: Product, onClick: () => void }> = ({ 
         ? Math.min(...product.variants!.map(v => v.selling_price || 0).filter(p => p > 0)) 
         : product.selling_price;
         
-    // Calculate Retail Price (Wholesale * 2.5)
-    const retailPrice = wholesalePrice * 2.5;
+    // Calculate Retail Price (Wholesale * 3.0)
+    const retailPrice = wholesalePrice * 3.0;
 
     return (
         <div 

@@ -77,9 +77,9 @@ const ProductCard: React.FC<{ product: Product; onClick: () => void }> = ({ prod
     const displaySku = currentVariant ? `${product.sku}${currentVariant.suffix}` : product.sku;
     const displayLabel = currentVariant ? (currentVariant.description || currentVariant.suffix) : product.category;
     
-    // RETAIL PRICE LOGIC: Wholesale * 2.5
+    // RETAIL PRICE LOGIC: Wholesale * 3.0
     const wholesalePrice = currentVariant ? (currentVariant.selling_price || product.selling_price || 0) : (product.selling_price || 0);
-    const displayRetailPrice = wholesalePrice * 2.5;
+    const displayRetailPrice = wholesalePrice * 3.0;
     
     const stockQty = currentVariant ? currentVariant.stock_qty : product.stock_qty;
 

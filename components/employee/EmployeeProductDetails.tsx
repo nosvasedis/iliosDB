@@ -61,7 +61,7 @@ export default function EmployeeProductDetails({ product, onClose, warehouses, s
 
     // Retail Price Calculation
     const wholesalePrice = product.selling_price || 0;
-    const retailPrice = wholesalePrice * 2.5;
+    const retailPrice = wholesalePrice * 3.0;
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center md:p-4 bg-white md:bg-transparent">
@@ -135,7 +135,7 @@ export default function EmployeeProductDetails({ product, onClose, warehouses, s
                                     const { finish, stone } = getVariantComponents(v.suffix, product.gender);
                                     const badgeColor = FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-600 border-slate-200';
                                     const stoneColor = STONE_TEXT_COLORS[stone.code] || 'text-slate-700';
-                                    const variantRetail = (v.selling_price || product.selling_price || 0) * 2.5;
+                                    const variantRetail = (v.selling_price || product.selling_price || 0) * 3.0;
                                     
                                     return (
                                     <tr key={v.suffix} className="hover:bg-slate-50/50 transition-colors">
