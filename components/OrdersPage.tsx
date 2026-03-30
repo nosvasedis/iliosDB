@@ -514,7 +514,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintShipment, onPr
                 </div>
             </div>
         </div>
-        {showShipmentPrompt && latestShipmentData && (
+        {false && showShipmentPrompt && latestShipmentData && (
             <div className="fixed inset-0 z-[170] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
                 <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
                     <div className="p-6 border-b border-slate-100 bg-amber-50">
@@ -572,6 +572,69 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintShipment, onPr
                             className="w-full py-3 rounded-2xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition-colors"
                         >
                             Κλείσιμο
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+        {showShipmentPrompt && latestShipmentData && (
+            <div className="fixed inset-0 z-[170] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
+                    <div className="p-6 border-b border-slate-100 bg-amber-50">
+                        <h3 className="text-xl font-bold text-slate-900">{'\u03A5\u03C0\u03AC\u03C1\u03C7\u03B5\u03B9 \u039C\u03B5\u03C1\u03B9\u03BA\u03AE \u0391\u03C0\u03BF\u03C3\u03C4\u03BF\u03BB\u03AE'}</h3>
+                        <p className="text-sm text-slate-600 mt-1">
+                            {`\u0397 \u03C0\u03B1\u03C1\u03B1\u03B3\u03B3\u03B5\u03BB\u03AF\u03B1 \u03AD\u03C7\u03B5\u03B9 \u03BA\u03B1\u03C4\u03B1\u03C7\u03C9\u03C1\u03B7\u03BC\u03AD\u03BD\u03B7 \u03BC\u03B5\u03C1\u03B9\u03BA\u03AE \u03B1\u03C0\u03BF\u03C3\u03C4\u03BF\u03BB\u03AE #${latestShipmentData.shipment.shipment_number}. \u03A4\u03B9 \u03B8\u03AD\u03BB\u03B5\u03C4\u03B5 \u03BD\u03B1 \u03B5\u03BA\u03C4\u03C5\u03C0\u03CE\u03C3\u03B5\u03C4\u03B5;`}
+                        </p>
+                    </div>
+                    <div className="p-6 space-y-3">
+                        <button
+                            onClick={() => {
+                                onPrintShipment?.({ order, shipment: latestShipmentData.shipment, shipmentItems: latestShipmentData.shipmentItems });
+                                setShowShipmentPrompt(false);
+                                onClose();
+                            }}
+                            className="w-full p-4 rounded-2xl border-2 border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors text-left"
+                        >
+                            <div className="font-bold">{'\u0395\u03BA\u03C4\u03CD\u03C0\u03C9\u03C3\u03B7 \u039C\u03B5\u03C1\u03B9\u03BA\u03AE\u03C2 \u0391\u03C0\u03BF\u03C3\u03C4\u03BF\u03BB\u03AE\u03C2'}</div>
+                            <div className="text-xs mt-1 opacity-80">
+                                {`\u039C\u03CC\u03BD\u03BF \u03C4\u03B1 \u03C0\u03C1\u03BF\u03CA\u03CC\u03BD\u03C4\u03B1 \u03C0\u03BF\u03C5 \u03C3\u03C4\u03AC\u03BB\u03B8\u03B7\u03BA\u03B1\u03BD \u03C3\u03C4\u03B7 \u03BC\u03B5\u03C1\u03B9\u03BA\u03AE \u03B1\u03C0\u03BF\u03C3\u03C4\u03BF\u03BB\u03AE #${latestShipmentData.shipment.shipment_number}.`}
+                            </div>
+                        </button>
+                        <button
+                            onClick={() => {
+                                onPrintOrder?.(latestShipmentData.remainingOrder);
+                                setShowShipmentPrompt(false);
+                                onClose();
+                            }}
+                            className="w-full p-4 rounded-2xl border-2 border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100 transition-colors text-left"
+                        >
+                            <div className="font-bold">{'\u0395\u03BA\u03C4\u03CD\u03C0\u03C9\u03C3\u03B7 \u03A5\u03C0\u03BF\u03BB\u03BF\u03AF\u03C0\u03C9\u03BD \u0395\u03B9\u03B4\u03CE\u03BD'}</div>
+                            <div className="text-xs mt-1 opacity-80">
+                                {'\u039C\u03CC\u03BD\u03BF \u03C4\u03B1 batch/SKU \u03C0\u03BF\u03C5 \u03B4\u03B5\u03BD \u03AD\u03C7\u03BF\u03C5\u03BD \u03B1\u03BA\u03CC\u03BC\u03B1 \u03B1\u03C0\u03BF\u03C3\u03C4\u03B1\u03BB\u03B5\u03AF, \u03BC\u03B5 \u03C4\u03B9\u03C2 \u03C5\u03C0\u03CC\u03BB\u03BF\u03B9\u03C0\u03B5\u03C2 \u03C0\u03BF\u03C3\u03CC\u03C4\u03B7\u03C4\u03B5\u03C2.'}
+                            </div>
+                        </button>
+                        <button
+                            onClick={() => {
+                                setShowShipmentPrompt(false);
+                                if (hasMultipleShipments && onShowPartSelector) {
+                                    onShowPartSelector();
+                                } else {
+                                    onPrintOrder?.(order);
+                                    onClose();
+                                }
+                            }}
+                            className="w-full p-4 rounded-2xl border-2 border-slate-200 bg-white text-slate-800 hover:bg-slate-50 transition-colors text-left"
+                        >
+                            <div className="font-bold">{'\u0395\u03BA\u03C4\u03CD\u03C0\u03C9\u03C3\u03B7 \u03A0\u03B1\u03C1\u03B1\u03C3\u03C4\u03B1\u03C4\u03B9\u03BA\u03BF\u03CD \u03A0\u03B1\u03C1\u03B1\u03B3\u03B3\u03B5\u03BB\u03AF\u03B1\u03C2'}</div>
+                            <div className="text-xs mt-1 opacity-80">
+                                {'\u0395\u03BA\u03C4\u03C5\u03C0\u03CE\u03BD\u03B5\u03B9 \u03C4\u03BF \u03BA\u03B1\u03BD\u03BF\u03BD\u03B9\u03BA\u03CC \u03C0\u03B1\u03C1\u03B1\u03C3\u03C4\u03B1\u03C4\u03B9\u03BA\u03CC \u03C4\u03B7\u03C2 \u03C0\u03B1\u03C1\u03B1\u03B3\u03B3\u03B5\u03BB\u03AF\u03B1\u03C2.'}
+                            </div>
+                        </button>
+                        <button
+                            onClick={() => setShowShipmentPrompt(false)}
+                            className="w-full py-3 rounded-2xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition-colors"
+                        >
+                            {'\u039A\u03BB\u03B5\u03AF\u03C3\u03B9\u03BC\u03BF'}
                         </button>
                     </div>
                 </div>
