@@ -194,6 +194,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                 } else if (stageBatchPrintData) {
                     const safeName = getSafeClientName(stageBatchPrintData.customerName);
                     docTitle = `Stage_${stageBatchPrintData.stageId}_${safeName || 'Order'}_${dateStr}`;
+                }
 
                 docTitle = sanitizeFilename(docTitle) || 'Ilios_Print_Job';
                 document.title = docTitle;
