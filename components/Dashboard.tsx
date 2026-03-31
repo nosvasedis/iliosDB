@@ -38,6 +38,7 @@ import {
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
+import { getProductionStageLabel } from '../utils/productionStages';
 
 interface Props {
   products: Product[];
@@ -46,13 +47,14 @@ interface Props {
 }
 
 const STAGE_LABELS: Record<string, string> = {
-    [ProductionStage.AwaitingDelivery]: 'Αναμονή',
-    [ProductionStage.Waxing]: 'Λάστιχα/Κεριά',
-    [ProductionStage.Casting]: 'Χυτήριο',
-    [ProductionStage.Setting]: 'Καρφωτής',
-    [ProductionStage.Polishing]: 'Τεχνίτης',
-    [ProductionStage.Labeling]: 'Πακετάρισμα',
-    [ProductionStage.Ready]: 'Έτοιμα'
+    [ProductionStage.AwaitingDelivery]: getProductionStageLabel(ProductionStage.AwaitingDelivery),
+    [ProductionStage.Waxing]: getProductionStageLabel(ProductionStage.Waxing),
+    [ProductionStage.Casting]: getProductionStageLabel(ProductionStage.Casting),
+    [ProductionStage.Setting]: getProductionStageLabel(ProductionStage.Setting),
+    [ProductionStage.Polishing]: getProductionStageLabel(ProductionStage.Polishing),
+    [ProductionStage.Assembly]: getProductionStageLabel(ProductionStage.Assembly),
+    [ProductionStage.Labeling]: getProductionStageLabel(ProductionStage.Labeling),
+    [ProductionStage.Ready]: getProductionStageLabel(ProductionStage.Ready)
 };
 
 const COLORS = ['#059669', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1', '#ec4899', '#14b8a6'];

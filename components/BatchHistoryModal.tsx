@@ -1,23 +1,21 @@
 
-import React, { useMemo } from 'react';
-import { ProductionBatch, ProductionStage } from '../types';
-import { X, Clock, ArrowRight, User, Calendar, Package, Flame, Gem, Hammer, Layers, Tag, CheckCircle, Globe, PlayCircle, PauseCircle } from 'lucide-react';
-
-interface BatchHistoryEntry {
-    id: string;
-    batch_id: string;
-    from_stage: ProductionStage | null;
-    to_stage: ProductionStage;
-    moved_by: string;
-    moved_at: string;
-    notes?: string;
-}
+import React, { useEffect, useMemo, useState } from 'react';
+import { BatchStageHistoryEntry, ProductionBatch, ProductionStage } from '../types';
+import { X, Clock, ArrowRight, User, Calendar, Package, Flame, Gem, Hammer, Layers, Tag, CheckCircle, Globe, PlayCircle, BellOff } from 'lucide-react';
+import {
+    formatGreekDurationFromMs,
+    getProductionTimingInfo,
+    getProductionTimingStatusClasses,
+    getProductionTimingStatusLabel,
+} from '../utils/productionTiming';
+import { getProductionStageLabel } from '../utils/productionStages';
 
 interface Props {
     isOpen: boolean;
     onClose: () => void;
     batch: ProductionBatch | null;
-    history: BatchHistoryEntry[];
+    history: BatchStageHistoryEntry[];
+    onSnoozeReminder?: (batch: ProductionBatch) => void;
 }
 
 const STAGE_CONFIG: Record<ProductionStage, { label: string; icon: React.ReactNode; color: string; bg: string; border: string }> = {
@@ -29,49 +27,49 @@ const STAGE_CONFIG: Record<ProductionStage, { label: string; icon: React.ReactNo
         border: 'border-indigo-200'
     },
     [ProductionStage.Waxing]: {
-        label: 'Παρασκευή',
+        label: getProductionStageLabel(ProductionStage.Waxing),
         icon: <Package size={14} />,
         color: 'text-slate-700',
         bg: 'bg-slate-50',
         border: 'border-slate-200'
     },
     [ProductionStage.Casting]: {
-        label: 'Χυτήριο',
+        label: getProductionStageLabel(ProductionStage.Casting),
         icon: <Flame size={14} />,
         color: 'text-orange-700',
         bg: 'bg-orange-50',
         border: 'border-orange-200'
     },
     [ProductionStage.Setting]: {
-        label: 'Καρφωτής',
+        label: getProductionStageLabel(ProductionStage.Setting),
         icon: <Gem size={14} />,
         color: 'text-purple-700',
         bg: 'bg-purple-50',
         border: 'border-purple-200'
     },
     [ProductionStage.Polishing]: {
-        label: 'Τεχνίτης',
+        label: getProductionStageLabel(ProductionStage.Polishing),
         icon: <Hammer size={14} />,
         color: 'text-blue-700',
         bg: 'bg-blue-50',
         border: 'border-blue-200'
     },
     [ProductionStage.Assembly]: {
-        label: 'Συναρμολόγηση',
+        label: getProductionStageLabel(ProductionStage.Assembly),
         icon: <Layers size={14} />,
         color: 'text-pink-700',
         bg: 'bg-pink-50',
         border: 'border-pink-200'
     },
     [ProductionStage.Labeling]: {
-        label: 'Καρτελάκια - Πακετάρισμα',
+        label: getProductionStageLabel(ProductionStage.Labeling),
         icon: <Tag size={14} />,
         color: 'text-yellow-700',
         bg: 'bg-yellow-50',
         border: 'border-yellow-200'
     },
     [ProductionStage.Ready]: {
-        label: 'Έτοιμα',
+        label: getProductionStageLabel(ProductionStage.Ready),
         icon: <CheckCircle size={14} />,
         color: 'text-emerald-700',
         bg: 'bg-emerald-50',
@@ -91,22 +89,44 @@ const formatDateTime = (dateStr: string) => {
 const getDurationInStage = (fromDate: string, toDate: string) => {
     const from = new Date(fromDate).getTime();
     const to = new Date(toDate).getTime();
-    const diffMs = to - from;
-    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffHrs / 24);
-
-    if (diffDays > 0) {
-        return `${diffDays}ημ ${diffHrs % 24}ω`;
-    }
-    return `${diffHrs}ω`;
+    return formatGreekDurationFromMs(to - from);
 };
 
-export default function BatchHistoryModal({ isOpen, onClose, batch, history }: Props) {
+export default function BatchHistoryModal({ isOpen, onClose, batch, history, onSnoozeReminder }: Props) {
+    const [nowMs, setNowMs] = useState(() => Date.now());
+
+    useEffect(() => {
+        const intervalId = window.setInterval(() => setNowMs(Date.now()), 60_000);
+        return () => window.clearInterval(intervalId);
+    }, []);
+
+    const timelineHistory = useMemo(() => {
+        if (!batch) return [] as BatchStageHistoryEntry[];
+
+        const ascending = [...history].sort((a, b) => new Date(a.moved_at).getTime() - new Date(b.moved_at).getTime());
+        const hasCreationEntry = ascending.some((entry) => entry.from_stage === null);
+
+        if (hasCreationEntry) return ascending;
+
+        return [
+            {
+                id: `synthetic-create-${batch.id}`,
+                batch_id: batch.id,
+                from_stage: null,
+                to_stage: batch.current_stage,
+                moved_by: 'Σύστημα',
+                moved_at: batch.created_at,
+                notes: 'Συντέθηκε από την ημερομηνία δημιουργίας παρτίδας',
+            },
+            ...ascending,
+        ];
+    }, [batch, history]);
+
     const sortedHistory = useMemo(() => {
-        return [...history].sort((a, b) => 
+        return [...timelineHistory].sort((a, b) =>
             new Date(b.moved_at).getTime() - new Date(a.moved_at).getTime()
         );
-    }, [history]);
+    }, [timelineHistory]);
 
     const totalTimeInProduction = useMemo(() => {
         if (sortedHistory.length === 0) return null;
@@ -118,13 +138,16 @@ export default function BatchHistoryModal({ isOpen, onClose, batch, history }: P
         const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
         const diffDays = Math.floor(diffHrs / 24);
         
-        if (diffDays > 0) {
-            return `${diffDays} ημέρες, ${diffHrs % 24} ώρες`;
-        }
-        return `${diffHrs} ώρες`;
+        return formatGreekDurationFromMs(diffMs);
     }, [sortedHistory]);
 
     if (!isOpen || !batch) return null;
+
+    const currentTiming = getProductionTimingInfo(batch, timelineHistory, nowMs);
+    const currentStageLabel = getProductionStageLabel(batch.current_stage);
+    const currentStageSinceLabel = formatDateTime(currentTiming.stageEnteredAt);
+    const currentStatusClasses = getProductionTimingStatusClasses(currentTiming.timingStatus);
+    const currentStatusLabel = getProductionTimingStatusLabel(currentTiming.timingStatus);
 
     return (
         <div className="fixed inset-0 z-[250] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
@@ -159,22 +182,54 @@ export default function BatchHistoryModal({ isOpen, onClose, batch, history }: P
                 </div>
 
                 {/* Summary Stats */}
-                {sortedHistory.length > 0 && (
-                    <div className="px-6 py-4 bg-blue-50/50 border-b border-blue-100 flex items-center gap-6">
-                        <div className="flex items-center gap-2">
-                            <Calendar size={16} className="text-blue-600" />
-                            <span className="text-sm text-slate-600">
-                                Συνολικός χρόνος: <span className="font-bold text-blue-700">{totalTimeInProduction}</span>
-                            </span>
+                <div className="px-6 py-4 bg-blue-50/50 border-b border-blue-100">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                        <div className="bg-white/80 border border-blue-100 rounded-2xl px-4 py-3">
+                            <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Τρέχον στάδιο</div>
+                            <div className="font-black text-slate-800">{currentStageLabel}</div>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <ArrowRight size={16} className="text-emerald-600" />
-                            <span className="text-sm text-slate-600">
-                                Μετακινήσεις: <span className="font-bold text-emerald-700">{sortedHistory.length}</span>
-                            </span>
+                        <div className="bg-white/80 border border-blue-100 rounded-2xl px-4 py-3">
+                            <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Από πότε</div>
+                            <div className="font-bold text-slate-700">{currentStageSinceLabel.date} • {currentStageSinceLabel.time}</div>
+                        </div>
+                        <div className="bg-white/80 border border-blue-100 rounded-2xl px-4 py-3">
+                            <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Χρόνος στο στάδιο</div>
+                            <div className="font-black text-blue-700">{currentTiming.timingLabel}</div>
+                        </div>
+                        <div className="bg-white/80 border border-blue-100 rounded-2xl px-4 py-3">
+                            <div className="flex items-center justify-between gap-2">
+                                <div>
+                                    <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Κατάσταση</div>
+                                    <div className={`inline-flex items-center gap-1 text-xs font-black px-2.5 py-1 rounded-full border ${currentStatusClasses}`}>
+                                        <Clock size={12} />
+                                        <span>{currentStatusLabel}</span>
+                                    </div>
+                                </div>
+                                {onSnoozeReminder && !batch.on_hold && currentTiming.timingStatus === 'critical' && (
+                                    <button
+                                        onClick={() => onSnoozeReminder(batch)}
+                                        className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                                        title="Σίγαση υπενθύμισης για το τρέχον στάδιο"
+                                    >
+                                        <BellOff size={14} />
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
-                )}
+                    {sortedHistory.length > 0 && (
+                        <div className="mt-3 flex items-center gap-6 text-sm text-slate-600 flex-wrap">
+                            <div className="flex items-center gap-2">
+                                <Calendar size={16} className="text-blue-600" />
+                                <span>Συνολικός χρόνος: <span className="font-bold text-blue-700">{totalTimeInProduction}</span></span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <ArrowRight size={16} className="text-emerald-600" />
+                                <span>Μετακινήσεις: <span className="font-bold text-emerald-700">{sortedHistory.length}</span></span>
+                            </div>
+                        </div>
+                    )}
+                </div>
 
                 {/* Timeline */}
                 <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30 custom-scrollbar">

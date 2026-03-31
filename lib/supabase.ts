@@ -452,6 +452,22 @@ async function insertBatchStageHistory(entry: BatchStageHistoryEntry): Promise<v
     }, { noSelect: true });
 }
 
+function buildInitialBatchHistoryEntry(
+    batch: Pick<ProductionBatch, 'id' | 'current_stage' | 'created_at'>,
+    userName?: string,
+    notes?: string | null
+): BatchStageHistoryEntry {
+    return {
+        id: crypto.randomUUID(),
+        batch_id: batch.id,
+        from_stage: null,
+        to_stage: batch.current_stage,
+        moved_by: userName || 'System',
+        moved_at: batch.created_at,
+        notes: notes ?? null
+    };
+}
+
 export const saveConfiguration = (url: string, key: string, workerKey: string, geminiKey: string) => {
     localStorage.setItem('VITE_SUPABASE_URL', url);
     localStorage.setItem('VITE_SUPABASE_ANON_KEY', key);
@@ -1022,6 +1038,10 @@ export const api = {
 
     getProductionBatches: async (): Promise<ProductionBatch[]> => {
         return fetchFullTable('production_batches', '*', (q) => q.order('created_at', { ascending: false }));
+    },
+
+    getBatchStageHistoryEntries: async (): Promise<BatchStageHistoryEntry[]> => {
+        return fetchFullTable('batch_stage_history', '*', (q) => q.order('moved_at', { ascending: false }));
     },
 
     getPriceSnapshots: async (): Promise<PriceSnapshot[]> => {
@@ -1752,6 +1772,12 @@ export const api = {
             // Apply deficit: single bulk insert
             if (batchesToInsert.length > 0) {
                 await safeMutate('production_batches', 'INSERT', batchesToInsert);
+                await safeMutate(
+                    'batch_stage_history',
+                    'INSERT',
+                    batchesToInsert.map((batch) => buildInitialBatchHistoryEntry(batch)),
+                    { noSelect: true }
+                );
             }
             // Apply surplus: parallel deletes and parallel updates (behavior unchanged)
             if (batchIdsToDelete.length > 0) {
@@ -1906,6 +1932,12 @@ export const api = {
 
         if (batches.length > 0) {
             await safeMutate('production_batches', 'UPSERT', batches);
+            await safeMutate(
+                'batch_stage_history',
+                'INSERT',
+                batches.map((batch) => buildInitialBatchHistoryEntry(batch)),
+                { noSelect: true }
+            );
         }
 
         // Always ensure order is marked In Production if we send something

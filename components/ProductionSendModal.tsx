@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useCallback, useState, useMemo, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType, BatchStageHistoryEntry, StageBatchPrintData } from '../types';
 import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, ArrowLeft, Clock, StickyNote, History, Package, Box, Info, PauseCircle, PlayCircle, User, ShoppingCart, RefreshCcw, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer, Scissors, Trash2, Split, Merge, FileText, AlertCircle, Save, Check } from 'lucide-react';
@@ -13,6 +13,8 @@ import { getShippedQuantities, itemKey } from '../utils/shipmentUtils';
 import { buildItemIdentityKey } from '../utils/itemIdentity';
 import { getProductOptionColorLabel } from '../utils/xrOptions';
 import BatchHistoryModal from './BatchHistoryModal';
+import { PRODUCTION_STAGES, getProductionStageLabel, getProductionStageShortLabel } from '../utils/productionStages';
+import { buildBatchStageHistoryLookup, getProductionTimingInfo, getProductionTimingStatusClasses } from '../utils/productionTiming';
 
 interface Props {
     order: Order;
@@ -27,26 +29,29 @@ interface Props {
     onBack?: () => void; // Optional: navigate back to quick picker
 }
 
-const STAGES = [
-    { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή', color: 'bg-indigo-100/60 border-indigo-200 text-indigo-800' },
-    { id: ProductionStage.Waxing, label: 'Παρασκευή', color: 'bg-slate-100 border-slate-200 text-slate-800' },
-    { id: ProductionStage.Casting, label: 'Χυτήριο', color: 'bg-orange-100/60 border-orange-200 text-orange-800' },
-    { id: ProductionStage.Setting, label: 'Καρφωτής', color: 'bg-purple-100/60 border-purple-200 text-purple-800' },
-    { id: ProductionStage.Polishing, label: 'Τεχνίτης', color: 'bg-blue-100/60 border-blue-200 text-blue-800' },
-    { id: ProductionStage.Assembly, label: 'Συναρμολόγηση', color: 'bg-pink-100/60 border-pink-200 text-pink-800' },
-    { id: ProductionStage.Labeling, label: 'Συσκευασία', color: 'bg-yellow-100/60 border-yellow-200 text-yellow-800' },
-    { id: ProductionStage.Ready, label: 'Έτοιμα', color: 'bg-emerald-100/60 border-emerald-200 text-emerald-800' }
-];
+const STAGES = PRODUCTION_STAGES.map((stage) => ({
+    id: stage.id,
+    label: stage.label,
+    color:
+        stage.id === ProductionStage.AwaitingDelivery ? 'bg-indigo-100/60 border-indigo-200 text-indigo-800' :
+        stage.id === ProductionStage.Waxing ? 'bg-slate-100 border-slate-200 text-slate-800' :
+        stage.id === ProductionStage.Casting ? 'bg-orange-100/60 border-orange-200 text-orange-800' :
+        stage.id === ProductionStage.Setting ? 'bg-purple-100/60 border-purple-200 text-purple-800' :
+        stage.id === ProductionStage.Polishing ? 'bg-blue-100/60 border-blue-200 text-blue-800' :
+        stage.id === ProductionStage.Assembly ? 'bg-pink-100/60 border-pink-200 text-pink-800' :
+        stage.id === ProductionStage.Labeling ? 'bg-yellow-100/60 border-yellow-200 text-yellow-800' :
+        'bg-emerald-100/60 border-emerald-200 text-emerald-800'
+}));
 
 const STAGE_SHORT_LABELS: Record<string, string> = {
-    [ProductionStage.AwaitingDelivery]: 'Αναμονή',
-    [ProductionStage.Waxing]: 'Παρασκευή',
-    [ProductionStage.Casting]: 'Χυτήριο',
-    [ProductionStage.Setting]: 'Καρφωτής',
-    [ProductionStage.Polishing]: 'Τεχνίτης',
-    [ProductionStage.Assembly]: 'Συναρμολ.',
-    [ProductionStage.Labeling]: 'Συσκευασία',
-    [ProductionStage.Ready]: 'Έτοιμα'
+    [ProductionStage.AwaitingDelivery]: getProductionStageShortLabel(ProductionStage.AwaitingDelivery),
+    [ProductionStage.Waxing]: getProductionStageShortLabel(ProductionStage.Waxing),
+    [ProductionStage.Casting]: getProductionStageShortLabel(ProductionStage.Casting),
+    [ProductionStage.Setting]: getProductionStageShortLabel(ProductionStage.Setting),
+    [ProductionStage.Polishing]: getProductionStageShortLabel(ProductionStage.Polishing),
+    [ProductionStage.Assembly]: getProductionStageShortLabel(ProductionStage.Assembly),
+    [ProductionStage.Labeling]: getProductionStageShortLabel(ProductionStage.Labeling),
+    [ProductionStage.Ready]: getProductionStageShortLabel(ProductionStage.Ready)
 };
 
 // Stage colors for movement buttons - matching ProductionBatchCard
@@ -239,38 +244,16 @@ const StageFlowRail = ({
     );
 };
 
-const getTimeInStage = (dateStr: string) => {
-    const start = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - start.getTime();
-    const diffHrs = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60)));
-    const diffDays = Math.floor(diffHrs / 24);
-
-    if (diffDays > 0) {
-        return {
-            label: `${diffDays}η ${diffHrs % 24}ω`,
-            className: diffDays >= 6
-                ? 'bg-red-50 text-red-600 border-red-200'
-                : diffDays >= 4
-                ? 'bg-orange-50 text-orange-600 border-orange-200'
-                : 'bg-blue-50 text-blue-600 border-blue-200'
-        };
-    }
-
-    return {
-        label: `${diffHrs}ω`,
-        className: diffHrs < 4
-            ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
-            : 'bg-blue-50 text-blue-600 border-blue-200'
-    };
-};
-
 export default function ProductionSendModal({ order, products, materials, existingBatches, collections, onClose, onSuccess, onPrintAggregated, onPrintStageBatches, onBack }: Props) {
     const { showToast, confirm } = useUI();
     const queryClient = useQueryClient();
     const { data: shipmentSnapshot, isLoading: isLoadingShipments } = useQuery({
         queryKey: ['order-shipments', order.id],
         queryFn: () => api.getShipmentsForOrder(order.id)
+    });
+    const { data: batchStageHistoryEntries = [] } = useQuery({
+        queryKey: ['batchStageHistory'],
+        queryFn: api.getBatchStageHistoryEntries
     });
     const [isSending, setIsSending] = useState(false);
     const [isWorking, setIsWorking] = useState(false); // Global blocker for internal actions
@@ -304,6 +287,10 @@ export default function ProductionSendModal({ order, products, materials, existi
     // Stage Popup State
     const [activeStagePopup, setActiveStagePopup] = useState<ProductionStage | null>(null);
     const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>([]);
+    const batchHistoryLookup = useMemo(() => buildBatchStageHistoryLookup(batchStageHistoryEntries), [batchStageHistoryEntries]);
+    const getBatchTiming = useCallback((batch: ProductionBatch) => {
+        return getProductionTimingInfo(batch, batchHistoryLookup.get(batch.id));
+    }, [batchHistoryLookup]);
 
     // Order Financials
     const vatRate = order.vat_rate !== undefined ? order.vat_rate : 0.24;
@@ -1218,7 +1205,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                 const unitPrice = batchRow?.price || 0;
                                                                 const batchVal = unitPrice * batch.quantity * discountFactor;
                                                                 const isSelected = selectedBatchIds.includes(batch.id);
-                                                                const timeInfo = getTimeInStage(batch.updated_at);
+                                                                const timeInfo = getBatchTiming(batch);
 
                                                                 return (
                                                                     <div key={batch.id} className="flex flex-col gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
@@ -1233,8 +1220,8 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                                     {isSelected ? <CheckSquare size={14} /> : <Square size={14} />}
                                                                                 </button>
                                                                                 <span className="font-black text-slate-800 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm min-w-[3rem] text-center">{batch.quantity}</span>
-                                                                                <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${timeInfo.className}`} title={`Χρόνος στο τρέχον στάδιο από ${new Date(batch.updated_at).toLocaleString('el-GR')}`}>
-                                                                                    <Clock size={11} className="inline mr-1" />{timeInfo.label}
+                                                                                <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${getProductionTimingStatusClasses(timeInfo.timingStatus)}`} title={`Χρόνος στο τρέχον στάδιο από ${new Date(timeInfo.stageEnteredAt).toLocaleString('el-GR')}`}>
+                                                                                    <Clock size={11} className="inline mr-1" />{timeInfo.timingLabel}
                                                                                 </span>
                                                                                 <span className="text-[10px] font-mono text-slate-500 bg-white px-2 py-1 rounded border border-slate-200">{formatCurrency(batchVal)}</span>
                                                                                 {batch.size_info && <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-1 rounded-lg border border-blue-100 font-bold">{batch.size_info}</span>}
@@ -1629,7 +1616,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                     {popupBatches.map((batch) => {
                                         const product = products.find(p => p.sku === batch.sku);
                                         const isSelected = selectedBatchIds.includes(batch.id);
-                                        const timeInfo = getTimeInStage(batch.updated_at);
+                                        const timeInfo = getBatchTiming(batch);
                                         
                                         return (
                                             <div key={batch.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -1668,8 +1655,8 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                             <SkuColored sku={batch.sku} suffix={batch.variant_suffix || ''} gender={product?.gender || Gender.Unisex} />
                                                         </div>
                                                         <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                                                            <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${timeInfo.className}`}>
-                                                                <Clock size={11} className="inline mr-1" />{timeInfo.label}
+                                                            <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${getProductionTimingStatusClasses(timeInfo.timingStatus)}`}>
+                                                                <Clock size={11} className="inline mr-1" />{timeInfo.timingLabel}
                                                             </span>
                                                             {batch.on_hold && (
                                                                 <span className="text-[10px] font-black px-2 py-1 rounded-lg border bg-amber-50 text-amber-800 border-amber-200">

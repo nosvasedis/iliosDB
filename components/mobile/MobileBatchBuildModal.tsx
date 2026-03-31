@@ -4,6 +4,7 @@ import { X, Image as ImageIcon, StickyNote, Box, MapPin, PauseCircle, PlayCircle
 import { formatDecimal, getVariantComponents } from '../../utils/pricingEngine';
 import { buildBatchBuildData } from '../../utils/batchBuildData';
 import { Material, Mold, ProductionBatch, ProductionStage, Product, ProductionType } from '../../types';
+import { PRODUCTION_STAGES } from '../../utils/productionStages';
 
 // Note: We intentionally keep this modal mobile-first and touch-friendly.
 // It is not a drop-in replacement for BatchBuildModal; it uses the same data helper and callbacks.
@@ -20,16 +21,10 @@ type Props = {
     onViewHistory?: (batch: ProductionBatch) => void;
 };
 
-const STAGES: { id: ProductionStage; label: string }[] = [
-    { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή' },
-    { id: ProductionStage.Waxing, label: 'Παρασκευή' },
-    { id: ProductionStage.Casting, label: 'Χυτήριο' },
-    { id: ProductionStage.Setting, label: 'Καρφωτής' },
-    { id: ProductionStage.Polishing, label: 'Τεχνίτης' },
-    { id: ProductionStage.Assembly, label: 'Συναρμολόγηση' },
-    { id: ProductionStage.Labeling, label: 'Συσκευασία' },
-    { id: ProductionStage.Ready, label: 'Έτοιμα' }
-];
+const STAGES: { id: ProductionStage; label: string }[] = PRODUCTION_STAGES.map((stage) => ({
+    id: stage.id,
+    label: stage.label,
+}));
 
 const STAGE_BUTTON_COLORS: Record<string, { bg: string; text: string; border: string }> = {
     AwaitingDelivery: { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },

@@ -11,6 +11,7 @@ import {
 } from '../types';
 import { RETAIL_CUSTOMER_ID } from '../lib/supabase';
 import { extractRetailClientFromNotes } from './retailNotes';
+import { getProductionStageLabel as getCanonicalProductionStageLabel } from './productionStages';
 
 /** For delivery UI: show customer name, or for Λιανική show "Λιανική · {actual client id/label}" from notes. */
 export function getOrderDisplayName(order: { customer_id?: string; customer_name: string; notes?: string }): string {
@@ -83,18 +84,6 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   [OrderStatus.Cancelled]: 'Ακυρώθηκε'
 };
 
-/** Greek labels for production stages — same names as in Παραγωγή. */
-const PRODUCTION_STAGE_LABEL_MAP: Record<string, string> = {
-  [ProductionStage.AwaitingDelivery]: 'Αναμονή Παραλαβής',
-  [ProductionStage.Waxing]: 'Παρασκευή',
-  [ProductionStage.Casting]: 'Χυτήριο',
-  [ProductionStage.Setting]: 'Καρφωτής',
-  [ProductionStage.Polishing]: 'Τεχνίτης',
-  [ProductionStage.Assembly]: 'Συναρμολόγηση',
-  [ProductionStage.Labeling]: 'Καρτελάκια - Πακετάρισμα',
-  [ProductionStage.Ready]: 'Έτοιμα'
-};
-
 /** Tailwind classes for stage badges in delivery pane (match Παραγωγή colors). */
 export const PRODUCTION_STAGE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   [ProductionStage.AwaitingDelivery]: { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
@@ -108,7 +97,7 @@ export const PRODUCTION_STAGE_COLORS: Record<string, { bg: string; text: string;
 };
 
 export function getProductionStageLabel(stage: ProductionStage | string): string {
-  return PRODUCTION_STAGE_LABEL_MAP[stage] || String(stage);
+  return getCanonicalProductionStageLabel(stage);
 }
 
 /** Text colors for SKU in one line (Ροή Παραγωγής style). */

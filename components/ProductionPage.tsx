@@ -20,6 +20,18 @@ import { requiresAssemblyStage } from '../constants';
 import { isSpecialCreationSku } from '../utils/specialCreationSku';
 import ProductionMoldRequirementsModal from './ProductionMoldRequirementsModal';
 import { invalidateOrdersAndBatches } from '../lib/queryInvalidation';
+import { PRODUCTION_STAGE_ORDER_INDEX, PRODUCTION_STAGES, getProductionStageLabel, getProductionStageShortLabel } from '../utils/productionStages';
+import {
+    buildBatchStageHistoryLookup,
+    formatGreekDurationFromMs,
+    getProductionTimingInfo,
+    getProductionTimingStatusClasses,
+    getProductionTimingStatusLabel,
+    hasSeenCriticalReminder,
+    isReminderSnoozed,
+    markCriticalReminderSeen,
+    snoozeReminder,
+} from '../utils/productionTiming';
 
 interface Props {
     products: Product[];
@@ -34,30 +46,23 @@ interface Props {
     onPrintStageBatches?: (data: StageBatchPrintData) => void;
 }
 
-const STAGES = [
-    { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή Παραλαβής', icon: <Globe size={20} />, color: 'indigo' },
-    { id: ProductionStage.Waxing, label: 'Παρασκευή', icon: <Package size={20} />, color: 'slate' },
-    { id: ProductionStage.Casting, label: 'Χυτήριο', icon: <Flame size={20} />, color: 'orange' },
-    { id: ProductionStage.Setting, label: 'Καρφωτής', icon: <Gem size={20} />, color: 'purple' },
-    { id: ProductionStage.Polishing, label: 'Τεχνίτης', icon: <Hammer size={20} />, color: 'blue' },
-    { id: ProductionStage.Assembly, label: 'Συναρμολόγηση', icon: <Layers size={20} />, color: 'pink' },
-    { id: ProductionStage.Labeling, label: 'Καρτελάκια - Πακετάρισμα', icon: <Tag size={20} />, color: 'yellow' },
-    { id: ProductionStage.Ready, label: 'Έτοιμα', icon: <CheckCircle size={20} />, color: 'emerald' }
-];
-
-const STAGE_LIMITS_HOURS: Record<string, number> = {
-    [ProductionStage.Waxing]: 120,    // 5 Days
-    [ProductionStage.Casting]: 96,    // 4 Days
-    [ProductionStage.Setting]: 144,   // 6 Days
-    [ProductionStage.Polishing]: 120, // 5 Days
-    [ProductionStage.Assembly]: 72,   // 3 Days
-    [ProductionStage.Labeling]: 72    // 3 Days
+const STAGE_ICONS: Record<ProductionStage, React.ReactNode> = {
+    [ProductionStage.AwaitingDelivery]: <Globe size={20} />,
+    [ProductionStage.Waxing]: <Package size={20} />,
+    [ProductionStage.Casting]: <Flame size={20} />,
+    [ProductionStage.Setting]: <Gem size={20} />,
+    [ProductionStage.Polishing]: <Hammer size={20} />,
+    [ProductionStage.Assembly]: <Layers size={20} />,
+    [ProductionStage.Labeling]: <Tag size={20} />,
+    [ProductionStage.Ready]: <CheckCircle size={20} />
 };
 
-const STAGE_ORDER_INDEX = STAGES.reduce<Record<string, number>>((acc, stage, index) => {
-    acc[stage.id] = index;
-    return acc;
-}, {});
+const STAGES = PRODUCTION_STAGES.map((stage) => ({
+    id: stage.id,
+    label: stage.label,
+    icon: STAGE_ICONS[stage.id],
+    color: stage.colorKey
+}));
 
 const STAGE_COLORS = {
     indigo: { bg: 'bg-indigo-100/40', text: 'text-indigo-700', border: 'border-indigo-200', ring: 'ring-indigo-100', header: 'bg-indigo-100/50' },
@@ -122,33 +127,6 @@ const SkuColored = ({ sku, suffix, gender }: { sku: string, suffix?: string, gen
     );
 };
 
-// Helper for Age/Delay Visualization
-const getAgeInfo = (dateStr: string) => {
-    const start = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - start.getTime();
-    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffHrs / 24);
-
-    let label = '';
-    let style = '';
-
-    if (diffDays > 5) {
-        label = `${diffDays}ημ`;
-        style = 'bg-red-50 text-red-600 border-red-200';
-    } else if (diffDays > 2) {
-        label = `${diffDays}ημ`;
-        style = 'bg-orange-50 text-orange-600 border-orange-200';
-    } else if (diffDays > 0) {
-        label = `${diffDays}ημ ${diffHrs % 24}ω`;
-        style = 'bg-blue-50 text-blue-600 border-blue-200';
-    } else {
-        label = `${diffHrs}ω`;
-        style = 'bg-emerald-50 text-emerald-600 border-emerald-200';
-    }
-    return { label, style };
-};
-
 type PrintSelectorType = 'technician' | 'preparation' | 'aggregated' | 'labels' | 'assembly';
 type LabelPrintSortMode = 'as_sent' | 'customer';
 type ProductionQuickPickEntry = {
@@ -167,6 +145,16 @@ type AssemblyOrderCandidate = {
     assemblySkuCount: number;
     totalAssemblyQty: number;
 };
+
+const getBatchStageChronologyTimestamp = (batch: Pick<EnhancedProductionBatch, 'stageEnteredAt' | 'created_at'>) => {
+    const ts = new Date(batch.stageEnteredAt || batch.created_at).getTime();
+    return Number.isFinite(ts) ? ts : 0;
+};
+
+const getBatchAgeInfo = (batch: Pick<EnhancedProductionBatch, 'timingLabel' | 'timingStatus'>) => ({
+    label: batch.timingLabel || '0λ',
+    style: getProductionTimingStatusClasses(batch.timingStatus || 'normal')
+});
 
 // ── DesktopSettingStoneModal ─────────────────────────────────────────────────
 const DesktopSettingStoneModal: React.FC<{
@@ -584,14 +572,14 @@ const QuickProductionPickerModal = ({
 
     // Stage display config with colors and short labels
     const STAGE_DISPLAY: Record<string, { label: string; shortLabel: string; color: string; bgColor: string; borderColor: string }> = {
-        [ProductionStage.AwaitingDelivery]: { label: 'Αναμονή', shortLabel: 'ΑΝ', color: 'text-indigo-700', bgColor: 'bg-indigo-50', borderColor: 'border-indigo-200' },
-        [ProductionStage.Waxing]: { label: 'Παρασκευή', shortLabel: 'ΠΑ', color: 'text-slate-700', bgColor: 'bg-slate-100', borderColor: 'border-slate-200' },
-        [ProductionStage.Casting]: { label: 'Χυτήριο', shortLabel: 'ΧΥ', color: 'text-orange-700', bgColor: 'bg-orange-50', borderColor: 'border-orange-200' },
-        [ProductionStage.Setting]: { label: 'Καρφωτής', shortLabel: 'ΚΑ', color: 'text-purple-700', bgColor: 'bg-purple-50', borderColor: 'border-purple-200' },
-        [ProductionStage.Polishing]: { label: 'Τεχνίτης', shortLabel: 'ΤΕ', color: 'text-blue-700', bgColor: 'bg-blue-50', borderColor: 'border-blue-200' },
-        [ProductionStage.Assembly]: { label: 'Συναρμολόγηση', shortLabel: 'ΣΥ', color: 'text-pink-700', bgColor: 'bg-pink-50', borderColor: 'border-pink-200' },
-        [ProductionStage.Labeling]: { label: 'Συσκευασία', shortLabel: 'ΣΚ', color: 'text-yellow-700', bgColor: 'bg-yellow-50', borderColor: 'border-yellow-200' },
-        [ProductionStage.Ready]: { label: 'Έτοιμα', shortLabel: 'ΕΤ', color: 'text-emerald-700', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200' },
+        [ProductionStage.AwaitingDelivery]: { label: getProductionStageLabel(ProductionStage.AwaitingDelivery), shortLabel: getProductionStageShortLabel(ProductionStage.AwaitingDelivery), color: 'text-indigo-700', bgColor: 'bg-indigo-50', borderColor: 'border-indigo-200' },
+        [ProductionStage.Waxing]: { label: getProductionStageLabel(ProductionStage.Waxing), shortLabel: getProductionStageShortLabel(ProductionStage.Waxing), color: 'text-slate-700', bgColor: 'bg-slate-100', borderColor: 'border-slate-200' },
+        [ProductionStage.Casting]: { label: getProductionStageLabel(ProductionStage.Casting), shortLabel: getProductionStageShortLabel(ProductionStage.Casting), color: 'text-orange-700', bgColor: 'bg-orange-50', borderColor: 'border-orange-200' },
+        [ProductionStage.Setting]: { label: getProductionStageLabel(ProductionStage.Setting), shortLabel: getProductionStageShortLabel(ProductionStage.Setting), color: 'text-purple-700', bgColor: 'bg-purple-50', borderColor: 'border-purple-200' },
+        [ProductionStage.Polishing]: { label: getProductionStageLabel(ProductionStage.Polishing), shortLabel: getProductionStageShortLabel(ProductionStage.Polishing), color: 'text-blue-700', bgColor: 'bg-blue-50', borderColor: 'border-blue-200' },
+        [ProductionStage.Assembly]: { label: getProductionStageLabel(ProductionStage.Assembly), shortLabel: getProductionStageShortLabel(ProductionStage.Assembly), color: 'text-pink-700', bgColor: 'bg-pink-50', borderColor: 'border-pink-200' },
+        [ProductionStage.Labeling]: { label: getProductionStageLabel(ProductionStage.Labeling), shortLabel: getProductionStageShortLabel(ProductionStage.Labeling), color: 'text-yellow-700', bgColor: 'bg-yellow-50', borderColor: 'border-yellow-200' },
+        [ProductionStage.Ready]: { label: getProductionStageLabel(ProductionStage.Ready), shortLabel: getProductionStageShortLabel(ProductionStage.Ready), color: 'text-emerald-700', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200' },
     };
 
     const STAGE_ORDER = [
@@ -1081,14 +1069,14 @@ const STAGE_SELECT_COLORS: Record<string, { bg: string; color: string }> = {
 
 // Stage display order and labels for finder
 const FINDER_STAGE_ORDER: { id: ProductionStage, label: string }[] = [
-    { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή' },
-    { id: ProductionStage.Waxing, label: 'Παρασκευή' },
-    { id: ProductionStage.Casting, label: 'Χυτήριο' },
-    { id: ProductionStage.Setting, label: 'Καρφωτής' },
-    { id: ProductionStage.Polishing, label: 'Τεχνίτης' },
-    { id: ProductionStage.Assembly, label: 'Συναρμολόγηση' },
-    { id: ProductionStage.Labeling, label: 'Συσκευασία' },
-    { id: ProductionStage.Ready, label: 'Έτοιμα' },
+    { id: ProductionStage.AwaitingDelivery, label: getProductionStageLabel(ProductionStage.AwaitingDelivery) },
+    { id: ProductionStage.Waxing, label: getProductionStageLabel(ProductionStage.Waxing) },
+    { id: ProductionStage.Casting, label: getProductionStageLabel(ProductionStage.Casting) },
+    { id: ProductionStage.Setting, label: getProductionStageLabel(ProductionStage.Setting) },
+    { id: ProductionStage.Polishing, label: getProductionStageLabel(ProductionStage.Polishing) },
+    { id: ProductionStage.Assembly, label: getProductionStageLabel(ProductionStage.Assembly) },
+    { id: ProductionStage.Labeling, label: getProductionStageLabel(ProductionStage.Labeling) },
+    { id: ProductionStage.Ready, label: getProductionStageLabel(ProductionStage.Ready) },
 ];
 
 // Component for stage selector in finder results
@@ -1431,12 +1419,12 @@ const StageInspectorModal: React.FC<{
                 const cB = (b.customer_name || '').toLocaleLowerCase('el');
                 const cmp = cA.localeCompare(cB, 'el');
                 if (cmp !== 0) return cmp;
-                return new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+                return getBatchStageChronologyTimestamp(a) - getBatchStageChronologyTimestamp(b);
             });
         } else if (sortMode === 'oldest') {
-            list.sort((a, b) => new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime());
+            list.sort((a, b) => getBatchStageChronologyTimestamp(a) - getBatchStageChronologyTimestamp(b));
         } else {
-            list.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+            list.sort((a, b) => getBatchStageChronologyTimestamp(b) - getBatchStageChronologyTimestamp(a));
         }
         return list;
     }, [batches, clientFilter, sortMode]);
@@ -1467,14 +1455,14 @@ const StageInspectorModal: React.FC<{
     }, [filtered, sortMode]);
 
     const renderBatchCard = (batch: EnhancedProductionBatch) => {
-        const ageInfo = getAgeInfo(batch.updated_at);
+        const ageInfo = getBatchAgeInfo(batch);
         const variant = batch.product_details?.variants?.find(v => v.suffix === batch.variant_suffix);
         const descriptor = [
             variant?.description,
             batch.product_details?.description,
             batch.product_details?.category,
         ].filter(Boolean).join(' • ');
-        const updatedAtLabel = new Date(batch.updated_at).toLocaleString('el-GR', {
+        const stageEnteredLabel = new Date(batch.stageEnteredAt || batch.created_at).toLocaleString('el-GR', {
             day: '2-digit',
             month: '2-digit',
             hour: '2-digit',
@@ -1533,17 +1521,17 @@ const StageInspectorModal: React.FC<{
                             </div>
                         </div>
                         <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
-                            <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Τελευταία Κίνηση</div>
+                            <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Στο στάδιο από</div>
                             <div className="flex items-center gap-1.5 text-slate-700 font-bold">
                                 <Calendar size={11} className="text-slate-400 shrink-0" />
-                                <span>{updatedAtLabel}</span>
+                                <span>{stageEnteredLabel}</span>
                             </div>
                         </div>
                         <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
-                            <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Τύπος</div>
+                            <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Κατάσταση</div>
                             <div className="flex items-center gap-1.5 text-slate-700 font-bold">
-                                <Package size={11} className="text-slate-400 shrink-0" />
-                                <span>{batch.product_details?.production_type === ProductionType.Imported ? 'Εισαγωγής' : 'Παραγωγή'}</span>
+                                <AlertTriangle size={11} className="text-slate-400 shrink-0" />
+                                <span>{getProductionTimingStatusLabel(batch.timingStatus || 'normal')}</span>
                             </div>
                         </div>
                     </div>
@@ -1660,13 +1648,13 @@ const StageInspectorModal: React.FC<{
                         <div className="text-center py-12 text-slate-400 italic text-sm">Δεν βρέθηκαν παρτίδες.</div>
                     ) : (
                         filtered.map((batch, index) => {
-                            const ageInfo = getAgeInfo(batch.updated_at);
+                            const ageInfo = getBatchAgeInfo(batch);
                             const previousCustomer = index > 0 ? ((filtered[index - 1].customer_name || 'Χωρίς Πελάτη').trim() || 'Χωρίς Πελάτη') : null;
                             const currentCustomer = (batch.customer_name || 'Χωρίς Πελάτη').trim() || 'Χωρίς Πελάτη';
                             const showClientDivider = sortMode === 'client' && currentCustomer !== previousCustomer;
                             const variant = batch.product_details?.variants?.find(v => v.suffix === batch.variant_suffix);
                             const descriptor = [variant?.description, batch.product_details?.description, batch.product_details?.category].filter(Boolean).join(' • ');
-                            const updatedAtLabel = new Date(batch.updated_at).toLocaleString('el-GR', {
+                            const stageEnteredLabel = new Date(batch.stageEnteredAt || batch.created_at).toLocaleString('el-GR', {
                                 day: '2-digit',
                                 month: '2-digit',
                                 hour: '2-digit',
@@ -1743,10 +1731,10 @@ const StageInspectorModal: React.FC<{
                                                 </div>
                                             </div>
                                             <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
-                                                <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Τελευταία Κίνηση</div>
+                                                <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Στο στάδιο από</div>
                                                 <div className="flex items-center gap-1.5 text-slate-700 font-bold">
                                                     <Calendar size={11} className="text-slate-400 shrink-0" />
-                                                    <span>{updatedAtLabel}</span>
+                                                    <span>{stageEnteredLabel}</span>
                                                 </div>
                                             </div>
                                             <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
@@ -1787,8 +1775,10 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     const { showToast, confirm } = useUI();
     const { profile } = useAuth();
     const { data: batches, isLoading, isError: batchesError, error: batchesErr, refetch: refetchBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
+    const { data: batchStageHistoryEntries = [] } = useQuery({ queryKey: ['batchStageHistory'], queryFn: api.getBatchStageHistoryEntries });
     const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
     const { data: collections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
+    const [timingNow, setTimingNow] = useState(() => Date.now());
 
     const [draggedBatchId, setDraggedBatchId] = useState<string | null>(null);
     const [dropTarget, setDropTarget] = useState<ProductionStage | null>(null);
@@ -1844,10 +1834,16 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
     const [bulkMoveTarget, setBulkMoveTarget] = useState<ProductionStage | null>(null);
     const [isBulkMoving, setIsBulkMoving] = useState(false);
 
+    useEffect(() => {
+        const intervalId = window.setInterval(() => setTimingNow(Date.now()), 60_000);
+        return () => window.clearInterval(intervalId);
+    }, []);
+
     const productsMap = useMemo(() => new Map(products.map(product => [product.sku, product])), [products]);
     const materialsMap = useMemo(() => new Map(materials.map(material => [material.id, material])), [materials]);
     const ordersMap = useMemo(() => new Map((orders || []).map(order => [order.id, order])), [orders]);
     const collectionsMap = useMemo(() => new Map((collections || []).map(collection => [collection.id, collection])), [collections]);
+    const batchHistoryLookup = useMemo(() => buildBatchStageHistoryLookup(batchStageHistoryEntries), [batchStageHistoryEntries]);
 
     // @FIX: Explicitly type return of enhancedBatches map to include customer_name and use intersection type.
     const enhancedBatches = useMemo(() => {
@@ -1856,11 +1852,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
 
         const results = batches?.map(b => {
             const prod = productsMap.get(b.sku);
-            const lastUpdate = new Date(b.updated_at);
-            const now = new Date();
-            const diffHours = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60));
-            const threshold = STAGE_LIMITS_HOURS[b.current_stage] || Infinity;
-            const isDelayed = b.current_stage !== ProductionStage.Ready && diffHours > threshold;
+            const timingInfo = getProductionTimingInfo(b, batchHistoryLookup.get(b.id), timingNow);
 
             const suffix = b.variant_suffix || '';
             const stone = getVariantComponents(suffix, prod?.gender).stone;
@@ -1883,10 +1875,43 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 ? `${RETAIL_CUSTOMER_NAME} • ${retailClientLabel}`
                 : (order?.customer_name || '');
 
-            return { ...b, product_details: prod, product_image: prod?.image_url, diffHours, isDelayed, requires_setting: hasZircons, requires_assembly, customer_name: customerName };
+            return {
+                ...b,
+                product_details: prod,
+                product_image: prod?.image_url,
+                diffHours: timingInfo.timeInStageHours,
+                isDelayed: timingInfo.isDelayed,
+                stageEnteredAt: timingInfo.stageEnteredAt,
+                timeInStageHours: timingInfo.timeInStageHours,
+                timingStatus: timingInfo.timingStatus,
+                timingLabel: timingInfo.timingLabel,
+                reminderKey: timingInfo.reminderKey,
+                requires_setting: hasZircons,
+                requires_assembly,
+                customer_name: customerName
+            };
         }) || [];
         return results as EnhancedProductionBatch[];
-    }, [batches, productsMap, materialsMap, ordersMap]);
+    }, [batches, productsMap, materialsMap, ordersMap, batchHistoryLookup, timingNow]);
+
+    useEffect(() => {
+        enhancedBatches.forEach((batch) => {
+            if (batch.on_hold || batch.timingStatus !== 'critical' || !batch.reminderKey) return;
+            if (isReminderSnoozed(batch.reminderKey) || hasSeenCriticalReminder(batch.reminderKey)) return;
+
+            markCriticalReminderSeen(batch.reminderKey);
+            showToast(
+                `Κρίσιμη καθυστέρηση: ${batch.sku}${batch.variant_suffix || ''} στο στάδιο ${getProductionStageLabel(batch.current_stage)}.`,
+                'warning'
+            );
+        });
+    }, [enhancedBatches, showToast]);
+
+    const handleSnoozeReminder = useCallback((batch: EnhancedProductionBatch) => {
+        if (!batch.reminderKey) return;
+        snoozeReminder(batch.reminderKey);
+        showToast(`Η ειδοποίηση για ${batch.sku}${batch.variant_suffix || ''} σιγάστηκε για το τρέχον στάδιο.`, 'info');
+    }, [showToast]);
 
     const batchesByOrderId = useMemo(() => {
         const map = new Map<string, EnhancedProductionBatch[]>();
@@ -1915,33 +1940,6 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         return grouped;
     }, [enhancedBatches]);
 
-    // Helper for Age/Delay Visualization
-    const getAgeInfo = (dateStr: string) => {
-        const start = new Date(dateStr);
-        const now = new Date();
-        const diffMs = now.getTime() - start.getTime();
-        const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-        const diffDays = Math.floor(diffHrs / 24);
-
-        let label = '';
-        let style = '';
-
-        if (diffDays > 5) {
-            label = `${diffDays}ημ`;
-            style = 'bg-red-100 text-red-700 border-red-200';
-        } else if (diffDays > 2) {
-            label = `${diffDays}ημ`;
-            style = 'bg-orange-100 text-orange-700 border-orange-200';
-        } else if (diffDays > 0) {
-            label = `${diffDays}ημ ${diffHrs % 24}ω`;
-            style = 'bg-blue-50 text-blue-700 border-blue-100';
-        } else {
-            label = `${diffHrs}ω`;
-            style = 'bg-emerald-50 text-emerald-700 border-emerald-100';
-        }
-        return { label, style };
-    };
-
     // @FIX: Explicitly type foundBatches result to include customer_name.
     const foundBatches = useMemo(() => {
         if (!deferredFinderTerm || deferredFinderTerm.length < 2) return [] as (ProductionBatch & { customer_name: string })[];
@@ -1954,8 +1952,8 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             })
             // Sort by Stage Order first, then Exact Match
             .sort((a, b) => {
-                const stageA = STAGE_ORDER_INDEX[a.current_stage] ?? 99;
-                const stageB = STAGE_ORDER_INDEX[b.current_stage] ?? 99;
+                const stageA = PRODUCTION_STAGE_ORDER_INDEX[a.current_stage] ?? 99;
+                const stageB = PRODUCTION_STAGE_ORDER_INDEX[b.current_stage] ?? 99;
 
                 if (stageA !== stageB) return stageA - stageB;
 
@@ -2005,8 +2003,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     .filter(batch => batch.current_stage === ProductionStage.Ready)
                     .reduce((sum, batch) => sum + batch.quantity, 0);
                 const latestUpdate = orderBatches.reduce((max, batch) => {
-                    const updateTs = new Date(batch.updated_at).getTime();
-                    return Number.isFinite(updateTs) ? Math.max(max, updateTs) : max;
+                    return Math.max(max, getBatchStageChronologyTimestamp(batch));
                 }, 0);
 
                 // Calculate stage breakdown
@@ -2452,8 +2449,8 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 groups[l1Key][collKey].sort((a, b) => {
                     // Chronological sorting if selected
                     if (sortOrder === 'newest' || sortOrder === 'oldest') {
-                        const timeA = new Date(a.updated_at).getTime();
-                        const timeB = new Date(b.updated_at).getTime();
+                        const timeA = getBatchStageChronologyTimestamp(a);
+                        const timeB = getBatchStageChronologyTimestamp(b);
                         if (sortOrder === 'newest') {
                             return timeB - timeA; // Newest first
                         } else {
@@ -2559,8 +2556,8 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 if (byCustomer !== 0) return byCustomer;
             }
 
-            const byUpdatedAt = new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
-            if (byUpdatedAt !== 0) return byUpdatedAt;
+            const byStageChronology = getBatchStageChronologyTimestamp(a as EnhancedProductionBatch) - getBatchStageChronologyTimestamp(b as EnhancedProductionBatch);
+            if (byStageChronology !== 0) return byStageChronology;
 
             const byCreatedAt = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
             if (byCreatedAt !== 0) return byCreatedAt;
@@ -2749,7 +2746,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                     const stageConf = STAGES.find(s => s.id === b.current_stage);
                                     const colors = STAGE_COLORS[stageConf?.color as keyof typeof STAGE_COLORS] || STAGE_COLORS['slate'];
                                     const colorClassString = `${colors.bg} ${colors.text} ${colors.border}`;
-                                    const age = getAgeInfo(b.updated_at);
+                                    const age = getBatchAgeInfo(b);
                                     const { finish } = getVariantComponents(b.variant_suffix || '', b.product_details?.gender);
                                     const finderMetalClass = FINDER_METAL_CONTAINER_STYLES[finish.code] || FINDER_METAL_CONTAINER_STYLES[''];
                                     const isSelected = multiSelectIds.has(b.id);
@@ -3000,10 +2997,11 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                                                                     onToggleHold={() => handleToggleHold(batch)}
                                                                     onDelete={() => handleDeleteBatch(batch)}
                                                                     onClick={() => setViewBuildBatch(batch)}
-                                                                    onViewHistory={handleViewHistory}
-                                                                    isSelected={multiSelectIds.has(batch.id)}
-                                                                    onToggleSelect={(e) => { e.stopPropagation(); toggleBatchSelect(batch.id); }}
-                                                                />
+                                                                onViewHistory={handleViewHistory}
+                                                                isSelected={multiSelectIds.has(batch.id)}
+                                                                onToggleSelect={(e) => { e.stopPropagation(); toggleBatchSelect(batch.id); }}
+                                                                onSnoozeReminder={handleSnoozeReminder}
+                                                            />
                                                             </React.Fragment>
                                                         ))}
                                                     </div>
@@ -3145,6 +3143,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                     onDelete={(b: ProductionBatch) => handleDeleteBatch(b)}
                     onClick={(b: ProductionBatch) => setViewBuildBatch(b)}
                     onViewHistory={handleViewHistory}
+                    onSnoozeReminder={handleSnoozeReminder}
                 />
             )}
 
@@ -3153,6 +3152,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 onClose={() => setHistoryModalBatch(null)}
                 batch={historyModalBatch}
                 history={batchHistory}
+                onSnoozeReminder={handleSnoozeReminder}
             />
 
             {showSettingStones && orders && (

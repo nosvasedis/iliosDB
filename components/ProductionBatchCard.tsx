@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { ProductionBatch, ProductionStage } from '../types';
-import { Clock, PauseCircle, StickyNote, Trash2, Printer, MoveRight, ImageIcon, AlertTriangle, PlayCircle, RefreshCcw, ChevronUp, ChevronDown, History, X, Check } from 'lucide-react';
+import { Clock, PauseCircle, StickyNote, Trash2, Printer, MoveRight, ImageIcon, AlertTriangle, PlayCircle, RefreshCcw, ChevronUp, ChevronDown, History, X, Check, BellOff } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { formatOrderId } from '../utils/orderUtils';
+import { formatGreekDurationFromMs, getProductionTimingStatusClasses, getProductionTimingStatusLabel } from '../utils/productionTiming';
+import { PRODUCTION_STAGES, getProductionStageLabel } from '../utils/productionStages';
 
 // Finish/Plating Visuals
 export const FINISH_STYLES: Record<string, { style: string, label: string }> = {
@@ -63,44 +65,13 @@ const STAGE_BUTTON_COLORS: Record<string, { bg: string, text: string, border: st
 };
 
 // Stage display order and labels
-const STAGE_ORDER: { id: ProductionStage, label: string }[] = [
-    { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή' },
-    { id: ProductionStage.Waxing, label: 'Παρασκευή' },
-    { id: ProductionStage.Casting, label: 'Χυτήριο' },
-    { id: ProductionStage.Setting, label: 'Καρφωτής' },
-    { id: ProductionStage.Polishing, label: 'Τεχνίτης' },
-    { id: ProductionStage.Assembly, label: 'Συναρμολόγηση' },
-    { id: ProductionStage.Labeling, label: 'Συσκευασία' },
-    { id: ProductionStage.Ready, label: 'Έτοιμα' },
-];
-
-// Time Aging Helper
-export const getTimeInStage = (dateStr: string) => {
-    const start = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - start.getTime();
-    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffHrs / 24);
-
-    let label = '';
-    let colorClass = '';
-
-    if (diffDays > 0) {
-        label = `${diffDays}d ${diffHrs % 24}h`;
-        if (diffDays >= 6) colorClass = 'bg-red-50 text-red-600 border-red-200'; // Critical (> 6 days)
-        else if (diffDays >= 4) colorClass = 'bg-orange-50 text-orange-600 border-orange-200'; // Warning (4-5 days)
-        else colorClass = 'bg-blue-50 text-blue-600 border-blue-200'; // Normal
-    } else {
-        label = `${diffHrs}h`;
-        if (diffHrs < 4) colorClass = 'bg-emerald-50 text-emerald-600 border-emerald-200'; // Fresh
-        else colorClass = 'bg-blue-50 text-blue-600 border-blue-200'; // Normal
-    }
-
-    return { label, colorClass };
-};
+const STAGE_ORDER: { id: ProductionStage, label: string }[] = PRODUCTION_STAGES.map((stage) => ({
+    id: stage.id,
+    label: stage.label,
+}));
 
 interface BatchCardProps {
-    batch: ProductionBatch & { customer_name?: string };
+    batch: ProductionBatch & { customer_name?: string; stageEnteredAt?: string; timingStatus?: 'normal' | 'attention' | 'delayed' | 'critical'; timingLabel?: string; reminderKey?: string };
     onDragStart?: (e: React.DragEvent<HTMLDivElement>, batchId: string) => void;
     onPrint: (batch: ProductionBatch) => void;
     onNextStage?: (batch: ProductionBatch) => void;
@@ -115,6 +86,7 @@ interface BatchCardProps {
     // Multi-select support
     isSelected?: boolean;
     onToggleSelect?: (e: React.MouseEvent) => void;
+    onSnoozeReminder?: (batch: ProductionBatch & { reminderKey?: string }) => void;
 }
 
 export const ProductionBatchCard: React.FC<BatchCardProps> = ({
@@ -131,6 +103,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
     hideActions = false,
     isSelected = false,
     onToggleSelect,
+    onSnoozeReminder,
 }) => {
     const isRefurbish = batch.type === 'Φρεσκάρισμα';
     const isAwaiting = batch.current_stage === ProductionStage.AwaitingDelivery;
@@ -244,7 +217,12 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
     const metalContainerClass = METAL_CONTAINER_STYLES[finish.code] || METAL_CONTAINER_STYLES[''];
     const skuContainerClass = SKU_CONTAINER_STYLES[finish.code] || SKU_CONTAINER_STYLES[''];
 
-    const timeInfo = getTimeInStage(batch.updated_at);
+    const fallbackTimingLabel = formatGreekDurationFromMs(Date.now() - new Date(batch.stageEnteredAt || batch.created_at).getTime());
+    const timingStatus = batch.timingStatus || 'normal';
+    const timeInfo = {
+        label: batch.timingLabel || fallbackTimingLabel,
+        colorClass: getProductionTimingStatusClasses(timingStatus),
+    };
 
     // Close zoomed image on Escape
     useEffect(() => {
@@ -300,6 +278,12 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                             <span>{timeInfo.label}</span>
                         </div>
                     )}
+                    {!batch.on_hold && timingStatus !== 'normal' && (
+                        <div className={`text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1 border ${getProductionTimingStatusClasses(timingStatus)}`}>
+                            <AlertTriangle size={10} />
+                            <span>{getProductionTimingStatusLabel(timingStatus)}</span>
+                        </div>
+                    )}
                     {isRefurbish && (
                         <div className="bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1">
                             <RefreshCcw size={10} /> Repair
@@ -322,6 +306,15 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                     >
                         <StickyNote size={16} className={batch.notes ? "fill-current" : ""} />
                     </button>
+                    {!batch.on_hold && timingStatus === 'critical' && onSnoozeReminder && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onSnoozeReminder(batch); }}
+                            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                            title="Σίγαση υπενθύμισης για το τρέχον στάδιο"
+                        >
+                            <BellOff size={16} />
+                        </button>
+                    )}
                     {onViewHistory && (
                         <button
                             onClick={(e) => { e.stopPropagation(); onViewHistory(batch); }}

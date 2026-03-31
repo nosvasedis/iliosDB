@@ -306,6 +306,7 @@ function AppContent() {
             analyticsPrintData={analyticsPrintData}
             orderAnalyticsData={orderAnalyticsData}
             photoCatalogPrintData={photoCatalogPrintData}
+            stageBatchPrintData={stageBatchPrintData}
             setPrintItems={setPrintItems}
             setOrderToPrint={setOrderToPrint}
             setRemainingOrderToPrint={setRemainingOrderToPrint}
@@ -321,6 +322,7 @@ function AppContent() {
             setAnalyticsPrintData={setAnalyticsPrintData}
             setOrderAnalyticsData={setOrderAnalyticsData}
             setPhotoCatalogPrintData={setPhotoCatalogPrintData}
+            setStageBatchPrintData={setStageBatchPrintData}
           />
           <EmployeeApp setPrintItems={setPrintItems} />
         </>

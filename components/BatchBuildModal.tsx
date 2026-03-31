@@ -5,6 +5,7 @@ import { ProductionBatch, Product, Material, Mold, ProductionType, ProductionSta
 import { X, Box, MapPin, Info, Image as ImageIcon, Scale, Calculator, StickyNote, MoveRight, Check, PauseCircle, PlayCircle, AlertTriangle, User, Edit, ChevronUp, ChevronDown, History } from 'lucide-react';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../utils/pricingEngine';
 import { buildBatchBuildData } from '../utils/batchBuildData';
+import { PRODUCTION_STAGES } from '../utils/productionStages';
 
 interface Props {
     batch: ProductionBatch & { customer_name?: string };
@@ -18,16 +19,10 @@ interface Props {
     onViewHistory?: (batch: ProductionBatch) => void;
 }
 
-const STAGES = [
-    { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή' },
-    { id: ProductionStage.Waxing, label: 'Παρασκευή' },
-    { id: ProductionStage.Casting, label: 'Χυτήριο' },
-    { id: ProductionStage.Setting, label: 'Καρφωτής' },
-    { id: ProductionStage.Polishing, label: 'Τεχνίτης' },
-    { id: ProductionStage.Assembly, label: 'Συναρμολόγηση' },
-    { id: ProductionStage.Labeling, label: 'Συσκευασία' },
-    { id: ProductionStage.Ready, label: 'Έτοιμα' }
-];
+const STAGES = PRODUCTION_STAGES.map((stage) => ({
+    id: stage.id,
+    label: stage.label,
+}));
 
 // Stage colors for movement buttons - matching ProductionBatchCard
 const STAGE_BUTTON_COLORS: Record<string, { bg: string, text: string, border: string }> = {

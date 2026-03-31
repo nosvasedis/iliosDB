@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import { ProductionBatch, ProductionStage, Collection, Gender } from '../types';
 import { X, FolderKanban } from 'lucide-react';
 import { ProductionBatchCard } from './ProductionBatchCard';
-import { getVariantComponents } from '../utils/pricingEngine';
+import { PRODUCTION_STAGES, getProductionStageLabel } from '../utils/productionStages';
 
 interface Props {
     isOpen: boolean;
@@ -21,18 +21,14 @@ interface Props {
     onDelete: (batch: ProductionBatch) => void;
     onClick: (batch: ProductionBatch) => void;
     onViewHistory?: (batch: ProductionBatch) => void;
+    onSnoozeReminder?: (batch: ProductionBatch) => void;
 }
 
-const STAGES = [
-    { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή', color: 'indigo' },
-    { id: ProductionStage.Waxing, label: 'Παρασκευή', color: 'slate' },
-    { id: ProductionStage.Casting, label: 'Χυτήριο', color: 'orange' },
-    { id: ProductionStage.Setting, label: 'Καρφωτής', color: 'purple' },
-    { id: ProductionStage.Polishing, label: 'Τεχνίτης', color: 'blue' },
-    { id: ProductionStage.Assembly, label: 'Συναρμολόγηση', color: 'pink' },
-    { id: ProductionStage.Labeling, label: 'Καρτελάκια - Πακετάρισμα', color: 'yellow' },
-    { id: ProductionStage.Ready, label: 'Έτοιμα', color: 'emerald' }
-];
+const STAGES = PRODUCTION_STAGES.map((stage) => ({
+    id: stage.id,
+    label: getProductionStageLabel(stage.id),
+    color: stage.colorKey
+}));
 
 const GENDER_CONFIG: Record<string, { label: string, style: string }> = {
     [Gender.Women]: { label: 'Γυναικεία', style: 'bg-pink-50 text-pink-700 border-pink-200 shadow-sm' },
@@ -54,7 +50,7 @@ const STAGE_COLORS: Record<string, string> = {
 
 export default function ProductionOverviewModal({
     isOpen, onClose, title, filterType, batches, collections,
-    onPrint, onNextStage, onMoveToStage, onEditNote, onToggleHold, onDelete, onClick, onViewHistory
+    onPrint, onNextStage, onMoveToStage, onEditNote, onToggleHold, onDelete, onClick, onViewHistory, onSnoozeReminder
 }: Props) {
 
     // 1. Filter Batches based on type
@@ -181,6 +177,7 @@ export default function ProductionOverviewModal({
                                                                     onDelete={() => onDelete(batch)}
                                                                     onClick={() => onClick(batch)}
                                                                     onViewHistory={onViewHistory}
+                                                                    onSnoozeReminder={onSnoozeReminder}
                                                                 />
                                                             ))}
                                                         </div>

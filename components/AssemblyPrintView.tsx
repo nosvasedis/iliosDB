@@ -237,10 +237,13 @@ export default function AssemblyPrintView({ rows, allProducts, allMaterials }: P
 
                                                         {/* Stone requirements from recipe */}
                                                         {recipeStones.length > 0 && (
-                                                            <div className="flex flex-wrap gap-0.5 mt-0.5">
+                                                            <div className="flex flex-col gap-0.5 mt-0.5">
                                                                 {recipeStones.map((r, i) => (
-                                                                    <span key={i} className="text-[7px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-1 py-0.5 rounded leading-tight whitespace-nowrap">
-                                                                        {r.material!.name}{r.material!.description ? ` · ${r.material!.description}` : ''} ×{r.quantity}
+                                                                    <span key={i} className="text-[7px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-1 py-0.5 rounded leading-tight flex items-baseline gap-0.5 min-w-0">
+                                                                        <span className="break-words min-w-0 flex-1">
+                                                                            {r.material!.name}{r.material!.description ? ` · ${r.material!.description}` : ''}
+                                                                        </span>
+                                                                        <span className="whitespace-nowrap font-black shrink-0">×{r.quantity}</span>
                                                                     </span>
                                                                 ))}
                                                             </div>

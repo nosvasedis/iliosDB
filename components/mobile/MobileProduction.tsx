@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType, Order, ProductVariant } from '../../types';
-import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, ArrowLeft, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save, Square, CheckSquare, Image as ImageIcon, Gem } from 'lucide-react';
+import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, ArrowLeft, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save, Square, CheckSquare, Image as ImageIcon, Gem, BellOff } from 'lucide-react';
 import { useUI } from '../UIProvider';
 import MobileBatchBuildModal from './MobileBatchBuildModal';
 import BatchHistoryModal from '../BatchHistoryModal';
@@ -12,6 +12,18 @@ import { formatCurrency, formatDecimal, getVariantComponents } from '../../utils
 import { requiresAssemblyStage } from '../../constants';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import FinderBatchStageSelector from '../production/FinderBatchStageSelector';
+import { PRODUCTION_STAGE_ORDER_INDEX, PRODUCTION_STAGES, getProductionStageLabel } from '../../utils/productionStages';
+import {
+    buildBatchStageHistoryLookup,
+    formatGreekDurationFromMs,
+    getProductionTimingInfo,
+    getProductionTimingStatusClasses,
+    getProductionTimingStatusLabel,
+    hasSeenCriticalReminder,
+    isReminderSnoozed,
+    markCriticalReminderSeen,
+    snoozeReminder,
+} from '../../utils/productionTiming';
 
 interface Props {
     allProducts: Product[];
@@ -21,21 +33,11 @@ interface Props {
     onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail' }[]) => void;
 }
 
-const STAGES = [
-    { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή Παραλαβής', color: 'indigo' },
-    { id: ProductionStage.Waxing, label: 'Παρασκευή', color: 'slate' },
-    { id: ProductionStage.Casting, label: 'Χυτήριο', color: 'orange' },
-    { id: ProductionStage.Setting, label: 'Καρφωτής', color: 'purple' },
-    { id: ProductionStage.Polishing, label: 'Τεχνίτης', color: 'blue' },
-    { id: ProductionStage.Assembly, label: 'Συναρμολόγηση', color: 'pink' },
-    { id: ProductionStage.Labeling, label: 'Συσκευασία & Πακετάρισμα', color: 'yellow' },
-    { id: ProductionStage.Ready, label: 'Έτοιμα', color: 'emerald' }
-];
-
-const STAGE_ORDER_INDEX = STAGES.reduce<Record<string, number>>((acc, stage, index) => {
-    acc[stage.id] = index;
-    return acc;
-}, {});
+const STAGES = PRODUCTION_STAGES.map((stage) => ({
+    id: stage.id,
+    label: getProductionStageLabel(stage.id),
+    color: stage.colorKey
+}));
 
 const STAGE_COLORS: Record<string, string> = {
     indigo: 'bg-indigo-50 text-indigo-700 border-indigo-200',
@@ -48,41 +50,13 @@ const STAGE_COLORS: Record<string, string> = {
     emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
 };
 
-const STAGE_LIMITS_HOURS: Record<string, number> = {
-    [ProductionStage.Waxing]: 120,    // 5 Days
-    [ProductionStage.Casting]: 96,    // 4 Days
-    [ProductionStage.Setting]: 144,   // 6 Days
-    [ProductionStage.Polishing]: 120, // 5 Days
-    [ProductionStage.Assembly]: 72,   // 3 Days
-    [ProductionStage.Labeling]: 72    // 3 Days
-};
-
-const getTimeInStage = (dateStr: string) => {
-    const start = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - start.getTime();
-    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffHrs / 24);
-
-    let label = '';
-    let colorClass = '';
-
-    if (diffDays > 0) {
-        label = `${diffDays}ημ ${diffHrs % 24}ω`;
-        if (diffDays >= 6) colorClass = 'bg-red-50 text-red-600 border-red-200';
-        else if (diffDays >= 4) colorClass = 'bg-orange-50 text-orange-600 border-orange-200';
-        else colorClass = 'bg-blue-50 text-blue-600 border-blue-200';
-    } else {
-        label = `${diffHrs}ω`;
-        if (diffHrs < 4) colorClass = 'bg-emerald-50 text-emerald-600 border-emerald-200';
-        else colorClass = 'bg-blue-50 text-blue-600 border-blue-200';
-    }
-
-    return { label, colorClass };
-};
-
 type PrintSelectorType = 'technician' | 'preparation' | 'aggregated' | 'labels';
 type LabelPrintSortMode = 'as_sent' | 'customer';
+
+const getBatchStageChronologyTimestamp = (batch: Pick<ProductionBatch, 'created_at'> & { stageEnteredAt?: string }) => {
+    const ts = new Date(batch.stageEnteredAt || batch.created_at).getTime();
+    return Number.isFinite(ts) ? ts : 0;
+};
 
 const TEXT_FINISH_COLORS: Record<string, string> = {
     'X': 'text-amber-600',
@@ -121,15 +95,20 @@ const SkuColored = ({ sku, suffix, gender }: { sku: string, suffix?: string, gen
 };
 
 const MobileBatchCard: React.FC<{ 
-    batch: ProductionBatch & { isDelayed?: boolean, customer_name?: string, product_image?: string | null }, 
+    batch: ProductionBatch & { isDelayed?: boolean, customer_name?: string, product_image?: string | null, stageEnteredAt?: string, timingStatus?: 'normal' | 'attention' | 'delayed' | 'critical', timingLabel?: string, reminderKey?: string }, 
     onNext: (b: ProductionBatch) => void, 
     onMoveToStage?: (b: ProductionBatch, stage: ProductionStage) => void,
     onToggleHold: (b: ProductionBatch) => void, 
-    onClick: (b: ProductionBatch) => void 
-}> = ({ batch, onNext, onMoveToStage, onToggleHold, onClick }) => {
+    onClick: (b: ProductionBatch) => void,
+    onSnoozeReminder?: (b: ProductionBatch) => void,
+}> = ({ batch, onNext, onMoveToStage, onToggleHold, onClick, onSnoozeReminder }) => {
     const isDelayed = batch.isDelayed;
     const isReady = batch.current_stage === ProductionStage.Ready;
-    const timeInfo = getTimeInStage(batch.updated_at);
+    const timingStatus = batch.timingStatus || 'normal';
+    const timeInfo = {
+        label: batch.timingLabel || formatGreekDurationFromMs(Date.now() - new Date(batch.stageEnteredAt || batch.created_at).getTime()),
+        colorClass: getProductionTimingStatusClasses(timingStatus),
+    };
     const [stageSelectorOpen, setStageSelectorOpen] = useState(false);
     
     // Get current stage index
@@ -202,9 +181,9 @@ const MobileBatchCard: React.FC<{
                         <Clock size={10} />
                         <span>{timeInfo.label}</span>
                     </div>
-                    {isDelayed && !batch.on_hold && (
-                        <div className="text-[10px] font-bold text-red-500 bg-red-50 px-2 py-1 rounded-full border border-red-100 flex items-center gap-1">
-                            <AlertTriangle size={10} /> Καθυστέρηση
+                    {!batch.on_hold && timingStatus !== 'normal' && (
+                        <div className={`text-[10px] font-bold px-2 py-1 rounded-full border flex items-center gap-1 ${getProductionTimingStatusClasses(timingStatus)}`}>
+                            <AlertTriangle size={10} /> {getProductionTimingStatusLabel(timingStatus)}
                         </div>
                     )}
                 </div>
@@ -216,6 +195,15 @@ const MobileBatchCard: React.FC<{
                     >
                         {batch.on_hold ? <PlayCircle size={18} className="fill-current" /> : <PauseCircle size={18} />}
                     </button>
+                    {!batch.on_hold && timingStatus === 'critical' && onSnoozeReminder && (
+                        <button
+                            onClick={() => onSnoozeReminder(batch)}
+                            className="p-2 rounded-xl transition-colors border bg-slate-50 text-slate-400 border-slate-200"
+                            title="Σίγαση υπενθύμισης"
+                        >
+                            <BellOff size={18} />
+                        </button>
+                    )}
                     {!isReady && !batch.on_hold && (
                         <div className="relative">
                             <button
@@ -814,12 +802,14 @@ const SettingStoneModal: React.FC<{
 
 export default function MobileProduction({ allProducts, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintLabels }: Props) {
     const { data: batches, isLoading: loadingBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
+    const { data: batchStageHistoryEntries = [] } = useQuery({ queryKey: ['batchStageHistory'], queryFn: api.getBatchStageHistoryEntries });
     const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
     const { data: molds, isLoading: loadingMolds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
     const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
 
     const queryClient = useQueryClient();
     const { showToast } = useUI();
+    const [timingNow, setTimingNow] = useState(() => Date.now());
 
     const [openStage, setOpenStage] = useState<string | null>(ProductionStage.Waxing);
     const [viewBuildBatch, setViewBuildBatch] = useState<ProductionBatch | null>(null);
@@ -844,6 +834,12 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     // Print Modal State
     const [printSelectorState, setPrintSelectorState] = useState<{ isOpen: boolean, type: PrintSelectorType | '', batches: (ProductionBatch & { customer_name?: string })[] }>({ isOpen: false, type: '', batches: [] });
     const [labelPrintSortMode, setLabelPrintSortMode] = useState<LabelPrintSortMode>('as_sent');
+    const batchHistoryLookup = useMemo(() => buildBatchStageHistoryLookup(batchStageHistoryEntries), [batchStageHistoryEntries]);
+
+    useEffect(() => {
+        const intervalId = window.setInterval(() => setTimingNow(Date.now()), 60_000);
+        return () => window.clearInterval(intervalId);
+    }, []);
 
     const enrichedBatches = useMemo(() => {
         if (!batches || !allProducts || !materials || !orders) return [];
@@ -863,12 +859,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe;
 
             const order = orders.find(o => o.id === b.order_id);
-
-            const lastUpdate = new Date(b.updated_at);
-            const now = new Date();
-            const diffHours = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60));
-            const threshold = STAGE_LIMITS_HOURS[b.current_stage] || Infinity;
-            const isDelayed = b.current_stage !== ProductionStage.Ready && diffHours > threshold;
+            const timingInfo = getProductionTimingInfo(b, batchHistoryLookup.get(b.id), timingNow);
 
             // Check if assembly stage is required based on SKU
             const requires_assembly = requiresAssemblyStage(b.sku);
@@ -891,10 +882,35 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
 
                     return order?.customer_name || '';
                 })(),
-                isDelayed
+                diffHours: timingInfo.timeInStageHours,
+                isDelayed: timingInfo.isDelayed,
+                stageEnteredAt: timingInfo.stageEnteredAt,
+                timeInStageHours: timingInfo.timeInStageHours,
+                timingStatus: timingInfo.timingStatus,
+                timingLabel: timingInfo.timingLabel,
+                reminderKey: timingInfo.reminderKey,
             };
         });
-    }, [batches, allProducts, materials, orders]);
+    }, [batches, allProducts, materials, orders, batchHistoryLookup, timingNow]);
+
+    useEffect(() => {
+        enrichedBatches.forEach((batch) => {
+            if (batch.on_hold || batch.timingStatus !== 'critical' || !batch.reminderKey) return;
+            if (isReminderSnoozed(batch.reminderKey) || hasSeenCriticalReminder(batch.reminderKey)) return;
+
+            markCriticalReminderSeen(batch.reminderKey);
+            showToast(
+                `Κρίσιμη καθυστέρηση: ${batch.sku}${batch.variant_suffix || ''} στο στάδιο ${getProductionStageLabel(batch.current_stage)}.`,
+                'warning'
+            );
+        });
+    }, [enrichedBatches, showToast]);
+
+    const handleSnoozeReminder = (batch: ProductionBatch & { reminderKey?: string }) => {
+        if (!batch.reminderKey) return;
+        snoozeReminder(batch.reminderKey);
+        showToast(`Η ειδοποίηση για ${batch.sku}${batch.variant_suffix || ''} σιγάστηκε για το τρέχον στάδιο.`, 'info');
+    };
 
     const foundBatches = useMemo(() => {
         if (!deferredFinderTerm || deferredFinderTerm.length < 2) return [];
@@ -910,8 +926,8 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             // Keep mobile order identical to desktop:
             // 1) pipeline stage order, 2) exact full SKU (+ suffix) match.
             .sort((a, b) => {
-                const stageA = STAGE_ORDER_INDEX[a.current_stage] ?? 99;
-                const stageB = STAGE_ORDER_INDEX[b.current_stage] ?? 99;
+                const stageA = PRODUCTION_STAGE_ORDER_INDEX[a.current_stage] ?? 99;
+                const stageB = PRODUCTION_STAGE_ORDER_INDEX[b.current_stage] ?? 99;
                 if (stageA !== stageB) return stageA - stageB;
 
                 const aExact = `${a.sku}${a.variant_suffix || ''}` === term;
@@ -1069,7 +1085,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     const handlePrintStageLabels = () => {
         const stageBatches = enrichedBatches.filter(b => b.current_stage === ProductionStage.Labeling && !b.on_hold);
         if (stageBatches.length === 0) {
-            showToast("Δεν υπάρχουν παρτίδες στη Συσκευασία.", "info");
+            showToast(`Δεν υπάρχουν παρτίδες στο στάδιο ${getProductionStageLabel(ProductionStage.Labeling)}.`, "info");
             return;
         }
 
@@ -1090,8 +1106,8 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                 if (byCustomer !== 0) return byCustomer;
             }
 
-            const byUpdatedAt = new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
-            if (byUpdatedAt !== 0) return byUpdatedAt;
+            const byStageChronology = getBatchStageChronologyTimestamp(a as ProductionBatch & { stageEnteredAt?: string }) - getBatchStageChronologyTimestamp(b as ProductionBatch & { stageEnteredAt?: string });
+            if (byStageChronology !== 0) return byStageChronology;
 
             const byCreatedAt = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
             if (byCreatedAt !== 0) return byCreatedAt;
@@ -1274,7 +1290,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                             </div>
                             {isOpen && (
                                 <div className="p-3 space-y-3 bg-slate-50/50 border-t border-slate-100">
-                                    {stageBatches.map(batch => <MobileBatchCard key={batch.id} batch={batch} onNext={handleNextStage} onMoveToStage={handleMoveBatch} onToggleHold={handleToggleHold} onClick={setViewBuildBatch} />)}
+                                    {stageBatches.map(batch => <MobileBatchCard key={batch.id} batch={batch} onNext={handleNextStage} onMoveToStage={handleMoveBatch} onToggleHold={handleToggleHold} onClick={setViewBuildBatch} onSnoozeReminder={handleSnoozeReminder} />)}
                                     {stageBatches.length === 0 && <div className="text-center py-6 text-slate-400 text-xs italic">Κανένα προϊόν σε αυτό το στάδιο.</div>}
                                 </div>
                             )}
@@ -1314,6 +1330,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                 onClose={() => setHistoryModalBatch(null)}
                 batch={historyModalBatch}
                 history={batchHistory}
+                onSnoozeReminder={handleSnoozeReminder}
             />
 
             {/* Edit Note Modal */}

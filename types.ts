@@ -387,6 +387,8 @@ export interface BatchStageHistoryEntry {
   notes?: string | null;
 }
 
+export type ProductionTimingStatus = 'normal' | 'attention' | 'delayed' | 'critical';
+
 export interface SyncOfflineResult {
   syncedCount: number;
   failedCount: number;
@@ -471,6 +473,11 @@ export interface EnhancedProductionBatch extends ProductionBatch {
   diffHours?: number;
   isDelayed?: boolean;
   customer_name?: string;
+  stageEnteredAt?: string;
+  timeInStageHours?: number;
+  timingStatus?: ProductionTimingStatus;
+  timingLabel?: string;
+  reminderKey?: string;
 }
 
 export interface ChatMessage {
