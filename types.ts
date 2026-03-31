@@ -533,6 +533,15 @@ export interface AssemblyPrintData {
   generated_at: string;
 }
 
+export interface StageBatchPrintData {
+  stageName: string;
+  stageId: string;
+  customerName: string;
+  orderId: string;
+  batches: ProductionBatch[];
+  generatedAt: string;
+}
+
 // --- NEW SUPPLIER ORDER TYPES ---
 
 export type SupplierOrderType = 'Product' | 'Material';

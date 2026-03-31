@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Product, ProductVariant, Order, ProductionBatch, AggregatedData, Offer, SupplierOrder, GlobalSettings, AssemblyPrintData, AssemblyPrintRow, OrderShipment, OrderShipmentItem } from '../types';
+import { Product, ProductVariant, Order, ProductionBatch, AggregatedData, Offer, SupplierOrder, GlobalSettings, AssemblyPrintData, StageBatchPrintData, AssemblyPrintRow, OrderShipment, OrderShipmentItem } from '../types';
 import OrderInvoiceView from './OrderInvoiceView';
 import ShipmentInvoiceView from './ShipmentInvoiceView';
 import OfferPrintView from './OfferPrintView';
@@ -14,6 +14,7 @@ import AnalyticsPrintReport from './AnalyticsPrintReport';
 import OrderFinancialReport from './OrderFinancialReport';
 import BarcodeView from './BarcodeView';
 import PhotoCatalogPrintView from './PhotoCatalogPrintView';
+import StageBatchPrintView from './StageBatchPrintView';
 import { transliterateForBarcode } from '../utils/pricingEngine';
 
 interface PrintManagerProps {
@@ -36,6 +37,7 @@ interface PrintManagerProps {
     analyticsPrintData: any | null;
     orderAnalyticsData: { stats: any, order: Order } | null;
     photoCatalogPrintData: Product[] | null;
+    stageBatchPrintData: StageBatchPrintData | null;
     setPrintItems: (items: []) => void;
     setOrderToPrint: (order: Order | null) => void;
     setRemainingOrderToPrint: (order: Order | null) => void;
@@ -51,6 +53,7 @@ interface PrintManagerProps {
     setAnalyticsPrintData: (data: any | null) => void;
     setOrderAnalyticsData: (data: { stats: any, order: Order } | null) => void;
     setPhotoCatalogPrintData: (data: Product[] | null) => void;
+    setStageBatchPrintData: (data: StageBatchPrintData | null) => void;
 }
 
 export const PrintManager: React.FC<PrintManagerProps> = ({
@@ -58,11 +61,11 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
     printItems, orderToPrint, remainingOrderToPrint, shipmentToPrint, offerToPrint, supplierOrderToPrint,
     batchToPrint, aggregatedPrintData, preparationPrintData,
     technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData,
-    orderAnalyticsData, photoCatalogPrintData,
+    orderAnalyticsData, photoCatalogPrintData, stageBatchPrintData,
     setPrintItems, setOrderToPrint, setRemainingOrderToPrint, setShipmentToPrint, setOfferToPrint, setSupplierOrderToPrint,
     setBatchToPrint, setAggregatedPrintData, setPreparationPrintData,
     setTechnicianPrintData, setAssemblyPrintData, setPriceListPrintData, setAnalyticsPrintData,
-    setOrderAnalyticsData, setPhotoCatalogPrintData
+    setOrderAnalyticsData, setPhotoCatalogPrintData, setStageBatchPrintData
 }) => {
     const printContainerRef = useRef<HTMLDivElement>(null);
     const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -93,7 +96,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
     };
 
     useEffect(() => {
-        const shouldPrint = printItems.length > 0 || orderToPrint || remainingOrderToPrint || shipmentToPrint || offerToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || assemblyPrintData || priceListPrintData || analyticsPrintData || orderAnalyticsData || supplierOrderToPrint || (photoCatalogPrintData && photoCatalogPrintData.length > 0);
+        const shouldPrint = printItems.length > 0 || orderToPrint || remainingOrderToPrint || shipmentToPrint || offerToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || assemblyPrintData || priceListPrintData || analyticsPrintData || orderAnalyticsData || supplierOrderToPrint || (photoCatalogPrintData && photoCatalogPrintData.length > 0) || stageBatchPrintData;
         if (shouldPrint && settings && products && materials) {
             const timer = setTimeout(() => {
                 const printContent = printContainerRef.current;
@@ -188,7 +191,9 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                             docTitle = `Labels_Batch_${format}_${totalQty}qty_${dateStr}`;
                         }
                     }
-                }
+                } else if (stageBatchPrintData) {
+                    const safeName = getSafeClientName(stageBatchPrintData.customerName);
+                    docTitle = `Stage_${stageBatchPrintData.stageId}_${safeName || 'Order'}_${dateStr}`;
 
                 docTitle = sanitizeFilename(docTitle) || 'Ilios_Print_Job';
                 document.title = docTitle;
@@ -199,6 +204,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                     setTechnicianPrintData(null); setAssemblyPrintData(null); setPriceListPrintData(null);
                     setAnalyticsPrintData(null); setOrderAnalyticsData(null);
                     setSupplierOrderToPrint(null); setPhotoCatalogPrintData(null);
+                    setStageBatchPrintData(null);
                     restoreWindowTitle();
                 };
 
@@ -260,7 +266,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
 
             return () => clearTimeout(timer);
         }
-    }, [printItems, orderToPrint, remainingOrderToPrint, shipmentToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData, offerToPrint, orderAnalyticsData, supplierOrderToPrint, photoCatalogPrintData, settings, products, materials]);
+}, [printItems, orderToPrint, remainingOrderToPrint, shipmentToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData, offerToPrint, orderAnalyticsData, supplierOrderToPrint, photoCatalogPrintData, stageBatchPrintData, settings, products, materials]);
 
     if (!settings || !products || !materials || !molds) return null;
 
@@ -309,6 +315,9 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                         molds={molds}
                         date={new Date().toLocaleDateString('el-GR')}
                     />
+                )}
+                {stageBatchPrintData && products && (
+                    <StageBatchPrintView data={stageBatchPrintData} allProducts={products} />
                 )}
             </div>
             <iframe

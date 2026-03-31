@@ -40,7 +40,7 @@ import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { api, isConfigured, isLocalMode } from './lib/supabase';
 import { offlineDb } from './lib/offlineDb';
 import { useQueryClient } from '@tanstack/react-query';
-import { Product, ProductVariant, GlobalSettings, Order, Material, Mold, Collection, ProductionBatch, RecipeItem, OrderStatus, ProductionStage, Gender, PlatingType, AggregatedData, AggregatedBatch, Offer, SupplierOrder, AssemblyPrintData } from './types';
+import { Product, ProductVariant, GlobalSettings, Order, Material, Mold, Collection, ProductionBatch, RecipeItem, OrderStatus, ProductionStage, Gender, PlatingType, AggregatedData, AggregatedBatch, Offer, SupplierOrder, AssemblyPrintData, StageBatchPrintData } from './types';
 import { UIProvider, useUI } from './components/UIProvider';
 import { AuthProvider, useAuth } from './components/AuthContext';
 
@@ -192,8 +192,8 @@ function AppContent() {
     setPrintItems, setOrderToPrint, setRemainingOrderToPrint, setShipmentToPrint, setOfferToPrint,
     setBatchToPrint, setAggregatedPrintData, setPreparationPrintData,
     setTechnicianPrintData, setAssemblyPrintData, setPriceListPrintData, setAnalyticsPrintData,
-    setOrderAnalyticsData, setSupplierOrderToPrint,
-    printItems, orderToPrint, remainingOrderToPrint, shipmentToPrint, offerToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData, orderAnalyticsData, supplierOrderToPrint
+    setOrderAnalyticsData, setSupplierOrderToPrint, setStageBatchPrintData,
+    printItems, orderToPrint, remainingOrderToPrint, shipmentToPrint, offerToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData, orderAnalyticsData, supplierOrderToPrint, stageBatchPrintData
   } = usePrint() || {}; // Handled gracefully if error
 
   // Local state for app connectivity context
@@ -453,6 +453,10 @@ function AppContent() {
     setAssemblyPrintData(data);
   };
 
+  const handlePrintStageBatches = (data: StageBatchPrintData) => {
+    setStageBatchPrintData(data);
+  };
+
   const handlePrintOrderAnalytics = (order: Order) => {
     if (!products || !materials || !settings) return;
 
@@ -495,6 +499,7 @@ function AppContent() {
         analyticsPrintData={analyticsPrintData}
         orderAnalyticsData={orderAnalyticsData}
         photoCatalogPrintData={photoCatalogPrintData}
+        stageBatchPrintData={stageBatchPrintData}
         setPrintItems={setPrintItems}
         setOrderToPrint={setOrderToPrint}
         setRemainingOrderToPrint={setRemainingOrderToPrint}
@@ -510,6 +515,7 @@ function AppContent() {
         setAnalyticsPrintData={setAnalyticsPrintData}
         setOrderAnalyticsData={setOrderAnalyticsData}
         setPhotoCatalogPrintData={setPhotoCatalogPrintData}
+        setStageBatchPrintData={setStageBatchPrintData}
       />
 
       <div id="app-container" className="flex h-screen overflow-hidden text-[#060b00] bg-slate-50 font-sans">
@@ -625,7 +631,7 @@ function AppContent() {
                 setOrderToPrint(modifiedOrder);
               }} />}
               {activePage === 'deliveries' && <DeliveriesPage pendingOrderId={pendingDeliveryOrderId} onConsumePendingOrderId={() => setPendingDeliveryOrderId(null)} onOpenOrder={() => handleNav('orders')} />}
-              {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintAssembly={handlePrintAssembly} onPrintLabels={setPrintItems} />}
+              {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintAssembly={handlePrintAssembly} onPrintLabels={setPrintItems} onPrintStageBatches={handlePrintStageBatches} />}
               {activePage === 'customers' && <CustomersPage onPrintOrder={setOrderToPrint} />}
               {activePage === 'suppliers' && <SuppliersPage />}
               {activePage === 'analytics' && <AnalyticsView products={products} onBack={() => handleNav('dashboard')} onPrint={(data) => setAnalyticsPrintData({ ...data, title: 'Οικονομική Ανάλυση' })} />}

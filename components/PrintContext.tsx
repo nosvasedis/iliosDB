@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
-import { Product, ProductVariant, Order, ProductionBatch, AggregatedData, Offer, SupplierOrder, AssemblyPrintData, OrderShipment, OrderShipmentItem } from '../types';
+import { Product, ProductVariant, Order, ProductionBatch, AggregatedData, Offer, SupplierOrder, AssemblyPrintData, StageBatchPrintData, OrderShipment, OrderShipmentItem } from '../types';
 import { PriceListPrintData } from './PriceListPrintView';
 
 interface PrintItem {
@@ -39,6 +39,8 @@ interface PrintContextType {
     setAnalyticsPrintData: (data: any | null) => void;
     orderAnalyticsData: { stats: any; order: Order } | null;
     setOrderAnalyticsData: (data: { stats: any; order: Order } | null) => void;
+    stageBatchPrintData: StageBatchPrintData | null;
+    setStageBatchPrintData: (data: StageBatchPrintData | null) => void;
 }
 
 const PrintContext = createContext<PrintContextType | undefined>(undefined);
@@ -66,6 +68,7 @@ export const PrintProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [priceListPrintData, setPriceListPrintData] = useState<PriceListPrintData | null>(null);
     const [analyticsPrintData, setAnalyticsPrintData] = useState<any | null>(null);
     const [orderAnalyticsData, setOrderAnalyticsData] = useState<{ stats: any; order: Order } | null>(null);
+    const [stageBatchPrintData, setStageBatchPrintData] = useState<StageBatchPrintData | null>(null);
 
     return (
         <PrintContext.Provider
@@ -84,6 +87,7 @@ export const PrintProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 priceListPrintData, setPriceListPrintData,
                 analyticsPrintData, setAnalyticsPrintData,
                 orderAnalyticsData, setOrderAnalyticsData,
+                stageBatchPrintData, setStageBatchPrintData,
             }}
         >
             {children}

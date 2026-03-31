@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType, BatchStageHistoryEntry } from '../types';
+import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType, BatchStageHistoryEntry, StageBatchPrintData } from '../types';
 import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, ArrowLeft, Clock, StickyNote, History, Package, Box, Info, PauseCircle, PlayCircle, User, ShoppingCart, RefreshCcw, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer, Scissors, Trash2, Split, Merge, FileText, AlertCircle, Save, Check } from 'lucide-react';
 import { api, supabase } from '../lib/supabase';
 import { checkStockForOrderItems, deductStockForOrder } from '../lib/supabase';
@@ -23,6 +23,7 @@ interface Props {
     onClose: () => void;
     onSuccess: () => void;
     onPrintAggregated?: (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => void;
+    onPrintStageBatches?: (data: StageBatchPrintData) => void;
     onBack?: () => void; // Optional: navigate back to quick picker
 }
 
@@ -264,7 +265,7 @@ const getTimeInStage = (dateStr: string) => {
     };
 };
 
-export default function ProductionSendModal({ order, products, materials, existingBatches, collections, onClose, onSuccess, onPrintAggregated, onBack }: Props) {
+export default function ProductionSendModal({ order, products, materials, existingBatches, collections, onClose, onSuccess, onPrintAggregated, onPrintStageBatches, onBack }: Props) {
     const { showToast, confirm } = useUI();
     const queryClient = useQueryClient();
     const { data: shipmentSnapshot, isLoading: isLoadingShipments } = useQuery({
@@ -1572,7 +1573,29 @@ export default function ProductionSendModal({ order, products, materials, existi
                                     <p className="text-white/80 text-xs font-bold uppercase tracking-widest">{popupBatches.reduce((a, b) => a + b.quantity, 0)} Τεμαχια συνολικα</p>
                                 </div>
                             </div>
-                            <button onClick={() => setActiveStagePopup(null)} className="p-2 rounded-full hover:bg-white/20 transition-colors text-white"><X size={28} /></button>
+                            <div className="flex items-center gap-2">
+                                {onPrintStageBatches && popupBatches.length > 0 && (
+                                    <button
+                                        onClick={() => {
+                                            const stageConf = STAGES.find(s => s.id === activeStagePopup);
+                                            onPrintStageBatches({
+                                                stageName: stageConf?.label ?? activeStagePopup,
+                                                stageId: activeStagePopup,
+                                                customerName: order.customer_name,
+                                                orderId: order.id,
+                                                batches: popupBatches,
+                                                generatedAt: new Date().toISOString(),
+                                            });
+                                        }}
+                                        className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all border border-white/30 active:scale-95"
+                                        title="Εκτύπωση λίστας σταδίου"
+                                    >
+                                        <Printer size={17} />
+                                        <span className="hidden sm:inline">Εκτύπωση</span>
+                                    </button>
+                                )}
+                                <button onClick={() => setActiveStagePopup(null)} className="p-2 rounded-full hover:bg-white/20 transition-colors text-white"><X size={28} /></button>
+                            </div>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-slate-50/50">
