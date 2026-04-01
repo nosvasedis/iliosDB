@@ -1052,7 +1052,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
 
             {managingOrder && showTagsManager && (
                 <div className="fixed inset-0 z-[60] bg-slate-900/55 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95">
+                    <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-100 animate-in zoom-in-95">
                         <div className="p-6 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
                             <div>
                                 <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Layers size={18} /> Ετικέτες / Ομαδοποίηση</h3>
@@ -1097,21 +1097,23 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                 {tagInputFocused && (() => {
                                     if (tagSuggestions.length === 0) return null;
                                     return (
-                                        <div className="absolute left-0 right-14 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-10 overflow-hidden">
+                                        <div className="mt-2 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden">
                                             <div className="text-[10px] font-bold text-slate-400 uppercase px-3 pt-2 pb-1">Υπάρχουσες ετικέτες</div>
-                                            {tagSuggestions.map(s => {
-                                                const c = getDeterministicTagColor(s);
-                                                return (
-                                                    <button
-                                                        key={s}
-                                                        onMouseDown={() => { setTagInput(s); }}
-                                                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2 transition-colors"
-                                                    >
-                                                        <span className={`w-2.5 h-2.5 rounded-full ${c.bg} ${c.border} border-2`} />
-                                                        <span className={`font-medium ${c.text}`}>{s}</span>
-                                                    </button>
-                                                );
-                                            })}
+                                            <div className="max-h-44 overflow-y-auto">
+                                                {tagSuggestions.map(s => {
+                                                    const c = getDeterministicTagColor(s);
+                                                    return (
+                                                        <button
+                                                            key={s}
+                                                            onMouseDown={() => { setTagInput(s); }}
+                                                            className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2 transition-colors"
+                                                        >
+                                                            <span className={`w-2.5 h-2.5 rounded-full ${c.bg} ${c.border} border-2`} />
+                                                            <span className={`font-medium ${c.text}`}>{s}</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
                                     );
                                 })()}
