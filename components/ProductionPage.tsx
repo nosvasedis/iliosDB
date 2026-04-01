@@ -4,12 +4,13 @@ import ReactDOM from 'react-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender, ProductVariant, Order, OrderStatus, AssemblyPrintData, AssemblyPrintRow, StageBatchPrintData } from '../types';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, ArrowUp, ArrowDown, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, Users, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList, Grid, Bell } from 'lucide-react';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, ArrowUp, ArrowDown, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, Users, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList, Grid } from 'lucide-react';
 import { useUI } from './UIProvider';
 import { useAuth } from './AuthContext';
 import BatchBuildModal from './BatchBuildModal';
 import ProductionSendModal from './ProductionSendModal';
 import BatchHistoryModal from './BatchHistoryModal';
+import ProductionHealthPanel from './production/ProductionHealthPanel';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { formatOrderId } from '../utils/orderUtils';
 import { ProductionBatchCard } from './ProductionBatchCard';
@@ -19,6 +20,7 @@ import { extractRetailClientFromNotes } from '../utils/retailNotes';
 import { requiresAssemblyStage } from '../constants';
 import { isSpecialCreationSku } from '../utils/specialCreationSku';
 import ProductionMoldRequirementsModal from './ProductionMoldRequirementsModal';
+import { buildProductionAlertGroups } from './production/productionAlerts';
 import { invalidateOrdersAndBatches } from '../lib/queryInvalidation';
 import { PRODUCTION_STAGE_ORDER_INDEX, PRODUCTION_STAGES, getProductionStageLabel, getProductionStageShortLabel } from '../utils/productionStages';
 import {
@@ -837,221 +839,6 @@ const AssemblyOrderSelectorModal = ({
         </div>
     );
 };
-
-const ProductionHealthBar = ({ batches, orders, onFilterClick }: { batches: EnhancedProductionBatch[], orders: Order[], onFilterClick: (type: 'active' | 'delayed' | 'onHold' | 'ready') => void }) => {
-    const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
-    const [isAlertsModalOpen, setIsAlertsModalOpen] = useState(false);
-    const total = batches.length;
-    const delayed = batches.filter(b => b.isDelayed && !b.on_hold).length; // Exclude held batches from delay stats
-    const ready = batches.filter(b => b.current_stage === ProductionStage.Ready).length;
-    const onHold = batches.filter(b => b.on_hold).length;
-    const inProgress = total - ready - onHold;
-
-    // Adjusted health score: Exclude on-hold from penalty
-    const healthScore = (inProgress + ready) > 0 ? Math.max(0, 100 - (delayed / (inProgress || 1)) * 100) : 100;
-
-    // Filter active orders that have notes
-    const activeOrderNotes = orders?.filter(o =>
-        o.status === 'In Production' &&
-        o.notes &&
-        o.notes.trim().length > 0 &&
-        batches.some(b => b.order_id === o.id)
-    ).map(o => ({ id: o.id, customer: o.customer_name, note: o.notes }));
-
-    const criticalAlerts = [...batches]
-        .filter((batch) => !batch.on_hold && batch.timingStatus === 'critical')
-        .sort((a, b) => getBatchStageChronologyTimestamp(a) - getBatchStageChronologyTimestamp(b))
-        .map((batch) => ({
-            id: batch.id,
-            sku: `${batch.sku}${batch.variant_suffix || ''}`,
-            customer: batch.customer_name || 'Χωρίς Πελάτη',
-            orderId: batch.order_id,
-            stageLabel: getProductionStageLabel(batch.current_stage),
-            timingLabel: batch.timingLabel || '0λ',
-            quantity: batch.quantity,
-            sizeInfo: batch.size_info,
-        }));
-
-    // Cycle for note colors
-    const NOTE_COLORS = [
-        'bg-blue-50 border-blue-100 text-blue-800',
-        'bg-purple-50 border-purple-100 text-purple-800',
-        'bg-rose-50 border-rose-100 text-rose-800',
-        'bg-amber-50 border-amber-100 text-amber-800',
-        'bg-teal-50 border-teal-100 text-teal-800',
-    ];
-
-    return (
-        <>
-            <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100 flex flex-col md:flex-row gap-6 items-center justify-between mb-2">
-                <div className="flex items-center gap-4 w-full md:w-auto">
-                    <div className={`w-16 h-16 rounded-full flex items-center justify-center text-xl font-black border-4 shadow-inner ${healthScore > 80 ? 'border-emerald-100 text-emerald-600 bg-emerald-50' : (healthScore > 50 ? 'border-amber-100 text-amber-600 bg-amber-50' : 'border-red-100 text-red-600 bg-red-50')}`}>
-                        {healthScore.toFixed(0)}%
-                    </div>
-                    <div>
-                        <h3 className="font-bold text-slate-800">Υγεία Παραγωγής</h3>
-                        <p className="text-xs text-slate-500">Βάσει χρονικών ορίων</p>
-                    </div>
-                </div>
-
-                <div className="flex gap-4 w-full md:w-auto overflow-x-auto pb-4 md:pb-0 items-start">
-                    <button
-                        onClick={() => setIsAlertsModalOpen(true)}
-                        className={`flex flex-col items-center justify-center w-[92px] h-[100px] rounded-2xl border shrink-0 shadow-sm transition-colors text-center ${criticalAlerts.length > 0 ? 'bg-red-50 border-red-100 hover:border-red-300 hover:bg-red-100/70' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}
-                        title="Άνοιγμα ειδοποιήσεων παραγωγής"
-                    >
-                        <div className={`w-10 h-10 rounded-full border flex items-center justify-center mb-2 ${criticalAlerts.length > 0 ? 'bg-white border-red-200 text-red-600' : 'bg-white border-slate-200 text-slate-400'}`}>
-                            <Bell size={18} className={criticalAlerts.length > 0 ? 'animate-pulse' : ''} />
-                        </div>
-                        <span className={`text-[10px] font-black uppercase tracking-widest ${criticalAlerts.length > 0 ? 'text-red-700' : 'text-slate-500'}`}>
-                            Ειδοποιήσεις
-                        </span>
-                        <span className={`mt-1 text-xl font-black ${criticalAlerts.length > 0 ? 'text-red-700' : 'text-slate-700'}`}>
-                            {criticalAlerts.length}
-                        </span>
-                    </button>
-
-                    {activeOrderNotes && activeOrderNotes.length > 0 && (
-                        <button
-                            onClick={() => setIsNotesModalOpen(true)}
-                            className="flex flex-col w-80 h-[100px] bg-white rounded-2xl border-2 border-indigo-100 overflow-hidden shrink-0 shadow-sm hover:border-indigo-300 hover:bg-indigo-50/20 transition-colors text-left"
-                            title="Άνοιγμα όλων των οδηγιών παραγωγής"
-                        >
-                            <div className="bg-indigo-50 px-3 py-1.5 border-b border-indigo-100 flex justify-between items-center shrink-0">
-                                <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest flex items-center gap-1">
-                                    <ClipboardList size={10} /> Οδηγίες Παραγωγής
-                                </span>
-                                <span className="bg-white text-indigo-600 px-1.5 rounded text-[9px] font-bold shadow-sm">{activeOrderNotes.length}</span>
-                            </div>
-                            <div className="overflow-y-auto p-2 space-y-1.5 custom-scrollbar bg-white">
-                                {activeOrderNotes.map((n, i) => (
-                                    <div key={n.id} className={`p-2 rounded-lg border text-[10px] leading-tight ${NOTE_COLORS[i % NOTE_COLORS.length]}`}>
-                                        <div className="flex justify-between font-bold mb-0.5 opacity-90 border-b border-black/5 pb-0.5">
-                                            <span>{i + 1}. {n.customer}</span>
-                                            <span className="font-mono opacity-70">#{formatOrderId(n.id)}</span>
-                                        </div>
-                                        <div className="font-medium italic opacity-90">"{n.note}"</div>
-                                    </div>
-                                ))}
-                            </div>
-                        </button>
-                    )}
-
-                    <button onClick={() => onFilterClick('onHold')} className="bg-amber-50 px-5 py-3 rounded-2xl border border-amber-100 min-w-[120px] h-[100px] flex flex-col justify-center hover:bg-amber-100 transition-all text-left">
-                        <div className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1 flex items-center gap-1"><PauseCircle size={12} /> Σε Αναμονή</div>
-                        <div className="text-2xl font-black text-amber-700">{onHold}</div>
-                    </button>
-                    <button onClick={() => onFilterClick('active')} className="bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100 min-w-[120px] h-[100px] flex flex-col justify-center hover:bg-slate-100 transition-all text-left">
-                        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1"><Activity size={12} /> Ενεργά</div>
-                        <div className="text-2xl font-black text-slate-800">{inProgress}</div>
-                    </button>
-                    <button onClick={() => onFilterClick('delayed')} className={`px-5 py-3 rounded-2xl border min-w-[120px] h-[100px] flex flex-col justify-center transition-all text-left ${delayed > 0 ? 'bg-red-50 border-red-100 hover:bg-red-100' : 'bg-slate-50 border-slate-100 hover:bg-slate-100'}`}>
-                        <div className={`text-xs font-bold uppercase tracking-wider mb-1 flex items-center gap-1 ${delayed > 0 ? 'text-red-500' : 'text-slate-400'}`}>
-                            <Siren size={12} className={delayed > 0 ? 'animate-pulse' : ''} /> Καθυστέρηση
-                        </div>
-                        <div className={`text-2xl font-black ${delayed > 0 ? 'text-red-600' : 'text-slate-800'}`}>{delayed}</div>
-                    </button>
-                    <button onClick={() => onFilterClick('ready')} className="bg-emerald-50 px-5 py-3 rounded-2xl border border-emerald-100 min-w-[120px] h-[100px] flex flex-col justify-center hover:bg-emerald-100 transition-all text-left">
-                        <div className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1 flex items-center gap-1"><CheckCircle size={12} /> Έτοιμα</div>
-                        <div className="text-2xl font-black text-emerald-700">{ready}</div>
-                    </button>
-                </div>
-            </div>
-
-            {isNotesModalOpen && (
-                <div className="fixed inset-0 z-[230] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setIsNotesModalOpen(false)}>
-                    <div className="bg-white w-full max-w-4xl max-h-[86vh] rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-                        <div className="p-5 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
-                            <div>
-                                <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                                    <ClipboardList size={18} className="text-indigo-600" /> Όλες οι Οδηγίες Παραγωγής
-                                </h3>
-                                <p className="text-xs text-slate-500 mt-1">Σημειώσεις κύριας εντολής για όλες τις εντολές που είναι σε παραγωγή.</p>
-                            </div>
-                            <button onClick={() => setIsNotesModalOpen(false)} className="p-2 rounded-full text-slate-400 hover:bg-slate-200 transition-colors">
-                                <X size={20} />
-                            </button>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto p-4 bg-slate-50/40 custom-scrollbar space-y-3">
-                            {activeOrderNotes.map((n, i) => (
-                                <div key={n.id} className={`p-3 rounded-xl border ${NOTE_COLORS[i % NOTE_COLORS.length]}`}>
-                                    <div className="flex items-center justify-between gap-3 border-b border-black/10 pb-1.5 mb-2">
-                                        <span className="font-black text-sm">{n.customer}</span>
-                                        <span className="text-xs font-mono font-bold opacity-80">#{formatOrderId(n.id)}</span>
-                                    </div>
-                                    <p className="text-sm leading-relaxed whitespace-pre-wrap break-words font-medium italic">"{n.note}"</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {isAlertsModalOpen && (
-                <div className="fixed inset-0 z-[230] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setIsAlertsModalOpen(false)}>
-                    <div className="bg-white w-full max-w-3xl max-h-[86vh] rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-                        <div className="p-5 border-b border-slate-100 bg-red-50/70 flex items-center justify-between">
-                            <div>
-                                <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                                    <Bell size={18} className="text-red-600" /> Ειδοποιήσεις Παραγωγής
-                                </h3>
-                                <p className="text-xs text-slate-500 mt-1">Οι κρίσιμες καθυστερήσεις εμφανίζονται μόνο εδώ, χωρίς popup κατά την είσοδο στην Παραγωγή.</p>
-                            </div>
-                            <button onClick={() => setIsAlertsModalOpen(false)} className="p-2 rounded-full text-slate-400 hover:bg-slate-200 transition-colors">
-                                <X size={20} />
-                            </button>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto p-4 bg-slate-50/40 custom-scrollbar space-y-3">
-                            {criticalAlerts.length === 0 ? (
-                                <div className="rounded-2xl border border-slate-200 bg-white px-5 py-8 text-center">
-                                    <Bell size={20} className="mx-auto mb-3 text-slate-300" />
-                                    <p className="text-sm font-bold text-slate-700">Δεν υπάρχουν κρίσιμες ειδοποιήσεις.</p>
-                                    <p className="text-xs text-slate-500 mt-1">Η παραγωγή δεν έχει παρτίδες σε κρίσιμη καθυστέρηση αυτή τη στιγμή.</p>
-                                </div>
-                            ) : (
-                                criticalAlerts.map((alert, index) => (
-                                    <div key={alert.id} className="rounded-2xl border border-red-100 bg-white p-4 shadow-sm">
-                                        <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-2 mb-3">
-                                            <div>
-                                                <div className="text-[10px] font-black uppercase tracking-widest text-red-500">Κρίσιμη Καθυστέρηση #{index + 1}</div>
-                                                <div className="text-sm font-black text-slate-900 mt-1">{alert.sku}</div>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="text-xs font-bold text-red-600">{alert.timingLabel}</div>
-                                                <div className="text-[11px] text-slate-500">{alert.quantity} τεμ.</div>
-                                            </div>
-                                        </div>
-                                        <div className="grid gap-2 text-xs text-slate-600 sm:grid-cols-3">
-                                            <div>
-                                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Πελάτης</div>
-                                                <div className="font-bold text-slate-800">{alert.customer}</div>
-                                            </div>
-                                            <div>
-                                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Στάδιο</div>
-                                                <div className="font-bold text-slate-800">{alert.stageLabel}</div>
-                                            </div>
-                                            <div>
-                                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Εντολή</div>
-                                                <div className="font-bold text-slate-800">{alert.orderId ? `#${formatOrderId(alert.orderId)}` : '-'}</div>
-                                            </div>
-                                        </div>
-                                        {alert.sizeInfo && (
-                                            <div className="mt-3 inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-600">
-                                                Μέγεθος: {alert.sizeInfo}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-        </>
-    );
-}
 
 const EditBatchNoteModal = ({ batch, onClose, onSave, isProcessing }: { batch: ProductionBatch, onClose: () => void, onSave: (notes: string) => void, isProcessing: boolean }) => {
     const [note, setNote] = useState(batch.notes || '');
@@ -1981,6 +1768,37 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         }) || [];
         return results as EnhancedProductionBatch[];
     }, [batches, productsMap, materialsMap, ordersMap, batchHistoryLookup, timingNow]);
+
+    const productionHealthSummary = useMemo(() => {
+        const total = enhancedBatches.length;
+        const delayed = enhancedBatches.filter((batch) => batch.isDelayed && !batch.on_hold).length;
+        const ready = enhancedBatches.filter((batch) => batch.current_stage === ProductionStage.Ready).length;
+        const onHold = enhancedBatches.filter((batch) => batch.on_hold).length;
+        const inProgress = total - ready - onHold;
+        const healthScore = (inProgress + ready) > 0 ? Math.max(0, 100 - (delayed / (inProgress || 1)) * 100) : 100;
+
+        return { healthScore, delayed, ready, onHold, inProgress };
+    }, [enhancedBatches]);
+
+    const activeProductionNotes = useMemo(() => {
+        return (orders || [])
+            .filter((order) =>
+                order.status === 'In Production' &&
+                order.notes &&
+                order.notes.trim().length > 0 &&
+                enhancedBatches.some((batch) => batch.order_id === order.id)
+            )
+            .map((order) => ({
+                id: order.id,
+                customer: order.customer_name,
+                note: order.notes || '',
+            }));
+    }, [orders, enhancedBatches]);
+
+    const criticalAlertGroups = useMemo(
+        () => buildProductionAlertGroups(enhancedBatches),
+        [enhancedBatches]
+    );
 
     const batchesByOrderId = useMemo(() => {
         const map = new Map<string, EnhancedProductionBatch[]>();
@@ -2928,14 +2746,12 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
                 </div>
             </div>
 
-            {/* HEALTH BAR MOVED DOWN AND PADDING REDUCED */}
-            <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100 mb-2">
-                <ProductionHealthBar
-                    batches={enhancedBatches}
-                    orders={orders || []}
-                    onFilterClick={(type) => setOverviewModal({ isOpen: true, type })}
-                />
-            </div>
+            <ProductionHealthPanel
+                summary={productionHealthSummary}
+                notes={activeProductionNotes}
+                alertGroups={criticalAlertGroups}
+                onFilterClick={(type) => setOverviewModal({ isOpen: true, type })}
+            />
 
             <div className="flex-1 overflow-x-auto overflow-y-auto pb-4 custom-scrollbar lg:overflow-y-hidden">
                 <div className="flex flex-col lg:flex-row gap-4 h-auto lg:h-full lg:min-w-max">
