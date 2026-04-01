@@ -7,26 +7,7 @@ import { formatCurrency } from '../utils/pricingEngine';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
 import { getNextNamedayForName } from '../utils/namedays';
 import { formatGreekDate } from '../utils/deliveryLabels';
-
-const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
-    [OrderStatus.Pending]: 'Εκκρεμεί',
-    [OrderStatus.InProduction]: 'Σε Παραγωγή',
-    [OrderStatus.Ready]: 'Έτοιμο',
-    [OrderStatus.PartiallyDelivered]: 'Μερική Παράδοση',
-    [OrderStatus.Delivered]: 'Παραδόθηκε',
-    [OrderStatus.Cancelled]: 'Ακυρώθηκε',
-};
-
-const getStatusColor = (status: OrderStatus) => {
-    switch (status) {
-        case OrderStatus.Pending: return 'bg-slate-100 text-slate-600 border-slate-200';
-        case OrderStatus.InProduction: return 'bg-blue-50 text-blue-600 border-blue-200';
-        case OrderStatus.Ready: return 'bg-emerald-50 text-emerald-600 border-emerald-200';
-        case OrderStatus.PartiallyDelivered: return 'bg-amber-50 text-amber-700 border-amber-200';
-        case OrderStatus.Delivered: return 'bg-[#060b00] text-white border-[#060b00]';
-        case OrderStatus.Cancelled: return 'bg-red-50 text-red-500 border-red-200';
-    }
-};
+import { getOrderStatusClasses, getOrderStatusLabel } from '../features/orders/statusPresentation';
 
 export interface CustomerDetailsModalProps {
     customer: Customer;
@@ -568,14 +549,14 @@ export default function CustomerDetailsModal({
                                 return (
                                     <div key={o.id} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row justify-between sm:items-center gap-4 group hover:border-blue-200 transition-all">
                                         <div className="flex items-center gap-5">
-                                            <div className={`w-14 h-14 rounded-xl flex items-center justify-center shadow-sm shrink-0 border ${getStatusColor(o.status)}`}>
+                                            <div className={`w-14 h-14 rounded-xl flex items-center justify-center shadow-sm shrink-0 border ${getOrderStatusClasses(o.status)}`}>
                                                 {o.status === OrderStatus.Delivered ? <Wallet size={24} /> : <Calendar size={24} />}
                                             </div>
                                             <div>
                                                 <div className="font-black text-slate-800 text-lg flex items-center gap-2">
                                                     <span className="font-mono bg-slate-100 px-2 py-0.5 rounded-lg text-sm text-slate-600 shadow-inner">#{o.id.slice(0, 6).toUpperCase()}</span>
-                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase tracking-wider ${getStatusColor(o.status)}`}>
-                                                        {STATUS_TRANSLATIONS[o.status]}
+                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase tracking-wider ${getOrderStatusClasses(o.status)}`}>
+                                                        {getOrderStatusLabel(o.status)}
                                                     </span>
                                                 </div>
                                                 <div className="text-xs text-slate-500 font-bold mt-1.5 flex items-center gap-3">

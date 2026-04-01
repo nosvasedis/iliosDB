@@ -3,38 +3,11 @@ import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { Order, OrderStatus } from '../../types';
-import { ShoppingCart, Plus, Search, Loader2, ChevronRight, Clock, CheckCircle, Package, Truck, XCircle, CalendarRange, PackageCheck } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Loader2, ChevronRight, CalendarRange } from 'lucide-react';
 import { useUI } from '../UIProvider';
 import { formatCurrency } from '../../utils/pricingEngine';
 import MobileOrderBuilder from '../mobile/MobileOrderBuilder'; 
-
-const getStatusColor = (status: OrderStatus) => {
-    switch(status) {
-        case OrderStatus.Pending: return 'bg-slate-100 text-slate-600 border-slate-200';
-        case OrderStatus.InProduction: return 'bg-blue-50 text-blue-600 border-blue-200';
-        case OrderStatus.Ready: return 'bg-emerald-50 text-emerald-600 border-emerald-200';
-        case OrderStatus.Delivered: return 'bg-[#060b00] text-white border-[#060b00]';
-        case OrderStatus.Cancelled: return 'bg-red-50 text-red-500 border-red-200';
-    }
-};
-
-const STATUS_ICONS = {
-    [OrderStatus.Pending]: <Clock size={12} />,
-    [OrderStatus.InProduction]: <Package size={12} />,
-    [OrderStatus.Ready]: <CheckCircle size={12} />,
-    [OrderStatus.PartiallyDelivered]: <PackageCheck size={12} />,
-    [OrderStatus.Delivered]: <Truck size={12} />,
-    [OrderStatus.Cancelled]: <XCircle size={12} />,
-};
-
-const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
-    [OrderStatus.Pending]: 'Εκκρεμεί',
-    [OrderStatus.InProduction]: 'Σε Παραγωγή',
-    [OrderStatus.Ready]: 'Έτοιμο',
-    [OrderStatus.PartiallyDelivered]: 'Μερική Παράδοση',
-    [OrderStatus.Delivered]: 'Παραδόθηκε',
-    [OrderStatus.Cancelled]: 'Ακυρώθηκε',
-};
+import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
 
 export default function EmployeeOrders({ onOpenDeliveries }: { onOpenDeliveries?: (order: Order) => void }) {
     const { data: orders, isLoading } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
@@ -108,8 +81,8 @@ export default function EmployeeOrders({ onOpenDeliveries }: { onOpenDeliveries?
                                                 <div className="text-[10px] text-slate-400">{new Date(order.created_at).toLocaleDateString('el-GR')}{order.seller_name && <span className="text-slate-500"> · {order.seller_name}</span>}</div>
                                             </div>
                                         </div>
-                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase flex items-center gap-1 ${getStatusColor(order.status)}`}>
-                                            {STATUS_ICONS[order.status]} {STATUS_TRANSLATIONS[order.status]}
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase flex items-center gap-1 ${getOrderStatusClasses(order.status)}`}>
+                                            {getOrderStatusIcon(order.status, 12)} {getOrderStatusLabel(order.status)}
                                         </span>
                                     </div>
                                     <div className="flex justify-between items-end border-t border-slate-50 pt-2 mt-2">
@@ -153,8 +126,8 @@ export default function EmployeeOrders({ onOpenDeliveries }: { onOpenDeliveries?
                                         <td className="p-4 text-slate-500">{new Date(order.created_at).toLocaleDateString('el-GR')}</td>
                                         <td className="p-4 text-right font-black text-slate-900">{formatCurrency(netValue)}</td>
                                         <td className="p-4 text-center">
-                                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase ${getStatusColor(order.status)}`}>
-                                                {STATUS_TRANSLATIONS[order.status]}
+                                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase ${getOrderStatusClasses(order.status)}`}>
+                                                {getOrderStatusLabel(order.status)}
                                             </span>
                                         </td>
                                         <td className="p-4 text-right">

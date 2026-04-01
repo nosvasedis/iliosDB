@@ -9,6 +9,9 @@ import { buildDefaultReminderDrafts, syncPlanStatusWithOrder } from '../utils/de
 import { getOrthodoxCelebrationsForYear } from '../utils/orthodoxHoliday';
 import { buildItemIdentityKey } from '../utils/itemIdentity';
 import { isSpecialCreationSku } from '../utils/specialCreationSku';
+import { buildOrderShipmentItemKey, buildStockDeductionEntries, checkStockForOrderItems as checkStockForOrderItemsHelper, getOrderShipmentsSnapshotFromTables, getOrderSnapshotById as getOrderSnapshotByIdHelper } from '../features/orders/supabaseHelpers';
+import { buildInitialBatchHistoryEntry, canMoveBatchToStage as canMoveBatchToStageHelper, getBatchSnapshotById } from '../features/production/supabaseHelpers';
+import { mapCatalogProductsWithRelations, mapProductsWithRelations, resolveProductImageUrl } from '../features/products/mappers';
 
 // Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
 export const R2_PUBLIC_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
@@ -35,23 +38,8 @@ export const supabase = createClient(
 /**
  * SMART URL RESOLVER
  */
-export const resolveImageUrl = (url: string | null | undefined): string | null => {
-    if (!url) return null;
-    if (url.startsWith('data:')) return url;
-    if (url.includes('picsum.photos')) return url;
-
-    try {
-        const parts = url.split('/');
-        const filename = parts[parts.length - 1];
-        if (filename && filename.trim() !== '') {
-            return `${R2_PUBLIC_URL}/${filename}`;
-        }
-    } catch (e) {
-        console.warn("URL resolution failed for:", url);
-        return url;
-    }
-    return url;
-};
+export const resolveImageUrl = (url: string | null | undefined): string | null =>
+    resolveProductImageUrl(url, R2_PUBLIC_URL);
 
 /**
  * STRIPPER
@@ -323,46 +311,22 @@ async function fetchFullTable(tableName: string, select: string = '*', filter?: 
     return mergedData;
 }
 
-const buildShipmentItemKey = (
-    sku: string,
-    variantSuffix?: string | null,
-    sizeInfo?: string | null,
-    cordColor?: string | null,
-    enamelColor?: string | null,
-    lineId?: string | null
-) => buildItemIdentityKey({
-    sku,
-    variant_suffix: variantSuffix,
-    size_info: sizeInfo,
-    cord_color: cordColor as any,
-    enamel_color: enamelColor as any,
-    line_id: lineId || null
-});
-
 async function getOrderShipmentsSnapshot(orderId: string): Promise<{ shipments: OrderShipment[]; items: OrderShipmentItem[] }> {
     const [shipments, items] = await Promise.all([
         fetchFullTable('order_shipments'),
         fetchFullTable('order_shipment_items')
     ]);
-
-    const filteredShipments = (shipments as OrderShipment[])
-        .filter((shipment) => shipment.order_id === orderId)
-        .sort((a, b) => a.shipment_number - b.shipment_number);
-    const shipmentIds = new Set(filteredShipments.map((shipment) => shipment.id));
-    const filteredItems = (items as OrderShipmentItem[])
-        .filter((item) => shipmentIds.has(item.shipment_id));
-
-    return { shipments: filteredShipments, items: filteredItems };
+    return getOrderShipmentsSnapshotFromTables(shipments as OrderShipment[], items as OrderShipmentItem[], orderId);
 }
 
 async function getBatchSnapshot(batchId: string): Promise<ProductionBatch | null> {
     const batches = await fetchFullTable('production_batches');
-    return ((batches as ProductionBatch[]).find((batch) => batch.id === batchId) || null);
+    return getBatchSnapshotById(batches as ProductionBatch[], batchId);
 }
 
 async function getOrderSnapshot(orderId: string): Promise<Order | null> {
     const orders = await fetchFullTable('orders');
-    return ((orders as Order[]).find((order) => order.id === orderId) || null);
+    return getOrderSnapshotByIdHelper(orders as Order[], orderId);
 }
 
 async function restoreStockForBatch(batch: ProductionBatch): Promise<void> {
@@ -452,22 +416,6 @@ async function insertBatchStageHistory(entry: BatchStageHistoryEntry): Promise<v
     }, { noSelect: true });
 }
 
-function buildInitialBatchHistoryEntry(
-    batch: Pick<ProductionBatch, 'id' | 'current_stage' | 'created_at'>,
-    userName?: string,
-    notes?: string | null
-): BatchStageHistoryEntry {
-    return {
-        id: crypto.randomUUID(),
-        batch_id: batch.id,
-        from_stage: null,
-        to_stage: batch.current_stage,
-        moved_by: userName || 'System',
-        moved_at: batch.created_at,
-        notes: notes ?? null
-    };
-}
-
 export const saveConfiguration = (url: string, key: string, workerKey: string, geminiKey: string) => {
     localStorage.setItem('VITE_SUPABASE_URL', url);
     localStorage.setItem('VITE_SUPABASE_ANON_KEY', key);
@@ -495,14 +443,6 @@ type BulkBatchStageUpdateSummary = {
     movedCount: number;
     skippedCount: number;
     impactedOrderIds: string[];
-};
-
-const canMoveBatchToStage = (batch: ProductionBatch, stage: ProductionStage): boolean => {
-    if (batch.on_hold) return false;
-    if (batch.current_stage === stage) return false;
-    if (stage === ProductionStage.Setting && !batch.requires_setting) return false;
-    if (stage === ProductionStage.Assembly && !batch.requires_assembly) return false;
-    return true;
 };
 
 export const RETAIL_CUSTOMER_ID = '00000000-0000-0000-0000-000000000003';
@@ -585,26 +525,7 @@ export function checkStockForOrderItems(
     itemsToSend: { sku: string; variant: string | null; qty: number; size_info?: string; cord_color?: string | null; enamel_color?: string | null }[],
     allProducts: Product[]
 ): Array<{ sku: string; variant_suffix: string | null; size_info: string | null; cord_color?: string | null; enamel_color?: string | null; requested_qty: number; available_in_stock: number }> {
-    return itemsToSend.map(item => {
-        const product = allProducts.find(p => p.sku === item.sku);
-        if (!product) return { sku: item.sku, variant_suffix: item.variant, size_info: item.size_info || null, cord_color: item.cord_color || null, enamel_color: item.enamel_color || null, requested_qty: item.qty, available_in_stock: 0 };
-
-        let available = 0;
-        const variant = item.variant ? product.variants?.find(v => v.suffix === item.variant) : null;
-
-        if (item.size_info) {
-            // Sized item: check stock_by_size
-            const stockBySize = variant?.stock_by_size || (product as any).stock_by_size;
-            if (stockBySize && typeof stockBySize === 'object') {
-                available = stockBySize[item.size_info] || 0;
-            }
-        } else {
-            // Non-sized item: check stock_qty
-            available = variant ? (variant.stock_qty || 0) : (product.stock_qty || 0);
-        }
-
-        return { sku: item.sku, variant_suffix: item.variant, size_info: item.size_info || null, cord_color: item.cord_color || null, enamel_color: item.enamel_color || null, requested_qty: item.qty, available_in_stock: Math.max(0, available) };
-    });
+    return checkStockForOrderItemsHelper(itemsToSend, allProducts);
 }
 
 /** Deduct stock for items fulfilled from inventory when sending an order to production. */
@@ -613,43 +534,10 @@ export async function deductStockForOrder(
     items: { sku: string; variant_suffix: string | null; qty: number; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null }[],
     allProducts: Product[]
 ): Promise<void> {
-    for (const item of items) {
-        if (item.qty <= 0) continue;
-        const product = allProducts.find(p => p.sku === item.sku);
-        if (!product) continue;
-
-        const variant = item.variant_suffix ? product.variants?.find(v => v.suffix === item.variant_suffix) : null;
-
-        if (variant) {
-            // Deduct from variant stock
-            const newStockQty = Math.max(0, (variant.stock_qty || 0) - item.qty);
-            const updateData: any = { stock_qty: newStockQty };
-
-            if (item.size_info && variant.stock_by_size && typeof variant.stock_by_size === 'object') {
-                const newBySize = { ...variant.stock_by_size };
-                newBySize[item.size_info] = Math.max(0, (newBySize[item.size_info] || 0) - item.qty);
-                updateData.stock_by_size = newBySize;
-            }
-
-            await safeMutate('product_variants', 'UPDATE', updateData, {
-                match: { product_sku: item.sku, suffix: item.variant_suffix }
-            });
-        } else {
-            // Deduct from master product stock
-            const newStockQty = Math.max(0, (product.stock_qty || 0) - item.qty);
-            const updateData: any = { stock_qty: newStockQty };
-
-            if (item.size_info && (product as any).stock_by_size && typeof (product as any).stock_by_size === 'object') {
-                const newBySize = { ...(product as any).stock_by_size };
-                newBySize[item.size_info] = Math.max(0, (newBySize[item.size_info] || 0) - item.qty);
-                updateData.stock_by_size = newBySize;
-            }
-
-            await safeMutate('products', 'UPDATE', updateData, { match: { sku: item.sku } });
-        }
-
-        // Record movement
-        await recordStockMovement(item.sku, -item.qty, `Εκτέλεση από Stock — Παραγγελία #${orderId.slice(0, 12)}`, item.variant_suffix || undefined);
+    const entries = buildStockDeductionEntries(orderId, items, allProducts);
+    for (const entry of entries) {
+        await safeMutate(entry.table, 'UPDATE', entry.updateData, { match: entry.match });
+        await recordStockMovement(entry.sku, -entry.qty, entry.movementReason, entry.variantSuffix || undefined);
     }
 }
 
@@ -847,75 +735,21 @@ export const api = {
             fetchFullTable('product_collections'),
             fetchFullTable('product_stock')
         ]);
-
-        const stockMap = new Map();
-        stockData?.forEach((s: any) => {
-            const key = s.variant_suffix ? `${s.product_sku}::${s.variant_suffix}` : s.product_sku;
-            if (!stockMap.has(key)) stockMap.set(key, []);
-            stockMap.get(key).push(s);
-        });
-
-        const variantMap = new Map();
-        varData?.forEach((v: any) => {
-            if (!variantMap.has(v.product_sku)) variantMap.set(v.product_sku, []);
-            variantMap.get(v.product_sku).push(v);
-        });
-
-        const recipeMap = new Map();
-        recData?.forEach((r: any) => {
-            if (!recipeMap.has(r.parent_sku)) recipeMap.set(r.parent_sku, []);
-            recipeMap.get(r.parent_sku).push(r);
-        });
-
-        const moldsMap = new Map();
-        prodMoldsData?.forEach((pm: any) => {
-            if (!moldsMap.has(pm.product_sku)) moldsMap.set(pm.product_sku, []);
-            moldsMap.get(pm.product_sku).push(pm);
-        });
-
-        const collectionsMap = new Map();
-        prodCollData?.forEach((pc: any) => {
-            if (!collectionsMap.has(pc.product_sku)) collectionsMap.set(pc.product_sku, []);
-            collectionsMap.get(pc.product_sku).push(pc.collection_id);
-        });
-
-        return prodData.map((p: any) => {
-            const customStock: Record<string, number> = {};
-            const pStock = stockMap.get(p.sku) || [];
-            pStock.forEach((s: any) => { customStock[s.warehouse_id] = s.quantity; });
-            customStock[SYSTEM_IDS.CENTRAL] = p.stock_qty;
-            customStock[SYSTEM_IDS.SHOWROOM] = p.sample_qty;
-
-            const baseVariants = variantMap.get(p.sku) || [];
-            const pVariants: ProductVariant[] = baseVariants.map((v: any) => {
-                const vCustomStock: Record<string, number> = {};
-                const vStock = stockMap.get(`${p.sku}::${v.suffix}`) || [];
-                vStock.forEach((s: any) => { vCustomStock[s.warehouse_id] = s.quantity; });
-                vCustomStock[SYSTEM_IDS.CENTRAL] = v.stock_qty;
-                return { suffix: v.suffix, description: v.description, stock_qty: v.stock_qty, stock_by_size: v.stock_by_size || {}, location_stock: vCustomStock, active_price: v.active_price ? Number(v.active_price) : null, selling_price: v.selling_price ? Number(v.selling_price) : null };
-            });
-
-            const pBaseMolds = moldsMap.get(p.sku) || [];
-            const uniqueMoldsMap = new Map<string, { code: string, quantity: number }>();
-            pBaseMolds.forEach((pm: any) => {
-                uniqueMoldsMap.set(pm.mold_code, { code: pm.mold_code, quantity: pm.quantity || 1 });
-            });
-            const pMolds = Array.from(uniqueMoldsMap.values());
-
-            const pBaseRecipes = recipeMap.get(p.sku) || [];
-            const mappedRecipes = pBaseRecipes.map((r: any) => ({ type: r.type, id: r.material_id, sku: r.component_sku, quantity: Number(r.quantity) }));
-
-            return {
-                sku: p.sku, prefix: p.prefix, category: p.category, description: p.description, gender: p.gender as Gender,
-                image_url: resolveImageUrl(p.image_url),
-                weight_g: Number(p.weight_g), secondary_weight_g: p.secondary_weight_g ? Number(p.secondary_weight_g) : undefined, plating_type: p.plating_type as PlatingType, production_type: p.production_type || 'InHouse', supplier_id: p.supplier_id,
-                supplier_sku: p.supplier_sku,
-                supplier_cost: Number(p.supplier_cost || 0), supplier_details: p.suppliers, active_price: Number(p.active_price), draft_price: Number(p.draft_price), selling_price: Number(p.selling_price || 0), stock_qty: p.stock_qty, sample_qty: p.sample_qty, stock_by_size: p.stock_by_size || {}, sample_stock_by_size: p.sample_stock_by_size || {}, location_stock: customStock,
-                molds: pMolds,
-                is_component: p.is_component, variants: pVariants, recipe: mappedRecipes, collections: collectionsMap.get(p.sku) || [],
-                labor: { casting_cost: Number(p.labor_casting), setter_cost: Number(p.labor_setter), technician_cost: Number(p.labor_technician), plating_cost_x: Number(p.labor_plating_x || 0), plating_cost_d: Number(p.labor_plating_d || 0), subcontract_cost: Number(p.labor_subcontract || 0), technician_cost_manual_override: p.labor_technician_manual_override, plating_cost_x_manual_override: p.labor_plating_x_manual_override, plating_cost_d_manual_override: p.labor_plating_d_manual_override, stone_setting_cost: Number(p.labor_stone_setting || 0) }
-            };
-        });
+        return mapProductsWithRelations(
+            prodData as any,
+            {
+                variants: varData as any,
+                recipes: recData as any,
+                molds: prodMoldsData as any,
+                collections: prodCollData as any,
+                stock: stockData as any,
+            },
+            {
+                publicImageBaseUrl: R2_PUBLIC_URL,
+                centralWarehouseId: SYSTEM_IDS.CENTRAL,
+                showroomWarehouseId: SYSTEM_IDS.SHOWROOM,
+            }
+        );
     },
 
     getProductsCatalog: async (params: { limit?: number; offset?: number } = {}): Promise<{ products: Product[]; hasMore: boolean }> => {
@@ -939,51 +773,19 @@ export const api = {
                 supabase.from('product_collections').select('*').in('product_sku', skus),
                 supabase.from('product_stock').select('*').in('product_sku', skus)
             ]);
-            const varData = varRes.data || [];
-            const prodCollData = collRes.data || [];
-            const stockData = stockRes.data || [];
-            const stockMap = new Map<string, any[]>();
-            stockData.forEach((s: any) => {
-                const key = s.variant_suffix ? `${s.product_sku}::${s.variant_suffix}` : s.product_sku;
-                if (!stockMap.has(key)) stockMap.set(key, []);
-                stockMap.get(key)!.push(s);
-            });
-            const variantMap = new Map<string, any[]>();
-            varData.forEach((v: any) => {
-                if (!variantMap.has(v.product_sku)) variantMap.set(v.product_sku, []);
-                variantMap.get(v.product_sku)!.push(v);
-            });
-            const collectionsMap = new Map<string, number[]>();
-            prodCollData.forEach((pc: any) => {
-                if (!collectionsMap.has(pc.product_sku)) collectionsMap.set(pc.product_sku, []);
-                collectionsMap.get(pc.product_sku)!.push(pc.collection_id);
-            });
-            const products: Product[] = prodData.map((p: any) => {
-                const customStock: Record<string, number> = {};
-                const pStock = stockMap.get(p.sku) || [];
-                pStock.forEach((s: any) => { customStock[s.warehouse_id] = s.quantity; });
-                customStock[SYSTEM_IDS.CENTRAL] = p.stock_qty;
-                customStock[SYSTEM_IDS.SHOWROOM] = p.sample_qty;
-                const baseVariants = variantMap.get(p.sku) || [];
-                const pVariants: ProductVariant[] = baseVariants.map((v: any) => {
-                    const vCustomStock: Record<string, number> = {};
-                    const vStock = stockMap.get(`${p.sku}::${v.suffix}`) || [];
-                    vStock.forEach((s: any) => { vCustomStock[s.warehouse_id] = s.quantity; });
-                    vCustomStock[SYSTEM_IDS.CENTRAL] = v.stock_qty;
-                    return { suffix: v.suffix, description: v.description, stock_qty: v.stock_qty, stock_by_size: v.stock_by_size || {}, location_stock: vCustomStock, active_price: v.active_price ? Number(v.active_price) : null, selling_price: v.selling_price ? Number(v.selling_price) : null };
-                });
-                return {
-                    sku: p.sku, prefix: p.prefix, category: p.category, description: p.description, gender: p.gender as Gender,
-                    image_url: resolveImageUrl(p.image_url),
-                    weight_g: Number(p.weight_g), secondary_weight_g: p.secondary_weight_g ? Number(p.secondary_weight_g) : undefined, plating_type: p.plating_type as PlatingType, production_type: (p.production_type as ProductionType) || 'InHouse', supplier_id: p.supplier_id,
-                    supplier_sku: p.supplier_sku,
-                    supplier_cost: Number(p.supplier_cost || 0), supplier_details: p.suppliers, active_price: Number(p.active_price), draft_price: Number(p.draft_price), selling_price: Number(p.selling_price || 0), stock_qty: p.stock_qty, sample_qty: p.sample_qty, stock_by_size: p.stock_by_size || {}, sample_stock_by_size: p.sample_stock_by_size || {}, location_stock: customStock,
-                    molds: [],
-                    is_component: p.is_component, variants: pVariants, recipe: [], collections: collectionsMap.get(p.sku) || [],
-                    labor: { casting_cost: Number(p.labor_casting), setter_cost: Number(p.labor_setter), technician_cost: Number(p.labor_technician), plating_cost_x: Number(p.labor_plating_x || 0), plating_cost_d: Number(p.labor_plating_d || 0), subcontract_cost: Number(p.labor_subcontract || 0), technician_cost_manual_override: p.labor_technician_manual_override, plating_cost_x_manual_override: p.labor_plating_x_manual_override, plating_cost_d_manual_override: p.labor_plating_d_manual_override, stone_setting_cost: Number(p.labor_stone_setting || 0) },
-                    created_at: p.created_at || new Date(0).toISOString()
-                };
-            });
+            const products: Product[] = mapCatalogProductsWithRelations(
+                prodData as any,
+                {
+                    variants: varRes.data || [],
+                    collections: collRes.data || [],
+                    stock: stockRes.data || [],
+                },
+                {
+                    publicImageBaseUrl: R2_PUBLIC_URL,
+                    centralWarehouseId: SYSTEM_IDS.CENTRAL,
+                    showroomWarehouseId: SYSTEM_IDS.SHOWROOM,
+                }
+            );
             return { products, hasMore: products.length === limit };
         } catch (err) {
             const all = await offlineDb.getTable('products').then((d: any[]) => d || []);
@@ -1329,17 +1131,17 @@ export const api = {
 
         const shippedMap = new Map<string, number>();
         existingShipmentSnapshot.items.forEach((row) => {
-            const key = buildShipmentItemKey(row.sku, row.variant_suffix, row.size_info, row.cord_color, row.enamel_color, row.line_id);
+            const key = buildOrderShipmentItemKey(row.sku, row.variant_suffix, row.size_info, row.cord_color, row.enamel_color, row.line_id);
             shippedMap.set(key, (shippedMap.get(key) || 0) + row.quantity);
         });
         shipmentItems.forEach((row) => {
-            const key = buildShipmentItemKey(row.sku, row.variant_suffix, row.size_info, row.cord_color, row.enamel_color, row.line_id);
+            const key = buildOrderShipmentItemKey(row.sku, row.variant_suffix, row.size_info, row.cord_color, row.enamel_color, row.line_id);
             shippedMap.set(key, (shippedMap.get(key) || 0) + row.quantity);
         });
 
         let hasRemaining = false;
         for (const orderItem of params.orderItems) {
-            const key = buildShipmentItemKey(orderItem.sku, orderItem.variant_suffix, orderItem.size_info, orderItem.cord_color, orderItem.enamel_color, orderItem.line_id);
+            const key = buildOrderShipmentItemKey(orderItem.sku, orderItem.variant_suffix, orderItem.size_info, orderItem.cord_color, orderItem.enamel_color, orderItem.line_id);
             const shipped = shippedMap.get(key) || 0;
             if (shipped < orderItem.quantity) {
                 hasRemaining = true;
@@ -1447,7 +1249,7 @@ export const api = {
         const now = new Date().toISOString();
         const currentBatch = await getBatchSnapshot(id);
         if (!currentBatch) return;
-        if (!canMoveBatchToStage(currentBatch, stage)) return;
+        if (!canMoveBatchToStageHelper(currentBatch, stage)) return;
 
         await safeMutate('production_batches', 'UPDATE', { current_stage: stage, updated_at: now }, { match: { id } });
         await insertBatchStageHistory({
@@ -1470,7 +1272,7 @@ export const api = {
         const allBatches = await fetchFullTable('production_batches');
         const selectedBatches = (allBatches as ProductionBatch[]).filter((batch) => uniqueIds.includes(batch.id));
 
-        const movableBatches = selectedBatches.filter((batch) => canMoveBatchToStage(batch, stage));
+        const movableBatches = selectedBatches.filter((batch) => canMoveBatchToStageHelper(batch, stage));
         if (movableBatches.length === 0) {
             return {
                 movedCount: 0,

@@ -4,75 +4,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { Order, OrderShipment, OrderShipmentItem, OrderStatus, Product, ProductVariant, ProductionStage } from '../../types';
 import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings, ShoppingBag, Image as ImageIcon, PackageCheck } from 'lucide-react';
-import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine';
+import { formatCurrency } from '../../utils/pricingEngine';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import { useUI } from '../UIProvider';
+import SkuColorizedText from '../SkuColorizedText';
 import { isOrderReady } from '../../utils/orderReadiness';
 import { buildItemIdentityKey } from '../../utils/itemIdentity';
 import { getRemainingOrderItems } from '../../utils/shipmentUtils';
-
-const TEXT_FINISH_COLORS: Record<string, string> = {
-    'X': 'text-amber-600',
-    'P': 'text-stone-500',
-    'D': 'text-orange-500',
-    'H': 'text-cyan-600',
-    '': 'text-slate-400'
-};
-
-const TEXT_STONE_COLORS: Record<string, string> = {
-    'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
-    'TG': 'text-orange-700', 'IA': 'text-red-800', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
-    'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
-    'NF': 'text-green-700', 'CO': 'text-cyan-600', 'TPR': 'text-emerald-500', 'TKO': 'text-rose-600',
-    'TMP': 'text-blue-600', 'PCO': 'text-teal-500', 'MCO': 'text-purple-500', 'PAX': 'text-green-600',
-    'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-500', 'AP': 'text-cyan-500',
-    'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-400', 'MP': 'text-blue-400',
-    'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500', 'MV': 'text-purple-400',
-    'RZ': 'text-pink-500', 'AK': 'text-cyan-300', 'XAL': 'text-stone-400', 'SD': 'text-blue-800',
-    'AX': 'text-emerald-700',
-    'S': 'text-emerald-500', 'R': 'text-red-500', 'B': 'text-blue-500', 'W': 'text-slate-400', 'BK': 'text-slate-900', 'TU': 'text-cyan-500', 'AQ': 'text-sky-400', 'PE': 'text-lime-500', 'TO': 'text-orange-400'
-};
-
-const SkuColored = ({ sku, suffix, gender }: { sku: string, suffix?: string, gender?: any }) => {
-    const { finish, stone } = getVariantComponents(suffix || '', gender);
-    const fColor = TEXT_FINISH_COLORS[finish.code] || 'text-slate-400';
-    const sColor = TEXT_STONE_COLORS[stone.code] || 'text-emerald-500';
-
-    return (
-        <span className="font-black text-sm tracking-tight">
-            <span className="text-slate-800">{sku}</span>
-            <span className={fColor}>{finish.code}</span>
-            <span className={sColor}>{stone.code}</span>
-        </span>
-    );
-};
-
-const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
-    [OrderStatus.Pending]: 'Εκκρεμεί',
-    [OrderStatus.InProduction]: 'Παραγωγή',
-    [OrderStatus.Ready]: 'Έτοιμο',
-    [OrderStatus.PartiallyDelivered]: 'Μερική Παράδοση',
-    [OrderStatus.Delivered]: 'Παραδόθηκε',
-    [OrderStatus.Cancelled]: 'Ακυρώθηκε',
-};
-
-const STATUS_ICONS = {
-    [OrderStatus.Pending]: <Clock size={14} />,
-    [OrderStatus.InProduction]: <Package size={14} />,
-    [OrderStatus.Ready]: <CheckCircle size={14} />,
-    [OrderStatus.PartiallyDelivered]: <PackageCheck size={14} />,
-    [OrderStatus.Delivered]: <Truck size={14} />,
-    [OrderStatus.Cancelled]: <XCircle size={14} />,
-};
-
-const STATUS_COLORS = {
-    [OrderStatus.Pending]: 'bg-slate-100 text-slate-600 border-slate-200',
-    [OrderStatus.InProduction]: 'bg-blue-50 text-blue-600 border-blue-200',
-    [OrderStatus.Ready]: 'bg-emerald-50 text-emerald-600 border-emerald-200',
-    [OrderStatus.PartiallyDelivered]: 'bg-amber-50 text-amber-700 border-amber-200',
-    [OrderStatus.Delivered]: 'bg-slate-900 text-white border-slate-900',
-    [OrderStatus.Cancelled]: 'bg-red-50 text-red-500 border-red-200',
-};
+import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
 
 const buildRemainingOrderForPrint = (order: Order, shipmentItems: OrderShipmentItem[]): Order | null => {
     const remainingItems = getRemainingOrderItems(order, shipmentItems);
@@ -333,9 +272,9 @@ const OrderCard: React.FC<{
                         )}
                     </div>
                     <div className="flex flex-col items-end gap-2 shrink-0">
-                        <div className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1.5 border ${STATUS_COLORS[order.status]}`}>
-                            {STATUS_ICONS[order.status]}
-                            <span>{STATUS_TRANSLATIONS[order.status]}</span>
+                        <div className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1.5 border ${getOrderStatusClasses(order.status)}`}>
+                            {getOrderStatusIcon(order.status, 14)}
+                            <span>{getOrderStatusLabel(order.status, 'mobileCompact')}</span>
                         </div>
                         {isReady && !isDelivered && !isCancelled && (
                             <div className="bg-emerald-500 text-white p-1 rounded-full animate-pulse shadow-sm shadow-emerald-200">
@@ -413,7 +352,7 @@ const OrderCard: React.FC<{
                                         )}
                                     </div>
                                     <div className="min-w-0">
-                                        <SkuColored sku={item.sku} suffix={item.variant_suffix} gender={product?.gender} />
+                                        <SkuColorizedText sku={item.sku} suffix={item.variant_suffix} gender={product?.gender} className="font-black text-sm tracking-tight" masterClassName="text-slate-800" />
                                         {item.size_info && <div className="text-[10px] text-slate-400 font-medium mt-0.5">Size: {item.size_info}</div>}
                                     </div>
                                 </div>

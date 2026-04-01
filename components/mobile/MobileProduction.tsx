@@ -1,10 +1,11 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, supabase, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
+import { useQueryClient } from '@tanstack/react-query';
+import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType, Order, ProductVariant } from '../../types';
 import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, ArrowLeft, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save, Square, CheckSquare, Image as ImageIcon, Gem } from 'lucide-react';
 import { useUI } from '../UIProvider';
+import SkuColorizedText from '../SkuColorizedText';
 import MobileBatchBuildModal from './MobileBatchBuildModal';
 import BatchHistoryModal from '../BatchHistoryModal';
 import { formatOrderId } from '../../utils/orderUtils';
@@ -12,7 +13,7 @@ import { formatCurrency, formatDecimal, getVariantComponents } from '../../utils
 import { requiresAssemblyStage } from '../../constants';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import FinderBatchStageSelector from '../production/FinderBatchStageSelector';
-import { PRODUCTION_STAGE_ORDER_INDEX, PRODUCTION_STAGES, getProductionStageLabel } from '../../utils/productionStages';
+import { PRODUCTION_STAGES, getProductionStageLabel } from '../../utils/productionStages';
 import {
     buildBatchStageHistoryLookup,
     formatGreekDurationFromMs,
@@ -20,6 +21,21 @@ import {
     getProductionTimingStatusClasses,
     getProductionTimingStatusLabel,
 } from '../../utils/productionTiming';
+import {
+    buildLabelPrintQueue,
+    buildMobileProductionFoundBatches,
+    buildMobileSettingStoneBreakdown,
+    buildMobileSettingStoneOrderGroups,
+    buildMobileSettingStoneOrderList,
+    getMobileProductionNextStage,
+    groupMobilePrintSelectorBatches,
+    LabelPrintSortMode,
+} from '../../features/production/workflowSelectors';
+import { useMaterials } from '../../hooks/api/useMaterials';
+import { useMolds } from '../../hooks/api/useMolds';
+import { useOrders } from '../../hooks/api/useOrders';
+import { useBatchStageHistoryEntries, useProductionBatches } from '../../hooks/api/useProductionBatches';
+import { productionRepository } from '../../features/production';
 
 interface Props {
     allProducts: Product[];
@@ -47,48 +63,6 @@ const STAGE_COLORS: Record<string, string> = {
 };
 
 type PrintSelectorType = 'technician' | 'preparation' | 'aggregated' | 'labels';
-type LabelPrintSortMode = 'as_sent' | 'customer';
-
-const getBatchStageChronologyTimestamp = (batch: Pick<ProductionBatch, 'created_at'> & { stageEnteredAt?: string }) => {
-    const ts = new Date(batch.stageEnteredAt || batch.created_at).getTime();
-    return Number.isFinite(ts) ? ts : 0;
-};
-
-const TEXT_FINISH_COLORS: Record<string, string> = {
-    'X': 'text-amber-600',
-    'P': 'text-stone-500',
-    'D': 'text-orange-500',
-    'H': 'text-cyan-600',
-    '': 'text-slate-400'
-};
-
-const TEXT_STONE_COLORS: Record<string, string> = {
-    'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
-    'TG': 'text-orange-700', 'IA': 'text-red-800', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
-    'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
-    'NF': 'text-green-700', 'CO': 'text-cyan-600', 'TPR': 'text-emerald-500', 'TKO': 'text-rose-600',
-    'TMP': 'text-blue-600', 'PCO': 'text-teal-500', 'MCO': 'text-purple-500', 'PAX': 'text-green-600',
-    'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-500', 'AP': 'text-cyan-500',
-    'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-400', 'MP': 'text-blue-400',
-    'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500', 'MV': 'text-purple-400',
-    'RZ': 'text-pink-500', 'AK': 'text-cyan-300', 'XAL': 'text-stone-400', 'SD': 'text-blue-800',
-    'AX': 'text-emerald-700',
-    'S': 'text-emerald-500', 'R': 'text-red-500', 'B': 'text-blue-500', 'W': 'text-slate-400', 'BK': 'text-slate-900', 'TU': 'text-cyan-500', 'AQ': 'text-sky-400', 'PE': 'text-lime-500', 'TO': 'text-orange-400'
-};
-
-const SkuColored = ({ sku, suffix, gender }: { sku: string, suffix?: string, gender?: any }) => {
-    const { finish, stone } = getVariantComponents(suffix || '', gender);
-    const fColor = TEXT_FINISH_COLORS[finish.code] || 'text-slate-400';
-    const sColor = TEXT_STONE_COLORS[stone.code] || 'text-emerald-500';
-
-    return (
-        <span className="font-black text-lg tracking-tight">
-            <span className="text-slate-800">{sku}</span>
-            <span className={fColor}>{finish.code}</span>
-            <span className={sColor}>{stone.code}</span>
-        </span>
-    );
-};
 
 const MobileBatchCard: React.FC<{ 
     batch: ProductionBatch & { isDelayed?: boolean, customer_name?: string, product_image?: string | null, stageEnteredAt?: string, timingStatus?: 'normal' | 'attention' | 'delayed' | 'critical', timingLabel?: string, reminderKey?: string }, 
@@ -140,7 +114,7 @@ const MobileBatchCard: React.FC<{
                     )}
                 </div>
                 <div className="min-w-0 flex-1">
-                    <SkuColored sku={batch.sku} suffix={batch.variant_suffix || ''} gender={batch.product_details?.gender} />
+                    <SkuColorizedText sku={batch.sku} suffix={batch.variant_suffix || ''} gender={batch.product_details?.gender} className="font-black text-lg tracking-tight" masterClassName="text-slate-800" />
                     {batch.size_info && <div className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 font-bold inline-block mt-1">{batch.size_info}</div>}
                     {batch.customer_name && <div className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-tight">{batch.customer_name}</div>}
                 </div>
@@ -265,24 +239,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelS
         if (isOpen) setSelectedIds(new Set(batches.map(b => b.id)));
     }, [isOpen, batches]);
 
-    const groupedBatches = useMemo(() => {
-        const groups: Record<string, { name: string, items: typeof batches }> = {};
-
-        batches.forEach(b => {
-            const key = b.order_id || 'no_order';
-            if (!groups[key]) {
-                const order = groups[key] = {
-                    name: b.customer_name ? `${b.customer_name} (#${formatOrderId(b.order_id)})` : (b.order_id ? `Παραγγελία #${formatOrderId(b.order_id)}` : 'Χωρίς Παραγγελία'),
-                    items: []
-                };
-            }
-            groups[key].items.push(b);
-        });
-
-        return Object.entries(groups)
-            .sort((a, b) => b[1].items.length - a[1].items.length)
-            .filter(([_, group]) => group.name.toLowerCase().includes(searchTerm.toLowerCase()) || group.items.some(i => i.sku.toLowerCase().includes(searchTerm.toLowerCase())));
-    }, [batches, searchTerm]);
+    const groupedBatches = useMemo(() => groupMobilePrintSelectorBatches(batches, searchTerm), [batches, searchTerm]);
 
     const toggleBatch = (id: string) => {
         const next = new Set(selectedIds);
@@ -596,66 +553,15 @@ const SettingStoneModal: React.FC<{
 }> = ({ batches, orders, allProducts, allMaterials, onClose }) => {
     const settingBatches = batches.filter(b => b.current_stage === ProductionStage.Setting);
 
-    const orderGroups = useMemo(() => {
-        const map = new Map<string, typeof settingBatches>();
-        settingBatches.forEach(b => {
-            const key = b.order_id || '__none__';
-            const arr = map.get(key) || [];
-            arr.push(b);
-            map.set(key, arr);
-        });
-        return map;
-    }, [settingBatches]);
+    const orderGroups = useMemo(() => buildMobileSettingStoneOrderGroups(settingBatches), [settingBatches]);
 
     const [selectedOrderKey, setSelectedOrderKey] = useState<string | null>(
         () => orderGroups.size === 1 ? Array.from(orderGroups.keys())[0] : null
     );
 
-    const orderList = useMemo(() =>
-        Array.from(orderGroups.entries()).map(([key, bs]) => {
-            const order = key !== '__none__' ? orders.find(o => o.id === key) : null;
-            return {
-                key,
-                orderId: key !== '__none__' ? key : null,
-                customerName: order?.customer_name || bs[0]?.customer_name || 'Χωρίς Πελάτη',
-                batchCount: bs.length,
-            };
-        }), [orderGroups, orders]);
+    const orderList = useMemo(() => buildMobileSettingStoneOrderList(orderGroups, orders), [orderGroups, orders]);
 
-    const stones = useMemo(() => {
-        if (!selectedOrderKey) return [];
-        const orderBatches = orderGroups.get(selectedOrderKey) || [];
-        const stoneMap = new Map<string, { name: string; description?: string; quantity: number; unit: string }>();
-
-        orderBatches.forEach(batch => {
-            const product = allProducts.find(p => p.sku === batch.sku);
-            if (!product) return;
-
-            let hasRecipeStones = false;
-            product.recipe.forEach(item => {
-                if (item.type !== 'raw') return;
-                const mat = allMaterials.find(m => m.id === item.id);
-                if (!mat || mat.type !== MaterialType.Stone) return;
-                hasRecipeStones = true;
-                const totalQty = item.quantity * batch.quantity;
-                const existing = stoneMap.get(mat.id);
-                if (existing) existing.quantity += totalQty;
-                else stoneMap.set(mat.id, { name: mat.name, description: mat.description, quantity: totalQty, unit: mat.unit || 'τεμ' });
-            });
-
-            // Fallback: use suffix stone when no explicit recipe entry
-            if (!hasRecipeStones) {
-                const { stone } = getVariantComponents(batch.variant_suffix || '', product.gender);
-                if (stone.code) {
-                    const key = `sfx_${stone.code}`;
-                    const existing = stoneMap.get(key);
-                    if (existing) existing.quantity += batch.quantity;
-                    else stoneMap.set(key, { name: stone.name || stone.code, quantity: batch.quantity, unit: 'τεμ' });
-                }
-            }
-        });
-        return Array.from(stoneMap.values()).sort((a, b) => b.quantity - a.quantity);
-    }, [selectedOrderKey, orderGroups, allProducts, allMaterials]);
+    const stones = useMemo(() => buildMobileSettingStoneBreakdown(orderGroups, selectedOrderKey, allProducts, allMaterials), [selectedOrderKey, orderGroups, allProducts, allMaterials]);
 
     const selectedBatches = selectedOrderKey ? (orderGroups.get(selectedOrderKey) || []) : [];
     const selectedOrderInfo = orderList.find(o => o.key === selectedOrderKey);
@@ -739,7 +645,7 @@ const SettingStoneModal: React.FC<{
                                     {selectedBatches.map(b => (
                                         <div key={b.id} className="bg-slate-50 rounded-xl px-3 py-2.5 flex items-center justify-between border border-slate-100">
                                             <div className="flex items-center gap-2 min-w-0">
-                                                <SkuColored sku={b.sku} suffix={b.variant_suffix || ''} gender={(b as any).product_details?.gender} />
+                                                <SkuColorizedText sku={b.sku} suffix={b.variant_suffix || ''} gender={(b as any).product_details?.gender} className="font-black text-lg tracking-tight" masterClassName="text-slate-800" />
                                                 {b.size_info && (
                                                     <span className="text-[9px] bg-slate-200 px-1.5 rounded-md font-bold text-slate-600 shrink-0">{b.size_info}</span>
                                                 )}
@@ -787,11 +693,11 @@ const SettingStoneModal: React.FC<{
 };
 
 export default function MobileProduction({ allProducts, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintLabels }: Props) {
-    const { data: batches, isLoading: loadingBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
-    const { data: batchStageHistoryEntries = [] } = useQuery({ queryKey: ['batchStageHistory'], queryFn: api.getBatchStageHistoryEntries });
-    const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
-    const { data: molds, isLoading: loadingMolds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
-    const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
+    const { data: batches, isLoading: loadingBatches } = useProductionBatches();
+    const { data: batchStageHistoryEntries = [] } = useBatchStageHistoryEntries();
+    const { data: materials, isLoading: loadingMaterials } = useMaterials();
+    const { data: molds, isLoading: loadingMolds } = useMolds();
+    const { data: orders } = useOrders();
 
     const queryClient = useQueryClient();
     const { showToast } = useUI();
@@ -821,6 +727,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     const [printSelectorState, setPrintSelectorState] = useState<{ isOpen: boolean, type: PrintSelectorType | '', batches: (ProductionBatch & { customer_name?: string })[] }>({ isOpen: false, type: '', batches: [] });
     const [labelPrintSortMode, setLabelPrintSortMode] = useState<LabelPrintSortMode>('as_sent');
     const batchHistoryLookup = useMemo(() => buildBatchStageHistoryLookup(batchStageHistoryEntries), [batchStageHistoryEntries]);
+    const productsMap = useMemo(() => new Map(allProducts.map((product) => [product.sku, product])), [allProducts]);
 
     useEffect(() => {
         const intervalId = window.setInterval(() => setTimingNow(Date.now()), 60_000);
@@ -879,57 +786,15 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         });
     }, [batches, allProducts, materials, orders, batchHistoryLookup, timingNow]);
 
-    const foundBatches = useMemo(() => {
-        if (!deferredFinderTerm || deferredFinderTerm.length < 2) return [];
-        const term = deferredFinderTerm.toUpperCase();
-
-        return enrichedBatches
-            .filter(b => {
-                const fullSku = `${b.sku}${b.variant_suffix || ''}`.toUpperCase();
-                return fullSku.includes(term) ||
-                    (b.order_id && b.order_id.includes(term)) ||
-                    (b.customer_name && b.customer_name.toUpperCase().includes(term));
-            })
-            // Keep mobile order identical to desktop:
-            // 1) pipeline stage order, 2) exact full SKU (+ suffix) match.
-            .sort((a, b) => {
-                const stageA = PRODUCTION_STAGE_ORDER_INDEX[a.current_stage] ?? 99;
-                const stageB = PRODUCTION_STAGE_ORDER_INDEX[b.current_stage] ?? 99;
-                if (stageA !== stageB) return stageA - stageB;
-
-                const aExact = `${a.sku}${a.variant_suffix || ''}` === term;
-                const bExact = `${b.sku}${b.variant_suffix || ''}` === term;
-                return (aExact === bExact) ? 0 : aExact ? -1 : 1;
-            })
-            .map(b => {
-                return { ...b, customerName: b.customer_name || 'Άγνωστο' };
-            });
-    }, [enrichedBatches, deferredFinderTerm]);
+    const foundBatches = useMemo(() => buildMobileProductionFoundBatches(enrichedBatches, deferredFinderTerm), [enrichedBatches, deferredFinderTerm]);
 
     const toggleStage = (stageId: string) => setOpenStage(openStage === stageId ? null : stageId);
 
-    const getNextStage = (batch: ProductionBatch): ProductionStage | null => {
-        const currentIndex = STAGES.findIndex(s => s.id === batch.current_stage);
-        if (currentIndex === -1 || currentIndex === STAGES.length - 1) return null;
-
-        // Shortcut for Imported Items: Awaiting -> Labeling
-        if (batch.product_details?.production_type === ProductionType.Imported && batch.current_stage === ProductionStage.AwaitingDelivery) {
-            return ProductionStage.Labeling;
-        }
-
-        let nextIndex = currentIndex + 1;
-        // Skip Setting if not required
-        if (STAGES[nextIndex].id === ProductionStage.Setting && !batch.requires_setting) nextIndex++;
-        // Skip Assembly if not required
-        if (STAGES[nextIndex].id === ProductionStage.Assembly && !batch.requires_assembly) nextIndex++;
-        return STAGES[nextIndex].id as ProductionStage;
-    };
-
     const handleNextStage = async (batch: ProductionBatch) => {
-        const nextStage = getNextStage(batch);
+        const nextStage = getMobileProductionNextStage(batch);
         if (!nextStage) return;
         try {
-            await api.updateBatchStage(batch.id, nextStage);
+            await productionRepository.updateBatchStage(batch.id, nextStage);
             queryClient.invalidateQueries({ queryKey: ['batches'] });
             showToast(`Το ${batch.sku} μετακινήθηκε στο στάδιο ${STAGES.find(s => s.id === nextStage)?.label}.`, "success");
         } catch (error) {
@@ -939,7 +804,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
 
     const handleToggleHold = async (batch: ProductionBatch) => {
         if (batch.on_hold) {
-            await api.toggleBatchHold(batch.id, false);
+            await productionRepository.toggleBatchHold(batch.id, false);
             queryClient.invalidateQueries({ queryKey: ['batches'] });
             showToast("Η παραγωγή συνεχίζεται.", "success");
         } else {
@@ -950,7 +815,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     const confirmHold = async (reason: string) => {
         if (!holdBatch) return;
         try {
-            await api.toggleBatchHold(holdBatch.id, true, reason);
+            await productionRepository.toggleBatchHold(holdBatch.id, true, reason);
             queryClient.invalidateQueries({ queryKey: ['batches'] });
             setHoldBatch(null);
             showToast("Τέθηκε σε αναμονή.", "warning");
@@ -961,7 +826,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         setHistoryModalBatch(batch);
         setIsLoadingHistory(true);
         try {
-            const history = await api.getBatchHistory(batch.id);
+            const history = await productionRepository.getBatchHistory(batch.id);
             setBatchHistory(history);
         } catch (e) {
             console.error('Failed to load batch history:', e);
@@ -991,7 +856,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         if (confirmed) {
             setIsProcessingSplit(true);
             try {
-                await api.updateBatchStage(batch.id, targetStage);
+                await productionRepository.updateBatchStage(batch.id, targetStage);
                 queryClient.invalidateQueries({ queryKey: ['batches'] });
                 showToast('Η παρτίδα παρελήφθη.', 'success');
             } catch (e: any) {
@@ -1009,7 +874,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         setIsProcessingSplit(true);
         try {
             if (quantityToMove >= batch.quantity) {
-                await api.updateBatchStage(batch.id, targetStage);
+                await productionRepository.updateBatchStage(batch.id, targetStage);
             } else {
                 const originalNewQty = batch.quantity - quantityToMove;
                 const { product_details, isDelayed, customer_name, ...dbBatch } = batch as any;
@@ -1022,7 +887,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                     updated_at: new Date().toISOString()
                 };
 
-                await api.splitBatch(batch.id, originalNewQty, newBatchData);
+                await productionRepository.splitBatch(batch.id, originalNewQty, newBatchData);
             }
             queryClient.invalidateQueries({ queryKey: ['batches'] });
             showToast('Η μετακίνηση ολοκληρώθηκε.', 'success');
@@ -1064,46 +929,13 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         });
     };
 
-    const buildLabelPrintQueue = (selected: ProductionBatch[], mode: LabelPrintSortMode) => {
-        const sortedBatches = [...selected].sort((a, b) => {
-            if (mode === 'customer') {
-                const clientA = (a as ProductionBatch & { customer_name?: string }).customer_name || '';
-                const clientB = (b as ProductionBatch & { customer_name?: string }).customer_name || '';
-                const byCustomer = clientA.localeCompare(clientB, 'el', { sensitivity: 'base' });
-                if (byCustomer !== 0) return byCustomer;
-            }
-
-            const byStageChronology = getBatchStageChronologyTimestamp(a as ProductionBatch & { stageEnteredAt?: string }) - getBatchStageChronologyTimestamp(b as ProductionBatch & { stageEnteredAt?: string });
-            if (byStageChronology !== 0) return byStageChronology;
-
-            const byCreatedAt = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-            if (byCreatedAt !== 0) return byCreatedAt;
-
-            return `${a.sku}${a.variant_suffix || ''}`.localeCompare(`${b.sku}${b.variant_suffix || ''}`, undefined, { numeric: true, sensitivity: 'base' });
-        });
-
-        return sortedBatches.map(b => {
-            const product = allProducts?.find(p => p.sku === b.sku);
-            if (!product) return null;
-            const batchSuffix = b.variant_suffix || '';
-            const variant = product.variants?.find(v => (v.suffix || '') === batchSuffix);
-            return {
-                product,
-                variant,
-                quantity: b.quantity,
-                size: b.size_info || undefined,
-                format: 'standard'
-            };
-        }).filter(item => item !== null);
-    };
-
     const executePrint = (selected: ProductionBatch[]) => {
         const type = printSelectorState.type;
         if (type === 'technician') onPrintTechnician(selected);
         else if (type === 'preparation') onPrintPreparation(selected);
         else if (type === 'aggregated') onPrintAggregated(selected);
         else if (type === 'labels') {
-            const printQueue = buildLabelPrintQueue(selected, labelPrintSortMode);
+            const printQueue = buildLabelPrintQueue(selected as any, labelPrintSortMode, productsMap);
             if (printQueue.length > 0 && onPrintLabels) {
                 onPrintLabels(printQueue as any);
                 const modeLabel = labelPrintSortMode === 'as_sent' ? 'Σειρά Αποστολής' : 'Ταξινόμηση ανά Πελάτη';
@@ -1120,10 +952,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         if (!editingNoteBatch) return;
         setIsSavingNote(true);
         try {
-            const { error } = await supabase
-                .from('production_batches')
-                .update({ notes: newNote || null })
-                .eq('id', editingNoteBatch.id);
+            const { error } = await productionRepository.updateBatchNotes(editingNoteBatch.id, newNote || null);
             if (error) throw error;
             queryClient.invalidateQueries({ queryKey: ['batches'] });
             showToast("Η σημείωση αποθηκεύτηκε.", "success");
@@ -1170,7 +999,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                                 <div className="flex justify-between items-start mb-2">
                                     <div>
                                         <div className="flex items-center gap-2 mb-1">
-                                            <SkuColored sku={b.sku} suffix={b.variant_suffix} gender={b.product_details?.gender} />
+                                            <SkuColorizedText sku={b.sku} suffix={b.variant_suffix} gender={b.product_details?.gender} className="font-black text-lg tracking-tight" masterClassName="text-slate-800" />
                                             {b.size_info && <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-lg text-xs font-black border border-blue-100 flex items-center gap-1"> {b.size_info}</span>}
                                         </div>
                                         <div className="text-xs text-slate-500 font-bold flex items-center gap-1.5 uppercase tracking-tight py-1 inline-block"><User size={12} className="text-slate-400" /> {b.customerName}</div>

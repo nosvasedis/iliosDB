@@ -6,21 +6,43 @@ import {
     ImageIcon, Camera, StickyNote, Minus, Percent, Loader2, FolderKanban, Tag,
     BookOpen, ChevronLeft, ShoppingBag, Hash, ShoppingCart, Pencil
 } from 'lucide-react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
-import { formatCurrency, analyzeSku, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
+import { useQueryClient } from '@tanstack/react-query';
+import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
+import { formatCurrency, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
+import SkuColorizedText from '../SkuColorizedText';
 import { FINISH_CODES } from '../../constants';
-import { normalizedIncludes } from '../../utils/greekSearch';
 import { generateOrderId } from '../../utils/orderUtils';
-import { getSizingInfo, ProductSizingInfo } from '../../utils/sizing';
+import { getSizingInfo } from '../../utils/sizing';
+import { SKU_STONE_TEXT_COLORS } from '../../utils/skuColoring';
 import { useUI } from '../UIProvider';
 import { useAuth } from '../AuthContext';
 import BarcodeScanner from '../BarcodeScanner';
 import MobileCustomerForm from './MobileCustomerForm';
 import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../../utils/retailNotes';
-import { assignMissingSpecialCreationLineIds, getOrderItemMatchKey } from '../../utils/orderItemMatch';
+import { getOrderItemMatchKey } from '../../utils/orderItemMatch';
 import { getSpecialCreationProductStub, isSpecialCreationSku, SPECIAL_CREATION_SKU } from '../../utils/specialCreationSku';
 import { PRODUCT_OPTION_COLORS, PRODUCT_OPTION_COLOR_LABELS, getProductOptionColorLabel, isXrCordEnamelSku } from '../../utils/xrOptions';
+import { useCollections } from '../../hooks/api/useCollections';
+import { useCustomers } from '../../hooks/api/useOrders';
+import { ordersRepository } from '../../features/orders';
+import {
+    buildMobileOrderBuilderCustomerSuggestions,
+    buildMobileOrderBuilderEditFinishOptions,
+    buildMobileOrderBuilderEditStoneOptions,
+    buildMobileOrderBuilderEditVariantsByFinish,
+    buildMobileOrderBuilderEditingProduct,
+    buildMobileOrderBuilderEditingSizeMode,
+    buildMobileOrderBuilderFinishOrder,
+    buildMobileOrderBuilderItemEditState,
+    buildMobileOrderBuilderItemUpdate,
+    buildMobileOrderBuilderItems,
+    buildMobileOrderBuilderProductSuggestions,
+    buildMobileOrderBuilderTotals,
+    buildMobileOrderBuilderVariantGroups,
+    hydrateMobileOrderBuilderDraft,
+    parseMobileOrderBuilderDraft,
+    serializeMobileOrderBuilderDraft,
+} from '../../features/orders/mobileOrderBuilderHelpers';
 
 interface Props {
     onBack: () => void;
@@ -29,45 +51,6 @@ interface Props {
     /** When true (e.g. from SellerApp), always set seller_id/seller_name on save regardless of profile.role */
     attachSeller?: boolean;
 }
-
-// ─── Color coding helpers (unchanged) ─────────────────────────────────────────
-const FINISH_COLORS: Record<string, string> = {
-    'X': 'text-amber-500',
-    'P': 'text-slate-500',
-    'D': 'text-orange-500',
-    'H': 'text-cyan-400',
-    '': 'text-slate-400'
-};
-
-const STONE_TEXT_COLORS: Record<string, string> = {
-    'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
-    'TG': 'text-orange-700', 'IA': 'text-red-700', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
-    'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
-    'NF': 'text-green-700', 'CO': 'text-teal-600', 'TPR': 'text-emerald-500', 'TKO': 'text-rose-600',
-    'TMP': 'text-blue-600', 'PCO': 'text-emerald-400', 'MCO': 'text-purple-500', 'PAX': 'text-green-600',
-    'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-600', 'AP': 'text-cyan-600',
-    'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-500', 'MP': 'text-blue-500',
-    'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500', 'MV': 'text-purple-500',
-    'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500',
-    // Extended stone codes
-    'DI': 'text-cyan-300', 'ZI': 'text-indigo-400', 'AG': 'text-amber-600', 'CZ': 'text-violet-500',
-    'PE': 'text-white drop-shadow', 'ON': 'text-black', 'LPA': 'text-blue-400', 'MO': 'text-blue-300',
-    'GA': 'text-red-400', 'TO': 'text-orange-400', 'AB': 'text-purple-400', 'ST': 'text-sky-600',
-    'SP': 'text-fuchsia-600', 'TU': 'text-teal-400', 'XT': 'text-slate-700', 'OT': 'text-yellow-600',
-};
-
-const SkuColored = ({ sku, suffix, gender }: { sku: string; suffix?: string; gender: any }) => {
-    const { finish, stone } = getVariantComponents(suffix || '', gender);
-    const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
-    const sColor = STONE_TEXT_COLORS[stone.code] || 'text-emerald-500';
-    return (
-        <span className="font-black">
-            <span className="text-slate-900">{sku}</span>
-            <span className={fColor}>{finish.code}</span>
-            <span className={sColor}>{stone.code}</span>
-        </span>
-    );
-};
 
 // ─── Catalog Inline Browser (Seller Only) ─────────────────────────────────────
 type CatalogStep = 'collections' | 'products';
@@ -180,7 +163,7 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
                             }
                         </div>
                         <div className={expanded ? 'p-2' : 'p-1.5'}>
-                            <SkuColored sku={p.sku} suffix="" gender={p.gender} />
+                            <SkuColorizedText sku={p.sku} suffix="" gender={p.gender} className="font-black" masterClassName="text-slate-900" />
                             <div className={`text-slate-400 truncate ${expanded ? 'text-[10px] mt-0.5' : 'text-[9px]'}`}>{p.category}</div>
                         </div>
                     </button>
@@ -201,8 +184,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const { showToast, confirm } = useUI();
     const { user, profile } = useAuth();
     const queryClient = useQueryClient();
-    const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
-    const { data: collections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
+    const { data: customers } = useCustomers();
+    const { data: collections } = useCollections();
 
     const isSeller = profile?.role === 'seller';
 
@@ -219,16 +202,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const [customerName, setCustomerName] = useState(initialIsRetailCustomer ? RETAIL_CUSTOMER_NAME : (initialOrder?.customer_name || ''));
     const [customerPhone, setCustomerPhone] = useState(initialIsRetailCustomer ? '' : (initialOrder?.customer_phone || ''));
     const [customerId, setCustomerId] = useState<string | null>(initialOrder?.customer_id || (initialIsRetailCustomer ? RETAIL_CUSTOMER_ID : null));
-    const [items, setItems] = useState<OrderItem[]>(() => {
-        const baseItems = assignMissingSpecialCreationLineIds(initialOrder?.items || []);
-        return baseItems.map(item => {
-            if (isSpecialCreationSku(item.sku)) {
-                return { ...item, product_details: getSpecialCreationProductStub() };
-            }
-            const product = products.find(p => p.sku === item.sku);
-            return { ...item, product_details: product || item.product_details };
-        });
-    });
+    const [items, setItems] = useState<OrderItem[]>(() => buildMobileOrderBuilderItems(initialOrder?.items || [], products));
     const [vatRate, setVatRate] = useState<number>(initialOrder?.vat_rate !== undefined ? initialOrder.vat_rate : VatRegime.Standard);
     const [discountPercent, setDiscountPercent] = useState<number>(initialOrder?.discount_percent || 0);
     const [isSaving, setIsSaving] = useState(false);
@@ -247,7 +221,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const [input, setInput] = useState('');
     const [suggestions, setSuggestions] = useState<Product[]>([]);
     const [activeMaster, setActiveMaster] = useState<Product | null>(null);
-    const [sizeMode, setSizeMode] = useState<ProductSizingInfo | null>(null);
+    const [sizeMode, setSizeMode] = useState<ReturnType<typeof buildMobileOrderBuilderEditingSizeMode>>(null);
     const [selectedSize, setSelectedSize] = useState('');
     const [selectedCordColor, setSelectedCordColor] = useState<OrderItem['cord_color']>();
     const [selectedEnamelColor, setSelectedEnamelColor] = useState<OrderItem['enamel_color']>();
@@ -264,66 +238,32 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const isRetailCustomer = customerId === RETAIL_CUSTOMER_ID || customerName.trim() === RETAIL_CUSTOMER_NAME;
 
     // Group variants by finish (metal) for two-step selection
-    const variantsByFinish = useMemo(() => {
-        if (!activeMaster?.variants?.length) return {} as Record<string, ProductVariant[]>;
-        const map: Record<string, ProductVariant[]> = {};
-        const order = ['', 'P', 'X', 'D', 'H'];
-        activeMaster.variants.forEach(v => {
-            const { finish } = getVariantComponents(v.suffix, activeMaster.gender);
-            const code = finish.code ?? '';
-            if (!map[code]) map[code] = [];
-            map[code].push(v);
-        });
-        order.forEach(code => { if (map[code]) map[code].sort((a, b) => a.suffix.localeCompare(b.suffix)); });
-        return map;
-    }, [activeMaster?.variants, activeMaster?.gender]);
+    const variantsByFinish = useMemo(() => buildMobileOrderBuilderVariantGroups(activeMaster), [activeMaster]);
 
     const finishOrder = useMemo(() => {
-        const order = ['', 'P', 'X', 'D', 'H'];
-        return order.filter(f => variantsByFinish[f]?.length);
+        return buildMobileOrderBuilderFinishOrder(variantsByFinish);
     }, [variantsByFinish]);
 
     const variantsForSelectedFinish = selectedFinish !== null ? (variantsByFinish[selectedFinish] || []) : [];
 
     const editingItem = editingIndex !== null ? items[editingIndex] : null;
-    const editingProduct = useMemo(() => {
-        if (!editingItem) return null;
-        return products.find(p => p.sku === editingItem.sku) || editingItem.product_details || null;
-    }, [editingItem, products]);
+    const editingProduct = useMemo(() => buildMobileOrderBuilderEditingProduct(editingItem, products), [editingItem, products]);
 
     const editingVariants = editingProduct?.variants || [];
     const editingSizeMode = useMemo(() => {
-        if (!editingProduct) return null;
-        return getSizingInfo(editingProduct);
+        return buildMobileOrderBuilderEditingSizeMode(editingProduct);
     }, [editingProduct]);
 
     const editVariantsByFinish = useMemo(() => {
-        if (!editingProduct || editingVariants.length === 0) return {} as Record<string, ProductVariant[]>;
-        const map: Record<string, ProductVariant[]> = {};
-        const order = ['', 'P', 'X', 'D', 'H'];
-
-        editingVariants.forEach(v => {
-            const { finish } = getVariantComponents(v.suffix, editingProduct.gender);
-            const code = finish.code ?? '';
-            if (!map[code]) map[code] = [];
-            map[code].push(v);
-        });
-
-        order.forEach(code => {
-            if (map[code]) map[code].sort((a, b) => a.suffix.localeCompare(b.suffix));
-        });
-        return map;
-    }, [editingProduct, editingVariants]);
+        return buildMobileOrderBuilderEditVariantsByFinish(editingProduct);
+    }, [editingProduct]);
 
     const editFinishOptions = useMemo(() => {
-        const order = ['', 'P', 'X', 'D', 'H'];
-        const preferred = order.filter(code => editVariantsByFinish[code]?.length);
-        const extras = Object.keys(editVariantsByFinish).filter(code => !order.includes(code));
-        return [...preferred, ...extras];
+        return buildMobileOrderBuilderEditFinishOptions(editVariantsByFinish);
     }, [editVariantsByFinish]);
 
     const editStoneOptions = useMemo(() => {
-        return editVariantsByFinish[editFinish] || [];
+        return buildMobileOrderBuilderEditStoneOptions(editVariantsByFinish, editFinish);
     }, [editVariantsByFinish, editFinish]);
 
     // ── Smart SKU search + full-code resolution (e.g. SK005PAK) ─────────────────
@@ -348,55 +288,34 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             setQty(1);
             return;
         }
-        const results = products.filter(p => {
-            if (p.is_component) return false;
-            return p.sku.startsWith(term) || (term.length >= 3 && p.sku.includes(term));
-        }).slice(0, 10);
-        setSuggestions(results);
+        setSuggestions(buildMobileOrderBuilderProductSuggestions(products, term));
     }, [input, products]);
 
     // ── Autosave draft to sessionStorage (new orders only) ──────────────────
     useEffect(() => {
         if (initialOrder) return; // editing existing — no draft logic
         const raw = sessionStorage.getItem(DRAFT_KEY);
-        if (raw) {
-            try {
-                const draft = JSON.parse(raw);
-                if (draft.items?.length > 0 || draft.customerName) {
-                    setShowDraftBanner(true);
-                }
-            } catch { }
-        }
+        const draft = raw ? parseMobileOrderBuilderDraft(raw) : null;
+        if (draft && (draft.items.length > 0 || draft.customerName)) setShowDraftBanner(true);
     }, []);
 
     const restoreDraft = useCallback(() => {
         const raw = sessionStorage.getItem(DRAFT_KEY);
         if (!raw) return;
-        try {
-            const draft = JSON.parse(raw);
-            const draftCustomerName = draft.customerName || '';
-            const draftCustomerId = draft.customerId || null;
-            const isRetailDraft = draftCustomerId === RETAIL_CUSTOMER_ID || draftCustomerName === RETAIL_CUSTOMER_NAME;
-            const parsedDraftNotes = extractRetailClientFromNotes(draft.orderNotes || '');
-
-            setCustomerName(isRetailDraft ? RETAIL_CUSTOMER_NAME : draftCustomerName);
-            setCustomerPhone(isRetailDraft ? '' : (draft.customerPhone || ''));
-            setCustomerId(isRetailDraft ? RETAIL_CUSTOMER_ID : draftCustomerId);
-            if (draft.items?.length) {
-                const synced = assignMissingSpecialCreationLineIds(draft.items).map((item: OrderItem) => {
-                    if (isSpecialCreationSku(item.sku)) return { ...item, product_details: getSpecialCreationProductStub() };
-                    const product = products.find(p => p.sku === item.sku);
-                    return { ...item, product_details: product || item.product_details };
-                });
-                setItems(synced);
-            }
-            if (draft.vatRate !== undefined) setVatRate(draft.vatRate);
-            if (draft.discountPercent !== undefined) setDiscountPercent(draft.discountPercent);
-            setOrderNotes(parsedDraftNotes.cleanNotes || '');
-            setRetailClientLabel(draft.retailClientLabel !== undefined ? draft.retailClientLabel : parsedDraftNotes.retailClientLabel);
-        } catch { }
+        const draft = parseMobileOrderBuilderDraft(raw);
+        if (!draft) return;
+        const hydrated = hydrateMobileOrderBuilderDraft(draft, products);
+        const parsedDraftNotes = extractRetailClientFromNotes(hydrated.orderNotes || '');
+        setCustomerName(hydrated.customerName);
+        setCustomerPhone(hydrated.customerPhone);
+        setCustomerId(hydrated.customerId);
+        setItems(hydrated.items);
+        setVatRate(hydrated.vatRate);
+        setDiscountPercent(hydrated.discountPercent);
+        setOrderNotes(parsedDraftNotes.cleanNotes || '');
+        setRetailClientLabel(draft.retailClientLabel !== undefined ? draft.retailClientLabel : parsedDraftNotes.retailClientLabel);
         setShowDraftBanner(false);
-    }, []);
+    }, [products]);
 
     const discardDraft = useCallback(() => {
         sessionStorage.removeItem(DRAFT_KEY);
@@ -409,8 +328,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         if (initialOrder) return;
         if (items.length === 0 && !customerName) { sessionStorage.removeItem(DRAFT_KEY); return; }
         try {
-            const lightItems = items.map(({ product_details, ...rest }) => rest);
-            sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ customerName, customerPhone, customerId, items: lightItems, vatRate, discountPercent, orderNotes, retailClientLabel }));
+            sessionStorage.setItem(DRAFT_KEY, serializeMobileOrderBuilderDraft({ customerName, customerPhone, customerId, items, vatRate, discountPercent, orderNotes, retailClientLabel }));
         } catch (e) {
             // QuotaExceededError — silently skip; autosave is best-effort
             console.warn('Draft autosave skipped (storage full):', e);
@@ -443,8 +361,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         setInput('');
         setSuggestions([]);
         setSelectedFinish(null);
-        const sizing = getSizingInfo(p);
-        setSizeMode(sizing || null);
+        setSizeMode(buildMobileOrderBuilderEditingSizeMode(p));
         setSelectedSize('');
         setSelectedCordColor(undefined);
         setSelectedEnamelColor(undefined);
@@ -520,7 +437,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     };
 
     const handleScan = (code: string) => {
-        if (code.trim().toUpperCase() === SPECIAL_CREATION_SKU) {
+        if (code.trim().toUpperCase() === 'SP') {
             showToast('Για SP πληκτρολογήστε SP, τιμή μονάδας και «Προσθήκη SP».', 'error');
             return;
         }
@@ -549,52 +466,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         nextCordColor?: OrderItem['cord_color'],
         nextEnamelColor?: OrderItem['enamel_color']
     ) => {
-        setItems(prev => {
-            if (itemIndex < 0 || itemIndex >= prev.length) return prev;
-
-            const current = prev[itemIndex];
-            if (isSpecialCreationSku(current.sku)) return prev;
-            const product = products.find(p => p.sku === current.sku) || current.product_details;
-
-            let nextPrice = current.price_at_order;
-            if (product) {
-                if (nextVariantSuffix !== undefined) {
-                    const variant = product.variants?.find(v => v.suffix === nextVariantSuffix);
-                    nextPrice = variant?.selling_price || product.selling_price || 0;
-                } else {
-                    nextPrice = product.selling_price || 0;
-                }
-            }
-
-            const edited: OrderItem = {
-                ...current,
-                variant_suffix: nextVariantSuffix,
-                size_info: nextSizeInfo,
-                cord_color: nextCordColor,
-                enamel_color: nextEnamelColor,
-                price_at_order: nextPrice,
-                product_details: product || current.product_details
-            };
-
-            const mergeIdx = prev.findIndex((candidate, i) =>
-                i !== itemIndex &&
-                getOrderItemMatchKey(candidate) === getOrderItemMatchKey(edited)
-            );
-
-            if (mergeIdx !== -1) {
-                const merged = [...prev];
-                merged[mergeIdx] = {
-                    ...merged[mergeIdx],
-                    quantity: merged[mergeIdx].quantity + edited.quantity
-                };
-                merged.splice(itemIndex, 1);
-                return merged;
-            }
-
-            const updated = [...prev];
-            updated[itemIndex] = edited;
-            return updated;
-        });
+        setItems(prev => buildMobileOrderBuilderItemUpdate(prev, itemIndex, nextVariantSuffix, nextSizeInfo, nextCordColor, nextEnamelColor, products));
     };
 
     const openItemEditor = (idx: number) => {
@@ -603,28 +475,17 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         if (isSpecialCreationSku(item.sku)) return;
         setEditingIndex(idx);
 
-        const product = products.find(p => p.sku === item.sku) || item.product_details;
-        const variants = product?.variants || [];
-
-        if (variants.length > 0) {
-            const currentSuffix = item.variant_suffix ?? '';
-            const safeSuffix = variants.some(v => v.suffix === currentSuffix) ? currentSuffix : variants[0].suffix;
-            const { finish } = getVariantComponents(safeSuffix, product?.gender);
-            setEditVariantSuffix(safeSuffix);
-            setEditFinish(finish.code ?? '');
-        } else {
-            setEditVariantSuffix('');
-            setEditFinish('');
-        }
-
-        setEditSizeInfo(item.size_info || '');
-        setEditCordColor(item.cord_color);
-        setEditEnamelColor(item.enamel_color);
+        const editState = buildMobileOrderBuilderItemEditState(item, products);
+        setEditFinish(editState.editFinish);
+        setEditVariantSuffix(editState.editVariantSuffix);
+        setEditSizeInfo(editState.editSizeInfo);
+        setEditCordColor(editState.editCordColor);
+        setEditEnamelColor(editState.editEnamelColor);
     };
 
     const handleEditFinishChange = (finishCode: string) => {
         setEditFinish(finishCode);
-        const options = editVariantsByFinish[finishCode] || [];
+        const options = buildMobileOrderBuilderEditStoneOptions(editVariantsByFinish, finishCode);
         if (options.length === 0) return;
         const hasCurrent = options.some(v => v.suffix === editVariantSuffix);
         setEditVariantSuffix(hasCurrent ? editVariantSuffix : options[0].suffix);
@@ -647,11 +508,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         closeItemEditor();
     };
 
-    const subtotal = items.reduce((sum, i) => sum + (i.price_at_order * i.quantity), 0);
-    const discountAmount = subtotal * (discountPercent / 100);
-    const netAmount = subtotal - discountAmount;
-    const vatAmount = netAmount * vatRate;
-    const grandTotal = netAmount + vatAmount;
+    const { subtotal, discountAmount, netAmount, vatAmount, grandTotal } = buildMobileOrderBuilderTotals(items, discountPercent, vatRate);
 
     const performOrderSave = useCallback(async (customerNameVal: string, customerPhoneVal: string, customerIdVal: string | null, vatRateVal: number) => {
         const isRetailOrder = customerIdVal === RETAIL_CUSTOMER_ID || customerNameVal.trim() === RETAIL_CUSTOMER_NAME;
@@ -675,8 +532,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             notes: composedNotes,
             tags: initialOrder?.tags || []
         };
-        if (initialOrder) await api.updateOrder(orderPayload);
-        else await api.saveOrder(orderPayload);
+        if (initialOrder) await ordersRepository.updateOrder(orderPayload);
+        else await ordersRepository.saveOrder(orderPayload);
         await queryClient.refetchQueries({ queryKey: ['orders'] });
         await queryClient.refetchQueries({ queryKey: ['customers'] });
         sessionStorage.removeItem(DRAFT_KEY);
@@ -701,7 +558,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
 
     const handleCreateClientAndSaveOrder = async (form: Customer) => {
         try {
-            const saved = await api.saveCustomer(form);
+            const saved = await ordersRepository.saveCustomer(form);
             if (!saved) { showToast('Σφάλμα αποθήκευσης πελάτη.', 'error'); return; }
             setCustomerId(saved.id);
             setCustomerName(saved.full_name);
@@ -735,10 +592,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         // if null/undefined (dialog dismissed) — stay
     };
 
-    const filteredCustomers = useMemo(() => {
-        if (!customers || !customerName) return [];
-        return customers.filter(c => normalizedIncludes(c.full_name, customerName) || (c.phone && c.phone.includes(customerName))).slice(0, 5);
-    }, [customers, customerName]);
+    const filteredCustomers = useMemo(() => buildMobileOrderBuilderCustomerSuggestions(customers, customerName), [customers, customerName]);
 
     const emptyCustomer: Customer = { id: '', full_name: '', created_at: '' };
 
@@ -924,7 +778,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                                         {p.image_url ? <img src={p.image_url} className="w-full h-full object-cover" /> : <ImageIcon size={16} className="text-slate-300" />}
                                                     </div>
                                                     <div>
-                                                        <SkuColored sku={p.sku} suffix="" gender={p.gender} />
+                                                        <SkuColorizedText sku={p.sku} suffix="" gender={p.gender} className="font-black" masterClassName="text-slate-900" />
                                                         <div className="text-[10px] text-slate-500 mt-0.5">{p.category}</div>
                                                     </div>
                                                 </div>
@@ -966,7 +820,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                 }
                             </div>
                             <div className="flex-1 min-w-0">
-                                <SkuColored sku={activeMaster.sku} suffix={resolvedVariant?.suffix ?? ''} gender={activeMaster.gender} />
+                                <SkuColorizedText sku={activeMaster.sku} suffix={resolvedVariant?.suffix ?? ''} gender={activeMaster.gender} className="font-black" masterClassName="text-slate-900" />
                                 <p className="text-[10px] text-slate-400 font-black uppercase mt-0.5">{activeMaster.category}</p>
                                 {items.filter(i => i.sku === activeMaster.sku).length > 0 && (
                                     <div className="mt-1.5 text-[9px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
@@ -1115,7 +969,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                                 onClick={() => handleAddItem(variantsForSelectedFinish[0])}
                                                 className="w-full bg-emerald-600 text-white py-4 rounded-xl font-black text-base flex flex-col items-center gap-1 active:scale-[0.99]"
                                             >
-                                                <SkuColored sku="" suffix={variantsForSelectedFinish[0].suffix} gender={activeMaster.gender} />
+                                                <SkuColorizedText sku="" suffix={variantsForSelectedFinish[0].suffix} gender={activeMaster.gender} className="font-black" masterClassName="text-slate-900" />
                                                 <span className="text-white/90 text-xs font-bold">{formatCurrency(variantsForSelectedFinish[0].selling_price || 0)}</span>
                                                 Προσθήκη
                                             </button>
@@ -1124,7 +978,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                                 {variantsForSelectedFinish.map(v => {
                                                     const { stone } = getVariantComponents(v.suffix, activeMaster.gender);
                                                     const price = v.selling_price || activeMaster.selling_price || 0;
-                                                    const stoneColor = STONE_TEXT_COLORS[stone.code] || 'text-violet-600';
+                                                    const stoneColor = SKU_STONE_TEXT_COLORS[stone.code] || 'text-violet-600';
                                                     return (
                                                         <button
                                                             key={v.suffix}
@@ -1195,7 +1049,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                         {isSpecialCreationSku(item.sku) ? (
                                             <span className="font-black text-violet-900">{item.sku}</span>
                                         ) : (
-                                            <SkuColored sku={item.sku} suffix={item.variant_suffix} gender={item.product_details?.gender} />
+                                            <SkuColorizedText sku={item.sku} suffix={item.variant_suffix} gender={item.product_details?.gender} className="font-black" masterClassName="text-slate-900" />
                                         )}
                                         <div className="flex items-center gap-1">
                                             {!isSpecialCreationSku(item.sku) && (

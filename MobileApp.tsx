@@ -10,12 +10,16 @@ import PreparationView from './components/PreparationView';
 import TechnicianView from './components/TechnicianView';
 import BarcodeView from './components/BarcodeView';
 import SupplierOrderPrintView from './components/SupplierOrderPrintView';
-import { useQuery } from '@tanstack/react-query';
-import { api } from './lib/supabase';
 import { Loader2 } from 'lucide-react';
-import { Product, Order, ProductVariant, ProductionBatch, AggregatedBatch, AggregatedData, Offer, SupplierOrder, OrderShipment, OrderShipmentItem } from './types';
-import { calculateProductCost, transliterateForBarcode } from './utils/pricingEngine';
+import { Product, Order, ProductVariant, ProductionBatch, AggregatedData, Offer, SupplierOrder, OrderShipment, OrderShipmentItem } from './types';
 import { lazyWithChunkRecovery } from './lib/chunkLoadRecovery';
+import { buildAggregatedPrintData, getSafeClientName, getSingleOrderFromBatches, sanitizePrintSegment } from './features/printing';
+import type { MobileAdminPage } from './surfaces/pageIds';
+import { useMaterials } from './hooks/api/useMaterials';
+import { useMolds } from './hooks/api/useMolds';
+import { useProducts } from './hooks/api/useProducts';
+import { useSettings } from './hooks/api/useSettings';
+import { useWarehouses } from './hooks/api/useWarehouses';
 
 const lazyMobilePage = <T extends React.ComponentType<any>>(factory: () => Promise<{ default: T }>) =>
   lazyWithChunkRecovery(factory, import.meta.url);
@@ -52,10 +56,11 @@ const MobileContentLoader = () => (
 );
 
 export default function MobileApp({ isOnline = true, isSyncing = false, pendingItemsCount = 0 }: MobileAppProps) {
-  const [activePage, setActivePage] = useState('dashboard');
+  const [activePage, setActivePage] = useState<MobileAdminPage>('dashboard');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [pendingDeliveryOrderId, setPendingDeliveryOrderId] = useState<string | null>(null);
+  const handleNavigate = (page: string) => setActivePage(page as MobileAdminPage);
 
   // Printing State
   const [priceListPrintData, setPriceListPrintData] = useState<PriceListPrintData | null>(null);
@@ -72,81 +77,21 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
 
   const printContainerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const sanitizeFilename = (value: string) => value
-    .replace(/[\s\W]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '');
-  const getSafeClientName = (name?: string) => {
-    if (!name) return '';
-    return sanitizeFilename(transliterateForBarcode(name).trim());
-  };
-  const getSingleOrderFromBatches = (batches: ProductionBatch[]) => {
-    const orderIds = [...new Set(batches.map(b => b.order_id).filter(Boolean))] as string[];
-    if (orderIds.length !== 1) return null;
-    const enriched = batches as Array<ProductionBatch & { customer_name?: string }>;
-    const customerName = enriched.find(b => b.customer_name)?.customer_name;
-    return { orderId: orderIds[0], customerName };
-  };
 
-  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
-  const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
-  const { data: warehouses } = useQuery({ queryKey: ['warehouses'], queryFn: api.getWarehouses });
-  const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
-  const { data: molds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
+  const { data: settings } = useSettings();
+  const { data: products } = useProducts();
+  const { data: warehouses } = useWarehouses();
+  const { data: materials } = useMaterials();
+  const { data: molds } = useMolds();
 
   const handlePrintAggregated = (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => {
-    if (!settings || !materials || !products) return;
-
-    let totalSilverWeight = 0;
-    let totalSilverCost = 0;
-    let totalMaterialsCost = 0;
-    let totalInHouseLaborCost = 0;
-    let totalImportedLaborCost = 0;
-    let totalSubcontractCost = 0;
-
-    const augmentedBatches: AggregatedBatch[] = batches.map(b => {
-      const product = products.find(p => p.sku === b.sku);
-      if (!product) return { ...b, cost_per_piece: 0, total_cost: 0 };
-
-      const cost = calculateProductCost(product, settings, materials, products);
-      const costPerPiece = cost.total;
-      const totalCost = costPerPiece * b.quantity;
-
-      const w = product.weight_g + (product.secondary_weight_g || 0);
-      totalSilverWeight += (w * b.quantity);
-      totalSilverCost += (cost.breakdown.silver * b.quantity);
-      totalMaterialsCost += (cost.breakdown.materials * b.quantity);
-
-      const labor = cost.breakdown.labor;
-      const sub = cost.breakdown.details?.subcontract_cost || 0;
-
-      if (product.production_type === 'Imported') {
-        totalImportedLaborCost += (labor * b.quantity);
-      } else {
-        totalInHouseLaborCost += (labor * b.quantity);
-      }
-      totalSubcontractCost += (sub * b.quantity);
-
-      return { ...b, cost_per_piece: costPerPiece, total_cost: totalCost, product_details: product };
-    });
-
-    const totalProductionCost = augmentedBatches.reduce((sum, b) => sum + b.total_cost, 0);
-
-    setAggregatedPrintData({
-      molds: new Map(),
-      materials: new Map(),
-      components: new Map(),
-      totalSilverWeight,
-      batches: augmentedBatches,
-      totalProductionCost,
-      totalSilverCost,
-      totalMaterialsCost,
-      totalInHouseLaborCost,
-      totalImportedLaborCost,
-      totalSubcontractCost,
+    const aggregatedData = buildAggregatedPrintData(batches, products, materials, settings, {
       orderId: orderDetails?.orderId,
-      customerName: orderDetails?.customerName
+      customerName: orderDetails?.customerName,
     });
+    if (aggregatedData) {
+      setAggregatedPrintData(aggregatedData);
+    }
   };
 
   const handlePrintPreparation = (batches: ProductionBatch[]) => {
@@ -223,7 +168,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         } else if (printItems.length > 0) {
           docTitle = `Labels_Batch_${dateStr}`;
         }
-        docTitle = sanitizeFilename(docTitle) || 'Ilios_Mobile_Print';
+        docTitle = sanitizePrintSegment(docTitle) || 'Ilios_Mobile_Print';
         document.title = docTitle;
 
         iframeDoc.open();
@@ -315,31 +260,26 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
     setActivePage('order-builder');
   }
 
-  let content;
-  switch (activePage) {
-    case 'dashboard': content = <MobileDashboard products={products} settings={settings} onNavigate={setActivePage} />; break;
-    case 'orders': content = <MobileOrders onCreate={handleCreateOrder} onEdit={handleEditOrder} onPrint={setOrderToPrint} onPrintRemainingOrder={setRemainingOrderToPrint} onPrintShipment={setShipmentToPrint} onPrintLabels={setPrintItems} products={products} onOpenDeliveries={(order) => { setPendingDeliveryOrderId(order.id); setActivePage('deliveries'); }} />; break;
-    case 'order-builder': content = <MobileOrderBuilder onBack={() => { setActivePage('orders'); setEditingOrder(null); }} initialOrder={editingOrder} products={products} />; break;
-    case 'deliveries': content = <MobileDeliveries pendingOrderId={pendingDeliveryOrderId} onConsumePendingOrderId={() => setPendingDeliveryOrderId(null)} onOpenOrder={() => setActivePage('orders')} />; break;
-    case 'production': content = <MobileProduction allProducts={products} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} />; break;
-    case 'inventory': content = <MobileInventory products={products} onProductSelect={setSelectedProduct} />; break;
-    case 'menu': content = <MobileMenu onNavigate={setActivePage} activePage={activePage} />; break;
-
-    // Sub-menu items
-    case 'registry': content = <MobileRegistry products={products} onProductSelect={setSelectedProduct} />; break;
-    case 'ai-studio': content = <MobileAiStudio />; break;
-    case 'settings': content = <MobileSettings />; break;
-    case 'resources': content = <MobileResources />; break;
-    case 'customers': content = <MobileCustomers mode="customers" />; break;
-    case 'suppliers': content = <MobileCustomers mode="suppliers" />; break;
-    case 'pricing': content = <MobilePricing />; break;
-    case 'batch-print': content = <MobileBatchPrint />; break;
-    case 'collections': content = <MobileCollections />; break;
-    case 'pricelist': content = <MobilePriceList onPrint={setPriceListPrintData} />; break;
-    case 'offers': content = <MobileOffers onPrintOffer={setOfferToPrint} />; break;
-
-    default: content = <MobileDashboard products={products} settings={settings} onNavigate={setActivePage} />;
-  }
+  const pageRegistry: Record<MobileAdminPage, React.ReactNode> = {
+    dashboard: <MobileDashboard products={products} settings={settings} onNavigate={handleNavigate} />,
+    orders: <MobileOrders onCreate={handleCreateOrder} onEdit={handleEditOrder} onPrint={setOrderToPrint} onPrintRemainingOrder={setRemainingOrderToPrint} onPrintShipment={setShipmentToPrint} onPrintLabels={setPrintItems} products={products} onOpenDeliveries={(order) => { setPendingDeliveryOrderId(order.id); setActivePage('deliveries'); }} />,
+    'order-builder': <MobileOrderBuilder onBack={() => { setActivePage('orders'); setEditingOrder(null); }} initialOrder={editingOrder} products={products} />,
+    deliveries: <MobileDeliveries pendingOrderId={pendingDeliveryOrderId} onConsumePendingOrderId={() => setPendingDeliveryOrderId(null)} onOpenOrder={() => setActivePage('orders')} />,
+    production: <MobileProduction allProducts={products} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} />,
+    inventory: <MobileInventory products={products} onProductSelect={setSelectedProduct} />,
+    menu: <MobileMenu onNavigate={handleNavigate} activePage={activePage} />,
+    registry: <MobileRegistry products={products} onProductSelect={setSelectedProduct} />,
+    'ai-studio': <MobileAiStudio />,
+    settings: <MobileSettings />,
+    resources: <MobileResources />,
+    customers: <MobileCustomers mode="customers" />,
+    suppliers: <MobileCustomers mode="suppliers" />,
+    pricing: <MobilePricing />,
+    'batch-print': <MobileBatchPrint />,
+    collections: <MobileCollections />,
+    pricelist: <MobilePriceList onPrint={setPriceListPrintData} />,
+    offers: <MobileOffers onPrintOffer={setOfferToPrint} />,
+  };
 
   return (
     <>
@@ -379,13 +319,13 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
 
       <MobileLayout
         activePage={activePage}
-        onNavigate={setActivePage}
+        onNavigate={(page) => setActivePage(page)}
         isOnline={isOnline}
         isSyncing={isSyncing}
         pendingCount={pendingItemsCount}
       >
         <Suspense fallback={<MobileContentLoader />}>
-          {content}
+          {pageRegistry[activePage]}
         </Suspense>
       </MobileLayout>
 

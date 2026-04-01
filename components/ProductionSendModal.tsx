@@ -3,18 +3,24 @@ import React, { useCallback, useState, useMemo, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType, BatchStageHistoryEntry, StageBatchPrintData } from '../types';
 import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, ArrowLeft, Clock, StickyNote, History, Package, Box, Info, PauseCircle, PlayCircle, User, ShoppingCart, RefreshCcw, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer, Scissors, Trash2, Split, Merge, FileText, AlertCircle, Save, Check } from 'lucide-react';
-import { api, supabase } from '../lib/supabase';
 import { checkStockForOrderItems, deductStockForOrder } from '../lib/supabase';
 import { useUI } from './UIProvider';
-import { formatCurrency, formatDecimal, getVariantComponents } from '../utils/pricingEngine';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
+import SkuColorizedText from './SkuColorizedText';
+import { useQueryClient } from '@tanstack/react-query';
 import { groupBatchesByShipment } from '../utils/orderReadiness';
 import { getShippedQuantities, itemKey } from '../utils/shipmentUtils';
-import { buildItemIdentityKey } from '../utils/itemIdentity';
 import { getProductOptionColorLabel } from '../utils/xrOptions';
 import BatchHistoryModal from './BatchHistoryModal';
 import { PRODUCTION_STAGES, getProductionStageLabel, getProductionStageShortLabel } from '../utils/productionStages';
-import { buildBatchStageHistoryLookup, getProductionTimingInfo, getProductionTimingStatusClasses } from '../utils/productionTiming';
+import { getProductionTimingInfo, getProductionTimingStatusClasses } from '../utils/productionTiming';
+import { buildBatchStageHistoryMap, getStageColorKey, isStageNotRequired } from '../features/production/selectors';
+import { groupProductionBatchesByStage } from '../features/production/workflowSelectors';
+import { buildOrderItemIdentityKey } from '../features/orders/printHelpers';
+import { useOrderShipmentsForOrder } from '../hooks/api/useOrders';
+import { useBatchStageHistoryEntries } from '../hooks/api/useProductionBatches';
+import { ordersRepository } from '../features/orders';
+import { productionRepository } from '../features/production';
 
 interface Props {
     order: Order;
@@ -66,40 +72,6 @@ const STAGE_BUTTON_COLORS: Record<string, { bg: string, text: string, border: st
     'Ready': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
 };
 
-const FINISH_COLORS: Record<string, string> = {
-    'X': 'text-amber-500',
-    'P': 'text-slate-500',
-    'D': 'text-orange-500',
-    'H': 'text-cyan-400',
-    '': 'text-slate-400'
-};
-
-const STONE_TEXT_COLORS: Record<string, string> = {
-    'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
-    'TG': 'text-orange-700', 'IA': 'text-red-700', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
-    'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
-    'NF': 'text-green-700', 'CO': 'text-teal-600', 'TPR': 'text-emerald-500', 'TKO': 'text-rose-600',
-    'TMP': 'text-blue-600', 'PCO': 'text-emerald-400', 'MCO': 'text-purple-500', 'PAX': 'text-green-600',
-    'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-600', 'AP': 'text-cyan-600',
-    'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-400', 'MP': 'text-blue-400',
-    'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500', 'MV': 'text-purple-400',
-    'RZ': 'text-pink-500', 'AK': 'text-cyan-300', 'XAL': 'text-stone-400'
-};
-
-const SkuColored = ({ sku, suffix, gender }: { sku: string, suffix?: string, gender: any }) => {
-    const { finish, stone } = getVariantComponents(suffix || '', gender);
-    const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
-    const sColor = STONE_TEXT_COLORS[stone.code] || 'text-emerald-500';
-
-    return (
-        <span className="font-black">
-            <span className="text-slate-900">{sku}</span>
-            <span className={fColor}>{finish.code}</span>
-            <span className={sColor}>{stone.code}</span>
-        </span>
-    );
-};
-
 interface RowItem extends OrderItem {
     shippedQty: number;
     openOrderQty: number;
@@ -123,33 +95,6 @@ const VIBRANT_STAGES: Record<string, string> = {
     [ProductionStage.Assembly]: 'bg-pink-500',
     [ProductionStage.Labeling]: 'bg-yellow-500',
     [ProductionStage.Ready]: 'bg-emerald-500'
-};
-
-const getStageColorKey = (stageId: ProductionStage): keyof typeof STAGE_BUTTON_COLORS => {
-    switch (stageId) {
-        case ProductionStage.AwaitingDelivery:
-            return 'AwaitingDelivery';
-        case ProductionStage.Waxing:
-            return 'Waxing';
-        case ProductionStage.Casting:
-            return 'Casting';
-        case ProductionStage.Setting:
-            return 'Setting';
-        case ProductionStage.Polishing:
-            return 'Polishing';
-        case ProductionStage.Assembly:
-            return 'Assembly';
-        case ProductionStage.Labeling:
-            return 'Labeling';
-        default:
-            return 'Ready';
-    }
-};
-
-const isStageNotRequired = (batch: ProductionBatch, stage: ProductionStage) => {
-    if (stage === ProductionStage.Setting) return !batch.requires_setting;
-    if (stage === ProductionStage.Assembly) return !batch.requires_assembly;
-    return false;
 };
 
 const BulkStageActions = ({
@@ -247,14 +192,8 @@ const StageFlowRail = ({
 export default function ProductionSendModal({ order, products, materials, existingBatches, collections, onClose, onSuccess, onPrintAggregated, onPrintStageBatches, onBack }: Props) {
     const { showToast, confirm } = useUI();
     const queryClient = useQueryClient();
-    const { data: shipmentSnapshot, isLoading: isLoadingShipments } = useQuery({
-        queryKey: ['order-shipments', order.id],
-        queryFn: () => api.getShipmentsForOrder(order.id)
-    });
-    const { data: batchStageHistoryEntries = [] } = useQuery({
-        queryKey: ['batchStageHistory'],
-        queryFn: api.getBatchStageHistoryEntries
-    });
+    const { data: shipmentSnapshot, isLoading: isLoadingShipments } = useOrderShipmentsForOrder(order.id);
+    const { data: batchStageHistoryEntries = [] } = useBatchStageHistoryEntries();
     const [isSending, setIsSending] = useState(false);
     const [isWorking, setIsWorking] = useState(false); // Global blocker for internal actions
     const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
@@ -287,7 +226,7 @@ export default function ProductionSendModal({ order, products, materials, existi
     // Stage Popup State
     const [activeStagePopup, setActiveStagePopup] = useState<ProductionStage | null>(null);
     const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>([]);
-    const batchHistoryLookup = useMemo(() => buildBatchStageHistoryLookup(batchStageHistoryEntries), [batchStageHistoryEntries]);
+    const batchHistoryLookup = useMemo(() => buildBatchStageHistoryMap(batchStageHistoryEntries), [batchStageHistoryEntries]);
     const getBatchTiming = useCallback((batch: ProductionBatch) => {
         return getProductionTimingInfo(batch, batchHistoryLookup.get(batch.id));
     }, [batchHistoryLookup]);
@@ -325,7 +264,7 @@ export default function ProductionSendModal({ order, products, materials, existi
         }> = {};
 
         targetBatches.forEach(b => {
-            const key = buildBatchIdentityKey(b);
+            const key = buildOrderItemIdentityKey(b);
             if (!groups[key]) {
                 const product = products.find(p => p.sku === b.sku);
                 groups[key] = {
@@ -344,7 +283,7 @@ export default function ProductionSendModal({ order, products, materials, existi
         });
 
         return Object.values(groups).sort((a, b) => a.sku.localeCompare(b.sku));
-    }, [activeStagePopup, buildBatchIdentityKey, existingBatches, products]);
+    }, [activeStagePopup, existingBatches, products]);
 
     // Popup Batches - individual batches for stage popup with movement buttons
     const popupBatches = useMemo(() => {
@@ -373,7 +312,7 @@ export default function ProductionSendModal({ order, products, materials, existi
             const shippedQty = shippedQuantities.get(key) || 0;
 
             const relevantBatches = existingBatches.filter(b =>
-                buildBatchIdentityKey(b) === buildBatchIdentityKey(item)
+                buildOrderItemIdentityKey(b) === buildOrderItemIdentityKey(item)
             ).sort((a, b) => {
                 const stages = Object.values(ProductionStage);
                 return stages.indexOf(a.current_stage) - stages.indexOf(b.current_stage);
@@ -413,21 +352,11 @@ export default function ProductionSendModal({ order, products, materials, existi
             const skuB = b.sku + (b.variant_suffix || '');
             return skuA.localeCompare(skuB, undefined, { numeric: true });
         });
-    }, [order.items, existingBatches, products, shippedQuantities, buildBatchIdentityKey]);
+    }, [order.items, existingBatches, products, shippedQuantities]);
 
     const totalRemaining = useMemo(() => rows.reduce((s, r) => s + r.remainingQty, 0), [rows]);
 
     const shipmentHistory = useMemo(() => groupBatchesByShipment(existingBatches), [existingBatches]);
-
-    function buildBatchIdentityKey(item: Pick<OrderItem, 'sku' | 'variant_suffix' | 'size_info' | 'cord_color' | 'enamel_color'>) {
-        return buildItemIdentityKey({
-            sku: item.sku,
-            variant_suffix: item.variant_suffix,
-            size_info: item.size_info,
-            cord_color: item.cord_color,
-            enamel_color: item.enamel_color
-        });
-    }
 
     function canMoveBatchToStage(batch: ProductionBatch, stage: ProductionStage) {
         if (batch.on_hold) return false;
@@ -604,7 +533,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                 await deductStockForOrder(order.id, stockFulfilledItems, products);
             }
 
-            await api.sendPartialOrderToProduction(order.id, itemsToSend, products, materials, stockFulfilledItems);
+            await ordersRepository.sendPartialOrderToProduction(order.id, itemsToSend, products, materials, stockFulfilledItems);
             await Promise.all([
                 queryClient.invalidateQueries({ queryKey: ['batches'] }),
                 queryClient.invalidateQueries({ queryKey: ['orders'] }),
@@ -629,14 +558,14 @@ export default function ProductionSendModal({ order, products, materials, existi
 
         // Build the production items: reduce qty by fromStock for items partially in stock, remove items fully in stock
         const productionItems = stockDecision.originalItemsToSend.map(orig => {
-            const matchKey = buildItemIdentityKey({
+            const matchKey = buildOrderItemIdentityKey({
                 sku: orig.sku,
                 variant_suffix: orig.variant,
                 size_info: orig.size_info,
                 cord_color: orig.cord_color as OrderItem['cord_color'],
                 enamel_color: orig.enamel_color as OrderItem['enamel_color']
             });
-            const match = stockDecision.items.find(s => buildItemIdentityKey({
+            const match = stockDecision.items.find(s => buildOrderItemIdentityKey({
                 sku: s.sku,
                 variant_suffix: s.variant_suffix,
                 size_info: s.size_info,
@@ -661,7 +590,7 @@ export default function ProductionSendModal({ order, products, materials, existi
         if (isWorking) return;
         setIsWorking(true);
         try {
-            await api.updateBatchStage(batch.id, newStage);
+            await productionRepository.updateBatchStage(batch.id, newStage);
             await Promise.all([
                 queryClient.invalidateQueries({ queryKey: ['batches'] }),
                 queryClient.invalidateQueries({ queryKey: ['orders'] }),
@@ -681,7 +610,7 @@ export default function ProductionSendModal({ order, products, materials, existi
 
         setIsWorking(true);
         try {
-            await api.deleteProductionBatch(batch.id);
+            await productionRepository.deleteProductionBatch(batch.id);
             await Promise.all([
                 queryClient.invalidateQueries({ queryKey: ['batches'] }),
                 queryClient.invalidateQueries({ queryKey: ['orders'] }),
@@ -719,7 +648,7 @@ export default function ProductionSendModal({ order, products, materials, existi
 
         setIsWorking(true);
         try {
-            await api.revertProductionBatch(batch.id);
+            await productionRepository.revertProductionBatch(batch.id);
             await Promise.all([
                 queryClient.invalidateQueries({ queryKey: ['batches'] }),
                 queryClient.invalidateQueries({ queryKey: ['orders'] }),
@@ -739,7 +668,7 @@ export default function ProductionSendModal({ order, products, materials, existi
         if (batch.on_hold) {
             setIsWorking(true);
             try {
-                await api.toggleBatchHold(batch.id, false);
+                await productionRepository.toggleBatchHold(batch.id, false);
                 await queryClient.invalidateQueries({ queryKey: ['batches'] });
                 showToast('Η παρτίδα συνεχίζει την παραγωγή.', 'success');
             } catch (e) {
@@ -758,7 +687,7 @@ export default function ProductionSendModal({ order, products, materials, existi
         if (!holdingBatch || !holdReason.trim()) return;
         setIsWorking(true);
         try {
-            await api.toggleBatchHold(holdingBatch.id, true, holdReason.trim());
+            await productionRepository.toggleBatchHold(holdingBatch.id, true, holdReason.trim());
             await queryClient.invalidateQueries({ queryKey: ['batches'] });
             showToast('Η παρτίδα τέθηκε σε αναμονή.', 'warning');
             setHoldingBatch(null);
@@ -774,7 +703,7 @@ export default function ProductionSendModal({ order, products, materials, existi
         if (isWorking || batchIds.length === 0) return;
         setIsWorking(true);
         try {
-            const summary = await api.bulkUpdateBatchStages(batchIds, newStage);
+            const summary = await productionRepository.bulkUpdateBatchStages(batchIds, newStage);
             await Promise.all([
                 queryClient.invalidateQueries({ queryKey: ['batches'] }),
                 queryClient.invalidateQueries({ queryKey: ['orders'] }),
@@ -808,7 +737,7 @@ export default function ProductionSendModal({ order, products, materials, existi
             const target = batchesToMerge[0];
             const sourceIds = batchesToMerge.slice(1).map(b => b.id);
 
-            await api.mergeBatches(target.id, sourceIds, totalQty);
+            await productionRepository.mergeBatches(target.id, sourceIds, totalQty);
             await queryClient.invalidateQueries({ queryKey: ['batches'] });
 
             showToast("Επιτυχής συγχώνευση.", "success");
@@ -824,11 +753,7 @@ export default function ProductionSendModal({ order, products, materials, existi
         if (!editingNoteBatch) return;
         setIsWorking(true);
         try {
-            const { error } = await supabase
-                .from('production_batches')
-                .update({ notes: noteText || null, updated_at: new Date().toISOString() })
-                .eq('id', editingNoteBatch.id);
-
+            const { error } = await productionRepository.updateBatchNotes(editingNoteBatch.id, noteText || null);
             if (error) throw error;
 
             await queryClient.invalidateQueries({ queryKey: ['batches'] });
@@ -844,7 +769,7 @@ export default function ProductionSendModal({ order, products, materials, existi
     const handleViewHistory = async (batch: ProductionBatch) => {
         setHistoryModalBatch(batch);
         try {
-            const history = await api.getBatchHistory(batch.id);
+            const history = await productionRepository.getBatchHistory(batch.id);
             setBatchHistory(history);
         } catch (e) {
             console.error('Failed to load batch history:', e);
@@ -901,7 +826,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                 on_hold: false
             };
 
-            await api.splitBatch(batch.id, originalNewQty, newBatchData);
+            await productionRepository.splitBatch(batch.id, originalNewQty, newBatchData);
             await queryClient.invalidateQueries({ queryKey: ['batches'] });
 
             showToast(`Διαχωρισμός ${splitQty} τεμ. επιτυχής.`, "success");
@@ -911,16 +836,6 @@ export default function ProductionSendModal({ order, products, materials, existi
         } finally {
             setIsWorking(false);
         }
-    };
-
-    // Helper to group batches by stage for rendering
-    const groupBatchesByStage = (batches: ProductionBatch[]) => {
-        const groups: Record<string, ProductionBatch[]> = {};
-        batches.forEach(b => {
-            if (!groups[b.current_stage]) groups[b.current_stage] = [];
-            groups[b.current_stage].push(b);
-        });
-        return groups;
     };
 
     return (
@@ -1075,7 +990,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                         const currentSend = toSendQuantities[originalIndex] || 0;
                                         const isFullySent = row.remainingQty === 0;
 
-                                        const batchesByStage = groupBatchesByStage(row.batchDetails);
+                                        const batchesByStage = groupProductionBatchesByStage(row.batchDetails);
                                         const sortedStages = Object.keys(batchesByStage).sort((a, b) => {
                                             const idxA = STAGES.findIndex(s => s.id === a);
                                             const idxB = STAGES.findIndex(s => s.id === b);
@@ -1083,7 +998,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                         });
 
                                         return (
-                                    <div key={`content-${buildBatchIdentityKey(row)}`} className="bg-white p-4 rounded-2xl border border-slate-100 hover:border-slate-300 transition-all shadow-sm">
+                                    <div key={`content-${buildOrderItemIdentityKey(row)}`} className="bg-white p-4 rounded-2xl border border-slate-100 hover:border-slate-300 transition-all shadow-sm">
 
                                         {/* TOP: Item Info & Send Controls */}
                                         <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-4">
@@ -1109,7 +1024,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                 </button>
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex items-center gap-1.5 flex-wrap">
-                                                        <SkuColored sku={row.sku} suffix={row.variant_suffix} gender={row.gender} />
+                                                        <SkuColorizedText sku={row.sku} suffix={row.variant_suffix} gender={row.gender} className="font-black" masterClassName="text-slate-900" />
                                                         {row.size_info && <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 font-bold flex items-center gap-0.5"><Hash size={8} /> {row.size_info}</span>}
                                                         {row.cord_color && <span className="text-[9px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-100 font-bold">Κορδόνι: {getProductOptionColorLabel(row.cord_color)}</span>}
                                                         {row.enamel_color && <span className="text-[9px] bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded border border-rose-100 font-bold">Σμάλτο: {getProductOptionColorLabel(row.enamel_color)}</span>}
@@ -1201,7 +1116,7 @@ export default function ProductionSendModal({ order, products, materials, existi
 
                                                             {stageBatches.map(batch => {
                                                                 // Calculate value for this specific batch
-                                                                const batchRow = rows.find(r => buildBatchIdentityKey(r) === buildBatchIdentityKey(batch));
+                                                                const batchRow = rows.find(r => buildOrderItemIdentityKey(r) === buildOrderItemIdentityKey(batch));
                                                                 const unitPrice = batchRow?.price || 0;
                                                                 const batchVal = unitPrice * batch.quantity * discountFactor;
                                                                 const isSelected = selectedBatchIds.includes(batch.id);
@@ -1355,7 +1270,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                 // Calculate Shipment Financials
                                 let shipNet = 0;
                                 batches.forEach(b => {
-                                    const item = order.items.find(i => buildBatchIdentityKey(i) === buildBatchIdentityKey(b));
+                                    const item = order.items.find(i => buildOrderItemIdentityKey(i) === buildOrderItemIdentityKey(b));
                                     if (item) {
                                         shipNet += (item.price_at_order * b.quantity * discountFactor);
                                     }
@@ -1652,7 +1567,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                     <div className="flex-1 min-w-0 flex flex-col justify-center">
                                                         <div className="text-[10px] font-bold text-slate-400 uppercase truncate">{product?.category || 'Προϊόν'}</div>
                                                         <div className="font-black text-slate-900 text-base leading-none truncate">
-                                                            <SkuColored sku={batch.sku} suffix={batch.variant_suffix || ''} gender={product?.gender || Gender.Unisex} />
+                                                            <SkuColorizedText sku={batch.sku} suffix={batch.variant_suffix || ''} gender={product?.gender || Gender.Unisex} className="font-black" masterClassName="text-slate-900" />
                                                         </div>
                                                         <div className="mt-1 flex flex-wrap items-center gap-1.5">
                                                             <span className={`text-[10px] font-black px-2 py-1 rounded-lg border ${getProductionTimingStatusClasses(timeInfo.timingStatus)}`}>
@@ -1776,7 +1691,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                             )}
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2">
-                                                    <SkuColored sku={item.sku} suffix={item.variant_suffix || ''} gender={product?.gender} />
+                                                    <SkuColorizedText sku={item.sku} suffix={item.variant_suffix || ''} gender={product?.gender} className="font-black" masterClassName="text-slate-900" />
                                                     {item.size_info && <span className="text-xs text-slate-500 font-bold">#{item.size_info}</span>}
                                                     {item.cord_color && <span className="text-[10px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-100 font-bold">Κορδόνι: {getProductOptionColorLabel(item.cord_color as OrderItem['cord_color'])}</span>}
                                                     {item.enamel_color && <span className="text-[10px] bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded border border-rose-100 font-bold">Σμάλτο: {getProductOptionColorLabel(item.enamel_color as OrderItem['enamel_color'])}</span>}

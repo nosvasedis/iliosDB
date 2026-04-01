@@ -22,6 +22,8 @@
     "index.tsx",
     "types.ts",
     "constants.ts",
+    "features/**/*.ts",
+    "features/**/*.tsx",
     "components/**/*.ts",
     "components/**/*.tsx",
     "hooks/**/*.ts",

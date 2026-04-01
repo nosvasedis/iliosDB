@@ -1,28 +1,17 @@
 
 import React, { useState } from 'react';
 import { Supplier, SupplierOrder } from '../../types';
-import { ChevronLeft, Phone, Mail, MapPin, Plus, Package, Clock, CheckCircle, XCircle, Trash2 } from 'lucide-react';
+import { ChevronLeft, Phone, Mail, MapPin, Plus, Package, Trash2 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { formatCurrency } from '../../utils/pricingEngine';
 import MobilePurchaseOrderBuilder from './MobilePurchaseOrderBuilder';
+import { getSupplierOrderStatusClasses, getSupplierOrderStatusIcon } from '../../features/suppliers/statusPresentation';
 
 interface Props {
     supplier: Supplier;
     onClose: () => void;
 }
-
-const STATUS_ICONS = {
-    'Pending': <Clock size={16} />,
-    'Received': <CheckCircle size={16} />,
-    'Cancelled': <XCircle size={16} />
-};
-
-const STATUS_COLORS = {
-    'Pending': 'bg-amber-100 text-amber-700',
-    'Received': 'bg-emerald-100 text-emerald-700',
-    'Cancelled': 'bg-red-100 text-red-700'
-};
 
 export default function MobileSupplierDetails({ supplier, onClose }: Props) {
     const queryClient = useQueryClient();
@@ -110,8 +99,8 @@ export default function MobileSupplierDetails({ supplier, onClose }: Props) {
                                         <div className="text-[10px] font-mono text-slate-400 mb-0.5">PO #{order.id.slice(0, 6)}</div>
                                         <div className="font-black text-slate-900 text-lg">{formatCurrency(order.total_amount)}</div>
                                     </div>
-                                    <span className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase flex items-center gap-1 ${STATUS_COLORS[order.status]}`}>
-                                        {STATUS_ICONS[order.status]} {order.status}
+                                    <span className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase flex items-center gap-1 ${getSupplierOrderStatusClasses(order.status)}`}>
+                                        {getSupplierOrderStatusIcon(order.status, 16)} {order.status}
                                     </span>
                                 </div>
                                 <div className="text-xs text-slate-500 font-medium mb-3">

@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { Search, Phone, Mail, User, MapPin, Globe, Plus, X, Save, Trash2, Edit, Hash, Zap, Loader2, Wallet, ShoppingBag, PieChart, Package, Calendar, Clock, Trophy, Users as UsersIcon, ArrowLeft, Gift } from 'lucide-react';
 import { Customer, Supplier, VatRegime, OrderStatus } from '../../types';
@@ -11,15 +11,18 @@ import { getNextNamedayForName } from '../../utils/namedays';
 import { formatGreekDate } from '../../utils/deliveryLabels';
 import MobileSupplierDetails from './MobileSupplierDetails';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
+import { ordersRepository } from '../../features/orders';
+import { useCustomers, useOrders } from '../../hooks/api/useOrders';
+import { useSuppliers } from '../../hooks/api/useSuppliers';
 
 interface Props {
     mode: 'customers' | 'suppliers';
 }
 
 export default function MobileCustomers({ mode }: Props) {
-    const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
-    const { data: suppliers } = useQuery({ queryKey: ['suppliers'], queryFn: api.getSuppliers });
-    const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
+    const { data: customers } = useCustomers();
+    const { data: suppliers } = useSuppliers();
+    const { data: orders } = useOrders();
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
 
@@ -121,8 +124,8 @@ export default function MobileCustomers({ mode }: Props) {
                     showToast("Ο πελάτης Λιανική είναι μόνο για ανάγνωση.", "error");
                     return;
                 }
-                if (isExisting) await api.updateCustomer(editData.id, editData);
-                else await api.saveCustomer(editData);
+                if (isExisting) await ordersRepository.updateCustomer(editData.id, editData);
+                else await ordersRepository.saveCustomer(editData);
                 queryClient.invalidateQueries({ queryKey: ['customers'] });
             } else {
                 await api.saveSupplier(editData);
@@ -139,7 +142,7 @@ export default function MobileCustomers({ mode }: Props) {
         if (!editData.id) return;
         if (await confirm({ title: 'Διαγραφή', message: 'Είστε σίγουροι;', isDestructive: true })) {
             try {
-                if (editType === 'customer') await api.deleteCustomer(editData.id);
+                if (editType === 'customer') await ordersRepository.deleteCustomer(editData.id);
                 else await api.deleteSupplier(editData.id);
 
                 queryClient.invalidateQueries({ queryKey: [editType === 'customer' ? 'customers' : 'suppliers'] });

@@ -1,23 +1,17 @@
 
 import React from 'react';
-import { LayoutDashboard, ShoppingCart, BookOpen, Users, LogOut, Package, FolderKanban, CloudOff, RefreshCw, Upload } from 'lucide-react';
+import { LogOut, Package, CloudOff, RefreshCw, Upload } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { APP_ICON_ONLY } from '../../constants';
 import { useOfflineSync } from '../../hooks/useOfflineSync';
+import { sellerNavItems } from '../../surfaces/navConfig';
+import type { SellerPage } from '../../surfaces/pageIds';
 
 interface Props {
   children?: React.ReactNode;
-  activePage: string;
-  onNavigate: (page: string) => void;
+  activePage: SellerPage;
+  onNavigate: (page: SellerPage) => void;
 }
-
-const NAV_ITEMS = [
-  { id: 'dashboard', icon: LayoutDashboard, label: 'Αρχική' },
-  { id: 'catalog', icon: BookOpen, label: 'Κατάλογος' },
-  { id: 'collections', icon: FolderKanban, label: 'Συλλογές' },
-  { id: 'orders', icon: ShoppingCart, label: 'Παραγγελίες' },
-  { id: 'customers', icon: Users, label: 'Πελάτες' },
-];
 
 // ─── Portrait Bottom NavItem ──────────────────────────────────────────────────
 const BottomNavItem = ({
@@ -82,7 +76,7 @@ export default function SellerLayout({ children, activePage, onNavigate }: Props
 
         {/* Nav items */}
         <div className="flex flex-col gap-1 p-2">
-          {NAV_ITEMS.map(item => (
+          {sellerNavItems.map(item => (
             <SideNavItem
               key={item.id}
               icon={item.icon}
@@ -173,7 +167,7 @@ export default function SellerLayout({ children, activePage, onNavigate }: Props
       <nav className="landscape:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-lg border-t border-slate-200
                       pb-safe z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] h-20">
         <div className="flex justify-around items-center h-full px-2">
-          {NAV_ITEMS.map(item => (
+          {sellerNavItems.map(item => (
             <BottomNavItem
               key={item.id}
               icon={item.icon}

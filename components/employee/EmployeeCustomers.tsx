@@ -1,14 +1,17 @@
 
 import React, { useState, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { Search, Phone, Mail, User, MapPin, Globe, Plus, X, Save, Trash2, Edit } from 'lucide-react';
 import { useUI } from '../UIProvider';
 import { normalizedIncludes } from '../../utils/greekSearch';
+import { ordersRepository } from '../../features/orders';
+import { useCustomers } from '../../hooks/api/useOrders';
+import { useSuppliers } from '../../hooks/api/useSuppliers';
 
 export default function EmployeeCustomers() {
-    const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
-    const { data: suppliers } = useQuery({ queryKey: ['suppliers'], queryFn: api.getSuppliers });
+    const { data: customers } = useCustomers();
+    const { data: suppliers } = useSuppliers();
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     
@@ -54,8 +57,8 @@ export default function EmployeeCustomers() {
 
         try {
             if (editType === 'customer') {
-                if (editData.id) await api.updateCustomer(editData.id, editData);
-                else await api.saveCustomer(editData);
+                if (editData.id) await ordersRepository.updateCustomer(editData.id, editData);
+                else await ordersRepository.saveCustomer(editData);
                 queryClient.invalidateQueries({ queryKey: ['customers'] });
             } else {
                 await api.saveSupplier(editData);
@@ -72,7 +75,7 @@ export default function EmployeeCustomers() {
         if (!editData.id) return;
         if (await confirm({ title: 'Διαγραφή', message: 'Είστε σίγουροι;', isDestructive: true })) {
             try {
-                if (editType === 'customer') await api.deleteCustomer(editData.id);
+                if (editType === 'customer') await ordersRepository.deleteCustomer(editData.id);
                 else await api.deleteSupplier(editData.id);
                 
                 queryClient.invalidateQueries({ queryKey: [editType === 'customer' ? 'customers' : 'suppliers'] });

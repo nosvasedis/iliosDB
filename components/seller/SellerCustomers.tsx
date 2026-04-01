@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { Customer, VatRegime } from '../../types';
 import { Search, Phone, MapPin, User, Mail, Plus, Clock } from 'lucide-react';
@@ -7,6 +7,8 @@ import { useUI } from '../UIProvider';
 import CustomerDetailsModal from '../CustomerDetailsModal';
 import MobileCustomerForm from '../mobile/MobileCustomerForm';
 import { normalizedIncludes } from '../../utils/greekSearch';
+import { ordersRepository } from '../../features/orders';
+import { useCustomers, useOrders } from '../../hooks/api/useOrders';
 
 // Normalize for duplicate check: lowercase, strip accents and spaces
 const normalizeStr = (s: string) =>
@@ -14,8 +16,8 @@ const normalizeStr = (s: string) =>
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
 export default function SellerCustomers() {
-    const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
-    const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
+    const { data: customers } = useCustomers();
+    const { data: orders } = useOrders();
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
 
@@ -69,7 +71,7 @@ export default function SellerCustomers() {
             }
         }
         try {
-            await api.saveCustomer(c);
+            await ordersRepository.saveCustomer(c);
             queryClient.invalidateQueries({ queryKey: ['customers'] });
             setSelectedCustomer(null);
             setIsCreating(false);
@@ -87,7 +89,7 @@ export default function SellerCustomers() {
 
     const handleUpdateCustomer = async (c: Customer) => {
         try {
-            await api.updateCustomer(c.id, c);
+            await ordersRepository.updateCustomer(c.id, c);
             queryClient.invalidateQueries({ queryKey: ['customers'] });
             setSelectedCustomer(c);
             showToast('Τα στοιχεία ενημερώθηκαν.', 'success');
@@ -101,7 +103,7 @@ export default function SellerCustomers() {
         const yes = await confirm({ title: 'Διαγραφή', message: 'Θέλετε να διαγράψετε οριστικά αυτόν τον πελάτη;', isDestructive: true });
         if (yes) {
             try {
-                await api.deleteCustomer(id);
+                await ordersRepository.deleteCustomer(id);
                 queryClient.invalidateQueries({ queryKey: ['customers'] });
                 setSelectedCustomer(null);
                 showToast('Διαγράφηκε.', 'success');

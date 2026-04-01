@@ -3,8 +3,8 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Order, OrderStatus, Product, ProductVariant, ProductionStage, ProductionBatch, Material, MaterialType, VatRegime, OrderShipment, OrderShipmentItem } from '../types';
 import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare, PackageCheck, FileCheck } from 'lucide-react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
+import { useQueryClient } from '@tanstack/react-query';
+import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { useAuth } from './AuthContext';
 import { formatCurrency, getVariantComponents } from '../utils/pricingEngine';
@@ -14,8 +14,15 @@ import { extractRetailClientFromNotes } from '../utils/retailNotes';
 import { groupBatchesByShipment, getShipmentReadiness } from '../utils/orderReadiness';
 import ShipmentCreationModal from './deliveries/ShipmentCreationModal';
 import { invalidateOrdersAndBatches } from '../lib/queryInvalidation';
-import { buildItemIdentityKey } from '../utils/itemIdentity';
-import { getRemainingOrderItems } from '../utils/shipmentUtils';
+import { buildPartialOrderFromBatches, buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildSyntheticAggregatedBatches, getShipmentStageBreakdown, getShipmentSummary, getShipmentValue } from '../features/orders';
+import { getOrderStatusClasses, getOrderStatusLabel } from '../features/orders/statusPresentation';
+import { getDeterministicTagColor } from '../features/orders/tagColors';
+import { useCollections } from '../hooks/api/useCollections';
+import { useCustomers, useOrderShipmentsForOrder, useOrders } from '../hooks/api/useOrders';
+import { useProductionBatches } from '../hooks/api/useProductionBatches';
+import { ordersRepository } from '../features/orders';
+import { productionRepository } from '../features/production';
+import { auditRepository } from '../features/audit';
 
 interface Props {
     products: Product[];
@@ -30,44 +37,6 @@ interface Props {
     onPrintAnalytics?: (order: Order) => void;
     onPrintPartialOrder?: (order: Order, selectedBatches: ProductionBatch[]) => void;
     onOpenDeliveries?: (order: Order) => void;
-}
-
-const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
-    [OrderStatus.Pending]: 'Εκκρεμεί',
-    [OrderStatus.InProduction]: 'Σε Παραγωγή',
-    [OrderStatus.Ready]: 'Έτοιμο',
-    [OrderStatus.PartiallyDelivered]: 'Μερική Παράδοση',
-    [OrderStatus.Delivered]: 'Παραδόθηκε',
-    [OrderStatus.Cancelled]: 'Ακυρώθηκε',
-};
-
-const getStatusColor = (status: OrderStatus) => {
-    switch (status) {
-        case OrderStatus.Pending: return 'bg-slate-100 text-slate-600 border-slate-200';
-        case OrderStatus.InProduction: return 'bg-blue-50 text-blue-600 border-blue-200';
-        case OrderStatus.Ready: return 'bg-emerald-50 text-emerald-600 border-emerald-200';
-        case OrderStatus.PartiallyDelivered: return 'bg-amber-50 text-amber-700 border-amber-200';
-        case OrderStatus.Delivered: return 'bg-[#060b00] text-white border-[#060b00]';
-        case OrderStatus.Cancelled: return 'bg-red-50 text-red-500 border-red-200';
-    }
-};
-
-// Deterministic tag color palette — same tag name always gets the same color
-const TAG_PALETTE = [
-    { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
-    { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' },
-    { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
-    { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
-    { bg: 'bg-sky-50', text: 'text-sky-700', border: 'border-sky-200' },
-    { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
-    { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
-    { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-200' },
-];
-
-function getTagColor(tag: string) {
-    let hash = 0;
-    for (let i = 0; i < tag.length; i++) hash = ((hash * 31) + tag.charCodeAt(i)) >>> 0;
-    return TAG_PALETTE[hash % TAG_PALETTE.length];
 }
 
 // Modal for selecting which parts/shipments of an order to print
@@ -108,32 +77,8 @@ const OrderPartSelectorModal = ({
             .flatMap(([, batches]) => batches);
     };
 
-    const getShipmentSummary = (shipmentBatches: ProductionBatch[]) => {
-        const totalItems = shipmentBatches.reduce((sum, b) => sum + b.quantity, 0);
-        const uniqueSkus = new Set(shipmentBatches.map(b => b.sku)).size;
-        return { totalItems, uniqueSkus };
-    };
-
-    const vatRate = order.vat_rate !== undefined ? order.vat_rate : 0.24;
-    const discountFactor = 1 - ((order.discount_percent || 0) / 100);
-
-    const getShipmentValue = (shipmentBatches: ProductionBatch[]) => {
-        let value = 0;
-        shipmentBatches.forEach(b => {
-            const item = order.items.find(i =>
-                i.sku === b.sku &&
-                (i.variant_suffix || '') === (b.variant_suffix || '') &&
-                (i.size_info || '') === (b.size_info || '')
-            );
-            if (item) {
-                value += item.price_at_order * b.quantity * discountFactor;
-            }
-        });
-        return value * (1 + vatRate);
-    };
-
     const selectedBatches = getSelectedBatches();
-    const selectedValue = getShipmentValue(selectedBatches);
+    const selectedValue = getShipmentValue(order, selectedBatches);
     const allValue = order.total_price;
 
     return (
@@ -159,7 +104,7 @@ const OrderPartSelectorModal = ({
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
                     {shipments.map(([dateKey, shipmentBatches]) => {
                         const summary = getShipmentSummary(shipmentBatches);
-                        const value = getShipmentValue(shipmentBatches);
+                        const value = getShipmentValue(order, shipmentBatches);
                         const isSelected = selectedShipments.has(dateKey);
                         const prettyDate = new Date(dateKey).toLocaleDateString('el-GR', {
                             day: 'numeric',
@@ -170,10 +115,7 @@ const OrderPartSelectorModal = ({
                         });
 
                         // Get stage breakdown
-                        const stageBreakdown: Record<string, number> = {};
-                        shipmentBatches.forEach(b => {
-                            stageBreakdown[b.current_stage] = (stageBreakdown[b.current_stage] || 0) + b.quantity;
-                        });
+                        const stageBreakdown = getShipmentStageBreakdown(shipmentBatches);
 
                         return (
                             <button
@@ -287,58 +229,12 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
 }) => {
     const orderBatches = useMemo(() => allBatches?.filter(b => b.order_id === order.id) || [], [allBatches, order.id]);
     const [showShipmentPrompt, setShowShipmentPrompt] = useState(false);
-    const shipmentsQuery = useQuery({
-        queryKey: ['order-shipments', order.id],
-        queryFn: () => api.getShipmentsForOrder(order.id),
-        enabled: !!order.id,
-    });
+    const shipmentsQuery = useOrderShipmentsForOrder(order.id);
 
     // Check if order has multiple shipments (parts)
     const shipments = useMemo(() => groupBatchesByShipment(orderBatches), [orderBatches]);
     const hasMultipleShipments = shipments.length > 1;
-    const latestShipmentData = useMemo(() => {
-        const shipmentData = shipmentsQuery.data;
-        if (!shipmentData?.shipments?.length) return null;
-
-        const sortedShipments = [...shipmentData.shipments].sort((a, b) => {
-            const timeDiff = new Date(b.shipped_at).getTime() - new Date(a.shipped_at).getTime();
-            if (timeDiff !== 0) return timeDiff;
-            return (b.shipment_number || 0) - (a.shipment_number || 0);
-        });
-
-        const latestShipment = sortedShipments[0];
-        const latestShipmentItems = shipmentData.items.filter(item => item.shipment_id === latestShipment.id);
-        if (latestShipmentItems.length === 0) return null;
-
-        const remainingItems = getRemainingOrderItems(order, shipmentData.items);
-        if (remainingItems.length === 0) return null;
-
-        const subtotal = remainingItems.reduce((sum, item) => sum + item.price_at_order * item.quantity, 0);
-        const discountFactor = 1 - ((order.discount_percent || 0) / 100);
-        const discountedSubtotal = subtotal * discountFactor;
-        const vatRate = order.vat_rate !== undefined ? order.vat_rate : 0.24;
-        const grandTotal = discountedSubtotal * (1 + vatRate);
-
-        const remainingOrderItems = remainingItems
-            .map((remainingItem) => {
-                const existingItem = order.items.find(i => buildItemIdentityKey(i) === buildItemIdentityKey(remainingItem as any));
-                if (!existingItem) return null;
-                return {
-                    ...existingItem,
-                    quantity: remainingItem.quantity,
-                    price_at_order: remainingItem.price_at_order
-                };
-            })
-            .filter((item): item is Order['items'][number] => item !== null);
-
-        const remainingOrder: Order = {
-            ...order,
-            items: remainingOrderItems,
-            total_price: grandTotal
-        };
-
-        return { shipment: latestShipment, shipmentItems: latestShipmentItems, remainingOrder };
-    }, [order, shipmentsQuery.data]);
+    const latestShipmentData = useMemo(() => buildLatestShipmentPrintData(order, shipmentsQuery.data), [order, shipmentsQuery.data]);
 
     const handlePrintOrder = () => {
         if (latestShipmentData && onPrintShipment) {
@@ -356,20 +252,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
     };
 
     const handlePrintLabelsAction = () => {
-        const itemsToPrint: any[] = [];
-        for (const item of order.items) {
-            const product = products.find(p => p.sku === item.sku);
-            if (product) {
-                const variant = product.variants?.find(v => v.suffix === item.variant_suffix);
-                itemsToPrint.push({
-                    product,
-                    variant,
-                    quantity: item.quantity,
-                    size: item.size_info,
-                    format: 'standard'
-                });
-            }
-        }
+        const itemsToPrint = buildOrderLabelPrintItems(order, products);
         if (itemsToPrint.length > 0) {
             onPrintLabels?.(itemsToPrint);
             const totalQuantity = itemsToPrint.reduce((sum, item) => sum + item.quantity, 0);
@@ -389,23 +272,6 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
             printFn(orderBatches);
         }
         onClose();
-    };
-
-    const buildSyntheticBatchesForAggregated = (): ProductionBatch[] => {
-        const now = new Date().toISOString();
-        return order.items.map((item, index) => ({
-            id: `synthetic-${order.id}-${index}`,
-            order_id: order.id,
-            sku: item.sku,
-            variant_suffix: item.variant_suffix,
-            quantity: item.quantity,
-            current_stage: ProductionStage.AwaitingDelivery,
-            created_at: now,
-            updated_at: now,
-            priority: 'Normal',
-            requires_setting: false,
-            size_info: item.size_info,
-        }));
     };
 
     const productionSheetsDisabled = orderBatches.length === 0;
@@ -439,7 +305,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
             color: "blue",
             action: () => {
                 if (orderBatches.length === 0) {
-                    const syntheticBatches = buildSyntheticBatchesForAggregated();
+                    const syntheticBatches = buildSyntheticAggregatedBatches(order);
                     if (syntheticBatches.length === 0) {
                         showToast("Η παραγγελία δεν έχει είδη για εκτύπωση.", "info");
                         return;
@@ -588,10 +454,10 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { profile } = useAuth();
-    const { data: orders, isLoading: loadingOrders, isError: ordersError, error: ordersErr, refetch: refetchOrders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
-    const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
-    const { data: batches, isLoading: loadingBatches, isError: batchesError, error: batchesErr, refetch: refetchBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
-    const { data: collections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
+    const { data: orders, isLoading: loadingOrders, isError: ordersError, error: ordersErr, refetch: refetchOrders } = useOrders();
+    const { data: customers } = useCustomers();
+    const { data: batches, isLoading: loadingBatches, isError: batchesError, error: batchesErr, refetch: refetchBatches } = useProductionBatches();
+    const { data: collections } = useCollections();
 
     // View State
     const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
@@ -763,7 +629,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
 
         if (yes) {
             try {
-                await api.revertOrderFromProduction(orderId);
+                await ordersRepository.revertOrderFromProduction(orderId);
                 void invalidateOrdersAndBatches(queryClient);
                 setManagingOrder(null);
                 showToast('Η παραγγελία επαναφέρθηκε επιτυχώς.', 'success');
@@ -783,8 +649,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
 
         if (yes) {
             try {
-                await api.updateOrderStatus(orderId, OrderStatus.Cancelled);
-                await api.logAction(profile?.full_name || 'System', 'Ακύρωση Παραγγελίας', { order_id: orderId });
+                await ordersRepository.updateOrderStatus(orderId, OrderStatus.Cancelled);
+                await auditRepository.logAction(profile?.full_name || 'System', 'Ακύρωση Παραγγελίας', { order_id: orderId });
                 void invalidateOrdersAndBatches(queryClient);
                 setManagingOrder(null);
                 showToast('Η παραγγελία ακυρώθηκε.', 'info');
@@ -804,8 +670,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
 
         if (yes) {
             try {
-                await api.deleteOrder(orderId);
-                await api.logAction(profile?.full_name || 'System', 'Διαγραφή Παραγγελίας', { order_id: orderId });
+                await ordersRepository.deleteOrder(orderId);
+                await auditRepository.logAction(profile?.full_name || 'System', 'Διαγραφή Παραγγελίας', { order_id: orderId });
                 void invalidateOrdersAndBatches(queryClient);
                 setManagingOrder(null);
                 showToast('Η παραγγελία διαγράφηκε οριστικά.', 'success');
@@ -824,8 +690,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         });
         if (yes) {
             try {
-                await api.updateOrderStatus(order.id, OrderStatus.Delivered);
-                await api.logAction(profile?.full_name || 'System', 'Ολοκλήρωση Παραγγελίας', { order_id: order.id, customer: order.customer_name });
+                await ordersRepository.updateOrderStatus(order.id, OrderStatus.Delivered);
+                await auditRepository.logAction(profile?.full_name || 'System', 'Ολοκλήρωση Παραγγελίας', { order_id: order.id, customer: order.customer_name });
                 void invalidateOrdersAndBatches(queryClient);
                 if (managingOrder?.id === order.id) setManagingOrder(null);
                 showToast("Η παραγγελία ολοκληρώθηκε επιτυχώς!", "success");
@@ -842,7 +708,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         if (!shipmentModalOrder) return;
         const order = shipmentModalOrder;
         try {
-            await api.createPartialShipment({
+            await ordersRepository.createPartialShipment({
                 orderId: order.id,
                 orderItems: order.items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, quantity: i.quantity, price_at_order: i.price_at_order, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color, line_id: i.line_id || null })),
                 items: items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color, quantity: i.quantity, price_at_order: i.price_at_order, line_id: i.line_id || null })),
@@ -861,8 +727,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
 
     const handleArchiveOrder = async (order: Order, archive: boolean) => {
         try {
-            await api.archiveOrder(order.id, archive);
-            await api.logAction(profile?.full_name || 'System', archive ? 'Αρχειοθέτηση Παραγγελίας' : 'Ανάκτηση Παραγγελίας', { order_id: order.id, customer: order.customer_name });
+            await ordersRepository.archiveOrder(order.id, archive);
+            await auditRepository.logAction(profile?.full_name || 'System', archive ? 'Αρχειοθέτηση Παραγγελίας' : 'Ανάκτηση Παραγγελίας', { order_id: order.id, customer: order.customer_name });
             queryClient.invalidateQueries({ queryKey: ['orders'] });
             if (managingOrder?.id === order.id) setManagingOrder(null);
             showToast(archive ? "Η παραγγελία αρχειοθετήθηκε." : "Η παραγγελία ανακτήθηκε.", "success");
@@ -878,7 +744,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
 
         const newTags = [...currentTags, tagInput.trim()];
         try {
-            await api.updateOrder({ ...managingOrder, tags: newTags });
+            await ordersRepository.updateOrder({ ...managingOrder, tags: newTags });
             queryClient.invalidateQueries({ queryKey: ['orders'] });
             setManagingOrder(prev => prev ? ({ ...prev, tags: newTags }) : null);
             setTagInput('');
@@ -892,7 +758,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         if (!managingOrder) return;
         const newTags = (managingOrder.tags || []).filter(t => t !== tag);
         try {
-            await api.updateOrder({ ...managingOrder, tags: newTags });
+            await ordersRepository.updateOrder({ ...managingOrder, tags: newTags });
             queryClient.invalidateQueries({ queryKey: ['orders'] });
             setManagingOrder(prev => prev ? ({ ...prev, tags: newTags }) : null);
             showToast("Ετικέτα αφαιρέθηκε.", "success");
@@ -991,7 +857,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                         <div className="flex gap-1.5 flex-wrap flex-1">
                             {allTags.map(tag => {
                                 const isActive = selectedTags.has(tag);
-                                const c = getTagColor(tag);
+                                const c = getDeterministicTagColor(tag);
                                 return (
                                     <button
                                         key={tag}
@@ -1070,7 +936,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                             {order.tags && order.tags.length > 0 && (
                                                 <div className="flex gap-1.5 mt-2 flex-wrap">
                                                     {order.tags.map(t => {
-                                                        const c = getTagColor(t);
+                                                        const c = getDeterministicTagColor(t);
                                                         return (
                                                             <span key={t} className={`text-[10px] px-2 py-1 rounded-md border font-bold uppercase tracking-wide ${c.bg} ${c.text} ${c.border}`}>{t}</span>
                                                         );
@@ -1082,7 +948,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                         <div className="p-4 text-right font-bold text-slate-800">{formatCurrency(netValue)}</div>
                                         <div className="p-4">
                                             <div className="flex items-center gap-2">
-                                                <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusColor(order.status)}`}>{STATUS_TRANSLATIONS[order.status]}</span>
+                                                <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getOrderStatusClasses(order.status)}`}>{getOrderStatusLabel(order.status)}</span>
                                                 {ready && order.status !== OrderStatus.Delivered && (
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handleCompleteOrder(order); }}
@@ -1136,7 +1002,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                 {/* Existing tags */}
                                 <div className="flex flex-wrap gap-2 mb-3">
                                     {managingOrder.tags && managingOrder.tags.map(t => {
-                                        const c = getTagColor(t);
+                                        const c = getDeterministicTagColor(t);
                                         return (
                                             <span key={t} className={`${c.bg} ${c.border} ${c.text} border px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5`}>
                                                 {t} <button onClick={() => handleRemoveTag(t)} className="opacity-60 hover:opacity-100 hover:text-red-600 transition-opacity"><X size={11} /></button>
@@ -1166,7 +1032,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                             <div className="absolute left-0 right-12 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-10 overflow-hidden">
                                                 <div className="text-[10px] font-bold text-slate-400 uppercase px-3 pt-2 pb-1">Υπάρχουσες ετικέτες</div>
                                                 {tagSuggestions.map(s => {
-                                                    const c = getTagColor(s);
+                                                    const c = getDeterministicTagColor(s);
                                                     return (
                                                         <button
                                                             key={s}
@@ -1265,39 +1131,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                         if (onPrintPartialOrder) {
                             onPrintPartialOrder(printModalOrder, selectedBatches);
                         } else {
-                            // Fallback: create a modified order with only selected items
-                            const partialItems = new Map<string, { item: typeof printModalOrder.items[0], qty: number }>();
-                            selectedBatches.forEach(b => {
-                                const key = buildItemIdentityKey(b);
-                                const existingItem = printModalOrder.items.find(i => buildItemIdentityKey(i) === key);
-                                if (existingItem) {
-                                    if (!partialItems.has(key)) {
-                                        partialItems.set(key, { item: existingItem, qty: 0 });
-                                    }
-                                    partialItems.get(key)!.qty += b.quantity;
-                                }
-                            });
-
-                            // Calculate the partial order total based on selected items
-                            const partialTotal = Array.from(partialItems.values()).reduce((sum, { item, qty }) => sum + item.price_at_order * qty, 0);
-
-                            // Apply discount to partial total
-                            const discountFactor = 1 - ((printModalOrder.discount_percent || 0) / 100);
-                            const discountedPartialTotal = partialTotal * discountFactor;
-
-                            // Apply VAT to get final partial total
-                            const vatRate = printModalOrder.vat_rate !== undefined ? printModalOrder.vat_rate : 0.24;
-                            const partialGrandTotal = discountedPartialTotal * (1 + vatRate);
-
-                            const modifiedOrder: Order = {
-                                ...printModalOrder,
-                                items: Array.from(partialItems.values()).map(({ item, qty }) => ({
-                                    ...item,
-                                    quantity: qty
-                                })),
-                                total_price: partialGrandTotal
-                            };
-                            onPrintOrder?.(modifiedOrder);
+                            onPrintOrder?.(buildPartialOrderFromBatches(printModalOrder, selectedBatches));
                         }
                         setPrintModalOrder(null);
                         setShowPartSelector(false);

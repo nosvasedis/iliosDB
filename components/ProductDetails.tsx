@@ -5,23 +5,28 @@ import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, Globa
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal, getIliosSuggestedPriceForProduct } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants';
 import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag, Edit, Check, ArrowDownRight, RefreshCcw } from 'lucide-react';
-import { uploadProductImage, supabase, deleteProduct, R2_PUBLIC_URL, AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL } from '../lib/supabase';
+import { uploadProductImage, R2_PUBLIC_URL, AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
-import { useQueryClient, useQuery } from '@tanstack/react-query';
-import { api } from '../lib/supabase';
+import { useQueryClient } from '@tanstack/react-query';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 import { useUI } from './UIProvider';
 import SkuColorizedText from './SkuColorizedText';
 import JsBarcode from 'jsbarcode';
 import BarcodeView from './BarcodeView';
-
-// CONSTANTS
-const PLATING_LABELS: Record<string, string> = {
-    [PlatingType.None]: 'Λουστρέ',
-    [PlatingType.GoldPlated]: 'Επίχρυσο',
-    [PlatingType.TwoTone]: 'Δίχρωμο',
-    [PlatingType.Platinum]: 'Πλατίνα'
-};
+import { useSuppliers } from '../hooks/api/useSuppliers';
+import {
+    buildEditableProduct,
+    buildVariantFinishGroups,
+    getAnalyticalCostingItems,
+    getAvailableMolds,
+    getProductDisplaySummary,
+    getSmartVariantPreview,
+    getSortedFinishCodes,
+    getSortedProductVariants,
+    productsRepository,
+    saveProductGraph,
+} from '../features/products';
+import { getSecondaryWeightLabel } from '../features/products/productDetailsViewModels';
 
 interface Props {
     product: Product;
@@ -555,7 +560,7 @@ const BarcodeGallery = React.memo(({ product, variants, onPrint, settings }: { p
 export default function ProductDetails({ product, allProducts, allMaterials, onClose, onSave, setPrintItems, settings, collections, allMolds, viewMode = 'registry', onDuplicate }: Props) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
-    const { data: suppliers } = useQuery({ queryKey: ['suppliers'], queryFn: api.getSuppliers });
+    const { data: suppliers } = useSuppliers();
 
     const [activeTab, setActiveTab] = useState<'overview' | 'recipe' | 'labor' | 'variants' | 'barcodes'>('overview');
     const [isDeleting, setIsDeleting] = useState(false);
@@ -573,34 +578,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     const [isRecipeModalOpen, setIsRecipeModalOpen] = useState<false | 'raw' | 'component'>(false);
 
     const [editedProduct, setEditedProduct] = useState<Product>(() => {
-        const initialLabor: Partial<LaborCost> = product.labor || {};
-        return {
-            ...product,
-            variants: product.variants || [],
-            selling_price: product.selling_price || 0,
-            molds: product.molds || [],
-            collections: product.collections || [],
-            secondary_weight_g: product.secondary_weight_g || 0,
-            production_type: product.production_type || ProductionType.InHouse,
-            supplier_id: product.supplier_id,
-            supplier_sku: product.supplier_sku,
-            supplier_cost: product.supplier_cost || 0,
-            description: product.description || '',
-            labor: {
-                casting_cost: 0,
-                setter_cost: 0,
-                technician_cost: 0,
-                stone_setting_cost: 0,
-                plating_cost_x: 0,
-                plating_cost_d: 0,
-                subcontract_cost: 0,
-                casting_cost_manual_override: false,
-                technician_cost_manual_override: false,
-                plating_cost_x_manual_override: false,
-                plating_cost_d_manual_override: false,
-                ...initialLabor,
-            }
-        };
+        return buildEditableProduct(product);
     });
 
     const [showRepriceTool, setShowRepriceTool] = useState(false);
@@ -632,34 +610,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     }, [editedProduct.production_type, editedProduct.variants?.length]);
 
     useEffect(() => {
-        const initialLabor: Partial<LaborCost> = product.labor || {};
-        setEditedProduct({
-            ...product,
-            variants: product.variants || [],
-            selling_price: product.selling_price || 0,
-            molds: product.molds || [],
-            collections: product.collections || [],
-            secondary_weight_g: product.secondary_weight_g || 0,
-            production_type: product.production_type || ProductionType.InHouse,
-            supplier_id: product.supplier_id,
-            supplier_sku: product.supplier_sku,
-            supplier_cost: product.supplier_cost || 0,
-            description: product.description || '',
-            labor: {
-                casting_cost: 0,
-                setter_cost: 0,
-                technician_cost: 0,
-                stone_setting_cost: 0,
-                plating_cost_x: 0,
-                plating_cost_d: 0,
-                subcontract_cost: 0,
-                casting_cost_manual_override: false,
-                technician_cost_manual_override: false,
-                plating_cost_x_manual_override: false,
-                plating_cost_d_manual_override: false,
-                ...initialLabor,
-            }
-        });
+        setEditedProduct(buildEditableProduct(product));
         setTempSku(product.sku); // Reset SKU field
         setViewIndex(0);
     }, [product]);
@@ -769,34 +720,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
     // LIVE PREVIEW CALCULATOR FOR SMART ADD
     const smartPreview = useMemo(() => {
-        if (!smartAddSuffix) return null;
-        const clean = smartAddSuffix.trim().toUpperCase();
-
-        // 1. Analyze Components (Stone + Finish)
-        const { finish, stone } = getVariantComponents(clean, editedProduct.gender);
-
-        // 2. Generate Description based on Components
-        let desc = '';
-        if (['X', 'H', 'D', 'P'].includes(finish.code)) desc = finish.name;
-        else desc = 'Λουστρέ'; // Default for empty finish code (if user types just stone code)
-
-        if (stone.name) desc += ` - ${stone.name}`;
-
-        // 3. Estimate Cost using strict Pricing Engine logic
-        // This implicitly handles plating costs: if finish.code is 'P' or '', plating cost is 0.
-        const est = estimateVariantCost(editedProduct, clean, settings, allMaterials, allProducts);
-
-        // Calculate Diff for Display
-        const currentCostCalc = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
-        const masterCost = currentCostCalc.total;
-        const diff = est.total - masterCost;
-
-        return {
-            description: desc,
-            cost: est.total,
-            diff: diff,
-            breakdown: est.breakdown
-        };
+        return getSmartVariantPreview(editedProduct, smartAddSuffix, settings, allMaterials, allProducts);
     }, [smartAddSuffix, editedProduct, settings, allMaterials, allProducts]);
 
     const currentCostCalc = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
@@ -831,28 +755,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
     const sortedVariantsList = useMemo(() => {
         if (!hasVariants) return [];
-
-        const getPriority = (suffix: string) => {
-            const { finish } = getVariantComponents(suffix, editedProduct.gender);
-            // Priority Order: Lustre > P > D > X > H
-            switch (finish.code) {
-                case '': return 1;
-                case 'P': return 2;
-                case 'D': return 3;
-                case 'X': return 4;
-                case 'H': return 5;
-                default: return 6;
-            }
-        };
-
-        return [...variants].sort((a, b) => {
-            const priorityA = getPriority(a.suffix);
-            const priorityB = getPriority(b.suffix);
-            if (priorityA !== priorityB) {
-                return priorityA - priorityB;
-            }
-            return a.suffix.localeCompare(b.suffix);
-        });
+        return getSortedProductVariants(editedProduct, variants);
     }, [variants, editedProduct.gender]);
 
     const maxViews = hasVariants ? sortedVariantsList.length : (product.production_type === ProductionType.InHouse ? 1 : 0);
@@ -904,66 +807,17 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     const displayedMargin = displayedPrice > 0 ? (displayedProfit / displayedPrice) * 100 : 0;
 
     const { displayPlating, displayStones } = React.useMemo(() => {
-        if (!editedProduct.variants || editedProduct.variants.length === 0) {
-            return { displayPlating: PLATING_LABELS[editedProduct.plating_type] || editedProduct.plating_type, displayStones: '' };
-        }
-
-        const finishCodes = new Set<string>();
-        const stones = new Set<string>();
-
-        editedProduct.variants.forEach(v => {
-            const { finish, stone } = getVariantComponents(v.suffix, editedProduct.gender);
-            if (finish.code) finishCodes.add(finish.code);
-            else if (v.suffix === '') finishCodes.add('');
-
-            if (stone.name) stones.add(stone.name);
-        });
-
-        if (finishCodes.size === 0 && editedProduct.plating_type) {
-            return { displayPlating: PLATING_LABELS[editedProduct.plating_type] || editedProduct.plating_type, displayStones: Array.from(stones).join(', ') };
-        }
-
-        const getPriority = (code: string) => {
-            switch (code) {
-                case '': return 0;
-                case 'P': return 1;
-                case 'D': return 2;
-                case 'X': return 3;
-                case 'H': return 4;
-                default: return 5;
-            }
-        };
-
-        const sortedFinishNames = Array.from(finishCodes)
-            .sort((a, b) => getPriority(a) - getPriority(b))
-            .map(code => FINISH_CODES[code] || FINISH_CODES['']);
-
-        return {
-            displayPlating: sortedFinishNames.join(', '),
-            displayStones: Array.from(stones).join(', ')
-        };
+        return getProductDisplaySummary(editedProduct, editedProduct.variants || []);
     }, [editedProduct.variants, editedProduct.plating_type, editedProduct.gender]);
 
     // Group variants by finish code for the pricing section
     const finishGroups = useMemo(() => {
         if (!hasVariants) return {};
-        const groups: Record<string, ProductVariant[]> = {};
-        // Use sorted list to ensure base variants (shorter suffixes) likely come first
-        sortedVariantsList.forEach(v => {
-            const { finish } = getVariantComponents(v.suffix, editedProduct.gender);
-            // Normalize: if suffix is empty or minimal, code matches finish code
-            const code = finish.code || '';
-            if (!groups[code]) groups[code] = [];
-            groups[code].push(v);
-        });
-        return groups;
+        return buildVariantFinishGroups(editedProduct, sortedVariantsList);
     }, [sortedVariantsList, editedProduct.gender, hasVariants]);
 
     const sortedFinishCodes = useMemo(() => {
-        return Object.keys(finishGroups).sort((a, b) => {
-            const order = { '': 1, 'P': 2, 'D': 3, 'X': 4, 'H': 5 };
-            return (order[a as keyof typeof order] || 9) - (order[b as keyof typeof order] || 9);
-        });
+        return getSortedFinishCodes(finishGroups);
     }, [finishGroups]);
 
     // CALCULATE SUGGESTED PRICE PER FINISH GROUP (REAL-TIME) - MODIFIED to accept specific variant suffix for precise calc
@@ -1110,78 +964,44 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             const isComponent = finalEditedProduct.sku.toUpperCase().startsWith('STX');
             const currentCost = calculateProductCost(finalEditedProduct, settings, allMaterials, allProducts).total;
 
-            // Use api service for reliable local/offline persistence
-            const { queued: prodQueued } = await api.saveProduct({
-                sku: finalEditedProduct.sku,
-                prefix: finalEditedProduct.sku.substring(0, 2),
-                category: finalEditedProduct.category,
-                description: isComponent ? finalEditedProduct.description : null,
-                gender: finalEditedProduct.gender,
-                image_url: finalEditedProduct.image_url,
-                weight_g: finalEditedProduct.weight_g,
-                secondary_weight_g: finalEditedProduct.secondary_weight_g || null,
-                selling_price: isComponent ? 0 : finalEditedProduct.selling_price,
-                plating_type: finalEditedProduct.plating_type,
-                labor_casting: finalEditedProduct.labor.casting_cost,
-                labor_setter: finalEditedProduct.labor.setter_cost,
-                labor_technician: finalEditedProduct.labor.technician_cost,
-                labor_plating_x: finalEditedProduct.labor.plating_cost_x,
-                labor_plating_d: finalEditedProduct.labor.plating_cost_d,
-                labor_subcontract: finalEditedProduct.labor.subcontract_cost,
-                labor_casting_manual_override: finalEditedProduct.labor.casting_cost_manual_override,
-                labor_technician_manual_override: finalEditedProduct.labor.technician_cost_manual_override,
-                labor_plating_x_manual_override: finalEditedProduct.labor.plating_cost_x_manual_override,
-                labor_plating_d_manual_override: finalEditedProduct.labor.plating_cost_d_manual_override,
-                active_price: currentCost,
-                draft_price: currentCost,
-                is_component: isComponent,
-                production_type: finalEditedProduct.production_type,
-                supplier_id: (finalEditedProduct.production_type === ProductionType.Imported && finalEditedProduct.supplier_id) ? finalEditedProduct.supplier_id : undefined,
-                supplier_sku: finalEditedProduct.production_type === ProductionType.Imported ? finalEditedProduct.supplier_sku : null,
-                supplier_cost: finalEditedProduct.production_type === ProductionType.Imported ? finalEditedProduct.supplier_cost : null,
-                labor_stone_setting: finalEditedProduct.production_type === ProductionType.Imported ? finalEditedProduct.labor.stone_setting_cost : null
+            await saveProductGraph({
+                finalMasterSku: finalEditedProduct.sku,
+                productData: {
+                    sku: finalEditedProduct.sku,
+                    prefix: finalEditedProduct.sku.substring(0, 2),
+                    category: finalEditedProduct.category,
+                    description: isComponent ? finalEditedProduct.description : null,
+                    gender: finalEditedProduct.gender,
+                    image_url: finalEditedProduct.image_url,
+                    weight_g: finalEditedProduct.weight_g,
+                    secondary_weight_g: finalEditedProduct.secondary_weight_g || null,
+                    selling_price: isComponent ? 0 : finalEditedProduct.selling_price,
+                    plating_type: finalEditedProduct.plating_type,
+                    labor_casting: finalEditedProduct.labor.casting_cost,
+                    labor_setter: finalEditedProduct.labor.setter_cost,
+                    labor_technician: finalEditedProduct.labor.technician_cost,
+                    labor_plating_x: finalEditedProduct.labor.plating_cost_x,
+                    labor_plating_d: finalEditedProduct.labor.plating_cost_d,
+                    labor_subcontract: finalEditedProduct.labor.subcontract_cost,
+                    labor_casting_manual_override: finalEditedProduct.labor.casting_cost_manual_override,
+                    labor_technician_manual_override: finalEditedProduct.labor.technician_cost_manual_override,
+                    labor_plating_x_manual_override: finalEditedProduct.labor.plating_cost_x_manual_override,
+                    labor_plating_d_manual_override: finalEditedProduct.labor.plating_cost_d_manual_override,
+                    active_price: currentCost,
+                    draft_price: currentCost,
+                    is_component: isComponent,
+                    production_type: finalEditedProduct.production_type,
+                    supplier_id: (finalEditedProduct.production_type === ProductionType.Imported && finalEditedProduct.supplier_id) ? finalEditedProduct.supplier_id : undefined,
+                    supplier_sku: finalEditedProduct.production_type === ProductionType.Imported ? finalEditedProduct.supplier_sku : null,
+                    supplier_cost: finalEditedProduct.production_type === ProductionType.Imported ? finalEditedProduct.supplier_cost : null,
+                    labor_stone_setting: finalEditedProduct.production_type === ProductionType.Imported ? finalEditedProduct.labor.stone_setting_cost : null
+                },
+                finalVariants: finalEditedProduct.variants || [],
+                productionType: finalEditedProduct.production_type,
+                recipe: finalEditedProduct.recipe,
+                selectedMolds: finalEditedProduct.molds || [],
+                isSTX: finalEditedProduct.is_component
             });
-
-            await api.deleteProductRecipes(finalEditedProduct.sku);
-            if (finalEditedProduct.recipe.length > 0) {
-                for (const r of finalEditedProduct.recipe) {
-                    await api.insertRecipe({
-                        parent_sku: finalEditedProduct.sku,
-                        type: r.type,
-                        material_id: r.type === 'raw' ? r.id : null,
-                        component_sku: r.type === 'component' ? r.sku : null,
-                        quantity: r.quantity
-                    });
-                }
-            }
-
-            await api.deleteProductMolds(finalEditedProduct.sku);
-            if (finalEditedProduct.molds && finalEditedProduct.molds.length > 0 && finalEditedProduct.production_type === ProductionType.InHouse) {
-                const uniqueMolds = finalEditedProduct.molds.filter((m, index, self) =>
-                    index === self.findIndex((t) => t.code === m.code)
-                );
-                for (const m of uniqueMolds) {
-                    await api.insertProductMold({
-                        product_sku: finalEditedProduct.sku,
-                        mold_code: m.code,
-                        quantity: m.quantity
-                    });
-                }
-            }
-
-            await api.deleteProductVariants(finalEditedProduct.sku);
-            if (finalEditedProduct.variants && finalEditedProduct.variants.length > 0) {
-                for (const v of finalEditedProduct.variants) {
-                    await api.saveProductVariant({
-                        product_sku: finalEditedProduct.sku,
-                        suffix: v.suffix,
-                        description: v.description,
-                        stock_qty: v.stock_qty || 0,
-                        active_price: v.active_price || null,
-                        selling_price: finalEditedProduct.is_component ? 0 : ((v.selling_price !== null && !isNaN(Number(v.selling_price))) ? Number(v.selling_price) : null)
-                    });
-                }
-            }
 
             await queryClient.refetchQueries({ queryKey: ['products'] });
             await invalidateProductsAndCatalog(queryClient);
@@ -1205,7 +1025,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         });
         if (!confirmed) return;
         setIsDeleting(true);
-        const result = await deleteProduct(editedProduct.sku, editedProduct.image_url);
+        const result = await productsRepository.deleteProduct(editedProduct.sku, editedProduct.image_url);
 
         if (result.success) {
             await queryClient.refetchQueries({ queryKey: ['products'] });
@@ -1227,7 +1047,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                 const publicUrl = await uploadProductImage(compressedBlob, editedProduct.sku);
                 if (publicUrl) {
                     setEditedProduct(prev => ({ ...prev, image_url: publicUrl }));
-                    await api.saveProduct({ ...editedProduct, image_url: publicUrl });
+                    await productsRepository.saveProduct({ ...editedProduct, image_url: publicUrl });
                     await invalidateProductsAndCatalog(queryClient);
                     showToast("Η φωτογραφία ενημερώθηκε.", "success");
                 }
@@ -1274,7 +1094,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             setEditedProduct(updatedProduct);
             
             // Save to database
-            await api.saveProduct(updatedProduct);
+            await productsRepository.saveProduct(updatedProduct);
             
             // Invalidate queries to refresh the UI
             await invalidateProductsAndCatalog(queryClient);
@@ -1402,39 +1222,17 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     };
 
     const availableMolds = useMemo(() => {
-        const usedCodes = new Set(editedProduct.molds.map(m => m.code));
-        return allMolds
-            .filter(m => !usedCodes.has(m.code))
-            .filter(m =>
-                m.code.includes(moldSearch.toUpperCase()) ||
-                m.description.toLowerCase().includes(moldSearch.toLowerCase())
-            )
-            .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+        return getAvailableMolds(allMolds, editedProduct.molds, moldSearch);
     }, [allMolds, editedProduct.molds, moldSearch]);
 
     const secondaryWeightLabel = useMemo(() => {
-        if (editedProduct.gender === Gender.Men && editedProduct.category.includes('Δαχτυλίδι')) {
-            return "Βάρος Καπακιού (g)";
-        }
-        return "Β' Βáρος (g)";
+        return getSecondaryWeightLabel(editedProduct.gender, editedProduct.category);
     }, [editedProduct.gender, editedProduct.category]);
 
     const totalWeightForSilver = editedProduct.weight_g + (editedProduct.secondary_weight_g || 0);
 
     const analyticalCostingItems = useMemo(() => {
-        if (hasVariants) {
-            return sortedVariantsList.map(v => ({
-                key: v.suffix,
-                title: `${product.sku}${v.suffix} (${v.description})`,
-                costResult: estimateVariantCost(editedProduct, v.suffix, settings, allMaterials, allProducts)
-            }));
-        } else {
-            return [{
-                key: 'master-lustre',
-                title: `${product.sku} (Λουστρέ)`,
-                costResult: currentCostCalc
-            }];
-        }
+        return getAnalyticalCostingItems(hasVariants, sortedVariantsList, product.sku, editedProduct, settings, allMaterials, allProducts, currentCostCalc);
     }, [hasVariants, sortedVariantsList, product.sku, editedProduct, settings, allMaterials, allProducts, currentCostCalc]);
 
     const handleRenameSku = async () => {
@@ -1470,7 +1268,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
         setIsRenaming(true);
         try {
-            await api.renameProduct(product.sku, newSku);
+            await productsRepository.renameProduct(product.sku, newSku);
 
             // Update local state to reflect change immediately without full reload if possible, 
             // but react-query invalidation will handle it best.

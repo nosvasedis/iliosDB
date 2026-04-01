@@ -1,28 +1,20 @@
 
 import React, { useState } from 'react';
 import { 
-  LayoutDashboard, 
-  ShoppingCart, 
-  Database, 
-  Users, 
   LogOut, 
-  Menu, 
-  X,
   ChevronLeft,
   ChevronRight,
-  Factory,
-  FolderKanban,
-  Package,
-  CalendarRange
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from '../../constants';
 import { useAuth } from '../AuthContext';
 import { useDeliveryNavBadge } from '../../hooks/api/useOrderDeliveryPlans';
+import { employeeDesktopNavItems, employeeMobileNavItems, renderNavIcon } from '../../surfaces/navConfig';
+import type { EmployeePage } from '../../surfaces/pageIds';
 
 interface Props {
   children?: React.ReactNode;
-  activePage: string;
-  onNavigate: (page: string) => void;
+  activePage: EmployeePage;
+  onNavigate: (page: EmployeePage) => void;
 }
 
 const NavItem = ({ icon, label, isActive, onClick, isCollapsed, badge }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void, isCollapsed: boolean, badge?: number }) => (
@@ -99,16 +91,39 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
           </div>
 
           <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto scrollbar-hide">
-            <NavItem icon={<LayoutDashboard size={22} />} label="Πίνακας Ελέγχου" isActive={activePage === 'dashboard'} isCollapsed={isCollapsed} onClick={() => onNavigate('dashboard')} />
-            <NavItem icon={<ShoppingCart size={22} />} label="Παραγγελίες" isActive={activePage === 'orders'} isCollapsed={isCollapsed} onClick={() => onNavigate('orders')} />
-            <NavItem icon={<Factory size={22} />} label="Ροή Παραγωγής" isActive={activePage === 'production'} isCollapsed={isCollapsed} onClick={() => onNavigate('production')} />
-            <NavItem icon={<CalendarRange size={22} />} label="Ημερολόγιο" isActive={activePage === 'deliveries'} isCollapsed={isCollapsed} onClick={() => onNavigate('deliveries')} badge={badgeCount} />
+            {employeeDesktopNavItems.slice(0, 4).map((item) => (
+              <NavItem
+                key={item.id}
+                icon={renderNavIcon(item.icon, 22)}
+                label={item.label}
+                isActive={activePage === item.id}
+                isCollapsed={isCollapsed}
+                onClick={() => onNavigate(item.id)}
+                badge={item.id === 'deliveries' ? badgeCount : undefined}
+              />
+            ))}
             <div className="my-2 border-t border-white/10 mx-2"></div>
-            <NavItem icon={<FolderKanban size={22} />} label="Συλλογές" isActive={activePage === 'collections'} isCollapsed={isCollapsed} onClick={() => onNavigate('collections')} />
-            <NavItem icon={<Package size={22} />} label="Διαχείριση Αποθήκης" isActive={activePage === 'inventory'} isCollapsed={isCollapsed} onClick={() => onNavigate('inventory')} />
+            {employeeDesktopNavItems.slice(4, 6).map((item) => (
+              <NavItem
+                key={item.id}
+                icon={renderNavIcon(item.icon, 22)}
+                label={item.label}
+                isActive={activePage === item.id}
+                isCollapsed={isCollapsed}
+                onClick={() => onNavigate(item.id)}
+              />
+            ))}
             <div className="my-2 border-t border-white/10 mx-2"></div>
-            <NavItem icon={<Database size={22} />} label="Προϊόντα & Τιμές" isActive={activePage === 'registry'} isCollapsed={isCollapsed} onClick={() => onNavigate('registry')} />
-            <NavItem icon={<Users size={22} />} label="Πελάτες" isActive={activePage === 'customers'} isCollapsed={isCollapsed} onClick={() => onNavigate('customers')} />
+            {employeeDesktopNavItems.slice(6).map((item) => (
+              <NavItem
+                key={item.id}
+                icon={renderNavIcon(item.icon, 22)}
+                label={item.label}
+                isActive={activePage === item.id}
+                isCollapsed={isCollapsed}
+                onClick={() => onNavigate(item.id)}
+              />
+            ))}
             
             <div className="mt-auto pt-6 border-t border-white/10 mt-6">
                 <button onClick={handleLogout} className="w-full p-3 text-slate-400 hover:text-red-400 hover:bg-white/5 rounded-xl flex items-center gap-3 transition-colors">
@@ -147,14 +162,16 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
         {/* MOBILE BOTTOM NAV */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 h-20 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] overflow-x-auto scrollbar-hide">
             <div className="flex items-center h-full px-2 w-max mx-auto">
-                <MobileNavItem icon={<CalendarRange size={22} />} label="Παραδόσεις" isActive={activePage === 'deliveries'} onClick={() => onNavigate('deliveries')} badge={badgeCount} />
-                <MobileNavItem icon={<LayoutDashboard size={22} />} label="Αρχική" isActive={activePage === 'dashboard'} onClick={() => onNavigate('dashboard')} />
-                <MobileNavItem icon={<ShoppingCart size={22} />} label="Παραγγελίες" isActive={activePage === 'orders'} onClick={() => onNavigate('orders')} />
-                <MobileNavItem icon={<Factory size={22} />} label="Παραγωγή" isActive={activePage === 'production'} onClick={() => onNavigate('production')} />
-                <MobileNavItem icon={<FolderKanban size={22} />} label="Συλλογές" isActive={activePage === 'collections'} onClick={() => onNavigate('collections')} />
-                <MobileNavItem icon={<Package size={22} />} label="Αποθήκη" isActive={activePage === 'inventory'} onClick={() => onNavigate('inventory')} />
-                <MobileNavItem icon={<Database size={22} />} label="Προϊόντα" isActive={activePage === 'registry'} onClick={() => onNavigate('registry')} />
-                <MobileNavItem icon={<Users size={22} />} label="Πελάτες" isActive={activePage === 'customers'} onClick={() => onNavigate('customers')} />
+                {employeeMobileNavItems.map((item) => (
+                  <MobileNavItem
+                    key={item.id}
+                    icon={renderNavIcon(item.icon, 22)}
+                    label={item.label}
+                    isActive={activePage === item.id}
+                    onClick={() => onNavigate(item.id)}
+                    badge={item.id === 'deliveries' ? badgeCount : undefined}
+                  />
+                ))}
             </div>
         </nav>
     </div>

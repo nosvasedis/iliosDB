@@ -6,43 +6,15 @@ import { Order, OrderStatus } from '../../types';
 import { useAuth } from '../AuthContext';
 import { useUI } from '../UIProvider';
 import {
-    Search, Plus, Loader2, Clock, Package, CheckCircle, Truck, XCircle,
-    ChevronDown, ChevronUp, Edit, ShoppingCart, Trash2, PackageCheck
+    Search, Plus, Loader2, ChevronDown, ChevronUp, Edit, ShoppingCart, Trash2
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
+import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
 
 interface Props {
     onCreate: () => void;
     onEdit: (o: Order) => void;
 }
-
-// ─── Greek Status Labels + Styles ────────────────────────────────────────────
-const STATUS_LABELS: Record<OrderStatus, string> = {
-    [OrderStatus.Pending]: 'Εκκρεμής',
-    [OrderStatus.InProduction]: 'Σε Παραγωγή',
-    [OrderStatus.Ready]: 'Έτοιμη',
-    [OrderStatus.PartiallyDelivered]: 'Μερική Παράδοση',
-    [OrderStatus.Delivered]: 'Παραδόθηκε',
-    [OrderStatus.Cancelled]: 'Ακυρώθηκε',
-};
-
-const STATUS_ICONS: Record<OrderStatus, React.ReactNode> = {
-    [OrderStatus.Pending]: <Clock size={12} />,
-    [OrderStatus.InProduction]: <Package size={12} />,
-    [OrderStatus.Ready]: <CheckCircle size={12} />,
-    [OrderStatus.PartiallyDelivered]: <PackageCheck size={12} />,
-    [OrderStatus.Delivered]: <Truck size={12} />,
-    [OrderStatus.Cancelled]: <XCircle size={12} />,
-};
-
-const STATUS_COLORS: Record<OrderStatus, string> = {
-    [OrderStatus.Pending]: 'bg-amber-50 text-amber-700 border-amber-200',
-    [OrderStatus.InProduction]: 'bg-blue-50 text-blue-700 border-blue-200',
-    [OrderStatus.Ready]: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    [OrderStatus.PartiallyDelivered]: 'bg-amber-50 text-amber-700 border-amber-200',
-    [OrderStatus.Delivered]: 'bg-slate-800 text-white border-slate-800',
-    [OrderStatus.Cancelled]: 'bg-red-50 text-red-500 border-red-200',
-};
 
 // ─── Filter Tabs Config ───────────────────────────────────────────────────────
 const FILTER_TABS: Array<{ key: 'all' | OrderStatus; label: string }> = [
@@ -69,9 +41,9 @@ const SellerOrderCard: React.FC<{ order: Order; onEdit: (o: Order) => void; onDe
                         <div className="text-[10px] font-mono text-slate-300 font-bold mb-0.5">#{order.id.slice(-8).toUpperCase()}</div>
                         <div className="font-black text-slate-800 text-base leading-tight">{order.customer_name}</div>
                     </div>
-                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black border uppercase flex items-center gap-1 ${STATUS_COLORS[order.status]}`}>
-                        {STATUS_ICONS[order.status]}
-                        {STATUS_LABELS[order.status]}
+                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black border uppercase flex items-center gap-1 ${getOrderStatusClasses(order.status, 'seller')}`}>
+                        {getOrderStatusIcon(order.status, 12)}
+                        {getOrderStatusLabel(order.status, 'seller')}
                     </span>
                 </div>
                 <div className="flex justify-between items-end mt-3">

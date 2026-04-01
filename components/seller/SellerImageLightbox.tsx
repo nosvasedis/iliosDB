@@ -3,6 +3,7 @@ import { X, ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react';
 import { Product, ProductVariant } from '../../types';
 import { getVariantComponents } from '../../utils/pricingEngine';
 import { FINISH_CODES } from '../../constants';
+import { SELLER_FINISH_COLORS, SELLER_STONE_TEXT_COLORS } from './skuColors';
 
 interface LightboxItem {
     product: Product;
@@ -13,26 +14,6 @@ interface Props {
     item: LightboxItem;
     onClose: () => void;
 }
-
-const FINISH_COLORS: Record<string, string> = {
-    'X': 'bg-amber-100 text-amber-800 border-amber-300',
-    'P': 'bg-stone-100 text-stone-700 border-stone-300',
-    'D': 'bg-rose-100 text-rose-800 border-rose-300',
-    'H': 'bg-cyan-100 text-cyan-800 border-cyan-300',
-    '': 'bg-emerald-50 text-emerald-800 border-emerald-200',
-};
-
-const STONE_TEXT_COLORS: Record<string, string> = {
-    'KR': 'text-rose-500', 'QN': 'text-slate-900', 'LA': 'text-blue-500', 'TY': 'text-teal-500',
-    'TG': 'text-orange-700', 'IA': 'text-red-700', 'BSU': 'text-slate-700', 'GSU': 'text-emerald-700',
-    'RSU': 'text-rose-800', 'MA': 'text-emerald-500', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
-    'NF': 'text-green-600', 'CO': 'text-teal-600', 'TPR': 'text-emerald-500', 'TKO': 'text-rose-600',
-    'TMP': 'text-blue-600', 'PCO': 'text-emerald-400', 'MCO': 'text-purple-500', 'PAX': 'text-green-600',
-    'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-600', 'AP': 'text-cyan-600',
-    'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-500', 'MP': 'text-blue-500',
-    'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500', 'MV': 'text-purple-500',
-    'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
-};
 
 const SWIPE_THRESHOLD = 50;
 const WHEEL_THRESHOLD = 80;
@@ -58,8 +39,8 @@ export default function SellerImageLightbox({ item, onClose }: Props) {
     const descriptionLine = currentVariant
         ? [finish.name, stone.name].filter(Boolean).join(' – ')
         : '';
-    const badgeColor = FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-700 border-slate-200';
-    const stoneColor = STONE_TEXT_COLORS[stone.code] || 'text-slate-700';
+    const badgeColor = SELLER_FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-700 border-slate-200';
+    const stoneColor = SELLER_STONE_TEXT_COLORS[stone.code] || 'text-slate-700';
 
     const prevVariant = useCallback(() => setVariantIdx(i => (i - 1 + variants.length) % variants.length), [variants.length]);
     const nextVariant = useCallback(() => setVariantIdx(i => (i + 1) % variants.length), [variants.length]);

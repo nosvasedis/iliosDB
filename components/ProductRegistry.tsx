@@ -1,19 +1,31 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender, MaterialType, PlatingType, ProductionType } from '../types';
+import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender, PlatingType, ProductionType } from '../types';
 import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, ChevronLeft, ChevronRight, Tag, Puzzle, Gem, Palette, X, Camera, LayoutGrid, List, CheckSquare, Printer, Factory, ShoppingBag, FolderOpen } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import NewProduct from './NewProduct';
 import BarcodeScanner from './BarcodeScanner';
 import SkuColorizedText from './SkuColorizedText';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { api } from '../lib/supabase';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
-import { calculateProductCost, getPrevalentVariant, getVariantComponents, formatCurrency, findProductByScannedCode, estimateVariantCost, getIliosSuggestedPriceForProduct, splitSkuComponents } from '../utils/pricingEngine';
+import { calculateProductCost, getPrevalentVariant, formatCurrency, findProductByScannedCode, estimateVariantCost } from '../utils/pricingEngine';
 import { useUI } from './UIProvider';
-import { FINISH_COLORS, STONE_TEXT_COLORS } from '../hooks/useOrderState';
 import { Info } from 'lucide-react';
+import { useCollections } from '../hooks/api/useCollections';
+import { useMaterials } from '../hooks/api/useMaterials';
+import { useMolds } from '../hooks/api/useMolds';
+import { useProducts } from '../hooks/api/useProducts';
+import { useSettings } from '../hooks/api/useSettings';
+import { productsRepository } from '../features/products';
+import {
+    buildPrintableSkuMap,
+    buildRegistryTableVariants,
+    buildSearchableProducts,
+    filterRegistryProducts,
+    getAvailableRegistryStones,
+    getGroupedProductCategories,
+} from '../features/products';
 
 interface Props {
     setPrintItems?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
@@ -103,30 +115,6 @@ const STONE_CHIP_STYLES: Record<string, { bg: string; text: string; dot: string 
 const DEFAULT_STONE_STYLE = { bg: 'bg-slate-50', text: 'text-slate-600', dot: 'bg-slate-300' };
 
 const getStoneChipStyle = (code: string) => STONE_CHIP_STYLES[code] ?? DEFAULT_STONE_STYLE;
-
-/* ── SKU COLORIZER COMPONENT ── */
-const SkuColorizer = ({ sku, gender }: { sku: string, gender?: Gender }) => {
-    const { master, suffix } = splitSkuComponents(sku);
-    const { finish, stone } = getVariantComponents(suffix, gender);
-
-    const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
-    const sColor = STONE_TEXT_COLORS[stone.code] || 'text-emerald-400';
-
-    const renderSuffixChars = () =>
-        suffix.split('').map((char, i) => {
-            let colorClass = 'text-slate-400';
-            if (finish.code && i < finish.code.length) colorClass = fColor;
-            else if (stone.code && i >= (suffix.length - stone.code.length)) colorClass = sColor;
-            return <span key={i} className={colorClass}>{char}</span>;
-        });
-
-    return (
-        <span className="font-mono tracking-tight cursor-default">
-            <span className="text-slate-900 font-black">{master}</span>
-            <span className="font-black">{renderSuffixChars()}</span>
-        </span>
-    );
-};
 
 const getPaginationRange = (current: number, total: number) => {
     const range: (number | string)[] = [];
@@ -369,11 +357,11 @@ const SubFilterButton: React.FC<{
 export default function ProductRegistry({ setPrintItems }: Props) {
     const queryClient = useQueryClient();
     const { showToast } = useUI();
-    const { data: products, isLoading: loadingProducts } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
-    const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
-    const { data: molds, isLoading: loadingMolds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
-    const { data: settings, isLoading: loadingSettings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
-    const { data: collections, isLoading: loadingCollections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
+    const { data: products, isLoading: loadingProducts } = useProducts();
+    const { data: materials, isLoading: loadingMaterials } = useMaterials();
+    const { data: molds, isLoading: loadingMolds } = useMolds();
+    const { data: settings, isLoading: loadingSettings } = useSettings();
+    const { data: collections, isLoading: loadingCollections } = useCollections();
 
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -442,120 +430,36 @@ export default function ProductRegistry({ setPrintItems }: Props) {
 
     const stoneMaterialIds = useMemo(() => {
         if (!materials) return new Set<string>();
-        return new Set(materials.filter(m => m.type === MaterialType.Stone).map(m => m.id));
+        return new Set(materials.filter(m => m.type === 'Stone').map(m => m.id));
     }, [materials]);
 
     const searchableProducts = useMemo(() => {
-        return baseProducts.map(product => {
-            const platingTypes = new Set<string>();
-            const { finish: masterFinish } = getVariantComponents(product.sku, product.gender);
-
-            if (product.plating_type === PlatingType.GoldPlated) platingTypes.add('X');
-            if (product.plating_type === PlatingType.Platinum) platingTypes.add('H');
-            if (product.plating_type === PlatingType.None) platingTypes.add(masterFinish.code || '');
-
-            const variantStoneCodes: Array<{ code: string; name: string }> = [];
-            (product.variants || []).forEach(variant => {
-                const { finish, stone } = getVariantComponents(variant.suffix, product.gender);
-                platingTypes.add(finish.code);
-                if (stone.code && stone.name) {
-                    variantStoneCodes.push({ code: stone.code, name: stone.name });
-                }
-            });
-
-            return {
-                product,
-                skuUpper: product.sku.toUpperCase(),
-                categoryLower: product.category.toLowerCase(),
-                platingTypes,
-                variantStoneCodes,
-                variantStoneCodeSet: new Set(variantStoneCodes.map(({ code }) => code)),
-                collectionIds: new Set(product.collections || []),
-                hasStoneInRecipe: product.recipe.some(item => item.type === 'raw' && stoneMaterialIds.has(item.id)),
-            };
-        });
+        return buildSearchableProducts(baseProducts, stoneMaterialIds);
     }, [baseProducts, stoneMaterialIds]);
 
     const deferredSearchTerm = React.useDeferredValue(searchTerm);
-    const normalizedSearchTerm = deferredSearchTerm.trim().toLowerCase();
-    const normalizedSearchSku = deferredSearchTerm.trim().toUpperCase();
 
     const groupedCategories = useMemo(() => {
-        if (!baseProducts) return { parents: [], children: new Map() };
-        const parents = new Set<string>();
-        const children = new Map<string, Set<string>>();
-        const allCategories = new Set(baseProducts.map(p => p.category));
-
-        const parentKeywords = ['Βραχιόλι', 'Δαχτυλίδι', 'Σκουλαρίκια', 'Μενταγιόν', 'Σταυρός', 'Κολιέ'];
-
-        allCategories.forEach((cat: string) => {
-            const parent = parentKeywords.find(p => cat.startsWith(p));
-            if (parent) {
-                parents.add(parent);
-                if (!children.has(parent)) children.set(parent, new Set());
-                if (cat !== parent) children.get(parent)!.add(cat);
-            } else {
-                parents.add(cat);
-            }
-        });
-        return { parents: Array.from(parents).sort(), children };
+        return getGroupedProductCategories(baseProducts);
     }, [baseProducts]);
 
     // Compute distinct stone codes (from variant suffixes) present in gender-filtered base products
     const availableStones = useMemo(() => {
-        const stoneMap = new Map<string, { id: string; name: string; count: number }>();
-        searchableProducts.forEach(({ product, variantStoneCodes }) => {
-            if (filterGender !== 'All' && product.gender !== filterGender) return;
-            variantStoneCodes.forEach(({ code, name }) => {
-                if (stoneMap.has(code)) stoneMap.get(code)!.count++;
-                else stoneMap.set(code, { id: code, name, count: 1 });
-            });
-        });
-        return Array.from(stoneMap.values()).sort((a, b) => b.count - a.count);
+        return getAvailableRegistryStones(searchableProducts, filterGender);
     }, [searchableProducts, filterGender]);
 
     const filteredProducts = useMemo(() => {
-        const filtered = searchableProducts.filter(({ product, skuUpper, categoryLower, platingTypes, variantStoneCodeSet, collectionIds, hasStoneInRecipe }) => {
-            const matchesGender = filterGender === 'All' || product.gender === filterGender;
-            const matchesSearch = !normalizedSearchTerm || skuUpper.includes(normalizedSearchSku) || categoryLower.includes(normalizedSearchTerm);
-            const matchesCategory = filterCategory === 'All' || product.category === filterCategory || product.category.startsWith(filterCategory);
-            if (!matchesGender || !matchesSearch || !matchesCategory) return false;
-
-            if (subFilters.stone === 'with') {
-                if (!hasStoneInRecipe) return false;
-            } else if (subFilters.stone === 'without') {
-                if (hasStoneInRecipe) return false;
-            } else if (subFilters.stone !== 'all' && !variantStoneCodeSet.has(subFilters.stone)) {
-                return false;
-            }
-
-            if (subFilters.plating !== 'all') {
-                if (subFilters.plating === 'lustre' && (!platingTypes.has('') || ['P', 'D', 'X', 'H'].some(code => platingTypes.has(code)))) return false;
-                if (subFilters.plating === 'patina' && !platingTypes.has('P')) return false;
-                if (subFilters.plating === 'gold' && !platingTypes.has('X')) return false;
-                if (subFilters.plating === 'platinum' && !platingTypes.has('H')) return false;
-            }
-
-            if (subFilters.productionType !== 'all') {
-                if (subFilters.productionType === 'InHouse' && product.production_type !== ProductionType.InHouse) return false;
-                if (subFilters.productionType === 'Imported' && product.production_type !== ProductionType.Imported) return false;
-            }
-
-            if (subFilters.collection !== 'all') {
-                const colId = parseInt(subFilters.collection);
-                if (!collectionIds.has(colId)) return false;
-            }
-
-            return true;
-        }).map(({ product }) => product);
-
-        return filtered.sort((a, b) => {
-            if (sortBy === 'created_at') {
-                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-            }
-            return a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' });
+        return filterRegistryProducts(searchableProducts, {
+            category: filterCategory,
+            gender: filterGender,
+            searchTerm: deferredSearchTerm,
+            stone: subFilters.stone,
+            plating: subFilters.plating,
+            productionType: subFilters.productionType,
+            collection: subFilters.collection,
+            sortBy,
         });
-    }, [searchableProducts, normalizedSearchTerm, normalizedSearchSku, filterCategory, filterGender, subFilters, sortBy]);
+    }, [searchableProducts, deferredSearchTerm, filterCategory, filterGender, subFilters, sortBy]);
 
     // Pagination state for table mode
     const [tablePage, setTablePage] = useState(0);
@@ -589,16 +493,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
         });
     }, [filteredProducts, viewMode]);
 
-    const printableSkuMap = useMemo(() => {
-        const map = new Map<string, { product: Product; variant?: ProductVariant }>();
-        products?.forEach(product => {
-            map.set(product.sku, { product });
-            product.variants?.forEach(variant => {
-                map.set(`${product.sku}${variant.suffix}`, { product, variant });
-            });
-        });
-        return map;
-    }, [products]);
+    const printableSkuMap = useMemo(() => buildPrintableSkuMap(products), [products]);
 
     // Grid pagination
     const [gridPage, setGridPage] = useState(0);
@@ -624,36 +519,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
 
     const tableVariants = useMemo(() => {
         if (!settings || !materials || !products) return [] as TableVariant[];
-
-        return tableVariantRows.map((row) => {
-            if (row.variant) {
-                const estCost = estimateVariantCost(row.product, row.variant.suffix, settings, materials, products, undefined, productsMap, materialsMap);
-                const suggestedPrice = getIliosSuggestedPriceForProduct(row.product, row.variant.suffix, settings, materials, products, productsMap, materialsMap);
-                const weight = estCost.breakdown.details?.total_weight || (row.product.weight_g + (row.product.secondary_weight_g || 0));
-
-                return {
-                    ...row,
-                    price: row.variant.selling_price || row.product.selling_price,
-                    cost: estCost.total,
-                    costBreakdown: estCost.breakdown,
-                    suggestedPrice,
-                    weight,
-                };
-            }
-
-            const costCalc = calculateProductCost(row.product, settings, materials, products, 0, new Set(), undefined, productsMap, materialsMap);
-            const suggestedPrice = getIliosSuggestedPriceForProduct(row.product, null, settings, materials, products, productsMap, materialsMap);
-            const weight = costCalc.breakdown.details?.total_weight || (row.product.weight_g + (row.product.secondary_weight_g || 0));
-
-            return {
-                ...row,
-                price: row.product.selling_price,
-                cost: costCalc.total,
-                costBreakdown: costCalc.breakdown,
-                suggestedPrice,
-                weight,
-            };
-        });
+        return buildRegistryTableVariants(tableVariantRows, settings, materials, products, productsMap, materialsMap);
     }, [tableVariantRows, settings, materials, products, productsMap, materialsMap]);
 
     const rowCount = tableVariants.length;
@@ -751,7 +617,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                         newVariants[vIndex] = { ...newVariants[vIndex], selling_price: newPrice };
                         masterProduct.variants = newVariants;
                         try {
-                            await api.saveProduct(masterProduct);
+                            await productsRepository.saveProduct(masterProduct);
                             invalidateProductsAndCatalog(queryClient);
                             showToast(`Η τιμή για ${sku} αποθηκεύτηκε`, 'success');
                         } catch (e) {
@@ -761,7 +627,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                 } else {
                     masterProduct.selling_price = newPrice;
                     try {
-                        await api.saveProduct(masterProduct);
+                        await productsRepository.saveProduct(masterProduct);
                         invalidateProductsAndCatalog(queryClient);
                         showToast(`Η τιμή για ${sku} αποθηκεύτηκε`, 'success');
                     } catch (e) {
@@ -773,7 +639,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
             const product = products.find(p => p.sku === sku);
             if (product && product.selling_price !== newPrice) {
                 try {
-                    await api.saveProduct({ ...product, selling_price: newPrice });
+                    await productsRepository.saveProduct({ ...product, selling_price: newPrice });
                     invalidateProductsAndCatalog(queryClient);
                     showToast(`Η τιμή για ${sku} αποθηκεύτηκε`, 'success');
                 } catch (error) {

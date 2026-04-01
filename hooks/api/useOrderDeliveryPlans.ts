@@ -1,17 +1,20 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '../../lib/supabase';
 import { OrderShipment } from '../../types';
 import { getDeliveryNavBadgeCount, enrichDeliveryItems } from '../../utils/deliveryScheduling';
+import { deliveriesRepository, deliveryKeys } from '../../features/deliveries';
+import { useCustomers, useOrders } from './useOrders';
+import { useProductionBatches } from './useProductionBatches';
+import { useProducts } from './useProducts';
 
 export function useOrderDeliveryPlans() {
-  const plansQuery = useQuery({ queryKey: ['order_delivery_plans'], queryFn: api.getOrderDeliveryPlans });
-  const remindersQuery = useQuery({ queryKey: ['order_delivery_reminders'], queryFn: api.getOrderDeliveryReminders });
-  const ordersQuery = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
-  const customersQuery = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
-  const batchesQuery = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
-  const productsQuery = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
-  const shipmentsQuery = useQuery({ queryKey: ['order_shipments'], queryFn: api.getOrderShipments });
+  const plansQuery = useQuery({ queryKey: deliveryKeys.plans(), queryFn: deliveriesRepository.getOrderDeliveryPlans });
+  const remindersQuery = useQuery({ queryKey: deliveryKeys.reminders(), queryFn: deliveriesRepository.getOrderDeliveryReminders });
+  const ordersQuery = useOrders();
+  const customersQuery = useCustomers();
+  const batchesQuery = useProductionBatches();
+  const productsQuery = useProducts();
+  const shipmentsQuery = useQuery({ queryKey: deliveryKeys.shipments(), queryFn: deliveriesRepository.getOrderShipments });
 
   const enrichedItems = useMemo(() => {
     if (!plansQuery.data || !remindersQuery.data || !ordersQuery.data || !customersQuery.data || !batchesQuery.data) {
@@ -57,8 +60,8 @@ export function useOrderDeliveryPlans() {
 }
 
 export function useDeliveryNavBadge() {
-  const plansQuery = useQuery({ queryKey: ['order_delivery_plans'], queryFn: api.getOrderDeliveryPlans });
-  const remindersQuery = useQuery({ queryKey: ['order_delivery_reminders'], queryFn: api.getOrderDeliveryReminders });
+  const plansQuery = useQuery({ queryKey: deliveryKeys.plans(), queryFn: deliveriesRepository.getOrderDeliveryPlans });
+  const remindersQuery = useQuery({ queryKey: deliveryKeys.reminders(), queryFn: deliveriesRepository.getOrderDeliveryReminders });
 
   const badgeCount = useMemo(() => {
     return getDeliveryNavBadgeCount(plansQuery.data || [], remindersQuery.data || []);

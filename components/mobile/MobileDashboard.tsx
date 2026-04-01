@@ -6,39 +6,13 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { APP_ICON_ONLY } from '../../constants';
 import { useAuth } from '../AuthContext';
+import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
 
 interface Props {
     products: Product[];
     settings: GlobalSettings;
     onNavigate?: (page: string) => void;
 }
-
-const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
-    [OrderStatus.Pending]: 'Εκκρεμεί',
-    [OrderStatus.InProduction]: 'Παραγωγή',
-    [OrderStatus.Ready]: 'Έτοιμο',
-    [OrderStatus.PartiallyDelivered]: 'Μερική Παράδοση',
-    [OrderStatus.Delivered]: 'Παραδόθηκε',
-    [OrderStatus.Cancelled]: 'Ακυρώθηκε',
-};
-
-const STATUS_STYLES: Record<OrderStatus, string> = {
-    [OrderStatus.Pending]: 'bg-slate-100 text-slate-600 border-slate-200',
-    [OrderStatus.InProduction]: 'bg-blue-50 text-blue-700 border-blue-100 ring-1 ring-blue-50',
-    [OrderStatus.Ready]: 'bg-emerald-50 text-emerald-700 border-emerald-100 ring-1 ring-emerald-50',
-    [OrderStatus.PartiallyDelivered]: 'bg-amber-50 text-amber-700 border-amber-200',
-    [OrderStatus.Delivered]: 'bg-slate-100 text-slate-400',
-    [OrderStatus.Cancelled]: 'bg-red-50 text-red-400',
-};
-
-const STATUS_ICONS = {
-    [OrderStatus.Pending]: <Clock size={14} />,
-    [OrderStatus.InProduction]: <Package size={14} />,
-    [OrderStatus.Ready]: <CheckCircle size={14} />,
-    [OrderStatus.PartiallyDelivered]: <PackageCheck size={14} />,
-    [OrderStatus.Delivered]: <Truck size={14} />,
-    [OrderStatus.Cancelled]: <XCircle size={14} />,
-};
 
 const QuickAction = ({ icon, label, color, onClick }: { icon: React.ReactNode, label: string, color: string, onClick: () => void }) => (
     <button
@@ -280,9 +254,9 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
 
                                 {/* STATUS BAR */}
                                 <div className="flex items-center justify-between pt-2 border-t border-slate-50">
-                                    <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase flex items-center gap-1.5 border ${STATUS_STYLES[order.status]}`}>
-                                        {STATUS_ICONS[order.status]}
-                                        {STATUS_TRANSLATIONS[order.status]}
+                                    <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase flex items-center gap-1.5 border ${getOrderStatusClasses(order.status, 'mobileDashboard')}`}>
+                                        {getOrderStatusIcon(order.status, 14)}
+                                        {getOrderStatusLabel(order.status, 'mobileCompact')}
                                     </div>
                                     <div className="text-[10px] text-slate-400 font-medium">
                                         {new Date(order.created_at).toLocaleDateString('el-GR')}

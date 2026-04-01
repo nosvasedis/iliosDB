@@ -1,9 +1,5 @@
-import React, { Suspense, useState, useEffect, useRef } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import {
-  LayoutDashboard,
-  Warehouse,
-  DollarSign,
-  Settings as SettingsIcon,
   Menu,
   X,
   ChevronLeft,
@@ -11,36 +7,16 @@ import {
   Loader2,
   Gem,
   MapPin,
-  FolderKanban,
-  Printer,
-  ShoppingCart,
-  Factory,
-  Users,
-  Sparkles,
-  Database,
-  Layers,
   LogOut,
-  Wifi,
-  WifiOff,
   Cloud,
   HardDrive,
   RefreshCw,
-  AlertTriangle,
-  MonitorOff,
-  CheckCircle,
-  CloudOff,
-  ScrollText,
   ShieldAlert,
-  TrendingUp,
-  FileBadge,
-  Globe,
-  CalendarRange
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
-import { api, isConfigured, isLocalMode } from './lib/supabase';
-import { offlineDb } from './lib/offlineDb';
+import { isConfigured, isLocalMode } from './lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
-import { Product, ProductVariant, GlobalSettings, Order, Material, Mold, Collection, ProductionBatch, RecipeItem, OrderStatus, ProductionStage, Gender, PlatingType, AggregatedData, AggregatedBatch, Offer, SupplierOrder, AssemblyPrintData, StageBatchPrintData } from './types';
+import { Product, Order, ProductionBatch, AssemblyPrintData, StageBatchPrintData } from './types';
 import { UIProvider, useUI } from './components/UIProvider';
 import { AuthProvider, useAuth } from './components/AuthContext';
 
@@ -52,7 +28,6 @@ import { useSettings } from './hooks/api/useSettings';
 import { useCollections } from './hooks/api/useCollections';
 
 import AuthScreen, { PendingApprovalScreen } from './components/AuthScreen';
-import { calculateProductCost, estimateVariantCost, transliterateForBarcode } from './utils/pricingEngine';
 import { calculateBusinessStats } from './utils/businessAnalytics';
 import { useIsMobile } from './hooks/useIsMobile';
 import { PrintManager } from './components/PrintManager';
@@ -60,11 +35,13 @@ import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 import { lazyWithChunkRecovery } from './lib/chunkLoadRecovery';
 
 import SetupScreen from './components/SetupScreen';
-import AnalyticsPrintReport from './components/AnalyticsPrintReport';
-import OrderFinancialReport from './components/OrderFinancialReport';
 import { PrintProvider, usePrint } from './components/PrintContext';
 import { useDeliveryNavBadge } from './hooks/api/useOrderDeliveryPlans';
-import type { PriceListPrintData } from './components/PriceListPrintView';
+import { buildPartialOrderFromBatches } from './features/orders';
+import { useConnectivityStatus } from './app-shell/useConnectivityStatus';
+import { buildAggregatedPrintData } from './features/printing';
+import { adminFooterNavItems, adminNavSections, adminQuickActionNavItems, renderNavIcon } from './surfaces/navConfig';
+import type { AdminPage } from './surfaces/pageIds';
 
 const lazyPage = <T extends React.ComponentType<any>>(factory: () => Promise<{ default: T }>) =>
   lazyWithChunkRecovery(factory, import.meta.url);
@@ -91,8 +68,6 @@ const AnalyticsView = lazyPage(() => import('./components/AnalyticsView'));
 const OffersPage = lazyPage(() => import('./components/OffersPage'));
 const DeliveriesPage = lazyPage(() => import('./components/DeliveriesPage'));
 
-
-type Page = 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'suppliers' | 'ai-studio' | 'pricelist' | 'analytics' | 'offers' | 'deliveries';
 
 const ContentLoader = () => (
   <div className="min-h-[320px] w-full flex flex-col items-center justify-center text-slate-500">
@@ -176,12 +151,9 @@ const NavItem = ({ icon, label, isActive, onClick, isCollapsed, badge }: { icon:
 
 function AppContent() {
   const isMobile = useIsMobile();
-  const [activePage, setActivePage] = useState<Page>('dashboard');
+  const [activePage, setActivePage] = useState<AdminPage>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [pendingItems, setPendingItems] = useState<any[]>([]);
 
   const queryClient = useQueryClient();
   const { showToast } = useUI();
@@ -196,76 +168,46 @@ function AppContent() {
     printItems, orderToPrint, remainingOrderToPrint, shipmentToPrint, offerToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData, orderAnalyticsData, supplierOrderToPrint, stageBatchPrintData
   } = usePrint() || {}; // Handled gracefully if error
 
-  // Local state for app connectivity context
-  const [localIsOnline, setLocalIsOnline] = useState(navigator.onLine);
-  const [localIsSyncing, setLocalIsSyncing] = useState(false);
-  const [localPendingItems, setLocalPendingItems] = useState<any[]>([]);
+  const {
+    isOnline,
+    isSyncing,
+    pendingItems,
+    pendingCount,
+    refreshQueue,
+  } = useConnectivityStatus({
+    onSyncCompleted: async (result) => {
+      if (result.syncedCount > 0 && result.remainingCount === 0) {
+        showToast(`Συγχρονίστηκαν ${result.syncedCount} αλλαγές!`, 'success');
+        await queryClient.invalidateQueries();
+      } else if (result.syncedCount > 0 && result.remainingCount > 0) {
+        showToast(`Συγχρονίστηκαν ${result.syncedCount} αλλαγές, αλλά ${result.remainingCount} παραμένουν εκκρεμείς.`, 'info');
+        await queryClient.invalidateQueries();
+      } else if (!result.wasQueueEmpty && result.remainingCount > 0) {
+        showToast(`Ο συγχρονισμός ολοκληρώθηκε με εκκρεμότητες. Απομένουν ${result.remainingCount} αλλαγές στην ουρά.`, 'info');
+        await queryClient.invalidateQueries();
+      }
+    },
+  });
 
   const [batchPrintSkus, setBatchPrintSkus] = useState('');
   const [resourceTab, setResourceTab] = useState<'materials' | 'molds'>('materials');
   const [photoCatalogPrintData, setPhotoCatalogPrintData] = useState<Product[] | null>(null);
   const [pendingDeliveryOrderId, setPendingDeliveryOrderId] = useState<string | null>(null);
 
-  // Sync logic and event listeners
   useEffect(() => {
     if (isLocalMode) return;
 
-    // Function to check queue size
-    const checkQueue = async () => {
-      const queue = await offlineDb.getQueue();
-      setPendingItems(queue);
-      return queue.length;
-    };
-
-    // Auto-sync function
-    const handleSync = async () => {
-      const count = await checkQueue();
-      if (count === 0) return;
-      setIsSyncing(true);
-      try {
-        const result = await api.syncOfflineData();
-        if (result.syncedCount > 0 && result.remainingCount === 0) {
-          showToast(`Συγχρονίστηκαν ${result.syncedCount} αλλαγές!`, "success");
-          queryClient.invalidateQueries();
-        } else if (result.syncedCount > 0 && result.remainingCount > 0) {
-          showToast(`Συγχρονίστηκαν ${result.syncedCount} αλλαγές, αλλά ${result.remainingCount} παραμένουν εκκρεμείς.`, "info");
-          queryClient.invalidateQueries();
-        } else if (!result.wasQueueEmpty && result.remainingCount > 0) {
-          showToast(`Ο συγχρονισμός ολοκληρώθηκε με εκκρεμότητες. Απομένουν ${result.remainingCount} αλλαγές στην ουρά.`, "info");
-          queryClient.invalidateQueries();
-        }
-        await checkQueue();
-      } catch (e) {
-        console.error("Auto-Sync Failed:", e);
-      } finally {
-        setIsSyncing(false);
-      }
-    };
-
-    // Network listeners
-    const handleOnline = () => { setIsOnline(true); handleSync(); };
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    // Sync error listener
     const handleSyncError = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      showToast(detail.message || "Σφάλμα συγχρονισμού. Το στοιχείο απορρίφθηκε.", "error");
-      checkQueue();
+      showToast(detail.message || 'Σφάλμα συγχρονισμού. Το στοιχείο απορρίφθηκε.', 'error');
+      void refreshQueue();
     };
     window.addEventListener('ilios-sync-error', handleSyncError);
 
-    const interval = setInterval(checkQueue, 2000);
-    if (navigator.onLine) handleSync();
-
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
       window.removeEventListener('ilios-sync-error', handleSyncError);
-      clearInterval(interval);
     };
-  }, []);
+  }, [refreshQueue, showToast]);
 
   const { data: settings, isLoading: loadingSettings } = useSettings();
   const { data: materials, isLoading: loadingMaterials } = useMaterials();
@@ -347,7 +289,7 @@ function AppContent() {
           <MobileApp
             isOnline={isOnline}
             isSyncing={isSyncing}
-            pendingItemsCount={pendingItems.length}
+            pendingItemsCount={pendingCount}
           />
         </Suspense>
       );
@@ -369,7 +311,7 @@ function AppContent() {
     }
   }
 
-  const handleNav = (page: Page) => {
+  const handleNav = (page: AdminPage) => {
     setActivePage(page);
     setIsSidebarOpen(false);
   };
@@ -379,68 +321,14 @@ function AppContent() {
   };
 
   const handlePrintAggregated = (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => {
-    if (!settings || !materials || !products) return;
-
-    let totalSilverWeight = 0;
-    let totalSilverCost = 0;
-    let totalMaterialsCost = 0;
-    let totalInHouseLaborCost = 0;
-    let totalImportedLaborCost = 0;
-    let totalSubcontractCost = 0;
-
-    const augmentedBatches: AggregatedBatch[] = [];
-    const importedAugmentedBatches: AggregatedBatch[] = [];
-
-    batches.forEach(b => {
-      const product = products.find(p => p.sku === b.sku);
-      if (!product) {
-        const fallback: AggregatedBatch = { ...b, cost_per_piece: 0, total_cost: 0 };
-        augmentedBatches.push(fallback);
-        return;
-      }
-
-      const cost = calculateProductCost(product, settings, materials, products);
-      const costPerPiece = cost.total;
-      const totalCost = costPerPiece * b.quantity;
-
-      const labor = cost.breakdown.labor;
-      const sub = cost.breakdown.details?.subcontract_cost || 0;
-
-      if (product.production_type === 'Imported') {
-        totalImportedLaborCost += (labor * b.quantity);
-        totalSubcontractCost += (sub * b.quantity);
-        importedAugmentedBatches.push({ ...b, cost_per_piece: costPerPiece, total_cost: totalCost, product_details: product });
-      } else {
-        const w = product.weight_g + (product.secondary_weight_g || 0);
-        totalSilverWeight += (w * b.quantity);
-        totalSilverCost += (cost.breakdown.silver * b.quantity);
-        totalMaterialsCost += (cost.breakdown.materials * b.quantity);
-        totalInHouseLaborCost += (labor * b.quantity);
-        totalSubcontractCost += (sub * b.quantity);
-        augmentedBatches.push({ ...b, cost_per_piece: costPerPiece, total_cost: totalCost, product_details: product });
-      }
-    });
-
-    const totalProductionCost = augmentedBatches.reduce((sum, b) => sum + b.total_cost, 0);
-    const importedTotalCost = importedAugmentedBatches.reduce((sum, b) => sum + b.total_cost, 0);
-
-    setAggregatedPrintData({
-      molds: new Map(),
-      materials: new Map(),
-      components: new Map(),
-      totalSilverWeight,
-      batches: augmentedBatches,
-      totalProductionCost,
-      totalSilverCost,
-      totalMaterialsCost,
-      totalInHouseLaborCost,
-      totalImportedLaborCost,
-      totalSubcontractCost,
-      importedBatches: importedAugmentedBatches.length > 0 ? importedAugmentedBatches : undefined,
-      importedTotalCost: importedAugmentedBatches.length > 0 ? importedTotalCost : undefined,
+    const aggregatedData = buildAggregatedPrintData(batches, products, materials, settings, {
+      splitImportedBatches: true,
       orderId: orderDetails?.orderId,
-      customerName: orderDetails?.customerName
+      customerName: orderDetails?.customerName,
     });
+    if (aggregatedData) {
+      setAggregatedPrintData(aggregatedData);
+    }
   };
 
   const handlePrintPreparation = (batches: ProductionBatch[]) => {
@@ -476,6 +364,41 @@ function AppContent() {
   // DESKTOP RENDERING (ADMIN)
   // This part runs only if role is 'admin' and !isMobile, or if isLocalMode is true
   const handleLogout = () => { localStorage.removeItem('ILIOS_LOCAL_MODE'); signOut(); };
+  const hiddenInLocalMode = new Set<AdminPage>(['deliveries', 'orders', 'offers', 'production', 'customers', 'suppliers']);
+
+  const adminPageRegistry: Record<AdminPage, React.ReactNode> = {
+    dashboard: <Dashboard products={products} settings={settings} onNavigate={handleNav} />,
+    registry: <ProductRegistry setPrintItems={setPrintItems} />,
+    inventory: <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} molds={molds} />,
+    pricing: <PricingManager products={products} settings={settings} materials={materials} />,
+    settings: <SettingsPage />,
+    resources: (
+      <div className="space-y-6">
+        <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-100 w-fit flex gap-2 mx-auto sm:mx-0 overflow-x-auto">
+          <button onClick={() => setResourceTab('materials')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 whitespace-nowrap ${resourceTab === 'materials' ? 'bg-[#060b00] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}><Gem size={18} /> Υλικά</button>
+          <button onClick={() => setResourceTab('molds')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 whitespace-nowrap ${resourceTab === 'molds' ? 'bg-[#060b00] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}><MapPin size={18} /> Λάστιχα</button>
+        </div>
+        {resourceTab === 'materials' && <MaterialsPage settings={settings} />}
+        {resourceTab === 'molds' && <MoldsPage />}
+      </div>
+    ),
+    collections: <CollectionsPage products={products} onPrint={(data) => setPriceListPrintData(data)} />,
+    'batch-print': <BatchPrintPage allProducts={products} allCollections={collections} setPrintItems={setPrintItems} skusText={batchPrintSkus} setSkusText={setBatchPrintSkus} onPrintPhotoCatalog={setPhotoCatalogPrintData} />,
+    orders: <OrdersPage products={products} onPrintOrder={setOrderToPrint} onPrintRemainingOrder={setRemainingOrderToPrint} onPrintShipment={setShipmentToPrint} materials={materials} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} onPrintAnalytics={handlePrintOrderAnalytics} onOpenDeliveries={(order) => {
+      setPendingDeliveryOrderId(order.id);
+      handleNav('deliveries');
+    }} onPrintPartialOrder={(order, batches) => {
+      setOrderToPrint(buildPartialOrderFromBatches(order, batches));
+    }} />,
+    production: <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintAssembly={handlePrintAssembly} onPrintLabels={setPrintItems} onPrintStageBatches={handlePrintStageBatches} />,
+    customers: <CustomersPage onPrintOrder={setOrderToPrint} />,
+    suppliers: <SuppliersPage />,
+    'ai-studio': <AiStudio />,
+    pricelist: <PriceListPage products={products} collections={collections} onPrint={(data) => setPriceListPrintData(data)} />,
+    analytics: <AnalyticsView products={products} onBack={() => handleNav('dashboard')} onPrint={(data) => setAnalyticsPrintData({ ...data, title: 'Οικονομική Ανάλυση' })} />,
+    offers: <OffersPage products={products} materials={materials} settings={settings} collections={collections} onPrintOffer={setOfferToPrint} />,
+    deliveries: <DeliveriesPage pendingOrderId={pendingDeliveryOrderId} onConsumePendingOrderId={() => setPendingDeliveryOrderId(null)} onOpenOrder={() => handleNav('orders')} />,
+  };
 
   return (
     <>
@@ -528,47 +451,57 @@ function AppContent() {
             <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-slate-400 hover:text-white absolute right-4 top-6"><X size={24} /></button>
           </div>
           <div className={`px-4 py-2 flex items-center gap-3 ${isCollapsed ? 'justify-center' : 'justify-start'}`}>
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${isLocalMode ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : isOnline ? (isSyncing || pendingItems.length > 0 ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20') : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
-              {isLocalMode ? <><HardDrive size={12} /> {!isCollapsed && 'ΤΟΠΙΚΗ ΒΑΣΗ'}</> : isSyncing ? <><RefreshCw size={12} className="animate-spin" /> {!isCollapsed && 'ΣΥΓΧΡΟΝΙΣΜΟΣ'}</> : pendingItems.length > 0 ? <><RefreshCw size={12} /> {!isCollapsed && `${pendingItems.length} ΕΚΚΡΕΜΕΙ`}</> : isOnline ? <><Cloud size={12} className="animate-pulse" /> {!isCollapsed && 'ΣΥΝΔΕΔΕΜΕΝΟ'}</> : <><HardDrive size={12} /> {!isCollapsed && 'ΕΚΤΟΣ ΣΥΝΔΕΣΗΣ'}</>}
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${isLocalMode ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : isOnline ? (isSyncing || pendingCount > 0 ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20') : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
+              {isLocalMode ? <><HardDrive size={12} /> {!isCollapsed && 'ΤΟΠΙΚΗ ΒΑΣΗ'}</> : isSyncing ? <><RefreshCw size={12} className="animate-spin" /> {!isCollapsed && 'ΣΥΓΧΡΟΝΙΣΜΟΣ'}</> : pendingCount > 0 ? <><RefreshCw size={12} /> {!isCollapsed && `${pendingCount} ΕΚΚΡΕΜΕΙ`}</> : isOnline ? <><Cloud size={12} className="animate-pulse" /> {!isCollapsed && 'ΣΥΝΔΕΔΕΜΕΝΟ'}</> : <><HardDrive size={12} /> {!isCollapsed && 'ΕΚΤΟΣ ΣΥΝΔΕΣΗΣ'}</>}
             </div>
           </div>
           <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto scrollbar-hide">
-            <NavItem icon={<LayoutDashboard size={22} />} label="Πίνακας Ελέγχου" isActive={activePage === 'dashboard'} isCollapsed={isCollapsed} onClick={() => handleNav('dashboard')} />
-            <div className="my-2 border-t border-white/10 mx-2"></div>
-            <NavItem icon={<Database size={22} />} label="Μητρώο Κωδικών" isActive={activePage === 'registry'} isCollapsed={isCollapsed} onClick={() => handleNav('registry')} />
-            {!isLocalMode && (
-              <>
-                <NavItem icon={<CalendarRange size={22} />} label="Ημερολόγιο" isActive={activePage === 'deliveries'} isCollapsed={isCollapsed} onClick={() => handleNav('deliveries')} badge={deliveryBadgeCount} />
-                <NavItem icon={<ShoppingCart size={22} />} label="Παραγγελίες" isActive={activePage === 'orders'} isCollapsed={isCollapsed} onClick={() => handleNav('orders')} />
-                <NavItem icon={<FileBadge size={22} />} label="Προσφορές" isActive={activePage === 'offers'} isCollapsed={isCollapsed} onClick={() => handleNav('offers')} />
-                <NavItem icon={<Factory size={22} />} label="Παραγωγή" isActive={activePage === 'production'} isCollapsed={isCollapsed} onClick={() => handleNav('production')} />
-                <NavItem icon={<Users size={22} />} label="Πελάτες" isActive={activePage === 'customers'} isCollapsed={isCollapsed} onClick={() => handleNav('customers')} />
-                <NavItem icon={<Globe size={22} />} label="Προμηθευτές" isActive={activePage === 'suppliers'} isCollapsed={isCollapsed} onClick={() => handleNav('suppliers')} />
-              </>
-            )}
-            <div className="my-2 border-t border-white/10 mx-2"></div>
-            <NavItem icon={<Warehouse size={22} />} label="Αποθήκη & Στοκ" isActive={activePage === 'inventory'} isCollapsed={isCollapsed} onClick={() => handleNav('inventory')} />
-            <div className="my-2 border-t border-white/10 mx-2"></div>
-            <NavItem icon={<Layers size={22} />} label="Υλικά & Λάστιχα" isActive={activePage === 'resources'} isCollapsed={isCollapsed} onClick={() => handleNav('resources')} />
-            <NavItem icon={<FolderKanban size={22} />} label="Συλλογές" isActive={activePage === 'collections'} isCollapsed={isCollapsed} onClick={() => handleNav('collections')} />
-            <div className="my-2 border-t border-white/10 mx-2"></div>
-            <NavItem icon={<DollarSign size={22} />} label="Τιμολόγηση" isActive={activePage === 'pricing'} isCollapsed={isCollapsed} onClick={() => handleNav('pricing')} />
-            <NavItem icon={<Printer size={22} />} label="Μαζική Εκτύπωση" isActive={activePage === 'batch-print'} isCollapsed={isCollapsed} onClick={() => handleNav('batch-print')} />
-            <NavItem icon={<ScrollText size={22} />} label="Τιμοκατάλογος" isActive={activePage === 'pricelist'} isCollapsed={isCollapsed} onClick={() => handleNav('pricelist')} />
+            {adminNavSections.map((section, sectionIndex) => {
+              const visibleItems = section.items.filter((item) => !isLocalMode || !hiddenInLocalMode.has(item.id));
+              if (visibleItems.length === 0) return null;
+              return (
+                <React.Fragment key={`admin-nav-section-${sectionIndex}`}>
+                  {sectionIndex > 0 && <div className="my-2 border-t border-white/10 mx-2"></div>}
+                  {visibleItems.map((item) => (
+                    <NavItem
+                      key={item.id}
+                      icon={renderNavIcon(item.icon, 22)}
+                      label={item.label}
+                      isActive={activePage === item.id}
+                      isCollapsed={isCollapsed}
+                      onClick={() => handleNav(item.id)}
+                      badge={item.id === 'deliveries' ? deliveryBadgeCount : undefined}
+                    />
+                  ))}
+                </React.Fragment>
+              );
+            })}
             <div className="mt-auto pt-6">
-              <NavItem icon={<SettingsIcon size={22} />} label="Ρυθμίσεις" isActive={activePage === 'settings'} isCollapsed={isCollapsed} onClick={() => handleNav('settings')} />
+              {adminFooterNavItems.map((item) => (
+                <NavItem
+                  key={item.id}
+                  icon={renderNavIcon(item.icon, 22)}
+                  label={item.label}
+                  isActive={activePage === item.id}
+                  isCollapsed={isCollapsed}
+                  onClick={() => handleNav(item.id)}
+                />
+              ))}
               <div className={`mt-4 pt-4 border-t border-white/10 w-full ${isCollapsed ? 'flex flex-col items-center gap-4' : 'px-4 flex items-center justify-between'}`}>
                 <button onClick={handleLogout} className="flex-1 flex items-center gap-2 p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg min-w-0">
                   <LogOut size={18} className="shrink-0" />
                   {!isCollapsed && <span className="text-sm font-medium truncate">{profile?.full_name || 'User'}</span>}
                 </button>
-                <button
-                  onClick={() => handleNav('ai-studio')}
-                  title="AI Studio"
-                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg shrink-0 ${activePage === 'ai-studio' ? 'bg-emerald-50 text-white ring-2 ring-emerald-500/20' : 'bg-emerald-900/40 text-emerald-300 hover:bg-emerald-800 hover:text-white'}`}
-                >
-                  <Sparkles size={14} className={activePage !== 'ai-studio' ? "animate-pulse" : ""} />
-                </button>
+                {adminQuickActionNavItems.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => handleNav(item.id)}
+                    title={item.label}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg shrink-0 ${activePage === item.id ? 'bg-emerald-50 text-white ring-2 ring-emerald-500/20' : 'bg-emerald-900/40 text-emerald-300 hover:bg-emerald-800 hover:text-white'}`}
+                  >
+                    {renderNavIcon(item.icon, 14, activePage === item.id ? 2.5 : 2)}
+                  </button>
+                ))}
               </div>
             </div>
           </nav>
@@ -581,79 +514,12 @@ function AppContent() {
           <header className="md:hidden bg-white/80 backdrop-blur-md p-4 shadow-sm flex items-center justify-between z-30 sticky top-0 border-b border-slate-200">
             <button onClick={() => setIsSidebarOpen(true)} className="text-slate-600 p-1 hover:bg-slate-100 rounded-lg"><Menu size={24} /></button>
             <div className="h-8"><img src={APP_LOGO} alt="Ilios" className="h-full w-auto object-contain" /></div>
-            <div className={`w-2 h-2 rounded-full ${isLocalMode ? 'bg-amber-500' : isOnline ? (pendingItems.length > 0 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500') : 'bg-rose-500 animate-pulse'}`} />
+            <div className={`w-2 h-2 rounded-full ${isLocalMode ? 'bg-amber-500' : isOnline ? (pendingCount > 0 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500') : 'bg-rose-500 animate-pulse'}`} />
           </header>
           <div className="flex-1 overflow-y-auto p-4 md:p-8 relative scroll-smooth">
             <div className="max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
               <Suspense fallback={<ContentLoader />}>
-              {activePage === 'dashboard' && <Dashboard products={products} settings={settings} onNavigate={handleNav} />}
-              {activePage === 'registry' && <ProductRegistry setPrintItems={setPrintItems} />}
-              {activePage === 'inventory' && <Inventory products={products} setPrintItems={setPrintItems} settings={settings} collections={collections} molds={molds} />}
-              {activePage === 'orders' && <OrdersPage products={products} onPrintOrder={setOrderToPrint} onPrintRemainingOrder={setRemainingOrderToPrint} onPrintShipment={setShipmentToPrint} materials={materials} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} onPrintAnalytics={handlePrintOrderAnalytics} onOpenDeliveries={(order) => {
-                setPendingDeliveryOrderId(order.id);
-                handleNav('deliveries');
-              }} onPrintPartialOrder={(order, batches) => {
-                // Create a modified order with only selected items from the batches
-                const partialItems = new Map<string, { item: typeof order.items[0], qty: number }>();
-                batches.forEach(b => {
-                  const key = `${b.sku}::${b.variant_suffix || ''}::${b.size_info || ''}`;
-                  const existingItem = order.items.find(i =>
-                    i.sku === b.sku &&
-                    (i.variant_suffix || '') === (b.variant_suffix || '') &&
-                    (i.size_info || '') === (b.size_info || '')
-                  );
-                  if (existingItem) {
-                    if (!partialItems.has(key)) {
-                      partialItems.set(key, { item: existingItem, qty: 0 });
-                    }
-                    partialItems.get(key)!.qty += b.quantity;
-                  }
-                });
-
-                // Calculate the partial order total based on selected items
-                const partialTotal = Array.from(partialItems.values()).reduce((sum, { item, qty }) => sum + item.price_at_order * qty, 0);
-
-                // Apply discount to partial total
-                const discountFactor = 1 - ((order.discount_percent || 0) / 100);
-                const discountedPartialTotal = partialTotal * discountFactor;
-
-                // Apply VAT to get final partial total
-                const vatRate = order.vat_rate !== undefined ? order.vat_rate : 0.24;
-                const partialGrandTotal = discountedPartialTotal * (1 + vatRate);
-
-                const modifiedOrder: Order = {
-                  ...order,
-                  items: Array.from(partialItems.values()).map(({ item, qty }) => ({
-                    ...item,
-                    quantity: qty
-                  })),
-                  total_price: partialGrandTotal
-                };
-
-                setOrderToPrint(modifiedOrder);
-              }} />}
-              {activePage === 'deliveries' && <DeliveriesPage pendingOrderId={pendingDeliveryOrderId} onConsumePendingOrderId={() => setPendingDeliveryOrderId(null)} onOpenOrder={() => handleNav('orders')} />}
-              {activePage === 'production' && <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintAssembly={handlePrintAssembly} onPrintLabels={setPrintItems} onPrintStageBatches={handlePrintStageBatches} />}
-              {activePage === 'customers' && <CustomersPage onPrintOrder={setOrderToPrint} />}
-              {activePage === 'suppliers' && <SuppliersPage />}
-              {activePage === 'analytics' && <AnalyticsView products={products} onBack={() => handleNav('dashboard')} onPrint={(data) => setAnalyticsPrintData({ ...data, title: 'Οικονομική Ανάλυση' })} />}
-              {activePage === 'resources' && (
-                <div className="space-y-6">
-                  <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-100 w-fit flex gap-2 mx-auto sm:mx-0 overflow-x-auto">
-                    <button onClick={() => setResourceTab('materials')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 whitespace-nowrap ${resourceTab === 'materials' ? 'bg-[#060b00] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}><Gem size={18} /> Υλικά</button>
-                    <button onClick={() => setResourceTab('molds')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 whitespace-nowrap ${resourceTab === 'molds' ? 'bg-[#060b00] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}><MapPin size={18} /> Λάστιχα</button>
-                  </div>
-                  {resourceTab === 'materials' && <MaterialsPage settings={settings} />}
-                  {resourceTab === 'molds' && <MoldsPage />}
-                </div>
-              )}
-              {activePage === 'collections' && <CollectionsPage products={products} onPrint={(data) => setPriceListPrintData(data)} />}
-              {activePage === 'pricing' && <PricingManager products={products} settings={settings} materials={materials} />}
-              {activePage === 'batch-print' && <BatchPrintPage allProducts={products} allCollections={collections} setPrintItems={setPrintItems} skusText={batchPrintSkus} setSkusText={setBatchPrintSkus} onPrintPhotoCatalog={setPhotoCatalogPrintData} />}
-              {activePage === 'settings' && <SettingsPage />}
-              {activePage === 'ai-studio' && <AiStudio />}
-              {activePage === 'pricelist' && <PriceListPage products={products} collections={collections} onPrint={(data) => setPriceListPrintData(data)} />}
-              {activePage === 'offers' && <OffersPage products={products} materials={materials} settings={settings} collections={collections} onPrintOffer={setOfferToPrint} />}
+              {adminPageRegistry[activePage]}
               </Suspense>
             </div>
           </div>

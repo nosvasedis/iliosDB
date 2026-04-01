@@ -1,8 +1,6 @@
 import React from 'react';
 import { Product, Material, Mold, ProductionType } from '../types';
 import { useUI } from './UIProvider';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '../lib/supabase';
 import { useNewProductState } from '../hooks/useNewProductState';
 import { StepBasicInfo } from './NewProduct/StepBasicInfo';
 import { StepRecipe } from './NewProduct/StepRecipe';
@@ -11,6 +9,8 @@ import { StepVariants } from './NewProduct/StepVariants';
 import { StepReview } from './NewProduct/StepReview';
 import { RecipeItemSelectorModal } from './ProductRegistry/RecipeItemSelectorModal';
 import { ArrowLeft, ArrowRight, CheckCircle, Loader2 } from 'lucide-react';
+import { useSettings } from '../hooks/api/useSettings';
+import { useSuppliers } from '../hooks/api/useSuppliers';
 
 interface Props {
     products: Product[];
@@ -22,8 +22,8 @@ interface Props {
 
 export default function NewProduct({ products, materials, molds = [], onCancel, duplicateTemplate }: Props) {
     const { showToast } = useUI();
-    const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
-    const { data: suppliers } = useQuery({ queryKey: ['suppliers'], queryFn: api.getSuppliers });
+    const { data: settings } = useSettings();
+    const { data: suppliers } = useSuppliers();
 
     const formState = useNewProductState({
         products,

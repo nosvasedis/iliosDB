@@ -4,8 +4,8 @@ export interface ItemIdentityLike {
   sku: string;
   variant_suffix?: string | null;
   size_info?: string | null;
-  cord_color?: ProductOptionColor | null;
-  enamel_color?: ProductOptionColor | null;
+  cord_color?: ProductOptionColor | string | null;
+  enamel_color?: ProductOptionColor | string | null;
   line_id?: string | null;
 }
 

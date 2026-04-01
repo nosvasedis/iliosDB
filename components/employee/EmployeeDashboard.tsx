@@ -5,19 +5,11 @@ import { ShoppingCart, Clock, CheckCircle, Package, Truck, Search, Plus, XCircle
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { formatCurrency } from '../../utils/pricingEngine';
+import { getOrderStatusClasses, getOrderStatusLabel } from '../../features/orders/statusPresentation';
 
 interface Props {
     onNavigate: (page: string) => void;
 }
-
-const STATUS_TRANSLATIONS: Record<OrderStatus, string> = {
-    [OrderStatus.Pending]: 'Εκκρεμεί',
-    [OrderStatus.InProduction]: 'Σε Παραγωγή',
-    [OrderStatus.Ready]: 'Έτοιμο',
-    [OrderStatus.PartiallyDelivered]: 'Μερική Παράδοση',
-    [OrderStatus.Delivered]: 'Παραδόθηκε',
-    [OrderStatus.Cancelled]: 'Ακυρώθηκε',
-};
 
 const StatCard = ({ title, value, icon, color }: { title: string, value: string, icon: React.ReactNode, color: string }) => (
     <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
@@ -109,12 +101,8 @@ export default function EmployeeDashboard({ onNavigate }: Props) {
                                     </div>
                                     <div className="text-right">
                                         <div className="font-black text-emerald-700">{formatCurrency(netValue)}</div>
-                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                                            order.status === OrderStatus.Delivered ? 'bg-slate-200 text-slate-600' :
-                                            order.status === OrderStatus.Ready ? 'bg-emerald-100 text-emerald-600' : 
-                                            'bg-amber-100 text-amber-600'
-                                        }`}>
-                                            {STATUS_TRANSLATIONS[order.status] || order.status}
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${getOrderStatusClasses(order.status, 'employeeDashboard')}`}>
+                                            {getOrderStatusLabel(order.status)}
                                         </span>
                                     </div>
                                 </div>

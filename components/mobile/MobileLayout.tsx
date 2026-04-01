@@ -1,28 +1,19 @@
 
 import React from 'react';
-import { LayoutDashboard, ShoppingCart, Factory, Package, Menu, WifiOff, RefreshCw, CloudOff, Database, FileText, Users } from 'lucide-react';
+import { WifiOff, RefreshCw, CloudOff } from 'lucide-react';
+import { mobileAdminNavItems, renderNavIcon } from '../../surfaces/navConfig';
+import type { MobileAdminPage } from '../../surfaces/pageIds';
 
 interface MobileLayoutProps {
   children?: React.ReactNode;
-  activePage: string;
-  onNavigate: (page: string) => void;
+  activePage: MobileAdminPage;
+  onNavigate: (page: MobileAdminPage) => void;
   isOnline?: boolean;
   isSyncing?: boolean;
   pendingCount?: number;
 }
 
 export default function MobileLayout({ children, activePage, onNavigate, isOnline = true, isSyncing = false, pendingCount = 0 }: MobileLayoutProps) {
-  const navItems = [
-    { id: 'dashboard', icon: <LayoutDashboard size={18} />, label: 'Αρχική' },
-    { id: 'registry', icon: <Database size={18} />, label: 'Μητρώο' },
-    { id: 'orders', icon: <ShoppingCart size={18} />, label: 'Παραγγελίες' },
-    { id: 'offers', icon: <FileText size={18} />, label: 'Προσφορές' },
-    { id: 'production', icon: <Factory size={18} />, label: 'Παραγωγή' },
-    { id: 'inventory', icon: <Package size={18} />, label: 'Αποθήκη' },
-    { id: 'customers', icon: <Users size={18} />, label: 'Πελάτες' },
-    { id: 'menu', icon: <Menu size={18} />, label: 'Μενού' },
-  ];
-
   const showStatus = !isOnline || isSyncing || pendingCount > 0;
 
   return (
@@ -54,8 +45,10 @@ export default function MobileLayout({ children, activePage, onNavigate, isOnlin
       {/* Bottom Navigation Bar */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-slate-200 pb-safe z-50 shadow-[0_-8px_30px_rgb(0,0,0,0.04)] print:hidden">
         <div className="flex justify-around items-center h-16 px-0.5">
-          {navItems.map((item) => {
-            const isActive = activePage === item.id || (item.id === 'menu' && !navItems.some(ni => ni.id !== 'menu' && ni.id === activePage));
+          {mobileAdminNavItems.map((item) => {
+            const isActive =
+              activePage === item.id ||
+              (item.id === 'menu' && !mobileAdminNavItems.some(ni => ni.id !== 'menu' && ni.id === activePage));
             return (
               <button
                 key={item.id}
@@ -63,7 +56,7 @@ export default function MobileLayout({ children, activePage, onNavigate, isOnlin
                 className={`flex flex-col items-center justify-center w-full h-full relative transition-all duration-300 ${isActive ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-500'}`}
               >
                 <div className={`p-1.5 rounded-xl mb-0.5 transition-all duration-500 ${isActive ? 'bg-emerald-50 scale-110 shadow-sm shadow-emerald-100/50' : 'opacity-80'}`}>
-                  {React.cloneElement(item.icon as React.ReactElement, { size: 18, strokeWidth: isActive ? 2.5 : 2 })}
+                  {renderNavIcon(item.icon, 18, isActive ? 2.5 : 2)}
                 </div>
                 <span className={`text-[8.5px] font-bold truncate w-full text-center px-0.5 tracking-tight transition-all duration-300 ${isActive ? 'opacity-100' : 'opacity-70'}`}>
                   {item.label}

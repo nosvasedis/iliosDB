@@ -5,52 +5,14 @@ import { Collection, Product, Gender } from '../../types';
 import { FolderKanban, ArrowLeft, Search, ImageIcon, Sparkles, ChevronLeft, ChevronRight, ShoppingBag, Expand } from 'lucide-react';
 import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine';
 import { FINISH_CODES } from '../../constants';
+import SkuColorizedText from '../SkuColorizedText';
 import SellerImageLightbox from './SellerImageLightbox';
-
-// ─── Color coding constants (match SellerCatalog exactly) ───────────────────────
-const FINISH_COLORS: Record<string, string> = {
-    'X': 'bg-amber-100 text-amber-800 border-amber-300',
-    'P': 'bg-stone-100 text-stone-700 border-stone-300',
-    'D': 'bg-rose-100 text-rose-800 border-rose-300',
-    'H': 'bg-cyan-100 text-cyan-800 border-cyan-300',
-    '': 'bg-emerald-50 text-emerald-800 border-emerald-200',
-};
-
-const STONE_TEXT_COLORS: Record<string, string> = {
-    'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
-    'TG': 'text-orange-700', 'IA': 'text-red-700', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
-    'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
-    'NF': 'text-green-700', 'CO': 'text-teal-600', 'TPR': 'text-emerald-500', 'TKO': 'text-rose-600',
-    'TMP': 'text-blue-600', 'PCO': 'text-emerald-400', 'MCO': 'text-purple-500', 'PAX': 'text-green-600',
-    'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-600', 'AP': 'text-cyan-600',
-    'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-500', 'MP': 'text-blue-500',
-    'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500', 'MV': 'text-purple-500',
-    'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500',
-    // Extended
-    'DI': 'text-cyan-300', 'ZI': 'text-indigo-400', 'AG': 'text-amber-600', 'CZ': 'text-violet-500',
-    'PE': 'text-slate-600', 'ON': 'text-gray-900', 'LPA': 'text-blue-400', 'MO': 'text-blue-300',
-    'GA': 'text-red-400', 'TO': 'text-orange-400', 'AB': 'text-purple-400', 'ST': 'text-sky-600',
-    'SP': 'text-fuchsia-600', 'TU': 'text-teal-400', 'XT': 'text-slate-700', 'OT': 'text-yellow-600',
-};
-
-// ─── SKU + SuffixBadge (match SellerCatalog exactly) ──────────────────────────────
-const SkuColored = ({ sku, suffix, gender }: { sku: string; suffix?: string; gender: Gender }) => {
-    const { finish, stone } = getVariantComponents(suffix || '', gender);
-    const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
-    const sColor = STONE_TEXT_COLORS[stone.code] || 'text-emerald-500';
-    return (
-        <span className="font-black text-slate-800 text-[11px] leading-tight truncate">
-            <span className="text-slate-900">{sku}</span>
-            <span className={fColor}>{finish.code}</span>
-            <span className={sColor}>{stone.code}</span>
-        </span>
-    );
-};
+import { SELLER_FINISH_COLORS, SELLER_STONE_TEXT_COLORS } from './skuColors';
 
 const SuffixBadge = ({ suffix, gender }: { suffix: string; gender: Gender }) => {
     const { finish, stone } = getVariantComponents(suffix, gender);
-    const badgeColor = FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-600 border-slate-200';
-    const stoneColor = STONE_TEXT_COLORS[stone.code] || 'text-slate-700';
+    const badgeColor = SELLER_FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-600 border-slate-200';
+    const stoneColor = SELLER_STONE_TEXT_COLORS[stone.code] || 'text-slate-700';
     const finishLabel = FINISH_CODES[finish.code] ?? (finish.code || 'Λουστρέ');
     return (
         <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[9px] font-black ${badgeColor}`}>
@@ -212,7 +174,7 @@ const ProductGridCard: React.FC<{
                 {/* Light strip: SKU + SuffixBadge + category (match Catalog exactly) */}
                 <div className="px-3 pt-2 pb-1.5 bg-white border-t border-slate-50">
                     <div className={`transition-all duration-[180ms] ease-out ${infoClass}`}>
-                        <SkuColored sku={product.sku} suffix={currentVariant?.suffix || ''} gender={product.gender} />
+                        <SkuColorizedText sku={product.sku} suffix={currentVariant?.suffix || ''} gender={product.gender} className="font-black text-slate-800 text-[11px] leading-tight truncate" masterClassName="text-slate-900" />
                         {currentVariant && (
                             <div className="mt-1">
                                 <SuffixBadge suffix={currentVariant.suffix} gender={product.gender} />

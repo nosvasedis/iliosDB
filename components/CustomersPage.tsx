@@ -1,11 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { Customer, Order, VatRegime } from '../types';
 import { Users, Plus, Search, Phone, Mail, MapPin, Clock } from 'lucide-react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
+import { useQueryClient } from '@tanstack/react-query';
+import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import CustomerDetailsModal from './CustomerDetailsModal';
 import { normalizedIncludes } from '../utils/greekSearch';
+import { ordersRepository } from '../features/orders';
+import { useCustomers, useOrders } from '../hooks/api/useOrders';
 
 interface Props {
     onPrintOrder?: (order: Order) => void;
@@ -71,8 +73,8 @@ const CustomerCard: React.FC<CustomerCardProps> = ({ customer, onClick, latestOr
 export default function CustomersPage({ onPrintOrder }: Props) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
-    const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: api.getCustomers });
-    const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
+    const { data: customers } = useCustomers();
+    const { data: orders } = useOrders();
 
     // UI State
     const [searchTerm, setSearchTerm] = useState('');
@@ -109,7 +111,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
             return;
         }
         try {
-            await api.saveCustomer(c);
+            await ordersRepository.saveCustomer(c);
             queryClient.invalidateQueries({ queryKey: ['customers'] });
             setIsCreating(false);
             setSelectedCustomer(null);
@@ -122,7 +124,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
 
     const handleUpdateCustomer = async (c: Customer) => {
         try {
-            await api.updateCustomer(c.id, c);
+            await ordersRepository.updateCustomer(c.id, c);
             queryClient.invalidateQueries({ queryKey: ['customers'] });
             setSelectedCustomer(c); // Update local view
             showToast("Τα στοιχεία ενημερώθηκαν.", "success");
@@ -136,7 +138,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
         const yes = await confirm({ title: 'Διαγραφή', message: 'Θέλετε να διαγράψετε οριστικά αυτόν τον πελάτη;', isDestructive: true });
         if (yes) {
             try {
-                await api.deleteCustomer(id);
+                await ordersRepository.deleteCustomer(id);
                 queryClient.invalidateQueries({ queryKey: ['customers'] });
                 setSelectedCustomer(null);
                 showToast("Διαγράφηκε.", "success");

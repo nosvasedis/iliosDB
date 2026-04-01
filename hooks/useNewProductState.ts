@@ -1,13 +1,27 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, ProductVariant, ProductionType, Mold, ProductMold } from '../types';
-import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, estimateVariantCost, analyzeSuffix, getVariantComponents, calculateSuggestedWholesalePrice } from '../utils/pricingEngine';
-import { supabase, uploadProductImage } from '../lib/supabase';
+import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, estimateVariantCost } from '../utils/pricingEngine';
 import { compressImage } from '../utils/imageHelpers';
-import { api } from '../lib/supabase';
-import { FINISH_CODES } from '../constants';
-import { getSteps, availableFinishes } from '../components/ProductRegistry/constants';
+import { getSteps } from '../components/ProductRegistry/constants';
 import { useQueryClient } from '@tanstack/react-query';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
+import {
+    buildCurrentTempProduct,
+    buildIliosMasterPrice,
+    buildIliosPricedVariants,
+    createDefaultLaborCost,
+    createVariantDescription,
+    getMoldSuggestions,
+    getSecondaryWeightLabel,
+    getVariantFinishLabel,
+    getVariantTypeInfo as buildVariantTypeInfo,
+} from '../features/products/newProductHelpers';
+import {
+    createMoldEntry,
+    getExistingProductSnapshot,
+    saveProductGraph,
+    uploadProductImageForSku,
+} from '../features/products/repository';
 
 export interface UseNewProductStateProps {
     products: Product[];
@@ -48,12 +62,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
     const [recipe, setRecipe] = useState<RecipeItem[]>([]);
     const [isRecipeModalOpen, setIsRecipeModalOpen] = useState<false | 'raw' | 'component'>(false);
 
-    const [labor, setLabor] = useState<LaborCost>({
-        casting_cost: 0, setter_cost: 0, technician_cost: 0, stone_setting_cost: 0,
-        plating_cost_x: 0, plating_cost_d: 0, subcontract_cost: 0,
-        casting_cost_manual_override: false, technician_cost_manual_override: false,
-        plating_cost_x_manual_override: false, plating_cost_d_manual_override: false
-    });
+    const [labor, setLabor] = useState<LaborCost>(() => createDefaultLaborCost());
 
     const [variants, setVariants] = useState<ProductVariant[]>([]);
     const [newVariantSuffix, setNewVariantSuffix] = useState('');
@@ -104,12 +113,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             setSupplierSku(duplicateTemplate.supplier_sku || '');
             setSupplierCost(duplicateTemplate.supplier_cost || 0);
             setRecipe(duplicateTemplate.recipe || []);
-            setLabor(duplicateTemplate.labor ? { ...duplicateTemplate.labor } : {
-                casting_cost: 0, setter_cost: 0, technician_cost: 0, stone_setting_cost: 0,
-                plating_cost_x: 0, plating_cost_d: 0, subcontract_cost: 0,
-                casting_cost_manual_override: false, technician_cost_manual_override: false,
-                plating_cost_x_manual_override: false, plating_cost_d_manual_override: false
-            });
+            setLabor(duplicateTemplate.labor ? { ...duplicateTemplate.labor } : createDefaultLaborCost());
             setSelectedMolds(duplicateTemplate.molds || []);
             setStxDescription(duplicateTemplate.description || '');
             setIsSTX(duplicateTemplate.is_component || false);
@@ -141,7 +145,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
                 setPlating(analysis.detectedPlating);
                 setBridge(analysis.detectedBridge || '');
 
-                const finishCode = getVariantComponents(analysis.suffix, gender as Gender).finish.code;
+                const finishCode = buildVariantTypeInfo(analysis.suffix, gender as Gender).finish.code;
                 setSelectedFinishes(prev => {
                     if (!prev.includes(finishCode)) return [...prev, finishCode];
                     return prev;
@@ -192,35 +196,31 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
 
     useEffect(() => {
         if (newVariantSuffix) {
-            const desc = analyzeSuffix(newVariantSuffix, gender as Gender, plating);
+            const desc = createVariantDescription(newVariantSuffix, gender as Gender, plating);
             if (desc) setNewVariantDesc(desc);
         }
     }, [newVariantSuffix, gender, plating]);
 
-    const currentTempProduct: Product = useMemo(() => ({
-        sku: detectedMasterSku || sku,
-        prefix: sku.substring(0, 2),
-        category: category,
-        gender: gender as Gender || Gender.Unisex,
-        image_url: imagePreview,
-        weight_g: weight,
-        secondary_weight_g: secondaryWeight,
-        plating_type: plating,
-        production_type: productionType,
-        supplier_id: supplierId,
-        supplier_sku: supplierSku,
-        supplier_cost: supplierCost,
-        active_price: 0,
-        draft_price: 0,
-        selling_price: sellingPrice,
-        stock_qty: 0,
-        sample_qty: 0,
-        molds: selectedMolds,
-        is_component: isSTX,
-        description: stxDescription,
-        recipe: recipe,
-        labor
-    }), [sku, detectedMasterSku, category, gender, weight, secondaryWeight, plating, recipe, labor, imagePreview, selectedMolds, isSTX, productionType, supplierCost, supplierId, supplierSku, stxDescription, sellingPrice]);
+    const currentTempProduct: Product = useMemo(() => buildCurrentTempProduct({
+        sku,
+        detectedMasterSku,
+        category,
+        gender,
+        imagePreview,
+        weight,
+        secondaryWeight,
+        plating,
+        productionType,
+        supplierId,
+        supplierSku,
+        supplierCost,
+        sellingPrice,
+        selectedMolds,
+        isSTX,
+        stxDescription,
+        recipe,
+        labor,
+    }), [sku, detectedMasterSku, category, gender, imagePreview, weight, secondaryWeight, plating, productionType, supplierId, supplierSku, supplierCost, sellingPrice, selectedMolds, isSTX, stxDescription, recipe, labor]);
 
     useEffect(() => {
         if (!settings) return;
@@ -230,16 +230,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
     }, [currentTempProduct, settings, materials, products]);
 
     // ACTIONS AND LOGIC
-    const platingMasterLabel = useMemo(() => {
-        if (selectedFinishes.length > 0) {
-            return selectedFinishes.map(f => f ? FINISH_CODES[f] : 'Λουστρέ').join(', ');
-        }
-        const platingToCode: Record<string, string> = {
-            [PlatingType.None]: '', [PlatingType.GoldPlated]: 'X', [PlatingType.TwoTone]: 'D', [PlatingType.Platinum]: 'H'
-        };
-        const code = platingToCode[plating];
-        return FINISH_CODES[code] || 'Λουστρέ';
-    }, [plating, selectedFinishes]);
+    const platingMasterLabel = useMemo(() => getVariantFinishLabel(selectedFinishes, plating), [plating, selectedFinishes]);
 
     const genderLabel = useMemo(() => {
         const map: Record<string, string> = { [Gender.Men]: 'Ανδρικό', [Gender.Women]: 'Γυναικείο', [Gender.Unisex]: 'Unisex' };
@@ -286,8 +277,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
         setIsCreatingMold(true);
         try {
             const newMold: Mold = { code: newMoldCode.toUpperCase(), location: newMoldLoc, description: newMoldDesc, weight_g: 0 };
-            const { error } = await supabase.from('molds').insert(newMold);
-            if (error) throw error;
+            await createMoldEntry(newMold);
             await queryClient.invalidateQueries({ queryKey: ['molds'] });
             setSelectedMolds(prev => [...prev, { code: newMold.code, quantity: 1 }]);
             setNewMoldCode('L'); setNewMoldLoc(''); setNewMoldDesc('');
@@ -311,49 +301,14 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
         }
     };
 
-    const { suggestedMolds, otherMolds } = useMemo(() => {
-        const upperSku = sku.toUpperCase();
-        const usedMoldCodes = new Set(selectedMolds.map(m => m.code));
-        const availableMolds = molds.filter(m => !usedMoldCodes.has(m.code));
-        let suggestionKeyword: string | null = null;
-        if (upperSku.startsWith('PN') || upperSku.startsWith('MN')) suggestionKeyword = 'κρίκος';
-        else if (upperSku.startsWith('SK')) suggestionKeyword = 'καβαλάρης';
-        const allMoldsFilteredBySearch = availableMolds.filter(m => (m.code.toUpperCase().includes(moldSearch.toUpperCase()) || m.description.toLowerCase().includes(moldSearch.toLowerCase())));
-        let suggested: Mold[] = []; let others: Mold[] = [];
-        if (suggestionKeyword) { allMoldsFilteredBySearch.forEach(m => { if (m.description.toLowerCase().includes(suggestionKeyword!)) suggested.push(m); else others.push(m); }); } else { others = allMoldsFilteredBySearch; }
-        const sortFn = (a: Mold, b: Mold) => a.code.localeCompare(b.code, undefined, { numeric: true });
-        suggested.sort(sortFn); others.sort(sortFn);
-        return { suggestedMolds: suggested, otherMolds: others };
-    }, [molds, moldSearch, sku, selectedMolds]);
-
-    const calculateIliosVariantPrice = (suffix: string) => {
-        const est = estimateVariantCost(currentTempProduct, suffix, settings, materials, products);
-        const silverCost = est.breakdown.silver;
-        const laborCost = est.breakdown.labor;
-        const materialCost = est.breakdown.materials;
-        const totalWeight = est.breakdown.details?.total_weight || (weight + secondaryWeight);
-
-        return calculateSuggestedWholesalePrice(totalWeight, silverCost, laborCost, materialCost);
-    };
-
-    const calculateIliosMasterPrice = () => {
-        const silverCost = costBreakdown?.silver || 0;
-        const laborCost = costBreakdown?.labor || 0;
-        const materialCost = costBreakdown?.materials || 0;
-        const totalWeight = weight + secondaryWeight;
-        return calculateSuggestedWholesalePrice(totalWeight, silverCost, laborCost, materialCost);
-    };
-
-    const buildIliosPricedVariants = (inputVariants: ProductVariant[]) => {
-        return inputVariants.map(v => ({ ...v, selling_price: calculateIliosVariantPrice(v.suffix) }));
-    };
+    const { suggestedMolds, otherMolds } = useMemo(() => getMoldSuggestions(molds, selectedMolds, sku, moldSearch), [molds, moldSearch, sku, selectedMolds]);
 
     const handleApplyIliosFormula = () => {
         if (!settings) return;
 
         setUseIliosFormula(true);
-        const updatedVariants = buildIliosPricedVariants(variants);
-        const masterFormulaPrice = calculateIliosMasterPrice();
+        const updatedVariants = buildIliosPricedVariants(variants, currentTempProduct, settings, materials, products, weight, secondaryWeight);
+        const masterFormulaPrice = buildIliosMasterPrice(currentTempProduct, settings, materials, products, weight, secondaryWeight, costBreakdown);
 
         setVariants(updatedVariants);
         setSellingPrice(updatedVariants.length > 0 ? (updatedVariants[0].selling_price || masterFormulaPrice) : masterFormulaPrice);
@@ -431,7 +386,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             if (variants.some(v => v.suffix === fullSuffix)) return;
 
             const { total: estimatedCost } = estimateVariantCost(currentTempProduct, fullSuffix, settings!, materials, products);
-            const desc = analyzeSuffix(fullSuffix, gender as Gender, plating);
+            const desc = createVariantDescription(fullSuffix, gender as Gender, plating);
             const specificPrice = finishPrices[finishCode];
             const finalPrice = (specificPrice !== undefined && specificPrice > 0) ? specificPrice : sellingPrice;
 
@@ -493,8 +448,8 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
                     setCurrentStep(finalStepId);
                     return;
                 }
-                finalVariants = buildIliosPricedVariants(finalVariants);
-                const formulaMasterPrice = calculateIliosMasterPrice();
+                finalVariants = buildIliosPricedVariants(finalVariants, currentTempProduct, settings, materials, products, weight, secondaryWeight);
+                const formulaMasterPrice = buildIliosMasterPrice(currentTempProduct, settings, materials, products, weight, secondaryWeight, costBreakdown);
                 finalSellingPrice = finalVariants.length > 0 ? (finalVariants[0].selling_price || formulaMasterPrice) : formulaMasterPrice;
             } else {
                 finalVariants = finalVariants.map(v => ({
@@ -522,23 +477,25 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
         try {
             let existingStockQty = 0; let existingSampleQty = 0;
             try {
-                const { data: existingProd } = await supabase.from('products').select('stock_qty, sample_qty, image_url').eq('sku', finalMasterSku).single();
+                const existingProd = await getExistingProductSnapshot(finalMasterSku);
                 if (existingProd) {
                     existingStockQty = existingProd.stock_qty || 0; existingSampleQty = existingProd.sample_qty || 0;
                     if (!selectedImage && existingProd.image_url) finalImageUrl = existingProd.image_url;
                 }
             } catch (e) { console.warn("Could not check existing stock, assuming 0/0"); }
             if (selectedImage) {
-                try { const compressedBlob = await compressImage(selectedImage); finalImageUrl = await uploadProductImage(compressedBlob, finalMasterSku); } catch (imgErr) { console.warn("Image upload skipped (offline?)"); showToast("Η εικόνα δεν ανέβηκε λόγω σύνδεσης.", "info"); }
+                try { const compressedBlob = await compressImage(selectedImage); finalImageUrl = await uploadProductImageForSku(compressedBlob, finalMasterSku); } catch (imgErr) { console.warn("Image upload skipped (offline?)"); showToast("Η εικόνα δεν ανέβηκε λόγω σύνδεσης.", "info"); }
             }
             const productData = { sku: finalMasterSku, prefix: finalMasterSku.substring(0, 2), category, description: isSTX ? stxDescription : null, gender, image_url: finalImageUrl, weight_g: Number(weight) || 0, secondary_weight_g: Number(secondaryWeight) || null, plating_type: plating, active_price: masterEstimatedCost, draft_price: masterEstimatedCost, selling_price: finalSellingPrice, stock_qty: existingStockQty, sample_qty: existingSampleQty, is_component: isSTX, labor_casting: Number(labor.casting_cost), labor_setter: Number(labor.setter_cost), labor_technician: Number(labor.technician_cost), labor_plating_x: Number(labor.plating_cost_x || 0), labor_plating_d: Number(labor.plating_cost_d || 0), labor_subcontract: Number(labor.subcontract_cost || 0), labor_casting_manual_override: labor.casting_cost_manual_override, labor_technician_manual_override: labor.technician_cost_manual_override, labor_plating_x_manual_override: labor.plating_cost_x_manual_override, labor_plating_d_manual_override: labor.plating_cost_d_manual_override, production_type: productionType, supplier_id: (productionType === ProductionType.Imported && supplierId) ? supplierId : null, supplier_sku: productionType === ProductionType.Imported ? supplierSku : null, supplier_cost: productionType === ProductionType.Imported ? supplierCost : null, labor_stone_setting: productionType === ProductionType.Imported ? labor.stone_setting_cost : null };
-            const { queued: prodQueued } = await api.saveProduct(productData);
-            let anyPartQueued = prodQueued;
-            if (finalVariants.length > 0) { for (const v of finalVariants) { const { queued } = await api.saveProductVariant({ product_sku: finalMasterSku, suffix: v.suffix, description: v.description, stock_qty: 0, active_price: v.active_price, selling_price: isSTX ? 0 : v.selling_price }); if (queued) anyPartQueued = true; } }
-            await api.deleteProductRecipes(finalMasterSku);
-            if (productionType === ProductionType.InHouse && recipe.length > 0) { for (const r of recipe) { const { queued } = await api.insertRecipe({ parent_sku: finalMasterSku, type: r.type, material_id: r.type === 'raw' ? r.id : null, component_sku: r.type === 'component' ? r.sku : null, quantity: r.quantity }); if (queued) anyPartQueued = true; } }
-            await api.deleteProductMolds(finalMasterSku);
-            if (productionType === ProductionType.InHouse && selectedMolds.length > 0) { for (const m of selectedMolds) { const { queued } = await api.insertProductMold({ product_sku: finalMasterSku, mold_code: m.code, quantity: m.quantity }); if (queued) anyPartQueued = true; } }
+            const { anyPartQueued } = await saveProductGraph({
+                finalMasterSku,
+                productData,
+                finalVariants,
+                productionType,
+                recipe,
+                selectedMolds,
+                isSTX,
+            });
             await invalidateProductsAndCatalog(queryClient);
             if (anyPartQueued) showToast(`Το προϊόν αποθηκεύτηκε στην ουρά συγχρονισμού.`, "info");
             else showToast(`Το προϊόν ${finalMasterSku} αποθηκεύτηκε επιτυχώς!`, "success");
@@ -551,13 +508,11 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
 
     const nextStep = () => setCurrentStep(prev => Math.min(prev + 1, finalStepId));
     const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 1));
-    const secondaryWeightLabel = useMemo(() => { if (gender === Gender.Men && category.includes('Δαχτυλίδι')) return "Βάρος Καπακιού (g)"; if (gender === Gender.Women && (category.includes('Βραχιόλι') || category.includes('Σκουλαρίκια') || category.includes('Δαχτυλίδι') || category.includes('Μενταγιόν'))) return "Βάρος Καστονιού (g)"; return "Β' Βάρος (π.χ. Καστόνι) (g)"; }, [gender, category]);
+    const secondaryWeightLabel = useMemo(() => getSecondaryWeightLabel(gender, category), [gender, category]);
     const masterMargin = sellingPrice > 0 ? ((sellingPrice - masterEstimatedCost) / sellingPrice) * 100 : 0;
 
     const getVariantTypeInfo = (suffix: string) => {
-        const { finish, stone } = getVariantComponents(suffix, gender as Gender);
-        const finishColors: any = { 'X': 'bg-amber-100 text-amber-700 border-amber-200', 'H': 'bg-cyan-100 text-cyan-700 border-cyan-200', 'D': 'bg-orange-100 text-orange-700 border-orange-200', 'P': 'bg-slate-100 text-slate-700 border-slate-200', '': 'bg-emerald-100 text-emerald-700 border-emerald-200' };
-        return { finish, stone, color: finishColors[finish.code] || 'bg-slate-100 text-slate-700 border-slate-200' };
+        return buildVariantTypeInfo(suffix, gender as Gender);
     };
 
     const toggleFinish = (code: string) => {

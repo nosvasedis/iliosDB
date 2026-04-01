@@ -7,8 +7,10 @@ import { FINISH_CODES } from '../../constants';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import BarcodeScanner from '../BarcodeScanner';
+import SkuColorizedText from '../SkuColorizedText';
 import { useUI } from '../UIProvider';
 import SellerImageLightbox from './SellerImageLightbox';
+import { SELLER_FINISH_COLORS, SELLER_STONE_TEXT_COLORS } from './skuColors';
 
 const CATALOG_PAGE_SIZE = 60;
 const PAGE_SIZE = 30;
@@ -17,45 +19,8 @@ interface Props { products?: Product[]; }
 
 // ─── Visual constants ─────────────────────────────────────────────────────────
 const FINISH_ORDER = ['', 'P', 'X', 'D', 'H'];
-const FINISH_COLORS: Record<string, string> = {
-    'X': 'bg-amber-100 text-amber-800 border-amber-300',
-    'P': 'bg-stone-100 text-stone-700 border-stone-300',
-    'D': 'bg-rose-100 text-rose-800 border-rose-300',
-    'H': 'bg-cyan-100 text-cyan-800 border-cyan-300',
-    '': 'bg-emerald-50 text-emerald-800 border-emerald-200',
-};
 const FINISH_DOT_ACTIVE: Record<string, string> = {
     '': 'bg-emerald-500', 'P': 'bg-stone-500', 'X': 'bg-amber-500', 'D': 'bg-rose-400', 'H': 'bg-cyan-400',
-};
-const STONE_TEXT_COLORS: Record<string, string> = {
-    'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
-    'TG': 'text-orange-700', 'IA': 'text-red-700', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
-    'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
-    'NF': 'text-green-700', 'CO': 'text-teal-600', 'TPR': 'text-emerald-500', 'TKO': 'text-rose-600',
-    'TMP': 'text-blue-600', 'PCO': 'text-emerald-400', 'MCO': 'text-purple-500', 'PAX': 'text-green-600',
-    'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-600', 'AP': 'text-cyan-600',
-    'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-500', 'MP': 'text-blue-500',
-    'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500', 'MV': 'text-purple-500',
-    'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500',
-    // Extended
-    'DI': 'text-cyan-300', 'ZI': 'text-indigo-400', 'AG': 'text-amber-600', 'CZ': 'text-violet-500',
-    'PE': 'text-slate-600', 'ON': 'text-gray-900', 'LPA': 'text-blue-400', 'MO': 'text-blue-300',
-    'GA': 'text-red-400', 'TO': 'text-orange-400', 'AB': 'text-purple-400', 'ST': 'text-sky-600',
-    'SP': 'text-fuchsia-600', 'TU': 'text-teal-400', 'XT': 'text-slate-700', 'OT': 'text-yellow-600',
-};
-
-// ─── SKU Color Coding Component ─────────────────────────────────────────────
-const SkuColored = ({ sku, suffix, gender }: { sku: string; suffix?: string; gender: Gender }) => {
-    const { finish, stone } = getVariantComponents(suffix || '', gender);
-    const fColor = FINISH_COLORS[finish.code] || 'text-slate-400';
-    const sColor = STONE_TEXT_COLORS[stone.code] || 'text-emerald-500';
-    return (
-        <span className="font-black text-slate-800 text-[11px] leading-tight truncate">
-            <span className="text-slate-900">{sku}</span>
-            <span className={fColor}>{finish.code}</span>
-            <span className={sColor}>{stone.code}</span>
-        </span>
-    );
 };
 
 // ─── Category grouping ────────────────────────────────────────────────────────
@@ -70,8 +35,8 @@ const getCategoryGroup = (category: string): string => {
 // ─── SuffixBadge (desk parity) ────────────────────────────────────────────────
 const SuffixBadge = ({ suffix, gender }: { suffix: string; gender: Gender }) => {
     const { finish, stone } = getVariantComponents(suffix, gender);
-    const badgeColor = FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-600 border-slate-200';
-    const stoneColor = STONE_TEXT_COLORS[stone.code] || 'text-slate-700';
+    const badgeColor = SELLER_FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-600 border-slate-200';
+    const stoneColor = SELLER_STONE_TEXT_COLORS[stone.code] || 'text-slate-700';
     const finishLabel = FINISH_CODES[finish.code] ?? (finish.code || 'Λουστρέ');
     const stoneLabel = stone.name || stone.code;
     return (
@@ -241,7 +206,7 @@ const CatalogueCard = React.memo(({ product }: CardProps) => {
                 <div className="px-1.5 pt-1 pb-0.5 overflow-hidden">
                     <div className={`flex flex-col gap-0.5 transition-all duration-[180ms] ease-out ${infoClass}`}>
                         {/* SKU */}
-                        <SkuColored sku={product.sku} suffix={currentVariant?.suffix || ''} gender={product.gender} />
+                        <SkuColorizedText sku={product.sku} suffix={currentVariant?.suffix || ''} gender={product.gender} className="font-black text-slate-800 text-[11px] leading-tight truncate" masterClassName="text-slate-900" />
 
                         {/* Finish badge */}
                         {currentVariant && (
@@ -499,7 +464,7 @@ export default function SellerCatalog({ products: productsProp }: Props) {
                                 <div className="flex gap-1.5 flex-wrap">
                                     {availableFinishes.map(f => (
                                         <button key={f} onClick={() => setSelectedFinish(selectedFinish === f ? null : f)}
-                                            className={`px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all ${selectedFinish === f ? 'ring-2 ring-offset-1 ' + (FINISH_COLORS[f] || '') + ' ring-slate-600' : (FINISH_COLORS[f] || 'bg-slate-50 text-slate-500 border-slate-200')}`}>
+                                            className={`px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all ${selectedFinish === f ? 'ring-2 ring-offset-1 ' + (SELLER_FINISH_COLORS[f] || '') + ' ring-slate-600' : (SELLER_FINISH_COLORS[f] || 'bg-slate-50 text-slate-500 border-slate-200')}`}>
                                             {FINISH_CODES[f] ?? f}
                                         </button>
                                     ))}
@@ -523,7 +488,7 @@ export default function SellerCatalog({ products: productsProp }: Props) {
                                     {availableStones.map(s => (
                                         <button key={s.code} onClick={() => setSelectedStone(selectedStone === s.code ? null : s.code)}
                                             className={`px-3 py-1.5 rounded-lg text-[11px] font-black border transition-all ${selectedStone === s.code ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}>
-                                            <span className={selectedStone === s.code ? 'text-white' : (STONE_TEXT_COLORS[s.code] || 'text-slate-600')}>{s.name}</span>
+                                            <span className={selectedStone === s.code ? 'text-white' : (SELLER_STONE_TEXT_COLORS[s.code] || 'text-slate-600')}>{s.name}</span>
                                         </button>
                                     ))}
                                 </div>
