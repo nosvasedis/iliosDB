@@ -2,12 +2,14 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
-import { Order, OrderStatus, Product, ProductVariant, ProductionStage } from '../../types';
+import { Order, OrderShipment, OrderShipmentItem, OrderStatus, Product, ProductVariant, ProductionStage } from '../../types';
 import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings, ShoppingBag, Image as ImageIcon, PackageCheck } from 'lucide-react';
 import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import { useUI } from '../UIProvider';
 import { isOrderReady } from '../../utils/orderReadiness';
+import { buildItemIdentityKey } from '../../utils/itemIdentity';
+import { getRemainingOrderItems } from '../../utils/shipmentUtils';
 
 const TEXT_FINISH_COLORS: Record<string, string> = {
     'X': 'text-amber-600',
@@ -70,6 +72,189 @@ const STATUS_COLORS = {
     [OrderStatus.PartiallyDelivered]: 'bg-amber-50 text-amber-700 border-amber-200',
     [OrderStatus.Delivered]: 'bg-slate-900 text-white border-slate-900',
     [OrderStatus.Cancelled]: 'bg-red-50 text-red-500 border-red-200',
+};
+
+const buildRemainingOrderForPrint = (order: Order, shipmentItems: OrderShipmentItem[]): Order | null => {
+    const remainingItems = getRemainingOrderItems(order, shipmentItems);
+    if (remainingItems.length === 0) return null;
+
+    const vatRate = order.vat_rate !== undefined ? order.vat_rate : 0.24;
+    const discountFactor = 1 - ((order.discount_percent || 0) / 100);
+    const subtotal = remainingItems.reduce((sum, item) => sum + item.price_at_order * item.quantity, 0);
+    const totalPrice = subtotal * discountFactor * (1 + vatRate);
+
+    const items = remainingItems
+        .map((remainingItem) => {
+            const remainingItemKey = buildItemIdentityKey(remainingItem);
+            const existingItem = order.items.find(item => buildItemIdentityKey(item) === remainingItemKey);
+            if (!existingItem) return null;
+            return {
+                ...existingItem,
+                quantity: remainingItem.quantity,
+                price_at_order: remainingItem.price_at_order
+            };
+        })
+        .filter((item): item is Order['items'][number] => item !== null);
+
+    if (items.length === 0) return null;
+
+    return {
+        ...order,
+        items,
+        total_price: totalPrice
+    };
+};
+
+const OrderPrintSheet: React.FC<{
+    order: Order;
+    onClose: () => void;
+    onPrintOrder?: (order: Order) => void;
+    onPrintRemainingOrder?: (order: Order) => void;
+    onPrintShipment?: (payload: { order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] }) => void;
+}> = ({ order, onClose, onPrintOrder, onPrintRemainingOrder, onPrintShipment }) => {
+    const shipmentsQuery = useQuery({
+        queryKey: ['order-shipments', order.id],
+        queryFn: () => api.getShipmentsForOrder(order.id),
+        enabled: !!order.id,
+    });
+
+    const latestShipmentData = useMemo(() => {
+        const shipmentData = shipmentsQuery.data;
+        if (!shipmentData?.shipments?.length) return null;
+
+        const sortedShipments = [...shipmentData.shipments].sort((a, b) => {
+            const timeDiff = new Date(b.shipped_at).getTime() - new Date(a.shipped_at).getTime();
+            if (timeDiff !== 0) return timeDiff;
+            return (b.shipment_number || 0) - (a.shipment_number || 0);
+        });
+
+        const latestShipment = sortedShipments[0];
+        const latestShipmentItems = shipmentData.items.filter(item => item.shipment_id === latestShipment.id);
+        if (latestShipmentItems.length === 0) return null;
+
+        const remainingOrder = buildRemainingOrderForPrint(order, shipmentData.items);
+        if (!remainingOrder) return null;
+
+        return {
+            shipment: latestShipment,
+            shipmentItems: latestShipmentItems,
+            remainingOrder
+        };
+    }, [order, shipmentsQuery.data]);
+
+    const handlePrintOrder = () => {
+        onPrintOrder?.(order);
+        onClose();
+    };
+
+    const handlePrintShipment = () => {
+        if (!latestShipmentData) return;
+        onPrintShipment?.({
+            order,
+            shipment: latestShipmentData.shipment,
+            shipmentItems: latestShipmentData.shipmentItems
+        });
+        onClose();
+    };
+
+    const handlePrintRemaining = () => {
+        if (!latestShipmentData) return;
+        onPrintRemainingOrder?.(latestShipmentData.remainingOrder);
+        onClose();
+    };
+
+    return (
+        <div className="fixed inset-0 z-[170] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end" onClick={onClose}>
+            <div
+                className="bg-white rounded-t-[2rem] px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-full duration-300 max-h-[85vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex items-start justify-between gap-4 mb-4">
+                    <div>
+                        <h3 className="text-lg font-black text-slate-900">Εκτύπωση Παραγγελίας</h3>
+                        <p className="text-xs font-bold text-slate-500 uppercase mt-1">
+                            {order.customer_name} • #{order.id.slice(-6)}
+                        </p>
+                    </div>
+                    <button onClick={onClose} className="p-2 bg-slate-100 rounded-full text-slate-500">
+                        <X size={18} />
+                    </button>
+                </div>
+
+                {shipmentsQuery.isLoading && (
+                    <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
+                        Έλεγχος μερικών αποστολών...
+                    </div>
+                )}
+
+                {latestShipmentData && (
+                    <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                        <div className="text-sm font-black text-amber-900">Υπάρχει μερική αποστολή</div>
+                        <div className="mt-1 text-xs font-medium text-amber-800">
+                            Η παραγγελία έχει ήδη αποστολή #{latestShipmentData.shipment.shipment_number}. Μπορείτε να εκτυπώσετε μόνο τα σταλμένα είδη, μόνο τα υπόλοιπα ή ολόκληρη την παραγγελία.
+                        </div>
+                    </div>
+                )}
+
+                <div className="space-y-3">
+                    {latestShipmentData && (
+                        <button
+                            onClick={handlePrintShipment}
+                            className="w-full rounded-2xl border-2 border-amber-200 bg-amber-50 px-4 py-4 text-left text-amber-900"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-amber-700 shadow-sm">
+                                    <Truck size={18} />
+                                </div>
+                                <div>
+                                    <div className="font-black">Μερικά Σταλμένα Είδη</div>
+                                    <div className="mt-0.5 text-xs font-medium text-amber-800">
+                                        Μόνο τα είδη της αποστολής #{latestShipmentData.shipment.shipment_number}.
+                                    </div>
+                                </div>
+                            </div>
+                        </button>
+                    )}
+
+                    {latestShipmentData && (
+                        <button
+                            onClick={handlePrintRemaining}
+                            className="w-full rounded-2xl border-2 border-blue-200 bg-blue-50 px-4 py-4 text-left text-blue-900"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-sm">
+                                    <PackageCheck size={18} />
+                                </div>
+                                <div>
+                                    <div className="font-black">Υπόλοιπα Είδη</div>
+                                    <div className="mt-0.5 text-xs font-medium text-blue-800">
+                                        Μόνο όσα είδη δεν έχουν αποσταλεί ακόμα.
+                                    </div>
+                                </div>
+                            </div>
+                        </button>
+                    )}
+
+                    <button
+                        onClick={handlePrintOrder}
+                        className="w-full rounded-2xl border-2 border-slate-200 bg-white px-4 py-4 text-left text-slate-900"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 shadow-sm">
+                                <Printer size={18} />
+                            </div>
+                            <div>
+                                <div className="font-black">Ολόκληρη Παραγγελία</div>
+                                <div className="mt-0.5 text-xs font-medium text-slate-600">
+                                    Εκτύπωση του πλήρους παραστατικού της παραγγελίας.
+                                </div>
+                            </div>
+                        </div>
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
 };
 
 const OrderCard: React.FC<{
@@ -257,12 +442,14 @@ interface MobileOrdersProps {
     onCreate?: () => void;
     onEdit?: (order: Order) => void;
     onPrint?: (order: Order) => void;
+    onPrintRemainingOrder?: (order: Order) => void;
+    onPrintShipment?: (payload: { order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] }) => void;
     onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
     products?: Product[];
     onOpenDeliveries?: (order: Order) => void;
 }
 
-export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintLabels, products = [], onOpenDeliveries }: MobileOrdersProps) {
+export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintRemainingOrder, onPrintShipment, onPrintLabels, products = [], onOpenDeliveries }: MobileOrdersProps) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { data: orders, isLoading } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
@@ -272,6 +459,7 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintLabels,
     const [filterStatus, setFilterStatus] = useState<OrderStatus | 'ALL'>('ALL');
     const [search, setSearch] = useState('');
     const [managingOrder, setManagingOrder] = useState<Order | null>(null);
+    const [printModalOrder, setPrintModalOrder] = useState<Order | null>(null);
     const [tagInput, setTagInput] = useState('');
 
     const filteredOrders = useMemo(() => {
@@ -469,7 +657,7 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintLabels,
                         onManage={setManagingOrder}
                         isReady={isOrderReady(order, batches)}
                         onComplete={handleCompleteOrder}
-                        onPrint={onPrint}
+                        onPrint={setPrintModalOrder}
                         onPrintLabels={onPrintLabels}
                     />
                 ))}
@@ -538,6 +726,16 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintLabels,
                         </div>
                     </div>
                 </div>
+            )}
+
+            {printModalOrder && (
+                <OrderPrintSheet
+                    order={printModalOrder}
+                    onClose={() => setPrintModalOrder(null)}
+                    onPrintOrder={onPrint}
+                    onPrintRemainingOrder={onPrintRemainingOrder}
+                    onPrintShipment={onPrintShipment}
+                />
             )}
         </div>
     );

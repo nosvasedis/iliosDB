@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { ProductionBatch, ProductionStage } from '../types';
-import { Clock, PauseCircle, StickyNote, Trash2, Printer, MoveRight, ImageIcon, AlertTriangle, PlayCircle, RefreshCcw, ChevronUp, ChevronDown, History, X, Check, BellOff } from 'lucide-react';
+import { Clock, PauseCircle, StickyNote, Trash2, Printer, MoveRight, ImageIcon, AlertTriangle, PlayCircle, RefreshCcw, ChevronUp, ChevronDown, History, X, Check } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { formatOrderId } from '../utils/orderUtils';
 import { formatGreekDurationFromMs, getProductionTimingStatusClasses, getProductionTimingStatusLabel } from '../utils/productionTiming';
@@ -86,7 +86,6 @@ interface BatchCardProps {
     // Multi-select support
     isSelected?: boolean;
     onToggleSelect?: (e: React.MouseEvent) => void;
-    onSnoozeReminder?: (batch: ProductionBatch & { reminderKey?: string }) => void;
 }
 
 export const ProductionBatchCard: React.FC<BatchCardProps> = ({
@@ -103,7 +102,6 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
     hideActions = false,
     isSelected = false,
     onToggleSelect,
-    onSnoozeReminder,
 }) => {
     const isRefurbish = batch.type === 'Φρεσκάρισμα';
     const isAwaiting = batch.current_stage === ProductionStage.AwaitingDelivery;
@@ -306,15 +304,6 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                     >
                         <StickyNote size={16} className={batch.notes ? "fill-current" : ""} />
                     </button>
-                    {!batch.on_hold && timingStatus === 'critical' && onSnoozeReminder && (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onSnoozeReminder(batch); }}
-                            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                            title="Σίγαση υπενθύμισης για το τρέχον στάδιο"
-                        >
-                            <BellOff size={16} />
-                        </button>
-                    )}
                     {onViewHistory && (
                         <button
                             onClick={(e) => { e.stopPropagation(); onViewHistory(batch); }}

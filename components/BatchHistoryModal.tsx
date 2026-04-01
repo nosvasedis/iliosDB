@@ -1,7 +1,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { BatchStageHistoryEntry, ProductionBatch, ProductionStage } from '../types';
-import { X, Clock, ArrowRight, User, Calendar, Package, Flame, Gem, Hammer, Layers, Tag, CheckCircle, Globe, PlayCircle, BellOff } from 'lucide-react';
+import { X, Clock, ArrowRight, User, Calendar, Package, Flame, Gem, Hammer, Layers, Tag, CheckCircle, Globe, PlayCircle } from 'lucide-react';
 import {
     formatGreekDurationFromMs,
     getProductionTimingInfo,
@@ -15,7 +15,6 @@ interface Props {
     onClose: () => void;
     batch: ProductionBatch | null;
     history: BatchStageHistoryEntry[];
-    onSnoozeReminder?: (batch: ProductionBatch) => void;
 }
 
 const STAGE_CONFIG: Record<ProductionStage, { label: string; icon: React.ReactNode; color: string; bg: string; border: string }> = {
@@ -92,7 +91,7 @@ const getDurationInStage = (fromDate: string, toDate: string) => {
     return formatGreekDurationFromMs(to - from);
 };
 
-export default function BatchHistoryModal({ isOpen, onClose, batch, history, onSnoozeReminder }: Props) {
+export default function BatchHistoryModal({ isOpen, onClose, batch, history }: Props) {
     const [nowMs, setNowMs] = useState(() => Date.now());
 
     useEffect(() => {
@@ -197,23 +196,10 @@ export default function BatchHistoryModal({ isOpen, onClose, batch, history, onS
                             <div className="font-black text-blue-700">{currentTiming.timingLabel}</div>
                         </div>
                         <div className="bg-white/80 border border-blue-100 rounded-2xl px-4 py-3">
-                            <div className="flex items-center justify-between gap-2">
-                                <div>
-                                    <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Κατάσταση</div>
-                                    <div className={`inline-flex items-center gap-1 text-xs font-black px-2.5 py-1 rounded-full border ${currentStatusClasses}`}>
-                                        <Clock size={12} />
-                                        <span>{currentStatusLabel}</span>
-                                    </div>
-                                </div>
-                                {onSnoozeReminder && !batch.on_hold && currentTiming.timingStatus === 'critical' && (
-                                    <button
-                                        onClick={() => onSnoozeReminder(batch)}
-                                        className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                                        title="Σίγαση υπενθύμισης για το τρέχον στάδιο"
-                                    >
-                                        <BellOff size={14} />
-                                    </button>
-                                )}
+                            <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Κατάσταση</div>
+                            <div className={`inline-flex items-center gap-1 text-xs font-black px-2.5 py-1 rounded-full border ${currentStatusClasses}`}>
+                                <Clock size={12} />
+                                <span>{currentStatusLabel}</span>
                             </div>
                         </div>
                     </div>

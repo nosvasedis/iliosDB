@@ -372,7 +372,8 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
         }
         if (itemsToPrint.length > 0) {
             onPrintLabels?.(itemsToPrint);
-            showToast(`Στάλθηκαν ${itemsToPrint.length} είδη ετικετών για εκτύπωση.`, "success");
+            const totalQuantity = itemsToPrint.reduce((sum, item) => sum + item.quantity, 0);
+            showToast(`Στάλθηκαν ${totalQuantity} τεμάχια για εκτύπωση ετικετών.`, "success");
         }
         onClose();
     };

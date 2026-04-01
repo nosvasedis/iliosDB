@@ -243,7 +243,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
         setTimeout(() => {
             if (printPayload.length > 0) {
                 setPrintItems(printPayload);
-                showToast(`Στάλθηκαν ${printPayload.reduce((a, b) => a + b.quantity, 0)} ετικέτες για εκτύπωση (${labelFormat === 'retail' ? 'Λιανικής' : 'Χονδρικής'}).`, 'success');
+                showToast(`Στάλθηκαν ${printPayload.reduce((a, b) => a + b.quantity, 0)} τεμάχια για εκτύπωση ετικετών (${labelFormat === 'retail' ? 'Λιανικής' : 'Χονδρικής'}).`, 'success');
 
                 // Add to Log
                 const logDetails = printPayload.map(i => ({ sku: i.product.sku, variant: i.variant?.suffix, qty: i.quantity }));

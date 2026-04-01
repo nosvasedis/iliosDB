@@ -21,7 +21,6 @@ interface Props {
     onDelete: (batch: ProductionBatch) => void;
     onClick: (batch: ProductionBatch) => void;
     onViewHistory?: (batch: ProductionBatch) => void;
-    onSnoozeReminder?: (batch: ProductionBatch) => void;
 }
 
 const STAGES = PRODUCTION_STAGES.map((stage) => ({
@@ -50,7 +49,7 @@ const STAGE_COLORS: Record<string, string> = {
 
 export default function ProductionOverviewModal({
     isOpen, onClose, title, filterType, batches, collections,
-    onPrint, onNextStage, onMoveToStage, onEditNote, onToggleHold, onDelete, onClick, onViewHistory, onSnoozeReminder
+    onPrint, onNextStage, onMoveToStage, onEditNote, onToggleHold, onDelete, onClick, onViewHistory
 }: Props) {
 
     // 1. Filter Batches based on type
@@ -177,7 +176,6 @@ export default function ProductionOverviewModal({
                                                                     onDelete={() => onDelete(batch)}
                                                                     onClick={() => onClick(batch)}
                                                                     onViewHistory={onViewHistory}
-                                                                    onSnoozeReminder={onSnoozeReminder}
                                                                 />
                                                             ))}
                                                         </div>

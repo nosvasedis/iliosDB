@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType, Order, ProductVariant } from '../../types';
-import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, ArrowLeft, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save, Square, CheckSquare, Image as ImageIcon, Gem, BellOff } from 'lucide-react';
+import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, ArrowLeft, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save, Square, CheckSquare, Image as ImageIcon, Gem } from 'lucide-react';
 import { useUI } from '../UIProvider';
 import MobileBatchBuildModal from './MobileBatchBuildModal';
 import BatchHistoryModal from '../BatchHistoryModal';
@@ -19,10 +19,6 @@ import {
     getProductionTimingInfo,
     getProductionTimingStatusClasses,
     getProductionTimingStatusLabel,
-    hasSeenCriticalReminder,
-    isReminderSnoozed,
-    markCriticalReminderSeen,
-    snoozeReminder,
 } from '../../utils/productionTiming';
 
 interface Props {
@@ -100,8 +96,7 @@ const MobileBatchCard: React.FC<{
     onMoveToStage?: (b: ProductionBatch, stage: ProductionStage) => void,
     onToggleHold: (b: ProductionBatch) => void, 
     onClick: (b: ProductionBatch) => void,
-    onSnoozeReminder?: (b: ProductionBatch) => void,
-}> = ({ batch, onNext, onMoveToStage, onToggleHold, onClick, onSnoozeReminder }) => {
+}> = ({ batch, onNext, onMoveToStage, onToggleHold, onClick }) => {
     const isDelayed = batch.isDelayed;
     const isReady = batch.current_stage === ProductionStage.Ready;
     const timingStatus = batch.timingStatus || 'normal';
@@ -195,15 +190,6 @@ const MobileBatchCard: React.FC<{
                     >
                         {batch.on_hold ? <PlayCircle size={18} className="fill-current" /> : <PauseCircle size={18} />}
                     </button>
-                    {!batch.on_hold && timingStatus === 'critical' && onSnoozeReminder && (
-                        <button
-                            onClick={() => onSnoozeReminder(batch)}
-                            className="p-2 rounded-xl transition-colors border bg-slate-50 text-slate-400 border-slate-200"
-                            title="Σίγαση υπενθύμισης"
-                        >
-                            <BellOff size={18} />
-                        </button>
-                    )}
                     {!isReady && !batch.on_hold && (
                         <div className="relative">
                             <button
@@ -893,25 +879,6 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         });
     }, [batches, allProducts, materials, orders, batchHistoryLookup, timingNow]);
 
-    useEffect(() => {
-        enrichedBatches.forEach((batch) => {
-            if (batch.on_hold || batch.timingStatus !== 'critical' || !batch.reminderKey) return;
-            if (isReminderSnoozed(batch.reminderKey) || hasSeenCriticalReminder(batch.reminderKey)) return;
-
-            markCriticalReminderSeen(batch.reminderKey);
-            showToast(
-                `Κρίσιμη καθυστέρηση: ${batch.sku}${batch.variant_suffix || ''} στο στάδιο ${getProductionStageLabel(batch.current_stage)}.`,
-                'warning'
-            );
-        });
-    }, [enrichedBatches, showToast]);
-
-    const handleSnoozeReminder = (batch: ProductionBatch & { reminderKey?: string }) => {
-        if (!batch.reminderKey) return;
-        snoozeReminder(batch.reminderKey);
-        showToast(`Η ειδοποίηση για ${batch.sku}${batch.variant_suffix || ''} σιγάστηκε για το τρέχον στάδιο.`, 'info');
-    };
-
     const foundBatches = useMemo(() => {
         if (!deferredFinderTerm || deferredFinderTerm.length < 2) return [];
         const term = deferredFinderTerm.toUpperCase();
@@ -1140,7 +1107,8 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             if (printQueue.length > 0 && onPrintLabels) {
                 onPrintLabels(printQueue as any);
                 const modeLabel = labelPrintSortMode === 'as_sent' ? 'Σειρά Αποστολής' : 'Ταξινόμηση ανά Πελάτη';
-                showToast(`Στάλθηκαν ${printQueue.length} ετικέτες για εκτύπωση (${modeLabel}).`, "success");
+                const totalQuantity = printQueue.reduce((sum, item) => sum + item.quantity, 0);
+                showToast(`Στάλθηκαν ${totalQuantity} τεμάχια για εκτύπωση ετικετών (${modeLabel}).`, "success");
             } else {
                 showToast("Δεν βρέθηκαν προϊόντα για τις παρτίδες.", "error");
             }
@@ -1290,7 +1258,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                             </div>
                             {isOpen && (
                                 <div className="p-3 space-y-3 bg-slate-50/50 border-t border-slate-100">
-                                    {stageBatches.map(batch => <MobileBatchCard key={batch.id} batch={batch} onNext={handleNextStage} onMoveToStage={handleMoveBatch} onToggleHold={handleToggleHold} onClick={setViewBuildBatch} onSnoozeReminder={handleSnoozeReminder} />)}
+                                    {stageBatches.map(batch => <MobileBatchCard key={batch.id} batch={batch} onNext={handleNextStage} onMoveToStage={handleMoveBatch} onToggleHold={handleToggleHold} onClick={setViewBuildBatch} />)}
                                     {stageBatches.length === 0 && <div className="text-center py-6 text-slate-400 text-xs italic">Κανένα προϊόν σε αυτό το στάδιο.</div>}
                                 </div>
                             )}
@@ -1330,7 +1298,6 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                 onClose={() => setHistoryModalBatch(null)}
                 batch={historyModalBatch}
                 history={batchHistory}
-                onSnoozeReminder={handleSnoozeReminder}
             />
 
             {/* Edit Note Modal */}
