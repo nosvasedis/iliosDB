@@ -28,6 +28,7 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
 
     const vatRate = order.vat_rate !== undefined ? order.vat_rate : 0.24;
     const subtotal = shipmentItems.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
+    const totalPieces = shipmentItems.reduce((acc, item) => acc + item.quantity, 0);
     const discountPercent = order.discount_percent || 0;
     const discountAmount = subtotal * (discountPercent / 100);
     const netAmount = subtotal - discountAmount;
@@ -181,6 +182,10 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                 </div>
 
                 <div className="w-48 text-[11px]">
+                    <div className="flex justify-between items-center text-slate-700 mb-1 pb-1 border-b border-slate-200">
+                        <span>Σύνολο Τεμαχίων:</span>
+                        <span className="tabular-nums font-bold">{totalPieces}</span>
+                    </div>
                     <div className="flex justify-between items-center text-slate-600 mb-0.5">
                         <span>Καθαρή Αξία:</span>
                         <span className="tabular-nums font-bold">{subtotal.toFixed(2).replace('.', ',')}&#8364;</span>
