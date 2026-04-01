@@ -473,10 +473,22 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     const [productionModalOrder, setProductionModalOrder] = useState<Order | null>(null);
     const [showPartSelector, setShowPartSelector] = useState(false);
     const [shipmentModalOrder, setShipmentModalOrder] = useState<Order | null>(null);
+    const [showTagsManager, setShowTagsManager] = useState(false);
+    const [showWorkflowActions, setShowWorkflowActions] = useState(false);
+    const [showStatusActions, setShowStatusActions] = useState(false);
 
     // Group Management in Modal
     const [tagInput, setTagInput] = useState('');
     const [tagInputFocused, setTagInputFocused] = useState(false);
+
+    useEffect(() => {
+        if (managingOrder) return;
+        setShowTagsManager(false);
+        setShowWorkflowActions(false);
+        setShowStatusActions(false);
+        setTagInput('');
+        setTagInputFocused(false);
+    }, [managingOrder]);
 
     const productsMap = useMemo(() => new Map(products.map(product => [product.sku, product])), [products]);
     const materialsMap = useMemo(() => new Map(materials.map(material => [material.id, material])), [materials]);
@@ -994,106 +1006,211 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                             </div>
                             <button onClick={() => setManagingOrder(null)} className="p-2 hover:bg-slate-100 rounded-full"><X size={20} /></button>
                         </div>
-                        <div className="p-6 space-y-4 overflow-y-auto">
+                        <div className="p-6 overflow-y-auto">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <button
+                                    onClick={() => { handleEditOrder(managingOrder); setManagingOrder(null); }}
+                                    className="p-5 rounded-2xl flex flex-col items-center justify-center gap-3 text-center font-bold border-2 bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200 transition-all hover:-translate-y-0.5"
+                                >
+                                    <div className="p-3 bg-white rounded-xl shadow-sm"><Edit size={20} /></div>
+                                    <span className="text-xs uppercase tracking-wider">Επεξεργασία</span>
+                                </button>
 
-                            {/* Tags Management */}
-                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                <label className="text-xs font-bold text-slate-600 uppercase mb-3 flex items-center gap-2"><Layers size={14} /> Ετικέτες / Ομαδοποίηση</label>
-                                {/* Existing tags */}
-                                <div className="flex flex-wrap gap-2 mb-3">
-                                    {managingOrder.tags && managingOrder.tags.map(t => {
-                                        const c = getDeterministicTagColor(t);
-                                        return (
-                                            <span key={t} className={`${c.bg} ${c.border} ${c.text} border px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5`}>
-                                                {t} <button onClick={() => handleRemoveTag(t)} className="opacity-60 hover:opacity-100 hover:text-red-600 transition-opacity"><X size={11} /></button>
-                                            </span>
-                                        );
-                                    })}
-                                    {(!managingOrder.tags || managingOrder.tags.length === 0) && <span className="text-xs text-slate-400 italic">Καμία ετικέτα.</span>}
-                                </div>
-                                {/* Input + autocomplete */}
-                                <div className="relative">
-                                    <div className="flex gap-2">
-                                        <input
-                                            value={tagInput}
-                                            onChange={e => setTagInput(e.target.value)}
-                                            onKeyDown={e => e.key === 'Enter' && handleAddTag()}
-                                            onFocus={() => setTagInputFocused(true)}
-                                            onBlur={() => setTimeout(() => setTagInputFocused(false), 150)}
-                                            placeholder="Προσθήκη ετικέτας (π.χ. 'Έκθεση A')..."
-                                            className="flex-1 p-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-400/20 bg-white"
-                                        />
-                                        <button onClick={handleAddTag} disabled={!tagInput.trim()} className="bg-slate-800 text-white px-3 py-2 rounded-lg font-bold text-xs hover:bg-black transition-colors disabled:opacity-40">Προσθήκη</button>
-                                    </div>
-                                    {/* Autocomplete dropdown */}
-                                    {tagInputFocused && (() => {
-                                        if (tagSuggestions.length === 0) return null;
-                                        return (
-                                            <div className="absolute left-0 right-12 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-10 overflow-hidden">
-                                                <div className="text-[10px] font-bold text-slate-400 uppercase px-3 pt-2 pb-1">Υπάρχουσες ετικέτες</div>
-                                                {tagSuggestions.map(s => {
-                                                    const c = getDeterministicTagColor(s);
-                                                    return (
-                                                        <button
-                                                            key={s}
-                                                            onMouseDown={() => { setTagInput(s); }}
-                                                            className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2 transition-colors"
-                                                        >
-                                                            <span className={`w-2.5 h-2.5 rounded-full ${c.bg} ${c.border} border-2`} />
-                                                            <span className={`font-medium ${c.text}`}>{s}</span>
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        );
-                                    })()}
-                                </div>
+                                <button
+                                    onClick={() => setShowTagsManager(true)}
+                                    className="p-5 rounded-2xl flex flex-col items-center justify-center gap-3 text-center font-bold border-2 bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 transition-all hover:-translate-y-0.5 relative"
+                                >
+                                    {(managingOrder.tags?.length || 0) > 0 && (
+                                        <span className="absolute top-2 right-2 bg-indigo-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">
+                                            {managingOrder.tags?.length}
+                                        </span>
+                                    )}
+                                    <div className="p-3 bg-white rounded-xl shadow-sm"><Layers size={20} /></div>
+                                    <span className="text-xs uppercase tracking-wider">Ετικέτες / Ομαδοποίηση</span>
+                                </button>
+
+                                <button
+                                    onClick={() => setShowWorkflowActions(true)}
+                                    className="p-5 rounded-2xl flex flex-col items-center justify-center gap-3 text-center font-bold border-2 bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 transition-all hover:-translate-y-0.5"
+                                >
+                                    <div className="p-3 bg-white rounded-xl shadow-sm"><Factory size={20} /></div>
+                                    <span className="text-xs uppercase tracking-wider">Παράδοση & Παραγωγή</span>
+                                </button>
+
+                                <button
+                                    onClick={() => setShowStatusActions(true)}
+                                    className="p-5 rounded-2xl flex flex-col items-center justify-center gap-3 text-center font-bold border-2 bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100 transition-all hover:-translate-y-0.5"
+                                >
+                                    <div className="p-3 bg-white rounded-xl shadow-sm"><Archive size={20} /></div>
+                                    <span className="text-xs uppercase tracking-wider">Κατάσταση & Αρχείο</span>
+                                </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
-                            <button onClick={() => { handleEditOrder(managingOrder); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"><Edit size={18} /> Επεξεργασία</button>
+            {managingOrder && showTagsManager && (
+                <div className="fixed inset-0 z-[60] bg-slate-900/55 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95">
+                        <div className="p-6 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Layers size={18} /> Ετικέτες / Ομαδοποίηση</h3>
+                                <p className="text-xs text-slate-500 font-mono mt-1">#{managingOrder.id}</p>
+                            </div>
+                            <button onClick={() => setShowTagsManager(false)} className="p-2 hover:bg-slate-200 rounded-full text-slate-500"><X size={20} /></button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="flex flex-wrap gap-2 min-h-9">
+                                {managingOrder.tags && managingOrder.tags.map(t => {
+                                    const c = getDeterministicTagColor(t);
+                                    return (
+                                        <span key={t} className={`${c.bg} ${c.border} ${c.text} border px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5`}>
+                                            {t}
+                                            <button onClick={() => handleRemoveTag(t)} className="opacity-60 hover:opacity-100 hover:text-red-600 transition-opacity">
+                                                <X size={11} />
+                                            </button>
+                                        </span>
+                                    );
+                                })}
+                                {(!managingOrder.tags || managingOrder.tags.length === 0) && <span className="text-xs text-slate-400 italic">Καμία ετικέτα.</span>}
+                            </div>
+                            <div className="relative">
+                                <div className="flex gap-2">
+                                    <input
+                                        value={tagInput}
+                                        onChange={e => setTagInput(e.target.value)}
+                                        onKeyDown={e => e.key === 'Enter' && handleAddTag()}
+                                        onFocus={() => setTagInputFocused(true)}
+                                        onBlur={() => setTimeout(() => setTagInputFocused(false), 150)}
+                                        placeholder="Προσθήκη ετικέτας (π.χ. 'Έκθεση A')..."
+                                        className="flex-1 p-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-slate-400/20 bg-white"
+                                    />
+                                    <button
+                                        onClick={handleAddTag}
+                                        disabled={!tagInput.trim()}
+                                        className="bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold text-xs hover:bg-black transition-colors disabled:opacity-40"
+                                    >
+                                        Προσθήκη
+                                    </button>
+                                </div>
+                                {tagInputFocused && (() => {
+                                    if (tagSuggestions.length === 0) return null;
+                                    return (
+                                        <div className="absolute left-0 right-14 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-10 overflow-hidden">
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase px-3 pt-2 pb-1">Υπάρχουσες ετικέτες</div>
+                                            {tagSuggestions.map(s => {
+                                                const c = getDeterministicTagColor(s);
+                                                return (
+                                                    <button
+                                                        key={s}
+                                                        onMouseDown={() => { setTagInput(s); }}
+                                                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2 transition-colors"
+                                                    >
+                                                        <span className={`w-2.5 h-2.5 rounded-full ${c.bg} ${c.border} border-2`} />
+                                                        <span className={`font-medium ${c.text}`}>{s}</span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
-                            <button onClick={() => { onOpenDeliveries?.(managingOrder); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"><Calendar size={18} /> Προγραμματισμός παράδοσης</button>
+            {managingOrder && showWorkflowActions && (
+                <div className="fixed inset-0 z-[60] bg-slate-900/55 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95">
+                        <div className="p-6 border-b border-slate-100 bg-blue-50/70 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Factory size={18} /> Παράδοση & Παραγωγή</h3>
+                                <p className="text-xs text-slate-500 font-mono mt-1">#{managingOrder.id}</p>
+                            </div>
+                            <button onClick={() => setShowWorkflowActions(false)} className="p-2 hover:bg-white rounded-full text-slate-500"><X size={20} /></button>
+                        </div>
+                        <div className="p-6 space-y-3">
+                            <button
+                                onClick={() => { onOpenDeliveries?.(managingOrder); setManagingOrder(null); }}
+                                className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 transition-colors"
+                            >
+                                <Calendar size={18} /> Προγραμματισμός παράδοσης
+                            </button>
+
                             {(orderMetaById.get(managingOrder.id)?.isReady || false) && managingOrder.status !== OrderStatus.Delivered && (
-                                <button onClick={() => handleCompleteOrder(managingOrder)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100">
+                                <button
+                                    onClick={() => handleCompleteOrder(managingOrder)}
+                                    className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100"
+                                >
                                     <CheckSquare size={18} /> Ολοκλήρωση & Παράδοση
                                 </button>
                             )}
 
-                            {(() => {
-                                if (managingShipmentReadiness?.is_partially_ready && managingOrder.status !== OrderStatus.Delivered && managingOrder.status !== OrderStatus.Cancelled) {
-                                    return (
-                                        <button onClick={() => { setShipmentModalOrder(managingOrder); setManagingOrder(null); }} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors">
-                                            <Truck size={18} /> Μερική Αποστολή ({managingShipmentReadiness.ready_batches}/{managingShipmentReadiness.total_batches} έτοιμα)
-                                        </button>
-                                    );
-                                }
-                                return null;
-                            })()}
+                            {managingShipmentReadiness?.is_partially_ready && managingOrder.status !== OrderStatus.Delivered && managingOrder.status !== OrderStatus.Cancelled && (
+                                <button
+                                    onClick={() => { setShipmentModalOrder(managingOrder); setManagingOrder(null); }}
+                                    className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors"
+                                >
+                                    <Truck size={18} /> Μερική Αποστολή ({managingShipmentReadiness.ready_batches}/{managingShipmentReadiness.total_batches} έτοιμα)
+                                </button>
+                            )}
 
                             {(managingOrder.status === OrderStatus.Pending || managingOrder.status === OrderStatus.InProduction || managingOrder.status === OrderStatus.PartiallyDelivered) && (
-                                <button onClick={() => handleSendToProduction(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors">
+                                <button
+                                    onClick={() => handleSendToProduction(managingOrder.id)}
+                                    className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors"
+                                >
                                     <Factory size={18} /> Αποστολή στην Παραγωγή
                                 </button>
                             )}
 
                             {managingOrder.status === OrderStatus.InProduction && (
-                                <button onClick={() => handleRevertFromProduction(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-all">
+                                <button
+                                    onClick={() => handleRevertFromProduction(managingOrder.id)}
+                                    className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 transition-colors"
+                                >
                                     <RotateCcw size={18} /> Επαναφορά από Παραγωγή
                                 </button>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
-                            {/* Archive Toggle */}
-                            <button onClick={() => handleArchiveOrder(managingOrder, !managingOrder.is_archived)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 transition-colors">
+            {managingOrder && showStatusActions && (
+                <div className="fixed inset-0 z-[60] bg-slate-900/55 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95">
+                        <div className="p-6 border-b border-slate-100 bg-violet-50/70 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Archive size={18} /> Κατάσταση & Αρχείο</h3>
+                                <p className="text-xs text-slate-500 font-mono mt-1">#{managingOrder.id}</p>
+                            </div>
+                            <button onClick={() => setShowStatusActions(false)} className="p-2 hover:bg-white rounded-full text-slate-500"><X size={20} /></button>
+                        </div>
+                        <div className="p-6 space-y-3">
+                            <button
+                                onClick={() => handleArchiveOrder(managingOrder, !managingOrder.is_archived)}
+                                className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 transition-colors"
+                            >
                                 {managingOrder.is_archived ? <ArchiveRestore size={18} /> : <Archive size={18} />}
                                 {managingOrder.is_archived ? 'Ανάκτηση από Αρχείο' : 'Αρχειοθέτηση'}
                             </button>
 
                             {managingOrder.status !== OrderStatus.Cancelled && managingOrder.status !== OrderStatus.Delivered && (
-                                <button onClick={() => handleCancelOrder(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 transition-colors">
+                                <button
+                                    onClick={() => handleCancelOrder(managingOrder.id)}
+                                    className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 transition-colors"
+                                >
                                     <Ban size={18} /> Ακύρωση
                                 </button>
                             )}
-                            <button onClick={() => handleDeleteOrder(managingOrder.id)} className="w-full text-left p-4 rounded-xl flex items-center gap-3 font-bold bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition-colors">
+
+                            <button
+                                onClick={() => handleDeleteOrder(managingOrder.id)}
+                                className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition-colors"
+                            >
                                 <Trash2 size={18} /> Οριστική Διαγραφή
                             </button>
                         </div>
