@@ -29,6 +29,11 @@ export function useConnectivityStatus(options: UseConnectivityStatusOptions = {}
   const [isSyncing, setIsSyncing] = useState(false);
   const [pendingItems, setPendingItems] = useState<any[]>([]);
   const syncingRef = useRef(false);
+  const onSyncCompletedRef = useRef(onSyncCompleted);
+
+  useEffect(() => {
+    onSyncCompletedRef.current = onSyncCompleted;
+  }, [onSyncCompleted]);
 
   const refreshQueue = useCallback(async () => {
     if (isLocalMode) {
@@ -45,17 +50,18 @@ export function useConnectivityStatus(options: UseConnectivityStatusOptions = {}
     syncingRef.current = true;
     setIsSyncing(true);
     try {
-      await refreshQueue();
+      const queue = await refreshQueue();
+      if (queue.length === 0) return;
       const result = await api.syncOfflineData();
-      if (onSyncCompleted) {
-        await onSyncCompleted(result);
+      if (onSyncCompletedRef.current) {
+        await onSyncCompletedRef.current(result);
       }
       await refreshQueue();
     } finally {
       syncingRef.current = false;
       setIsSyncing(false);
     }
-  }, [onSyncCompleted, refreshQueue]);
+  }, [refreshQueue]);
 
   useEffect(() => {
     if (isLocalMode) {
@@ -96,7 +102,11 @@ export function useConnectivityStatus(options: UseConnectivityStatusOptions = {}
 
   useEffect(() => {
     if (isLocalMode || !getInitialOnlineState()) return;
-    void triggerSync();
+    offlineDb.getQueueCount().then((count) => {
+      if (count > 0) {
+        void triggerSync();
+      }
+    });
   }, [triggerSync]);
 
   return {
