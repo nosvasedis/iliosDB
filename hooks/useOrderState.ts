@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime } from '../types';
+import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime, Collection } from '../types';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { formatCurrency, splitSkuComponents, getVariantComponents, findProductByScannedCode } from '../utils/pricingEngine';
@@ -12,6 +12,12 @@ import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../u
 import { assignMissingSpecialCreationLineIds, getOrderItemMatchKey } from '../utils/orderItemMatch';
 import { getSpecialCreationProductStub, isSpecialCreationSku, SPECIAL_CREATION_SKU } from '../utils/specialCreationSku';
 import { isXrCordEnamelSku } from '../utils/xrOptions';
+import {
+    buildProductSearchIndex,
+    computeSmartSkuSuggestions,
+    getActiveMasterSetMates,
+    type SmartSuggestionResult,
+} from '../features/orders/smartSkuSuggestions';
 
 const DRAFT_ORDER_KEY = 'ilios_desktop_draft_order';
 
@@ -40,10 +46,11 @@ interface UseOrderStateProps {
     initialOrder: Order | null;
     products: Product[];
     customers: Customer[];
+    collections?: Collection[];
     onBack: () => void;
 }
 
-export function useOrderState({ initialOrder, products, customers, onBack }: UseOrderStateProps) {
+export function useOrderState({ initialOrder, products, customers, collections, onBack }: UseOrderStateProps) {
     const { showToast } = useUI();
     const { profile } = useAuth();
     const queryClient = useQueryClient();
@@ -83,6 +90,8 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
     const [scanQty, setScanQty] = useState(1);
     const [itemNotes, setItemNotes] = useState('');
     const [candidateProducts, setCandidateProducts] = useState<Product[]>([]);
+    const [smartSuggestions, setSmartSuggestions] = useState<SmartSuggestionResult | null>(null);
+    const [recentContextMasterSkus, setRecentContextMasterSkus] = useState<string[]>([]);
     const [activeMaster, setActiveMaster] = useState<Product | null>(null);
     const [filteredVariants, setFilteredVariants] = useState<{ variant: ProductVariant, suffix: string, desc: string }[]>([]);
     const [selectedSize, setSelectedSize] = useState('');
@@ -101,6 +110,19 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
 
     // --- Refs ---
     const inputRef = useRef<HTMLInputElement>(null);
+
+    const productSearchIndex = useMemo(() => buildProductSearchIndex(products), [products]);
+    const collectionNameById = useMemo(() => {
+        const m: Record<number, string> = {};
+        for (const c of collections || []) m[c.id] = c.name;
+        return m;
+    }, [collections]);
+
+    const activeMasterSetMates = useMemo(() => {
+        if (!activeMaster) return [];
+        const token = scanInput.trim().split(/\s+/)[0] || '';
+        return getActiveMasterSetMates(productSearchIndex, activeMaster, token);
+    }, [productSearchIndex, activeMaster, scanInput]);
 
     // --- Draft autosave ---
     useEffect(() => {
@@ -256,6 +278,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
 
         if (skuPart.length < 2) {
             setCandidateProducts([]);
+            setSmartSuggestions(null);
             setActiveMaster(null);
             setFilteredVariants([]);
             setSizeMode(null);
@@ -267,6 +290,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
 
         if (skuPart === SPECIAL_CREATION_SKU) {
             setCandidateProducts([]);
+            setSmartSuggestions(null);
             setActiveMaster(null);
             setFilteredVariants([]);
             setSizeMode(null);
@@ -294,32 +318,18 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
             suffixPart = rawSuffixFromSku;
         }
 
-        let candidates: Product[] = [];
         if (bestMaster) {
-            candidates = [bestMaster];
+            setCandidateProducts([bestMaster]);
+            setSmartSuggestions(null);
         } else {
-            candidates = products
-                .filter(p => !p.is_component)
-                .filter(p => {
-                    if (p.sku.startsWith(skuPart)) return true;
-                    if (skuPart.length >= 3 && p.sku.includes(skuPart)) return true;
-                    return false;
-                })
-                .sort((a, b) => {
-                    const aExact = a.sku === skuPart;
-                    const bExact = b.sku === skuPart;
-                    if (aExact && !bExact) return -1;
-                    if (!aExact && bExact) return 1;
-                    const aStarts = a.sku.startsWith(skuPart);
-                    const bStarts = b.sku.startsWith(skuPart);
-                    if (aStarts && !bStarts) return -1;
-                    if (!aStarts && bStarts) return 1;
-                    if (a.sku.length !== b.sku.length) return a.sku.length - b.sku.length;
-                    return a.sku.localeCompare(b.sku);
-                })
-                .slice(0, 6);
+            const smart = computeSmartSkuSuggestions({
+                index: productSearchIndex,
+                skuPart,
+                orderContextMasterSkus: recentContextMasterSkus,
+            });
+            setSmartSuggestions(smart);
+            setCandidateProducts(smart?.topChips ?? []);
         }
-        setCandidateProducts(candidates);
 
         if (bestMaster) {
             setActiveMaster(bestMaster);
@@ -407,6 +417,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
         setActiveMaster(p);
         setScanInput(p.sku);
         setCandidateProducts([p]);
+        setSmartSuggestions(null);
         const sizing = getSizingInfo(p);
         if (sizing) { setSizeMode(sizing); setSelectedSize(''); }
         else setSizeMode(null);
@@ -452,6 +463,12 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
             }
             return [newItem, ...prev];
         });
+        if (!isSpecialCreationSku(master.sku)) {
+            setRecentContextMasterSkus(prev => {
+                const next = [master.sku, ...prev.filter(s => s !== master.sku)];
+                return next.slice(0, 12);
+            });
+        }
         setPriceDiffs(null);
     };
 
@@ -471,6 +488,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
         setActiveMaster(null); setScanQty(1); setSelectedSize(''); setItemNotes('');
         setSelectedCordColor(undefined); setSelectedEnamelColor(undefined);
         setSizeMode(null); setScanInput('');
+        setCandidateProducts([]); setSmartSuggestions(null); setFilteredVariants([]);
         setTimeout(() => inputRef.current?.focus(), 100);
     };
 
@@ -503,6 +521,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
             setSpecialCreationUnitPriceStr('');
             setActiveMaster(null);
             setCandidateProducts([]);
+            setSmartSuggestions(null);
             setFilteredVariants([]);
             setSizeMode(null);
             setSelectedSize('');
@@ -574,6 +593,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
                     setSizeMode(null);
                     setScanInput('');
                     setCandidateProducts([]);
+                    setSmartSuggestions(null);
                     setFilteredVariants([]);
                     setTimeout(() => inputRef.current?.focus(), 100);
                     return;
@@ -596,6 +616,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
                 showToast('Παρακαλώ επιλέξτε συγκεκριμένη παραλλαγή.', 'error');
                 setActiveMaster(product);
                 setCandidateProducts([product]);
+                setSmartSuggestions(null);
                 if (product.variants) {
                     setFilteredVariants(product.variants.map(v => ({ variant: v, suffix: v.suffix, desc: v.description })));
                 }
@@ -610,6 +631,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
         setSelectedCordColor(undefined);
         setSelectedEnamelColor(undefined);
         setCandidateProducts([]);
+        setSmartSuggestions(null);
         setActiveMaster(null);
         setFilteredVariants([]);
         setSizeMode(null);
@@ -654,6 +676,10 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
                         return updated;
                     }
                     return [newItem, ...prev];
+                });
+                setRecentContextMasterSkus(prev => {
+                    const next = [product.sku, ...prev.filter(s => s !== product.sku)];
+                    return next.slice(0, 12);
                 });
                 showToast(`Προστέθηκε: ${product.sku}${variant?.suffix || ''}`, 'success');
                 setShowScanner(false);
@@ -914,7 +940,8 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
             isRetailCustomer: selectedCustomerId === RETAIL_CUSTOMER_ID || customerName.trim() === RETAIL_CUSTOMER_NAME,
             // Smart entry
             scanInput, scanQty, itemNotes, specialCreationUnitPriceStr,
-            candidateProducts, activeMaster, filteredVariants,
+            candidateProducts, smartSuggestions, activeMasterSetMates, collectionNameById,
+            activeMaster, filteredVariants,
             selectedSize, selectedCordColor, selectedEnamelColor, sizeMode, showScanner,
             // Sort/filter
             sortOrder, itemSearchTerm,
@@ -933,7 +960,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
             setCustomerSearch, setShowCustomerResults,
             setScanInput, setScanQty, setItemNotes, setSpecialCreationUnitPriceStr,
             setActiveMaster, setFilteredVariants, setSelectedSize, setSelectedCordColor, setSelectedEnamelColor,
-            setSizeMode, setCandidateProducts, setShowScanner,
+            setSizeMode, setCandidateProducts, setSmartSuggestions, setShowScanner,
             setSortOrder, setItemSearchTerm,
         },
         actions: {

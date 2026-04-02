@@ -1,17 +1,75 @@
-import React from 'react';
-import { ScanBarcode, X, Hash, Layers, Plus, ImageIcon, StickyNote } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { ScanBarcode, X, Hash, Layers, Plus, ImageIcon, StickyNote, ChevronDown, ChevronUp } from 'lucide-react';
 import { getVariantSuffixDisplayCodes } from '../../utils/pricingEngine';
 import { useOrderState, FINISH_COLORS, STONE_TEXT_COLORS } from '../../hooks/useOrderState';
 import { PRODUCT_OPTION_COLORS, PRODUCT_OPTION_COLOR_LABELS, isXrCordEnamelSku } from '../../utils/xrOptions';
 import { SPECIAL_CREATION_SKU } from '../../utils/specialCreationSku';
+import type { Product } from '../../types';
 
 interface Props {
     orderState: ReturnType<typeof useOrderState>;
     isItemsExpanded?: boolean;
 }
 
+function collectionLabel(product: Product, collectionNameById: Record<number, string>): string | null {
+    const id = product.collections?.[0];
+    if (id === undefined) return null;
+    return collectionNameById[id] ?? `#${id}`;
+}
+
 export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }) => {
     const { state, setters, actions, refs } = orderState;
+    const [suggestionsExpanded, setSuggestionsExpanded] = useState(false);
+    const [setMatesExpanded, setSetMatesExpanded] = useState(true);
+    const suggestionsScrollRef = useRef<HTMLDivElement>(null);
+
+    const virtualRows = state.smartSuggestions?.virtualRows ?? [];
+    const rowVirtualizer = useVirtualizer({
+        count: suggestionsExpanded ? virtualRows.length : 0,
+        getScrollElement: () => suggestionsScrollRef.current,
+        estimateSize: (i) => (virtualRows[i]?.kind === 'header' ? 28 : 56),
+        overscan: 12,
+    });
+
+    useEffect(() => {
+        setSuggestionsExpanded(false);
+    }, [state.smartSuggestions]);
+
+    const hasSuggestionPanel =
+        !state.activeMaster &&
+        state.smartSuggestions &&
+        (state.smartSuggestions.topChips.length > 0 || state.smartSuggestions.virtualRows.length > 0);
+
+    const productRow = (p: Product, dense?: boolean) => {
+        const col = collectionLabel(p, state.collectionNameById);
+        return (
+            <div
+                key={p.sku}
+                onClick={() => actions.handleSelectMaster(p)}
+                className={`flex items-center gap-3 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-emerald-500 shadow-sm transition-all group active:scale-[0.98] ${
+                    dense ? 'p-2 pr-3' : 'p-2'
+                }`}
+            >
+                <div className={`${dense ? 'w-9 h-9' : 'w-10 h-10'} bg-slate-100 rounded-lg overflow-hidden shrink-0 border border-slate-100`}>
+                    {p.image_url ? (
+                        <img src={p.image_url} className="w-full h-full object-cover" alt="" />
+                    ) : (
+                        <ImageIcon size={dense ? 14 : 16} className="m-auto text-slate-300" />
+                    )}
+                </div>
+                <div className="min-w-0 flex-1">
+                    <div className="font-black text-sm text-slate-800 leading-none group-hover:text-emerald-700 transition-colors font-mono">{p.sku}</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5 truncate">{p.category}</div>
+                    {col ? (
+                        <div className="text-[9px] text-emerald-700 font-bold mt-0.5 truncate" title={col}>
+                            {col}
+                        </div>
+                    ) : null}
+                </div>
+            </div>
+        );
+    };
 
     // SKU Visualizer: renders the SKU text overlay with colour-coded suffix
     const SkuVisualizer = () => {
@@ -23,8 +81,12 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
             suffixStr.split('').map((char, i) => {
                 let colorClass = 'text-slate-400';
                 if (finish.code && i < finish.code.length) colorClass = fColor;
-                else if (stone.code && i >= (suffixStr.length - stone.code.length)) colorClass = sColor;
-                return <span key={i} className={colorClass}>{char}</span>;
+                else if (stone.code && i >= suffixStr.length - stone.code.length) colorClass = sColor;
+                return (
+                    <span key={i} className={colorClass}>
+                        {char}
+                    </span>
+                );
             });
 
         return (
@@ -62,7 +124,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                 type="text"
                                 value={state.scanInput}
                                 onChange={actions.handleSmartInput}
-                                onKeyDown={e => e.key === 'Enter' && actions.executeAddItem()}
+                                onKeyDown={(e) => e.key === 'Enter' && actions.executeAddItem()}
                                 placeholder="Πληκτρολογήστε..."
                                 className="w-full p-3.5 bg-white text-transparent caret-slate-800 font-mono text-xl font-black rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 uppercase tracking-widest shadow-sm relative z-10"
                                 autoFocus
@@ -72,10 +134,11 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                     <div className="col-span-3">
                         <label className="text-[10px] text-slate-400 font-black uppercase mb-1.5 ml-1 block tracking-widest">Ποσ.</label>
                         <input
-                            type="number" min="1"
+                            type="number"
+                            min="1"
                             value={state.scanQty}
-                            onChange={e => setters.setScanQty(parseInt(e.target.value) || 1)}
-                            onKeyDown={e => e.key === 'Enter' && actions.executeAddItem()}
+                            onChange={(e) => setters.setScanQty(parseInt(e.target.value, 10) || 1)}
+                            onKeyDown={(e) => e.key === 'Enter' && actions.executeAddItem()}
                             className="w-full p-3.5 text-center font-black text-xl rounded-2xl outline-none bg-white text-slate-900 border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 shadow-sm"
                         />
                     </div>
@@ -93,8 +156,8 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                 type="text"
                                 inputMode="decimal"
                                 value={state.specialCreationUnitPriceStr}
-                                onChange={e => setters.setSpecialCreationUnitPriceStr(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && actions.executeAddItem()}
+                                onChange={(e) => setters.setSpecialCreationUnitPriceStr(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && actions.executeAddItem()}
                                 placeholder="π.χ. 120 ή 120,50"
                                 className="w-full p-3 bg-white border border-violet-200 rounded-xl font-mono font-bold text-slate-900 outline-none focus:ring-4 focus:ring-violet-500/15"
                             />
@@ -102,27 +165,80 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                     </div>
                 )}
 
-                {/* Candidate products carousel */}
-                {state.candidateProducts.length > 0 && !state.activeMaster && (
-                    <div className="animate-in fade-in slide-in-from-top-2">
-                        <label className="text-[9px] text-slate-400 font-bold uppercase mb-2 ml-1 block tracking-widest">ΠΡΟΤΑΣΕΙΣ ΑΝΑΖΗΤΗΣΗΣ</label>
-                        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                            {state.candidateProducts.map(p => (
-                                <div
-                                    key={p.sku}
-                                    onClick={() => actions.handleSelectMaster(p)}
-                                    className="flex items-center gap-3 p-2 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-emerald-500 min-w-[160px] shadow-sm transition-all group active:scale-95"
+                {/* Smart search suggestions */}
+                {hasSuggestionPanel && (
+                    <div className="animate-in fade-in slide-in-from-top-2 space-y-2">
+                        <div className="flex items-start justify-between gap-2 ml-1">
+                            <div>
+                                <label className="text-[9px] text-slate-400 font-bold uppercase tracking-widest block">ΠΡΟΤΑΣΕΙΣ ΑΝΑΖΗΤΗΣΗΣ</label>
+                                {state.smartSuggestions?.rangeHint ? (
+                                    <p className="text-[10px] text-slate-500 font-medium mt-1">{state.smartSuggestions.rangeHint}</p>
+                                ) : null}
+                                {state.smartSuggestions?.variantSuffix ? (
+                                    <p className="text-[10px] text-emerald-700 font-bold mt-0.5">Παραλλαγή: {state.smartSuggestions.variantSuffix}</p>
+                                ) : null}
+                            </div>
+                            {virtualRows.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => setSuggestionsExpanded((v) => !v)}
+                                    className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-white text-[10px] font-black uppercase text-slate-600 hover:bg-slate-50 transition-colors"
+                                    aria-expanded={suggestionsExpanded}
                                 >
-                                    <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden shrink-0 border border-slate-100">
-                                        {p.image_url ? <img src={p.image_url} className="w-full h-full object-cover" /> : <ImageIcon size={16} className="m-auto text-slate-300" />}
-                                    </div>
-                                    <div className="min-w-0">
-                                        <div className="font-black text-sm text-slate-800 leading-none group-hover:text-emerald-700 transition-colors">{p.sku}</div>
-                                        <div className="text-[10px] text-slate-500 mt-0.5 truncate max-w-[100px]">{p.category}</div>
-                                    </div>
+                                    {suggestionsExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                    {suggestionsExpanded ? 'Λιγότερα' : 'Περισσότερα'}
+                                </button>
+                            )}
+                        </div>
+                        <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
+                            {state.smartSuggestions!.topChips.map((p) => (
+                                <div key={p.sku} className="min-w-[158px] shrink-0">
+                                    {productRow(p)}
                                 </div>
                             ))}
                         </div>
+                        {suggestionsExpanded && virtualRows.length > 0 && (
+                            <div
+                                ref={suggestionsScrollRef}
+                                className="max-h-72 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50/80 relative"
+                            >
+                                <div
+                                    className="relative w-full"
+                                    style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+                                >
+                                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                                        const row = virtualRows[virtualRow.index];
+                                        if (!row) return null;
+                                        if (row.kind === 'header') {
+                                            return (
+                                                <div
+                                                    key={virtualRow.key}
+                                                    className="absolute top-0 left-0 w-full px-3 pt-2 pb-0.5 bg-slate-100/90 border-b border-slate-200/80"
+                                                    style={{
+                                                        height: `${virtualRow.size}px`,
+                                                        transform: `translateY(${virtualRow.start}px)`,
+                                                    }}
+                                                >
+                                                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">{row.label}</span>
+                                                </div>
+                                            );
+                                        }
+                                        return (
+                                            <div
+                                                key={virtualRow.key}
+                                                className="absolute top-0 left-0 w-full px-2 py-1"
+                                                style={{
+                                                    height: `${virtualRow.size}px`,
+                                                    transform: `translateY(${virtualRow.start}px)`,
+                                                }}
+                                            >
+                                                {productRow(row.product, true)}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -132,7 +248,11 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                         <div className="flex justify-between items-start">
                             <div className="flex items-center gap-3">
                                 <div className="w-12 h-12 bg-slate-100 rounded-xl overflow-hidden border border-slate-200">
-                                    {state.activeMaster.image_url ? <img src={state.activeMaster.image_url} className="w-full h-full object-cover" /> : <ImageIcon className="m-3 text-slate-300" />}
+                                    {state.activeMaster.image_url ? (
+                                        <img src={state.activeMaster.image_url} className="w-full h-full object-cover" alt="" />
+                                    ) : (
+                                        <ImageIcon className="m-3 text-slate-300" />
+                                    )}
                                 </div>
                                 <div>
                                     <h3 className="font-black text-xl text-slate-900 leading-none">{state.activeMaster.sku}</h3>
@@ -147,6 +267,8 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                     setters.setSelectedSize('');
                                     setters.setSelectedCordColor(undefined);
                                     setters.setSelectedEnamelColor(undefined);
+                                    setters.setCandidateProducts([]);
+                                    setters.setSmartSuggestions(null);
                                 }}
                                 className="p-2 bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
                             >
@@ -154,18 +276,47 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                             </button>
                         </div>
 
+                        {state.activeMasterSetMates.length > 0 && (
+                            <div className="rounded-2xl border border-slate-100 bg-slate-50/60 overflow-hidden">
+                                <button
+                                    type="button"
+                                    onClick={() => setSetMatesExpanded((v) => !v)}
+                                    className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-100/80 transition-colors"
+                                >
+                                    <span className="text-[10px] font-black text-slate-600 uppercase tracking-wide">
+                                        Συνοδευτικά κομμάτια (συλλογή)
+                                    </span>
+                                    {setMatesExpanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
+                                </button>
+                                {setMatesExpanded && (
+                                    <div className="flex gap-2 overflow-x-auto px-2 pb-3 pt-1 scrollbar-hide">
+                                        {state.activeMasterSetMates.map((p) => (
+                                            <div key={p.sku} className="min-w-[148px] shrink-0">
+                                                {productRow(p, true)}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {/* Size picker */}
                         {state.sizeMode && (
                             <div>
                                 <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block flex items-center gap-1">
-                                    <Hash size={12} /> Επιλογή {state.sizeMode.type} <span className="font-normal text-slate-300 lowercase">(Προαιρετικό)</span>
+                                    <Hash size={12} /> Επιλογή {state.sizeMode.type}{' '}
+                                    <span className="font-normal text-slate-300 lowercase">(Προαιρετικό)</span>
                                 </label>
                                 <div className="flex flex-wrap gap-2">
-                                    {state.sizeMode.sizes.map(s => (
+                                    {state.sizeMode.sizes.map((s) => (
                                         <button
                                             key={s}
                                             onClick={() => setters.setSelectedSize(s === state.selectedSize ? '' : s)}
-                                            className={`px-3 py-2 rounded-xl text-sm font-bold border transition-all ${state.selectedSize === s ? 'bg-slate-900 text-white border-slate-900 shadow-md scale-105' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+                                            className={`px-3 py-2 rounded-xl text-sm font-bold border transition-all ${
+                                                state.selectedSize === s
+                                                    ? 'bg-slate-900 text-white border-slate-900 shadow-md scale-105'
+                                                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                                            }`}
                                         >
                                             {s}
                                         </button>
@@ -179,11 +330,17 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                 <div>
                                     <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block">Χρώμα Κορδόνι</label>
                                     <div className="flex flex-wrap gap-2">
-                                        {PRODUCT_OPTION_COLORS.map(color => (
+                                        {PRODUCT_OPTION_COLORS.map((color) => (
                                             <button
                                                 key={`cord-${color}`}
-                                                onClick={() => setters.setSelectedCordColor(state.selectedCordColor === color ? undefined : color)}
-                                                className={`px-3 py-2 rounded-xl text-sm font-bold border transition-all ${state.selectedCordColor === color ? 'bg-slate-900 text-white border-slate-900 shadow-md scale-105' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+                                                onClick={() =>
+                                                    setters.setSelectedCordColor(state.selectedCordColor === color ? undefined : color)
+                                                }
+                                                className={`px-3 py-2 rounded-xl text-sm font-bold border transition-all ${
+                                                    state.selectedCordColor === color
+                                                        ? 'bg-slate-900 text-white border-slate-900 shadow-md scale-105'
+                                                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                                                }`}
                                             >
                                                 {PRODUCT_OPTION_COLOR_LABELS[color]}
                                             </button>
@@ -193,11 +350,17 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                 <div>
                                     <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block">Χρώμα Σμάλτο</label>
                                     <div className="flex flex-wrap gap-2">
-                                        {PRODUCT_OPTION_COLORS.map(color => (
+                                        {PRODUCT_OPTION_COLORS.map((color) => (
                                             <button
                                                 key={`enamel-${color}`}
-                                                onClick={() => setters.setSelectedEnamelColor(state.selectedEnamelColor === color ? undefined : color)}
-                                                className={`px-3 py-2 rounded-xl text-sm font-bold border transition-all ${state.selectedEnamelColor === color ? 'bg-slate-900 text-white border-slate-900 shadow-md scale-105' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+                                                onClick={() =>
+                                                    setters.setSelectedEnamelColor(state.selectedEnamelColor === color ? undefined : color)
+                                                }
+                                                className={`px-3 py-2 rounded-xl text-sm font-bold border transition-all ${
+                                                    state.selectedEnamelColor === color
+                                                        ? 'bg-slate-900 text-white border-slate-900 shadow-md scale-105'
+                                                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                                                }`}
                                             >
                                                 {PRODUCT_OPTION_COLOR_LABELS[color]}
                                             </button>
@@ -210,18 +373,17 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                         {/* Variant grid */}
                         {state.filteredVariants.length > 0 && (
                             <div>
-                                <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block flex items-center gap-1"><Layers size={12} /> ΠΑΡΑΛΛΑΓΕΣ</label>
+                                <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block flex items-center gap-1">
+                                    <Layers size={12} /> ΠΑΡΑΛΛΑΓΕΣ
+                                </label>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                    {state.filteredVariants.map(v => {
+                                    {state.filteredVariants.map((v) => {
                                         const { finishCode, stoneCode } = getVariantSuffixDisplayCodes(
                                             v.suffix,
                                             state.activeMaster!.gender,
                                             state.activeMaster,
                                         );
-                                        const label =
-                                            finishCode || stoneCode
-                                                ? null
-                                                : (v.suffix?.trim() || '—');
+                                        const label = finishCode || stoneCode ? null : v.suffix?.trim() || '—';
                                         return (
                                             <button
                                                 key={v.suffix}
@@ -235,11 +397,11 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                                     {stoneCode ? (
                                                         <span className={STONE_TEXT_COLORS[stoneCode] || 'text-emerald-500'}>{stoneCode}</span>
                                                     ) : null}
-                                                    {label ? (
-                                                        <span className="text-slate-500 tabular-nums">{label}</span>
-                                                    ) : null}
+                                                    {label ? <span className="text-slate-500 tabular-nums">{label}</span> : null}
                                                 </span>
-                                                <span className="text-[9px] font-bold text-slate-400 truncate w-full text-center">{v.desc || 'Variant'}</span>
+                                                <span className="text-[9px] font-bold text-slate-400 truncate w-full text-center">
+                                                    {v.desc || 'Variant'}
+                                                </span>
                                             </button>
                                         );
                                     })}
@@ -255,8 +417,8 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                             <input
                                 type="text"
                                 value={state.itemNotes}
-                                onChange={e => setters.setItemNotes(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && actions.executeAddItem()}
+                                onChange={(e) => setters.setItemNotes(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && actions.executeAddItem()}
                                 placeholder="π.χ. Αλλαγή κουμπώματος, Μακρύτερη αλυσίδα..."
                                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm transition-all"
                             />

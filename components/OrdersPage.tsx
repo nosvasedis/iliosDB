@@ -787,6 +787,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                     initialOrder={editingOrder}
                     products={products}
                     customers={customers || []}
+                    collections={collections || []}
                 />
             </div>
         );

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Product, Customer, Order } from '../types';
+import { Product, Customer, Order, Collection } from '../types';
 import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { useOrderState } from '../hooks/useOrderState';
 import { CustomerPanel } from './OrderBuilder/CustomerPanel';
@@ -12,10 +12,11 @@ interface Props {
     initialOrder: Order | null;
     products: Product[];
     customers: Customer[];
+    collections?: Collection[];
 }
 
-export default function DesktopOrderBuilder({ onBack, initialOrder, products, customers }: Props) {
-    const orderState = useOrderState({ initialOrder, products, customers, onBack });
+export default function DesktopOrderBuilder({ onBack, initialOrder, products, customers, collections }: Props) {
+    const orderState = useOrderState({ initialOrder, products, customers, collections, onBack });
     const { state, actions } = orderState;
     const [isItemsExpanded, setIsItemsExpanded] = useState(false);
 
