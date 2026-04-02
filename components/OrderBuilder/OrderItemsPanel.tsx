@@ -229,9 +229,8 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2">
-                            <label className={`flex items-center gap-2 rounded-xl px-2.5 py-1.5 border min-w-0 flex-1 text-[0px] ${isSpecialCreationSku(item.sku) ? 'bg-violet-50 border-violet-100' : (item.price_override ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200')}`}>
-                                <span className={`${isSpecialCreationSku(item.sku) ? 'text-violet-800' : 'text-slate-700'} shrink-0 text-[10px] font-black`}>€/τεμ.</span>
-                                <span className={`${isSpecialCreationSku(item.sku) ? 'text-violet-800' : 'text-slate-700'} shrink-0 text-[10px] font-black`}>β‚¬/Ο„ΞµΞΌ.</span>
+                            <label className={`flex items-center gap-2 rounded-xl px-2.5 py-1.5 border min-w-0 flex-1 ${isSpecialCreationSku(item.sku) ? 'bg-violet-50 border-violet-100' : (item.price_override ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200')}`}>
+                                <span className={`${isSpecialCreationSku(item.sku) ? 'text-violet-800' : 'text-slate-700'} shrink-0 text-[10px] font-black`}>�/���.</span>
                                 <input
                                     type="number"
                                     min={0}

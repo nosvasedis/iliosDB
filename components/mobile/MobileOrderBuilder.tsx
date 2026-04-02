@@ -1093,7 +1093,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                             </div>
                             <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-50">
                                 <label className={`flex items-center gap-2 rounded-xl px-2.5 py-1.5 border min-w-0 flex-1 ${isSpecialCreationSku(item.sku) ? 'bg-violet-50 border-violet-100' : 'bg-slate-50 border-slate-200'}`}>
-                                    <span className={`${isSpecialCreationSku(item.sku) ? 'text-violet-800' : 'text-slate-700'} shrink-0 text-[10px] font-black`}>β‚¬/Ο„ΞµΞΌ</span>
+                                    <span className={`${isSpecialCreationSku(item.sku) ? 'text-violet-800' : 'text-slate-700'} shrink-0 text-[10px] font-black`}>�/���</span>
                                     {isSpecialCreationSku(item.sku) ? (
                                         <input
                                             type="number"
