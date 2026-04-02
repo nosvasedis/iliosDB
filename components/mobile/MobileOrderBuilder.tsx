@@ -1034,7 +1034,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
 
                     {cartExpanded && items.map((item, idx) => (
                         <div key={item.line_id || `${item.sku}-${idx}`} className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm space-y-3">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-start gap-3">
                                 <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden border border-slate-100 shrink-0">
                                     {isSpecialCreationSku(item.sku) ? (
                                         <div className="w-full h-full flex items-center justify-center text-[11px] font-black text-violet-700 bg-violet-50">SP</div>
@@ -1064,7 +1064,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                     </div>
                                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                                         {isSpecialCreationSku(item.sku) ? (
-                                            <label className="inline-flex items-center gap-1 text-[10px] font-bold text-violet-800">
+                                            <label className="hidden items-center gap-1 text-[10px] font-bold text-violet-800">
                                                 €/τεμ
                                                 <input
                                                     type="number"
@@ -1091,7 +1091,34 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-3 pt-2 border-t border-slate-50">
+                            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-50">
+                                <label className={`flex items-center gap-2 rounded-xl px-2.5 py-1.5 border min-w-0 flex-1 ${isSpecialCreationSku(item.sku) ? 'bg-violet-50 border-violet-100' : 'bg-slate-50 border-slate-200'}`}>
+                                    <span className={`${isSpecialCreationSku(item.sku) ? 'text-violet-800' : 'text-slate-700'} shrink-0 text-[10px] font-black`}>β‚¬/Ο„ΞµΞΌ</span>
+                                    {isSpecialCreationSku(item.sku) ? (
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            step={0.01}
+                                            value={item.price_at_order}
+                                            onChange={e => {
+                                                const v = Math.max(0, Math.round((parseFloat(e.target.value) || 0) * 100) / 100);
+                                                setItems(prev => {
+                                                    const n = [...prev];
+                                                    if (n[idx]) n[idx] = { ...n[idx], price_at_order: v };
+                                                    return n;
+                                                });
+                                            }}
+                                            className="min-w-0 flex-1 bg-white rounded-lg border border-violet-200 px-2 py-1 font-mono text-xs text-violet-900 outline-none"
+                                        />
+                                    ) : (
+                                        <span className="min-w-0 flex-1 text-[11px] font-black text-slate-700">{formatCurrency(item.price_at_order)} /Ο„ΞµΞΌ</span>
+                                    )}
+                                </label>
+                                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
+                                    <button onClick={() => { const n = [...items]; n[idx].quantity = Math.max(1, n[idx].quantity - 1); setItems(n); }} className="w-8 h-8 bg-white rounded-lg shadow-sm text-slate-600 font-bold">-</button>
+                                    <span className="w-8 text-center font-black text-sm text-slate-900">{item.quantity}</span>
+                                    <button onClick={() => { const n = [...items]; n[idx].quantity += 1; setItems(n); }} className="w-8 h-8 bg-white rounded-lg shadow-sm text-slate-600 font-bold">+</button>
+                                </div>
                                 <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-100 flex-1">
                                     <StickyNote size={14} className="text-slate-300 ml-1" />
                                     <input
@@ -1104,11 +1131,6 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                             setItems(newItems);
                                         }}
                                     />
-                                </div>
-                                <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg">
-                                    <button onClick={() => { const n = [...items]; n[idx].quantity = Math.max(1, n[idx].quantity - 1); setItems(n); }} className="w-6 h-6 bg-white rounded shadow-sm text-slate-600 font-bold">-</button>
-                                    <span className="w-4 text-center font-black text-xs">{item.quantity}</span>
-                                    <button onClick={() => { const n = [...items]; n[idx].quantity += 1; setItems(n); }} className="w-6 h-6 bg-white rounded shadow-sm text-slate-600 font-bold">+</button>
                                 </div>
                             </div>
                         </div>
@@ -1270,3 +1292,4 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         </div>
     );
 }
+
