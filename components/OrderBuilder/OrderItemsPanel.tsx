@@ -161,8 +161,8 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                         key={item.line_id || `${item.sku}-${item.variant_suffix || ''}-${item.size_info || ''}-${item.cord_color || ''}-${item.enamel_color || ''}-${index}`}
                         className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-3 animate-in slide-in-from-right-4 transition-all hover:shadow-md group"
                     >
-                        <div className="flex items-start justify-between gap-4">
-                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3 min-w-0">
                                 <div className="w-11 h-11 bg-slate-50 rounded-lg overflow-hidden shrink-0 border border-slate-100">
                                     {isSpecialCreationSku(item.sku) ? (
                                         <div className="w-full h-full flex items-center justify-center text-[10px] font-black text-violet-700 bg-violet-50">SP</div>
@@ -193,13 +193,30 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                         <div className="text-[10px] text-violet-600 font-bold mt-0.5 truncate">{item.product_details?.category || 'Ξ•ΞΉΞ΄ΞΉΞΊΞ® Ξ΄Ξ·ΞΌΞΉΞΏΟ…ΟΞ³Ξ―Ξ±'}</div>
                                     )}
                                     <div className="text-[10px] text-slate-500 font-bold mt-1 flex flex-wrap items-center gap-1">
+                                        <label className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 border ${isSpecialCreationSku(item.sku) ? 'bg-violet-50 border-violet-100' : (item.price_override ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200')}`}>
+                                            <span className={`${isSpecialCreationSku(item.sku) ? 'text-violet-800' : 'text-slate-700'}`}>β‚¬/Ο„ΞµΞΌ.</span>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                step={0.01}
+                                                value={item.price_at_order}
+                                                onChange={e => actions.updateItemUnitPrice(item, parseFloat(e.target.value) || 0)}
+                                                className={`w-20 bg-white rounded px-1 py-0.5 font-mono text-[11px] ${isSpecialCreationSku(item.sku) ? 'border border-violet-200 text-violet-900' : (item.price_override ? 'border border-amber-300 text-amber-900' : 'border border-slate-200 text-slate-900')}`}
+                                            />
+                                            {item.price_override && <span className="text-amber-700 font-black">*</span>}
+                                        </label>
                                         {item.size_info && <span className="bg-slate-100 px-1 rounded">SZ: {item.size_info}</span>}
                                         {item.cord_color && <span className="bg-amber-50 text-amber-700 px-1 rounded border border-amber-100">ΞΞΏΟΞ΄ΟΞ½ΞΉ: {getProductOptionColorLabel(item.cord_color)}</span>}
                                         {item.enamel_color && <span className="bg-rose-50 text-rose-700 px-1 rounded border border-rose-100">Ξ£ΞΌΞ¬Ξ»Ο„ΞΏ: {getProductOptionColorLabel(item.enamel_color)}</span>}
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2 shrink-0">
+                            <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+                                    <button onClick={() => actions.updateQuantity(item, item.quantity - 1)} className="p-1 hover:bg-white rounded shadow-sm text-slate-600"><Minus size={12} /></button>
+                                    <span className="w-6 text-center font-black text-sm">{item.quantity}</span>
+                                    <button onClick={() => actions.updateQuantity(item, item.quantity + 1)} className="p-1 hover:bg-white rounded shadow-sm text-slate-600"><Plus size={12} /></button>
+                                </div>
                                 {!isSpecialCreationSku(item.sku) && (
                                     <button onClick={() => openEditItem(item)} className="p-2 text-slate-300 hover:text-blue-500 transition-colors" title="Ξ•Ο€ΞµΞΎΞµΟΞ³Ξ±ΟƒΞ―Ξ± SKU">
                                         <Pencil size={15} />
@@ -208,26 +225,6 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                 <button onClick={() => actions.handleRemoveItem(item)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
                                     <Trash2 size={16} />
                                 </button>
-                            </div>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-2">
-                            <label className={`flex items-center gap-2 rounded-xl px-2.5 py-1.5 border min-w-0 w-full sm:w-[280px] lg:w-[320px] max-w-full ${isSpecialCreationSku(item.sku) ? 'bg-violet-50 border-violet-100' : (item.price_override ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200')}`}>
-                                <span className={`${isSpecialCreationSku(item.sku) ? 'text-violet-800' : 'text-slate-700'} shrink-0 text-[10px] font-black`}>{"\u20AC/\u03C4\u03B5\u03BC."}</span>
-                                <input
-                                    type="number"
-                                    min={0}
-                                    step={0.01}
-                                    value={item.price_at_order}
-                                    onChange={e => actions.updateItemUnitPrice(item, parseFloat(e.target.value) || 0)}
-                                    className={`min-w-0 flex-1 bg-white rounded-lg px-3 py-1.5 font-mono text-sm outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${isSpecialCreationSku(item.sku) ? 'border border-violet-200 text-violet-900' : (item.price_override ? 'border border-amber-300 text-amber-900' : 'border border-slate-200 text-slate-900')}`}
-                                />
-                                {item.price_override && <span className="text-amber-700 font-black shrink-0">*</span>}
-                            </label>
-                            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
-                                <button onClick={() => actions.updateQuantity(item, item.quantity - 1)} className="w-8 h-8 flex items-center justify-center hover:bg-white rounded-lg shadow-sm text-slate-600"><Minus size={12} /></button>
-                                <span className="w-8 text-center font-black text-sm text-slate-900">{item.quantity}</span>
-                                <button onClick={() => actions.updateQuantity(item, item.quantity + 1)} className="w-8 h-8 flex items-center justify-center hover:bg-white rounded-lg shadow-sm text-slate-600"><Plus size={12} /></button>
                             </div>
                         </div>
 
