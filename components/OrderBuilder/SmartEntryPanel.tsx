@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ScanBarcode, X, Hash, Layers, Plus, ImageIcon, StickyNote, ChevronDown, ChevronUp } from 'lucide-react';
-import { getVariantSuffixDisplayCodes } from '../../utils/pricingEngine';
+import { getVariantComponents, getVariantSuffixDisplayCodes } from '../../utils/pricingEngine';
 import { useOrderState, FINISH_COLORS, STONE_TEXT_COLORS } from '../../hooks/useOrderState';
+import { productMatchesVariantSuffix } from '../../features/orders/smartSkuSuggestions';
 import { PRODUCT_OPTION_COLORS, PRODUCT_OPTION_COLOR_LABELS, isXrCordEnamelSku } from '../../utils/xrOptions';
 import { SPECIAL_CREATION_SKU } from '../../utils/specialCreationSku';
 import type { Product } from '../../types';
@@ -16,6 +17,26 @@ function collectionLabel(product: Product, collectionNameById: Record<number, st
     const id = product.collections?.[0];
     if (id === undefined) return null;
     return collectionNameById[id] ?? `#${id}`;
+}
+
+function SuffixHighlightPreview({ suffix, gender }: { suffix: string; gender?: Product['gender'] }) {
+    const { finish, stone } = getVariantComponents(suffix, gender);
+    const fColor = FINISH_COLORS[finish.code] || 'text-slate-500';
+    const sColor = STONE_TEXT_COLORS[stone.code] || 'text-emerald-500';
+    return (
+        <span className="font-mono font-black tracking-wide text-[11px] leading-tight">
+            {suffix.split('').map((char, i) => {
+                let colorClass = 'text-slate-400';
+                if (finish.code && i < finish.code.length) colorClass = fColor;
+                else if (stone.code && i >= suffix.length - stone.code.length) colorClass = sColor;
+                return (
+                    <span key={i} className={colorClass}>
+                        {char}
+                    </span>
+                );
+            })}
+        </span>
+    );
 }
 
 export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }) => {
@@ -41,15 +62,25 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
         state.smartSuggestions &&
         (state.smartSuggestions.topChips.length > 0 || state.smartSuggestions.virtualRows.length > 0);
 
-    const productRow = (p: Product, dense?: boolean) => {
+    const productRow = (p: Product, dense?: boolean, preferVariantFromOrder?: string | null) => {
         const col = collectionLabel(p, state.collectionNameById);
+        const hint =
+            (preferVariantFromOrder && productMatchesVariantSuffix(p, preferVariantFromOrder)
+                ? preferVariantFromOrder
+                : null) ||
+            (state.smartSuggestions?.highlightVariantSuffix &&
+            productMatchesVariantSuffix(p, state.smartSuggestions.highlightVariantSuffix)
+                ? state.smartSuggestions.highlightVariantSuffix
+                : null);
+        const onSelect = () => actions.handleSelectMaster(p, hint);
+
         return (
             <div
-                key={p.sku}
-                onClick={() => actions.handleSelectMaster(p)}
-                className={`flex items-center gap-3 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-emerald-500 shadow-sm transition-all group active:scale-[0.98] ${
-                    dense ? 'p-2 pr-3' : 'p-2'
-                }`}
+                key={p.sku + (dense ? '-d' : '') + (hint || '')}
+                onClick={onSelect}
+                className={`flex items-center gap-3 bg-white rounded-xl border cursor-pointer hover:border-emerald-500 shadow-sm transition-all group active:scale-[0.98] ${
+                    hint ? 'border-amber-400/90 ring-2 ring-amber-400/35 ring-offset-1' : 'border-slate-200'
+                } ${dense ? 'p-2 pr-3' : 'p-2'}`}
             >
                 <div className={`${dense ? 'w-9 h-9' : 'w-10 h-10'} bg-slate-100 rounded-lg overflow-hidden shrink-0 border border-slate-100`}>
                     {p.image_url ? (
@@ -59,7 +90,15 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                     )}
                 </div>
                 <div className="min-w-0 flex-1">
-                    <div className="font-black text-sm text-slate-800 leading-none group-hover:text-emerald-700 transition-colors font-mono">{p.sku}</div>
+                    <div className="font-black text-sm text-slate-800 leading-none group-hover:text-emerald-700 transition-colors font-mono">
+                        {p.sku}
+                    </div>
+                    {hint ? (
+                        <div className="flex items-baseline gap-0.5 mt-1">
+                            <span className="text-[9px] font-bold text-amber-700/90">+</span>
+                            <SuffixHighlightPreview suffix={hint} gender={p.gender} />
+                        </div>
+                    ) : null}
                     <div className="text-[10px] text-slate-500 mt-0.5 truncate">{p.category}</div>
                     {col ? (
                         <div className="text-[9px] text-emerald-700 font-bold mt-0.5 truncate" title={col}>
@@ -177,6 +216,12 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                 {state.smartSuggestions?.variantSuffix ? (
                                     <p className="text-[10px] text-emerald-700 font-bold mt-0.5">Παραλλαγή: {state.smartSuggestions.variantSuffix}</p>
                                 ) : null}
+                                {state.smartSuggestions?.highlightVariantSuffix ? (
+                                    <p className="text-[10px] text-amber-800 font-bold mt-1 flex flex-wrap items-center gap-x-1 gap-y-0.5">
+                                        <span className="opacity-70 font-bold">Από παραγγελία · έμφαση μετάλλου/πέτρας:</span>
+                                        <SuffixHighlightPreview suffix={state.smartSuggestions.highlightVariantSuffix} />
+                                    </p>
+                                ) : null}
                             </div>
                             {virtualRows.length > 0 && (
                                 <button
@@ -193,7 +238,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                         <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
                             {state.smartSuggestions!.topChips.map((p) => (
                                 <div key={p.sku} className="min-w-[158px] shrink-0">
-                                    {productRow(p)}
+                                    {productRow(p, false, state.recentOrderVariantHint)}
                                 </div>
                             ))}
                         </div>
@@ -232,7 +277,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                                     transform: `translateY(${virtualRow.start}px)`,
                                                 }}
                                             >
-                                                {productRow(row.product, true)}
+                                                {productRow(row.product, true, state.recentOrderVariantHint)}
                                             </div>
                                         );
                                     })}
@@ -292,7 +337,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                     <div className="flex gap-2 overflow-x-auto px-2 pb-3 pt-1 scrollbar-hide">
                                         {state.activeMasterSetMates.map((p) => (
                                             <div key={p.sku} className="min-w-[148px] shrink-0">
-                                                {productRow(p, true)}
+                                                {productRow(p, true, state.recentOrderVariantHint)}
                                             </div>
                                         ))}
                                     </div>

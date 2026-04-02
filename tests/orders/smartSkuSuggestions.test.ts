@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { Gender, PlatingType, Product, ProductVariant, ProductionType } from '../../types';
+import { Collection, Gender, PlatingType, Product, ProductVariant, ProductionType } from '../../types';
 import {
   buildProductSearchIndex,
   computeSmartSkuSuggestions,
+  expandCollectionDigitCoresForAnchor,
+  expandOrionDigitCoresForAnchor,
   getActiveMasterSetMates,
   getCollectionCoreSiblings,
   getFamilyClusterSiblings,
+  isOrionCollectionName,
   parseMasterSkuParts,
+  shouldExcludeDaMnSkCrosswalkSibling,
+  suggestionDesirabilityScore,
 } from '../../features/orders/smartSkuSuggestions';
 
 const makeProduct = (overrides: Partial<Product>): Product =>
@@ -41,9 +46,88 @@ const makeProduct = (overrides: Partial<Product>): Product =>
   }) as Product;
 
 describe('smartSkuSuggestions', () => {
+  const orionCollections: Collection[] = [{ id: 42, name: 'Ωρίων' }];
+
+  it('detects Ωρίων / Orion collection names', () => {
+    expect(isOrionCollectionName('Ωρίων')).toBe(true);
+    expect(isOrionCollectionName('orion gold')).toBe(true);
+    expect(isOrionCollectionName('Άλλη σειρά')).toBe(false);
+  });
+
+  it('Orion: RN301 links PN301, PN601, XR601 via shared collection cores', () => {
+    const products = [
+      makeProduct({ sku: 'RN301', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN301', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN601', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'XR601', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN999', gender: Gender.Men, collections: [42] }),
+    ];
+    const index = buildProductSearchIndex(products, orionCollections);
+    expect(index.orionCollectionIds.has(42)).toBe(true);
+    expect(expandOrionDigitCoresForAnchor(parseMasterSkuParts('RN301')!)).toEqual(['301', '601']);
+    const rn = index.skuMap.get('RN301')!;
+    const sibs = getCollectionCoreSiblings(index, rn)
+      .map((p) => p.sku)
+      .sort();
+    expect(sibs).toEqual(['PN301', 'PN601', 'XR601']);
+  });
+
+  it('Orion: PN625 links RN325, PN325, XR625', () => {
+    const products = [
+      makeProduct({ sku: 'RN325', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN325', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN625', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'XR625', gender: Gender.Men, collections: [42] }),
+    ];
+    const index = buildProductSearchIndex(products, orionCollections);
+    const pn625 = index.skuMap.get('PN625')!;
+    expect(getCollectionCoreSiblings(index, pn625).map((p) => p.sku).sort()).toEqual(['PN325', 'RN325', 'XR625']);
+  });
+
   it('parses master SKU letter and digit core', () => {
     expect(parseMasterSkuParts('DA023')).toEqual({ letters: 'DA', digits: '023', num: 23 });
     expect(parseMasterSkuParts('SK025')).toEqual({ letters: 'SK', digits: '025', num: 25 });
+  });
+
+  it('maps DA001–009 to MN901–909 / SK901–909 cores in the same collection', () => {
+    const products = [
+      makeProduct({ sku: 'DA003', gender: Gender.Women, collections: [1] }),
+      makeProduct({ sku: 'MN003', gender: Gender.Women, collections: [1] }),
+      makeProduct({ sku: 'SK003', gender: Gender.Women, collections: [1] }),
+      makeProduct({ sku: 'MN903', gender: Gender.Women, collections: [1] }),
+      makeProduct({ sku: 'SK903', gender: Gender.Women, collections: [1] }),
+      makeProduct({ sku: 'ST003', gender: Gender.Women, collections: [1] }),
+    ];
+    const index = buildProductSearchIndex(products);
+    const da = index.skuMap.get('DA003')!;
+    expect(expandCollectionDigitCoresForAnchor(parseMasterSkuParts('DA003')!)).toEqual(
+      expect.arrayContaining(['003', '903']),
+    );
+    const sibs = getCollectionCoreSiblings(index, da).map((p) => p.sku).sort();
+    expect(sibs).toContain('MN903');
+    expect(sibs).toContain('SK903');
+    expect(sibs).toContain('ST003');
+    expect(sibs).not.toContain('MN003');
+    expect(sibs).not.toContain('SK003');
+  });
+
+  it('excludes low MN/SK when anchor is MN903 (prefers DA/ST on 003 core)', () => {
+    const a = parseMasterSkuParts('MN903')!;
+    const b = parseMasterSkuParts('SK003')!;
+    expect(shouldExcludeDaMnSkCrosswalkSibling(a, b)).toBe(true);
+  });
+
+  it('prioritizes products that match recent order variant suffix', () => {
+    const v: ProductVariant = { suffix: 'DTMP', description: 't', stock_qty: 0 };
+    const v2: ProductVariant = { suffix: 'PAK', description: 'p', stock_qty: 0 };
+    const withTmp = makeProduct({ sku: 'SK011', gender: Gender.Women, variants: [v] });
+    const withPak = makeProduct({ sku: 'SK012', gender: Gender.Women, variants: [v2] });
+    const ctx = {
+      searchTerm: 'SK01',
+      typedVariant: null,
+      orderVariantSuffixes: ['DTMP'],
+    };
+    expect(suggestionDesirabilityScore(withTmp, ctx)).toBeGreaterThan(suggestionDesirabilityScore(withPak, ctx));
   });
 
   it('indexes collection+core siblings', () => {

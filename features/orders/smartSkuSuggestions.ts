@@ -1,5 +1,17 @@
-import type { Product } from '../../types';
+import type { Collection, Product } from '../../types';
 import { splitSkuComponents } from '../../utils/pricingEngine';
+
+/** DA001–DA009 pair with MN901–909 / SK901–909 in the same collection (not MN001/SK001). */
+const DA_LOW_SERIES_MAX = 9;
+
+/**
+ * Ωρίων-style pairing: RN301–325 + PN301–325 + PN601–625 + XR601–625
+ * (300- and 600-series pendants, one XR band, four RN masters per “line”).
+ */
+const ORION_RN_PN_LOW_MIN301 = 301;
+const ORION_RN_PN_LOW_MAX325 = 325;
+const ORION_PN_XR_HIGH_MIN601 = 601;
+const ORION_PN_XR_HIGH_MAX625 = 625;
 
 /** Built once per `products` load; cheap queries per keystroke. */
 export interface ProductSearchIndex {
@@ -11,6 +23,8 @@ export interface ProductSearchIndex {
   collectionCoreToSkus: Map<string, string[]>;
   /** Key `${collectionId}|${letterPrefix}|${mod100}` when cluster size ≥ 2 and num ≥ 100. */
   familyClusterToSkus: Map<string, string[]>;
+  /** Collection ids whose name matches Ωρίων / Orion — enables RN↔PN↔XR digit pairing above. */
+  orionCollectionIds: Set<number>;
 }
 
 export type SmartSuggestionVirtualRow =
@@ -22,6 +36,8 @@ export interface SmartSuggestionResult {
   virtualRows: SmartSuggestionVirtualRow[];
   rangeHint: string | null;
   variantSuffix: string | null;
+  /** From recent order lines — used to color suffix on cards & pre-fill on select. */
+  highlightVariantSuffix: string | null;
 }
 
 const MASTER_SKU_RE = /^([A-ZΑ-Ω]{2,3})(\d+)/i;
@@ -42,7 +58,43 @@ function firstTwoKey(sku: string): string {
   return u.slice(0, 2);
 }
 
-export function buildProductSearchIndex(products: Product[]): ProductSearchIndex {
+/** Detects Ωρίων (Greek) or Orion (Latin) collection names for special RN/PN/XR pairing. */
+export function isOrionCollectionName(name: string): boolean {
+  const stripped = name.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+  if (stripped.includes('orion')) return true;
+  return stripped.includes('ωριων');
+}
+
+function deriveOrionCollectionIds(collections: Collection[] | undefined): Set<number> {
+  const s = new Set<number>();
+  if (!collections?.length) return s;
+  for (const c of collections) {
+    if (isOrionCollectionName(c.name)) s.add(c.id);
+  }
+  return s;
+}
+
+/**
+ * Extra digit cores for Orion: RN301↔{301,601}, PN301↔{301,601}, PN601/XR601↔{301,601}, etc.
+ */
+export function expandOrionDigitCoresForAnchor(parts: { letters: string; num: number; digits: string }): string[] | null {
+  const { letters, num } = parts;
+  if (letters === 'RN' && num >= ORION_RN_PN_LOW_MIN301 && num <= ORION_RN_PN_LOW_MAX325) {
+    return [String(num), String(num + 300)];
+  }
+  if (letters === 'PN' && num >= ORION_RN_PN_LOW_MIN301 && num <= ORION_RN_PN_LOW_MAX325) {
+    return [String(num), String(num + 300)];
+  }
+  if (letters === 'PN' && num >= ORION_PN_XR_HIGH_MIN601 && num <= ORION_PN_XR_HIGH_MAX625) {
+    return [String(num - 300), String(num)];
+  }
+  if (letters === 'XR' && num >= ORION_PN_XR_HIGH_MIN601 && num <= ORION_PN_XR_HIGH_MAX625) {
+    return [String(num - 300), String(num)];
+  }
+  return null;
+}
+
+export function buildProductSearchIndex(products: Product[], collections?: Collection[]): ProductSearchIndex {
   const masters = products.filter((p) => !p.is_component);
   const skuMap = new Map<string, Product>();
   const byFirstTwo = new Map<string, Product[]>();
@@ -79,6 +131,8 @@ export function buildProductSearchIndex(products: Product[]): ProductSearchIndex
     }
   }
 
+  const orionCollectionIds = deriveOrionCollectionIds(collections);
+
   for (const arr of collectionCoreToSkus.values()) {
     arr.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
     const seen = new Set<string>();
@@ -93,10 +147,10 @@ export function buildProductSearchIndex(products: Product[]): ProductSearchIndex
     arr.push(...deduped);
   }
 
-  return { masters, skuMap, byFirstTwo, collectionCoreToSkus, familyClusterToSkus };
+  return { masters, skuMap, byFirstTwo, collectionCoreToSkus, familyClusterToSkus, orionCollectionIds };
 }
 
-function productMatchesVariantSuffix(p: Product, suffixUpper: string | null): boolean {
+export function productMatchesVariantSuffix(p: Product, suffixUpper: string | null): boolean {
   if (!suffixUpper) return true;
   const vars = p.variants;
   if (!vars || vars.length === 0) return suffixUpper === '';
@@ -106,7 +160,100 @@ function productMatchesVariantSuffix(p: Product, suffixUpper: string | null): bo
   });
 }
 
-/** Same numeric core + shared collection (different master letters). */
+/** Digit cores to look up in `collectionCoreToSkus` incl. DA↔MN/SK 9xx crosswalk. */
+export function expandCollectionDigitCoresForAnchor(parts: { letters: string; digits: string; num: number }): string[] {
+  const cores = new Set<string>([parts.digits]);
+  if (parts.letters === 'DA' && parts.num >= 1 && parts.num <= DA_LOW_SERIES_MAX) {
+    cores.add(String(900 + parts.num));
+  }
+  if ((parts.letters === 'MN' || parts.letters === 'SK') && parts.num >= 901 && parts.num <= 909) {
+    cores.add(String(parts.num - 900).padStart(3, '0'));
+  }
+  return [...cores];
+}
+
+/** Drop MNxxx/SKxxx low-series siblings when anchor is DA00n; drop MN/SK on 00n when anchor is MN/SK 90n. */
+export function shouldExcludeDaMnSkCrosswalkSibling(
+  anchor: { letters: string; digits: string; num: number },
+  candidate: { letters: string; digits: string; num: number },
+): boolean {
+  if (anchor.letters === 'DA' && anchor.num >= 1 && anchor.num <= DA_LOW_SERIES_MAX) {
+    if ((candidate.letters === 'MN' || candidate.letters === 'SK') && candidate.digits === anchor.digits) {
+      return true;
+    }
+  }
+  if ((anchor.letters === 'MN' || anchor.letters === 'SK') && anchor.num >= 901 && anchor.num <= 909) {
+    const lowDigits = String(anchor.num - 900).padStart(3, '0');
+    if ((candidate.letters === 'MN' || candidate.letters === 'SK') && candidate.digits === lowDigits) {
+      return true;
+    }
+  }
+  return false;
+}
+
+const variantHintRank = (p: Product, hints: string[]): number => {
+  let best = 0;
+  for (const raw of hints) {
+    const h = raw.trim().toUpperCase();
+    if (!h) continue;
+    const vars = p.variants;
+    if (!vars?.length) continue;
+    for (const v of vars) {
+      const u = (v.suffix || '').toUpperCase();
+      if (u === h) {
+        best = Math.max(best, 3000 + h.length);
+      } else if (u.startsWith(h) || h.startsWith(u)) {
+        best = Math.max(best, 1500 + Math.min(u.length, h.length));
+      } else if (h.length >= 2 && (u.includes(h) || h.includes(u))) {
+        best = Math.max(best, 500);
+      }
+    }
+  }
+  return best;
+};
+
+export interface SuggestionRankContext {
+  searchTerm: string;
+  typedVariant: string | null;
+  orderVariantSuffixes: string[];
+}
+
+/** Higher score = more desirable (search match + variant affinity from order / typed tail). */
+export function suggestionDesirabilityScore(p: Product, ctx: SuggestionRankContext): number {
+  const sku = p.sku.toUpperCase();
+  const t = ctx.searchTerm.trim().toUpperCase();
+  let score = 0;
+  if (t.length >= 2) {
+    if (sku === t) score += 100_000;
+    else if (sku.startsWith(t)) score += 50_000;
+    else if (t.length >= 3 && sku.includes(t)) score += 10_000;
+  }
+  const hintList = [ctx.typedVariant, ...ctx.orderVariantSuffixes]
+    .filter((x): x is string => !!x && String(x).trim().length > 0)
+    .map((x) => String(x).trim().toUpperCase());
+  score += variantHintRank(p, hintList);
+  return score;
+}
+
+export function sortProductsForSuggestions(products: Product[], ctx: SuggestionRankContext): Product[] {
+  return [...products].sort((a, b) => {
+    const diff = suggestionDesirabilityScore(b, ctx) - suggestionDesirabilityScore(a, ctx);
+    if (diff !== 0) return diff;
+    return a.sku.localeCompare(b.sku, undefined, { numeric: true });
+  });
+}
+
+function pickHighlightSuffixFromContext(products: Product[], orderHints: string[], typed: string | null): string | null {
+  const hints = [typed, ...orderHints]
+    .filter((x): x is string => !!x && x.trim().length > 0)
+    .map((x) => x.trim().toUpperCase());
+  for (const h of hints) {
+    if (products.some((p) => productMatchesVariantSuffix(p, h))) return h;
+  }
+  return null;
+}
+
+/** Same numeric core + shared collection (different master letters), incl. DA001–009 ↔ MN/SK901–909 and Ωρίων RN/PN/XR pairing. */
 export function getCollectionCoreSiblings(index: ProductSearchIndex, product: Product): Product[] {
   const parts = parseMasterSkuParts(product.sku);
   if (!parts) return [];
@@ -114,15 +261,25 @@ export function getCollectionCoreSiblings(index: ProductSearchIndex, product: Pr
   const seen = new Set<string>();
 
   for (const cid of product.collections || []) {
-    const key = `${cid}|${parts.digits}`;
-    const skus = index.collectionCoreToSkus.get(key);
-    if (!skus) continue;
-    for (const sku of skus) {
-      if (sku === product.sku) continue;
-      const other = index.skuMap.get(sku);
-      if (!other) continue;
-      const op = parseMasterSkuParts(other.sku);
-      if (op && op.digits === parts.digits && other.collections?.includes(cid)) {
+    const digitCores = new Set(expandCollectionDigitCoresForAnchor(parts));
+    if (index.orionCollectionIds.has(cid)) {
+      const orion = expandOrionDigitCoresForAnchor(parts);
+      if (orion) {
+        for (const c of orion) digitCores.add(c);
+      }
+    }
+
+    for (const core of digitCores) {
+      const key = `${cid}|${core}`;
+      const skus = index.collectionCoreToSkus.get(key);
+      if (!skus) continue;
+      for (const sku of skus) {
+        if (sku === product.sku) continue;
+        const other = index.skuMap.get(sku);
+        if (!other || !other.collections?.includes(cid)) continue;
+        const op = parseMasterSkuParts(other.sku);
+        if (!op || !digitCores.has(op.digits)) continue;
+        if (shouldExcludeDaMnSkCrosswalkSibling(parts, op)) continue;
         if (!seen.has(sku)) {
           seen.add(sku);
           out.push(other);
@@ -181,7 +338,7 @@ export function getActiveMasterSetMates(
   return filtered;
 }
 
-function searchMasters(index: ProductSearchIndex, term: string): Product[] {
+function searchMasters(index: ProductSearchIndex, term: string, rankCtx?: SuggestionRankContext): Product[] {
   const t = term.trim().toUpperCase();
   if (t.length < 2) return [];
   const pool = t.length >= 2 ? index.byFirstTwo.get(t.slice(0, 2)) ?? index.masters : index.masters;
@@ -192,6 +349,10 @@ function searchMasters(index: ProductSearchIndex, term: string): Product[] {
     if (t.length >= 3 && sku.includes(t)) return true;
     return false;
   });
+
+  if (rankCtx) {
+    return sortProductsForSuggestions(hits, rankCtx);
+  }
 
   const rank = (p: Product): [number, number, string] => {
     const sku = p.sku.toUpperCase();
@@ -239,6 +400,8 @@ export interface ComputeSmartSkuSuggestionsArgs {
   index: ProductSearchIndex;
   skuPart: string;
   orderContextMasterSkus: string[];
+  /** Non-empty variant_suffix values from recent lines (order matters: newest first). */
+  orderContextVariantSuffixes?: string[];
 }
 
 export function computeSmartSkuSuggestions(args: ComputeSmartSkuSuggestionsArgs): SmartSuggestionResult | null {
@@ -246,13 +409,23 @@ export function computeSmartSkuSuggestions(args: ComputeSmartSkuSuggestionsArgs)
   const term = skuPart.trim().toUpperCase();
   if (term.length < 2) return null;
 
+  const orderSuffixes = (args.orderContextVariantSuffixes || [])
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
   const { master: masterPartRaw, suffix: splitSuffix } = splitSkuComponents(term);
   const variantSuffix = splitSuffix ? splitSuffix.toUpperCase() : null;
   const masterUpper = masterPartRaw.trim().toUpperCase();
   /** Prefer master base for search when user is typing a full code with variant tail (e.g. SK025DPCO). */
   const searchTerm = masterUpper.length >= 2 && masterUpper !== term ? masterUpper : term;
 
-  const searchHits = searchMasters(index, searchTerm);
+  const rankCtx: SuggestionRankContext = {
+    searchTerm,
+    typedVariant: variantSuffix,
+    orderVariantSuffixes: orderSuffixes,
+  };
+
+  const searchHits = searchMasters(index, searchTerm, rankCtx);
   const rangeHint = computeRangeHint(searchTerm, searchHits);
 
   let anchor: Product | null = index.skuMap.get(masterUpper) ?? index.skuMap.get(term) ?? null;
@@ -263,8 +436,14 @@ export function computeSmartSkuSuggestions(args: ComputeSmartSkuSuggestionsArgs)
   let setMates: Product[] = [];
   let familyMates: Product[] = [];
   if (anchor && (anchor.collections?.length ?? 0) > 0) {
-    setMates = filterByVariantSuffix(getCollectionCoreSiblings(index, anchor), variantSuffix);
-    familyMates = filterByVariantSuffix(getFamilyClusterSiblings(index, anchor), variantSuffix);
+    setMates = sortProductsForSuggestions(
+      filterByVariantSuffix(getCollectionCoreSiblings(index, anchor), variantSuffix),
+      rankCtx,
+    );
+    familyMates = sortProductsForSuggestions(
+      filterByVariantSuffix(getFamilyClusterSiblings(index, anchor), variantSuffix),
+      rankCtx,
+    );
   }
 
   const orderMates: Product[] = [];
@@ -273,7 +452,7 @@ export function computeSmartSkuSuggestions(args: ComputeSmartSkuSuggestionsArgs)
     const p = index.skuMap.get(sku);
     if (!p) continue;
     const mates = filterByVariantSuffix(getCollectionCoreSiblings(index, p), variantSuffix);
-    for (const m of mates) {
+    for (const m of sortProductsForSuggestions(mates, rankCtx)) {
       if (!seenOrder.has(m.sku)) {
         seenOrder.add(m.sku);
         orderMates.push(m);
@@ -288,7 +467,8 @@ export function computeSmartSkuSuggestions(args: ComputeSmartSkuSuggestionsArgs)
   const virtualRows: SmartSuggestionVirtualRow[] = [];
 
   const pushSection = (id: string, label: string, list: Product[]) => {
-    const slice = list.slice(0, MAX_SECTION);
+    const sorted = sortProductsForSuggestions(list, rankCtx);
+    const slice = sorted.slice(0, MAX_SECTION);
     if (slice.length === 0) return;
     virtualRows.push({ kind: 'header', id, label });
     for (const product of slice) {
@@ -314,27 +494,27 @@ export function computeSmartSkuSuggestions(args: ComputeSmartSkuSuggestionsArgs)
     dedupe(familyMates, new Set([...searchSkuSet, ...setSkuSet, ...orderSkuSet])),
   );
 
-  const topChips: Product[] = [];
-  const topSeen = new Set<string>();
-  const addTop = (list: Product[]) => {
-    for (const p of list) {
-      if (topChips.length >= MAX_TOP) return;
-      if (topSeen.has(p.sku)) continue;
-      topSeen.add(p.sku);
-      topChips.push(p);
-    }
-  };
+  const mergeTopPools = [
+    ...searchHits,
+    ...setMates,
+    ...orderMates,
+    ...familyMates,
+  ];
+  const topChips = sortProductsForSuggestions(mergeTopPools, rankCtx)
+    .filter((p, i, arr) => arr.findIndex((x) => x.sku === p.sku) === i)
+    .slice(0, MAX_TOP);
 
-  addTop(searchHits);
-  addTop(setMates);
-  addTop(orderMates);
-  addTop(familyMates);
-  addTop(searchHits.filter((p) => !topSeen.has(p.sku)));
+  const highlightVariantSuffix = pickHighlightSuffixFromContext(
+    [...topChips, ...searchHits.slice(0, 20)],
+    orderSuffixes,
+    variantSuffix,
+  );
 
   return {
     topChips,
     virtualRows,
     rangeHint,
     variantSuffix,
+    highlightVariantSuffix,
   };
 }

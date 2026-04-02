@@ -16,7 +16,10 @@ import {
     buildProductSearchIndex,
     computeSmartSkuSuggestions,
     getActiveMasterSetMates,
+    productMatchesVariantSuffix,
+    sortProductsForSuggestions,
     type SmartSuggestionResult,
+    type SuggestionRankContext,
 } from '../features/orders/smartSkuSuggestions';
 
 const DRAFT_ORDER_KEY = 'ilios_desktop_draft_order';
@@ -92,6 +95,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
     const [candidateProducts, setCandidateProducts] = useState<Product[]>([]);
     const [smartSuggestions, setSmartSuggestions] = useState<SmartSuggestionResult | null>(null);
     const [recentContextMasterSkus, setRecentContextMasterSkus] = useState<string[]>([]);
+    const [recentContextVariantSuffixes, setRecentContextVariantSuffixes] = useState<string[]>([]);
     const [activeMaster, setActiveMaster] = useState<Product | null>(null);
     const [filteredVariants, setFilteredVariants] = useState<{ variant: ProductVariant, suffix: string, desc: string }[]>([]);
     const [selectedSize, setSelectedSize] = useState('');
@@ -111,7 +115,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
     // --- Refs ---
     const inputRef = useRef<HTMLInputElement>(null);
 
-    const productSearchIndex = useMemo(() => buildProductSearchIndex(products), [products]);
+    const productSearchIndex = useMemo(() => buildProductSearchIndex(products, collections), [products, collections]);
     const collectionNameById = useMemo(() => {
         const m: Record<number, string> = {};
         for (const c of collections || []) m[c.id] = c.name;
@@ -121,8 +125,20 @@ export function useOrderState({ initialOrder, products, customers, collections, 
     const activeMasterSetMates = useMemo(() => {
         if (!activeMaster) return [];
         const token = scanInput.trim().split(/\s+/)[0] || '';
-        return getActiveMasterSetMates(productSearchIndex, activeMaster, token);
-    }, [productSearchIndex, activeMaster, scanInput]);
+        const mates = getActiveMasterSetMates(productSearchIndex, activeMaster, token);
+        const upper = token.toUpperCase();
+        const masterU = activeMaster.sku.toUpperCase();
+        let typedTail: string | null = null;
+        if (upper.startsWith(masterU) && upper.length > masterU.length) {
+            typedTail = upper.slice(masterU.length);
+        }
+        const rankCtx: SuggestionRankContext = {
+            searchTerm: activeMaster.sku,
+            typedVariant: typedTail,
+            orderVariantSuffixes: recentContextVariantSuffixes,
+        };
+        return sortProductsForSuggestions(mates, rankCtx);
+    }, [productSearchIndex, activeMaster, scanInput, recentContextVariantSuffixes]);
 
     // --- Draft autosave ---
     useEffect(() => {
@@ -326,6 +342,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                 index: productSearchIndex,
                 skuPart,
                 orderContextMasterSkus: recentContextMasterSkus,
+                orderContextVariantSuffixes: recentContextVariantSuffixes,
             });
             setSmartSuggestions(smart);
             setCandidateProducts(smart?.topChips ?? []);
@@ -413,9 +430,11 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         }
     };
 
-    const handleSelectMaster = (p: Product) => {
+    const handleSelectMaster = (p: Product, preferVariantSuffix?: string | null) => {
+        const pref = preferVariantSuffix?.trim().toUpperCase() || '';
+        const usePref = pref.length > 0 && productMatchesVariantSuffix(p, pref);
         setActiveMaster(p);
-        setScanInput(p.sku);
+        setScanInput(usePref ? p.sku + pref : p.sku);
         setCandidateProducts([p]);
         setSmartSuggestions(null);
         const sizing = getSizingInfo(p);
@@ -423,8 +442,16 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         else setSizeMode(null);
         setSelectedCordColor(undefined);
         setSelectedEnamelColor(undefined);
-        if (p.variants) {
-            setFilteredVariants(p.variants.map(v => ({ variant: v, suffix: v.suffix, desc: v.description })));
+        if (p.variants && p.variants.length > 0) {
+            if (usePref) {
+                const searchSuffix = pref;
+                const validVariants = p.variants
+                    .filter(v => v.suffix.toUpperCase().startsWith(searchSuffix))
+                    .map(v => ({ variant: v, suffix: v.suffix, desc: v.description }));
+                setFilteredVariants(validVariants.length > 0 ? validVariants : p.variants.map(v => ({ variant: v, suffix: v.suffix, desc: v.description })));
+            } else {
+                setFilteredVariants(p.variants.map(v => ({ variant: v, suffix: v.suffix, desc: v.description })));
+            }
         } else {
             setFilteredVariants([]);
         }
@@ -468,6 +495,13 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                 const next = [master.sku, ...prev.filter(s => s !== master.sku)];
                 return next.slice(0, 12);
             });
+            const vs = variant?.suffix?.trim();
+            if (vs) {
+                setRecentContextVariantSuffixes(prev => {
+                    const next = [vs, ...prev.filter(s => s !== vs)];
+                    return next.slice(0, 12);
+                });
+            }
         }
         setPriceDiffs(null);
     };
@@ -681,6 +715,13 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                     const next = [product.sku, ...prev.filter(s => s !== product.sku)];
                     return next.slice(0, 12);
                 });
+                const vs = variant?.suffix?.trim();
+                if (vs) {
+                    setRecentContextVariantSuffixes(prev => {
+                        const next = [vs, ...prev.filter(s => s !== vs)];
+                        return next.slice(0, 12);
+                    });
+                }
                 showToast(`Προστέθηκε: ${product.sku}${variant?.suffix || ''}`, 'success');
                 setShowScanner(false);
             }
@@ -941,6 +982,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             // Smart entry
             scanInput, scanQty, itemNotes, specialCreationUnitPriceStr,
             candidateProducts, smartSuggestions, activeMasterSetMates, collectionNameById,
+            recentOrderVariantHint: recentContextVariantSuffixes[0] ?? null,
             activeMaster, filteredVariants,
             selectedSize, selectedCordColor, selectedEnamelColor, sizeMode, showScanner,
             // Sort/filter
