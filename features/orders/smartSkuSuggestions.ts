@@ -34,7 +34,7 @@ export interface ProductSearchIndex {
   collectionCoreToSkus: Map<string, string[]>;
   /** Key `${collectionId}|${letterPrefix}|${mod100}` when cluster size ≥ 2 and num ≥ 100. */
   familyClusterToSkus: Map<string, string[]>;
-  /** Collection ids whose name matches Ωρίων / Orion — enables RN↔PN↔XR digit pairing above. */
+  /** Collection ids whose name matches Ωρίων / Orion (informational; RN↔PN↔XR +300 pairing uses numeric bands for all shared collections). */
   orionCollectionIds: Set<number>;
 }
 
@@ -328,11 +328,10 @@ export function getCollectionCoreSiblings(index: ProductSearchIndex, product: Pr
 
   for (const cid of product.collections || []) {
     const digitCores = new Set(expandCollectionDigitCoresForAnchor(parts));
-    if (index.orionCollectionIds.has(cid)) {
-      const orion = expandOrionDigitCoresForAnchor(parts);
-      if (orion) {
-        for (const c of orion) digitCores.add(c);
-      }
+    /** RN/PN/XR band SKUs (301–325, 401–425, …) always get +300 core linking in shared collections — not only when the collection is named Ωρίων (newer ring lines are often grouped without that tag). */
+    const orion = expandOrionDigitCoresForAnchor(parts);
+    if (orion) {
+      for (const c of orion) digitCores.add(c);
     }
 
     for (const core of digitCores) {

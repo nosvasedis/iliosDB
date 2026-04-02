@@ -99,6 +99,16 @@ describe('smartSkuSuggestions', () => {
     ).toEqual(['PN410', 'PN710', 'XR710']);
   });
 
+  it('Orion: RN410↔710 pairing works even when no collection is named Ωρίων on the index', () => {
+    const products = [
+      makeProduct({ sku: 'RN410', gender: Gender.Men, collections: [7] }),
+      makeProduct({ sku: 'PN710', gender: Gender.Men, collections: [7] }),
+    ];
+    const index = buildProductSearchIndex(products);
+    expect(index.orionCollectionIds.size).toBe(0);
+    expect(getCollectionCoreSiblings(index, index.skuMap.get('RN410')!).map((p) => p.sku).sort()).toEqual(['PN710']);
+  });
+
   it('Orion: RN410 links PN410, PN710, XR710 (401–425 band)', () => {
     const products = [
       makeProduct({ sku: 'RN410', gender: Gender.Men, collections: [42] }),
