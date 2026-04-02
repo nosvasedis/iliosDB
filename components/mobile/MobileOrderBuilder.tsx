@@ -1,4 +1,4 @@
-﻿
+
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime, Collection } from '../../types';
 import {
@@ -52,7 +52,7 @@ interface Props {
     attachSeller?: boolean;
 }
 
-// β”€β”€β”€ Catalog Inline Browser (Seller Only) β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€
+// ─── Catalog Inline Browser (Seller Only) ─────────────────────────────────────
 type CatalogStep = 'collections' | 'products';
 
 interface CatalogBrowserProps {
@@ -97,7 +97,7 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
     if (step === 'collections') {
         return (
             <div className="space-y-3">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Ξ•Ο€ΞΉΞ»Ξ­ΞΎΟ„Ξµ Ξ£Ο…Ξ»Ξ»ΞΏΞ³Ξ®</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Επιλέξτε Συλλογή</p>
                 <div className="grid grid-cols-2 gap-3 landscape:grid-cols-3">
                     {collections.map(col => {
                         const previewProduct = products.find(p => p.collections?.includes(col.id) && p.image_url);
@@ -114,13 +114,13 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                                 <div className="absolute bottom-0 inset-x-0 p-3">
                                     <div className="text-white font-black text-sm leading-tight truncate">{col.name}</div>
-                                    <div className="text-white/60 text-[9px] font-bold mt-0.5">{count} ΞµΞ―Ξ΄Ξ·</div>
+                                    <div className="text-white/60 text-[9px] font-bold mt-0.5">{count} είδη</div>
                                 </div>
                             </button>
                         );
                     })}
                     {collections.length === 0 && (
-                        <div className="col-span-2 text-center py-8 text-slate-400 text-sm">Ξ”ΞµΞ½ Ο…Ο€Ξ¬ΟΟ‡ΞΏΟ…Ξ½ ΟƒΟ…Ξ»Ξ»ΞΏΞ³Ξ­Ο‚.</div>
+                        <div className="col-span-2 text-center py-8 text-slate-400 text-sm">Δεν υπάρχουν συλλογές.</div>
                     )}
                 </div>
             </div>
@@ -135,20 +135,20 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
                     <ChevronLeft size={16} />
                 </button>
                 <span className="font-black text-slate-800 flex-1 truncate">{selectedCollection?.name}</span>
-                <span className="text-[10px] text-slate-400 font-bold">{filteredProducts.length} ΞµΞ―Ξ΄Ξ·</span>
+                <span className="text-[10px] text-slate-400 font-bold">{filteredProducts.length} είδη</span>
             </div>
             {/* Search */}
             <div className="relative shrink-0">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                     type="text"
-                    placeholder="Ξ‘Ξ½Ξ±Ξ¶Ξ®Ο„Ξ·ΟƒΞ· ΞΊΟ‰Ξ΄ΞΉΞΊΞΏΟ..."
+                    placeholder="Αναζήτηση κωδικού..."
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
                     className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-400/20"
                 />
             </div>
-            {/* Product grid β€” when expanded, taller and slightly larger cards */}
+            {/* Product grid — when expanded, taller and slightly larger cards */}
             <div className={`grid gap-2 overflow-y-auto custom-scrollbar pb-1 flex-1 min-h-0 ${expanded ? 'grid-cols-3 landscape:grid-cols-4 gap-3 max-h-[60vh]' : 'grid-cols-3 landscape:grid-cols-4 max-h-96'}`}>
                 {filteredProducts.map(p => (
                     <button
@@ -169,17 +169,17 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
                     </button>
                 ))}
                 {filteredProducts.length === 0 && (
-                    <div className="col-span-3 text-center py-8 text-slate-400 text-xs">Ξ”ΞµΞ½ Ξ²ΟΞ­ΞΈΞ·ΞΊΞ±Ξ½ Ο€ΟΞΏΟΟΞ½Ο„Ξ±.</div>
+                    <div className="col-span-3 text-center py-8 text-slate-400 text-xs">Δεν βρέθηκαν προϊόντα.</div>
                 )}
             </div>
         </div>
     );
 };
 
-// β”€β”€β”€ Draft persistence helpers β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€
+// ─── Draft persistence helpers ────────────────────────────────────────────────
 const DRAFT_KEY = 'seller_order_draft';
 
-// β”€β”€β”€ Main Component β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function MobileOrderBuilder({ onBack, initialOrder, products, attachSeller = false }: Props) {
     const { showToast, confirm } = useUI();
     const { user, profile } = useAuth();
@@ -189,16 +189,16 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
 
     const isSeller = profile?.role === 'seller';
 
-    // β”€β”€ Input Mode (seller only): 'sku' | 'catalog' β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€
+    // ── Input Mode (seller only): 'sku' | 'catalog' ─────────────────────────
     const [inputMode, setInputMode] = useState<'sku' | 'catalog'>('sku');
 
-    // β”€β”€ Catalog browser state (lifted so we stay in same collection after adding item) β”€β”€
+    // ── Catalog browser state (lifted so we stay in same collection after adding item) ──
     const [catalogStep, setCatalogStep] = useState<CatalogStep>('collections');
     const [catalogCollection, setCatalogCollection] = useState<Collection | null>(null);
     const initialRetailNotes = extractRetailClientFromNotes(initialOrder?.notes);
     const initialIsRetailCustomer = initialOrder?.customer_id === RETAIL_CUSTOMER_ID || initialOrder?.customer_name === RETAIL_CUSTOMER_NAME;
 
-    // β”€β”€ Order State β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€
+    // ── Order State ──────────────────────────────────────────────────────────
     const [customerName, setCustomerName] = useState(initialIsRetailCustomer ? RETAIL_CUSTOMER_NAME : (initialOrder?.customer_name || ''));
     const [customerPhone, setCustomerPhone] = useState(initialIsRetailCustomer ? '' : (initialOrder?.customer_phone || ''));
     const [customerId, setCustomerId] = useState<string | null>(initialOrder?.customer_id || (initialIsRetailCustomer ? RETAIL_CUSTOMER_ID : null));
@@ -217,7 +217,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const [editCordColor, setEditCordColor] = useState<OrderItem['cord_color']>();
     const [editEnamelColor, setEditEnamelColor] = useState<OrderItem['enamel_color']>();
 
-    // β”€β”€ SKU Input State β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€
+    // ── SKU Input State ──────────────────────────────────────────────────────
     const [input, setInput] = useState('');
     const [suggestions, setSuggestions] = useState<Product[]>([]);
     const [activeMaster, setActiveMaster] = useState<Product | null>(null);
@@ -266,7 +266,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         return buildMobileOrderBuilderEditStoneOptions(editVariantsByFinish, editFinish);
     }, [editVariantsByFinish, editFinish]);
 
-    // β”€β”€ Smart SKU search + full-code resolution (e.g. SK005PAK) β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€
+    // ── Smart SKU search + full-code resolution (e.g. SK005PAK) ─────────────────
     useEffect(() => {
         const term = input.trim().toUpperCase();
         if (term.length < 2) { setSuggestions([]); return; }
@@ -291,9 +291,9 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         setSuggestions(buildMobileOrderBuilderProductSuggestions(products, term));
     }, [input, products]);
 
-    // β”€β”€ Autosave draft to sessionStorage (new orders only) β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€
+    // ── Autosave draft to sessionStorage (new orders only) ──────────────────
     useEffect(() => {
-        if (initialOrder) return; // editing existing β€” no draft logic
+        if (initialOrder) return; // editing existing — no draft logic
         const raw = sessionStorage.getItem(DRAFT_KEY);
         const draft = raw ? parseMobileOrderBuilderDraft(raw) : null;
         if (draft && (draft.items.length > 0 || draft.customerName)) setShowDraftBanner(true);
@@ -330,7 +330,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         try {
             sessionStorage.setItem(DRAFT_KEY, serializeMobileOrderBuilderDraft({ customerName, customerPhone, customerId, items, vatRate, discountPercent, orderNotes, retailClientLabel }));
         } catch (e) {
-            // QuotaExceededError β€” silently skip; autosave is best-effort
+            // QuotaExceededError — silently skip; autosave is best-effort
             console.warn('Draft autosave skipped (storage full):', e);
         }
     }, [customerName, customerPhone, customerId, items, vatRate, discountPercent, orderNotes, retailClientLabel, initialOrder]);
@@ -374,7 +374,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         const normalized = specialCreationUnitPriceStr.trim().replace(',', '.');
         const unit = parseFloat(normalized);
         if (Number.isNaN(unit) || unit < 0) {
-            showToast('ΞΞ±Ο„Ξ±Ο‡Ο‰ΟΞ®ΟƒΟ„Ξµ Ξ­Ξ³ΞΊΟ…ΟΞ· ΞΌΞΏΞ½Ξ¬Ξ΄Ξ± Ο„ΞΉΞΌΞ®Ο‚ (β‚¬) Ξ³ΞΉΞ± Ο„ΞΏ SP.', 'error');
+            showToast('Καταχωρήστε έγκυρη μονάδα τιμής (€) για το SP.', 'error');
             return;
         }
         const rounded = Math.round(unit * 100) / 100;
@@ -387,7 +387,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             line_id: crypto.randomUUID()
         };
         setItems(prev => [newItem, ...prev]);
-        showToast('Ξ ΟΞΏΟƒΟ„Ξ­ΞΈΞ·ΞΊΞµ ΞµΞΉΞ΄ΞΉΞΊΞ® Ξ΄Ξ·ΞΌΞΉΞΏΟ…ΟΞ³Ξ―Ξ± (SP).', 'success');
+        showToast('Προστέθηκε ειδική δημιουργία (SP).', 'success');
         setSpecialCreationUnitPriceStr('');
         setItemNotes('');
         setQty(1);
@@ -420,7 +420,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             }
             return [newItem, ...prev];
         });
-        showToast(`${master.sku}${variant?.suffix || ''} Ο€ΟΞΏΟƒΟ„Ξ­ΞΈΞ·ΞΊΞµ`, 'success');
+        showToast(`${master.sku}${variant?.suffix || ''} προστέθηκε`, 'success');
         setResolvedVariant(null);
         setSelectedFinish(null);
         setSelectedSize('');
@@ -438,13 +438,13 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
 
     const handleScan = (code: string) => {
         if (code.trim().toUpperCase() === 'SP') {
-            showToast('Ξ“ΞΉΞ± SP Ο€Ξ»Ξ·ΞΊΟ„ΟΞΏΞ»ΞΏΞ³Ξ®ΟƒΟ„Ξµ SP, Ο„ΞΉΞΌΞ® ΞΌΞΏΞ½Ξ¬Ξ΄Ξ±Ο‚ ΞΊΞ±ΞΉ Β«Ξ ΟΞΏΟƒΞΈΞ®ΞΊΞ· SPΒ».', 'error');
+            showToast('Για SP πληκτρολογήστε SP, τιμή μονάδας και «Προσθήκη SP».', 'error');
             return;
         }
         const match = findProductByScannedCode(code, products);
         if (match) {
             const { product, variant } = match;
-            if (product.is_component) { showToast(`Ξ¤ΞΏ ${product.sku} ΞµΞ―Ξ½Ξ±ΞΉ ΞµΞΎΞ¬ΟΟ„Ξ·ΞΌΞ±.`, 'error'); return; }
+            if (product.is_component) { showToast(`Το ${product.sku} είναι εξάρτημα.`, 'error'); return; }
             const unitPrice = variant?.selling_price || product.selling_price || 0;
             const newItem: OrderItem = { sku: product.sku, variant_suffix: variant?.suffix, quantity: 1, price_at_order: unitPrice, product_details: product };
             setItems(prev => {
@@ -452,10 +452,10 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                 if (existingIdx >= 0) { const updated = [...prev]; updated[existingIdx].quantity += 1; return updated; }
                 return [newItem, ...prev];
             });
-            showToast(`Ξ ΟΞΏΟƒΟ„Ξ­ΞΈΞ·ΞΊΞµ: ${product.sku}${variant?.suffix || ''}`, 'success');
+            showToast(`Προστέθηκε: ${product.sku}${variant?.suffix || ''}`, 'success');
             setShowScanner(false);
         } else {
-            showToast(`ΞΞ· Ξ­Ξ³ΞΊΟ…ΟΞΏΟ‚ ΞΊΟ‰Ξ΄ΞΉΞΊΟΟ‚.`, 'error');
+            showToast(`Μη έγκυρος κωδικός.`, 'error');
         }
     };
 
@@ -504,7 +504,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         if (editingIndex === null) return;
         const nextVariant = editingVariants.length > 0 ? editVariantSuffix : undefined;
         updateItemVariantAndSize(editingIndex, nextVariant, editSizeInfo || undefined, editCordColor, editEnamelColor);
-        showToast('Ξ¤ΞΏ ΞµΞ―Ξ΄ΞΏΟ‚ ΞµΞ½Ξ·ΞΌΞµΟΟΞΈΞ·ΞΊΞµ.', 'success');
+        showToast('Το είδος ενημερώθηκε.', 'success');
         closeItemEditor();
     };
 
@@ -541,7 +541,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     }, [initialOrder, items, grandTotal, discountPercent, orderNotes, retailClientLabel, attachSeller, isSeller, profile?.id, profile?.full_name, user?.id, user?.email, queryClient, onBack]);
 
     const handleSaveOrder = async () => {
-        if (items.length === 0) { showToast('Ξ— Ο€Ξ±ΟΞ±Ξ³Ξ³ΞµΞ»Ξ―Ξ± ΞµΞ―Ξ½Ξ±ΞΉ ΞΊΞµΞ½Ξ®.', 'error'); return; }
+        if (items.length === 0) { showToast('Η παραγγελία είναι κενή.', 'error'); return; }
         if (!customerName) {
             setShowCreateClientScreen(true);
             return;
@@ -550,7 +550,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         try {
             await performOrderSave(customerName, customerPhone, customerId, vatRate);
         } catch (e) {
-            showToast('Ξ£Ο†Ξ¬Ξ»ΞΌΞ± Ξ±Ο€ΞΏΞΈΞ®ΞΊΞµΟ…ΟƒΞ·Ο‚', 'error');
+            showToast('Σφάλμα αποθήκευσης', 'error');
         } finally {
             setIsSaving(false);
         }
@@ -559,7 +559,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const handleCreateClientAndSaveOrder = async (form: Customer) => {
         try {
             const saved = await ordersRepository.saveCustomer(form);
-            if (!saved) { showToast('Ξ£Ο†Ξ¬Ξ»ΞΌΞ± Ξ±Ο€ΞΏΞΈΞ®ΞΊΞµΟ…ΟƒΞ·Ο‚ Ο€ΞµΞ»Ξ¬Ο„Ξ·.', 'error'); return; }
+            if (!saved) { showToast('Σφάλμα αποθήκευσης πελάτη.', 'error'); return; }
             setCustomerId(saved.id);
             setCustomerName(saved.full_name);
             setCustomerPhone(saved.phone || '');
@@ -568,7 +568,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             setIsSaving(true);
             await performOrderSave(saved.full_name, saved.phone || '', saved.id, saved.vat_rate ?? VatRegime.Standard);
         } catch (e) {
-            showToast('Ξ£Ο†Ξ¬Ξ»ΞΌΞ± Ξ±Ο€ΞΏΞΈΞ®ΞΊΞµΟ…ΟƒΞ·Ο‚', 'error');
+            showToast('Σφάλμα αποθήκευσης', 'error');
         } finally {
             setIsSaving(false);
         }
@@ -577,11 +577,11 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const handleBackNav = async () => {
         if (items.length === 0 && !customerName) { sessionStorage.removeItem(DRAFT_KEY); onBack(); return; }
         const choice = await confirm({
-            title: 'Ξ‘Ο€ΞΏΟ‡ΟΟΞ·ΟƒΞ· Ξ±Ο€Ο Ο€Ξ±ΟΞ±Ξ³Ξ³ΞµΞ»Ξ―Ξ±',
-            message: 'ΞΞ­Ξ»ΞµΟ„Ξµ Ξ½Ξ± Ξ±Ο€ΞΏΞΈΞ·ΞΊΞµΟΟƒΞµΟ„Ξµ Ο„Ξ·Ξ½ Ο€Ξ±ΟΞ±Ξ³Ξ³ΞµΞ»Ξ―Ξ± Ο€ΟΞΉΞ½ Ο†ΟΞ³ΞµΟ„Ξµ;',
+            title: 'Αποχώρηση από παραγγελία',
+            message: 'Θέλετε να αποθηκεύσετε την παραγγελία πριν φύγετε;',
             isDestructive: false,
-            confirmText: 'Ξ‘Ο€ΞΏΞΈΞ®ΞΊΞµΟ…ΟƒΞ·',
-            cancelText: 'Ξ‘Ο€ΟΟΟΞΉΟΞ· ΞΊΞ±ΞΉ Ξ­ΞΎΞΏΞ΄ΞΏΟ‚'
+            confirmText: 'Αποθήκευση',
+            cancelText: 'Απόρριψη και έξοδος'
         });
         if (choice === true) {
             await handleSaveOrder();
@@ -589,7 +589,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             sessionStorage.removeItem(DRAFT_KEY);
             onBack();
         }
-        // if null/undefined (dialog dismissed) β€” stay
+        // if null/undefined (dialog dismissed) — stay
     };
 
     const filteredCustomers = useMemo(() => buildMobileOrderBuilderCustomerSuggestions(customers, customerName), [customers, customerName]);
@@ -599,7 +599,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     return (
         <div className="flex flex-col h-full bg-slate-50 relative">
 
-            {/* β”€β”€ Create Client screen (when saving order without client) β”€β”€ */}
+            {/* ── Create Client screen (when saving order without client) ── */}
             {showCreateClientScreen && (
                 <MobileCustomerForm
                     customer={emptyCustomer}
@@ -608,9 +608,9 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                 />
             )}
 
-            {/* β”€β”€ Top Bar β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€ */}
+            {/* ── Top Bar ──────────────────────────────────────────── */}
             <div className="bg-white p-4 border-b border-slate-200 flex items-center justify-between shadow-sm shrink-0 z-20">
-                {/* Back button β€” shows warning if items exist */}
+                {/* Back button — shows warning if items exist */}
                 <button
                     onClick={handleBackNav}
                     className={`flex items-center gap-1.5 p-2 -ml-2 rounded-xl transition-colors ${items.length > 0
@@ -619,10 +619,10 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                         }`}
                 >
                     <ArrowLeft size={22} />
-                    {items.length > 0 && <span className="text-[10px] font-black uppercase tracking-wide">Ξ‘ΞΊΟΟΟ‰ΟƒΞ·</span>}
+                    {items.length > 0 && <span className="text-[10px] font-black uppercase tracking-wide">Ακύρωση</span>}
                 </button>
                 <div className="font-black text-slate-800 text-lg">
-                    {initialOrder ? `Ξ•Ο€ΞµΞΎΞµΟΞ³Ξ±ΟƒΞ―Ξ± #${initialOrder.id.slice(-6)}` : 'ΞΞ­Ξ± Ξ Ξ±ΟΞ±Ξ³Ξ³ΞµΞ»Ξ―Ξ±'}
+                    {initialOrder ? `Επεξεργασία #${initialOrder.id.slice(-6)}` : 'Νέα Παραγγελία'}
                 </div>
                 <button
                     onClick={handleSaveOrder}
@@ -637,13 +637,13 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             {showDraftBanner && (
                 <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 flex items-center gap-3 z-10 shrink-0">
                     <AlertCircle size={16} className="text-amber-600 shrink-0" />
-                    <span className="text-xs font-bold text-amber-800 flex-1">Ξ’ΟΞ­ΞΈΞ·ΞΊΞµ Ξ±Ξ½Ξ±Ο€Ξ¬Ξ½Ο„Ξ·Ο„Ξ· Ο€Ξ±ΟΞ±Ξ³Ξ³ΞµΞ»Ξ―Ξ± β€” ΟƒΟ…Ξ½Ξ­Ο‡ΞµΞΉΞ±;</span>
-                    <button onClick={restoreDraft} className="text-xs font-black text-amber-700 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-lg">ΞΞ±ΞΉ</button>
-                    <button onClick={discardDraft} className="text-xs font-bold text-amber-500 px-1">ΞΟ‡ΞΉ</button>
+                    <span className="text-xs font-bold text-amber-800 flex-1">Βρέθηκε αναπάντητη παραγγελία — συνέχεια;</span>
+                    <button onClick={restoreDraft} className="text-xs font-black text-amber-700 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-lg">Ναι</button>
+                    <button onClick={discardDraft} className="text-xs font-bold text-amber-500 px-1">Όχι</button>
                 </div>
             )}
 
-            {/* β”€β”€ Scrollable Body β€” portrait/landscape optimized β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€ */}
+            {/* ── Scrollable Body — portrait/landscape optimized ─────────── */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-5 custom-scrollbar flex flex-col gap-4 pb-40 landscape:max-w-3xl landscape:mx-auto landscape:px-6">
 
                 {/* Customer Section */}
@@ -653,7 +653,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                             <User size={16} className="text-slate-400" />
                             <input
                                 className="flex-1 outline-none font-bold text-slate-800 text-base"
-                                placeholder="ΞΞ½ΞΏΞΌΞ± Ξ ΞµΞ»Ξ¬Ο„Ξ·..."
+                                placeholder="Όνομα Πελάτη..."
                                 value={customerName}
                                 onChange={e => { setCustomerName(e.target.value); setShowCustSuggestions(true); setCustomerId(null); }}
                                 onFocus={() => setShowCustSuggestions(true)}
@@ -675,23 +675,23 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                             onClick={handleUseRetailCustomer}
                             className="w-full mt-2 py-2.5 rounded-xl border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 text-xs font-black"
                         >
-                            Ξ§ΟΞ®ΟƒΞ· Ξ›ΞΉΞ±Ξ½ΞΉΞΊΞ®Ο‚
+                            Χρήση Λιανικής
                         </button>
                         {isRetailCustomer && (
                             <div className="mt-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Ξ¤ΞµΞ»ΞΉΞΊΟΟ‚ Ο€ΞµΞ»Ξ¬Ο„Ξ·Ο‚ Ξ»ΞΉΞ±Ξ½ΞΉΞΊΞ®Ο‚ (Ο€ΟΞΏΞ±ΞΉΟΞµΟ„ΞΉΞΊΟ)</label>
+                                <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Τελικός πελάτης λιανικής (προαιρετικό)</label>
                                 <input
                                     value={retailClientLabel}
                                     onChange={e => setRetailClientLabel(e.target.value)}
                                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none text-sm font-medium"
-                                    placeholder="Ο€.Ο‡. ΞΞ±Ο„Ξ¬ΟƒΟ„Ξ·ΞΌΞ± ΞΞ¬ΞΎΞΏΟ…"
+                                    placeholder="π.χ. Κατάστημα Νάξου"
                                 />
                             </div>
                         )}
                         {/* VAT + Discount */}
                         <div className="flex items-center gap-4 border-t border-slate-50 pt-3">
                             <div className="flex-1">
-                                <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Ξ¦Ξ Ξ‘</label>
+                                <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">ΦΠΑ</label>
                                 <select value={vatRate} onChange={e => setVatRate(parseFloat(e.target.value))} className="w-full p-2 bg-slate-50 rounded-lg text-sm font-bold outline-none border border-slate-100">
                                     <option value={VatRegime.Standard}>24%</option>
                                     <option value={VatRegime.Reduced}>17%</option>
@@ -699,7 +699,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                 </select>
                             </div>
                             <div className="flex-1">
-                                <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">ΞΞΊΟ€Ο„Ο‰ΟƒΞ· (%)</label>
+                                <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Έκπτωση (%)</label>
                                 <div className="flex items-center gap-2 bg-slate-50 px-2 rounded-lg border border-slate-100">
                                     <input type="number" value={discountPercent} onChange={e => setDiscountPercent(parseFloat(e.target.value) || 0)} className="w-full p-2 bg-transparent text-sm font-bold outline-none text-right" />
                                     <Percent size={14} className="text-slate-400" />
@@ -709,24 +709,24 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                     </div>
                 </div>
 
-                {/* β”€β”€ Add Item Section β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€ */}
+                {/* ── Add Item Section ─────────────────────────────────── */}
                 {!activeMaster && (
                     <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
 
-                        {/* Mode Tabs β€” seller only */}
+                        {/* Mode Tabs — seller only */}
                         {isSeller && (
                             <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
                                 <button
                                     onClick={() => setInputMode('sku')}
                                     className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-black transition-all ${inputMode === 'sku' ? 'bg-white text-[#060b00] shadow-sm' : 'text-slate-400'}`}
                                 >
-                                    <Hash size={14} /> ΞΟ‰Ξ΄ΞΉΞΊΟΟ‚
+                                    <Hash size={14} /> Κωδικός
                                 </button>
                                 <button
                                     onClick={() => setInputMode('catalog')}
                                     className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-black transition-all ${inputMode === 'catalog' ? 'bg-white text-[#060b00] shadow-sm' : 'text-slate-400'}`}
                                 >
-                                    <FolderKanban size={14} /> ΞΞ±Ο„Ξ¬Ξ»ΞΏΞ³ΞΏΟ‚
+                                    <FolderKanban size={14} /> Κατάλογος
                                 </button>
                             </div>
                         )}
@@ -742,7 +742,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                         value={input}
                                         onChange={e => setInput(e.target.value.toUpperCase())}
                                         onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
-                                        placeholder="ΞΟ‰Ξ΄ΞΉΞΊΟΟ‚ Ξ® Ο€Ξ»Ξ®ΟΞ·Ο‚ ΞΊΟ‰Ξ΄. (Ο€.Ο‡. SK005PAK)"
+                                        placeholder="Κωδικός ή πλήρης κωδ. (π.χ. SK005PAK)"
                                         className="flex-1 bg-transparent p-2 outline-none font-black text-slate-900 uppercase"
                                     />
                                     <button onClick={() => setShowScanner(true)} className="p-2 text-slate-400 hover:text-slate-600">
@@ -751,13 +751,13 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                 </div>
                                 {input.trim().toUpperCase() === SPECIAL_CREATION_SKU && (
                                     <div className="rounded-xl border border-violet-200 bg-violet-50 p-3 space-y-2">
-                                        <p className="text-[10px] font-black text-violet-800 uppercase">Ξ•ΞΉΞ΄ΞΉΞΊΞ® Ξ΄Ξ·ΞΌΞΉΞΏΟ…ΟΞ³Ξ―Ξ± (SP)</p>
+                                        <p className="text-[10px] font-black text-violet-800 uppercase">Ειδική δημιουργία (SP)</p>
                                         <input
                                             type="text"
                                             inputMode="decimal"
                                             value={specialCreationUnitPriceStr}
                                             onChange={e => setSpecialCreationUnitPriceStr(e.target.value)}
-                                            placeholder="Ξ¤ΞΉΞΌΞ® ΞΌΞΏΞ½Ξ¬Ξ΄Ξ±Ο‚ β‚¬"
+                                            placeholder="Τιμή μονάδας €"
                                             className="w-full p-2.5 rounded-lg border border-violet-200 bg-white font-mono font-bold text-sm"
                                         />
                                         <button
@@ -765,7 +765,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                             onClick={handleAddSpecialCreation}
                                             className="w-full py-3 rounded-xl bg-violet-700 text-white font-black text-sm"
                                         >
-                                            Ξ ΟΞΏΟƒΞΈΞ®ΞΊΞ· SP
+                                            Προσθήκη SP
                                         </button>
                                     </div>
                                 )}
@@ -790,7 +790,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                             </>
                         )}
 
-                        {/* Catalog Mode (seller only) β€” expanded for easier browsing */}
+                        {/* Catalog Mode (seller only) — expanded for easier browsing */}
                         {inputMode === 'catalog' && isSeller && collections && (
                             <div className="min-h-[55vh] max-h-[75vh] flex flex-col -mx-1">
                                 <CatalogBrowser
@@ -808,7 +808,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                     </div>
                 )}
 
-                {/* β”€β”€ Variant Selector (active master) β€” metal then stone carousel or resolved single variant β”€β”€ */}
+                {/* ── Variant Selector (active master) — metal then stone carousel or resolved single variant ── */}
                 {activeMaster && (
                     <div className="bg-white p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] shadow-xl border border-emerald-100 space-y-4 animate-in zoom-in-95">
                         {/* Header: image + SKU (with suffix when resolved) + back button */}
@@ -824,23 +824,23 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                 <p className="text-[10px] text-slate-400 font-black uppercase mt-0.5">{activeMaster.category}</p>
                                 {items.filter(i => i.sku === activeMaster.sku).length > 0 && (
                                     <div className="mt-1.5 text-[9px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                                        <Check size={9} /> {items.filter(i => i.sku === activeMaster.sku).length} Ο€ΟΞΏΟƒΟ„Ξ­ΞΈΞ·ΞΊΞ±Ξ½
+                                        <Check size={9} /> {items.filter(i => i.sku === activeMaster.sku).length} προστέθηκαν
                                     </div>
                                 )}
                             </div>
                             <button
                                 onClick={() => { setActiveMaster(null); setSelectedFinish(null); setResolvedVariant(null); setSelectedCordColor(undefined); setSelectedEnamelColor(undefined); }}
                                 className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full shrink-0 transition-colors"
-                                title="Ξ•Ο€ΞΉΟƒΟ„ΟΞΏΟ†Ξ® ΟƒΟ„Ξ·Ξ½ Ξ±Ξ½Ξ±Ξ¶Ξ®Ο„Ξ·ΟƒΞ·"
+                                title="Επιστροφή στην αναζήτηση"
                             >
                                 <X size={18} />
                             </button>
                         </div>
 
-                        {/* Size picker β€” portrait/landscape */}
+                        {/* Size picker — portrait/landscape */}
                         {sizeMode && (
                             <div className="shrink-0">
-                                <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Ξ•Ο€ΞΉΞ»ΞΏΞ³Ξ® {sizeMode.type}</label>
+                                <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Επιλογή {sizeMode.type}</label>
                                 <div className="grid grid-cols-5 sm:grid-cols-6 landscape:grid-cols-6 gap-1.5">
                                     {sizeMode.sizes.map(s => (
                                         <button key={s} onClick={() => setSelectedSize(s === selectedSize ? '' : s)} className={`py-2 sm:py-1.5 rounded-lg text-xs font-bold border ${selectedSize === s ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
@@ -851,11 +851,11 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                             </div>
                         )}
 
-                        {/* Quantity β€” touch-friendly portrait/landscape */}
+                        {/* Quantity — touch-friendly portrait/landscape */}
                         {isXrCordEnamelSku(activeMaster.sku) && (
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 shrink-0">
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Ξ§ΟΟΞΌΞ± ΞΞΏΟΞ΄ΟΞ½ΞΉ</label>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Χρώμα Κορδόνι</label>
                                     <div className="grid grid-cols-3 gap-1.5">
                                         {PRODUCT_OPTION_COLORS.map(color => (
                                             <button
@@ -870,7 +870,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Ξ§ΟΟΞΌΞ± Ξ£ΞΌΞ¬Ξ»Ο„ΞΏ</label>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Χρώμα Σμάλτο</label>
                                     <div className="grid grid-cols-3 gap-1.5">
                                         {PRODUCT_OPTION_COLORS.map(color => (
                                             <button
@@ -888,9 +888,9 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                         )}
 
                         <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl shrink-0">
-                            <span className="text-xs font-bold text-slate-500 uppercase">Ξ ΞΏΟƒΟΟ„Ξ·Ο„Ξ±</span>
+                            <span className="text-xs font-bold text-slate-500 uppercase">Ποσότητα</span>
                             <div className="flex items-center gap-3 sm:gap-4">
-                                <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-9 h-9 sm:w-8 sm:h-8 bg-white rounded-lg shadow-sm text-slate-700 font-bold flex items-center justify-center">β’</button>
+                                <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-9 h-9 sm:w-8 sm:h-8 bg-white rounded-lg shadow-sm text-slate-700 font-bold flex items-center justify-center">−</button>
                                 <span className="font-black text-lg min-w-[2ch] text-center">{qty}</span>
                                 <button onClick={() => setQty(qty + 1)} className="w-9 h-9 sm:w-8 sm:h-8 bg-white rounded-lg shadow-sm text-slate-700 font-bold flex items-center justify-center">+</button>
                             </div>
@@ -899,20 +899,20 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                         {/* SKU note taking box */}
                         <div className="shrink-0">
                             <label className="text-[10px] font-black text-slate-400 uppercase mb-1.5 flex items-center gap-1.5">
-                                <StickyNote size={12} /> Ξ£Ξ·ΞΌΞµΞ―Ο‰ΟƒΞ· Ξ³ΟΞ±ΞΌΞΌΞ®Ο‚ (Ο€ΟΞΏΞ±ΞΉΟΞµΟ„ΞΉΞΊΟ)
+                                <StickyNote size={12} /> Σημείωση γραμμής (προαιρετικό)
                             </label>
                             <div className="flex items-center gap-2 bg-amber-50/80 border border-amber-100 rounded-xl p-2.5 focus-within:ring-2 focus-within:ring-amber-300/50">
                                 <input
                                     type="text"
                                     value={itemNotes}
                                     onChange={e => setItemNotes(e.target.value)}
-                                    placeholder="Ο€.Ο‡. Ο‡ΟΟΞΌΞ± ΞΊΞΏΟΞ΄ΞµΞ»Ξ¬Ο‚, Ξ±Ο€ΞΏΟƒΟ„ΞΏΞ»Ξ® ΞΎΞµΟ‡Ο‰ΟΞΉΟƒΟ„Ξ¬..."
+                                    placeholder="π.χ. χρώμα κορδελάς, αποστολή ξεχωριστά..."
                                     className="flex-1 bg-transparent outline-none text-sm text-slate-700 placeholder-slate-400 font-medium min-w-0"
                                 />
                             </div>
                         </div>
 
-                        {/* Resolved full code (e.g. SK005PAK): single variant β€” note + Add only */}
+                        {/* Resolved full code (e.g. SK005PAK): single variant — note + Add only */}
                         {resolvedVariant && (
                             <div className="flex flex-col gap-4 shrink-0">
                                 <button
@@ -920,7 +920,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                     className="w-full bg-emerald-600 text-white py-4 rounded-xl font-black text-base flex flex-col items-center gap-1 active:scale-[0.99]"
                                 >
                                     <span className="text-white/90 text-xs font-bold">{formatCurrency(resolvedVariant.selling_price || activeMaster.selling_price || 0)}</span>
-                                    Ξ ΟΞΏΟƒΞΈΞ®ΞΊΞ·
+                                    Προσθήκη
                                 </button>
                             </div>
                         )}
@@ -929,7 +929,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                         {!resolvedVariant && (!activeMaster.variants || activeMaster.variants.length === 0) && (
                             <div className="shrink-0">
                                 <button onClick={() => handleAddItem(null)} className="w-full bg-emerald-600 text-white py-4 rounded-xl font-black text-base active:scale-[0.99]">
-                                    Ξ ΟΞΏΟƒΞΈΞ®ΞΊΞ·
+                                    Προσθήκη
                                 </button>
                             </div>
                         )}
@@ -938,10 +938,10 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                         {!resolvedVariant && activeMaster.variants && activeMaster.variants.length > 0 && (
                             <div className="flex flex-col gap-4">
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">1. ΞΞ­Ο„Ξ±Ξ»Ξ»ΞΏ</label>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">1. Μέταλλο</label>
                                     <div className="flex flex-wrap gap-2">
                                         {finishOrder.map(code => {
-                                            const label = FINISH_CODES[code] ?? (code || 'Ξ›ΞΏΟ…ΟƒΟ„ΟΞ­');
+                                            const label = FINISH_CODES[code] ?? (code || 'Λουστρέ');
                                             const count = variantsByFinish[code]?.length ?? 0;
                                             const isSelected = selectedFinish === code;
                                             return (
@@ -961,8 +961,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                 {selectedFinish !== null && (
                                     <div className="flex flex-col gap-2">
                                         <div className="flex items-center justify-between">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase">2. Ξ Ξ­Ο„ΟΞ± / Ξ•Ο€ΞΉΞ»ΞΏΞ³Ξ®</label>
-                                            <button type="button" onClick={() => setSelectedFinish(null)} className="text-xs font-bold text-slate-500 hover:text-slate-700">β† Ξ‘Ξ»Ξ»Ξ±Ξ³Ξ® ΞΌΞ­Ο„Ξ±Ξ»Ξ»ΞΏΟ…</button>
+                                            <label className="text-[10px] font-black text-slate-400 uppercase">2. Πέτρα / Επιλογή</label>
+                                            <button type="button" onClick={() => setSelectedFinish(null)} className="text-xs font-bold text-slate-500 hover:text-slate-700">← Αλλαγή μέταλλου</button>
                                         </div>
                                         {variantsForSelectedFinish.length === 1 ? (
                                             <button
@@ -971,7 +971,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                             >
                                                 <SkuColorizedText sku="" suffix={variantsForSelectedFinish[0].suffix} gender={activeMaster.gender} className="font-black" masterClassName="text-slate-900" />
                                                 <span className="text-white/90 text-xs font-bold">{formatCurrency(variantsForSelectedFinish[0].selling_price || 0)}</span>
-                                                Ξ ΟΞΏΟƒΞΈΞ®ΞΊΞ·
+                                                Προσθήκη
                                             </button>
                                         ) : (
                                             <div className="grid grid-cols-2 gap-2">
@@ -986,13 +986,13 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                                             className="flex flex-col items-center justify-center p-3 rounded-2xl border-2 border-slate-100 bg-white hover:border-emerald-400 hover:shadow-md active:scale-95 transition-all text-center gap-1"
                                                         >
                                                             <span className={`text-sm font-black leading-tight ${stoneColor}`}>
-                                                                {stone.name || stone.code || 'β€”'}
+                                                                {stone.name || stone.code || '—'}
                                                             </span>
                                                             {stone.name && stone.code && (
                                                                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-50 border border-slate-100 ${stoneColor}`}>{stone.code}</span>
                                                             )}
                                                             <span className="text-sm font-black text-slate-900 mt-1">{formatCurrency(price)}</span>
-                                                            <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">+ Ξ ΟΞΏΟƒΞΈΞ®ΞΊΞ·</span>
+                                                            <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">+ Προσθήκη</span>
                                                         </button>
                                                     );
                                                 })}
@@ -1005,7 +1005,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                     </div>
                 )}
 
-                {/* β”€β”€ Items List (Collapsible Cart) β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€ */}
+                {/* ── Items List (Collapsible Cart) ─────────────────────── */}
                 <div className="space-y-2">
                     {/* Cart accordion header */}
                     <button
@@ -1020,12 +1020,12 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                         <ShoppingCart size={16} className={cartExpanded ? 'text-slate-500' : items.length > 0 ? 'text-amber-400' : 'text-slate-400'} />
                         <span className={`flex-1 text-left text-xs font-black uppercase tracking-wide ${cartExpanded ? 'text-slate-700' : items.length > 0 ? 'text-white' : 'text-slate-500'
                             }`}>
-                            ΞΞ±Ξ»Ξ¬ΞΈΞΉ Ξ Ξ±ΟΞ±Ξ³Ξ³ΞµΞ»Ξ―Ξ±Ο‚
+                            Καλάθι Παραγγελίας
                         </span>
                         {items.length > 0 && (
                             <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${cartExpanded ? 'bg-slate-100 text-slate-600' : 'bg-white/20 text-white'
                                 }`}>
-                                {items.length} ΞµΞ―Ξ΄Ξ· Β· {formatCurrency(netAmount)}
+                                {items.length} είδη · {formatCurrency(netAmount)}
                             </span>
                         )}
                         <ChevronRight size={14} className={`transition-transform duration-200 ${cartExpanded ? 'rotate-90 text-slate-400' : 'text-slate-400'
@@ -1053,7 +1053,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                         )}
                                         <div className="flex items-center gap-1">
                                             {!isSpecialCreationSku(item.sku) && (
-                                                <button onClick={() => openItemEditor(idx)} className="text-blue-300 hover:text-blue-500 p-1" title="Ξ•Ο€ΞµΞΎΞµΟΞ³Ξ±ΟƒΞ―Ξ± SKU">
+                                                <button onClick={() => openItemEditor(idx)} className="text-blue-300 hover:text-blue-500 p-1" title="Επεξεργασία SKU">
                                                     <Pencil size={15} />
                                                 </button>
                                             )}
@@ -1064,8 +1064,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                     </div>
                                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                                         {isSpecialCreationSku(item.sku) ? (
-                                            <label className="hidden items-center gap-1 text-[10px] font-bold text-violet-800">
-                                                β‚¬/Ο„ΞµΞΌ
+                                            <label className="inline-flex items-center gap-1 text-[10px] font-bold text-violet-800">
+                                                €/τεμ
                                                 <input
                                                     type="number"
                                                     min={0}
@@ -1083,11 +1083,11 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                                 />
                                             </label>
                                         ) : (
-                                            <span className="text-[10px] font-bold text-slate-500">{formatCurrency(item.price_at_order)} /Ο„ΞµΞΌ</span>
+                                            <span className="text-[10px] font-bold text-slate-500">{formatCurrency(item.price_at_order)} /τεμ</span>
                                         )}
                                         {item.size_info && <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 rounded border border-blue-100 font-bold">{item.size_info}</span>}
-                                        {item.cord_color && <span className="text-[10px] bg-amber-50 text-amber-700 px-1.5 rounded border border-amber-100 font-bold">ΞΞΏΟΞ΄ΟΞ½ΞΉ: {getProductOptionColorLabel(item.cord_color)}</span>}
-                                        {item.enamel_color && <span className="text-[10px] bg-rose-50 text-rose-700 px-1.5 rounded border border-rose-100 font-bold">Ξ£ΞΌΞ¬Ξ»Ο„ΞΏ: {getProductOptionColorLabel(item.enamel_color)}</span>}
+                                        {item.cord_color && <span className="text-[10px] bg-amber-50 text-amber-700 px-1.5 rounded border border-amber-100 font-bold">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
+                                        {item.enamel_color && <span className="text-[10px] bg-rose-50 text-rose-700 px-1.5 rounded border border-rose-100 font-bold">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
                                     </div>
                                 </div>
                             </div>
@@ -1096,7 +1096,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                     <StickyNote size={14} className="text-slate-300 ml-1" />
                                     <input
                                         className="flex-1 bg-transparent outline-none text-xs text-slate-600 placeholder-slate-300"
-                                        placeholder="Ξ£Ξ·ΞΌΞµΞ―Ο‰ΟƒΞ· ΞµΞ―Ξ΄ΞΏΟ…Ο‚..."
+                                        placeholder="Σημείωση είδους..."
                                         value={item.notes || ''}
                                         onChange={e => {
                                             const newItems = [...items];
@@ -1117,27 +1117,27 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
 
                 {/* Notes */}
                 <div>
-                    <label className="text-xs font-black text-slate-400 uppercase ml-1">Ξ“ΞµΞ½ΞΉΞΊΞ­Ο‚ Ξ£Ξ·ΞΌΞµΞΉΟΟƒΞµΞΉΟ‚</label>
+                    <label className="text-xs font-black text-slate-400 uppercase ml-1">Γενικές Σημειώσεις</label>
                     <textarea value={orderNotes} onChange={e => setOrderNotes(e.target.value)} className="w-full p-4 bg-white border border-slate-200 rounded-2xl text-sm h-24 resize-none outline-none mt-1 shadow-inner focus:ring-2 focus:ring-slate-200" />
                 </div>
             </div>
 
-            {/* β”€β”€ Footer Summary β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€β”€ */}
+            {/* ── Footer Summary ─────────────────────────────────────────── */}
             <div className="p-4 bg-white border-t border-slate-200 shrink-0 sticky bottom-0 z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.03)]">
                 <div className="flex justify-between items-center mb-3 px-2">
                     <div>
-                        <div className="text-slate-500 text-[10px] font-bold uppercase">ΞΞ±ΞΈΞ±ΟΞ® Ξ‘ΞΎΞ―Ξ±</div>
+                        <div className="text-slate-500 text-[10px] font-bold uppercase">Καθαρή Αξία</div>
                         <div className="text-slate-800 font-black text-lg">{formatCurrency(netAmount)}</div>
                     </div>
                     <div className="text-right">
-                        <div className="text-slate-500 text-[10px] font-bold uppercase">ΞΞµ Ξ¦Ξ Ξ‘ ({(vatRate * 100).toFixed(0)}%)</div>
+                        <div className="text-slate-500 text-[10px] font-bold uppercase">Με ΦΠΑ ({(vatRate * 100).toFixed(0)}%)</div>
                         <div className="text-slate-900 font-black text-xl">{formatCurrency(grandTotal)}</div>
                     </div>
                 </div>
                 <button onClick={handleSaveOrder} disabled={isSaving} className="w-full bg-[#060b00] text-white py-4 rounded-2xl font-black text-lg shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-70">
                     {isSaving
-                        ? <><Loader2 size={22} className="animate-spin" /> Ξ‘Ο€ΞΏΞΈΞ®ΞΊΞµΟ…ΟƒΞ·...</>
-                        : <><Save size={22} /> {initialOrder ? 'Ξ•Ξ½Ξ·ΞΌΞ­ΟΟ‰ΟƒΞ· Ξ Ξ±ΟΞ±Ξ³Ξ³ΞµΞ»Ξ―Ξ±Ο‚' : 'Ξ‘Ο€ΞΏΞΈΞ®ΞΊΞµΟ…ΟƒΞ· Ξ Ξ±ΟΞ±Ξ³Ξ³ΞµΞ»Ξ―Ξ±Ο‚'}</>
+                        ? <><Loader2 size={22} className="animate-spin" /> Αποθήκευση...</>
+                        : <><Save size={22} /> {initialOrder ? 'Ενημέρωση Παραγγελίας' : 'Αποθήκευση Παραγγελίας'}</>
                     }
                 </button>
             </div>
@@ -1147,7 +1147,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                     <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 sm:p-5 space-y-4">
                         <div className="flex items-start justify-between gap-3">
                             <div>
-                                <h3 className="text-sm font-black text-slate-800 uppercase">Ξ•Ο€ΞµΞΎΞµΟΞ³Ξ±ΟƒΞ―Ξ± SKU</h3>
+                                <h3 className="text-sm font-black text-slate-800 uppercase">Επεξεργασία SKU</h3>
                                 <p className="text-xs text-slate-500 font-bold mt-1">{editingItem.sku}</p>
                             </div>
                             <button onClick={closeItemEditor} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600">
@@ -1158,7 +1158,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                         {editingVariants.length > 0 && (
                             <>
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">ΞΞ­Ο„Ξ±Ξ»Ξ»ΞΏ</label>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Μέταλλο</label>
                                     <select
                                         value={editFinish}
                                         onChange={e => handleEditFinishChange(e.target.value)}
@@ -1166,13 +1166,13 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                     >
                                         {editFinishOptions.map(code => (
                                             <option key={code} value={code}>
-                                                {FINISH_CODES[code] || code || 'Ξ›ΞΏΟ…ΟƒΟ„ΟΞ­'}
+                                                {FINISH_CODES[code] || code || 'Λουστρέ'}
                                             </option>
                                         ))}
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Ξ Ξ­Ο„ΟΞ±</label>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Πέτρα</label>
                                     <select
                                         value={editVariantSuffix}
                                         onChange={e => setEditVariantSuffix(e.target.value)}
@@ -1182,7 +1182,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                             const { stone } = getVariantComponents(v.suffix, editingProduct?.gender);
                                             const stoneLabel = stone.name && stone.code
                                                 ? `${stone.name} (${stone.code})`
-                                                : (stone.name || stone.code || 'Ξ§Ο‰ΟΞ―Ο‚ Ο€Ξ­Ο„ΟΞ±');
+                                                : (stone.name || stone.code || 'Χωρίς πέτρα');
                                             return (
                                                 <option key={v.suffix} value={v.suffix}>
                                                     {stoneLabel}
@@ -1202,7 +1202,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                     onChange={e => setEditSizeInfo(e.target.value)}
                                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-slate-200"
                                 >
-                                    <option value="">Ξ§Ο‰ΟΞ―Ο‚ {editingSizeMode.type}</option>
+                                    <option value="">Χωρίς {editingSizeMode.type}</option>
                                     {editingSizeMode.sizes.map(size => (
                                         <option key={size} value={size}>{size}</option>
                                     ))}
@@ -1213,26 +1213,26 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                         {editingProduct && isXrCordEnamelSku(editingProduct.sku) && (
                             <>
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Ξ§ΟΟΞΌΞ± ΞΞΏΟΞ΄ΟΞ½ΞΉ</label>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Χρώμα Κορδόνι</label>
                                     <select
                                         value={editCordColor || ''}
                                         onChange={e => setEditCordColor((e.target.value || undefined) as OrderItem['cord_color'])}
                                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-slate-200"
                                     >
-                                        <option value="">Ξ§Ο‰ΟΞ―Ο‚ ΞµΟ€ΞΉΞ»ΞΏΞ³Ξ®</option>
+                                        <option value="">Χωρίς επιλογή</option>
                                         {PRODUCT_OPTION_COLORS.map(color => (
                                             <option key={`edit-cord-${color}`} value={color}>{PRODUCT_OPTION_COLOR_LABELS[color]}</option>
                                         ))}
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Ξ§ΟΟΞΌΞ± Ξ£ΞΌΞ¬Ξ»Ο„ΞΏ</label>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">Χρώμα Σμάλτο</label>
                                     <select
                                         value={editEnamelColor || ''}
                                         onChange={e => setEditEnamelColor((e.target.value || undefined) as OrderItem['enamel_color'])}
                                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-slate-200"
                                     >
-                                        <option value="">Ξ§Ο‰ΟΞ―Ο‚ ΞµΟ€ΞΉΞ»ΞΏΞ³Ξ®</option>
+                                        <option value="">Χωρίς επιλογή</option>
                                         {PRODUCT_OPTION_COLORS.map(color => (
                                             <option key={`edit-enamel-${color}`} value={color}>{PRODUCT_OPTION_COLOR_LABELS[color]}</option>
                                         ))}
@@ -1243,10 +1243,10 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
 
                         <div className="flex justify-end gap-2 pt-1">
                             <button onClick={closeItemEditor} className="px-3 py-2 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">
-                                Ξ‘ΞΊΟΟΟ‰ΟƒΞ·
+                                Ακύρωση
                             </button>
                             <button onClick={handleConfirmItemEdit} className="px-3 py-2 rounded-xl text-xs font-black text-white bg-[#060b00] hover:bg-black transition-colors">
-                                Ξ‘Ο€ΞΏΞΈΞ®ΞΊΞµΟ…ΟƒΞ·
+                                Αποθήκευση
                             </button>
                         </div>
                     </div>
@@ -1262,7 +1262,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                             <Loader2 size={34} className="animate-spin text-slate-800" />
                         </div>
                     </div>
-                    <p className="text-base font-black text-slate-700 tracking-widest uppercase">Ξ‘Ο€ΞΏΞΈΞ®ΞΊΞµΟ…ΟƒΞ·...</p>
+                    <p className="text-base font-black text-slate-700 tracking-widest uppercase">Αποθήκευση...</p>
                 </div>
             )}
 
@@ -1270,5 +1270,3 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         </div>
     );
 }
-
-
