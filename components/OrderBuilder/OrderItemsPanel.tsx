@@ -165,54 +165,56 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                         key={item.line_id || `${item.sku}-${item.variant_suffix || ''}-${item.size_info || ''}-${item.cord_color || ''}-${item.enamel_color || ''}-${index}`}
                         className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-3 animate-in slide-in-from-right-4 transition-all hover:shadow-md group"
                     >
-                        <div className="grid grid-cols-[2.75rem_minmax(0,1fr)_auto] gap-x-3 gap-y-2 items-start">
-                            <div className="row-span-2 w-11 h-11 bg-slate-50 rounded-lg overflow-hidden shrink-0 border border-slate-100 self-start">
-                                {isSpecialCreationSku(item.sku) ? (
-                                    <div className="w-full h-full flex items-center justify-center text-[10px] font-black text-violet-700 bg-violet-50">SP</div>
-                                ) : item.product_details?.image_url ? (
-                                    <img src={item.product_details.image_url} className="w-full h-full object-cover" alt="" />
-                                ) : null}
-                            </div>
-                            <div className="col-start-2 row-start-1 min-w-0">
-                                <div className="font-black text-slate-800 text-sm leading-tight truncate">
+                        <div className="flex flex-col gap-2.5">
+                            <div className="flex items-start gap-3">
+                                <div className="w-11 h-11 bg-slate-50 rounded-lg overflow-hidden shrink-0 border border-slate-100">
                                     {isSpecialCreationSku(item.sku) ? (
-                                        <span className="text-violet-900">{item.sku}</span>
-                                    ) : (
-                                        (() => {
-                                            const { finish, stone } = getVariantComponents(item.variant_suffix || '', item.product_details?.gender);
-                                            const finishClass = FINISH_COLORS[finish.code] || FINISH_COLORS[''];
-                                            const stoneClass = STONE_TEXT_COLORS[stone.code] || 'text-emerald-500';
-                                            return (
-                                                <span>
-                                                    <span className="text-slate-800">{item.sku}</span>
-                                                    <span className={finishClass}>{finish.code}</span>
-                                                    <span className={stoneClass}>{stone.code}</span>
-                                                </span>
-                                            );
-                                        })()
+                                        <div className="w-full h-full flex items-center justify-center text-[10px] font-black text-violet-700 bg-violet-50">SP</div>
+                                    ) : item.product_details?.image_url ? (
+                                        <img src={item.product_details.image_url} className="w-full h-full object-cover" alt="" />
+                                    ) : null}
+                                </div>
+                                <div className="min-w-0 flex-1 pt-0.5">
+                                    <div className="font-black text-slate-800 text-sm leading-tight truncate">
+                                        {isSpecialCreationSku(item.sku) ? (
+                                            <span className="text-violet-900">{item.sku}</span>
+                                        ) : (
+                                            (() => {
+                                                const { finish, stone } = getVariantComponents(item.variant_suffix || '', item.product_details?.gender);
+                                                const finishClass = FINISH_COLORS[finish.code] || FINISH_COLORS[''];
+                                                const stoneClass = STONE_TEXT_COLORS[stone.code] || 'text-emerald-500';
+                                                return (
+                                                    <span>
+                                                        <span className="text-slate-800">{item.sku}</span>
+                                                        <span className={finishClass}>{finish.code}</span>
+                                                        <span className={stoneClass}>{stone.code}</span>
+                                                    </span>
+                                                );
+                                            })()
+                                        )}
+                                    </div>
+                                    {isSpecialCreationSku(item.sku) && (
+                                        <div className="text-[10px] text-violet-600 font-bold mt-0.5 truncate">{item.product_details?.category || 'Ειδική δημιουργία'}</div>
                                     )}
                                 </div>
-                                {isSpecialCreationSku(item.sku) && (
-                                    <div className="text-[10px] text-violet-600 font-bold mt-0.5 truncate">{item.product_details?.category || 'Ειδική δημιουργία'}</div>
-                                )}
-                            </div>
-                            <div className="col-start-3 row-start-1 flex items-center gap-1.5 justify-end shrink-0">
-                                <div className="flex items-center gap-0.5 bg-slate-100 p-1 rounded-lg border border-slate-200">
-                                    <button type="button" onClick={() => actions.updateQuantity(item, item.quantity - 1)} className="p-1 hover:bg-white rounded-md shadow-sm text-slate-600 active:scale-95"><Minus size={12} /></button>
-                                    <span className="min-w-[1.5rem] text-center font-black text-sm tabular-nums">{item.quantity}</span>
-                                    <button type="button" onClick={() => actions.updateQuantity(item, item.quantity + 1)} className="p-1 hover:bg-white rounded-md shadow-sm text-slate-600 active:scale-95"><Plus size={12} /></button>
-                                </div>
-                                {!isSpecialCreationSku(item.sku) && (
-                                    <button type="button" onClick={() => openEditItem(item)} className="p-2 text-slate-300 hover:text-blue-500 transition-colors" title="Επεξεργασία SKU">
-                                        <Pencil size={15} />
+                                <div className="flex items-center gap-1.5 shrink-0 self-start">
+                                    <div className="flex items-center gap-0.5 bg-slate-100 p-1 rounded-lg border border-slate-200">
+                                        <button type="button" onClick={() => actions.updateQuantity(item, item.quantity - 1)} className="p-1 hover:bg-white rounded-md shadow-sm text-slate-600 active:scale-95"><Minus size={12} /></button>
+                                        <span className="min-w-[1.5rem] text-center font-black text-sm tabular-nums">{item.quantity}</span>
+                                        <button type="button" onClick={() => actions.updateQuantity(item, item.quantity + 1)} className="p-1 hover:bg-white rounded-md shadow-sm text-slate-600 active:scale-95"><Plus size={12} /></button>
+                                    </div>
+                                    {!isSpecialCreationSku(item.sku) && (
+                                        <button type="button" onClick={() => openEditItem(item)} className="p-2 text-slate-300 hover:text-blue-500 transition-colors" title="Επεξεργασία SKU">
+                                            <Pencil size={15} />
+                                        </button>
+                                    )}
+                                    <button type="button" onClick={() => actions.handleRemoveItem(item)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
+                                        <Trash2 size={16} />
                                     </button>
-                                )}
-                                <button type="button" onClick={() => actions.handleRemoveItem(item)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
-                                    <Trash2 size={16} />
-                                </button>
+                                </div>
                             </div>
-                            <div className="col-start-2 col-span-2 row-start-2 min-w-0 flex flex-wrap items-center gap-1.5">
-                                <div className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 border min-h-[2rem] ${isSpecialCreationSku(item.sku) ? 'bg-violet-50 border-violet-100' : (item.price_override ? 'bg-amber-50/80 border-amber-200' : 'bg-slate-50 border-slate-200/80')}`}>
+                            <div className="flex flex-wrap items-stretch gap-1.5 w-full pt-0.5 border-t border-slate-100/90">
+                                <div className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 border min-h-[2.25rem] ${isSpecialCreationSku(item.sku) ? 'bg-violet-50 border-violet-100' : (item.price_override ? 'bg-amber-50/80 border-amber-200' : 'bg-slate-50 border-slate-200/80')}`}>
                                     <span className={`text-[10px] font-black uppercase tracking-wide shrink-0 ${isSpecialCreationSku(item.sku) ? 'text-violet-800' : 'text-slate-600'}`}>€/τεμ.</span>
                                     <input
                                         type="number"
@@ -220,13 +222,13 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                         step={0.01}
                                         value={item.price_at_order}
                                         onChange={e => actions.updateItemUnitPrice(item, parseFloat(e.target.value) || 0)}
-                                        className={`w-[4.5rem] max-w-full rounded-md border px-1.5 py-0.5 font-mono text-xs tabular-nums leading-normal outline-none focus:ring-2 focus:ring-emerald-500/25 ${isSpecialCreationSku(item.sku) ? 'border-violet-200 bg-white text-violet-900' : (item.price_override ? 'border-amber-300 bg-white text-amber-900' : 'border-slate-200 bg-white text-slate-900')}`}
+                                        className={`w-[4.75rem] max-w-full rounded-lg border px-1.5 py-0.5 font-mono text-xs tabular-nums leading-normal outline-none focus:ring-2 focus:ring-emerald-500/25 ${isSpecialCreationSku(item.sku) ? 'border-violet-200 bg-white text-violet-900' : (item.price_override ? 'border-amber-300 bg-white text-amber-900' : 'border-slate-200 bg-white text-slate-900')}`}
                                     />
                                     {item.price_override && <span className="text-amber-700 font-black text-xs" title="Η τιμή διαφέρει από τον κατάλογο">*</span>}
                                 </div>
-                                {item.size_info && <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-md border border-slate-100">SZ: {item.size_info}</span>}
-                                {item.cord_color && <span className="text-[10px] font-bold bg-amber-50 text-amber-800 px-2 py-1 rounded-md border border-amber-100">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
-                                {item.enamel_color && <span className="text-[10px] font-bold bg-rose-50 text-rose-800 px-2 py-1 rounded-md border border-rose-100">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
+                                {item.size_info && <span className="inline-flex items-center text-[10px] font-bold text-slate-600 bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-100">SZ: {item.size_info}</span>}
+                                {item.cord_color && <span className="inline-flex items-center text-[10px] font-bold bg-amber-50 text-amber-800 px-2.5 py-1.5 rounded-xl border border-amber-100">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
+                                {item.enamel_color && <span className="inline-flex items-center text-[10px] font-bold bg-rose-50 text-rose-800 px-2.5 py-1.5 rounded-xl border border-rose-100">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
                             </div>
                         </div>
 
