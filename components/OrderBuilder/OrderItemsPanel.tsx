@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Search, X, ArrowDownAZ, Camera, Plus, Minus, Trash2, StickyNote, Box, RefreshCw, Save, Loader2, Pencil } from 'lucide-react';
 import { FINISH_CODES } from '../../constants';
 import { OrderItem } from '../../types';
-import { formatCurrency, formatDecimal, getVariantComponents } from '../../utils/pricingEngine';
+import { formatCurrency, formatDecimal, getVariantComponents, getVariantSuffixDisplayCodes } from '../../utils/pricingEngine';
 import { getSizingInfo } from '../../utils/sizing';
 import { useOrderState, FINISH_COLORS, STONE_TEXT_COLORS } from '../../hooks/useOrderState';
 import { PRODUCT_OPTION_COLORS, PRODUCT_OPTION_COLOR_LABELS, getProductOptionColorLabel, isXrCordEnamelSku } from '../../utils/xrOptions';
@@ -180,34 +180,38 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                     >
                         <div className="flex flex-col gap-2">
                             <div className="flex items-start gap-2.5">
-                                <div className="w-10 h-10 bg-slate-50 rounded-lg overflow-hidden shrink-0 border border-slate-100">
+                                <div className="w-[3.25rem] h-[3.25rem] sm:w-14 sm:h-14 bg-slate-50 rounded-lg overflow-hidden shrink-0 border border-slate-100">
                                     {isSpecialCreationSku(item.sku) ? (
-                                        <div className="w-full h-full flex items-center justify-center text-[10px] font-black text-violet-700 bg-violet-50">SP</div>
+                                        <div className="w-full h-full flex items-center justify-center text-[11px] font-black text-violet-700 bg-violet-50">SP</div>
                                     ) : item.product_details?.image_url ? (
                                         <img src={item.product_details.image_url} className="w-full h-full object-cover" alt="" />
                                     ) : null}
                                 </div>
                                 <div className="min-w-0 flex-1 pt-0.5">
-                                    <div className="font-black text-slate-800 text-sm leading-tight truncate">
+                                    <div className="font-black text-slate-800 text-[15px] sm:text-base leading-snug break-words [overflow-wrap:anywhere]">
                                         {isSpecialCreationSku(item.sku) ? (
                                             <span className="text-violet-900">{item.sku}</span>
                                         ) : (
                                             (() => {
-                                                const { finish, stone } = getVariantComponents(item.variant_suffix || '', item.product_details?.gender);
-                                                const finishClass = FINISH_COLORS[finish.code] || FINISH_COLORS[''];
-                                                const stoneClass = STONE_TEXT_COLORS[stone.code] || 'text-emerald-500';
+                                                const { finishCode, stoneCode } = getVariantSuffixDisplayCodes(
+                                                    item.variant_suffix,
+                                                    item.product_details?.gender,
+                                                    item.product_details,
+                                                );
+                                                const finishClass = FINISH_COLORS[finishCode] || FINISH_COLORS[''];
+                                                const stoneClass = STONE_TEXT_COLORS[stoneCode] || 'text-emerald-500';
                                                 return (
-                                                    <span>
+                                                    <span className="inline align-baseline">
                                                         <span className="text-slate-800">{item.sku}</span>
-                                                        <span className={finishClass}>{finish.code}</span>
-                                                        <span className={stoneClass}>{stone.code}</span>
+                                                        {finishCode ? <span className={finishClass}>{finishCode}</span> : null}
+                                                        {stoneCode ? <span className={stoneClass}>{stoneCode}</span> : null}
                                                     </span>
                                                 );
                                             })()
                                         )}
                                     </div>
                                     {isSpecialCreationSku(item.sku) && (
-                                        <div className="text-[10px] text-violet-600 font-bold mt-0.5 truncate">{item.product_details?.category || 'Ειδική δημιουργία'}</div>
+                                        <div className="text-[11px] text-violet-600 font-bold mt-0.5 leading-snug break-words [overflow-wrap:anywhere]">{item.product_details?.category || 'Ειδική δημιουργία'}</div>
                                     )}
                                 </div>
                                 <div className="flex flex-col items-end gap-1 shrink-0 self-start min-w-0 max-w-[42%] sm:max-w-none">

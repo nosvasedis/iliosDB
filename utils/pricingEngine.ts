@@ -420,6 +420,59 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
 };
 
 /**
+ * Finish + stone codes for UI (order lines, labels). For Λουστρέ (no P/X/D/H finish), stored
+ * suffixes may include a leading "BAS" before the stone segment (e.g. BASTG → show TG only).
+ *
+ * Women's "PCO" is ambiguous: Πατίνα+Κόπερ (P + CO) vs atomic stone PCO (Πράσινο Κόπερ).
+ * If the product has another clearly patina line (P + stone), we keep P+CO; otherwise we show
+ * PCO as a single lustre stone when multiple variants exist (solo PCO keeps parser default).
+ */
+export const getVariantSuffixDisplayCodes = (
+    suffix: string | undefined,
+    gender?: Gender,
+    product?: Product | null
+): { finishCode: string; stoneCode: string } => {
+    const clean = (suffix || '').trim().toUpperCase();
+    if (!clean) return { finishCode: '', stoneCode: '' };
+
+    let { finish, stone } = getVariantComponents(clean, gender);
+
+    if (
+        gender === Gender.Women &&
+        clean === 'PCO' &&
+        product?.variants &&
+        product.variants.length > 1
+    ) {
+        const upper = (s: string) => (s || '').trim().toUpperCase();
+        const hasOtherPatina = product.variants.some(v => {
+            const s = upper(v.suffix);
+            if (s === '' || s === 'PCO') return false;
+            if (s[0] !== 'P' || s.length < 2) return false;
+            const comp = getVariantComponents(s, Gender.Women);
+            return comp.finish.code === 'P' && !!comp.stone.code;
+        });
+        if (!hasOtherPatina) {
+            return { finishCode: '', stoneCode: 'PCO' };
+        }
+    }
+
+    if (!finish.code && clean.startsWith('BAS') && clean.length > 3) {
+        const tail = clean.slice(3);
+        const re = getVariantComponents(tail, gender);
+        // Tail may be a normal variant (e.g. PCO → Πατίνα+CO); keep original decomposition.
+        if (re.finish.code) {
+            return { finishCode: finish.code, stoneCode: stone.code };
+        }
+        if (re.stone.code) {
+            return { finishCode: '', stoneCode: re.stone.code };
+        }
+        return { finishCode: '', stoneCode: tail };
+    }
+
+    return { finishCode: finish.code, stoneCode: stone.code };
+};
+
+/**
  * Helper to split a full SKU into master and suffix parts for visualization
  */
 export const splitSkuComponents = (fullSku: string): { master: string, suffix: string } => {
