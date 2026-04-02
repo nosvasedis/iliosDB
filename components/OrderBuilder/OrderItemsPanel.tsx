@@ -117,26 +117,34 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
         <>
             <div className={`${isExpanded ? 'lg:col-span-9' : 'lg:col-span-4'} flex flex-col h-full bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden relative transition-all`}>
             {/* Header */}
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/50">
-                <label className="text-[11px] font-black text-slate-500 uppercase tracking-[0.14em] leading-none">Περιεχόμενα · {totalPieces} τεμάχια</label>
-                <div className="flex items-center gap-1.5">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/50">
+                <label className="flex-1 min-w-0 text-xs font-black text-slate-600 uppercase tracking-[0.12em] leading-snug">
+                    Περιεχόμενα · <span className="text-slate-800 tabular-nums">{totalPieces}</span> τεμάχια
+                </label>
+                <div className="flex items-center gap-1 shrink-0">
                     <button
+                        type="button"
                         onClick={actions.handleRecalculatePrices}
-                        className="h-8 inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 px-3 rounded-xl border border-amber-200 hover:bg-amber-100 transition-colors"
+                        title="Συγχρονισμός τιμών με τον κατάλογο"
+                        className="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200/90 bg-white/80 text-slate-400 hover:text-amber-700 hover:border-amber-200/80 hover:bg-amber-50/40 transition-colors"
                     >
-                        <RefreshCw size={12} /> Συγχρονισμός Τιμών
+                        <RefreshCw size={14} strokeWidth={2} />
                     </button>
                     <button
+                        type="button"
                         onClick={() => setters.setSortOrder(prev => prev === 'input' ? 'alpha' : 'input')}
-                        className="h-8 inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 bg-white border border-slate-200 px-2.5 rounded-xl hover:bg-slate-50 transition-colors"
+                        title={state.sortOrder === 'input' ? 'Ταξινόμηση: χρονολογική · πατήστε για αλφαβητική' : 'Ταξινόμηση: αλφαβητική · πατήστε για χρονολογική'}
+                        className="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200/90 bg-white/80 text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors"
                     >
-                        <ArrowDownAZ size={12} /> {state.sortOrder === 'input' ? 'Χρον.' : 'Αλφ.'}
+                        <ArrowDownAZ size={14} strokeWidth={2} />
                     </button>
                     <button
+                        type="button"
                         onClick={onOpenScanner}
-                        className="h-8 inline-flex items-center justify-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 rounded-xl border border-blue-200 transition-colors active:scale-95"
+                        title="Σάρωση barcode"
+                        className="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200/90 bg-white/80 text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors active:scale-95"
                     >
-                        <Camera size={14} />
+                        <Camera size={14} strokeWidth={2} />
                     </button>
                 </div>
             </div>
@@ -161,18 +169,18 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
             </div>
 
             {/* Items List */}
-            <div className="flex-1 overflow-y-auto space-y-3 p-4 custom-scrollbar bg-slate-50/50">
+            <div className="flex-1 overflow-y-auto space-y-2 p-3 custom-scrollbar bg-slate-50/50">
                 {state.displayItems.map((item, index) => {
                     const lineKey = getOrderItemMatchKey(item);
                     const isPriceEditing = priceEditLineKey === lineKey;
                     return (
                     <div
                         key={item.line_id || `${item.sku}-${item.variant_suffix || ''}-${item.size_info || ''}-${item.cord_color || ''}-${item.enamel_color || ''}-${index}`}
-                        className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-3 animate-in slide-in-from-right-4 transition-all hover:shadow-md group"
+                        className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-2 animate-in slide-in-from-right-4 transition-all hover:shadow-md group"
                     >
-                        <div className="flex flex-col gap-2.5">
-                            <div className="flex items-start gap-3">
-                                <div className="w-11 h-11 bg-slate-50 rounded-lg overflow-hidden shrink-0 border border-slate-100">
+                        <div className="flex flex-col gap-2">
+                            <div className="flex items-start gap-2.5">
+                                <div className="w-10 h-10 bg-slate-50 rounded-lg overflow-hidden shrink-0 border border-slate-100">
                                     {isSpecialCreationSku(item.sku) ? (
                                         <div className="w-full h-full flex items-center justify-center text-[10px] font-black text-violet-700 bg-violet-50">SP</div>
                                     ) : item.product_details?.image_url ? (
@@ -202,34 +210,34 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                         <div className="text-[10px] text-violet-600 font-bold mt-0.5 truncate">{item.product_details?.category || 'Ειδική δημιουργία'}</div>
                                     )}
                                 </div>
-                                <div className="flex flex-col items-end gap-2 shrink-0 self-start min-w-[8.5rem]">
-                                    <div className="flex items-center gap-1.5">
-                                        <div className="flex items-center gap-0.5 bg-slate-100 p-1 rounded-lg border border-slate-200">
-                                            <button type="button" onClick={() => actions.updateQuantity(item, item.quantity - 1)} className="p-1 hover:bg-white rounded-md shadow-sm text-slate-600 active:scale-95"><Minus size={12} /></button>
-                                            <span className="min-w-[1.5rem] text-center font-black text-sm tabular-nums">{item.quantity}</span>
-                                            <button type="button" onClick={() => actions.updateQuantity(item, item.quantity + 1)} className="p-1 hover:bg-white rounded-md shadow-sm text-slate-600 active:scale-95"><Plus size={12} /></button>
+                                <div className="flex flex-col items-end gap-1 shrink-0 self-start min-w-0 max-w-[42%] sm:max-w-none">
+                                    <div className="flex items-center gap-1">
+                                        <div className="flex items-center gap-0 bg-slate-100 p-0.5 rounded-md border border-slate-200">
+                                            <button type="button" onClick={() => actions.updateQuantity(item, item.quantity - 1)} className="p-0.5 hover:bg-white rounded text-slate-600 active:scale-95"><Minus size={11} /></button>
+                                            <span className="min-w-[1.25rem] text-center font-black text-xs tabular-nums px-0.5">{item.quantity}</span>
+                                            <button type="button" onClick={() => actions.updateQuantity(item, item.quantity + 1)} className="p-0.5 hover:bg-white rounded text-slate-600 active:scale-95"><Plus size={11} /></button>
                                         </div>
                                         {!isSpecialCreationSku(item.sku) && (
-                                            <button type="button" onClick={() => openEditItem(item)} className="p-2 text-slate-300 hover:text-blue-500 transition-colors" title="Επεξεργασία SKU">
-                                                <Pencil size={15} />
+                                            <button type="button" onClick={() => openEditItem(item)} className="p-1.5 text-slate-300 hover:text-blue-500 transition-colors" title="Επεξεργασία SKU">
+                                                <Pencil size={14} />
                                             </button>
                                         )}
-                                        <button type="button" onClick={() => actions.handleRemoveItem(item)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
-                                            <Trash2 size={16} />
+                                        <button type="button" onClick={() => actions.handleRemoveItem(item)} className="p-1.5 text-slate-300 hover:text-red-500 transition-colors" title="Αφαίρεση">
+                                            <Trash2 size={14} />
                                         </button>
                                     </div>
-                                    <div className="w-full flex flex-col items-end gap-1">
+                                    <div className="w-full flex flex-col items-end">
                                         {isPriceEditing ? (
                                             <div
-                                                className={`flex items-center justify-end gap-1.5 rounded-xl border-2 px-2 py-1.5 shadow-sm w-full max-w-[11rem] ${
+                                                className={`flex items-center justify-end gap-1 rounded-lg border px-1.5 py-1 w-full max-w-[9.5rem] ${
                                                     isSpecialCreationSku(item.sku)
                                                         ? 'border-violet-300 bg-violet-50/50'
                                                         : item.price_override
                                                           ? 'border-amber-400 bg-amber-50/60'
-                                                          : 'border-emerald-400/80 bg-emerald-50/40'
+                                                          : 'border-emerald-400/70 bg-emerald-50/35'
                                                 }`}
                                             >
-                                                <span className="text-sm font-black text-slate-600 shrink-0">€</span>
+                                                <span className="text-xs font-bold text-slate-600 shrink-0">€</span>
                                                 <input
                                                     type="number"
                                                     min={0}
@@ -242,17 +250,18 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                                     onKeyDown={e => {
                                                         if (e.key === 'Escape') setPriceEditLineKey(null);
                                                     }}
-                                                    className="min-w-0 flex-1 bg-white rounded-lg border border-slate-200 px-2 py-1 font-mono text-lg font-bold tabular-nums text-right text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500/30"
+                                                    className="min-w-0 flex-1 bg-white rounded border border-slate-200 px-1 py-0.5 font-mono text-sm font-bold tabular-nums text-right text-slate-900 outline-none focus:ring-1 focus:ring-emerald-500/35"
                                                 />
                                                 {item.price_override && !isSpecialCreationSku(item.sku) && (
-                                                    <span className="text-amber-700 font-black text-sm shrink-0" title="Η τιμή διαφέρει από τον κατάλογο">*</span>
+                                                    <span className="text-amber-700 font-black text-xs shrink-0" title="Η τιμή διαφέρει από τον κατάλογο">*</span>
                                                 )}
                                             </div>
                                         ) : (
                                             <button
                                                 type="button"
                                                 onClick={() => setPriceEditLineKey(lineKey)}
-                                                className={`group/price text-right rounded-xl px-2 py-1 -mr-1 transition-colors w-full ${
+                                                title="Πατήστε για αλλαγή τιμής"
+                                                className={`group/price text-right rounded-lg px-1.5 py-0.5 -mr-0.5 transition-colors ${
                                                     isSpecialCreationSku(item.sku)
                                                         ? 'hover:bg-violet-50/70'
                                                         : item.price_override
@@ -263,17 +272,17 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                                 <div
                                                     className={`font-black tabular-nums tracking-tight leading-none ${
                                                         isSpecialCreationSku(item.sku) ? 'text-violet-900' : item.price_override ? 'text-amber-900' : 'text-slate-900'
-                                                    } ${item.price_override ? 'text-2xl' : 'text-[1.65rem] sm:text-3xl'}`}
+                                                    } ${item.price_override ? 'text-base' : 'text-[15px] sm:text-lg'}`}
                                                 >
                                                     {formatDecimal(item.price_at_order, 2)}€
                                                 </div>
-                                                <div className="mt-1 flex flex-col items-end gap-0.5">
-                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">ανά τεμάχιο</span>
+                                                <div className="mt-0.5 flex flex-col items-end gap-0 leading-tight">
+                                                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">ανά τεμ.</span>
                                                     {item.price_override && !isSpecialCreationSku(item.sku) && (
-                                                        <span className="text-[9px] font-bold text-amber-700/90">εκτός τιμής καταλόγου *</span>
+                                                        <span className="text-[8px] font-bold text-amber-700/90">εκτός καταλόγου *</span>
                                                     )}
-                                                    <span className="text-[9px] font-semibold text-slate-400 opacity-0 group-hover/price:opacity-100 transition-opacity max-w-[11rem]">
-                                                        Πατήστε για αλλαγή τιμής
+                                                    <span className="text-[8px] font-medium text-slate-400 opacity-0 group-hover/price:opacity-100 transition-opacity">
+                                                        αλλαγή τιμής
                                                     </span>
                                                 </div>
                                             </button>
@@ -282,10 +291,10 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                 </div>
                             </div>
                             {(item.size_info || item.cord_color || item.enamel_color) && (
-                                <div className="flex flex-wrap items-stretch gap-1.5 w-full pt-2 border-t border-slate-100/90">
-                                    {item.size_info && <span className="inline-flex items-center text-[10px] font-bold text-slate-600 bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-100">SZ: {item.size_info}</span>}
-                                    {item.cord_color && <span className="inline-flex items-center text-[10px] font-bold bg-amber-50 text-amber-800 px-2.5 py-1.5 rounded-xl border border-amber-100">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
-                                    {item.enamel_color && <span className="inline-flex items-center text-[10px] font-bold bg-rose-50 text-rose-800 px-2.5 py-1.5 rounded-xl border border-rose-100">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
+                                <div className="flex flex-wrap items-stretch gap-1 w-full pt-1.5 border-t border-slate-100/90">
+                                    {item.size_info && <span className="inline-flex items-center text-[9px] font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-md border border-slate-100">SZ: {item.size_info}</span>}
+                                    {item.cord_color && <span className="inline-flex items-center text-[9px] font-bold bg-amber-50 text-amber-800 px-2 py-1 rounded-md border border-amber-100">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
+                                    {item.enamel_color && <span className="inline-flex items-center text-[9px] font-bold bg-rose-50 text-rose-800 px-2 py-1 rounded-md border border-rose-100">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
                                 </div>
                             )}
                         </div>
@@ -296,7 +305,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                 value={item.notes || ''}
                                 onChange={e => actions.updateItemNotes(item, e.target.value)}
                                 placeholder="Προσθήκη παρατήρησης είδους..."
-                                className="w-full pl-7 py-1.5 text-[10px] bg-slate-50 border border-transparent hover:border-slate-200 focus:border-emerald-300 focus:bg-white rounded-lg outline-none font-medium text-slate-600 transition-all placeholder:italic"
+                                className="w-full pl-6 py-1 text-[10px] bg-slate-50 border border-transparent hover:border-slate-200 focus:border-emerald-300 focus:bg-white rounded-md outline-none font-medium text-slate-600 transition-all placeholder:italic"
                             />
                             <StickyNote size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-300 group-hover/note:text-emerald-400" />
                         </div>
