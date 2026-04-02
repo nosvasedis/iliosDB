@@ -2,11 +2,12 @@ import React, { useMemo, useState } from 'react';
 import { Search, X, ArrowDownAZ, Camera, Plus, Minus, Trash2, StickyNote, Box, RefreshCw, Save, Loader2, Pencil } from 'lucide-react';
 import { FINISH_CODES } from '../../constants';
 import { OrderItem } from '../../types';
-import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine';
+import { formatCurrency, formatDecimal, getVariantComponents } from '../../utils/pricingEngine';
 import { getSizingInfo } from '../../utils/sizing';
 import { useOrderState, FINISH_COLORS, STONE_TEXT_COLORS } from '../../hooks/useOrderState';
 import { PRODUCT_OPTION_COLORS, PRODUCT_OPTION_COLOR_LABELS, getProductOptionColorLabel, isXrCordEnamelSku } from '../../utils/xrOptions';
 import { isSpecialCreationSku } from '../../utils/specialCreationSku';
+import { getOrderItemMatchKey } from '../../utils/orderItemMatch';
 
 interface Props {
     orderState: ReturnType<typeof useOrderState>;
@@ -20,6 +21,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
         () => state.selectedItems.reduce((sum, item) => sum + item.quantity, 0),
         [state.selectedItems],
     );
+    const [priceEditLineKey, setPriceEditLineKey] = useState<string | null>(null);
     const [editingItem, setEditingItem] = useState<OrderItem | null>(null);
     const [editFinish, setEditFinish] = useState('');
     const [editVariantSuffix, setEditVariantSuffix] = useState('');
@@ -160,7 +162,10 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
 
             {/* Items List */}
             <div className="flex-1 overflow-y-auto space-y-3 p-4 custom-scrollbar bg-slate-50/50">
-                {state.displayItems.map((item, index) => (
+                {state.displayItems.map((item, index) => {
+                    const lineKey = getOrderItemMatchKey(item);
+                    const isPriceEditing = priceEditLineKey === lineKey;
+                    return (
                     <div
                         key={item.line_id || `${item.sku}-${item.variant_suffix || ''}-${item.size_info || ''}-${item.cord_color || ''}-${item.enamel_color || ''}-${index}`}
                         className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-3 animate-in slide-in-from-right-4 transition-all hover:shadow-md group"
@@ -197,39 +202,92 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                         <div className="text-[10px] text-violet-600 font-bold mt-0.5 truncate">{item.product_details?.category || 'Ειδική δημιουργία'}</div>
                                     )}
                                 </div>
-                                <div className="flex items-center gap-1.5 shrink-0 self-start">
-                                    <div className="flex items-center gap-0.5 bg-slate-100 p-1 rounded-lg border border-slate-200">
-                                        <button type="button" onClick={() => actions.updateQuantity(item, item.quantity - 1)} className="p-1 hover:bg-white rounded-md shadow-sm text-slate-600 active:scale-95"><Minus size={12} /></button>
-                                        <span className="min-w-[1.5rem] text-center font-black text-sm tabular-nums">{item.quantity}</span>
-                                        <button type="button" onClick={() => actions.updateQuantity(item, item.quantity + 1)} className="p-1 hover:bg-white rounded-md shadow-sm text-slate-600 active:scale-95"><Plus size={12} /></button>
-                                    </div>
-                                    {!isSpecialCreationSku(item.sku) && (
-                                        <button type="button" onClick={() => openEditItem(item)} className="p-2 text-slate-300 hover:text-blue-500 transition-colors" title="Επεξεργασία SKU">
-                                            <Pencil size={15} />
+                                <div className="flex flex-col items-end gap-2 shrink-0 self-start min-w-[8.5rem]">
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="flex items-center gap-0.5 bg-slate-100 p-1 rounded-lg border border-slate-200">
+                                            <button type="button" onClick={() => actions.updateQuantity(item, item.quantity - 1)} className="p-1 hover:bg-white rounded-md shadow-sm text-slate-600 active:scale-95"><Minus size={12} /></button>
+                                            <span className="min-w-[1.5rem] text-center font-black text-sm tabular-nums">{item.quantity}</span>
+                                            <button type="button" onClick={() => actions.updateQuantity(item, item.quantity + 1)} className="p-1 hover:bg-white rounded-md shadow-sm text-slate-600 active:scale-95"><Plus size={12} /></button>
+                                        </div>
+                                        {!isSpecialCreationSku(item.sku) && (
+                                            <button type="button" onClick={() => openEditItem(item)} className="p-2 text-slate-300 hover:text-blue-500 transition-colors" title="Επεξεργασία SKU">
+                                                <Pencil size={15} />
+                                            </button>
+                                        )}
+                                        <button type="button" onClick={() => actions.handleRemoveItem(item)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
+                                            <Trash2 size={16} />
                                         </button>
-                                    )}
-                                    <button type="button" onClick={() => actions.handleRemoveItem(item)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
-                                        <Trash2 size={16} />
-                                    </button>
+                                    </div>
+                                    <div className="w-full flex flex-col items-end gap-1">
+                                        {isPriceEditing ? (
+                                            <div
+                                                className={`flex items-center justify-end gap-1.5 rounded-xl border-2 px-2 py-1.5 shadow-sm w-full max-w-[11rem] ${
+                                                    isSpecialCreationSku(item.sku)
+                                                        ? 'border-violet-300 bg-violet-50/50'
+                                                        : item.price_override
+                                                          ? 'border-amber-400 bg-amber-50/60'
+                                                          : 'border-emerald-400/80 bg-emerald-50/40'
+                                                }`}
+                                            >
+                                                <span className="text-sm font-black text-slate-600 shrink-0">€</span>
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    step={0.01}
+                                                    autoFocus
+                                                    value={item.price_at_order}
+                                                    onFocus={e => e.target.select()}
+                                                    onChange={e => actions.updateItemUnitPrice(item, parseFloat(e.target.value) || 0)}
+                                                    onBlur={() => setPriceEditLineKey(null)}
+                                                    onKeyDown={e => {
+                                                        if (e.key === 'Escape') setPriceEditLineKey(null);
+                                                    }}
+                                                    className="min-w-0 flex-1 bg-white rounded-lg border border-slate-200 px-2 py-1 font-mono text-lg font-bold tabular-nums text-right text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500/30"
+                                                />
+                                                {item.price_override && !isSpecialCreationSku(item.sku) && (
+                                                    <span className="text-amber-700 font-black text-sm shrink-0" title="Η τιμή διαφέρει από τον κατάλογο">*</span>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={() => setPriceEditLineKey(lineKey)}
+                                                className={`group/price text-right rounded-xl px-2 py-1 -mr-1 transition-colors w-full ${
+                                                    isSpecialCreationSku(item.sku)
+                                                        ? 'hover:bg-violet-50/70'
+                                                        : item.price_override
+                                                          ? 'hover:bg-amber-50/80'
+                                                          : 'hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <div
+                                                    className={`font-black tabular-nums tracking-tight leading-none ${
+                                                        isSpecialCreationSku(item.sku) ? 'text-violet-900' : item.price_override ? 'text-amber-900' : 'text-slate-900'
+                                                    } ${item.price_override ? 'text-2xl' : 'text-[1.65rem] sm:text-3xl'}`}
+                                                >
+                                                    {formatDecimal(item.price_at_order, 2)}€
+                                                </div>
+                                                <div className="mt-1 flex flex-col items-end gap-0.5">
+                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">ανά τεμάχιο</span>
+                                                    {item.price_override && !isSpecialCreationSku(item.sku) && (
+                                                        <span className="text-[9px] font-bold text-amber-700/90">εκτός τιμής καταλόγου *</span>
+                                                    )}
+                                                    <span className="text-[9px] font-semibold text-slate-400 opacity-0 group-hover/price:opacity-100 transition-opacity max-w-[11rem]">
+                                                        Πατήστε για αλλαγή τιμής
+                                                    </span>
+                                                </div>
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-                            <div className="flex flex-wrap items-stretch gap-1.5 w-full pt-0.5 border-t border-slate-100/90">
-                                <div className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 border min-h-[2.25rem] ${isSpecialCreationSku(item.sku) ? 'bg-violet-50 border-violet-100' : (item.price_override ? 'bg-amber-50/80 border-amber-200' : 'bg-slate-50 border-slate-200/80')}`}>
-                                    <span className={`text-[10px] font-black uppercase tracking-wide shrink-0 ${isSpecialCreationSku(item.sku) ? 'text-violet-800' : 'text-slate-600'}`}>€/τεμ.</span>
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        step={0.01}
-                                        value={item.price_at_order}
-                                        onChange={e => actions.updateItemUnitPrice(item, parseFloat(e.target.value) || 0)}
-                                        className={`w-[4.75rem] max-w-full rounded-lg border px-1.5 py-0.5 font-mono text-xs tabular-nums leading-normal outline-none focus:ring-2 focus:ring-emerald-500/25 ${isSpecialCreationSku(item.sku) ? 'border-violet-200 bg-white text-violet-900' : (item.price_override ? 'border-amber-300 bg-white text-amber-900' : 'border-slate-200 bg-white text-slate-900')}`}
-                                    />
-                                    {item.price_override && <span className="text-amber-700 font-black text-xs" title="Η τιμή διαφέρει από τον κατάλογο">*</span>}
+                            {(item.size_info || item.cord_color || item.enamel_color) && (
+                                <div className="flex flex-wrap items-stretch gap-1.5 w-full pt-2 border-t border-slate-100/90">
+                                    {item.size_info && <span className="inline-flex items-center text-[10px] font-bold text-slate-600 bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-100">SZ: {item.size_info}</span>}
+                                    {item.cord_color && <span className="inline-flex items-center text-[10px] font-bold bg-amber-50 text-amber-800 px-2.5 py-1.5 rounded-xl border border-amber-100">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
+                                    {item.enamel_color && <span className="inline-flex items-center text-[10px] font-bold bg-rose-50 text-rose-800 px-2.5 py-1.5 rounded-xl border border-rose-100">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
                                 </div>
-                                {item.size_info && <span className="inline-flex items-center text-[10px] font-bold text-slate-600 bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-100">SZ: {item.size_info}</span>}
-                                {item.cord_color && <span className="inline-flex items-center text-[10px] font-bold bg-amber-50 text-amber-800 px-2.5 py-1.5 rounded-xl border border-amber-100">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
-                                {item.enamel_color && <span className="inline-flex items-center text-[10px] font-bold bg-rose-50 text-rose-800 px-2.5 py-1.5 rounded-xl border border-rose-100">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
-                            </div>
+                            )}
                         </div>
 
                         <div className="relative group/note">
@@ -243,7 +301,8 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                             <StickyNote size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-300 group-hover/note:text-emerald-400" />
                         </div>
                     </div>
-                ))}
+                    );
+                })}
                 {state.selectedItems.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full text-slate-300 italic py-10">
                         <Box size={48} className="opacity-20 mb-4" />
