@@ -8,12 +8,15 @@ import {
   expandOrionDigitCoresForAnchor,
   getActiveMasterSetMates,
   getCollectionCoreSiblings,
+  getCollectionWideFinishHint,
   getFamilyClusterSiblings,
+  getScopedVariantHintStringsForProduct,
   isOrionCollectionName,
   parseMasterSkuParts,
   shouldExcludeDaMnSkCrosswalkSibling,
   suggestionDesirabilityScore,
   variantSuffixMatchesOrderHints,
+  type SuggestionRankContext,
 } from '../../features/orders/smartSkuSuggestions';
 
 const makeProduct = (overrides: Partial<Product>): Product =>
@@ -211,6 +214,55 @@ describe('smartSkuSuggestions', () => {
       orderContextVariantSuffixes: ['XRZ'],
     });
     expect(result?.topChips[0]?.sku).toBe('MN901');
+  });
+
+  it('scoped cart hints: DA035PCO boosts MN035 variant score over MN034 (same collection)', () => {
+    const vco: ProductVariant = { suffix: 'PCO', description: '', stock_qty: 0 };
+    const products = [
+      makeProduct({ sku: 'DA035', gender: Gender.Women, collections: [10], variants: [vco] }),
+      makeProduct({ sku: 'MN035', gender: Gender.Women, collections: [10], variants: [vco] }),
+      makeProduct({ sku: 'MN034', gender: Gender.Women, collections: [10], variants: [vco] }),
+    ];
+    const resolve = (sku: string) => products.find((p) => p.sku === sku);
+    const orderItems = [
+      { sku: 'DA035', variant_suffix: 'PCO', quantity: 1, price_at_order: 1, product_details: products[0] },
+    ];
+    const ctx: SuggestionRankContext = {
+      searchTerm: 'MN',
+      typedVariant: null,
+      orderVariantSuffixes: [],
+      orderVariantResolution: { orderItems, resolveProduct: resolve },
+    };
+    expect(suggestionDesirabilityScore(products[1], ctx)).toBeGreaterThan(suggestionDesirabilityScore(products[2], ctx));
+  });
+
+  it('scoped cart hints: no shared collection — SK035 does not inherit DA035PCO', () => {
+    const v: ProductVariant = { suffix: 'PCO', description: '', stock_qty: 0 };
+    const da = makeProduct({ sku: 'DA035', gender: Gender.Women, collections: [1], variants: [v] });
+    const sk = makeProduct({ sku: 'SK035', gender: Gender.Women, collections: [2], variants: [v] });
+    const resolve = (sku: string) => (sku === 'DA035' ? da : sku === 'SK035' ? sk : undefined);
+    const orderItems = [{ sku: 'DA035', variant_suffix: 'PCO', quantity: 1, price_at_order: 1, product_details: da }];
+    expect(getScopedVariantHintStringsForProduct(sk, orderItems, resolve)).toEqual([]);
+  });
+
+  it('getCollectionWideFinishHint: 3+ units with finish P in same collection', () => {
+    const vp: ProductVariant = { suffix: 'PCO', description: '', stock_qty: 0 };
+    const vak: ProductVariant = { suffix: 'PAK', description: '', stock_qty: 0 };
+    const p1 = makeProduct({ sku: 'A01', gender: Gender.Women, collections: [5], variants: [vp] });
+    const p2 = makeProduct({ sku: 'A02', gender: Gender.Women, collections: [5], variants: [vak] });
+    const target = makeProduct({ sku: 'A03', gender: Gender.Women, collections: [5], variants: [vp] });
+    const resolve = (sku: string) => {
+      if (sku === 'A01') return p1;
+      if (sku === 'A02') return p2;
+      return undefined;
+    };
+    const orderItems = [
+      { sku: 'A01', variant_suffix: 'PCO', quantity: 2, price_at_order: 1, product_details: p1 },
+      { sku: 'A02', variant_suffix: 'PAK', quantity: 1, price_at_order: 1, product_details: p2 },
+    ];
+    expect(getCollectionWideFinishHint(target, orderItems, resolve, 3)).toBe('P');
+    const targetMen = makeProduct({ sku: 'A03', gender: Gender.Men, collections: [5], variants: [vp] });
+    expect(getCollectionWideFinishHint(targetMen, orderItems, resolve, 3)).toBeNull();
   });
 
   it('prioritizes products that match recent order variant suffix', () => {

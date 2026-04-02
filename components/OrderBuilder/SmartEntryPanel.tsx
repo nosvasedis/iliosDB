@@ -3,7 +3,12 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { ScanBarcode, X, Hash, Layers, Plus, ImageIcon, StickyNote, ChevronDown, ChevronUp } from 'lucide-react';
 import { getVariantComponents, getVariantSuffixDisplayCodes } from '../../utils/pricingEngine';
 import { useOrderState, FINISH_COLORS, STONE_TEXT_COLORS } from '../../hooks/useOrderState';
-import { productMatchesVariantSuffix, variantSuffixMatchesOrderHints } from '../../features/orders/smartSkuSuggestions';
+import {
+    buildVariantHintListForRanking,
+    getVariantDisplayHighlightHint,
+    productMatchesVariantSuffix,
+    variantSuffixMatchesOrderHints,
+} from '../../features/orders/smartSkuSuggestions';
 import { PRODUCT_OPTION_COLORS, PRODUCT_OPTION_COLOR_LABELS, isXrCordEnamelSku } from '../../utils/xrOptions';
 import { SPECIAL_CREATION_SKU } from '../../utils/specialCreationSku';
 import type { Product } from '../../types';
@@ -62,16 +67,33 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
         state.smartSuggestions &&
         (state.smartSuggestions.topChips.length > 0 || state.smartSuggestions.virtualRows.length > 0);
 
-    const productRow = (p: Product, dense?: boolean, preferVariantFromOrder?: string | null) => {
+    const typedVariantFromScanInput = (): string | null => {
+        const sug = state.smartSuggestions?.variantSuffix;
+        if (sug) return sug;
+        const m = state.activeMaster;
+        if (!m) return null;
+        const u = state.scanInput.trim().toUpperCase();
+        const mu = m.sku.toUpperCase();
+        if (u.startsWith(mu) && u.length > mu.length) {
+            const tail = u.slice(mu.length).trim();
+            return tail.length > 0 ? tail : null;
+        }
+        return null;
+    };
+
+    const productRow = (p: Product, dense?: boolean) => {
         const col = collectionLabel(p, state.collectionNameById);
-        const hint =
-            (preferVariantFromOrder && productMatchesVariantSuffix(p, preferVariantFromOrder)
-                ? preferVariantFromOrder
-                : null) ||
-            (state.smartSuggestions?.highlightVariantSuffix &&
+        const typed = typedVariantFromScanInput();
+        const cartHint =
+            state.selectedItems.length > 0 && state.resolveOrderLineProduct
+                ? getVariantDisplayHighlightHint(p, state.selectedItems, state.resolveOrderLineProduct, typed)
+                : null;
+        const globalSug =
+            state.smartSuggestions?.highlightVariantSuffix &&
             productMatchesVariantSuffix(p, state.smartSuggestions.highlightVariantSuffix)
                 ? state.smartSuggestions.highlightVariantSuffix
-                : null);
+                : null;
+        const hint = cartHint ?? globalSug;
         const onSelect = () => actions.handleSelectMaster(p, hint);
 
         return (
@@ -238,7 +260,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                         <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
                             {state.smartSuggestions!.topChips.map((p) => (
                                 <div key={p.sku} className="min-w-[158px] shrink-0">
-                                    {productRow(p, false, state.recentOrderVariantHint)}
+                                    {productRow(p, false)}
                                 </div>
                             ))}
                         </div>
@@ -277,7 +299,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                                     transform: `translateY(${virtualRow.start}px)`,
                                                 }}
                                             >
-                                                {productRow(row.product, true, state.recentOrderVariantHint)}
+                                                {productRow(row.product, true)}
                                             </div>
                                         );
                                     })}
@@ -337,7 +359,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                     <div className="flex gap-2 overflow-x-auto px-2 pb-3 pt-1 scrollbar-hide">
                                         {state.activeMasterSetMates.map((p) => (
                                             <div key={p.sku} className="min-w-[148px] shrink-0">
-                                                {productRow(p, true, state.recentOrderVariantHint)}
+                                                {productRow(p, true)}
                                             </div>
                                         ))}
                                     </div>
@@ -429,10 +451,18 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                             state.activeMaster,
                                         );
                                         const label = finishCode || stoneCode ? null : v.suffix?.trim() || '—';
-                                        const orderSuffixes = state.recentOrderVariantSuffixes;
+                                        const typedTail = typedVariantFromScanInput();
+                                        const orderHints =
+                                            state.selectedItems.length > 0 && state.resolveOrderLineProduct && state.activeMaster
+                                                ? buildVariantHintListForRanking(
+                                                      state.activeMaster,
+                                                      state.selectedItems,
+                                                      state.resolveOrderLineProduct,
+                                                      typedTail,
+                                                  )
+                                                : [];
                                         const orderHintMatch =
-                                            !!orderSuffixes?.length &&
-                                            variantSuffixMatchesOrderHints(v.suffix, orderSuffixes);
+                                            orderHints.length > 0 && variantSuffixMatchesOrderHints(v.suffix, orderHints);
                                         return (
                                             <button
                                                 key={v.suffix}

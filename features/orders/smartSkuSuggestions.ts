@@ -1,8 +1,12 @@
-import type { Collection, Product } from '../../types';
-import { splitSkuComponents } from '../../utils/pricingEngine';
+import type { Collection, OrderItem, Product } from '../../types';
+import { getVariantComponents, splitSkuComponents } from '../../utils/pricingEngine';
+import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 
 /** DA001–DA009 pair with MN901–909 / SK901–909 in the same collection (not MN001/SK001). */
 const DA_LOW_SERIES_MAX = 9;
+
+/** Min units (sum of line qty) with the same metal finish in a shared collection before inferring finish for other cores. */
+export const MIN_COLLECTION_FINISH_UNITS_FOR_INFERENCE = 3;
 
 /**
  * Ωρίων-style pairing: four parallel RN “lines”, each +300 for the PN/XR high band.
@@ -215,6 +219,27 @@ export function variantSuffixMatchesOrderHints(suffix: string, orderHints: reado
   return false;
 }
 
+/** Single suffix to show on a suggestion card / pre-fill when it matches this product’s variants. */
+export function getVariantDisplayHighlightHint(
+  target: Product,
+  orderItems: readonly OrderItem[],
+  resolveProduct: (sku: string) => Product | undefined,
+  typedVariant: string | null,
+): string | null {
+  const strict = getScopedVariantHintStringsForProduct(target, orderItems, resolveProduct);
+  for (const s of strict) {
+    const u = s.trim().toUpperCase();
+    if (productMatchesVariantSuffix(target, u)) return u;
+  }
+  if (typedVariant?.trim()) {
+    const t = typedVariant.trim().toUpperCase();
+    if (productMatchesVariantSuffix(target, t)) return t;
+  }
+  const finishH = getCollectionWideFinishHint(target, orderItems, resolveProduct);
+  if (finishH && productMatchesVariantSuffix(target, finishH)) return finishH;
+  return null;
+}
+
 /** Digit cores to look up in `collectionCoreToSkus` incl. DA↔MN/SK 9xx crosswalk. */
 export function expandCollectionDigitCoresForAnchor(parts: { letters: string; digits: string; num: number }): string[] {
   const cores = new Set<string>([parts.digits]);
@@ -246,6 +271,128 @@ export function shouldExcludeDaMnSkCrosswalkSibling(
   return false;
 }
 
+function collectionsIntersect(a?: Product, b?: Product): boolean {
+  const ca = a?.collections ?? [];
+  const cb = b?.collections ?? [];
+  if (!ca.length || !cb.length) return false;
+  const sb = new Set(cb);
+  return ca.some((id) => sb.has(id));
+}
+
+function digitCoresOverlap(
+  pa: { letters: string; digits: string; num: number },
+  pb: { letters: string; digits: string; num: number },
+): boolean {
+  const sa = new Set(expandCollectionDigitCoresForAnchor(pa));
+  const sb = new Set(expandCollectionDigitCoresForAnchor(pb));
+  for (const x of sa) {
+    if (sb.has(x)) return true;
+  }
+  return false;
+}
+
+function resolveOrderLineProduct(item: OrderItem, resolver: (sku: string) => Product | undefined): Product | undefined {
+  return item.product_details ?? resolver(item.sku);
+}
+
+/**
+ * Full variant suffixes from cart lines that match target: same gender, shared collection, same digit core
+ * (incl. DA↔MN/SK 9xx core expansion).
+ */
+export function getScopedVariantHintStringsForProduct(
+  target: Product,
+  orderItems: readonly OrderItem[],
+  resolveProduct: (sku: string) => Product | undefined,
+): string[] {
+  const targetParts = parseMasterSkuParts(target.sku);
+  if (!targetParts) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of orderItems) {
+    const vs = item.variant_suffix?.trim();
+    if (!vs) continue;
+    const op = resolveOrderLineProduct(item, resolveProduct);
+    if (!op || op.is_component) continue;
+    if (isSpecialCreationSku(item.sku)) continue;
+    if (op.gender !== target.gender) continue;
+    if (!collectionsIntersect(target, op)) continue;
+    const otherParts = parseMasterSkuParts(op.sku);
+    if (!otherParts || !digitCoresOverlap(targetParts, otherParts)) continue;
+    const u = vs.toUpperCase();
+    if (!seen.has(u)) {
+      seen.add(u);
+      out.push(vs);
+    }
+  }
+  return out;
+}
+
+/**
+ * When enough lines in the same collection (any core) share one metal finish, suggest that finish for new lines.
+ */
+export function getCollectionWideFinishHint(
+  target: Product,
+  orderItems: readonly OrderItem[],
+  resolveProduct: (sku: string) => Product | undefined,
+  minUnits: number = MIN_COLLECTION_FINISH_UNITS_FOR_INFERENCE,
+): string | null {
+  const cols = target.collections;
+  if (!cols?.length) return null;
+  const tgtSet = new Set(cols);
+  const finishUnits = new Map<string, number>();
+  for (const item of orderItems) {
+    const vs = item.variant_suffix?.trim();
+    if (!vs) continue;
+    const op = resolveOrderLineProduct(item, resolveProduct);
+    if (!op || op.is_component) continue;
+    if (isSpecialCreationSku(item.sku)) continue;
+    if (op.gender !== target.gender) continue;
+    const opCols = op.collections ?? [];
+    if (!opCols.some((c) => tgtSet.has(c))) continue;
+    const { finish } = getVariantComponents(vs, op.gender);
+    const fc = finish.code;
+    if (!fc) continue;
+    finishUnits.set(fc, (finishUnits.get(fc) || 0) + item.quantity);
+  }
+  let best: string | null = null;
+  let bestN = 0;
+  for (const [code, n] of finishUnits) {
+    if (n >= minUnits && n > bestN) {
+      best = code;
+      bestN = n;
+    }
+  }
+  return best;
+}
+
+function dedupeUpperHintStrings(list: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of list) {
+    const u = raw.trim().toUpperCase();
+    if (!u || seen.has(u)) continue;
+    seen.add(u);
+    out.push(u);
+  }
+  return out;
+}
+
+/** Hints for ranking/highlight: typed tail, strict same-core+same-collection suffixes, then collection-wide finish (if enough data). */
+export function buildVariantHintListForRanking(
+  target: Product,
+  orderItems: readonly OrderItem[],
+  resolveProduct: (sku: string) => Product | undefined,
+  typedVariant: string | null,
+): string[] {
+  const strict = getScopedVariantHintStringsForProduct(target, orderItems, resolveProduct).map((s) => s.trim().toUpperCase());
+  const finishConsensus = getCollectionWideFinishHint(target, orderItems, resolveProduct);
+  const merged: string[] = [];
+  if (typedVariant?.trim()) merged.push(typedVariant.trim().toUpperCase());
+  merged.push(...strict);
+  if (finishConsensus) merged.push(finishConsensus);
+  return dedupeUpperHintStrings(merged);
+}
+
 const variantHintRank = (p: Product, hints: string[]): number => {
   let best = 0;
   for (const raw of hints) {
@@ -270,16 +417,34 @@ const variantHintRank = (p: Product, hints: string[]): number => {
 export interface SuggestionRankContext {
   searchTerm: string;
   typedVariant: string | null;
-  orderVariantSuffixes: string[];
+  /** Legacy global suffix FIFO; ignored when `orderVariantResolution` is set (cart-scoped hints win). */
+  orderVariantSuffixes?: string[];
   /**
    * SKUs that share a collection “set” with a recent order line (incl. DA↔9xx crosswalk).
    * Without this, generic prefix matches tie-break on numeric sort (MN112 before MN901 for “MN”).
    */
   orderContextAffinitySkus?: Set<string>;
+  /** Per-target variant hints: same collection + digit core + gender; optional collection-wide finish after enough units. */
+  orderVariantResolution?: {
+    orderItems: readonly OrderItem[];
+    resolveProduct: (sku: string) => Product | undefined;
+  };
 }
 
 /** Stronger than a plain prefix match so MN901 beats MN112 when DA001/SK901 are on the order. */
 const ORDER_CONTEXT_AFFINITY_BONUS = 80_000;
+
+function variantHintsForProduct(p: Product, ctx: SuggestionRankContext): string[] {
+  const res = ctx.orderVariantResolution;
+  if (res?.orderItems?.length && res.resolveProduct) {
+    return buildVariantHintListForRanking(p, res.orderItems, res.resolveProduct, ctx.typedVariant);
+  }
+  return dedupeUpperHintStrings(
+    [ctx.typedVariant, ...(ctx.orderVariantSuffixes ?? [])]
+      .filter((x): x is string => !!x && String(x).trim().length > 0)
+      .map((x) => String(x).trim().toUpperCase()),
+  );
+}
 
 /** Higher score = more desirable (search match + variant affinity from order / typed tail). */
 export function suggestionDesirabilityScore(p: Product, ctx: SuggestionRankContext): number {
@@ -291,10 +456,7 @@ export function suggestionDesirabilityScore(p: Product, ctx: SuggestionRankConte
     else if (sku.startsWith(t)) score += 50_000;
     else if (t.length >= 3 && sku.includes(t)) score += 10_000;
   }
-  const hintList = [ctx.typedVariant, ...ctx.orderVariantSuffixes]
-    .filter((x): x is string => !!x && String(x).trim().length > 0)
-    .map((x) => String(x).trim().toUpperCase());
-  score += variantHintRank(p, hintList);
+  score += variantHintRank(p, variantHintsForProduct(p, ctx));
   if (ctx.orderContextAffinitySkus?.size && ctx.orderContextAffinitySkus.has(p.sku)) {
     score += ORDER_CONTEXT_AFFINITY_BONUS;
   }
@@ -482,8 +644,11 @@ export interface ComputeSmartSkuSuggestionsArgs {
   index: ProductSearchIndex;
   skuPart: string;
   orderContextMasterSkus: string[];
-  /** Non-empty variant_suffix values from recent lines (order matters: newest first). */
+  /** Legacy FIFO suffixes; superseded when `orderItems` + `resolveOrderLineProduct` are passed. */
   orderContextVariantSuffixes?: string[];
+  /** Current cart lines — variant/metal hints scoped by collection, digit core, and gender. */
+  orderItems?: OrderItem[];
+  resolveOrderLineProduct?: (sku: string) => Product | undefined;
 }
 
 export function computeSmartSkuSuggestions(args: ComputeSmartSkuSuggestionsArgs): SmartSuggestionResult | null {
@@ -502,11 +667,20 @@ export function computeSmartSkuSuggestions(args: ComputeSmartSkuSuggestionsArgs)
   const searchTerm = masterUpper.length >= 2 && masterUpper !== term ? masterUpper : term;
 
   const affinitySkus = buildOrderContextAffinitySkuSet(index, args.orderContextMasterSkus);
+  const useCartHints = Boolean(args.orderItems?.length && args.resolveOrderLineProduct);
   const rankCtx: SuggestionRankContext = {
     searchTerm,
     typedVariant: variantSuffix,
-    orderVariantSuffixes: orderSuffixes,
+    orderVariantSuffixes: useCartHints ? [] : orderSuffixes,
     orderContextAffinitySkus: affinitySkus.size > 0 ? affinitySkus : undefined,
+    ...(useCartHints
+      ? {
+          orderVariantResolution: {
+            orderItems: args.orderItems!,
+            resolveProduct: args.resolveOrderLineProduct!,
+          },
+        }
+      : {}),
   };
 
   const searchHits = searchMasters(index, searchTerm, rankCtx);
@@ -588,11 +762,25 @@ export function computeSmartSkuSuggestions(args: ComputeSmartSkuSuggestionsArgs)
     .filter((p, i, arr) => arr.findIndex((x) => x.sku === p.sku) === i)
     .slice(0, MAX_TOP);
 
-  const highlightVariantSuffix = pickHighlightSuffixFromContext(
-    [...topChips, ...searchHits.slice(0, 20)],
-    orderSuffixes,
-    variantSuffix,
-  );
+  let highlightVariantSuffix: string | null = null;
+  if (useCartHints) {
+    const pool = topChips.length > 0 ? topChips : searchHits.slice(0, MAX_TOP);
+    for (const p of pool) {
+      highlightVariantSuffix = getVariantDisplayHighlightHint(
+        p,
+        args.orderItems!,
+        args.resolveOrderLineProduct!,
+        variantSuffix,
+      );
+      if (highlightVariantSuffix) break;
+    }
+  } else {
+    highlightVariantSuffix = pickHighlightSuffixFromContext(
+      [...topChips, ...searchHits.slice(0, 20)],
+      orderSuffixes,
+      variantSuffix,
+    );
+  }
 
   return {
     topChips,
