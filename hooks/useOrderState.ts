@@ -13,6 +13,7 @@ import { assignMissingSpecialCreationLineIds, getOrderItemMatchKey } from '../ut
 import { getSpecialCreationProductStub, isSpecialCreationSku, SPECIAL_CREATION_SKU } from '../utils/specialCreationSku';
 import { isXrCordEnamelSku } from '../utils/xrOptions';
 import {
+    buildOrderContextAffinitySkuSet,
     buildProductSearchIndex,
     computeSmartSkuSuggestions,
     getActiveMasterSetMates,
@@ -132,13 +133,15 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         if (upper.startsWith(masterU) && upper.length > masterU.length) {
             typedTail = upper.slice(masterU.length);
         }
+        const affinitySkus = buildOrderContextAffinitySkuSet(productSearchIndex, recentContextMasterSkus);
         const rankCtx: SuggestionRankContext = {
             searchTerm: activeMaster.sku,
             typedVariant: typedTail,
             orderVariantSuffixes: recentContextVariantSuffixes,
+            orderContextAffinitySkus: affinitySkus.size > 0 ? affinitySkus : undefined,
         };
         return sortProductsForSuggestions(mates, rankCtx);
-    }, [productSearchIndex, activeMaster, scanInput, recentContextVariantSuffixes]);
+    }, [productSearchIndex, activeMaster, scanInput, recentContextVariantSuffixes, recentContextMasterSkus]);
 
     // --- Draft autosave ---
     useEffect(() => {
@@ -983,6 +986,8 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             scanInput, scanQty, itemNotes, specialCreationUnitPriceStr,
             candidateProducts, smartSuggestions, activeMasterSetMates, collectionNameById,
             recentOrderVariantHint: recentContextVariantSuffixes[0] ?? null,
+            /** Suffixes from recent lines — Παραλλαγές amber when a row matches (e.g. DA…DAI → SK…DAI). */
+            recentOrderVariantSuffixes: recentContextVariantSuffixes,
             activeMaster, filteredVariants,
             selectedSize, selectedCordColor, selectedEnamelColor, sizeMode, showScanner,
             // Sort/filter

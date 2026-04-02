@@ -3,7 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { ScanBarcode, X, Hash, Layers, Plus, ImageIcon, StickyNote, ChevronDown, ChevronUp } from 'lucide-react';
 import { getVariantComponents, getVariantSuffixDisplayCodes } from '../../utils/pricingEngine';
 import { useOrderState, FINISH_COLORS, STONE_TEXT_COLORS } from '../../hooks/useOrderState';
-import { productMatchesVariantSuffix } from '../../features/orders/smartSkuSuggestions';
+import { productMatchesVariantSuffix, variantSuffixMatchesOrderHints } from '../../features/orders/smartSkuSuggestions';
 import { PRODUCT_OPTION_COLORS, PRODUCT_OPTION_COLOR_LABELS, isXrCordEnamelSku } from '../../utils/xrOptions';
 import { SPECIAL_CREATION_SKU } from '../../utils/specialCreationSku';
 import type { Product } from '../../types';
@@ -429,11 +429,19 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                             state.activeMaster,
                                         );
                                         const label = finishCode || stoneCode ? null : v.suffix?.trim() || '—';
+                                        const orderSuffixes = state.recentOrderVariantSuffixes;
+                                        const orderHintMatch =
+                                            !!orderSuffixes?.length &&
+                                            variantSuffixMatchesOrderHints(v.suffix, orderSuffixes);
                                         return (
                                             <button
                                                 key={v.suffix}
                                                 onClick={() => actions.handleAddItem(v.variant)}
-                                                className="p-3 rounded-xl border transition-all flex flex-col items-center gap-1 shadow-sm active:scale-95 bg-white border-slate-100 hover:border-emerald-500"
+                                                className={`p-3 rounded-xl border transition-all flex flex-col items-center gap-1 shadow-sm active:scale-95 ${
+                                                    orderHintMatch
+                                                        ? 'bg-amber-50/90 border-amber-400/90 ring-2 ring-amber-400/35 ring-offset-1 hover:border-amber-500'
+                                                        : 'bg-white border-slate-100 hover:border-emerald-500'
+                                                }`}
                                             >
                                                 <span className="text-sm font-black flex items-center justify-center gap-0.5 flex-wrap">
                                                     {finishCode ? (

@@ -5,13 +5,24 @@ import { splitSkuComponents } from '../../utils/pricingEngine';
 const DA_LOW_SERIES_MAX = 9;
 
 /**
- * Ωρίων-style pairing: RN301–325 + PN301–325 + PN601–625 + XR601–625
- * (300- and 600-series pendants, one XR band, four RN masters per “line”).
+ * Ωρίων-style pairing: four parallel RN “lines”, each +300 for the PN/XR high band.
+ * RN301–325↔601–625, RN401–425↔701–725, RN501–525↔801–825, RN601–625↔901–925.
  */
-const ORION_RN_PN_LOW_MIN301 = 301;
-const ORION_RN_PN_LOW_MAX325 = 325;
-const ORION_PN_XR_HIGH_MIN601 = 601;
-const ORION_PN_XR_HIGH_MAX625 = 625;
+const ORION_RN_PN_BANDS: readonly { lowMin: number; lowMax: number }[] = [
+  { lowMin: 301, lowMax: 325 },
+  { lowMin: 401, lowMax: 425 },
+  { lowMin: 501, lowMax: 525 },
+  { lowMin: 601, lowMax: 625 },
+] as const;
+
+/** Greek capital prefixes → Latin so Ωρίων band rules apply (DB often uses ΡΝ/ΠΝ/ΧΡ). */
+function normalizeOrionSkuLetters(letters: string): string {
+  const u = letters.normalize('NFC');
+  if (u === 'RN' || u === '\u03A1\u039D') return 'RN'; // ΡΝ (Rho Nu)
+  if (u === 'PN' || u === '\u03A0\u039D') return 'PN'; // ΠΝ (Pi Nu)
+  if (u === 'XR' || u === '\u03A7\u03A1') return 'XR'; // ΧΡ (Chi Rho)
+  return u.toUpperCase();
+}
 
 /** Built once per `products` load; cheap queries per keystroke. */
 export interface ProductSearchIndex {
@@ -75,22 +86,46 @@ function deriveOrionCollectionIds(collections: Collection[] | undefined): Set<nu
 }
 
 /**
- * Extra digit cores for Orion: RN301↔{301,601}, PN301↔{301,601}, PN601/XR601↔{301,601}, etc.
+ * Extra digit cores for Orion: each RN/PN low band links to PN/XR high band (+300 on the numeric core).
  */
 export function expandOrionDigitCoresForAnchor(parts: { letters: string; num: number; digits: string }): string[] | null {
-  const { letters, num } = parts;
-  if (letters === 'RN' && num >= ORION_RN_PN_LOW_MIN301 && num <= ORION_RN_PN_LOW_MAX325) {
-    return [String(num), String(num + 300)];
+  const letters = normalizeOrionSkuLetters(parts.letters);
+  const { num } = parts;
+
+  if (letters === 'RN') {
+    for (const b of ORION_RN_PN_BANDS) {
+      if (num >= b.lowMin && num <= b.lowMax) {
+        return [String(num), String(num + 300)];
+      }
+    }
+    return null;
   }
-  if (letters === 'PN' && num >= ORION_RN_PN_LOW_MIN301 && num <= ORION_RN_PN_LOW_MAX325) {
-    return [String(num), String(num + 300)];
+
+  if (letters === 'PN') {
+    for (const b of ORION_RN_PN_BANDS) {
+      if (num >= b.lowMin && num <= b.lowMax) {
+        return [String(num), String(num + 300)];
+      }
+      const highMin = b.lowMin + 300;
+      const highMax = b.lowMax + 300;
+      if (num >= highMin && num <= highMax) {
+        return [String(num - 300), String(num)];
+      }
+    }
+    return null;
   }
-  if (letters === 'PN' && num >= ORION_PN_XR_HIGH_MIN601 && num <= ORION_PN_XR_HIGH_MAX625) {
-    return [String(num - 300), String(num)];
+
+  if (letters === 'XR') {
+    for (const b of ORION_RN_PN_BANDS) {
+      const highMin = b.lowMin + 300;
+      const highMax = b.lowMax + 300;
+      if (num >= highMin && num <= highMax) {
+        return [String(num - 300), String(num)];
+      }
+    }
+    return null;
   }
-  if (letters === 'XR' && num >= ORION_PN_XR_HIGH_MIN601 && num <= ORION_PN_XR_HIGH_MAX625) {
-    return [String(num - 300), String(num)];
-  }
+
   return null;
 }
 
@@ -160,6 +195,26 @@ export function productMatchesVariantSuffix(p: Product, suffixUpper: string | nu
   });
 }
 
+/**
+ * Whether a single master variant should show “from recent order line” styling (e.g. DA025DAI → SK025…DAI).
+ * Aligns loosely with variantHintRank: exact / prefix / shared substring for stone (AI inside DAI), without
+ * letting a lone finish letter (D) steal the highlight when the order line was DAI.
+ */
+export function variantSuffixMatchesOrderHints(suffix: string, orderHints: readonly string[]): boolean {
+  if (!orderHints.length) return false;
+  const u = (suffix || '').trim().toUpperCase();
+  if (!u) return false;
+  for (const raw of orderHints) {
+    const h = raw.trim().toUpperCase();
+    if (!h) continue;
+    if (u === h) return true;
+    if (u.startsWith(h)) return true;
+    if (h.startsWith(u) && u.length >= 2) return true;
+    if (u.length >= 2 && h.length >= 2 && (u.includes(h) || h.includes(u))) return true;
+  }
+  return false;
+}
+
 /** Digit cores to look up in `collectionCoreToSkus` incl. DA↔MN/SK 9xx crosswalk. */
 export function expandCollectionDigitCoresForAnchor(parts: { letters: string; digits: string; num: number }): string[] {
   const cores = new Set<string>([parts.digits]);
@@ -216,7 +271,15 @@ export interface SuggestionRankContext {
   searchTerm: string;
   typedVariant: string | null;
   orderVariantSuffixes: string[];
+  /**
+   * SKUs that share a collection “set” with a recent order line (incl. DA↔9xx crosswalk).
+   * Without this, generic prefix matches tie-break on numeric sort (MN112 before MN901 for “MN”).
+   */
+  orderContextAffinitySkus?: Set<string>;
 }
+
+/** Stronger than a plain prefix match so MN901 beats MN112 when DA001/SK901 are on the order. */
+const ORDER_CONTEXT_AFFINITY_BONUS = 80_000;
 
 /** Higher score = more desirable (search match + variant affinity from order / typed tail). */
 export function suggestionDesirabilityScore(p: Product, ctx: SuggestionRankContext): number {
@@ -232,6 +295,9 @@ export function suggestionDesirabilityScore(p: Product, ctx: SuggestionRankConte
     .filter((x): x is string => !!x && String(x).trim().length > 0)
     .map((x) => String(x).trim().toUpperCase());
   score += variantHintRank(p, hintList);
+  if (ctx.orderContextAffinitySkus?.size && ctx.orderContextAffinitySkus.has(p.sku)) {
+    score += ORDER_CONTEXT_AFFINITY_BONUS;
+  }
   return score;
 }
 
@@ -288,6 +354,23 @@ export function getCollectionCoreSiblings(index: ProductSearchIndex, product: Pr
     }
   }
   out.sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true }));
+  return out;
+}
+
+/** Masters on the order + their collection siblings — used to rank suggestions above unrelated SKUs. */
+export function buildOrderContextAffinitySkuSet(
+  index: ProductSearchIndex,
+  orderContextMasterSkus: string[],
+): Set<string> {
+  const out = new Set<string>();
+  for (const sku of orderContextMasterSkus) {
+    const p = index.skuMap.get(sku);
+    if (!p) continue;
+    out.add(sku);
+    for (const sib of getCollectionCoreSiblings(index, p)) {
+      out.add(sib.sku);
+    }
+  }
   return out;
 }
 
@@ -419,10 +502,12 @@ export function computeSmartSkuSuggestions(args: ComputeSmartSkuSuggestionsArgs)
   /** Prefer master base for search when user is typing a full code with variant tail (e.g. SK025DPCO). */
   const searchTerm = masterUpper.length >= 2 && masterUpper !== term ? masterUpper : term;
 
+  const affinitySkus = buildOrderContextAffinitySkuSet(index, args.orderContextMasterSkus);
   const rankCtx: SuggestionRankContext = {
     searchTerm,
     typedVariant: variantSuffix,
     orderVariantSuffixes: orderSuffixes,
+    orderContextAffinitySkus: affinitySkus.size > 0 ? affinitySkus : undefined,
   };
 
   const searchHits = searchMasters(index, searchTerm, rankCtx);

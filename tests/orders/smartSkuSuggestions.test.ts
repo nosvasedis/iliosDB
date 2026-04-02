@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Collection, Gender, PlatingType, Product, ProductVariant, ProductionType } from '../../types';
 import {
+  buildOrderContextAffinitySkuSet,
   buildProductSearchIndex,
   computeSmartSkuSuggestions,
   expandCollectionDigitCoresForAnchor,
@@ -12,6 +13,7 @@ import {
   parseMasterSkuParts,
   shouldExcludeDaMnSkCrosswalkSibling,
   suggestionDesirabilityScore,
+  variantSuffixMatchesOrderHints,
 } from '../../features/orders/smartSkuSuggestions';
 
 const makeProduct = (overrides: Partial<Product>): Product =>
@@ -72,6 +74,61 @@ describe('smartSkuSuggestions', () => {
     expect(sibs).toEqual(['PN301', 'PN601', 'XR601']);
   });
 
+  /** Greek Rho+Nu — same visual as “RN” on many labels; must get Orion bands, not only Latin RN. */
+  const GREEK_RN = '\u03A1\u039D';
+
+  it('Orion: Greek ΡΝ410 expands cores like RN410 (401–425 band)', () => {
+    const parts = parseMasterSkuParts(`${GREEK_RN}410`);
+    expect(parts?.letters).toBe(GREEK_RN);
+    expect(expandOrionDigitCoresForAnchor(parts!)).toEqual(['410', '710']);
+  });
+
+  it('Orion: ΡΝ410 links Latin PN410, PN710, XR710 (Greek RN prefix on master)', () => {
+    const products = [
+      makeProduct({ sku: `${GREEK_RN}410`, gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN410', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN710', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'XR710', gender: Gender.Men, collections: [42] }),
+    ];
+    const index = buildProductSearchIndex(products, orionCollections);
+    const anchor = index.skuMap.get(`${GREEK_RN}410`)!;
+    expect(
+      getCollectionCoreSiblings(index, anchor)
+        .map((p) => p.sku)
+        .sort(),
+    ).toEqual(['PN410', 'PN710', 'XR710']);
+  });
+
+  it('Orion: RN410 links PN410, PN710, XR710 (401–425 band)', () => {
+    const products = [
+      makeProduct({ sku: 'RN410', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN410', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN710', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'XR710', gender: Gender.Men, collections: [42] }),
+    ];
+    const index = buildProductSearchIndex(products, orionCollections);
+    expect(expandOrionDigitCoresForAnchor(parseMasterSkuParts('RN410')!)).toEqual(['410', '710']);
+    const sibs = getCollectionCoreSiblings(index, index.skuMap.get('RN410')!)
+      .map((p) => p.sku)
+      .sort();
+    expect(sibs).toEqual(['PN410', 'PN710', 'XR710']);
+  });
+
+  it('Orion: RN615 links PN615, PN915, XR915 (601–625 band)', () => {
+    expect(expandOrionDigitCoresForAnchor(parseMasterSkuParts('RN615')!)).toEqual(['615', '915']);
+    const products = [
+      makeProduct({ sku: 'RN615', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN615', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN915', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'XR915', gender: Gender.Men, collections: [42] }),
+    ];
+    const index = buildProductSearchIndex(products, orionCollections);
+    const sibs = getCollectionCoreSiblings(index, index.skuMap.get('RN615')!)
+      .map((p) => p.sku)
+      .sort();
+    expect(sibs).toEqual(['PN615', 'PN915', 'XR915']);
+  });
+
   it('Orion: PN625 links RN325, PN325, XR625', () => {
     const products = [
       makeProduct({ sku: 'RN325', gender: Gender.Men, collections: [42] }),
@@ -87,6 +144,14 @@ describe('smartSkuSuggestions', () => {
   it('parses master SKU letter and digit core', () => {
     expect(parseMasterSkuParts('DA023')).toEqual({ letters: 'DA', digits: '023', num: 23 });
     expect(parseMasterSkuParts('SK025')).toEqual({ letters: 'SK', digits: '025', num: 25 });
+  });
+
+  it('variantSuffixMatchesOrderHints: DA…DAI context highlights SK…DAI, not bare D', () => {
+    expect(variantSuffixMatchesOrderHints('DAI', ['DAI'])).toBe(true);
+    expect(variantSuffixMatchesOrderHints('D', ['DAI'])).toBe(false);
+    expect(variantSuffixMatchesOrderHints('DAI', ['DA'])).toBe(true);
+    expect(variantSuffixMatchesOrderHints('AI', ['DAI'])).toBe(true);
+    expect(variantSuffixMatchesOrderHints('DAI', [])).toBe(false);
   });
 
   it('maps DA001–009 to MN901–909 / SK901–909 cores in the same collection', () => {
@@ -115,6 +180,27 @@ describe('smartSkuSuggestions', () => {
     const a = parseMasterSkuParts('MN903')!;
     const b = parseMasterSkuParts('SK003')!;
     expect(shouldExcludeDaMnSkCrosswalkSibling(a, b)).toBe(true);
+  });
+
+  it('ranks collection-set MN901 above unrelated MN112 when DA001/SK901 are on the order', () => {
+    const vx: ProductVariant = { suffix: 'XRZ', description: '', stock_qty: 0 };
+    const products = [
+      makeProduct({ sku: 'DA001', gender: Gender.Women, collections: [1], variants: [vx] }),
+      makeProduct({ sku: 'SK901', gender: Gender.Women, collections: [1], variants: [vx] }),
+      makeProduct({ sku: 'MN901', gender: Gender.Women, collections: [1], variants: [vx] }),
+      makeProduct({ sku: 'MN112', gender: Gender.Women, collections: [99], variants: [vx] }),
+    ];
+    const index = buildProductSearchIndex(products);
+    const aff = buildOrderContextAffinitySkuSet(index, ['DA001', 'SK901']);
+    expect(aff.has('MN901')).toBe(true);
+    expect(aff.has('MN112')).toBe(false);
+    const result = computeSmartSkuSuggestions({
+      index,
+      skuPart: 'MN',
+      orderContextMasterSkus: ['DA001', 'SK901'],
+      orderContextVariantSuffixes: ['XRZ'],
+    });
+    expect(result?.topChips[0]?.sku).toBe('MN901');
   });
 
   it('prioritizes products that match recent order variant suffix', () => {
