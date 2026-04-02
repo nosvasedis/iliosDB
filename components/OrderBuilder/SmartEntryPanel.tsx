@@ -462,7 +462,8 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                                   )
                                                 : [];
                                         const orderHintMatch =
-                                            orderHints.length > 0 && variantSuffixMatchesOrderHints(v.suffix, orderHints);
+                                            orderHints.length > 0 &&
+                                            variantSuffixMatchesOrderHints(v.suffix, orderHints, state.activeMaster);
                                         return (
                                             <button
                                                 key={v.suffix}

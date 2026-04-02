@@ -67,6 +67,19 @@ export function parseMasterSkuParts(sku: string): { letters: string; digits: str
   return { letters, digits, num };
 }
 
+/**
+ * All `${collectionId}|…` digit keys that mean the same numeric core (e.g. 725 vs 0725).
+ * Orion adds unpadded `String(num)` while some masters are stored as PN0725 — without aliases, lookups miss.
+ */
+export function expandDigitCoreAliases(digits: string, num: number): string[] {
+  const s = new Set<string>();
+  s.add(digits);
+  s.add(String(num));
+  const trimmed = digits.replace(/^0+/, '') || '0';
+  s.add(trimmed);
+  return [...s];
+}
+
 function firstTwoKey(sku: string): string {
   const u = sku.trim().toUpperCase();
   if (u.length < 2) return u;
@@ -150,9 +163,12 @@ export function buildProductSearchIndex(products: Product[], collections?: Colle
     if (!parts) continue;
 
     for (const cid of p.collections || []) {
-      const ck = `${cid}|${parts.digits}`;
-      if (!collectionCoreToSkus.has(ck)) collectionCoreToSkus.set(ck, []);
-      collectionCoreToSkus.get(ck)!.push(p.sku);
+      for (const coreAlias of expandDigitCoreAliases(parts.digits, parts.num)) {
+        const ck = `${cid}|${coreAlias}`;
+        if (!collectionCoreToSkus.has(ck)) collectionCoreToSkus.set(ck, []);
+        const bucket = collectionCoreToSkus.get(ck)!;
+        if (!bucket.includes(p.sku)) bucket.push(p.sku);
+      }
 
       if (parts.num >= 100) {
         const mod = parts.num % 100;
@@ -199,18 +215,54 @@ export function productMatchesVariantSuffix(p: Product, suffixUpper: string | nu
   });
 }
 
+/** True if this single-character hint prefix-matches more than one variant (e.g. finish X → XCO, XAI, …). */
+export function isAmbiguousSingleCharVariantPrefix(h: string, master: Product): boolean {
+  const t = h.trim().toUpperCase();
+  if (t.length !== 1) return false;
+  const vars = master.variants ?? [];
+  let n = 0;
+  for (const v of vars) {
+    const u = (v.suffix || '').trim().toUpperCase();
+    if (!u) continue;
+    if (u === t || u.startsWith(t)) n++;
+  }
+  return n > 1;
+}
+
+/**
+ * Typed tail after master SKU: single finish letters (P/X/D/H) match many stones — only keep as a hint when
+ * they narrow to exactly one variant; length ≥ 2 is always kept.
+ */
+export function typedVariantAsHintForProduct(typedVariant: string | null, target: Product): string | null {
+  if (!typedVariant?.trim()) return null;
+  const t = typedVariant.trim().toUpperCase();
+  if (t.length >= 2) return t;
+  const vars = target.variants ?? [];
+  let n = 0;
+  for (const v of vars) {
+    const u = (v.suffix || '').trim().toUpperCase();
+    if (!u) continue;
+    if (u === t || u.startsWith(t)) n++;
+  }
+  return n === 1 ? t : null;
+}
+
 /**
  * Whether a single master variant should show “from recent order line” styling (e.g. DA025DAI → SK025…DAI).
- * Aligns loosely with variantHintRank: exact / prefix / shared substring for stone (AI inside DAI), without
- * letting a lone finish letter (D) steal the highlight when the order line was DAI.
+ * `master` optional: when set, single-char hints that match multiple variants (e.g. typed “X”) are ignored for amber.
  */
-export function variantSuffixMatchesOrderHints(suffix: string, orderHints: readonly string[]): boolean {
+export function variantSuffixMatchesOrderHints(
+  suffix: string,
+  orderHints: readonly string[],
+  master?: Product | null,
+): boolean {
   if (!orderHints.length) return false;
   const u = (suffix || '').trim().toUpperCase();
   if (!u) return false;
   for (const raw of orderHints) {
     const h = raw.trim().toUpperCase();
     if (!h) continue;
+    if (master && h.length === 1 && isAmbiguousSingleCharVariantPrefix(h, master)) continue;
     if (u === h) return true;
     if (u.startsWith(h)) return true;
     if (h.startsWith(u) && u.length >= 2) return true;
@@ -231,12 +283,13 @@ export function getVariantDisplayHighlightHint(
     const u = s.trim().toUpperCase();
     if (productMatchesVariantSuffix(target, u)) return u;
   }
-  if (typedVariant?.trim()) {
-    const t = typedVariant.trim().toUpperCase();
-    if (productMatchesVariantSuffix(target, t)) return t;
-  }
+  const effTyped = typedVariantAsHintForProduct(typedVariant, target);
+  if (effTyped && productMatchesVariantSuffix(target, effTyped)) return effTyped;
   const finishH = getCollectionWideFinishHint(target, orderItems, resolveProduct);
-  if (finishH && productMatchesVariantSuffix(target, finishH)) return finishH;
+  if (finishH) {
+    const effFinish = finishH.length >= 2 ? finishH : typedVariantAsHintForProduct(finishH, target);
+    if (effFinish && productMatchesVariantSuffix(target, effFinish)) return effFinish.trim().toUpperCase();
+  }
   return null;
 }
 
@@ -387,7 +440,8 @@ export function buildVariantHintListForRanking(
   const strict = getScopedVariantHintStringsForProduct(target, orderItems, resolveProduct).map((s) => s.trim().toUpperCase());
   const finishConsensus = getCollectionWideFinishHint(target, orderItems, resolveProduct);
   const merged: string[] = [];
-  if (typedVariant?.trim()) merged.push(typedVariant.trim().toUpperCase());
+  const effTyped = typedVariantAsHintForProduct(typedVariant, target);
+  if (effTyped) merged.push(effTyped);
   merged.push(...strict);
   if (finishConsensus) merged.push(finishConsensus);
   return dedupeUpperHintStrings(merged);
@@ -439,8 +493,9 @@ function variantHintsForProduct(p: Product, ctx: SuggestionRankContext): string[
   if (res?.orderItems?.length && res.resolveProduct) {
     return buildVariantHintListForRanking(p, res.orderItems, res.resolveProduct, ctx.typedVariant);
   }
+  const typed = typedVariantAsHintForProduct(ctx.typedVariant, p);
   return dedupeUpperHintStrings(
-    [ctx.typedVariant, ...(ctx.orderVariantSuffixes ?? [])]
+    [typed, ...(ctx.orderVariantSuffixes ?? [])]
       .filter((x): x is string => !!x && String(x).trim().length > 0)
       .map((x) => String(x).trim().toUpperCase()),
   );
@@ -496,20 +551,30 @@ export function getCollectionCoreSiblings(index: ProductSearchIndex, product: Pr
       for (const c of orion) digitCores.add(c);
     }
 
+    const digitNums = new Set<number>();
+    for (const c of digitCores) {
+      const n = parseInt(c, 10);
+      if (!Number.isNaN(n)) digitNums.add(n);
+    }
+
     for (const core of digitCores) {
-      const key = `${cid}|${core}`;
-      const skus = index.collectionCoreToSkus.get(key);
-      if (!skus) continue;
-      for (const sku of skus) {
-        if (sku === product.sku) continue;
-        const other = index.skuMap.get(sku);
-        if (!other || !other.collections?.includes(cid)) continue;
-        const op = parseMasterSkuParts(other.sku);
-        if (!op || !digitCores.has(op.digits)) continue;
-        if (shouldExcludeDaMnSkCrosswalkSibling(parts, op)) continue;
-        if (!seen.has(sku)) {
-          seen.add(sku);
-          out.push(other);
+      const coreNum = parseInt(core, 10);
+      if (Number.isNaN(coreNum)) continue;
+      for (const alias of expandDigitCoreAliases(core, coreNum)) {
+        const key = `${cid}|${alias}`;
+        const skus = index.collectionCoreToSkus.get(key);
+        if (!skus) continue;
+        for (const sku of skus) {
+          if (sku === product.sku) continue;
+          const other = index.skuMap.get(sku);
+          if (!other || !other.collections?.includes(cid)) continue;
+          const op = parseMasterSkuParts(other.sku);
+          if (!op || !digitNums.has(op.num)) continue;
+          if (shouldExcludeDaMnSkCrosswalkSibling(parts, op)) continue;
+          if (!seen.has(sku)) {
+            seen.add(sku);
+            out.push(other);
+          }
         }
       }
     }

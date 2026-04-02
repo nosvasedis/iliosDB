@@ -15,6 +15,7 @@ import {
   parseMasterSkuParts,
   shouldExcludeDaMnSkCrosswalkSibling,
   suggestionDesirabilityScore,
+  typedVariantAsHintForProduct,
   variantSuffixMatchesOrderHints,
   type SuggestionRankContext,
 } from '../../features/orders/smartSkuSuggestions';
@@ -102,6 +103,19 @@ describe('smartSkuSuggestions', () => {
     ).toEqual(['PN410', 'PN710', 'XR710']);
   });
 
+  it('Orion: RN425 finds PN0725 when high-band pendant uses leading-zero digits (725 vs 0725)', () => {
+    const products = [
+      makeProduct({ sku: 'RN425', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN0725', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'XR0725', gender: Gender.Men, collections: [42] }),
+    ];
+    const index = buildProductSearchIndex(products, orionCollections);
+    const sibs = getCollectionCoreSiblings(index, index.skuMap.get('RN425')!)
+      .map((p) => p.sku)
+      .sort();
+    expect(sibs).toEqual(['PN0725', 'XR0725']);
+  });
+
   it('Orion: RN410↔710 pairing works even when no collection is named Ωρίων on the index', () => {
     const products = [
       makeProduct({ sku: 'RN410', gender: Gender.Men, collections: [7] }),
@@ -165,6 +179,22 @@ describe('smartSkuSuggestions', () => {
     expect(variantSuffixMatchesOrderHints('DAI', ['DA'])).toBe(true);
     expect(variantSuffixMatchesOrderHints('AI', ['DAI'])).toBe(true);
     expect(variantSuffixMatchesOrderHints('DAI', [])).toBe(false);
+  });
+
+  it('typedVariantAsHintForProduct: lone finish X does not hint when many X* variants', () => {
+    const vx: ProductVariant = { suffix: 'XCO', description: '', stock_qty: 0 };
+    const vy: ProductVariant = { suffix: 'XAI', description: '', stock_qty: 0 };
+    const p = makeProduct({ variants: [vx, vy] });
+    expect(typedVariantAsHintForProduct('X', p)).toBeNull();
+    expect(typedVariantAsHintForProduct('XC', p)).toBe('XC');
+  });
+
+  it('variantSuffixMatchesOrderHints: ignores ambiguous single-char hint when master passed', () => {
+    const vx: ProductVariant = { suffix: 'XCO', description: '', stock_qty: 0 };
+    const vy: ProductVariant = { suffix: 'XAI', description: '', stock_qty: 0 };
+    const master = makeProduct({ variants: [vx, vy] });
+    expect(variantSuffixMatchesOrderHints('XCO', ['X'], master)).toBe(false);
+    expect(variantSuffixMatchesOrderHints('XCO', ['XCO'], master)).toBe(true);
   });
 
   it('maps DA001–009 to MN901–909 / SK901–909 cores in the same collection', () => {
