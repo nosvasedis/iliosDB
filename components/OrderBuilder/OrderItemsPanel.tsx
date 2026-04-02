@@ -158,7 +158,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
             <div className="flex-1 overflow-y-auto space-y-3 p-4 custom-scrollbar bg-slate-50/50">
                 {state.displayItems.map((item, index) => (
                     <div
-                        key={item.line_id || `${item.sku}-${item.variant_suffix}-${item.size_info}-${item.notes || ''}-${index}`}
+                        key={item.line_id || `${item.sku}-${item.variant_suffix || ''}-${item.size_info || ''}-${item.cord_color || ''}-${item.enamel_color || ''}-${index}`}
                         className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-3 animate-in slide-in-from-right-4 transition-all hover:shadow-md group"
                     >
                         <div className="flex items-center justify-between gap-4">
