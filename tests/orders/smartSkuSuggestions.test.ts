@@ -11,6 +11,7 @@ import {
   getCollectionWideFinishHint,
   getFamilyClusterSiblings,
   getScopedVariantHintStringsForProduct,
+  lockedSkuLetterPrefix,
   isOrionCollectionName,
   parseMasterSkuParts,
   shouldExcludeDaMnSkCrosswalkSibling,
@@ -332,6 +333,34 @@ describe('smartSkuSuggestions', () => {
     expect(family.map((p) => p.sku).sort()).toEqual(['RN402']);
   });
 
+  it('lockedSkuLetterPrefix: SK vs SK164 vs invalid tail', () => {
+    expect(lockedSkuLetterPrefix('SK')).toBe('SK');
+    expect(lockedSkuLetterPrefix('SK164')).toBe('SK');
+    expect(lockedSkuLetterPrefix('RN164P')).toBeNull();
+    expect(lockedSkuLetterPrefix('R')).toBeNull();
+  });
+
+  it('when typing SK, order section does not list PN/RN mates from cart context', () => {
+    const products = [
+      makeProduct({ sku: 'PN164', gender: Gender.Women, collections: [1] }),
+      makeProduct({ sku: 'RN164', gender: Gender.Women, collections: [1] }),
+      makeProduct({ sku: 'SK164', gender: Gender.Women, collections: [1] }),
+    ];
+    const index = buildProductSearchIndex(products);
+    const result = computeSmartSkuSuggestions({
+      index,
+      skuPart: 'SK',
+      orderContextMasterSkus: ['PN164'],
+    });
+    expect(result).not.toBeNull();
+    const orderSkus = result!.virtualRows
+      .filter((r) => r.kind === 'product' && r.sectionId === 'order')
+      .map((r) => (r as { product: Product }).product.sku);
+    expect(orderSkus).not.toContain('PN164');
+    expect(orderSkus).not.toContain('RN164');
+    expect(orderSkus.every((s) => s.toUpperCase().startsWith('SK'))).toBe(true);
+  });
+
   it('computes suggestions with search, set, and order context sections', () => {
     const v: ProductVariant = { suffix: 'DPCO', description: 'Δοκιμή', stock_qty: 0 };
     const products = [
@@ -348,9 +377,9 @@ describe('smartSkuSuggestions', () => {
     expect(result).not.toBeNull();
     const headers = result!.virtualRows.filter((r) => r.kind === 'header').map((r) => r.label);
     expect(headers).toContain('Από αναζήτηση');
-    expect(headers).toContain('Ίδιο σετ (συλλογή)');
     const skus = result!.virtualRows.filter((r) => r.kind === 'product').map((r) => r.product.sku);
-    expect(skus).toContain('DA025');
+    expect(skus).toContain('SK025');
+    expect(skus).not.toContain('DA025');
   });
 
   it('filters set mates by variant suffix when typing full code', () => {
@@ -371,7 +400,7 @@ describe('smartSkuSuggestions', () => {
     const setSkus = result!.virtualRows
       .filter((r) => r.kind === 'product' && r.sectionId === 'set')
       .map((r) => (r as { product: Product }).product.sku);
-    expect(setSkus).toEqual(['DA025']);
+    expect(setSkus).toEqual([]);
     expect(setSkus).not.toContain('MN025');
   });
 

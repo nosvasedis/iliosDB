@@ -86,6 +86,27 @@ function firstTwoKey(sku: string): string {
   return u.slice(0, 2);
 }
 
+/**
+ * When the user has typed a master letter prefix (2–3 letters), optionally followed only by digits,
+ * non-search sections (order / set / family) must not show other prefixes (e.g. PN164 on order while typing SK).
+ */
+export function lockedSkuLetterPrefix(searchTerm: string): string | null {
+  const u = searchTerm.trim().toUpperCase();
+  const m = u.match(/^([A-ZΑ-Ω]{2,3})/u);
+  if (!m) return null;
+  const letters = m[1];
+  if (letters.length < 2) return null;
+  const rest = u.slice(letters.length);
+  if (rest !== '' && !/^\d+$/.test(rest)) return null;
+  return letters;
+}
+
+function filterProductsToLetterPrefix(products: Product[], letterPrefix: string | null): Product[] {
+  if (!letterPrefix) return products;
+  const pre = letterPrefix.toUpperCase();
+  return products.filter((p) => p.sku.toUpperCase().startsWith(pre));
+}
+
 /** Detects Ωρίων (Greek) or Orion (Latin) collection names for special RN/PN/XR pairing. */
 export function isOrionCollectionName(name: string): boolean {
   const stripped = name.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
@@ -751,6 +772,10 @@ export function computeSmartSkuSuggestions(args: ComputeSmartSkuSuggestionsArgs)
   const searchHits = searchMasters(index, searchTerm, rankCtx);
   const rangeHint = computeRangeHint(searchTerm, searchHits);
 
+  /** Only constrain order/set/family to this prefix when search already found hits (user is in a real family). */
+  const letterLock =
+    searchHits.length > 0 ? lockedSkuLetterPrefix(searchTerm) : null;
+
   let anchor: Product | null = index.skuMap.get(masterUpper) ?? index.skuMap.get(term) ?? null;
   if (!anchor && searchHits.length > 0) {
     anchor = searchHits[0];
@@ -769,7 +794,7 @@ export function computeSmartSkuSuggestions(args: ComputeSmartSkuSuggestionsArgs)
     );
   }
 
-  const orderMates: Product[] = [];
+  let orderMates: Product[] = [];
   const seenOrder = new Set<string>();
   for (const sku of args.orderContextMasterSkus) {
     const p = index.skuMap.get(sku);
@@ -781,6 +806,12 @@ export function computeSmartSkuSuggestions(args: ComputeSmartSkuSuggestionsArgs)
         orderMates.push(m);
       }
     }
+  }
+
+  if (letterLock) {
+    setMates = filterProductsToLetterPrefix(setMates, letterLock);
+    orderMates = filterProductsToLetterPrefix(orderMates, letterLock);
+    familyMates = filterProductsToLetterPrefix(familyMates, letterLock);
   }
 
   const dedupe = (list: Product[], exclude: Set<string>) =>
