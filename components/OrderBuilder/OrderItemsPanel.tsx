@@ -296,7 +296,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                             </div>
                             {(item.size_info || item.cord_color || item.enamel_color) && (
                                 <div className="flex flex-wrap items-stretch gap-1 w-full pt-1.5 border-t border-slate-100/90">
-                                    {item.size_info && <span className="inline-flex items-center text-[9px] font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-md border border-slate-100">SZ: {item.size_info}</span>}
+                                    {item.size_info && <span className="inline-flex items-center text-[9px] font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-md border border-slate-100">μέγεθος: {item.size_info}</span>}
                                     {item.cord_color && <span className="inline-flex items-center text-[9px] font-bold bg-amber-50 text-amber-800 px-2 py-1 rounded-md border border-amber-100">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
                                     {item.enamel_color && <span className="inline-flex items-center text-[9px] font-bold bg-rose-50 text-rose-800 px-2 py-1 rounded-md border border-rose-100">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
                                 </div>
