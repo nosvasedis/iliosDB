@@ -19,6 +19,7 @@ export default function OrderFinancialReport({ stats, orderId, customerName, dat
         () => sortBySkuKey(stats.itemsBreakdown || [], (item: any) => buildSkuKey(item.sku, item.variant)),
         [stats.itemsBreakdown]
     );
+    const hasOverriddenPrices = sortedItemsBreakdown.some((item: any) => item.priceOverride);
 
     // Calculate percentages for the cost bar
     const silverPct = (stats.costBreakdown.silver / stats.totalCost) * 100;
@@ -162,6 +163,7 @@ export default function OrderFinancialReport({ stats, orderId, customerName, dat
                                     <td className="font-bold text-slate-800 pl-4 py-2.5">
                                         {item.sku}
                                         {item.variant && <span className="text-[9px] text-slate-500 ml-1 font-normal bg-slate-50 border border-slate-200 px-1 rounded">{item.variant}</span>}
+                                        {item.priceOverride && <span className="text-amber-700 ml-1 font-black">*</span>}
                                     </td>
                                     <td className="text-center py-2.5 font-medium">{item.quantity}</td>
                                     <td className="text-right font-mono py-2.5 font-bold">{formatCurrency(item.revenue)}</td>
@@ -187,6 +189,11 @@ export default function OrderFinancialReport({ stats, orderId, customerName, dat
                 <span>Business Intelligence Report</span>
                 <span>{date} • {new Date().toLocaleTimeString()}</span>
             </div>
+            {hasOverriddenPrices && (
+                <div className="pt-1 text-[8px] text-amber-700 font-bold uppercase tracking-wide">
+                    * Γραμμή με τιμή πώλησης κατ' εξαίρεση για τη συγκεκριμένη παραγγελία.
+                </div>
+            )}
         </div>
     );
 }

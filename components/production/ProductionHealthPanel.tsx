@@ -67,11 +67,6 @@ export default function ProductionHealthPanel({ summary, notes, alertGroups, onF
                                 className={`relative mt-2 inline-flex h-11 w-11 items-center justify-center rounded-2xl border shadow-sm transition-all ${alertCount > 0 ? 'border-slate-200 bg-white text-slate-600 hover:border-red-200 hover:bg-red-50/40' : 'border-slate-200 bg-slate-50 text-slate-400 hover:bg-white hover:border-slate-300'}`}
                             >
                                 <Bell size={16} />
-                                {alertCount > 0 && (
-                                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-red-500 px-1.5 flex items-center justify-center text-[10px] font-black text-white shadow-sm">
-                                        {alertCount > 9 ? '9+' : alertCount}
-                                    </span>
-                                )}
                             </button>
 
                             {notes.length > 0 && (

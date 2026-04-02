@@ -435,6 +435,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
             variant_suffix: variant?.suffix,
             quantity: qty,
             price_at_order: unitPrice,
+            price_override: undefined,
             product_details: master,
             size_info: size || undefined,
             cord_color: cordColor,
@@ -689,15 +690,27 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
     };
 
     const updateItemUnitPrice = (item: OrderItem, rawPrice: number) => {
-        if (!isSpecialCreationSku(item.sku)) return;
         const idx = selectedItems.findIndex(i => getOrderItemMatchKey(i) === getOrderItemMatchKey(item));
         if (idx === -1) return;
         const price = Math.max(0, Math.round(rawPrice * 100) / 100);
+
+        const product = products.find(p => p.sku === item.sku) || item.product_details;
+        let catalogPrice = item.price_at_order;
+        if (!isSpecialCreationSku(item.sku) && product) {
+            if (item.variant_suffix !== undefined && item.variant_suffix !== null) {
+                const variant = product.variants?.find(v => v.suffix === item.variant_suffix);
+                catalogPrice = variant?.selling_price || product.selling_price || item.price_at_order;
+            } else {
+                catalogPrice = product.selling_price || item.price_at_order;
+            }
+        }
+        const isOverride = !isSpecialCreationSku(item.sku) && Math.abs(price - catalogPrice) > 0.01;
+
         setSelectedItems(prev => {
             const updated = [...prev];
             const i = prev.findIndex(r => getOrderItemMatchKey(r) === getOrderItemMatchKey(item));
             if (i === -1) return prev;
-            updated[i] = { ...updated[i], price_at_order: price };
+            updated[i] = { ...updated[i], price_at_order: price, price_override: isOverride ? true : undefined };
             return updated;
         });
         setPriceDiffs(null);
@@ -741,6 +754,7 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
                 cord_color: nextCordColor,
                 enamel_color: nextEnamelColor,
                 price_at_order: nextPrice,
+                price_override: undefined,
                 product_details: product || current.product_details
             };
 
@@ -791,9 +805,10 @@ export function useOrderState({ initialOrder, products, customers, onBack }: Use
                 currentRegistryPrice = variant?.selling_price || 0;
             }
             if (currentRegistryPrice === 0) currentRegistryPrice = product.selling_price;
-            if (currentRegistryPrice > 0 && Math.abs(currentRegistryPrice - item.price_at_order) > 0.01) {
+            const hasPriceDiff = currentRegistryPrice > 0 && Math.abs(currentRegistryPrice - item.price_at_order) > 0.01;
+            if (hasPriceDiff || item.price_override) {
                 updatedCount++;
-                return { ...item, price_at_order: currentRegistryPrice };
+                return { ...item, price_at_order: currentRegistryPrice, price_override: undefined };
             }
             return item;
         });

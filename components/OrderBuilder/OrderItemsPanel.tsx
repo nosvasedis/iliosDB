@@ -193,21 +193,18 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                         <div className="text-[10px] text-violet-600 font-bold mt-0.5 truncate">{item.product_details?.category || 'Ειδική δημιουργία'}</div>
                                     )}
                                     <div className="text-[10px] text-slate-500 font-bold mt-1 flex flex-wrap items-center gap-1">
-                                        {isSpecialCreationSku(item.sku) ? (
-                                            <label className="inline-flex items-center gap-1 bg-violet-50 border border-violet-100 rounded-lg px-2 py-0.5">
-                                                <span className="text-violet-800">€/τεμ.</span>
-                                                <input
-                                                    type="number"
-                                                    min={0}
-                                                    step={0.01}
-                                                    value={item.price_at_order}
-                                                    onChange={e => actions.updateItemUnitPrice(item, parseFloat(e.target.value) || 0)}
-                                                    className="w-20 bg-white border border-violet-200 rounded px-1 py-0.5 font-mono text-violet-900 text-[11px]"
-                                                />
-                                            </label>
-                                        ) : (
-                                            formatCurrency(item.price_at_order)
-                                        )}
+                                        <label className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 border ${isSpecialCreationSku(item.sku) ? 'bg-violet-50 border-violet-100' : (item.price_override ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200')}`}>
+                                            <span className={`${isSpecialCreationSku(item.sku) ? 'text-violet-800' : 'text-slate-700'}`}>€/τεμ.</span>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                step={0.01}
+                                                value={item.price_at_order}
+                                                onChange={e => actions.updateItemUnitPrice(item, parseFloat(e.target.value) || 0)}
+                                                className={`w-20 bg-white rounded px-1 py-0.5 font-mono text-[11px] ${isSpecialCreationSku(item.sku) ? 'border border-violet-200 text-violet-900' : (item.price_override ? 'border border-amber-300 text-amber-900' : 'border border-slate-200 text-slate-900')}`}
+                                            />
+                                            {item.price_override && <span className="text-amber-700 font-black">*</span>}
+                                        </label>
                                         {item.size_info && <span className="bg-slate-100 px-1 rounded">SZ: {item.size_info}</span>}
                                         {item.cord_color && <span className="bg-amber-50 text-amber-700 px-1 rounded border border-amber-100">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
                                         {item.enamel_color && <span className="bg-rose-50 text-rose-700 px-1 rounded border border-rose-100">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}

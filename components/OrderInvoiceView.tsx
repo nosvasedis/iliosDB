@@ -68,6 +68,7 @@ export default function OrderInvoiceView({ order, title }: Props) {
     const netAmount = subtotal - discountAmount;
     const vatAmount = netAmount * vatRate;
     const grandTotal = netAmount + vatAmount;
+    const hasOverriddenPrices = order.items.some(item => item.price_override);
 
     const company = {
         name: "ILIOS KOSMIMA",
@@ -212,7 +213,7 @@ export default function OrderInvoiceView({ order, title }: Props) {
                                 <div className="w-8 text-center font-bold text-slate-800 text-[12px]">{item.quantity}</div>
                                 
                                 {/* Price */}
-                                <div className="w-12 text-right text-slate-700 tabular-nums font-sans font-semibold text-[12px]">{item.price_at_order.toFixed(2).replace('.', ',')}</div>
+                                <div className="w-12 text-right text-slate-700 tabular-nums font-sans font-semibold text-[12px]">{item.price_at_order.toFixed(2).replace('.', ',')}{item.price_override ? '*' : ''}</div>
                                 
                                 {/* Total */}
                                 <div className="w-14 text-right font-black text-slate-900 tabular-nums font-sans text-[12px]">{(item.price_at_order * item.quantity).toFixed(2).replace('.', ',')}</div>
@@ -258,6 +259,11 @@ export default function OrderInvoiceView({ order, title }: Props) {
              <div className="mt-4 text-center text-[8px] text-slate-400 uppercase tracking-widest font-bold">
                 System Generated • Ilios Kosmima ERP • {new Date().toLocaleTimeString()}
             </div>
+            {hasOverriddenPrices && (
+                <div className="mt-1 text-center text-[8px] text-amber-700 font-bold">
+                    * Τιμή ανά τεμάχιο με εξαίρεση για τη συγκεκριμένη παραγγελία.
+                </div>
+            )}
         </div>
     );
 }

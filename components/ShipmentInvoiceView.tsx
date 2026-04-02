@@ -20,6 +20,18 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
         [shipmentItems]
     );
 
+    const isShipmentItemOverridden = (item: OrderShipmentItem) => {
+        const match = order.items.find((orderItem) =>
+            orderItem.sku === item.sku &&
+            (orderItem.variant_suffix || null) === (item.variant_suffix || null) &&
+            (orderItem.size_info || null) === (item.size_info || null) &&
+            (orderItem.cord_color || null) === (item.cord_color || null) &&
+            (orderItem.enamel_color || null) === (item.enamel_color || null) &&
+            (orderItem.line_id || null) === (item.line_id || null)
+        );
+        return !!match?.price_override;
+    };
+
     const formatDate = (dateString: string) => {
         return new Date(dateString).toLocaleDateString('el-GR', {
             day: '2-digit', month: '2-digit', year: 'numeric'
@@ -34,6 +46,7 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
     const netAmount = subtotal - discountAmount;
     const vatAmount = netAmount * vatRate;
     const grandTotal = netAmount + vatAmount;
+    const hasOverriddenPrices = sortedShipmentItems.some((item) => isShipmentItemOverridden(item));
 
     const company = {
         name: "ILIOS KOSMIMA",
@@ -135,6 +148,7 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                         const fullSku = item.sku + (item.variant_suffix || '');
                         const imageUrl = product?.image_url;
                         const description = variant?.description || product?.category || 'Προϊόν';
+                        const isOverridden = isShipmentItemOverridden(item);
 
                         return (
                             <div
@@ -166,7 +180,7 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                                     </div>
                                 </div>
                                 <div className="w-8 text-center font-bold text-slate-800 text-[12px]">{item.quantity}</div>
-                                <div className="w-12 text-right text-slate-700 tabular-nums font-semibold text-[12px]">{item.price_at_order.toFixed(2).replace('.', ',')}</div>
+                                <div className="w-12 text-right text-slate-700 tabular-nums font-semibold text-[12px]">{item.price_at_order.toFixed(2).replace('.', ',')}{isOverridden ? '*' : ''}</div>
                                 <div className="w-14 text-right font-black text-slate-900 tabular-nums text-[12px]">{(item.price_at_order * item.quantity).toFixed(2).replace('.', ',')}</div>
                             </div>
                         );
@@ -210,6 +224,11 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
             <div className="mt-4 text-center text-[8px] text-slate-400 uppercase tracking-widest font-bold">
                 Δελτίο Μερικής Αποστολής #{shipment.shipment_number} &bull; Ilios Kosmima ERP &bull; {new Date().toLocaleTimeString()}
             </div>
+            {hasOverriddenPrices && (
+                <div className="mt-1 text-center text-[8px] text-amber-700 font-bold">
+                    * Τιμή ανά τεμάχιο με εξαίρεση για τη συγκεκριμένη παραγγελία.
+                </div>
+            )}
         </div>
     );
 }

@@ -78,6 +78,7 @@ export const calculateBusinessStats = (orders: Order[], products: Product[], mat
                     sku: item.sku,
                     variant: item.variant_suffix,
                     quantity: item.quantity,
+                    priceOverride: !!item.price_override,
                     revenue,
                     cost: lineCost,
                     profit,
