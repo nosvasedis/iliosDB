@@ -21,6 +21,7 @@ import { useOrderShipmentsForOrder } from '../hooks/api/useOrders';
 import { useBatchStageHistoryEntries } from '../hooks/api/useProductionBatches';
 import { ordersRepository } from '../features/orders';
 import { productionRepository } from '../features/production';
+import { invalidateOrdersAndBatches, invalidateProductionBatches } from '../lib/queryInvalidation';
 
 interface Props {
     order: Order;
@@ -535,8 +536,7 @@ export default function ProductionSendModal({ order, products, materials, existi
 
             await ordersRepository.sendPartialOrderToProduction(order.id, itemsToSend, products, materials, stockFulfilledItems);
             await Promise.all([
-                queryClient.invalidateQueries({ queryKey: ['batches'] }),
-                queryClient.invalidateQueries({ queryKey: ['orders'] }),
+                invalidateOrdersAndBatches(queryClient),
                 queryClient.invalidateQueries({ queryKey: ['products'] })
             ]);
             showToast(`Επιτυχής αποστολή ${itemsToSend.length} ειδών.`, "success");
@@ -592,8 +592,7 @@ export default function ProductionSendModal({ order, products, materials, existi
         try {
             await productionRepository.updateBatchStage(batch.id, newStage);
             await Promise.all([
-                queryClient.invalidateQueries({ queryKey: ['batches'] }),
-                queryClient.invalidateQueries({ queryKey: ['orders'] }),
+                invalidateOrdersAndBatches(queryClient),
                 queryClient.invalidateQueries({ queryKey: ['products'] })
             ]);
             showToast("Η παρτίδα μετακινήθηκε.", "success");
@@ -612,8 +611,7 @@ export default function ProductionSendModal({ order, products, materials, existi
         try {
             await productionRepository.deleteProductionBatch(batch.id);
             await Promise.all([
-                queryClient.invalidateQueries({ queryKey: ['batches'] }),
-                queryClient.invalidateQueries({ queryKey: ['orders'] }),
+                invalidateOrdersAndBatches(queryClient),
                 queryClient.invalidateQueries({ queryKey: ['products'] })
             ]);
             showToast("Η παρτίδα διαγράφηκε.", "info");
@@ -650,8 +648,7 @@ export default function ProductionSendModal({ order, products, materials, existi
         try {
             await productionRepository.revertProductionBatch(batch.id);
             await Promise.all([
-                queryClient.invalidateQueries({ queryKey: ['batches'] }),
-                queryClient.invalidateQueries({ queryKey: ['orders'] }),
+                invalidateOrdersAndBatches(queryClient),
                 queryClient.invalidateQueries({ queryKey: ['products'] })
             ]);
             showToast("Η παρτίδα επανήλθε επιτυχώς και μπορεί να σταλεί ξανά αργότερα.", "success");
@@ -669,7 +666,7 @@ export default function ProductionSendModal({ order, products, materials, existi
             setIsWorking(true);
             try {
                 await productionRepository.toggleBatchHold(batch.id, false);
-                await queryClient.invalidateQueries({ queryKey: ['batches'] });
+                await invalidateProductionBatches(queryClient);
                 showToast('Η παρτίδα συνεχίζει την παραγωγή.', 'success');
             } catch (e) {
                 showToast('Σφάλμα ενημέρωσης αναμονής.', 'error');
@@ -688,7 +685,7 @@ export default function ProductionSendModal({ order, products, materials, existi
         setIsWorking(true);
         try {
             await productionRepository.toggleBatchHold(holdingBatch.id, true, holdReason.trim());
-            await queryClient.invalidateQueries({ queryKey: ['batches'] });
+            await invalidateProductionBatches(queryClient);
             showToast('Η παρτίδα τέθηκε σε αναμονή.', 'warning');
             setHoldingBatch(null);
             setHoldReason('');
@@ -705,8 +702,7 @@ export default function ProductionSendModal({ order, products, materials, existi
         try {
             const summary = await productionRepository.bulkUpdateBatchStages(batchIds, newStage);
             await Promise.all([
-                queryClient.invalidateQueries({ queryKey: ['batches'] }),
-                queryClient.invalidateQueries({ queryKey: ['orders'] }),
+                invalidateOrdersAndBatches(queryClient),
                 queryClient.invalidateQueries({ queryKey: ['products'] })
             ]);
             clearBatchSelection(batchIds);
@@ -738,7 +734,7 @@ export default function ProductionSendModal({ order, products, materials, existi
             const sourceIds = batchesToMerge.slice(1).map(b => b.id);
 
             await productionRepository.mergeBatches(target.id, sourceIds, totalQty);
-            await queryClient.invalidateQueries({ queryKey: ['batches'] });
+            await invalidateProductionBatches(queryClient);
 
             showToast("Επιτυχής συγχώνευση.", "success");
         } catch (e) {
@@ -756,7 +752,7 @@ export default function ProductionSendModal({ order, products, materials, existi
             const { error } = await productionRepository.updateBatchNotes(editingNoteBatch.id, noteText || null);
             if (error) throw error;
 
-            await queryClient.invalidateQueries({ queryKey: ['batches'] });
+            await invalidateProductionBatches(queryClient);
             showToast("Η σημείωση ενημερώθηκε.", "success");
             setEditingNoteBatch(null);
         } catch (e) {
@@ -827,7 +823,7 @@ export default function ProductionSendModal({ order, products, materials, existi
             };
 
             await productionRepository.splitBatch(batch.id, originalNewQty, newBatchData);
-            await queryClient.invalidateQueries({ queryKey: ['batches'] });
+            await invalidateProductionBatches(queryClient);
 
             showToast(`Διαχωρισμός ${splitQty} τεμ. επιτυχής.`, "success");
             setSplitTarget(null);

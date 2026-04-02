@@ -12,6 +12,7 @@ import { isOrderReady } from '../../utils/orderReadiness';
 import { buildItemIdentityKey } from '../../utils/itemIdentity';
 import { getRemainingOrderItems } from '../../utils/shipmentUtils';
 import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
+import { invalidateOrdersAndBatches } from '../../lib/queryInvalidation';
 
 const buildRemainingOrderForPrint = (order: Order, shipmentItems: OrderShipmentItem[]): Order | null => {
     const remainingItems = getRemainingOrderItems(order, shipmentItems);
@@ -440,8 +441,7 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintRemaini
         if (yes) {
             try {
                 await api.deleteOrder(order.id);
-                queryClient.invalidateQueries({ queryKey: ['orders'] });
-                queryClient.invalidateQueries({ queryKey: ['batches'] });
+                void invalidateOrdersAndBatches(queryClient);
                 showToast('Η παραγγελία διαγράφηκε.', 'success');
                 if (managingOrder?.id === order.id) setManagingOrder(null);
             } catch (err: any) {
@@ -461,8 +461,7 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintRemaini
         if (yes) {
             try {
                 await api.updateOrderStatus(order.id, OrderStatus.Cancelled);
-                queryClient.invalidateQueries({ queryKey: ['orders'] });
-                queryClient.invalidateQueries({ queryKey: ['batches'] });
+                void invalidateOrdersAndBatches(queryClient);
                 showToast('Η παραγγελία ακυρώθηκε.', 'info');
                 if (managingOrder?.id === order.id) setManagingOrder(null);
             } catch (err: any) {
@@ -480,8 +479,7 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintRemaini
         if (yes) {
             try {
                 await api.updateOrderStatus(order.id, OrderStatus.Delivered);
-                queryClient.invalidateQueries({ queryKey: ['orders'] });
-                queryClient.invalidateQueries({ queryKey: ['batches'] });
+                void invalidateOrdersAndBatches(queryClient);
                 showToast("Η παραγγελία ολοκληρώθηκε!", "success");
                 if (managingOrder?.id === order.id) setManagingOrder(null);
             } catch (e) {

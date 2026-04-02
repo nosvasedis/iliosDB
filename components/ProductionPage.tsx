@@ -22,7 +22,7 @@ import { requiresAssemblyStage } from '../constants';
 import { isSpecialCreationSku } from '../utils/specialCreationSku';
 import ProductionMoldRequirementsModal from './ProductionMoldRequirementsModal';
 import { buildProductionAlertGroups } from './production/productionAlerts';
-import { invalidateOrdersAndBatches } from '../lib/queryInvalidation';
+import { invalidateOrdersAndBatches, invalidateProductionBatches } from '../lib/queryInvalidation';
 import { PRODUCTION_STAGE_ORDER_INDEX, PRODUCTION_STAGES, getProductionStageLabel, getProductionStageShortLabel } from '../utils/productionStages';
 import {
     formatGreekDurationFromMs,
@@ -2136,7 +2136,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             const { error } = await productionRepository.updateBatchNotes(editingNoteBatch.id, newNote || null);
             if (error) throw error;
 
-            queryClient.invalidateQueries({ queryKey: ['batches'] });
+            void invalidateProductionBatches(queryClient);
             showToast("Η σημείωση αποθηκεύτηκε.", "success");
             setEditingNoteBatch(null);
         } catch (e) {
@@ -2150,7 +2150,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         if (batch.on_hold) {
             // Resume directly
             await productionRepository.toggleBatchHold(batch.id, false);
-            queryClient.invalidateQueries({ queryKey: ['batches'] });
+            void invalidateProductionBatches(queryClient);
             showToast("Η παρτίδα συνεχίζει την παραγωγή.", "success");
         } else {
             // Open Modal
@@ -2163,7 +2163,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         setIsSavingNote(true);
         try {
             await productionRepository.toggleBatchHold(holdingBatch.id, true, reason);
-            queryClient.invalidateQueries({ queryKey: ['batches'] });
+            void invalidateProductionBatches(queryClient);
             showToast("Η παρτίδα τέθηκε σε αναμονή.", "warning");
             setHoldingBatch(null);
         } catch (e) {

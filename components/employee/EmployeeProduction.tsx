@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useUI } from '../UIProvider';
 import { formatOrderId } from '../../utils/orderUtils';
+import { invalidateOrdersAndBatches } from '../../lib/queryInvalidation';
 
 const ClerkBatchCard: React.FC<{ batch: ProductionBatch, onMove: (b: ProductionBatch, target: ProductionStage) => void, isLoading: boolean }> = ({ batch, onMove, isLoading }) => {
     // Determine possible actions based on current stage
@@ -80,8 +81,7 @@ export default function EmployeeProduction() {
         try {
             await api.updateBatchStage(batch.id, targetStage);
             // Refresh logic
-            await queryClient.invalidateQueries({ queryKey: ['batches'] });
-            await queryClient.invalidateQueries({ queryKey: ['orders'] });
+            await invalidateOrdersAndBatches(queryClient);
             showToast("Η κατάσταση ενημερώθηκε.", "success");
         } catch (e) {
             showToast("Σφάλμα ενημέρωσης.", "error");

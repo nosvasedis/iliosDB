@@ -36,6 +36,7 @@ import { useMolds } from '../../hooks/api/useMolds';
 import { useOrders } from '../../hooks/api/useOrders';
 import { useBatchStageHistoryEntries, useProductionBatches } from '../../hooks/api/useProductionBatches';
 import { productionRepository } from '../../features/production';
+import { invalidateProductionBatches } from '../../lib/queryInvalidation';
 
 interface Props {
     allProducts: Product[];
@@ -795,7 +796,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         if (!nextStage) return;
         try {
             await productionRepository.updateBatchStage(batch.id, nextStage);
-            queryClient.invalidateQueries({ queryKey: ['batches'] });
+            void invalidateProductionBatches(queryClient);
             showToast(`Το ${batch.sku} μετακινήθηκε στο στάδιο ${STAGES.find(s => s.id === nextStage)?.label}.`, "success");
         } catch (error) {
             showToast("Σφάλμα μετακίνησης.", "error");
@@ -805,7 +806,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     const handleToggleHold = async (batch: ProductionBatch) => {
         if (batch.on_hold) {
             await productionRepository.toggleBatchHold(batch.id, false);
-            queryClient.invalidateQueries({ queryKey: ['batches'] });
+            void invalidateProductionBatches(queryClient);
             showToast("Η παραγωγή συνεχίζεται.", "success");
         } else {
             setHoldBatch(batch);
@@ -816,7 +817,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         if (!holdBatch) return;
         try {
             await productionRepository.toggleBatchHold(holdBatch.id, true, reason);
-            queryClient.invalidateQueries({ queryKey: ['batches'] });
+            void invalidateProductionBatches(queryClient);
             setHoldBatch(null);
             showToast("Τέθηκε σε αναμονή.", "warning");
         } catch (e) { showToast("Σφάλμα.", "error"); }
@@ -857,7 +858,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             setIsProcessingSplit(true);
             try {
                 await productionRepository.updateBatchStage(batch.id, targetStage);
-                queryClient.invalidateQueries({ queryKey: ['batches'] });
+                void invalidateProductionBatches(queryClient);
                 showToast('Η παρτίδα παρελήφθη.', 'success');
             } catch (e: any) {
                 showToast(`Σφάλμα: ${e.message}`, 'error');
@@ -889,7 +890,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
 
                 await productionRepository.splitBatch(batch.id, originalNewQty, newBatchData);
             }
-            queryClient.invalidateQueries({ queryKey: ['batches'] });
+            void invalidateProductionBatches(queryClient);
             showToast('Η μετακίνηση ολοκληρώθηκε.', 'success');
             setSplitModalState(null);
         } catch (e: any) {
@@ -954,7 +955,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         try {
             const { error } = await productionRepository.updateBatchNotes(editingNoteBatch.id, newNote || null);
             if (error) throw error;
-            queryClient.invalidateQueries({ queryKey: ['batches'] });
+            void invalidateProductionBatches(queryClient);
             showToast("Η σημείωση αποθηκεύτηκε.", "success");
             setEditingNoteBatch(null);
         } catch (e) {

@@ -19,6 +19,7 @@ import DeliveryFilters, { DeliveryFilterKey } from './deliveries/DeliveryFilters
 import DeliveryPlannerModal from './deliveries/DeliveryPlannerModal';
 import DeliverySummaryCards from './deliveries/DeliverySummaryCards';
 import ShipmentCreationModal from './deliveries/ShipmentCreationModal';
+import { invalidateOrdersAndBatches } from '../lib/queryInvalidation';
 
 interface Props {
   pendingOrderId?: string | null;
@@ -117,8 +118,7 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['order_delivery_plans'] });
     queryClient.invalidateQueries({ queryKey: ['order_delivery_reminders'] });
-    queryClient.invalidateQueries({ queryKey: ['orders'] });
-    queryClient.invalidateQueries({ queryKey: ['batches'] });
+    void invalidateOrdersAndBatches(queryClient);
     queryClient.invalidateQueries({ queryKey: ['order_shipments'] });
     queryClient.invalidateQueries({ queryKey: ['orthodox_calendar_events'] });
   };
