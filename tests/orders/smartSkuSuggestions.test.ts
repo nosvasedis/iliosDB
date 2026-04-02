@@ -157,6 +157,85 @@ describe('smartSkuSuggestions', () => {
     expect(sibs).toEqual(['PN615', 'PN915', 'XR915']);
   });
 
+  // ── Cross-series mod-100 (Ωρίων real structure) ────────────────────────────
+
+  it('cross-series mod100: RN415 links PN315, PN615, XR615 (no PN715/XR715 exist)', () => {
+    // Ωρίων: rings RN300-625, pendants PN300-325 + PN600-625, bracelets XR600-625.
+    // RN4xx has no same-digit-core PN/XR and Orion +300 points to non-existent 7xx range.
+    // The fix: cross-series mod-100 links all items with the same last-2 digits.
+    const products = [
+      makeProduct({ sku: 'RN415', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN315', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN615', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'XR615', gender: Gender.Men, collections: [42] }),
+    ];
+    const index = buildProductSearchIndex(products, orionCollections);
+    const sibs = getCollectionCoreSiblings(index, index.skuMap.get('RN415')!)
+      .map((p) => p.sku)
+      .sort();
+    expect(sibs).toEqual(['PN315', 'PN615', 'XR615']);
+  });
+
+  it('cross-series mod100: RN515 links PN315, PN615, XR615 (band 3, no PN815/XR815)', () => {
+    const products = [
+      makeProduct({ sku: 'RN515', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN315', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN615', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'XR615', gender: Gender.Men, collections: [42] }),
+    ];
+    const index = buildProductSearchIndex(products, orionCollections);
+    const sibs = getCollectionCoreSiblings(index, index.skuMap.get('RN515')!)
+      .map((p) => p.sku)
+      .sort();
+    expect(sibs).toEqual(['PN315', 'PN615', 'XR615']);
+  });
+
+  it('cross-series mod100: RN325 also links RN425, RN525 (full Ωρίων design-25 group)', () => {
+    // All four ring series + pendants + bracelets with mod100=25 are companions.
+    const products = [
+      makeProduct({ sku: 'RN325', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'RN425', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'RN525', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'RN625', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN325', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN625', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'XR625', gender: Gender.Men, collections: [42] }),
+    ];
+    const index = buildProductSearchIndex(products, orionCollections);
+    const sibs = getCollectionCoreSiblings(index, index.skuMap.get('RN325')!)
+      .map((p) => p.sku)
+      .sort();
+    expect(sibs).toEqual(['PN325', 'PN625', 'RN425', 'RN525', 'RN625', 'XR625']);
+  });
+
+  it('cross-series mod100: RN615 also links PN315, RN315, RN415, RN515 (full design-15 group)', () => {
+    const products = [
+      makeProduct({ sku: 'RN315', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'RN415', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'RN515', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'RN615', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN315', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN615', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'XR615', gender: Gender.Men, collections: [42] }),
+    ];
+    const index = buildProductSearchIndex(products, orionCollections);
+    const sibs = getCollectionCoreSiblings(index, index.skuMap.get('RN615')!)
+      .map((p) => p.sku)
+      .sort();
+    expect(sibs).toEqual(['PN315', 'PN615', 'RN315', 'RN415', 'RN515', 'XR615']);
+  });
+
+  it('cross-series mod100: does not bleed across collections', () => {
+    // RN415 in collection 42, PN315 in collection 99 — must NOT be linked.
+    const products = [
+      makeProduct({ sku: 'RN415', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN315', gender: Gender.Men, collections: [99] }),
+    ];
+    const index = buildProductSearchIndex(products, orionCollections);
+    const sibs = getCollectionCoreSiblings(index, index.skuMap.get('RN415')!);
+    expect(sibs).toHaveLength(0);
+  });
+
   it('Orion: PN625 links RN325, PN325, XR625', () => {
     const products = [
       makeProduct({ sku: 'RN325', gender: Gender.Men, collections: [42] }),

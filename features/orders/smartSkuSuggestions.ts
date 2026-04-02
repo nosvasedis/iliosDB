@@ -38,6 +38,12 @@ export interface ProductSearchIndex {
   collectionCoreToSkus: Map<string, string[]>;
   /** Key `${collectionId}|${letterPrefix}|${mod100}` when cluster size ≥ 2 and num ≥ 100. */
   familyClusterToSkus: Map<string, string[]>;
+  /**
+   * Key `${collectionId}|${mod100}` → master SKUs (any prefix) with that last-2-digit value
+   * in that collection, when cluster size ≥ 2 and num ≥ 100. Used to link cross-series
+   * companions (e.g. RN415 ↔ PN315, PN615, XR615 via shared mod-100 design number).
+   */
+  collectionMod100ToSkus: Map<string, string[]>;
   /** Collection ids whose name matches Ωρίων / Orion (informational; RN↔PN↔XR +300 pairing uses numeric bands for all shared collections). */
   orionCollectionIds: Set<number>;
 }
@@ -173,6 +179,7 @@ export function buildProductSearchIndex(products: Product[], collections?: Colle
   const byFirstTwo = new Map<string, Product[]>();
   const collectionCoreToSkus = new Map<string, string[]>();
   const familyBuckets = new Map<string, Set<string>>();
+  const mod100Buckets = new Map<string, Set<string>>();
 
   for (const p of masters) {
     skuMap.set(p.sku, p);
@@ -193,9 +200,15 @@ export function buildProductSearchIndex(products: Product[], collections?: Colle
 
       if (parts.num >= 100) {
         const mod = parts.num % 100;
+
         const fk = `${cid}|${parts.letters}|${mod}`;
         if (!familyBuckets.has(fk)) familyBuckets.set(fk, new Set());
         familyBuckets.get(fk)!.add(p.sku);
+
+        // Cross-prefix mod-100 bucket: any letter prefix, same collection, same last-2-digits.
+        const mk = `${cid}|${mod}`;
+        if (!mod100Buckets.has(mk)) mod100Buckets.set(mk, new Set());
+        mod100Buckets.get(mk)!.add(p.sku);
       }
     }
   }
@@ -204,6 +217,13 @@ export function buildProductSearchIndex(products: Product[], collections?: Colle
   for (const [fk, set] of familyBuckets) {
     if (set.size >= 2) {
       familyClusterToSkus.set(fk, [...set].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })));
+    }
+  }
+
+  const collectionMod100ToSkus = new Map<string, string[]>();
+  for (const [mk, set] of mod100Buckets) {
+    if (set.size >= 2) {
+      collectionMod100ToSkus.set(mk, [...set].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })));
     }
   }
 
@@ -223,7 +243,7 @@ export function buildProductSearchIndex(products: Product[], collections?: Colle
     arr.push(...deduped);
   }
 
-  return { masters, skuMap, byFirstTwo, collectionCoreToSkus, familyClusterToSkus, orionCollectionIds };
+  return { masters, skuMap, byFirstTwo, collectionCoreToSkus, familyClusterToSkus, collectionMod100ToSkus, orionCollectionIds };
 }
 
 export function productMatchesVariantSuffix(p: Product, suffixUpper: string | null): boolean {
@@ -596,6 +616,28 @@ export function getCollectionCoreSiblings(index: ProductSearchIndex, product: Pr
             seen.add(sku);
             out.push(other);
           }
+        }
+      }
+    }
+
+    /**
+     * Cross-series mod-100: within the same collection, items that share the same last-2
+     * digits (design number) but live in a different hundreds-range are companion pieces.
+     * E.g. Ωρίων RN415 (mod=15) links to PN315, PN615, XR615, RN315, RN515, RN615 even
+     * though none of those share digit core "415" or the Orion +300 core "715".
+     */
+    if (parts.num >= 100) {
+      const mod = parts.num % 100;
+      const mk = `${cid}|${mod}`;
+      const modSkus = index.collectionMod100ToSkus.get(mk);
+      if (modSkus) {
+        for (const sku of modSkus) {
+          if (sku === product.sku) continue;
+          if (seen.has(sku)) continue;
+          const other = index.skuMap.get(sku);
+          if (!other || !other.collections?.includes(cid)) continue;
+          seen.add(sku);
+          out.push(other);
         }
       }
     }
