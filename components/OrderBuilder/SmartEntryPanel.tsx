@@ -1,6 +1,6 @@
 import React from 'react';
 import { ScanBarcode, X, Hash, Layers, Plus, ImageIcon, StickyNote } from 'lucide-react';
-import { getVariantComponents } from '../../utils/pricingEngine';
+import { getVariantSuffixDisplayCodes } from '../../utils/pricingEngine';
 import { useOrderState, FINISH_COLORS, STONE_TEXT_COLORS } from '../../hooks/useOrderState';
 import { PRODUCT_OPTION_COLORS, PRODUCT_OPTION_COLOR_LABELS, isXrCordEnamelSku } from '../../utils/xrOptions';
 import { SPECIAL_CREATION_SKU } from '../../utils/specialCreationSku';
@@ -213,16 +213,31 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                 <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block flex items-center gap-1"><Layers size={12} /> ΠΑΡΑΛΛΑΓΕΣ</label>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                     {state.filteredVariants.map(v => {
-                                        const { finish, stone } = getVariantComponents(v.suffix, state.activeMaster!.gender);
+                                        const { finishCode, stoneCode } = getVariantSuffixDisplayCodes(
+                                            v.suffix,
+                                            state.activeMaster!.gender,
+                                            state.activeMaster,
+                                        );
+                                        const label =
+                                            finishCode || stoneCode
+                                                ? null
+                                                : (v.suffix?.trim() || '—');
                                         return (
                                             <button
                                                 key={v.suffix}
                                                 onClick={() => actions.handleAddItem(v.variant)}
                                                 className="p-3 rounded-xl border transition-all flex flex-col items-center gap-1 shadow-sm active:scale-95 bg-white border-slate-100 hover:border-emerald-500"
                                             >
-                                                <span className="text-sm font-black flex items-center gap-0.5">
-                                                    <span className={FINISH_COLORS[finish.code] || 'text-slate-400'}>{finish.code || 'BAS'}</span>
-                                                    <span className={STONE_TEXT_COLORS[stone.code] || 'text-emerald-500'}>{stone.code}</span>
+                                                <span className="text-sm font-black flex items-center justify-center gap-0.5 flex-wrap">
+                                                    {finishCode ? (
+                                                        <span className={FINISH_COLORS[finishCode] || 'text-slate-400'}>{finishCode}</span>
+                                                    ) : null}
+                                                    {stoneCode ? (
+                                                        <span className={STONE_TEXT_COLORS[stoneCode] || 'text-emerald-500'}>{stoneCode}</span>
+                                                    ) : null}
+                                                    {label ? (
+                                                        <span className="text-slate-500 tabular-nums">{label}</span>
+                                                    ) : null}
                                                 </span>
                                                 <span className="text-[9px] font-bold text-slate-400 truncate w-full text-center">{v.desc || 'Variant'}</span>
                                             </button>
