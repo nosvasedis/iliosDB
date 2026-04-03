@@ -1,7 +1,7 @@
 
 import React, { useCallback, useState, useMemo, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType, BatchStageHistoryEntry, StageBatchPrintData, OrderStatus } from '../types';
+import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType, BatchStageHistoryEntry, StageBatchPrintData, OrderStatus, OrderShipment, OrderShipmentItem } from '../types';
 import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, ArrowLeft, Clock, StickyNote, History, Package, Box, Info, PauseCircle, PlayCircle, User, ShoppingCart, RefreshCcw, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer, Scissors, Trash2, Split, Merge, FileText, AlertCircle, Save, Check, Truck, Send } from 'lucide-react';
 import { checkStockForOrderItems, deductStockForOrder } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -36,6 +36,7 @@ interface Props {
     onPrintStageBatches?: (data: StageBatchPrintData) => void;
     onBack?: () => void; // Optional: navigate back to quick picker
     onPartialShipment?: () => void;
+    onPrintShipment?: (payload: { order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] }) => void;
 }
 
 const STAGES = PRODUCTION_STAGES.map((stage) => ({
@@ -192,7 +193,7 @@ const StageFlowRail = ({
     );
 };
 
-export default function ProductionSendModal({ order, products, materials, existingBatches, collections, onClose, onSuccess, onPrintAggregated, onPrintStageBatches, onBack, onPartialShipment }: Props) {
+export default function ProductionSendModal({ order, products, materials, existingBatches, collections, onClose, onSuccess, onPrintAggregated, onPrintStageBatches, onBack, onPartialShipment, onPrintShipment }: Props) {
     const { showToast, confirm } = useUI();
     const queryClient = useQueryClient();
     const { data: shipmentSnapshot, isLoading: isLoadingShipments } = useOrderShipmentsForOrder(order.id);
@@ -1373,6 +1374,14 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                 <span>{formatCurrency(shipTotal)}</span>
                                                             </div>
                                                         </div>
+                                                        {onPrintShipment && (
+                                                            <button
+                                                                onClick={() => onPrintShipment({ order, shipment, shipmentItems: shipItems })}
+                                                                className="w-full py-2 bg-slate-50 hover:bg-blue-50 text-blue-600 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-colors mt-2"
+                                                            >
+                                                                <FileText size={13} /> Δελτίο Αποστολής
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 );
                                             })}

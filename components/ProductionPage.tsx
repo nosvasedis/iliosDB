@@ -562,6 +562,17 @@ const QuickProductionPickerModal = ({
         ProductionStage.Ready
     ];
 
+    const STAGE_BAR_COLOR: Record<string, string> = {
+        [ProductionStage.AwaitingDelivery]: 'bg-indigo-400',
+        [ProductionStage.Waxing]: 'bg-slate-400',
+        [ProductionStage.Casting]: 'bg-orange-400',
+        [ProductionStage.Setting]: 'bg-purple-400',
+        [ProductionStage.Polishing]: 'bg-blue-400',
+        [ProductionStage.Assembly]: 'bg-pink-400',
+        [ProductionStage.Labeling]: 'bg-yellow-400',
+        [ProductionStage.Ready]: 'bg-emerald-500',
+    };
+
     if (!isOpen) return null;
 
     return (
@@ -639,6 +650,28 @@ const QuickProductionPickerModal = ({
                                             })}
                                         </div>
                                         
+                                        {/* Stage progress bar */}
+                                        {entry.totalQty > 0 && (
+                                            <div
+                                                className="h-2.5 rounded-full overflow-hidden bg-slate-100 flex border border-slate-200"
+                                                title="Κατανομή ποσοτήτων ανά στάδιο παραγωγής"
+                                            >
+                                                {STAGE_ORDER.map(stage => {
+                                                    const qty = entry.stageBreakdown[stage] || 0;
+                                                    if (!qty) return null;
+                                                    const pct = (qty / entry.totalQty) * 100;
+                                                    return (
+                                                        <div
+                                                            key={stage}
+                                                            className={`h-full ${STAGE_BAR_COLOR[stage]} border-r border-white/40 last:border-r-0 transition-[width] duration-300`}
+                                                            style={{ width: `${pct}%` }}
+                                                            title={`${STAGE_DISPLAY[stage].label}: ${qty} τμχ (${Math.round(pct)}%)`}
+                                                        />
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+
                                         {/* Summary bar */}
                                         <div className="flex items-center gap-2 text-[10px]">
                                             <span className="text-slate-500 font-medium">Σύνολο:</span>

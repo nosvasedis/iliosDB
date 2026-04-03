@@ -1278,6 +1278,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                     onSuccess={onProductionSuccess}
                     collections={collections}
                     onPrintAggregated={onPrintAggregated}
+                    onPrintShipment={onPrintShipment}
                     onPartialShipment={() => {
                         setShipmentModalOrder(productionModalOrder);
                         setProductionModalOrder(null);
