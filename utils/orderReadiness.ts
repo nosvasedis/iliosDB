@@ -1,4 +1,9 @@
-import { Order, ProductionBatch, ProductionStage, ShipmentReadinessSummary } from '../types';
+import { Order, OrderStatus, ProductionBatch, ProductionStage, ShipmentReadinessSummary } from '../types';
+
+/** Orders still tied to production pipeline (incl. after a partial shipment). */
+export function orderStatusShowsProductionProgress(status: OrderStatus): boolean {
+  return status === OrderStatus.InProduction || status === OrderStatus.PartiallyDelivered;
+}
 
 export function getOrderBatches(orderId: string, batches: ProductionBatch[] | undefined | null): ProductionBatch[] {
   if (!batches) return [];
@@ -37,6 +42,118 @@ export function getOrderProductionQtyProgress(
   }
   const percent = totalQty > 0 ? Math.round((100 * readyQty) / totalQty) : 0;
   return { readyQty, totalQty, percent };
+}
+
+export type OrderListProgressSegment = {
+  qty: number;
+  pct: number;
+  className: string;
+  label: string;
+};
+
+function sumOrderItemsQty(order: Order): number {
+  return order.items.reduce((s, i) => s + (i.quantity || 0), 0);
+}
+
+/** Distribute integer percentages from quantities so they sum to 100. */
+function qtysToSegmentPcts(qtys: number[], total: number): number[] {
+  if (total <= 0) return qtys.map(() => 0);
+  const raw = qtys.map((q) => (100 * q) / total);
+  const floors = raw.map((r) => Math.floor(r));
+  let sum = floors.reduce((a, b) => a + b, 0);
+  const rem = 100 - sum;
+  const frac = raw.map((r, i) => ({ i, f: r - floors[i] }));
+  frac.sort((a, b) => b.f - a.f);
+  const out = [...floors];
+  for (let k = 0; k < rem; k++) out[frac[k % frac.length].i] += 1;
+  return out;
+}
+
+/**
+ * Μερική Παράδοση: multi-segment model — παραδοθέντα (εκτίμηση από υπόλοιπο παρτίδων), έτοιμα, σε παραγωγή, υπόλοιπο χωρίς παραγωγή.
+ * Παραδοθέντα ≈ σύνολο γραμμών − σύνολο ποσοτήτων παρτιδών (ό,τι δεν είναι πλέον στην παραγωγή).
+ */
+export function buildPartialDeliveryProgressSegments(
+  order: Order,
+  batches: ProductionBatch[] | undefined | null
+): { segments: OrderListProgressSegment[]; summaryTitle: string; overallCompletePercent: number } | null {
+  const itemsTotal = sumOrderItemsQty(order);
+  if (itemsTotal <= 0) return null;
+
+  const obs = getOrderBatches(order.id, batches);
+  let batchTotal = 0;
+  let readyQty = 0;
+  for (const b of obs) {
+    const q = b.quantity || 0;
+    batchTotal += q;
+    if (b.current_stage === ProductionStage.Ready) readyQty += q;
+  }
+  let wipQty = Math.max(0, batchTotal - readyQty);
+
+  let shippedQty = itemsTotal - batchTotal;
+  shippedQty = Math.max(0, Math.min(itemsTotal, shippedQty));
+
+  const pipelineCap = Math.max(0, itemsTotal - shippedQty);
+  const pipeline = readyQty + wipQty;
+  if (pipeline > pipelineCap && pipeline > 0) {
+    const f = pipelineCap / pipeline;
+    readyQty = Math.floor(readyQty * f);
+    wipQty = Math.max(0, pipelineCap - readyQty);
+  }
+
+  let remainderQty = Math.max(0, itemsTotal - shippedQty - readyQty - wipQty);
+
+  const qtys = [shippedQty, readyQty, wipQty, remainderQty];
+  const pcts = qtysToSegmentPcts(qtys, itemsTotal);
+
+  const rows: OrderListProgressSegment[] = [
+    {
+      qty: shippedQty,
+      pct: pcts[0],
+      className: 'bg-slate-600',
+      label: `Παραδόθηκαν: ${shippedQty} τεμ.`,
+    },
+    {
+      qty: readyQty,
+      pct: pcts[1],
+      className: 'bg-emerald-500',
+      label: `Έτοιμα (προς αποστολή): ${readyQty} τεμ.`,
+    },
+    {
+      qty: wipQty,
+      pct: pcts[2],
+      className: 'bg-amber-500',
+      label: `Σε παραγωγή: ${wipQty} τεμ.`,
+    },
+    {
+      qty: remainderQty,
+      pct: pcts[3],
+      className: 'bg-slate-300',
+      label:
+        remainderQty > 0
+          ? `Χωρίς ενεργή παραγωγή: ${remainderQty} τεμ.`
+          : 'Χωρίς ενεργή παραγωγή',
+    },
+  ];
+
+  const segments = rows.filter((s) => s.qty > 0 || s.pct > 0);
+
+  const summaryTitle = [
+    shippedQty > 0 ? `Παραδόθηκαν ${shippedQty}` : null,
+    readyQty > 0 ? `Έτοιμα ${readyQty}` : null,
+    wipQty > 0 ? `Σε παραγωγή ${wipQty}` : null,
+    remainderQty > 0 ? `Υπόλοιπο ${remainderQty}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  const overallCompletePercent = Math.round((100 * (shippedQty + readyQty)) / itemsTotal);
+
+  return {
+    segments,
+    summaryTitle: summaryTitle || `Σύνολο ${itemsTotal} τεμ.`,
+    overallCompletePercent,
+  };
 }
 
 /** Batches for this order that are not yet Ready (for delivery info pane). */

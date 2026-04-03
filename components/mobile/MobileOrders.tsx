@@ -8,7 +8,8 @@ import { formatCurrency } from '../../utils/pricingEngine';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import { useUI } from '../UIProvider';
 import SkuColorizedText from '../SkuColorizedText';
-import { isOrderReady, getOrderProductionQtyProgress } from '../../utils/orderReadiness';
+import { isOrderReady, orderStatusShowsProductionProgress } from '../../utils/orderReadiness';
+import { OrderListProgressBar } from '../orders/OrderListProgressBar';
 import { buildItemIdentityKey } from '../../utils/itemIdentity';
 import { getRemainingOrderItems } from '../../utils/shipmentUtils';
 import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
@@ -237,8 +238,6 @@ const OrderCard: React.FC<{
 
     const isCancelled = order.status === OrderStatus.Cancelled;
     const isDelivered = order.status === OrderStatus.Delivered;
-    const prodProgress = getOrderProductionQtyProgress(order.id, batches);
-
     const activeVat = order.vat_rate !== undefined ? order.vat_rate : 0.24;
     const netValue = order.total_price / (1 + activeVat);
 
@@ -279,20 +278,9 @@ const OrderCard: React.FC<{
                             {getOrderStatusIcon(order.status, 14)}
                             <span>{getOrderStatusLabel(order.status, 'mobileCompact')}</span>
                         </div>
-                        {order.status === OrderStatus.InProduction && (
-                            <div
-                                className="w-full flex items-center gap-2"
-                                title={prodProgress.totalQty > 0 ? `${prodProgress.readyQty}/${prodProgress.totalQty} τεμ. έτοιμα (${prodProgress.percent}%)` : 'Δεν υπάρχουν παρτίδες παραγωγής'}
-                            >
-                                <div className="h-1.5 flex-1 min-w-0 rounded-full bg-slate-200 overflow-hidden">
-                                    <div
-                                        className="h-full rounded-full bg-amber-500"
-                                        style={{ width: prodProgress.totalQty > 0 ? `${prodProgress.percent}%` : '0%' }}
-                                    />
-                                </div>
-                                <span className="text-[9px] font-black text-slate-500 tabular-nums shrink-0">
-                                    {prodProgress.totalQty > 0 ? `${prodProgress.percent}%` : '—'}
-                                </span>
+                        {!isReady && orderStatusShowsProductionProgress(order.status) && (
+                            <div className="w-full flex justify-end">
+                                <OrderListProgressBar order={order} batches={batches} ready={isReady} density="mobile" />
                             </div>
                         )}
                         {isReady && !isDelivered && !isCancelled && (

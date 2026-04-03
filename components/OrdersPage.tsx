@@ -11,7 +11,8 @@ import { formatCurrency, getVariantComponents } from '../utils/pricingEngine';
 import DesktopOrderBuilder from './DesktopOrderBuilder';
 import ProductionSendModal from './ProductionSendModal';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
-import { groupBatchesByShipment, getShipmentReadiness, getOrderProductionQtyProgress } from '../utils/orderReadiness';
+import { groupBatchesByShipment, getShipmentReadiness } from '../utils/orderReadiness';
+import { OrderListProgressBar } from './orders/OrderListProgressBar';
 import ShipmentCreationModal from './deliveries/ShipmentCreationModal';
 import { invalidateOrdersAndBatches } from '../lib/queryInvalidation';
 import { buildPartialOrderFromBatches, buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildSyntheticAggregatedBatches, getShipmentStageBreakdown, getShipmentSummary, getShipmentValue } from '../features/orders';
@@ -922,7 +923,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                 const ready = orderMeta?.isReady || false;
                                 const isRetailOrder = order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME;
                                 const retailClientLabel = orderMeta?.retailClientLabel || '';
-                                const prodProgress = getOrderProductionQtyProgress(order.id, batches);
                                 return (
                                     <div
                                         key={order.id}
@@ -965,22 +965,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                         <div className="p-4 min-w-0">
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-bold border ${getOrderStatusClasses(order.status)}`}>{getOrderStatusLabel(order.status)}</span>
-                                                {order.status === OrderStatus.InProduction && (
-                                                    <div
-                                                        className="flex items-center gap-1.5 min-w-0 flex-1 max-w-[140px]"
-                                                        title={prodProgress.totalQty > 0 ? `${prodProgress.readyQty}/${prodProgress.totalQty} τεμ. έτοιμα (${prodProgress.percent}%)` : 'Δεν υπάρχουν παρτίδες παραγωγής'}
-                                                    >
-                                                        <div className="h-2 flex-1 min-w-[48px] rounded-full bg-slate-200 overflow-hidden border border-slate-100">
-                                                            <div
-                                                                className="h-full rounded-full bg-amber-500 transition-[width] duration-300"
-                                                                style={{ width: prodProgress.totalQty > 0 ? `${prodProgress.percent}%` : '0%' }}
-                                                            />
-                                                        </div>
-                                                        <span className="text-[10px] font-black text-slate-500 tabular-nums shrink-0 w-8 text-right">
-                                                            {prodProgress.totalQty > 0 ? `${prodProgress.percent}%` : '—'}
-                                                        </span>
-                                                    </div>
-                                                )}
+                                                {!ready && <OrderListProgressBar order={order} batches={batches} ready={ready} density="desktop" />}
                                                 {ready && order.status !== OrderStatus.Delivered && (
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handleCompleteOrder(order); }}
