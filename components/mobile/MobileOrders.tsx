@@ -417,7 +417,6 @@ const OrderCard: React.FC<{
                             <div className="flex items-start justify-between gap-3">
                                 <div>
                                     <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Στάδια Παραγωγής</div>
-                                    <p className="mt-1 text-xs font-medium text-slate-500">Χρωματική εικόνα όλων των τεμαχίων της παραγγελίας ανά στάδιο.</p>
                                 </div>
                                 <div className="text-right shrink-0">
                                     <div className="text-base font-black text-slate-900">{stageProgress.totalQty} τεμ.</div>
