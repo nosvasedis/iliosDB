@@ -53,9 +53,9 @@ export function getOrderSnapshotById(orders: Order[], orderId: string): Order | 
 }
 
 export function checkStockForOrderItems(
-  itemsToSend: { sku: string; variant: string | null; qty: number; size_info?: string; cord_color?: string | null; enamel_color?: string | null }[],
+  itemsToSend: { sku: string; variant: string | null; qty: number; size_info?: string; cord_color?: string | null; enamel_color?: string | null; line_id?: string | null }[],
   allProducts: Product[]
-): Array<{ sku: string; variant_suffix: string | null; size_info: string | null; cord_color?: string | null; enamel_color?: string | null; requested_qty: number; available_in_stock: number }> {
+): Array<{ sku: string; variant_suffix: string | null; size_info: string | null; cord_color?: string | null; enamel_color?: string | null; line_id?: string | null; requested_qty: number; available_in_stock: number }> {
   return itemsToSend.map((item) => {
     const product = allProducts.find((p) => p.sku === item.sku);
     if (!product) {
@@ -65,6 +65,7 @@ export function checkStockForOrderItems(
         size_info: item.size_info || null,
         cord_color: item.cord_color || null,
         enamel_color: item.enamel_color || null,
+        line_id: item.line_id ?? null,
         requested_qty: item.qty,
         available_in_stock: 0,
       };
@@ -88,6 +89,7 @@ export function checkStockForOrderItems(
       size_info: item.size_info || null,
       cord_color: item.cord_color || null,
       enamel_color: item.enamel_color || null,
+      line_id: item.line_id ?? null,
       requested_qty: item.qty,
       available_in_stock: Math.max(0, available),
     };

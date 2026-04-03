@@ -457,6 +457,8 @@ export interface ProductionBatch {
   size_info?: string; // Added size info for production tracking
   cord_color?: ProductOptionColor;
   enamel_color?: ProductOptionColor;
+  /** Matches order line `line_id` (required for multiple SP rows). */
+  line_id?: string | null;
 
   product_image?: string | null;
   product_details?: Product;

@@ -17,6 +17,7 @@ import { getProductionTimingInfo, getProductionTimingStatusClasses } from '../ut
 import { buildBatchStageHistoryMap, getStageColorKey, isStageNotRequired } from '../features/production/selectors';
 import { groupProductionBatchesByStage } from '../features/production/workflowSelectors';
 import { buildOrderItemIdentityKey } from '../features/orders/printHelpers';
+import { getSpecialCreationProductStub, isSpecialCreationSku } from '../utils/specialCreationSku';
 import { useOrderShipmentsForOrder } from '../hooks/api/useOrders';
 import { useBatchStageHistoryEntries } from '../hooks/api/useProductionBatches';
 import { ordersRepository } from '../features/orders';
@@ -207,8 +208,8 @@ export default function ProductionSendModal({ order, products, materials, existi
 
     // Stock Decision State
     const [stockDecision, setStockDecision] = useState<{
-        items: Array<{ sku: string; variant_suffix: string | null; size_info: string | null; cord_color?: string | null; enamel_color?: string | null; requested_qty: number; available_in_stock: number; fromStock: number }>;
-        originalItemsToSend: Array<{ sku: string; variant: string | null; qty: number; size_info?: string; cord_color?: string | null; enamel_color?: string | null; notes?: string }>;
+        items: Array<{ sku: string; variant_suffix: string | null; size_info: string | null; cord_color?: string | null; enamel_color?: string | null; line_id?: string | null; requested_qty: number; available_in_stock: number; fromStock: number }>;
+        originalItemsToSend: Array<{ sku: string; variant: string | null; qty: number; size_info?: string; cord_color?: string | null; enamel_color?: string | null; notes?: string; line_id?: string | null }>;
     } | null>(null);
 
     // Split Modal State
@@ -268,15 +269,16 @@ export default function ProductionSendModal({ order, products, materials, existi
             const key = buildOrderItemIdentityKey(b);
             if (!groups[key]) {
                 const product = products.find(p => p.sku === b.sku);
+                const stub = isSpecialCreationSku(b.sku) ? getSpecialCreationProductStub() : null;
                 groups[key] = {
                     sku: b.sku,
                     variant: b.variant_suffix || '',
                     size: b.size_info,
                     qty: 0,
-                    img: product?.image_url,
+                    img: product?.image_url ?? null,
                     notes: [],
-                    gender: product?.gender || Gender.Unisex,
-                    category: product?.category || 'Προϊόν'
+                    gender: stub?.gender ?? product?.gender ?? Gender.Unisex,
+                    category: stub?.category ?? product?.category ?? 'Προϊόν'
                 };
             }
             groups[key].qty += b.quantity;
@@ -340,8 +342,8 @@ export default function ProductionSendModal({ order, products, materials, existi
                 remainingQty,
                 toSendQty: remainingQty,
                 batchDetails: relevantBatches,
-                gender: product?.gender || 'Unknown',
-                collectionId: product?.collections?.[0],
+                gender: isSpecialCreationSku(item.sku) ? getSpecialCreationProductStub().gender : (product?.gender || 'Unknown'),
+                collectionId: isSpecialCreationSku(item.sku) ? undefined : product?.collections?.[0],
                 price: item.price_at_order,
                 originalIndex: index
             } as RowItem;
@@ -392,18 +394,24 @@ export default function ProductionSendModal({ order, products, materials, existi
 
     const filteredRows = useMemo(() => {
         return rows.filter(row => {
-            if (filterGender !== 'All' && row.gender !== filterGender) return false;
+            if (filterGender !== 'All' && !isSpecialCreationSku(row.sku) && row.gender !== filterGender) return false;
             if (filterCollection !== 'All') {
+                if (isSpecialCreationSku(row.sku)) return true;
                 const product = products.find(p => p.sku === row.sku);
                 if (!product?.collections?.includes(filterCollection)) return false;
             }
             if (searchTerm) {
                 const term = searchTerm.toLowerCase();
                 const product = products.find(p => p.sku === row.sku);
+                const stub = isSpecialCreationSku(row.sku) ? getSpecialCreationProductStub() : null;
                 const matchesSku = row.sku.toLowerCase().includes(term);
                 const matchesSuffix = (row.variant_suffix || '').toLowerCase().includes(term);
-                const matchesCategory = product?.category?.toLowerCase().includes(term) || false;
-                if (!matchesSku && !matchesSuffix && !matchesCategory) return false;
+                const matchesCategory =
+                    product?.category?.toLowerCase().includes(term) ||
+                    stub?.description?.toLowerCase().includes(term) ||
+                    false;
+                const matchesNotes = (row.notes || '').toLowerCase().includes(term);
+                if (!matchesSku && !matchesSuffix && !matchesCategory && !matchesNotes) return false;
             }
             return true;
         });
@@ -495,7 +503,8 @@ export default function ProductionSendModal({ order, products, materials, existi
             size_info: r.size_info,
             cord_color: r.cord_color || null,
             enamel_color: r.enamel_color || null,
-            notes: r.notes
+            notes: r.notes,
+            line_id: r.line_id ?? null
         })).filter(i => i.qty > 0);
 
         if (itemsToSend.length === 0) {
@@ -524,8 +533,8 @@ export default function ProductionSendModal({ order, products, materials, existi
     };
 
     const executeSend = async (
-        itemsToSend: Array<{ sku: string; variant: string | null; qty: number; size_info?: string; cord_color?: string | null; enamel_color?: string | null; notes?: string }>,
-        stockFulfilledItems?: Array<{ sku: string; variant_suffix: string | null; qty: number; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null }>
+        itemsToSend: Array<{ sku: string; variant: string | null; qty: number; size_info?: string; cord_color?: string | null; enamel_color?: string | null; notes?: string; line_id?: string | null }>,
+        stockFulfilledItems?: Array<{ sku: string; variant_suffix: string | null; qty: number; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null; line_id?: string | null }>
     ) => {
         setIsSending(true);
         try {
@@ -554,7 +563,7 @@ export default function ProductionSendModal({ order, products, materials, existi
 
         const stockFulfilled = stockDecision.items
             .filter(i => i.fromStock > 0)
-            .map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, qty: i.fromStock, size_info: i.size_info, cord_color: i.cord_color || null, enamel_color: i.enamel_color || null }));
+            .map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, qty: i.fromStock, size_info: i.size_info, cord_color: i.cord_color || null, enamel_color: i.enamel_color || null, line_id: i.line_id ?? null }));
 
         // Build the production items: reduce qty by fromStock for items partially in stock, remove items fully in stock
         const productionItems = stockDecision.originalItemsToSend.map(orig => {
@@ -563,14 +572,16 @@ export default function ProductionSendModal({ order, products, materials, existi
                 variant_suffix: orig.variant,
                 size_info: orig.size_info,
                 cord_color: orig.cord_color as OrderItem['cord_color'],
-                enamel_color: orig.enamel_color as OrderItem['enamel_color']
+                enamel_color: orig.enamel_color as OrderItem['enamel_color'],
+                line_id: orig.line_id ?? null
             });
             const match = stockDecision.items.find(s => buildOrderItemIdentityKey({
                 sku: s.sku,
                 variant_suffix: s.variant_suffix,
                 size_info: s.size_info,
                 cord_color: s.cord_color as OrderItem['cord_color'],
-                enamel_color: s.enamel_color as OrderItem['enamel_color']
+                enamel_color: s.enamel_color as OrderItem['enamel_color'],
+                line_id: s.line_id ?? null
             }) === matchKey);
             if (!match) return orig;
             const prodQty = orig.qty - match.fromStock;
@@ -982,6 +993,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                 <div className="space-y-4">
                                     {filteredRows.map((row) => {
                                         const product = products.find(p => p.sku === row.sku);
+                                        const spStub = isSpecialCreationSku(row.sku) ? getSpecialCreationProductStub() : null;
                                         const originalIndex = row.originalIndex;
                                         const currentSend = toSendQuantities[originalIndex] || 0;
                                         const isFullySent = row.remainingQty === 0;
@@ -1001,7 +1013,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                             <div className="flex items-start gap-3 min-w-0 flex-1">
                                                 <button
                                                     type="button"
-                                                    className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100"
+                                                    className={`w-12 h-12 rounded-xl overflow-hidden shrink-0 border ${spStub ? 'bg-violet-50 border-violet-200' : 'bg-slate-50 border-slate-100'}`}
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         if (product?.image_url) {
@@ -1014,18 +1026,18 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                         <img src={product.image_url} className="w-full h-full object-cover" />
                                                     ) : (
                                                         <div className="w-full h-full flex items-center justify-center">
-                                                            <ImageIcon size={20} className="text-slate-300" />
+                                                            <ImageIcon size={20} className={spStub ? 'text-violet-400' : 'text-slate-300'} />
                                                         </div>
                                                     )}
                                                 </button>
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex items-center gap-1.5 flex-wrap">
-                                                        <SkuColorizedText sku={row.sku} suffix={row.variant_suffix} gender={row.gender} className="font-black" masterClassName="text-slate-900" />
+                                                        <SkuColorizedText sku={row.sku} suffix={row.variant_suffix} gender={row.gender} className="font-black" masterClassName={spStub ? 'text-violet-900' : 'text-slate-900'} />
                                                         {row.size_info && <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 font-bold flex items-center gap-0.5"><Hash size={8} /> {row.size_info}</span>}
                                                         {row.cord_color && <span className="text-[9px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-100 font-bold">Κορδόνι: {getProductOptionColorLabel(row.cord_color)}</span>}
                                                         {row.enamel_color && <span className="text-[9px] bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded border border-rose-100 font-bold">Σμάλτο: {getProductOptionColorLabel(row.enamel_color)}</span>}
                                                     </div>
-                                                    <div className="text-[10px] text-slate-400 font-bold uppercase truncate mt-0.5">{product?.category}</div>
+                                                    <div className={`text-[10px] font-bold uppercase truncate mt-0.5 ${spStub ? 'text-violet-600' : 'text-slate-400'}`}>{product?.category ?? spStub?.category}</div>
 
                                                     <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-bold">
                                                         <span className="bg-slate-50 text-slate-600 px-2 py-1 rounded-lg border border-slate-200">

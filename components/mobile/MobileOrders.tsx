@@ -2,13 +2,13 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
-import { Order, OrderShipment, OrderShipmentItem, OrderStatus, Product, ProductVariant, ProductionStage } from '../../types';
+import { Order, OrderShipment, OrderShipmentItem, OrderStatus, Product, ProductVariant, ProductionBatch } from '../../types';
 import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings, ShoppingBag, Image as ImageIcon, PackageCheck } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import { useUI } from '../UIProvider';
 import SkuColorizedText from '../SkuColorizedText';
-import { isOrderReady } from '../../utils/orderReadiness';
+import { isOrderReady, getOrderProductionQtyProgress } from '../../utils/orderReadiness';
 import { buildItemIdentityKey } from '../../utils/itemIdentity';
 import { getRemainingOrderItems } from '../../utils/shipmentUtils';
 import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
@@ -200,6 +200,7 @@ const OrderPrintSheet: React.FC<{
 const OrderCard: React.FC<{
     order: Order,
     products: Product[],
+    batches?: ProductionBatch[] | null,
     onEdit: (o: Order) => void,
     onDelete: (o: Order) => void,
     onCancel: (o: Order) => void,
@@ -208,7 +209,7 @@ const OrderCard: React.FC<{
     onComplete?: (o: Order) => void,
     onPrint?: (o: Order) => void,
     onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
-}> = ({ order, products, onEdit, onDelete, onCancel, onManage, isReady, onComplete, onPrint, onPrintLabels }) => {
+}> = ({ order, products, batches, onEdit, onDelete, onCancel, onManage, isReady, onComplete, onPrint, onPrintLabels }) => {
     const isRetailOrder = order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME;
     const { retailClientLabel } = extractRetailClientFromNotes(order.notes);
     const [expanded, setExpanded] = useState(false);
@@ -236,6 +237,7 @@ const OrderCard: React.FC<{
 
     const isCancelled = order.status === OrderStatus.Cancelled;
     const isDelivered = order.status === OrderStatus.Delivered;
+    const prodProgress = getOrderProductionQtyProgress(order.id, batches);
 
     const activeVat = order.vat_rate !== undefined ? order.vat_rate : 0.24;
     const netValue = order.total_price / (1 + activeVat);
@@ -272,11 +274,27 @@ const OrderCard: React.FC<{
                             </div>
                         )}
                     </div>
-                    <div className="flex flex-col items-end gap-2 shrink-0">
+                    <div className="flex flex-col items-end gap-2 shrink-0 max-w-[55%]">
                         <div className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1.5 border ${getOrderStatusClasses(order.status)}`}>
                             {getOrderStatusIcon(order.status, 14)}
                             <span>{getOrderStatusLabel(order.status, 'mobileCompact')}</span>
                         </div>
+                        {order.status === OrderStatus.InProduction && (
+                            <div
+                                className="w-full flex items-center gap-2"
+                                title={prodProgress.totalQty > 0 ? `${prodProgress.readyQty}/${prodProgress.totalQty} τεμ. έτοιμα (${prodProgress.percent}%)` : 'Δεν υπάρχουν παρτίδες παραγωγής'}
+                            >
+                                <div className="h-1.5 flex-1 min-w-0 rounded-full bg-slate-200 overflow-hidden">
+                                    <div
+                                        className="h-full rounded-full bg-amber-500"
+                                        style={{ width: prodProgress.totalQty > 0 ? `${prodProgress.percent}%` : '0%' }}
+                                    />
+                                </div>
+                                <span className="text-[9px] font-black text-slate-500 tabular-nums shrink-0">
+                                    {prodProgress.totalQty > 0 ? `${prodProgress.percent}%` : '—'}
+                                </span>
+                            </div>
+                        )}
                         {isReady && !isDelivered && !isCancelled && (
                             <div className="bg-emerald-500 text-white p-1 rounded-full animate-pulse shadow-sm shadow-emerald-200">
                                 <CheckCircle size={14} />
@@ -588,6 +606,7 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintRemaini
                         key={order.id}
                         order={order}
                         products={products}
+                        batches={batches}
                         onEdit={onEdit || (() => { })}
                         onDelete={handleDeleteOrder}
                         onCancel={handleCancelOrder}

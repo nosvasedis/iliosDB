@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { ProductionBatch, ProductionStage } from '../types';
+import { isSpecialCreationSku } from '../utils/specialCreationSku';
 import { Clock, PauseCircle, StickyNote, Trash2, Printer, MoveRight, ImageIcon, AlertTriangle, PlayCircle, RefreshCcw, ChevronUp, ChevronDown, History, X, Check } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { formatOrderId } from '../utils/orderUtils';
@@ -106,6 +107,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
     const isRefurbish = batch.type === 'Φρεσκάρισμα';
     const isAwaiting = batch.current_stage === ProductionStage.AwaitingDelivery;
     const isReady = batch.current_stage === ProductionStage.Ready;
+    const isSpecialCreation = isSpecialCreationSku(batch.sku);
     const [isImageZoomed, setIsImageZoomed] = useState(false);
     
     // Stage selector state
@@ -240,12 +242,12 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
             onDragStart={onDragStart ? (e) => onDragStart(e, batch.id) : undefined}
             onClick={() => onClick(batch)}
             className={`p-3 sm:p-4 rounded-2xl border transition-all relative flex flex-col justify-between group touch-manipulation cursor-pointer
-                    ${metalContainerClass}
+                    ${isSpecialCreation ? 'bg-violet-50/40 border-violet-200 ring-1 ring-violet-100/80' : metalContainerClass}
                     ${isSelected
                     ? 'ring-2 ring-blue-400 ring-offset-1 border-blue-300 bg-blue-50/20'
                     : (batch.on_hold
                     ? 'border-amber-400 bg-amber-50/30' // Visual indication of HOLD
-                    : (isRefurbish ? 'border-blue-300 ring-1 ring-blue-50' : 'border-slate-200 hover:border-emerald-400 hover:shadow-md'))}
+                    : (isRefurbish ? 'border-blue-300 ring-1 ring-blue-50' : (!isSpecialCreation ? 'border-slate-200 hover:border-emerald-400 hover:shadow-md' : 'hover:border-violet-400 hover:shadow-md')))}
                     ${isReady ? 'opacity-90 hover:opacity-100' : ''}
         `}
         >
@@ -334,7 +336,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
             <div className="flex gap-3 items-center mb-3">
                 <button
                     type="button"
-                    className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden shrink-0 border border-slate-100 relative pointer-events-auto"
+                    className={`w-12 h-12 rounded-xl overflow-hidden shrink-0 border relative pointer-events-auto ${isSpecialCreation ? 'bg-violet-50 border-violet-200' : 'bg-slate-50 border-slate-100'}`}
                     onClick={(e) => {
                         e.stopPropagation();
                         if (batch.product_image) {
@@ -345,8 +347,8 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                     {batch.product_image ? (
                         <img src={batch.product_image} className="w-full h-full object-cover" alt="prod" />
                     ) : (
-                        <div className="w-full h-full bg-slate-100 flex items-center justify-center">
-                            <ImageIcon size={18} className="text-slate-300" />
+                        <div className={`w-full h-full flex items-center justify-center ${isSpecialCreation ? 'bg-violet-100/50' : 'bg-slate-100'}`}>
+                            <ImageIcon size={18} className={isSpecialCreation ? 'text-violet-400' : 'text-slate-300'} />
                         </div>
                     )}
                     {batch.quantity > 1 && (
@@ -357,8 +359,8 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                 </button>
                 <div className="min-w-0 flex-1">
                     {/* SKU line: base + metal suffix (color) + stone suffix (color) */}
-                    <div className={`inline-flex items-center gap-0.5 flex-wrap px-2 py-0.5 rounded-md border mb-1 ${skuContainerClass}`}>
-                        <span className="font-black text-sm leading-none text-slate-800">{batch.sku}</span>
+                    <div className={`inline-flex items-center gap-0.5 flex-wrap px-2 py-0.5 rounded-md border mb-1 ${isSpecialCreation ? 'bg-violet-50/90 border-violet-200' : skuContainerClass}`}>
+                        <span className={`font-black text-sm leading-none ${isSpecialCreation ? 'text-violet-900' : 'text-slate-800'}`}>{batch.sku}</span>
                         <span className={`font-black text-sm leading-none ${TEXT_FINISH_COLORS[finish.code] ?? 'text-slate-400'}`}>{finish.code}</span>
                         <span className={`font-black text-sm leading-none ${TEXT_STONE_COLORS[stone.code] ?? 'text-emerald-500'}`}>{stone.code}</span>
                         <span className="text-[9px] font-bold opacity-70 uppercase tracking-tight hidden sm:inline-block text-slate-400">| {finishConfig.label}</span>

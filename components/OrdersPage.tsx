@@ -11,12 +11,13 @@ import { formatCurrency, getVariantComponents } from '../utils/pricingEngine';
 import DesktopOrderBuilder from './DesktopOrderBuilder';
 import ProductionSendModal from './ProductionSendModal';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
-import { groupBatchesByShipment, getShipmentReadiness } from '../utils/orderReadiness';
+import { groupBatchesByShipment, getShipmentReadiness, getOrderProductionQtyProgress } from '../utils/orderReadiness';
 import ShipmentCreationModal from './deliveries/ShipmentCreationModal';
 import { invalidateOrdersAndBatches } from '../lib/queryInvalidation';
 import { buildPartialOrderFromBatches, buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildSyntheticAggregatedBatches, getShipmentStageBreakdown, getShipmentSummary, getShipmentValue } from '../features/orders';
 import { getOrderStatusClasses, getOrderStatusLabel } from '../features/orders/statusPresentation';
 import { getDeterministicTagColor } from '../features/orders/tagColors';
+import { getSpecialCreationProductStub, isSpecialCreationSku } from '../utils/specialCreationSku';
 import { useCollections } from '../hooks/api/useCollections';
 import { useCustomers, useOrderShipmentsForOrder, useOrders } from '../hooks/api/useOrders';
 import { useProductionBatches } from '../hooks/api/useProductionBatches';
@@ -497,15 +498,16 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
         const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
         return batches?.map(b => {
-            const prod = productsMap.get(b.sku);
+            const prod = isSpecialCreationSku(b.sku) ? getSpecialCreationProductStub() : productsMap.get(b.sku);
             const suffix = b.variant_suffix || '';
             const stone = getVariantComponents(suffix, prod?.gender).stone;
             const hasZirconsFromSuffix = stone?.code && ZIRCON_CODES.includes(stone.code) && !NON_ZIRCON_STONE_CODES.includes(stone.code);
-            const hasZirconsFromRecipe = prod?.recipe.some(r => {
-                if (r.type !== 'raw') return false;
-                const material = materialsMap.get(r.id);
-                return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
-            }) || false;
+            const hasZirconsFromRecipe =
+                !!prod?.recipe?.some((r) => {
+                    if (r.type !== 'raw') return false;
+                    const material = materialsMap.get(r.id);
+                    return material?.type === MaterialType.Stone && ZIRCON_CODES.some((code) => material.name.includes(code));
+                });
             const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe;
 
             return { ...b, product_details: prod, requires_setting: hasZircons }
@@ -900,7 +902,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             <div ref={ordersScrollRef} className="flex-1 overflow-auto min-h-0">
                 <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
                     {/* Table header - sticky */}
-                    <div className="grid grid-cols-[minmax(0,1fr)_2fr_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1fr)] gap-0 bg-slate-50 text-slate-500 font-bold uppercase text-xs sticky top-0 z-10 border-b border-slate-100">
+                    <div className="grid grid-cols-[minmax(0,1fr)_2fr_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.45fr)_minmax(0,1fr)] gap-0 bg-slate-50 text-slate-500 font-bold uppercase text-xs sticky top-0 z-10 border-b border-slate-100">
                         <div className="p-4 pl-6">ID</div>
                         <div className="p-4">Πελάτης / Ετικέτες</div>
                         <div className="p-4">Ημερομηνία</div>
@@ -920,12 +922,13 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                 const ready = orderMeta?.isReady || false;
                                 const isRetailOrder = order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME;
                                 const retailClientLabel = orderMeta?.retailClientLabel || '';
+                                const prodProgress = getOrderProductionQtyProgress(order.id, batches);
                                 return (
                                     <div
                                         key={order.id}
                                         data-index={virtualRow.index}
                                         ref={ordersRowVirtualizer.measureElement}
-                                        className="grid grid-cols-[minmax(0,1fr)_2fr_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1fr)] gap-0 border-b border-slate-50 hover:bg-slate-50/80 transition-colors group absolute left-0 w-full text-sm"
+                                        className="grid grid-cols-[minmax(0,1fr)_2fr_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.45fr)_minmax(0,1fr)] gap-0 border-b border-slate-50 hover:bg-slate-50/80 transition-colors group absolute left-0 w-full text-sm"
                                         style={{ transform: `translateY(${virtualRow.start}px)` }}
                                     >
                                         <div className="p-4 pl-6 font-mono font-bold text-slate-800">{order.id}</div>
@@ -959,13 +962,29 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                         </div>
                                         <div className="p-4 text-slate-500">{new Date(order.created_at).toLocaleDateString('el-GR')}</div>
                                         <div className="p-4 text-right font-bold text-slate-800">{formatCurrency(netValue)}</div>
-                                        <div className="p-4">
-                                            <div className="flex items-center gap-2">
-                                                <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getOrderStatusClasses(order.status)}`}>{getOrderStatusLabel(order.status)}</span>
+                                        <div className="p-4 min-w-0">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-bold border ${getOrderStatusClasses(order.status)}`}>{getOrderStatusLabel(order.status)}</span>
+                                                {order.status === OrderStatus.InProduction && (
+                                                    <div
+                                                        className="flex items-center gap-1.5 min-w-0 flex-1 max-w-[140px]"
+                                                        title={prodProgress.totalQty > 0 ? `${prodProgress.readyQty}/${prodProgress.totalQty} τεμ. έτοιμα (${prodProgress.percent}%)` : 'Δεν υπάρχουν παρτίδες παραγωγής'}
+                                                    >
+                                                        <div className="h-2 flex-1 min-w-[48px] rounded-full bg-slate-200 overflow-hidden border border-slate-100">
+                                                            <div
+                                                                className="h-full rounded-full bg-amber-500 transition-[width] duration-300"
+                                                                style={{ width: prodProgress.totalQty > 0 ? `${prodProgress.percent}%` : '0%' }}
+                                                            />
+                                                        </div>
+                                                        <span className="text-[10px] font-black text-slate-500 tabular-nums shrink-0 w-8 text-right">
+                                                            {prodProgress.totalQty > 0 ? `${prodProgress.percent}%` : '—'}
+                                                        </span>
+                                                    </div>
+                                                )}
                                                 {ready && order.status !== OrderStatus.Delivered && (
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handleCompleteOrder(order); }}
-                                                        className="bg-emerald-500 text-white p-1 rounded-full hover:bg-emerald-600 transition-colors shadow-sm animate-pulse"
+                                                        className="bg-emerald-500 text-white p-1 rounded-full hover:bg-emerald-600 transition-colors shadow-sm animate-pulse shrink-0"
                                                         title="Έτοιμη για Ολοκλήρωση"
                                                     >
                                                         <CheckCircle size={14} />

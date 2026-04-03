@@ -103,4 +103,24 @@ describe('orders print helpers', () => {
     expect(key).toContain('PN1::X::52');
     expect(key).toContain('lid:line-1');
   });
+
+  it('matches production batch to order item when both use line_id (SP)', () => {
+    const itemKey = buildOrderItemIdentityKey({
+      sku: 'SP',
+      variant_suffix: null,
+      size_info: null,
+      cord_color: null,
+      enamel_color: null,
+      line_id: 'sp-line-99',
+    });
+    const batchKey = buildOrderItemIdentityKey({
+      sku: 'SP',
+      variant_suffix: undefined,
+      size_info: undefined,
+      cord_color: null,
+      enamel_color: null,
+      line_id: 'sp-line-99',
+    });
+    expect(batchKey).toBe(itemKey);
+  });
 });

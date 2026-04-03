@@ -19,7 +19,7 @@ import ProductionOverviewModal from './ProductionOverviewModal';
 import { EnhancedProductionBatch } from '../types';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
 import { requiresAssemblyStage } from '../constants';
-import { isSpecialCreationSku } from '../utils/specialCreationSku';
+import { getSpecialCreationProductStub, isSpecialCreationSku } from '../utils/specialCreationSku';
 import ProductionMoldRequirementsModal from './ProductionMoldRequirementsModal';
 import { buildProductionAlertGroups } from './production/productionAlerts';
 import { invalidateOrdersAndBatches, invalidateProductionBatches } from '../lib/queryInvalidation';
@@ -1697,21 +1697,22 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
         const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
 
         const results = batches?.map(b => {
-            const prod = productsMap.get(b.sku);
+            const prod = isSpecialCreationSku(b.sku) ? getSpecialCreationProductStub() : productsMap.get(b.sku);
             const timingInfo = getProductionTimingInfo(b, batchHistoryLookup.get(b.id), timingNow);
 
             const suffix = b.variant_suffix || '';
             const stone = getVariantComponents(suffix, prod?.gender).stone;
             const hasZirconsFromSuffix = stone?.code && ZIRCON_CODES.includes(stone.code) && !NON_ZIRCON_STONE_CODES.includes(stone.code);
-            const hasZirconsFromRecipe = prod?.recipe.some(r => {
-                if (r.type !== 'raw') return false;
-                const material = materialsMap.get(r.id);
-                return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
-            }) || false;
+            const hasZirconsFromRecipe =
+                !!prod?.recipe?.some((r) => {
+                    if (r.type !== 'raw') return false;
+                    const material = materialsMap.get(r.id);
+                    return material?.type === MaterialType.Stone && ZIRCON_CODES.some((code) => material.name.includes(code));
+                });
             const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe;
 
             // Check if assembly stage is required based on SKU
-            const requires_assembly = requiresAssemblyStage(b.sku);
+            const requires_assembly = isSpecialCreationSku(b.sku) ? false : requiresAssemblyStage(b.sku);
 
             // Inject Customer Name (with retail client extraction)
             const order = b.order_id ? ordersMap.get(b.order_id) : undefined;
@@ -1724,7 +1725,7 @@ export default function ProductionPage({ products, materials, molds, onPrintBatc
             return {
                 ...b,
                 product_details: prod,
-                product_image: prod?.image_url,
+                product_image: prod?.image_url ?? null,
                 diffHours: timingInfo.timeInStageHours,
                 isDelayed: timingInfo.isDelayed,
                 stageEnteredAt: timingInfo.stageEnteredAt,

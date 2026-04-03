@@ -16,10 +16,10 @@ export const ordersRepository = {
     api.sendOrderToProduction(orderId, products, materials),
   sendPartialOrderToProduction: (
     orderId: string,
-    itemsToSend: Array<{ sku: string; variant: string | null; qty: number; size_info?: string; cord_color?: string | null; enamel_color?: string | null; notes?: string }>,
+    itemsToSend: Array<{ sku: string; variant: string | null; qty: number; size_info?: string; cord_color?: string | null; enamel_color?: string | null; notes?: string; line_id?: string | null }>,
     products: Product[],
     materials: Material[],
-    stockFulfilledItems?: Array<{ sku: string; variant_suffix: string | null; qty: number; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null }>,
+    stockFulfilledItems?: Array<{ sku: string; variant_suffix: string | null; qty: number; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null; line_id?: string | null }>,
   ) => api.sendPartialOrderToProduction(orderId, itemsToSend, products, materials, stockFulfilledItems),
   revertOrderFromProduction: (orderId: string) => api.revertOrderFromProduction(orderId),
   createPartialShipment: (params: {

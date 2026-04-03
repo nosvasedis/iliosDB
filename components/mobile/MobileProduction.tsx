@@ -11,6 +11,7 @@ import BatchHistoryModal from '../BatchHistoryModal';
 import { formatOrderId } from '../../utils/orderUtils';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../../utils/pricingEngine';
 import { requiresAssemblyStage } from '../../constants';
+import { getSpecialCreationProductStub, isSpecialCreationSku } from '../../utils/specialCreationSku';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import FinderBatchStageSelector from '../production/FinderBatchStageSelector';
 import { PRODUCTION_STAGES, getProductionStageLabel } from '../../utils/productionStages';
@@ -741,29 +742,30 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
 
         return batches.map(b => {
-            const prod = allProducts.find(p => p.sku === b.sku);
+            const prod = isSpecialCreationSku(b.sku) ? getSpecialCreationProductStub() : allProducts.find(p => p.sku === b.sku);
             const suffix = b.variant_suffix || '';
             const stone = getVariantComponents(suffix, prod?.gender).stone;
             const hasZirconsFromSuffix = stone?.code && ZIRCON_CODES.includes(stone.code) && !NON_ZIRCON_STONE_CODES.includes(stone.code);
-            const hasZirconsFromRecipe = prod?.recipe.some(r => {
-                if (r.type !== 'raw') return false;
-                const material = materials.find(m => m.id === r.id);
-                return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
-            }) || false;
+            const hasZirconsFromRecipe =
+                !!prod?.recipe?.some((r) => {
+                    if (r.type !== 'raw') return false;
+                    const material = materials.find((m) => m.id === r.id);
+                    return material?.type === MaterialType.Stone && ZIRCON_CODES.some((code) => material.name.includes(code));
+                });
             const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe;
 
             const order = orders.find(o => o.id === b.order_id);
             const timingInfo = getProductionTimingInfo(b, batchHistoryLookup.get(b.id), timingNow);
 
             // Check if assembly stage is required based on SKU
-            const requires_assembly = requiresAssemblyStage(b.sku);
+            const requires_assembly = isSpecialCreationSku(b.sku) ? false : requiresAssemblyStage(b.sku);
 
             return {
                 ...b,
                 requires_setting: hasZircons,
                 requires_assembly,
                 product_details: prod,
-                product_image: prod?.image_url,
+                product_image: prod?.image_url ?? null,
                 customer_name: (() => {
                     const isRetailOrder =
                         order?.customer_id === RETAIL_CUSTOMER_ID ||

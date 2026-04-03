@@ -22,6 +22,23 @@ export function isOrderReady(order: Order, batches: ProductionBatch[] | undefine
   return orderBatches.every((batch) => batch.current_stage === ProductionStage.Ready);
 }
 
+/** Quantity-weighted progress: share of pieces already in Ready stage. */
+export function getOrderProductionQtyProgress(
+  orderId: string,
+  batches: ProductionBatch[] | undefined | null
+): { readyQty: number; totalQty: number; percent: number } {
+  const orderBatches = getOrderBatches(orderId, batches);
+  let readyQty = 0;
+  let totalQty = 0;
+  for (const b of orderBatches) {
+    const q = b.quantity || 0;
+    totalQty += q;
+    if (b.current_stage === ProductionStage.Ready) readyQty += q;
+  }
+  const percent = totalQty > 0 ? Math.round((100 * readyQty) / totalQty) : 0;
+  return { readyQty, totalQty, percent };
+}
+
 /** Batches for this order that are not yet Ready (for delivery info pane). */
 export function getNotReadyBatches(orderId: string, batches: ProductionBatch[] | undefined | null): Array<{ sku: string; variant_suffix?: string; current_stage: ProductionStage; size_info?: string; cord_color?: ProductionBatch['cord_color']; enamel_color?: ProductionBatch['enamel_color'] }> {
   if (!batches) return [];

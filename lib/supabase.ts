@@ -80,7 +80,7 @@ const sanitizeBatchData = (data: any) => {
     const validColumns = [
         'id', 'order_id', 'sku', 'variant_suffix', 'quantity', 'current_stage',
         'created_at', 'updated_at', 'priority', 'type', 'notes', 'requires_setting', 'requires_assembly',
-        'size_info', 'cord_color', 'enamel_color', 'on_hold', 'on_hold_reason'
+        'size_info', 'cord_color', 'enamel_color', 'line_id', 'on_hold', 'on_hold_reason'
     ];
     const sanitized: any = {};
     validColumns.forEach(col => {
@@ -522,9 +522,9 @@ export const recordStockMovement = async (sku: string, change: number, reason: s
 
 /** Check stock availability for order items (pure function, no DB call — reads from in-memory products). */
 export function checkStockForOrderItems(
-    itemsToSend: { sku: string; variant: string | null; qty: number; size_info?: string; cord_color?: string | null; enamel_color?: string | null }[],
+    itemsToSend: { sku: string; variant: string | null; qty: number; size_info?: string; cord_color?: string | null; enamel_color?: string | null; line_id?: string | null }[],
     allProducts: Product[]
-): Array<{ sku: string; variant_suffix: string | null; size_info: string | null; cord_color?: string | null; enamel_color?: string | null; requested_qty: number; available_in_stock: number }> {
+): Array<{ sku: string; variant_suffix: string | null; size_info: string | null; cord_color?: string | null; enamel_color?: string | null; line_id?: string | null; requested_qty: number; available_in_stock: number }> {
     return checkStockForOrderItemsHelper(itemsToSend, allProducts);
 }
 
@@ -1447,7 +1447,7 @@ export const api = {
             const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
             const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
 
-            // 3. Define "Natural Key" for matching: SKU + Variant + Size + extra XR options
+            // 3. Define "Natural Key" for matching: SKU + Variant + Size + extra XR options (catalog — no line_id)
             const getNaturalKey = (
                 sku: string,
                 variant: string | null | undefined,
@@ -1462,11 +1462,38 @@ export const api = {
                 enamel_color: ((enamelColor || '').toLowerCase() || null) as any
             });
 
-            // 4. Map Demand (What the order says NOW)
+            const demandKeyForItem = (item: any) => {
+                if (isSpecialCreationSku(item.sku)) {
+                    return buildItemIdentityKey({
+                        sku: (item.sku || '').toUpperCase(),
+                        variant_suffix: (item.variant_suffix || '').toUpperCase(),
+                        size_info: (item.size_info || '').toUpperCase(),
+                        cord_color: ((item.cord_color || '').toLowerCase() || null) as any,
+                        enamel_color: ((item.enamel_color || '').toLowerCase() || null) as any,
+                        line_id: item.line_id ?? null
+                    });
+                }
+                return getNaturalKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color);
+            };
+
+            const supplyKeyForBatch = (b: any) => {
+                if (isSpecialCreationSku(b.sku)) {
+                    return buildItemIdentityKey({
+                        sku: (b.sku || '').toUpperCase(),
+                        variant_suffix: (b.variant_suffix || '').toUpperCase(),
+                        size_info: (b.size_info || '').toUpperCase(),
+                        cord_color: ((b.cord_color || '').toLowerCase() || null) as any,
+                        enamel_color: ((b.enamel_color || '').toLowerCase() || null) as any,
+                        line_id: b.line_id ?? null
+                    });
+                }
+                return getNaturalKey(b.sku, b.variant_suffix, b.size_info, b.cord_color, b.enamel_color);
+            };
+
+            // 4. Map Demand (What the order says NOW) — includes SP (ειδική δημιουργία) per line_id
             const demandMap: Record<string, { qty: number, item: any }> = {};
             order.items.forEach(item => {
-                if (isSpecialCreationSku(item.sku)) return;
-                const key = getNaturalKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color);
+                const key = demandKeyForItem(item);
                 if (!demandMap[key]) demandMap[key] = { qty: 0, item };
                 demandMap[key].qty += item.quantity;
             });
@@ -1474,7 +1501,7 @@ export const api = {
             // 5. Map Supply (What batches currently exist)
             const supplyMap: Record<string, ProductionBatch[]> = {};
             existingBatches.forEach((b: any) => {
-                const key = getNaturalKey(b.sku, b.variant_suffix, b.size_info, b.cord_color, b.enamel_color);
+                const key = supplyKeyForBatch(b);
                 if (!supplyMap[key]) supplyMap[key] = [];
                 supplyMap[key].push(b);
             });
@@ -1498,7 +1525,28 @@ export const api = {
                     const { item } = demandMap[key];
                     const product = allProducts.find(p => p.sku === item.sku);
 
-                    if (product) {
+                    if (isSpecialCreationSku(item.sku)) {
+                        const now = new Date().toISOString();
+                        batchesToInsert.push({
+                            id: crypto.randomUUID(),
+                            order_id: order.id,
+                            sku: item.sku,
+                            variant_suffix: item.variant_suffix || null,
+                            quantity: diff,
+                            current_stage: ProductionStage.Waxing,
+                            size_info: item.size_info || null,
+                            cord_color: item.cord_color || null,
+                            enamel_color: item.enamel_color || null,
+                            notes: item.notes || null,
+                            line_id: item.line_id ?? null,
+                            priority: 'Normal',
+                            type: 'Νέα',
+                            requires_setting: false,
+                            requires_assembly: false,
+                            created_at: now,
+                            updated_at: now
+                        });
+                    } else if (product) {
                         const suffix = item.variant_suffix || '';
                         const stone = getVariantComponents(suffix, product.gender).stone;
                         const hasZirconsFromSuffix = stone?.code && ZIRCON_CODES.includes(stone.code) && !NON_ZIRCON_STONE_CODES.includes(stone.code);
@@ -1629,10 +1677,10 @@ export const api = {
     // NEW: PARTIAL SEND TO PRODUCTION
     sendPartialOrderToProduction: async (
         orderId: string,
-        itemsToSend: { sku: string, variant: string | null, qty: number, size_info?: string, cord_color?: string | null, enamel_color?: string | null, notes?: string }[],
+        itemsToSend: { sku: string, variant: string | null, qty: number, size_info?: string, cord_color?: string | null, enamel_color?: string | null, notes?: string, line_id?: string | null }[],
         allProducts: Product[],
         allMaterials: Material[],
-        stockFulfilledItems?: { sku: string, variant_suffix: string | null, qty: number, size_info?: string | null, cord_color?: string | null, enamel_color?: string | null }[]
+        stockFulfilledItems?: { sku: string, variant_suffix: string | null, qty: number, size_info?: string | null, cord_color?: string | null, enamel_color?: string | null, line_id?: string | null }[]
     ): Promise<void> => {
         if (itemsToSend.length === 0) return;
 
@@ -1649,7 +1697,8 @@ export const api = {
                     variant_suffix: sf.variant_suffix,
                     size_info: sf.size_info,
                     cord_color: sf.cord_color as any,
-                    enamel_color: sf.enamel_color as any
+                    enamel_color: sf.enamel_color as any,
+                    line_id: sf.line_id ?? null
                 });
                 stockMap.set(key, (stockMap.get(key) || 0) + sf.qty);
             }
@@ -1657,6 +1706,43 @@ export const api = {
 
         for (const item of itemsToSend) {
             if (item.qty <= 0) continue;
+
+            const stockKey = buildItemIdentityKey({
+                sku: item.sku,
+                variant_suffix: item.variant,
+                size_info: item.size_info,
+                cord_color: item.cord_color as any,
+                enamel_color: item.enamel_color as any,
+                line_id: item.line_id ?? null
+            });
+            const fromStock = stockMap.get(stockKey) || 0;
+            const toProduce = item.qty - fromStock;
+            const now = new Date().toISOString();
+
+            if (isSpecialCreationSku(item.sku)) {
+                if (item.qty > 0) {
+                    batches.push({
+                        id: crypto.randomUUID(),
+                        order_id: orderId,
+                        sku: item.sku,
+                        variant_suffix: item.variant || null,
+                        quantity: item.qty,
+                        current_stage: ProductionStage.Waxing,
+                        size_info: item.size_info || null,
+                        cord_color: item.cord_color || null,
+                        enamel_color: item.enamel_color || null,
+                        notes: item.notes || null,
+                        line_id: item.line_id ?? null,
+                        priority: 'Normal',
+                        type: 'Νέα',
+                        requires_setting: false,
+                        requires_assembly: false,
+                        created_at: now,
+                        updated_at: now
+                    });
+                }
+                continue;
+            }
 
             const product = allProducts.find(p => p.sku === item.sku);
             if (!product) continue;
@@ -1673,19 +1759,6 @@ export const api = {
 
             const normalStage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
             const requires_assembly = requiresAssemblyStage(item.sku);
-
-            // Check if any of this item's quantity should come from stock
-            const stockKey = buildItemIdentityKey({
-                sku: item.sku,
-                variant_suffix: item.variant,
-                size_info: item.size_info,
-                cord_color: item.cord_color as any,
-                enamel_color: item.enamel_color as any
-            });
-            const fromStock = stockMap.get(stockKey) || 0;
-            const toProduce = item.qty - fromStock;
-
-            const now = new Date().toISOString();
 
             // Create Ready batch for stock-fulfilled quantity
             if (fromStock > 0) {
