@@ -670,6 +670,41 @@ export default function ProductionSendModal({ order, products, materials, existi
         }
     };
 
+    const handleMergeAllParts = async () => {
+        if (isWorking || shipmentHistory.length < 2) return;
+
+        const confirmed = await confirm({
+            title: 'Συγχώνευση Τμημάτων',
+            message: `Τα ${shipmentHistory.length} τμήματα θα ενοποιηθούν σε ένα. Θα χρησιμοποιηθεί η ημερομηνία του πρώτου τμήματος. Η ενέργεια δεν αναιρείται εύκολα.`,
+            confirmText: 'Συγχώνευση',
+            cancelText: 'Ακύρωση',
+        });
+        if (!confirmed) return;
+
+        // The earliest group is last in the array (sorted newest-first)
+        const earliestGroup = shipmentHistory[shipmentHistory.length - 1];
+        const earliestCreatedAt = earliestGroup[1][0].created_at;
+
+        // Collect all batch IDs that are NOT already in the earliest group
+        const earliestMinute = earliestGroup[0];
+        const batchIdsToMove = shipmentHistory
+            .filter(([dateKey]) => dateKey !== earliestMinute)
+            .flatMap(([, batches]) => batches.map((b) => b.id));
+
+        if (batchIdsToMove.length === 0) return;
+
+        setIsWorking(true);
+        try {
+            await productionRepository.mergeBatchParts(batchIdsToMove, earliestCreatedAt);
+            await invalidateProductionBatches(queryClient);
+            showToast('Τα τμήματα συγχωνεύτηκαν επιτυχώς.', 'success');
+        } catch (e) {
+            showToast('Σφάλμα συγχώνευσης τμημάτων.', 'error');
+        } finally {
+            setIsWorking(false);
+        }
+    };
+
     const handleToggleHold = async (batch: ProductionBatch) => {
         if (isWorking) return;
 
@@ -1268,9 +1303,21 @@ export default function ProductionSendModal({ order, products, materials, existi
 
                         {/* 2. HISTORY / SHIPMENTS */}
                         <div className="flex-1 overflow-y-auto p-4 bg-slate-50 border-t border-slate-900 space-y-4">
-                            <h3 className="font-bold text-slate-500 uppercase text-xs tracking-widest mb-2 flex items-center gap-2">
-                                <History size={14} /> Ιστορικό Αποστολών
-                            </h3>
+                            <div className="flex items-center justify-between mb-2">
+                                <h3 className="font-bold text-slate-500 uppercase text-xs tracking-widest flex items-center gap-2">
+                                    <History size={14} /> Ιστορικό Αποστολών
+                                </h3>
+                                {shipmentHistory.length > 1 && (
+                                    <button
+                                        onClick={handleMergeAllParts}
+                                        disabled={isWorking}
+                                        className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        title="Συγχώνευση όλων των τμημάτων σε ένα"
+                                    >
+                                        <Merge size={12} /> Συγχώνευση Τμημάτων
+                                    </button>
+                                )}
+                            </div>
 
                             {shipmentHistory.length > 0 ? shipmentHistory.map(([dateKey, batches]) => {
                                 const totalItems = batches.reduce((acc, b) => acc + b.quantity, 0);

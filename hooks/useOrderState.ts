@@ -55,7 +55,7 @@ interface UseOrderStateProps {
 }
 
 export function useOrderState({ initialOrder, products, customers, collections, onBack }: UseOrderStateProps) {
-    const { showToast } = useUI();
+    const { showToast, confirm } = useUI();
     const { profile } = useAuth();
     const queryClient = useQueryClient();
     const isSeller = profile?.role === 'seller';
@@ -919,7 +919,30 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                     notes: composedNotes,
                     tags
                 };
-                await api.updateOrder(updatedOrder);
+
+                let isNewPart: boolean | undefined = undefined;
+                const isInProduction =
+                    initialOrder.status === OrderStatus.InProduction ||
+                    initialOrder.status === OrderStatus.Ready;
+
+                if (isInProduction) {
+                    const choice = await confirm({
+                        title: 'Τύπος Αλλαγής',
+                        message:
+                            'Αυτές οι αλλαγές αποτελούν νέο τμήμα παραγγελίας ή είναι τροποποιήσεις του υπάρχοντος τμήματος;',
+                        confirmText: 'Νέο Τμήμα',
+                        thirdOptionText: 'Τροποποίηση',
+                        cancelText: 'Ακύρωση',
+                    });
+                    if (choice === null) {
+                        // User cancelled — abort the save
+                        setIsSaving(false);
+                        return;
+                    }
+                    isNewPart = choice === true;
+                }
+
+                await api.updateOrder(updatedOrder, isNewPart);
                 showToast('Η παραγγελία ενημερώθηκε.', 'success');
             } else {
                 const newOrderId = generateOrderId();

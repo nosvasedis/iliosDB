@@ -1232,12 +1232,12 @@ export const api = {
     },
 
     // NEW: Modified updateOrder to check for production batch sync
-    updateOrder: async (o: Order): Promise<void> => {
+    updateOrder: async (o: Order, isNewPart?: boolean): Promise<void> => {
         await safeMutate('orders', 'UPDATE', o, { match: { id: o.id }, noSelect: true });
 
         // Smart Reconciliation: If order is in production, sync items to batches
         // We ALWAYS reconcile now if batches exist to avoid the "4 items instead of 2" issue
-        await api.reconcileOrderBatches(o);
+        await api.reconcileOrderBatches(o, isNewPart);
     },
 
     deleteOrder: async (id: string): Promise<void> => {
@@ -1424,7 +1424,10 @@ export const api = {
 
     // NEW: Bulletproof Reconciliation Function
     // This function handles additions, quantity reductions, and item removals for orders already in production.
-    reconcileOrderBatches: async (order: Order): Promise<void> => {
+    // isNewPart=true  → new batches get a fresh timestamp (appear as a separate part in history)
+    // isNewPart=false → new batches inherit the earliest existing batch timestamp (stay in same group)
+    // isNewPart=undefined → fresh timestamp (legacy / called without user choice)
+    reconcileOrderBatches: async (order: Order, isNewPart?: boolean): Promise<void> => {
         try {
             // 1. Fetch existing batches
             let existingBatches: any[] = [];
@@ -1507,6 +1510,15 @@ export const api = {
             });
 
             // 6. RECONCILE: Iterate all unique keys; collect batch inserts, surplus ops, and metadata syncs
+            // When isNewPart===false (adjustment), new batches inherit the earliest existing created_at
+            // so groupBatchesByShipment keeps them in the same time-bucket (no phantom split).
+            const batchCreatedAt = (isNewPart === false && existingBatches.length > 0)
+                ? existingBatches.reduce(
+                    (earliest: string, b: any) => (b.created_at < earliest ? b.created_at : earliest),
+                    existingBatches[0].created_at as string
+                  )
+                : new Date().toISOString();
+
             const allKeys = new Set([...Object.keys(demandMap), ...Object.keys(supplyMap)]);
             const batchesToInsert: any[] = [];
             const batchIdsToDelete: string[] = [];
@@ -1526,7 +1538,7 @@ export const api = {
                     const product = allProducts.find(p => p.sku === item.sku);
 
                     if (isSpecialCreationSku(item.sku)) {
-                        const now = new Date().toISOString();
+                        const nowUpdated = new Date().toISOString();
                         batchesToInsert.push({
                             id: crypto.randomUUID(),
                             order_id: order.id,
@@ -1543,8 +1555,8 @@ export const api = {
                             type: 'Νέα',
                             requires_setting: false,
                             requires_assembly: false,
-                            created_at: now,
-                            updated_at: now
+                            created_at: batchCreatedAt,
+                            updated_at: nowUpdated
                         });
                     } else if (product) {
                         const suffix = item.variant_suffix || '';
@@ -1558,7 +1570,7 @@ export const api = {
                         const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe;
 
                         const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
-                        const now = new Date().toISOString();
+                        const nowUpdated = new Date().toISOString();
                         batchesToInsert.push({
                             id: crypto.randomUUID(),
                             order_id: order.id,
@@ -1573,8 +1585,8 @@ export const api = {
                             priority: 'Normal',
                             type: 'Νέα',
                             requires_setting: hasZircons,
-                            created_at: now,
-                            updated_at: now
+                            created_at: batchCreatedAt,
+                            updated_at: nowUpdated
                         });
                     }
                 }
@@ -1863,6 +1875,20 @@ export const api = {
         // Delete sources
         for (const id of sourceBatchIds) {
             await safeMutate('production_batches', 'DELETE', null, { match: { id } });
+        }
+    },
+
+    // Merge multiple production-history "parts" into one by reusing a single created_at timestamp.
+    // This makes groupBatchesByShipment treat them all as the same shipment group.
+    mergeBatchParts: async (batchIds: string[], targetCreatedAt: string): Promise<void> => {
+        const now = new Date().toISOString();
+        for (const id of batchIds) {
+            await safeMutate(
+                'production_batches',
+                'UPDATE',
+                { created_at: targetCreatedAt, updated_at: now },
+                { match: { id } }
+            );
         }
     },
 

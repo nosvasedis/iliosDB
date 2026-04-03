@@ -22,6 +22,8 @@ export const productionRepository = {
     api.splitBatch(originalBatchId, originalNewQty, newBatchData, userName),
   mergeBatches: (targetBatchId: string, sourceBatchIds: string[], totalQty: number) =>
     api.mergeBatches(targetBatchId, sourceBatchIds, totalQty),
+  mergeBatchParts: (batchIds: string[], targetCreatedAt: string) =>
+    api.mergeBatchParts(batchIds, targetCreatedAt),
   reconcileOrderBatches: (order: Order) => api.reconcileOrderBatches(order),
   updateBatchNotes: (batchId: string, notes: string | null) =>
     supabase.from('production_batches').update({ notes, updated_at: new Date().toISOString() }).eq('id', batchId),

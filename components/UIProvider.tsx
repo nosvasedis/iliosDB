@@ -14,12 +14,13 @@ interface ConfirmOptions {
   message: string;
   confirmText?: string;
   cancelText?: string;
+  thirdOptionText?: string;
   isDestructive?: boolean;
 }
 
 interface UIContextType {
   showToast: (message: string, type?: ToastType) => void;
-  confirm: (options: ConfirmOptions) => Promise<boolean>;
+  confirm: (options: ConfirmOptions) => Promise<boolean | null>;
 }
 
 const UIContext = createContext<UIContextType | undefined>(undefined);
@@ -38,7 +39,7 @@ export const UIProvider = ({ children }: { children?: ReactNode }) => {
   const [confirmState, setConfirmState] = useState<{
     isOpen: boolean;
     options: ConfirmOptions;
-    resolve: ((value: boolean) => void) | null;
+    resolve: ((value: boolean | null) => void) | null;
   }>({
     isOpen: false,
     options: { message: '' },
@@ -54,7 +55,7 @@ export const UIProvider = ({ children }: { children?: ReactNode }) => {
   }, []);
 
   const confirm = useCallback((options: ConfirmOptions) => {
-    return new Promise<boolean>((resolve) => {
+    return new Promise<boolean | null>((resolve) => {
       setConfirmState({
         isOpen: true,
         options,
@@ -63,9 +64,12 @@ export const UIProvider = ({ children }: { children?: ReactNode }) => {
     });
   }, []);
 
-  const handleConfirm = (result: boolean) => {
+  const handleConfirm = (result: boolean | null) => {
     if (confirmState.resolve) {
-      confirmState.resolve(result);
+      // Backward-compat: when no thirdOptionText, cancel still resolves false (old behavior).
+      // When thirdOptionText IS present, cancel resolves null so callers can distinguish.
+      const resolved = (result === null && !confirmState.options.thirdOptionText) ? false : result;
+      confirmState.resolve(resolved);
     }
     setConfirmState((prev) => ({ ...prev, isOpen: false }));
   };
@@ -117,13 +121,21 @@ export const UIProvider = ({ children }: { children?: ReactNode }) => {
               {confirmState.options.message}
             </p>
             
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-3 flex-wrap">
               <button
-                onClick={() => handleConfirm(false)}
+                onClick={() => handleConfirm(null)}
                 className="px-5 py-2.5 rounded-xl text-slate-600 hover:bg-slate-50 font-medium transition-colors"
               >
                 {confirmState.options.cancelText || 'Ακύρωση'}
               </button>
+              {confirmState.options.thirdOptionText && (
+                <button
+                  onClick={() => handleConfirm(false)}
+                  className="px-5 py-2.5 rounded-xl text-slate-700 bg-slate-100 hover:bg-slate-200 font-medium transition-colors"
+                >
+                  {confirmState.options.thirdOptionText}
+                </button>
+              )}
               <button
                 onClick={() => handleConfirm(true)}
                 className={`

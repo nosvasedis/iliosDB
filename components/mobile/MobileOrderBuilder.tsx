@@ -532,13 +532,34 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             notes: composedNotes,
             tags: initialOrder?.tags || []
         };
-        if (initialOrder) await ordersRepository.updateOrder(orderPayload);
-        else await ordersRepository.saveOrder(orderPayload);
+        if (initialOrder) {
+            let isNewPart: boolean | undefined = undefined;
+            const isInProduction =
+                initialOrder.status === OrderStatus.InProduction ||
+                initialOrder.status === OrderStatus.Ready;
+
+            if (isInProduction) {
+                const choice = await confirm({
+                    title: 'Τύπος Αλλαγής',
+                    message:
+                        'Αυτές οι αλλαγές αποτελούν νέο τμήμα παραγγελίας ή είναι τροποποιήσεις του υπάρχοντος τμήματος;',
+                    confirmText: 'Νέο Τμήμα',
+                    thirdOptionText: 'Τροποποίηση',
+                    cancelText: 'Ακύρωση',
+                });
+                if (choice === null) return;
+                isNewPart = choice === true;
+            }
+
+            await ordersRepository.updateOrder(orderPayload, isNewPart);
+        } else {
+            await ordersRepository.saveOrder(orderPayload);
+        }
         await queryClient.refetchQueries({ queryKey: ['orders'] });
         await queryClient.refetchQueries({ queryKey: ['customers'] });
         sessionStorage.removeItem(DRAFT_KEY);
         onBack();
-    }, [initialOrder, items, grandTotal, discountPercent, orderNotes, retailClientLabel, attachSeller, isSeller, profile?.id, profile?.full_name, user?.id, user?.email, queryClient, onBack]);
+    }, [initialOrder, items, grandTotal, discountPercent, orderNotes, retailClientLabel, attachSeller, isSeller, profile?.id, profile?.full_name, user?.id, user?.email, queryClient, onBack, confirm]);
 
     const handleSaveOrder = async () => {
         if (items.length === 0) { showToast('Η παραγγελία είναι κενή.', 'error'); return; }
