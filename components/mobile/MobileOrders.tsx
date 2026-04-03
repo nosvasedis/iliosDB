@@ -2,18 +2,74 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
-import { Order, OrderShipment, OrderShipmentItem, OrderStatus, Product, ProductVariant, ProductionBatch } from '../../types';
-import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings, ShoppingBag, Image as ImageIcon, PackageCheck } from 'lucide-react';
+import { Order, OrderShipment, OrderShipmentItem, OrderStatus, Product, ProductVariant, ProductionBatch, ProductionStage } from '../../types';
+import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings, ShoppingBag, Image as ImageIcon, PackageCheck, Globe, Flame, Gem, Hammer, CheckCircle2 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import { useUI } from '../UIProvider';
 import SkuColorizedText from '../SkuColorizedText';
-import { isOrderReady, orderStatusShowsProductionProgress } from '../../utils/orderReadiness';
+import { buildOrderProductionStageSegments, getOrderItemProductionStageBreakdown, isOrderReady, orderStatusShowsProductionProgress } from '../../utils/orderReadiness';
 import { OrderListProgressBar } from '../orders/OrderListProgressBar';
 import { buildItemIdentityKey } from '../../utils/itemIdentity';
 import { getRemainingOrderItems } from '../../utils/shipmentUtils';
 import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
 import { invalidateOrdersAndBatches } from '../../lib/queryInvalidation';
+import { PRODUCTION_STAGE_COLORS, getProductionStageLabel } from '../../utils/deliveryLabels';
+
+const STAGE_ICON_MAP: Record<ProductionStage, LucideIcon> = {
+    [ProductionStage.AwaitingDelivery]: Globe,
+    [ProductionStage.Waxing]: Package,
+    [ProductionStage.Casting]: Flame,
+    [ProductionStage.Setting]: Gem,
+    [ProductionStage.Polishing]: Hammer,
+    [ProductionStage.Assembly]: Layers,
+    [ProductionStage.Labeling]: Tag,
+    [ProductionStage.Ready]: CheckCircle2,
+};
+
+const STAGE_BAR_CLASSNAMES: Record<ProductionStage, string> = {
+    [ProductionStage.AwaitingDelivery]: 'bg-indigo-500',
+    [ProductionStage.Waxing]: 'bg-slate-500',
+    [ProductionStage.Casting]: 'bg-orange-500',
+    [ProductionStage.Setting]: 'bg-purple-500',
+    [ProductionStage.Polishing]: 'bg-blue-500',
+    [ProductionStage.Assembly]: 'bg-pink-500',
+    [ProductionStage.Labeling]: 'bg-yellow-400',
+    [ProductionStage.Ready]: 'bg-emerald-500',
+};
+
+const UNBATCHED_STAGE_STYLES = {
+    bg: 'bg-slate-100',
+    text: 'text-slate-600',
+    border: 'border-slate-200',
+    bar: 'bg-slate-300',
+};
+
+const StageBadge: React.FC<{
+    stage: ProductionStage;
+    quantity: number;
+    compact?: boolean;
+}> = ({ stage, quantity, compact = false }) => {
+    const Icon = STAGE_ICON_MAP[stage];
+    const stageColors = PRODUCTION_STAGE_COLORS[stage] ?? PRODUCTION_STAGE_COLORS[ProductionStage.Waxing];
+
+    return (
+        <div className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-bold ${compact ? 'text-[10px]' : 'text-[11px]'} ${stageColors.bg} ${stageColors.text} ${stageColors.border}`}>
+            <Icon size={compact ? 12 : 13} />
+            <span>{quantity}x</span>
+            <span>{getProductionStageLabel(stage)}</span>
+        </div>
+    );
+};
+
+const UnbatchedBadge: React.FC<{ quantity: number; compact?: boolean }> = ({ quantity, compact = false }) => (
+    <div className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-bold ${compact ? 'text-[10px]' : 'text-[11px]'} ${UNBATCHED_STAGE_STYLES.bg} ${UNBATCHED_STAGE_STYLES.text} ${UNBATCHED_STAGE_STYLES.border}`}>
+        <Clock size={compact ? 12 : 13} />
+        <span>{quantity}x</span>
+        <span>Χωρίς batch</span>
+    </div>
+);
 
 const buildRemainingOrderForPrint = (order: Order, shipmentItems: OrderShipmentItem[]): Order | null => {
     const remainingItems = getRemainingOrderItems(order, shipmentItems);
@@ -214,6 +270,16 @@ const OrderCard: React.FC<{
     const isRetailOrder = order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME;
     const { retailClientLabel } = extractRetailClientFromNotes(order.notes);
     const [expanded, setExpanded] = useState(false);
+    const orderBatches = useMemo(() => (batches || []).filter((batch) => batch.order_id === order.id), [batches, order.id]);
+    const stageProgress = useMemo(() => buildOrderProductionStageSegments(order, orderBatches), [order, orderBatches]);
+    const itemStageBreakdownByKey = useMemo(() => {
+        return new Map(
+            order.items.map((item) => [
+                buildItemIdentityKey(item),
+                getOrderItemProductionStageBreakdown(item, orderBatches),
+            ])
+        );
+    }, [order.items, orderBatches]);
 
     const handlePrintLabels = () => {
         if (!onPrintLabels) return;
@@ -346,8 +412,53 @@ const OrderCard: React.FC<{
                         </button>
                     </div>
 
+                    {order.status === OrderStatus.InProduction && stageProgress && (
+                        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                            <div className="flex items-start justify-between gap-3">
+                                <div>
+                                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Στάδια Παραγωγής</div>
+                                    <p className="mt-1 text-xs font-medium text-slate-500">Χρωματική εικόνα όλων των τεμαχίων της παραγγελίας ανά στάδιο.</p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                    <div className="text-base font-black text-slate-900">{stageProgress.totalQty} τεμ.</div>
+                                    <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">σύνολο</div>
+                                </div>
+                            </div>
+
+                            <div className="mt-3 flex h-2.5 w-full overflow-hidden rounded-full border border-slate-200 bg-slate-100">
+                                {stageProgress.segments.map((segment, index) => (
+                                    <div
+                                        key={`${segment.kind}-${segment.kind === 'stage' ? segment.stage : 'unbatched'}-${index}`}
+                                        className={`${segment.kind === 'stage' ? STAGE_BAR_CLASSNAMES[segment.stage] : UNBATCHED_STAGE_STYLES.bar} min-w-px border-r border-white/60 last:border-r-0 transition-[width] duration-300`}
+                                        style={{ width: `${segment.pct}%` }}
+                                        title={segment.kind === 'stage'
+                                            ? `${getProductionStageLabel(segment.stage)}: ${segment.quantity} τεμ.`
+                                            : `Χωρίς batch: ${segment.quantity} τεμ.`}
+                                    />
+                                ))}
+                            </div>
+
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                {stageProgress.segments.map((segment, index) => (
+                                    segment.kind === 'stage' ? (
+                                        <StageBadge key={`${segment.stage}-${index}`} stage={segment.stage} quantity={segment.quantity} compact />
+                                    ) : (
+                                        <UnbatchedBadge key={`unbatched-${index}`} quantity={segment.quantity} compact />
+                                    )
+                                ))}
+                            </div>
+
+                            {stageProgress.assignedQty < stageProgress.totalQty && (
+                                <p className="mt-2 text-[10px] font-medium text-slate-400">
+                                    Τα γκρι τμήματα δείχνουν ποσότητες που δεν έχουν ακόμη μπει σε batch παραγωγής.
+                                </p>
+                            )}
+                        </div>
+                    )}
+
                     {order.items.map((item, idx) => {
                         const product = products.find(p => p.sku === item.sku);
+                        const itemStageBreakdown = itemStageBreakdownByKey.get(buildItemIdentityKey(item)) || [];
                         return (
                             <div key={idx} className="flex justify-between items-center text-sm bg-white p-2.5 rounded-xl border border-slate-100">
                                 <div className="flex items-center gap-3">
@@ -361,6 +472,21 @@ const OrderCard: React.FC<{
                                     <div className="min-w-0">
                                         <SkuColorizedText sku={item.sku} suffix={item.variant_suffix} gender={product?.gender} className="font-black text-sm tracking-tight" masterClassName="text-slate-800" />
                                         {item.size_info && <div className="text-[10px] text-slate-400 font-medium mt-0.5">Size: {item.size_info}</div>}
+                                        {order.status === OrderStatus.InProduction && (
+                                            itemStageBreakdown.length > 0 ? (
+                                                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                                    {itemStageBreakdown.map((entry, stageIndex) => (
+                                                        entry.kind === 'stage' ? (
+                                                            <StageBadge key={`${entry.stage}-${stageIndex}`} stage={entry.stage} quantity={entry.quantity} />
+                                                        ) : (
+                                                            <UnbatchedBadge key={`unbatched-${stageIndex}`} quantity={entry.quantity} />
+                                                        )
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="mt-1 text-[10px] font-medium text-slate-400">Χωρίς ενεργό batch παραγωγής ακόμη.</div>
+                                            )
+                                        )}
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3 shrink-0">

@@ -1,4 +1,6 @@
 import { Order, OrderStatus, ProductionBatch, ProductionStage, ShipmentReadinessSummary } from '../types';
+import { buildItemIdentityKey } from './itemIdentity';
+import { PRODUCTION_STAGE_ORDER_INDEX } from './productionStages';
 
 /** Orders still tied to production pipeline (incl. after a partial shipment). */
 export function orderStatusShowsProductionProgress(status: OrderStatus): boolean {
@@ -51,8 +53,46 @@ export type OrderListProgressSegment = {
   label: string;
 };
 
+export type OrderProductionStageBreakdownEntry =
+  | {
+      kind: 'stage';
+      stage: ProductionStage;
+      quantity: number;
+    }
+  | {
+      kind: 'unbatched';
+      quantity: number;
+    };
+
+export type OrderProductionStageProgressSegment =
+  | {
+      kind: 'stage';
+      stage: ProductionStage;
+      quantity: number;
+      pct: number;
+    }
+  | {
+      kind: 'unbatched';
+      quantity: number;
+      pct: number;
+    };
+
 function sumOrderItemsQty(order: Order): number {
   return order.items.reduce((s, i) => s + (i.quantity || 0), 0);
+}
+
+function getMatchingOrderItemBatches(
+  item: Pick<Order['items'][number], 'sku' | 'variant_suffix' | 'size_info' | 'cord_color' | 'enamel_color' | 'line_id'>,
+  batches: ProductionBatch[] | undefined | null
+): ProductionBatch[] {
+  if (!batches) return [];
+
+  const exactKey = buildItemIdentityKey(item);
+  const exactMatches = batches.filter((batch) => buildItemIdentityKey(batch) === exactKey);
+  if (exactMatches.length > 0 || !item.line_id) return exactMatches;
+
+  const looseKey = buildItemIdentityKey({ ...item, line_id: null });
+  return batches.filter((batch) => buildItemIdentityKey({ ...batch, line_id: null }) === looseKey);
 }
 
 /** Distribute integer percentages from quantities so they sum to 100. */
@@ -67,6 +107,86 @@ function qtysToSegmentPcts(qtys: number[], total: number): number[] {
   const out = [...floors];
   for (let k = 0; k < rem; k++) out[frac[k % frac.length].i] += 1;
   return out;
+}
+
+export function getOrderItemProductionStageBreakdown(
+  item: Pick<Order['items'][number], 'sku' | 'variant_suffix' | 'size_info' | 'cord_color' | 'enamel_color' | 'line_id' | 'quantity'>,
+  batches: ProductionBatch[] | undefined | null
+): OrderProductionStageBreakdownEntry[] {
+  const matchingBatches = getMatchingOrderItemBatches(item, batches);
+  const stageCounts = new Map<ProductionStage, number>();
+  let matchedQty = 0;
+
+  for (const batch of matchingBatches) {
+    const qty = batch.quantity || 0;
+    matchedQty += qty;
+    stageCounts.set(batch.current_stage, (stageCounts.get(batch.current_stage) || 0) + qty);
+  }
+
+  const entries: OrderProductionStageBreakdownEntry[] = Array.from(stageCounts.entries())
+    .sort((a, b) => (PRODUCTION_STAGE_ORDER_INDEX[a[0]] ?? 99) - (PRODUCTION_STAGE_ORDER_INDEX[b[0]] ?? 99))
+    .map(([stage, quantity]) => ({
+      kind: 'stage' as const,
+      stage,
+      quantity,
+    }));
+
+  const unbatchedQty = Math.max(0, (item.quantity || 0) - matchedQty);
+  if (unbatchedQty > 0) {
+    entries.push({
+      kind: 'unbatched',
+      quantity: unbatchedQty,
+    });
+  }
+
+  return entries;
+}
+
+export function buildOrderProductionStageSegments(
+  order: Order,
+  batches: ProductionBatch[] | undefined | null
+): { segments: OrderProductionStageProgressSegment[]; totalQty: number; assignedQty: number } | null {
+  const totalQty = sumOrderItemsQty(order);
+  if (totalQty <= 0) return null;
+
+  const orderBatches = getOrderBatches(order.id, batches);
+  const stageCounts = new Map<ProductionStage, number>();
+  let assignedQty = 0;
+
+  for (const batch of orderBatches) {
+    const qty = batch.quantity || 0;
+    assignedQty += qty;
+    stageCounts.set(batch.current_stage, (stageCounts.get(batch.current_stage) || 0) + qty);
+  }
+
+  const sortedStageEntries = Array.from(stageCounts.entries())
+    .sort((a, b) => (PRODUCTION_STAGE_ORDER_INDEX[a[0]] ?? 99) - (PRODUCTION_STAGE_ORDER_INDEX[b[0]] ?? 99))
+    .filter(([, quantity]) => quantity > 0);
+
+  const unbatchedQty = Math.max(0, totalQty - assignedQty);
+  const qtys = [...sortedStageEntries.map(([, quantity]) => quantity), ...(unbatchedQty > 0 ? [unbatchedQty] : [])];
+  const pcts = qtysToSegmentPcts(qtys, totalQty);
+
+  const segments: OrderProductionStageProgressSegment[] = sortedStageEntries.map(([stage, quantity], index) => ({
+    kind: 'stage',
+    stage,
+    quantity,
+    pct: pcts[index] || 0,
+  }));
+
+  if (unbatchedQty > 0) {
+    segments.push({
+      kind: 'unbatched',
+      quantity: unbatchedQty,
+      pct: pcts[pcts.length - 1] || 0,
+    });
+  }
+
+  return {
+    segments,
+    totalQty,
+    assignedQty,
+  };
 }
 
 /**

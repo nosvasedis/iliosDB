@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { Order, OrderStatus, ProductionStage } from '../../types';
 import {
+  buildOrderProductionStageSegments,
   buildPartialDeliveryProgressSegments,
+  getOrderItemProductionStageBreakdown,
   getOrderProductionQtyProgress,
   orderStatusShowsProductionProgress,
 } from '../../utils/orderReadiness';
@@ -105,5 +107,102 @@ describe('getOrderProductionQtyProgress', () => {
       },
     ];
     expect(getOrderProductionQtyProgress('o1', batches)).toEqual({ readyQty: 3, totalQty: 10, percent: 30 });
+  });
+});
+
+describe('getOrderItemProductionStageBreakdown', () => {
+  it('groups matching batches by stage and keeps any unbatched remainder', () => {
+    const item = {
+      sku: 'A',
+      quantity: 6,
+      variant_suffix: 'X',
+      size_info: '54',
+      line_id: 'line-1',
+    } as Order['items'][number];
+
+    const batches = [
+      {
+        id: 'b1',
+        order_id: 'o1',
+        sku: 'A',
+        variant_suffix: 'X',
+        size_info: '54',
+        quantity: 2,
+        current_stage: ProductionStage.Waxing,
+        created_at: '',
+        updated_at: '',
+        priority: 'Normal',
+        requires_setting: false,
+        line_id: 'line-1',
+      },
+      {
+        id: 'b2',
+        order_id: 'o1',
+        sku: 'A',
+        variant_suffix: 'X',
+        size_info: '54',
+        quantity: 1,
+        current_stage: ProductionStage.Casting,
+        created_at: '',
+        updated_at: '',
+        priority: 'Normal',
+        requires_setting: false,
+        line_id: 'line-1',
+      },
+    ];
+
+    expect(getOrderItemProductionStageBreakdown(item, batches)).toEqual([
+      { kind: 'stage', stage: ProductionStage.Waxing, quantity: 2 },
+      { kind: 'stage', stage: ProductionStage.Casting, quantity: 1 },
+      { kind: 'unbatched', quantity: 3 },
+    ]);
+  });
+});
+
+describe('buildOrderProductionStageSegments', () => {
+  it('builds stage-based order segments and distributes the full 100%', () => {
+    const order = {
+      id: 'o1',
+      items: [
+        { sku: 'A', quantity: 4, price_at_order: 10 },
+        { sku: 'B', quantity: 6, price_at_order: 10 },
+      ],
+    } as Order;
+
+    const batches = [
+      {
+        id: 'b1',
+        order_id: 'o1',
+        sku: 'A',
+        quantity: 3,
+        current_stage: ProductionStage.Waxing,
+        created_at: '',
+        updated_at: '',
+        priority: 'Normal',
+        requires_setting: false,
+      },
+      {
+        id: 'b2',
+        order_id: 'o1',
+        sku: 'B',
+        quantity: 2,
+        current_stage: ProductionStage.Ready,
+        created_at: '',
+        updated_at: '',
+        priority: 'Normal',
+        requires_setting: false,
+      },
+    ];
+
+    const result = buildOrderProductionStageSegments(order, batches);
+    expect(result).not.toBeNull();
+    expect(result!.totalQty).toBe(10);
+    expect(result!.assignedQty).toBe(5);
+    expect(result!.segments.reduce((sum, segment) => sum + segment.pct, 0)).toBe(100);
+    expect(result!.segments).toEqual([
+      { kind: 'stage', stage: ProductionStage.Waxing, quantity: 3, pct: 30 },
+      { kind: 'stage', stage: ProductionStage.Ready, quantity: 2, pct: 20 },
+      { kind: 'unbatched', quantity: 5, pct: 50 },
+    ]);
   });
 });
