@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { orderKeys } from '../features/orders';
-import { productionKeys } from '../features/production';
+// Import keys only — avoid features/*/index barrels that pull in repository → lib/supabase (localStorage at module load breaks Vitest/Node).
+import { orderKeys } from '../features/orders/keys';
+import { productionKeys } from '../features/production/keys';
 import { invalidateOrdersAndBatches, invalidateProductionBatches } from '../lib/queryInvalidation';
 
 describe('query invalidation helpers', () => {

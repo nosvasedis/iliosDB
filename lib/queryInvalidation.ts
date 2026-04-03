@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { orderKeys } from '../features/orders';
-import { productionKeys } from '../features/production';
+import { orderKeys } from '../features/orders/keys';
+import { productionKeys } from '../features/production/keys';
 
 const LEGACY_BATCHES_QUERY_KEY = ['batches'] as const;
 
