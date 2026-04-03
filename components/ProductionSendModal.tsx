@@ -1,8 +1,8 @@
 
 import React, { useCallback, useState, useMemo, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType, BatchStageHistoryEntry, StageBatchPrintData } from '../types';
-import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, ArrowLeft, Clock, StickyNote, History, Package, Box, Info, PauseCircle, PlayCircle, User, ShoppingCart, RefreshCcw, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer, Scissors, Trash2, Split, Merge, FileText, AlertCircle, Save, Check } from 'lucide-react';
+import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType, BatchStageHistoryEntry, StageBatchPrintData, OrderStatus } from '../types';
+import { X, Factory, CheckCircle, AlertTriangle, Loader2, ArrowRight, ArrowLeft, Clock, StickyNote, History, Package, Box, Info, PauseCircle, PlayCircle, User, ShoppingCart, RefreshCcw, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Coins, Layers, Hash, Search, Printer, Scissors, Trash2, Split, Merge, FileText, AlertCircle, Save, Check, Truck, Send } from 'lucide-react';
 import { checkStockForOrderItems, deductStockForOrder } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
@@ -35,6 +35,7 @@ interface Props {
     onPrintAggregated?: (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => void;
     onPrintStageBatches?: (data: StageBatchPrintData) => void;
     onBack?: () => void; // Optional: navigate back to quick picker
+    onPartialShipment?: () => void;
 }
 
 const STAGES = PRODUCTION_STAGES.map((stage) => ({
@@ -191,7 +192,7 @@ const StageFlowRail = ({
     );
 };
 
-export default function ProductionSendModal({ order, products, materials, existingBatches, collections, onClose, onSuccess, onPrintAggregated, onPrintStageBatches, onBack }: Props) {
+export default function ProductionSendModal({ order, products, materials, existingBatches, collections, onClose, onSuccess, onPrintAggregated, onPrintStageBatches, onBack, onPartialShipment }: Props) {
     const { showToast, confirm } = useUI();
     const queryClient = useQueryClient();
     const { data: shipmentSnapshot, isLoading: isLoadingShipments } = useOrderShipmentsForOrder(order.id);
@@ -247,6 +248,8 @@ export default function ProductionSendModal({ order, products, materials, existi
     }, [existingBatches]);
 
     const totalInProduction = existingBatches.reduce((sum, b) => sum + b.quantity, 0);
+    const readyCount = existingBatches.filter(b => b.current_stage === ProductionStage.Ready).reduce((sum, b) => sum + b.quantity, 0);
+    const canPartialShip = readyCount > 0 && order.status !== OrderStatus.Delivered && order.status !== OrderStatus.Cancelled && !!onPartialShipment;
     // --------------------------------
 
     // Popup Data
@@ -1302,76 +1305,156 @@ export default function ProductionSendModal({ order, products, materials, existi
                         </div>
 
                         {/* 2. HISTORY / SHIPMENTS */}
-                        <div className="flex-1 overflow-y-auto p-4 bg-slate-50 border-t border-slate-900 space-y-4">
-                            <div className="flex items-center justify-between mb-2">
-                                <h3 className="font-bold text-slate-500 uppercase text-xs tracking-widest flex items-center gap-2">
-                                    <History size={14} /> Ιστορικό Αποστολών
+                        <div className="flex-1 overflow-y-auto p-4 bg-slate-50 border-t border-slate-900 space-y-5">
+
+                            {/* 2a. Μερική Αποστολή CTA — shown when Ready batches exist */}
+                            {canPartialShip && (
+                                <button
+                                    onClick={() => { onClose(); onPartialShipment!(); }}
+                                    className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-amber-50 border-2 border-amber-300 text-amber-800 hover:bg-amber-100 transition-colors shadow-sm"
+                                >
+                                    <Truck size={18} className="shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-black">Μερική Αποστολή</div>
+                                        <div className="text-xs font-medium text-amber-600">{readyCount} τεμ. έτοιμα για αποστολή</div>
+                                    </div>
+                                    <Send size={14} className="shrink-0 text-amber-500" />
+                                </button>
+                            )}
+
+                            {/* 2b. Αποστολές Πελάτη — real order_shipments */}
+                            <div>
+                                <h3 className="font-bold text-slate-500 uppercase text-xs tracking-widest flex items-center gap-2 mb-3">
+                                    <Truck size={14} /> Αποστολές Πελάτη
                                 </h3>
-                                {shipmentHistory.length > 1 && (
-                                    <button
-                                        onClick={handleMergeAllParts}
-                                        disabled={isWorking}
-                                        className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                        title="Συγχώνευση όλων των τμημάτων σε ένα"
-                                    >
-                                        <Merge size={12} /> Συγχώνευση Τμημάτων
-                                    </button>
+                                {isLoadingShipments ? (
+                                    <div className="flex items-center justify-center py-6 text-slate-400">
+                                        <Loader2 size={16} className="animate-spin mr-2" /> Φόρτωση...
+                                    </div>
+                                ) : shipmentSnapshot && shipmentSnapshot.shipments.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {[...shipmentSnapshot.shipments]
+                                            .sort((a, b) => a.shipment_number - b.shipment_number)
+                                            .map(shipment => {
+                                                const shipItems = shipmentSnapshot.items.filter(si => si.shipment_id === shipment.id);
+                                                const totalShippedQty = shipItems.reduce((s, si) => s + si.quantity, 0);
+                                                let shipNet = 0;
+                                                shipItems.forEach(si => {
+                                                    shipNet += si.price_at_order * si.quantity * discountFactor;
+                                                });
+                                                const shipVat = shipNet * vatRate;
+                                                const shipTotal = shipNet + shipVat;
+                                                const prettyDate = new Date(shipment.shipped_at).toLocaleDateString('el-GR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                                                return (
+                                                    <div key={shipment.id} className="bg-white p-3 rounded-xl border border-emerald-200 shadow-sm">
+                                                        <div className="flex items-center justify-between mb-1.5">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full uppercase tracking-wide">#{shipment.shipment_number}</span>
+                                                                <span className="text-xs font-bold text-slate-700">{prettyDate}</span>
+                                                            </div>
+                                                            <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded">{totalShippedQty} τεμ.</span>
+                                                        </div>
+                                                        {shipment.shipped_by && (
+                                                            <div className="text-[10px] text-slate-400 mb-2 flex items-center gap-1">
+                                                                <User size={10} /> {shipment.shipped_by}
+                                                            </div>
+                                                        )}
+                                                        <div className="space-y-0.5">
+                                                            <div className="flex justify-between text-xs text-slate-500">
+                                                                <span>Καθαρή:</span>
+                                                                <span className="font-mono font-bold">{formatCurrency(shipNet)}</span>
+                                                            </div>
+                                                            <div className="flex justify-between text-xs text-slate-500">
+                                                                <span>ΦΠΑ ({(vatRate * 100).toFixed(0)}%):</span>
+                                                                <span className="font-mono font-bold">{formatCurrency(shipVat)}</span>
+                                                            </div>
+                                                            <div className="flex justify-between text-xs font-black text-slate-800 border-t border-slate-100 pt-1 mt-1">
+                                                                <span>Σύνολο:</span>
+                                                                <span>{formatCurrency(shipTotal)}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-4 text-slate-400 italic text-xs">
+                                        Δεν υπάρχουν αποστολές πελάτη.
+                                    </div>
                                 )}
                             </div>
 
-                            {shipmentHistory.length > 0 ? shipmentHistory.map(([dateKey, batches]) => {
-                                const totalItems = batches.reduce((acc, b) => acc + b.quantity, 0);
-
-                                // Calculate Shipment Financials
-                                let shipNet = 0;
-                                batches.forEach(b => {
-                                    const item = order.items.find(i => buildOrderItemIdentityKey(i) === buildOrderItemIdentityKey(b));
-                                    if (item) {
-                                        shipNet += (item.price_at_order * b.quantity * discountFactor);
-                                    }
-                                });
-                                const shipVat = shipNet * vatRate;
-                                const shipTotal = shipNet + shipVat;
-
-                                const prettyDate = new Date(dateKey).toLocaleDateString('el-GR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-
-                                return (
-                                    <div key={dateKey} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:border-blue-300 transition-colors group">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div className="text-xs font-black text-slate-800 uppercase tracking-wide">{prettyDate}</div>
-                                            <div className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{totalItems} τεμ.</div>
-                                        </div>
-
-                                        <div className="space-y-1 mb-3">
-                                            <div className="flex justify-between text-xs text-slate-500">
-                                                <span>Καθαρή:</span>
-                                                <span className="font-mono font-bold">{formatCurrency(shipNet)}</span>
-                                            </div>
-                                            <div className="flex justify-between text-xs text-slate-500">
-                                                <span>ΦΠΑ ({(vatRate * 100).toFixed(0)}%):</span>
-                                                <span className="font-mono font-bold">{formatCurrency(shipVat)}</span>
-                                            </div>
-                                            <div className="flex justify-between text-sm font-black text-slate-800 border-t border-slate-100 pt-1 mt-1">
-                                                <span>Σύνολο:</span>
-                                                <span>{formatCurrency(shipTotal)}</span>
-                                            </div>
-                                        </div>
-
-                                        {onPrintAggregated && (
-                                            <button
-                                                onClick={() => onPrintAggregated(batches, { orderId: order.id, customerName: order.customer_name })}
-                                                className="w-full py-2 bg-slate-50 hover:bg-blue-50 text-blue-600 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-colors"
-                                            >
-                                                <FileText size={14} /> Εκτύπωση Δελτίου
-                                            </button>
-                                        )}
-                                    </div>
-                                );
-                            }) : (
-                                <div className="text-center py-8 text-slate-400 italic text-xs">
-                                    Δεν υπάρχουν προηγούμενες αποστολές.
+                            {/* 2c. Εκκινήσεις Παραγωγής — production batch waves */}
+                            <div>
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="font-bold text-slate-500 uppercase text-xs tracking-widest flex items-center gap-2">
+                                        <History size={14} /> Εκκινήσεις Παραγωγής
+                                    </h3>
+                                    {shipmentHistory.length > 1 && (
+                                        <button
+                                            onClick={handleMergeAllParts}
+                                            disabled={isWorking}
+                                            className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                            title="Συγχώνευση όλων των τμημάτων σε ένα"
+                                        >
+                                            <Merge size={12} /> Συγχώνευση Τμημάτων
+                                        </button>
+                                    )}
                                 </div>
-                            )}
+
+                                {shipmentHistory.length > 0 ? shipmentHistory.map(([dateKey, batches]) => {
+                                    const totalItems = batches.reduce((acc, b) => acc + b.quantity, 0);
+
+                                    let shipNet = 0;
+                                    batches.forEach(b => {
+                                        const item = order.items.find(i => buildOrderItemIdentityKey(i) === buildOrderItemIdentityKey(b));
+                                        if (item) {
+                                            shipNet += (item.price_at_order * b.quantity * discountFactor);
+                                        }
+                                    });
+                                    const shipVat = shipNet * vatRate;
+                                    const shipTotal = shipNet + shipVat;
+
+                                    const prettyDate = new Date(dateKey).toLocaleDateString('el-GR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+                                    return (
+                                        <div key={dateKey} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:border-blue-300 transition-colors group">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div className="text-xs font-black text-slate-800 uppercase tracking-wide">{prettyDate}</div>
+                                                <div className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{totalItems} τεμ.</div>
+                                            </div>
+
+                                            <div className="space-y-1 mb-3">
+                                                <div className="flex justify-between text-xs text-slate-500">
+                                                    <span>Καθαρή:</span>
+                                                    <span className="font-mono font-bold">{formatCurrency(shipNet)}</span>
+                                                </div>
+                                                <div className="flex justify-between text-xs text-slate-500">
+                                                    <span>ΦΠΑ ({(vatRate * 100).toFixed(0)}%):</span>
+                                                    <span className="font-mono font-bold">{formatCurrency(shipVat)}</span>
+                                                </div>
+                                                <div className="flex justify-between text-sm font-black text-slate-800 border-t border-slate-100 pt-1 mt-1">
+                                                    <span>Σύνολο:</span>
+                                                    <span>{formatCurrency(shipTotal)}</span>
+                                                </div>
+                                            </div>
+
+                                            {onPrintAggregated && (
+                                                <button
+                                                    onClick={() => onPrintAggregated(batches, { orderId: order.id, customerName: order.customer_name })}
+                                                    className="w-full py-2 bg-slate-50 hover:bg-blue-50 text-blue-600 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-colors"
+                                                >
+                                                    <FileText size={14} /> Εκτύπωση Δελτίου
+                                                </button>
+                                            )}
+                                        </div>
+                                    );
+                                }) : (
+                                    <div className="text-center py-4 text-slate-400 italic text-xs">
+                                        Δεν υπάρχουν εκκινήσεις παραγωγής.
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* 3. TOTALS FOOTER */}
