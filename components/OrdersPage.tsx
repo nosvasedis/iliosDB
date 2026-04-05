@@ -16,8 +16,9 @@ import { OrderListProgressBar } from './orders/OrderListProgressBar';
 import ShipmentCreationModal from './deliveries/ShipmentCreationModal';
 import { invalidateOrdersAndBatches } from '../lib/queryInvalidation';
 import { buildPartialOrderFromBatches, buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildSyntheticAggregatedBatches, getShipmentStageBreakdown, getShipmentSummary, getShipmentValue } from '../features/orders';
-import { getOrderStatusClasses, getOrderStatusLabel } from '../features/orders/statusPresentation';
+import { getOrderStatusClasses, getOrderStatusLabel, getOrderStatusIcon } from '../features/orders/statusPresentation';
 import { getDeterministicTagColor } from '../features/orders/tagColors';
+import { OrdersFilterPanel, OrderFilters, DEFAULT_FILTERS, countActiveFilters } from './orders/OrdersFilterPanel';
 import { getSpecialCreationProductStub, isSpecialCreationSku } from '../utils/specialCreationSku';
 import { useCollections } from '../hooks/api/useCollections';
 import { useCustomers, useOrderShipmentsForOrder, useOrders } from '../hooks/api/useOrders';
@@ -464,7 +465,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     // View State
     const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
+    const [filters, setFilters] = useState<OrderFilters>(DEFAULT_FILTERS);
     const deferredSearchTerm = React.useDeferredValue(searchTerm);
 
     // Create/Edit/Manage State
@@ -539,12 +540,20 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         return map;
     }, [orders, batchesByOrderId]);
 
-    // Derived: All unique tags across all orders (for filter bar + autocomplete)
+    // Derived: All unique tags across all orders (for filter panel + autocomplete)
     const allTags = useMemo(() => {
         if (!orders) return [];
         const tagSet = new Set<string>();
         orders.forEach(o => o.tags?.forEach(t => tagSet.add(t)));
         return Array.from(tagSet).sort((a, b) => a.localeCompare(b, 'el'));
+    }, [orders]);
+
+    // Derived: All unique sellers across all orders (for filter panel)
+    const allSellers = useMemo(() => {
+        if (!orders) return [];
+        const sellerSet = new Set<string>();
+        orders.forEach(o => { if (o.seller_name) sellerSet.add(o.seller_name); });
+        return Array.from(sellerSet).sort((a, b) => a.localeCompare(b, 'el'));
     }, [orders]);
 
     const tagSuggestions = useMemo(() => {
@@ -562,17 +571,14 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         return getShipmentReadiness(managingOrder.id, batchesByOrderId.get(managingOrder.id) || []);
     }, [managingOrder, batchesByOrderId]);
 
-    const toggleTagFilter = (tag: string) => {
-        setSelectedTags(prev => {
-            const next = new Set(prev);
-            if (next.has(tag)) next.delete(tag); else next.add(tag);
-            return next;
-        });
-    };
-
-    // Derived: Filter orders based on Tab, Search, and Tag Filter
+    // Derived: Filter orders based on Tab, Search, and all panel Filters
     const filteredOrders = useMemo(() => {
         if (!orders) return [];
+
+        const now = new Date();
+        const todayStr = now.toISOString().slice(0, 10);
+        const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
+        const monthAgo = new Date(now); monthAgo.setMonth(now.getMonth() - 1);
 
         return orders.filter(o => {
             // Tab Filter
@@ -580,11 +586,43 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             if (activeTab === 'active' && isArchived) return false;
             if (activeTab === 'archived' && !isArchived) return false;
 
-            // Tag filter (AND logic: order must have ALL selected tags)
-            if (selectedTags.size > 0) {
+            // Status filter (OR)
+            if (filters.statuses.size > 0 && !filters.statuses.has(o.status as OrderStatus)) return false;
+
+            // Date filter
+            if (filters.datePreset !== 'all') {
+                const created = new Date(o.created_at);
+                if (filters.datePreset === 'today') {
+                    if (o.created_at.slice(0, 10) !== todayStr) return false;
+                } else if (filters.datePreset === 'week') {
+                    if (created < weekAgo) return false;
+                } else if (filters.datePreset === 'month') {
+                    if (created < monthAgo) return false;
+                } else if (filters.datePreset === 'custom') {
+                    if (filters.dateFrom && o.created_at.slice(0, 10) < filters.dateFrom) return false;
+                    if (filters.dateTo && o.created_at.slice(0, 10) > filters.dateTo) return false;
+                }
+            }
+
+            // Seller filter (OR)
+            if (filters.sellers.size > 0) {
+                const sellerName = o.seller_name ?? '';
+                if (!filters.sellers.has(sellerName)) return false;
+            }
+
+            // Tag filter (AND or OR)
+            if (filters.tags.size > 0) {
                 const orderTags = new Set(o.tags || []);
-                for (const t of selectedTags) {
-                    if (!orderTags.has(t)) return false;
+                if (filters.tagLogic === 'AND') {
+                    for (const t of filters.tags) {
+                        if (!orderTags.has(t)) return false;
+                    }
+                } else {
+                    let anyMatch = false;
+                    for (const t of filters.tags) {
+                        if (orderTags.has(t)) { anyMatch = true; break; }
+                    }
+                    if (!anyMatch) return false;
                 }
             }
 
@@ -597,7 +635,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                 (o.tags && o.tags.some(t => t.toLowerCase().includes(term)))
             );
         });
-    }, [orders, activeTab, deferredSearchTerm, selectedTags]);
+    }, [orders, activeTab, deferredSearchTerm, filters]);
 
     const ordersScrollRef = useRef<HTMLDivElement>(null);
     const ordersRowVirtualizer = useVirtualizer({
@@ -859,44 +897,55 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                 />
             </div>
 
-            {/* TAG FILTER BAR */}
-            {allTags.length > 0 && (
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-3">
-                    <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase shrink-0">
-                            <Tag size={13} />
-                            Φίλτρο
-                            {selectedTags.size > 0 && (
-                                <span className="bg-emerald-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">{selectedTags.size}</span>
-                            )}
-                        </div>
-                        <div className="flex gap-1.5 flex-wrap flex-1">
-                            {allTags.map(tag => {
-                                const isActive = selectedTags.has(tag);
-                                const c = getDeterministicTagColor(tag);
-                                return (
-                                    <button
-                                        key={tag}
-                                        onClick={() => toggleTagFilter(tag)}
-                                        className={`text-[11px] px-2.5 py-1 rounded-full border font-bold transition-all ${isActive
-                                                ? `${c.bg} ${c.text} ${c.border} shadow-sm ring-2 ring-offset-1 ring-current/20`
-                                                : 'bg-slate-50 text-slate-400 border-slate-200 hover:border-slate-300 hover:text-slate-600'
-                                            }`}
-                                    >
-                                        {tag}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                        {selectedTags.size > 0 && (
-                            <button
-                                onClick={() => setSelectedTags(new Set())}
-                                className="shrink-0 text-xs font-bold text-slate-400 hover:text-slate-700 flex items-center gap-1 transition-colors"
-                            >
-                                <X size={12} /> Όλα
-                            </button>
-                        )}
-                    </div>
+            {/* FILTER PANEL */}
+            <OrdersFilterPanel
+                allTags={allTags}
+                allSellers={allSellers}
+                filters={filters}
+                onChange={setFilters}
+            />
+
+            {/* ACTIVE FILTERS SUMMARY BAR */}
+            {countActiveFilters(filters) > 0 && (
+                <div className="flex flex-wrap items-center gap-2 px-1">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Ενεργά:</span>
+                    {Array.from(filters.statuses).map(s => (
+                        <span key={s} className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border font-bold ${getOrderStatusClasses(s)}`}>
+                            {getOrderStatusIcon(s, 10)}
+                            {getOrderStatusLabel(s)}
+                            <button onClick={() => { const next = new Set(filters.statuses); next.delete(s); setFilters(f => ({ ...f, statuses: next })); }} className="ml-0.5 hover:opacity-70 transition-opacity"><X size={9} /></button>
+                        </span>
+                    ))}
+                    {filters.datePreset !== 'all' && (
+                        <span className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border font-bold bg-violet-100 text-violet-700 border-violet-200">
+                            {filters.datePreset === 'today' && 'Σήμερα'}
+                            {filters.datePreset === 'week' && 'Εβδομάδα'}
+                            {filters.datePreset === 'month' && 'Μήνας'}
+                            {filters.datePreset === 'custom' && `${filters.dateFrom ?? '…'} — ${filters.dateTo ?? '…'}`}
+                            <button onClick={() => setFilters(f => ({ ...f, datePreset: 'all', dateFrom: null, dateTo: null }))} className="ml-0.5 hover:opacity-70 transition-opacity"><X size={9} /></button>
+                        </span>
+                    )}
+                    {Array.from(filters.sellers).map(seller => (
+                        <span key={seller} className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border font-bold bg-sky-100 text-sky-700 border-sky-200">
+                            {seller}
+                            <button onClick={() => { const next = new Set(filters.sellers); next.delete(seller); setFilters(f => ({ ...f, sellers: next })); }} className="ml-0.5 hover:opacity-70 transition-opacity"><X size={9} /></button>
+                        </span>
+                    ))}
+                    {Array.from(filters.tags).map(tag => {
+                        const c = getDeterministicTagColor(tag);
+                        return (
+                            <span key={tag} className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border font-bold ${c.activeBg} ${c.activeText} ${c.activeBorder}`}>
+                                {tag}
+                                <button onClick={() => { const next = new Set(filters.tags); next.delete(tag); setFilters(f => ({ ...f, tags: next })); }} className="ml-0.5 hover:opacity-70 transition-opacity"><X size={9} /></button>
+                            </span>
+                        );
+                    })}
+                    <button
+                        onClick={() => setFilters(DEFAULT_FILTERS)}
+                        className="text-[10px] font-black text-slate-400 hover:text-rose-500 flex items-center gap-0.5 ml-1 transition-colors"
+                    >
+                        <X size={10} /> Καθαρισμός όλων
+                    </button>
                 </div>
             )}
 
