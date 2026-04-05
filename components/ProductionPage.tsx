@@ -106,7 +106,14 @@ const FINDER_METAL_CONTAINER_STYLES: Record<string, string> = {
     '': 'bg-slate-50/80 border-slate-100'
 };
 
-type PrintSelectorType = 'technician' | 'preparation' | 'aggregated' | 'labels' | 'assembly';
+type PrintSelectorType = 'technician' | 'preparation' | 'aggregated' | 'labels' | 'assembly' | 'stagePdf';
+
+type PrintSelectorState = {
+    isOpen: boolean;
+    type: PrintSelectorType | '';
+    batches: EnhancedProductionBatch[];
+    stageMeta?: { stageId: ProductionStage; stageName: string };
+};
 type ProductionQuickPickEntry = {
     order: Order;
     batchesCount: number;
@@ -393,7 +400,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelS
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-[230] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
             <div className="bg-white w-full max-w-2xl max-h-[85vh] rounded-3xl shadow-2xl flex flex-col animate-in zoom-in-95">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <div>
@@ -1285,9 +1292,8 @@ const StageInspectorModal: React.FC<{
     onClose: () => void;
     onMoveBatch: (batch: ProductionBatch, targetStage: ProductionStage) => void;
     onToggleHold: (batch: ProductionBatch) => void;
-    onPrintStageBatches?: (data: StageBatchPrintData) => void;
-}> = ({ stage, batches, onClose, onMoveBatch, onToggleHold, onPrintStageBatches }) => {
-    const { showToast } = useUI();
+    onOpenPdfBatchPicker?: () => void;
+}> = ({ stage, batches, onClose, onMoveBatch, onToggleHold, onOpenPdfBatchPicker }) => {
     const [sortMode, setSortMode] = useState<'client' | 'oldest' | 'newest'>('client');
     const [clientFilter, setClientFilter] = useState('');
     const colors = STAGE_COLORS[stage.color as keyof typeof STAGE_COLORS];
@@ -1317,53 +1323,6 @@ const StageInspectorModal: React.FC<{
         }
         return list;
     }, [batches, clientFilter, sortMode]);
-
-    const orderPrintOptions = useMemo(() => {
-        const map = new Map<string, EnhancedProductionBatch[]>();
-        for (const b of batches) {
-            const oid = (b.order_id || '').trim();
-            const k = oid || '__no_order__';
-            if (!map.has(k)) map.set(k, []);
-            map.get(k)!.push(b);
-        }
-        return Array.from(map.entries())
-            .map(([key, list]) => {
-                const orderId = key === '__no_order__' ? '' : key;
-                const customerName = list[0]?.customer_name?.trim() || 'Χωρίς πελάτη';
-                const label = orderId
-                    ? `${customerName} · #${formatOrderId(orderId)} · ${list.length} παρτ.`
-                    : `${customerName} · χωρίς εντολή · ${list.length} παρτ.`;
-                return { key, orderId, customerName, label, list };
-            })
-            .sort((a, b) => a.label.localeCompare(b.label, 'el', { sensitivity: 'base' }));
-    }, [batches]);
-
-    const [printOrderKey, setPrintOrderKey] = useState('');
-
-    useEffect(() => {
-        if (orderPrintOptions.length === 0) {
-            setPrintOrderKey('');
-            return;
-        }
-        setPrintOrderKey((k) => (orderPrintOptions.some((o) => o.key === k) ? k : orderPrintOptions[0].key));
-    }, [orderPrintOptions]);
-
-    const handleStageListPrint = () => {
-        if (!onPrintStageBatches) return;
-        const opt = orderPrintOptions.find((o) => o.key === printOrderKey);
-        if (!opt || opt.list.length === 0) {
-            showToast('Δεν υπάρχουν παρτίδες για εκτύπωση.', 'info');
-            return;
-        }
-        onPrintStageBatches({
-            stageName: stage.label,
-            stageId: stage.id,
-            customerName: opt.customerName,
-            orderId: opt.orderId,
-            batches: opt.list,
-            generatedAt: new Date().toISOString(),
-        });
-    };
 
     const totalQty = batches.reduce((s, b) => s + b.quantity, 0);
     const onHoldCount = batches.filter(b => b.on_hold).length;
@@ -1410,9 +1369,21 @@ const StageInspectorModal: React.FC<{
                             )}
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-white/70 rounded-full text-slate-400 transition-colors">
-                        <X size={20} />
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                        {onOpenPdfBatchPicker && batches.length > 0 && (
+                            <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); onOpenPdfBatchPicker(); }}
+                                className="p-2 rounded-xl bg-white/90 text-slate-600 hover:text-slate-900 hover:bg-white border border-slate-200/80 shadow-sm transition-colors"
+                                title="Εκτύπωση PDF σταδίου (επιλογή παρτίδων)"
+                            >
+                                <Printer size={20} />
+                            </button>
+                        )}
+                        <button onClick={onClose} className="p-2 hover:bg-white/70 rounded-full text-slate-400 transition-colors">
+                            <X size={20} />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Stats + controls */}
@@ -1470,31 +1441,6 @@ const StageInspectorModal: React.FC<{
                             className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
                         />
                     </div>
-
-                    {onPrintStageBatches && orderPrintOptions.length > 0 && (
-                        <div className="flex flex-col sm:flex-row sm:items-end gap-2 pt-2 border-t border-slate-100">
-                            <div className="flex-1 min-w-0">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Εντολή / πελάτης για PDF</span>
-                                <select
-                                    value={printOrderKey}
-                                    onChange={(e) => setPrintOrderKey(e.target.value)}
-                                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 bg-white outline-none focus:ring-2 focus:ring-blue-500/20"
-                                >
-                                    {orderPrintOptions.map((o) => (
-                                        <option key={o.key} value={o.key}>{o.label}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={handleStageListPrint}
-                                className="shrink-0 flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-black hover:bg-slate-800 transition-colors shadow-sm active:scale-[0.98]"
-                            >
-                                <Printer size={16} />
-                                Εκτύπωση PDF
-                            </button>
-                        </div>
-                    )}
                 </div>
 
                 {/* Batch list */}
@@ -1679,7 +1625,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     const [overviewModal, setOverviewModal] = useState<{ isOpen: boolean, type: 'active' | 'delayed' | 'onHold' | 'ready' } | null>(null);
 
     // PRINT SELECTOR MODAL STATE
-    const [printSelectorState, setPrintSelectorState] = useState<{ isOpen: boolean, type: PrintSelectorType | '', batches: EnhancedProductionBatch[] }>({ isOpen: false, type: '', batches: [] });
+    const [printSelectorState, setPrintSelectorState] = useState<PrintSelectorState>({ isOpen: false, type: '', batches: [] });
     const [labelPrintSortMode, setLabelPrintSortMode] = useState<LabelPrintSortMode>('as_sent');
     const [assemblyOrderSelectorOpen, setAssemblyOrderSelectorOpen] = useState(false);
 
@@ -2343,6 +2289,23 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         });
     };
 
+    const handleOpenStagePdfBatchPicker = (stageId: ProductionStage) => {
+        if (!onPrintStageBatches) return;
+        const stageConf = STAGES.find(s => s.id === stageId);
+        if (!stageConf) return;
+        const list = stageBatchesByStage[stageId] || [];
+        if (list.length === 0) {
+            showToast('Δεν υπάρχουν παρτίδες για εκτύπωση.', 'info');
+            return;
+        }
+        setPrintSelectorState({
+            isOpen: true,
+            type: 'stagePdf',
+            batches: list,
+            stageMeta: { stageId, stageName: stageConf.label },
+        });
+    };
+
     const handleAssemblyOrderPrintConfirm = (selectedOrderIds: string[]) => {
         if (!onPrintAssembly) return;
 
@@ -2376,6 +2339,34 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             } else {
                 showToast("Δεν βρέθηκαν προϊόντα για τις παρτίδες.", "error");
             }
+        } else if (type === 'stagePdf') {
+            const meta = printSelectorState.stageMeta;
+            if (!meta || !onPrintStageBatches || selected.length === 0) return;
+            const orderIds = [...new Set(selected.map(b => (b.order_id || '').trim()).filter(Boolean))];
+            let customerName: string;
+            let orderId: string;
+            if (orderIds.length === 1) {
+                orderId = orderIds[0];
+                customerName = selected.find(b => (b.order_id || '').trim() === orderId)?.customer_name?.trim() || '—';
+            } else if (orderIds.length === 0) {
+                orderId = '';
+                const names = [...new Set(selected.map(b => (b.customer_name || '').trim()).filter(Boolean))];
+                customerName =
+                    names.length === 1 ? names[0]
+                    : names.length > 1 ? 'Διάφοροι πελάτες (χωρίς εντολή)'
+                    : 'Χωρίς εντολή';
+            } else {
+                orderId = '';
+                customerName = `Πολλαπλές εντολές (${orderIds.length})`;
+            }
+            onPrintStageBatches({
+                stageName: meta.stageName,
+                stageId: meta.stageId,
+                customerName,
+                orderId,
+                batches: selected,
+                generatedAt: new Date().toISOString(),
+            });
         }
     };
 
@@ -2867,14 +2858,17 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             {printSelectorState.isOpen && (
                 <PrintSelectorModal
                     isOpen={printSelectorState.isOpen}
-                    onClose={() => setPrintSelectorState({ ...printSelectorState, isOpen: false })}
+                    onClose={() => setPrintSelectorState({ isOpen: false, type: '', batches: [] })}
                     onConfirm={executePrint}
                     batches={printSelectorState.batches}
                     title={
                         printSelectorState.type === 'technician' ? 'Εκτύπωση Τεχνίτη' :
                             printSelectorState.type === 'preparation' ? 'Εκτύπωση Προετοιμασίας' :
                                 printSelectorState.type === 'assembly' ? 'Εκτύπωση Συναρμολόγησης' :
-                                    printSelectorState.type === 'labels' ? 'Εκτύπωση Ετικετών' : 'Συγκεντρωτική Εκτύπωση'
+                                    printSelectorState.type === 'labels' ? 'Εκτύπωση Ετικετών' :
+                                        printSelectorState.type === 'stagePdf'
+                                            ? `Φύλλο σταδίου — ${printSelectorState.stageMeta?.stageName ?? ''}`
+                                            : 'Συγκεντρωτική Εκτύπωση'
                     }
                     labelSortMode={printSelectorState.type === 'labels' ? labelPrintSortMode : undefined}
                     onLabelSortModeChange={printSelectorState.type === 'labels' ? setLabelPrintSortMode : undefined}
@@ -2929,7 +2923,11 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         onClose={() => setStageInspectorStage(null)}
                         onMoveBatch={(b, targetStage) => { attemptMove(b, targetStage); }}
                         onToggleHold={handleToggleHold}
-                        onPrintStageBatches={onPrintStageBatches}
+                        onOpenPdfBatchPicker={
+                            onPrintStageBatches && stageInspectorStage
+                                ? () => handleOpenStagePdfBatchPicker(stageInspectorStage)
+                                : undefined
+                        }
                     />
                 );
             })()}
