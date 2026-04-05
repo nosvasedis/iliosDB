@@ -1355,19 +1355,11 @@ const StageInspectorModal: React.FC<{
                         </div>
                         <div>
                             <h3 className="font-black text-slate-900 text-xl">{stage.label}</h3>
-                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                                <span className="text-xs text-slate-500 font-bold">{batches.length} παρτίδες</span>
-                                <span className="text-slate-300">·</span>
-                                <span className="text-xs text-slate-500 font-bold">{totalQty} τεμ.</span>
-                                {onHoldCount > 0 && (
-                                    <>
-                                        <span className="text-slate-300">·</span>
-                                        <span className="text-xs font-bold text-amber-600 flex items-center gap-1">
-                                            <PauseCircle size={11} /> {onHoldCount} σε αναμονή
-                                        </span>
-                                    </>
-                                )}
-                            </div>
+                            {onHoldCount > 0 && (
+                                <span className="text-xs font-bold text-amber-600 flex items-center gap-1 mt-0.5">
+                                    <PauseCircle size={11} /> {onHoldCount} σε αναμονή
+                                </span>
+                            )}
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-white/70 rounded-full text-slate-400 transition-colors">
@@ -1383,10 +1375,6 @@ const StageInspectorModal: React.FC<{
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Παρτίδες</span>
                             <span className="text-sm font-black text-slate-900 ml-1">{filtered.length}</span>
                             <span className="text-[10px] text-slate-400 font-medium">/ {totalQty} τεμ.</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Πελάτες</span>
-                            <span className="text-sm font-black text-slate-900 ml-1">{clientCount}</span>
                         </div>
                         <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Παραγγελίες</span>

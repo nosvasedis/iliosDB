@@ -1,7 +1,8 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { ProductionBatch, ProductionStage, Collection } from '../types';
-import { X, ImageIcon, PauseCircle, PlayCircle, StickyNote, Clock, AlertTriangle } from 'lucide-react';
+import { X, ImageIcon, PauseCircle, PlayCircle, StickyNote, Clock, AlertTriangle, Printer } from 'lucide-react';
 import { PRODUCTION_STAGES, getProductionStageLabel } from '../utils/productionStages';
 import SkuColorizedText from './SkuColorizedText';
 import { getBatchAgeInfo } from '../features/production/selectors';
@@ -75,13 +76,16 @@ const STAGE_MOVE_COLORS: Record<string, { bg: string; text: string; border: stri
     'Ready':             { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
 };
 
-// Inline compact stage mover — avoids nested-button issues
+// Inline compact stage mover — uses a portal so the dropdown escapes modal overflow clipping
 function InlineStageMover({ batch, onMoveToStage, onToggleHold }: {
     batch: ProductionBatch & { requires_setting?: boolean; requires_assembly?: boolean };
     onMoveToStage: (batch: ProductionBatch, s: ProductionStage) => void;
     onToggleHold: (batch: ProductionBatch) => void;
 }) {
-    const [open, setOpen] = React.useState(false);
+    const [open, setOpen] = useState(false);
+    const [popupPos, setPopupPos] = useState({ top: 0, left: 0, width: 180 });
+    const btnRef = useRef<HTMLButtonElement>(null);
+    const popupRef = useRef<HTMLDivElement>(null);
     const currentIdx = PRODUCTION_STAGES.findIndex(s => s.id === batch.current_stage);
 
     const isDisabled = (stageId: ProductionStage) => {
@@ -90,8 +94,50 @@ function InlineStageMover({ batch, onMoveToStage, onToggleHold }: {
         return false;
     };
 
+    const updatePos = useCallback(() => {
+        if (!btnRef.current) return;
+        const r = btnRef.current.getBoundingClientRect();
+        const popupH = 300;
+        const popupW = 180;
+        const pad = 8;
+        let top = r.top - popupH - pad;
+        if (top < pad) top = r.bottom + pad;
+        if (top + popupH > window.innerHeight - pad) top = window.innerHeight - popupH - pad;
+        let left = r.right - popupW;
+        if (left < pad) left = pad;
+        setPopupPos({ top, left, width: popupW });
+    }, []);
+
+    const handleToggle = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!open) updatePos();
+        setOpen(v => !v);
+    }, [open, updatePos]);
+
+    // Close on outside click
+    useEffect(() => {
+        if (!open) return;
+        const handler = (e: MouseEvent) => {
+            if (
+                popupRef.current && !popupRef.current.contains(e.target as Node) &&
+                btnRef.current && !btnRef.current.contains(e.target as Node)
+            ) setOpen(false);
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [open]);
+
+    // Reposition on scroll/resize
+    useEffect(() => {
+        if (!open) return;
+        const h = () => updatePos();
+        window.addEventListener('scroll', h, true);
+        window.addEventListener('resize', h);
+        return () => { window.removeEventListener('scroll', h, true); window.removeEventListener('resize', h); };
+    }, [open, updatePos]);
+
     return (
-        <div className="flex items-center gap-1.5 relative">
+        <div className="flex items-center gap-1.5">
             {/* Hold toggle */}
             <button
                 onClick={(e) => { e.stopPropagation(); onToggleHold(batch); }}
@@ -107,21 +153,24 @@ function InlineStageMover({ batch, onMoveToStage, onToggleHold }: {
                 }
             </button>
 
-            {/* Stage picker */}
+            {/* Stage picker — portal-rendered to escape overflow clipping */}
             {batch.current_stage !== ProductionStage.Ready && !batch.on_hold && (
-                <div className="relative">
+                <>
                     <button
-                        onClick={(e) => { e.stopPropagation(); setOpen(v => !v); }}
+                        ref={btnRef}
+                        onClick={handleToggle}
                         className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 transition-colors"
                     >
                         Μετακίνηση ▾
                     </button>
-                    {open && (
+                    {open && ReactDOM.createPortal(
                         <div
-                            className="absolute bottom-full right-0 mb-1 bg-white rounded-xl border border-slate-200 shadow-xl p-2 z-[500] min-w-[160px] space-y-1 animate-in fade-in zoom-in-95 duration-150"
+                            ref={popupRef}
+                            className="fixed bg-white rounded-xl border border-slate-200 shadow-2xl p-2 z-[9999] space-y-1 animate-in fade-in zoom-in-95 duration-150 overflow-y-auto custom-scrollbar"
+                            style={{ top: popupPos.top, left: popupPos.left, width: popupPos.width, maxHeight: 300 }}
                             onClick={e => e.stopPropagation()}
                         >
-                            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-2 pb-1">Μετακίνηση σε</div>
+                            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-2 pb-1 sticky top-0 bg-white">Μετακίνηση σε</div>
                             {PRODUCTION_STAGES.map((s, idx) => {
                                 const isCurrent = s.id === batch.current_stage;
                                 const disabled = isDisabled(s.id);
@@ -145,9 +194,10 @@ function InlineStageMover({ batch, onMoveToStage, onToggleHold }: {
                                     </button>
                                 );
                             })}
-                        </div>
+                        </div>,
+                        document.body
                     )}
-                </div>
+                </>
             )}
         </div>
     );
@@ -155,7 +205,7 @@ function InlineStageMover({ batch, onMoveToStage, onToggleHold }: {
 
 export default function ProductionOverviewModal({
     isOpen, onClose, title, filterType, batches,
-    onMoveToStage, onEditNote, onToggleHold, onClick,
+    onPrint, onMoveToStage, onEditNote, onToggleHold, onClick,
 }: Props) {
 
     const filteredBatches = useMemo(() => {
@@ -344,17 +394,26 @@ export default function ProductionOverviewModal({
                                                     className={`flex items-center justify-between gap-2 px-4 py-2 border-t ${batch.on_hold ? 'border-amber-100 bg-amber-50/60' : 'border-slate-100 bg-slate-50/50'}`}
                                                     onClick={e => e.stopPropagation()}
                                                 >
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); onEditNote(batch); }}
-                                                        className={`flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition-colors border
-                                                            ${batch.notes
-                                                                ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
-                                                                : 'bg-white text-slate-500 border-slate-200 hover:text-amber-600 hover:bg-amber-50 hover:border-amber-200'
-                                                            }`}
-                                                    >
-                                                        <StickyNote size={12} />
-                                                        Σημείωση
-                                                    </button>
+                                                    <div className="flex items-center gap-1">
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); onEditNote(batch); }}
+                                                            className={`flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition-colors border
+                                                                ${batch.notes
+                                                                    ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                                                                    : 'bg-white text-slate-500 border-slate-200 hover:text-amber-600 hover:bg-amber-50 hover:border-amber-200'
+                                                                }`}
+                                                        >
+                                                            <StickyNote size={12} />
+                                                            Σημείωση
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); onPrint(batch); }}
+                                                            className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition-colors border bg-white text-slate-500 border-slate-200 hover:text-slate-700 hover:bg-slate-100"
+                                                            title="Εκτύπωση Εντολής"
+                                                        >
+                                                            <Printer size={12} />
+                                                        </button>
+                                                    </div>
 
                                                     {onMoveToStage && (
                                                         <InlineStageMover
