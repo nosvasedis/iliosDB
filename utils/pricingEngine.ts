@@ -274,8 +274,12 @@ export const calculateProductCost = (
 
 /**
  * Transliterates Greek characters to Latin for Barcode compatibility (Code 128).
+ * Strips combining marks first (Greek tonos/dialytika, Latin accents) so precomposed
+ * vowels like ά/έ/ό map via their base letters; otherwise they survive as non-ASCII and
+ * filename sanitization treats them as word boundaries (extra underscores).
  */
 export const transliterateForBarcode = (input: string): string => {
+    const base = input.normalize('NFD').replace(/\p{M}/gu, '');
     const greekToLatinMap: Record<string, string> = {
         'Α': 'A', 'Β': 'V', 'Γ': 'G', 'Δ': 'D', 'Ε': 'E', 'Ζ': 'Z', 'Η': 'I', 'Θ': 'TH',
         'Ι': 'I', 'Κ': 'K', 'Λ': 'L', 'Μ': 'M', 'Ν': 'N', 'Ξ': 'X', 'Ο': 'O', 'Π': 'P',
@@ -285,7 +289,7 @@ export const transliterateForBarcode = (input: string): string => {
         'ρ': 'r', 'σ': 's', 'τ': 't', 'υ': 'y', 'φ': 'f', 'χ': 'ch', 'ψ': 'ps', 'ω': 'o',
         'ς': 's'
     };
-    return input.split('').map(char => greekToLatinMap[char] || char).join('');
+    return base.split('').map(char => greekToLatinMap[char] || char).join('');
 };
 
 /**
