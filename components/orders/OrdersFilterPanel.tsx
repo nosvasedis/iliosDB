@@ -134,6 +134,7 @@ export function OrdersFilterPanel({
   const setTagLogic = (logic: 'AND' | 'OR') => onChange({ ...filters, tagLogic: logic });
 
   return (
+    <>
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-visible transition-all">
       {/* Header */}
       <button
@@ -337,6 +338,7 @@ export function OrdersFilterPanel({
     </div>
 
     {/* Color picker portal — rendered at document.body to escape overflow:hidden */}
+    
     {pickerState && createPortal(
       <div
         ref={pickerRef}
@@ -361,6 +363,7 @@ export function OrdersFilterPanel({
       </div>,
       document.body
     )}
+    </>
   );
 }
 
