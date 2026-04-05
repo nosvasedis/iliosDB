@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronUp, SlidersHorizontal, X, Calendar, Tag, User, Activity, Palette } from 'lucide-react';
 import { OrderStatus } from '../../types';
 import { getTagColor, TAG_PALETTE_LENGTH, TAG_PALETTE_PREVIEW } from '../../features/orders/tagColors';
@@ -73,21 +74,35 @@ export function OrdersFilterPanel({
   onChangeTagColor,
 }: OrdersFilterPanelProps) {
   const [open, setOpen] = useState(false);
-  const [colorPickerTag, setColorPickerTag] = useState<string | null>(null);
+  const [pickerState, setPickerState] = useState<{ tag: string; x: number; y: number } | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
   const activeCount = countActiveFilters(filters);
 
   // Close picker when clicking outside
   useEffect(() => {
-    if (!colorPickerTag) return;
+    if (!pickerState) return;
     const handler = (e: MouseEvent) => {
       if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
-        setColorPickerTag(null);
+        setPickerState(null);
       }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [colorPickerTag]);
+  }, [pickerState]);
+
+  // Reposition picker on scroll/resize
+  useEffect(() => {
+    if (!pickerState) return;
+    const close = () => setPickerState(null);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => { window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close); };
+  }, [pickerState]);
+
+  const openPicker = useCallback((tag: string, btn: HTMLButtonElement) => {
+    const rect = btn.getBoundingClientRect();
+    setPickerState({ tag, x: rect.left, y: rect.bottom + 6 });
+  }, []);
 
   const toggleStatus = (s: OrderStatus) => {
     const next = new Set(filters.statuses);
@@ -265,7 +280,7 @@ export function OrdersFilterPanel({
                 {allTags.map(tag => {
                   const active = filters.tags.has(tag);
                   const c = getTagColor(tag, tagColorOverrides);
-                  const isPickerOpen = colorPickerTag === tag;
+                  const isPickerOpen = pickerState?.tag === tag;
                   return (
                     <div key={tag} className="relative flex items-center group">
                       <button
@@ -280,7 +295,11 @@ export function OrdersFilterPanel({
                       </button>
                       {/* Color picker trigger */}
                       <button
-                        onClick={e => { e.stopPropagation(); setColorPickerTag(isPickerOpen ? null : tag); }}
+                        onClick={e => {
+                          e.stopPropagation();
+                          if (isPickerOpen) { setPickerState(null); }
+                          else { openPicker(tag, e.currentTarget as HTMLButtonElement); }
+                        }}
                         title="Αλλαγή χρώματος"
                         className={`absolute right-1.5 flex items-center justify-center w-4 h-4 rounded-full transition-all ${
                           active
@@ -290,30 +309,6 @@ export function OrdersFilterPanel({
                       >
                         <Palette size={9} />
                       </button>
-
-                      {/* Color picker popover */}
-                      {isPickerOpen && (
-                        <div
-                          ref={pickerRef}
-                          className="absolute top-full left-0 mt-1.5 z-50 bg-white border border-slate-200 rounded-xl shadow-xl p-2.5 flex flex-wrap gap-1.5 w-[168px]"
-                          onClick={e => e.stopPropagation()}
-                        >
-                          <p className="w-full text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Χρώμα ετικέτας</p>
-                          {Array.from({ length: TAG_PALETTE_LENGTH }, (_, i) => (
-                            <button
-                              key={i}
-                              onClick={() => { onChangeTagColor(tag, i); setColorPickerTag(null); }}
-                              className={`w-6 h-6 rounded-full border-2 transition-all hover:scale-110 ${TAG_PALETTE_PREVIEW[i]} ${
-                                (tagColorOverrides[tag] === i) ||
-                                (tagColorOverrides[tag] === undefined && getDeterministicIndex(tag) === i)
-                                  ? 'border-slate-800 ring-2 ring-slate-400 ring-offset-1'
-                                  : 'border-white shadow-sm'
-                              }`}
-                              title={`Χρώμα ${i + 1}`}
-                            />
-                          ))}
-                        </div>
-                      )}
                     </div>
                   );
                 })}
@@ -340,6 +335,32 @@ export function OrdersFilterPanel({
         </div>
       </div>
     </div>
+
+    {/* Color picker portal — rendered at document.body to escape overflow:hidden */}
+    {pickerState && createPortal(
+      <div
+        ref={pickerRef}
+        style={{ position: 'fixed', left: pickerState.x, top: pickerState.y, zIndex: 9999 }}
+        className="bg-white border border-slate-200 rounded-xl shadow-2xl p-2.5 flex flex-wrap gap-1.5 w-[176px]"
+        onMouseDown={e => e.stopPropagation()}
+      >
+        <p className="w-full text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Χρώμα ετικέτας</p>
+        {Array.from({ length: TAG_PALETTE_LENGTH }, (_, i) => (
+          <button
+            key={i}
+            onClick={() => { onChangeTagColor(pickerState.tag, i); setPickerState(null); }}
+            className={`w-6 h-6 rounded-full border-2 transition-all hover:scale-110 ${TAG_PALETTE_PREVIEW[i]} ${
+              (tagColorOverrides[pickerState.tag] === i) ||
+              (tagColorOverrides[pickerState.tag] === undefined && getDeterministicIndex(pickerState.tag) === i)
+                ? 'border-slate-800 ring-2 ring-slate-400 ring-offset-1 scale-110'
+                : 'border-white shadow-sm'
+            }`}
+            title={`Χρώμα ${i + 1}`}
+          />
+        ))}
+      </div>,
+      document.body
+    )}
   );
 }
 
