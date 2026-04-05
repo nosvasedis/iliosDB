@@ -23,8 +23,6 @@ interface PrintContextType {
     setOfferToPrint: (offer: Offer | null) => void;
     supplierOrderToPrint: SupplierOrder | null;
     setSupplierOrderToPrint: (order: SupplierOrder | null) => void;
-    batchToPrint: ProductionBatch | null;
-    setBatchToPrint: (batch: ProductionBatch | null) => void;
     aggregatedPrintData: AggregatedData | null;
     setAggregatedPrintData: (data: AggregatedData | null) => void;
     preparationPrintData: { batches: ProductionBatch[] } | null;
@@ -60,7 +58,6 @@ export const PrintProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [shipmentToPrint, setShipmentToPrint] = useState<{ order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] } | null>(null);
     const [offerToPrint, setOfferToPrint] = useState<Offer | null>(null);
     const [supplierOrderToPrint, setSupplierOrderToPrint] = useState<SupplierOrder | null>(null);
-    const [batchToPrint, setBatchToPrint] = useState<ProductionBatch | null>(null);
     const [aggregatedPrintData, setAggregatedPrintData] = useState<AggregatedData | null>(null);
     const [preparationPrintData, setPreparationPrintData] = useState<{ batches: ProductionBatch[] } | null>(null);
     const [technicianPrintData, setTechnicianPrintData] = useState<{ batches: ProductionBatch[] } | null>(null);
@@ -79,7 +76,6 @@ export const PrintProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 shipmentToPrint, setShipmentToPrint,
                 offerToPrint, setOfferToPrint,
                 supplierOrderToPrint, setSupplierOrderToPrint,
-                batchToPrint, setBatchToPrint,
                 aggregatedPrintData, setAggregatedPrintData,
                 preparationPrintData, setPreparationPrintData,
                 technicianPrintData, setTechnicianPrintData,

@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { ProductionBatch, ProductionStage, Collection } from '../types';
-import { X, ImageIcon, PauseCircle, PlayCircle, StickyNote, Clock, AlertTriangle, Printer } from 'lucide-react';
+import { X, ImageIcon, PauseCircle, PlayCircle, StickyNote, Clock, AlertTriangle } from 'lucide-react';
 import { PRODUCTION_STAGES, getProductionStageLabel } from '../utils/productionStages';
 import SkuColorizedText from './SkuColorizedText';
 import { getBatchAgeInfo } from '../features/production/selectors';
@@ -24,7 +24,6 @@ interface Props {
         stageEnteredAt?: string;
     })[];
     collections: Collection[];
-    onPrint: (batch: ProductionBatch) => void;
     onNextStage?: (batch: ProductionBatch) => void;
     onMoveToStage?: (batch: ProductionBatch, targetStage: ProductionStage) => void;
     onEditNote: (batch: ProductionBatch) => void;
@@ -205,7 +204,7 @@ function InlineStageMover({ batch, onMoveToStage, onToggleHold }: {
 
 export default function ProductionOverviewModal({
     isOpen, onClose, title, filterType, batches,
-    onPrint, onMoveToStage, onEditNote, onToggleHold, onClick,
+    onMoveToStage, onEditNote, onToggleHold, onClick,
 }: Props) {
 
     const filteredBatches = useMemo(() => {
@@ -405,13 +404,6 @@ export default function ProductionOverviewModal({
                                                         >
                                                             <StickyNote size={12} />
                                                             Σημείωση
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); onPrint(batch); }}
-                                                            className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition-colors border bg-white text-slate-500 border-slate-200 hover:text-slate-700 hover:bg-slate-100"
-                                                            title="Εκτύπωση Εντολής"
-                                                        >
-                                                            <Printer size={12} />
                                                         </button>
                                                     </div>
 

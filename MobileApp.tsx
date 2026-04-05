@@ -68,7 +68,6 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
   const [remainingOrderToPrint, setRemainingOrderToPrint] = useState<Order | null>(null);
   const [shipmentToPrint, setShipmentToPrint] = useState<{ order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] } | null>(null);
   const [offerToPrint, setOfferToPrint] = useState<Offer | null>(null);
-  const [batchToPrint, setBatchToPrint] = useState<ProductionBatch | null>(null);
   const [aggregatedPrintData, setAggregatedPrintData] = useState<AggregatedData | null>(null);
   const [preparationPrintData, setPreparationPrintData] = useState<{ batches: ProductionBatch[] } | null>(null);
   const [technicianPrintData, setTechnicianPrintData] = useState<{ batches: ProductionBatch[] } | null>(null);
@@ -104,7 +103,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
 
   // PRINTING EFFECT
   useEffect(() => {
-    const shouldPrint = printItems.length > 0 || orderToPrint || remainingOrderToPrint || shipmentToPrint || offerToPrint || batchToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || priceListPrintData || supplierOrderToPrint;
+    const shouldPrint = printItems.length > 0 || orderToPrint || remainingOrderToPrint || shipmentToPrint || offerToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || priceListPrintData || supplierOrderToPrint;
 
     if (shouldPrint) {
       const timer = setTimeout(() => {
@@ -223,7 +222,6 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
           setRemainingOrderToPrint(null);
           setShipmentToPrint(null);
           setOfferToPrint(null);
-          setBatchToPrint(null);
           setAggregatedPrintData(null);
           setPreparationPrintData(null);
           setTechnicianPrintData(null);
@@ -240,7 +238,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
 
       return () => clearTimeout(timer);
     }
-  }, [printItems, orderToPrint, remainingOrderToPrint, shipmentToPrint, offerToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, priceListPrintData, supplierOrderToPrint]);
+  }, [printItems, orderToPrint, remainingOrderToPrint, shipmentToPrint, offerToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, priceListPrintData, supplierOrderToPrint]);
 
   if (!settings || !products || !warehouses || !materials || !molds) {
     return (

@@ -142,12 +142,14 @@ export default function StageBatchPrintView({ data, allProducts }: Props) {
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <span style={{ fontWeight: 900, fontSize: '14px', color: '#1e293b' }}>{data.customerName}</span>
-                        <span style={{
-                            fontSize: '11px', fontWeight: 700, color: '#64748b',
-                            fontFamily: 'monospace', background: '#fff',
-                            border: `1px solid ${colors.lightBorder}`,
-                            padding: '1px 7px', borderRadius: '4px',
-                        }}>#{formatOrderId(data.orderId)}</span>
+                        {data.orderId ? (
+                            <span style={{
+                                fontSize: '11px', fontWeight: 700, color: '#64748b',
+                                fontFamily: 'monospace', background: '#fff',
+                                border: `1px solid ${colors.lightBorder}`,
+                                padding: '1px 7px', borderRadius: '4px',
+                            }}>#{formatOrderId(data.orderId)}</span>
+                        ) : null}
                     </div>
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                         <span style={{

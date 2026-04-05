@@ -74,7 +74,7 @@ const STAGE_ORDER: { id: ProductionStage, label: string }[] = PRODUCTION_STAGES.
 interface BatchCardProps {
     batch: ProductionBatch & { customer_name?: string; stageEnteredAt?: string; timingStatus?: 'normal' | 'attention' | 'delayed' | 'critical'; timingLabel?: string; reminderKey?: string };
     onDragStart?: (e: React.DragEvent<HTMLDivElement>, batchId: string) => void;
-    onPrint: (batch: ProductionBatch) => void;
+    onPrint?: (batch: ProductionBatch) => void;
     onNextStage?: (batch: ProductionBatch) => void;
     onMoveToStage?: (batch: ProductionBatch, targetStage: ProductionStage) => void;
     onEditNote: (batch: ProductionBatch) => void;
@@ -322,13 +322,15 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                     >
                         <Trash2 size={16} />
                     </button>
-                    <button
-                        onClick={(e) => { e.stopPropagation(); onPrint(batch); }}
-                        className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                        title="Εκτύπωση Εντολής"
-                    >
-                        <Printer size={16} />
-                    </button>
+                    {onPrint && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onPrint(batch); }}
+                            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                            title="Εκτύπωση Εντολής"
+                        >
+                            <Printer size={16} />
+                        </button>
+                    )}
                 </div>
             </div>
 

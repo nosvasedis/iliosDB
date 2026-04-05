@@ -162,10 +162,10 @@ function AppContent() {
 
   const {
     setPrintItems, setOrderToPrint, setRemainingOrderToPrint, setShipmentToPrint, setOfferToPrint,
-    setBatchToPrint, setAggregatedPrintData, setPreparationPrintData,
+    setAggregatedPrintData, setPreparationPrintData,
     setTechnicianPrintData, setAssemblyPrintData, setPriceListPrintData, setAnalyticsPrintData,
     setOrderAnalyticsData, setSupplierOrderToPrint, setStageBatchPrintData,
-    printItems, orderToPrint, remainingOrderToPrint, shipmentToPrint, offerToPrint, batchToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData, orderAnalyticsData, supplierOrderToPrint, stageBatchPrintData
+    printItems, orderToPrint, remainingOrderToPrint, shipmentToPrint, offerToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData, orderAnalyticsData, supplierOrderToPrint, stageBatchPrintData
   } = usePrint() || {}; // Handled gracefully if error
 
   const {
@@ -239,7 +239,6 @@ function AppContent() {
             shipmentToPrint={shipmentToPrint}
             offerToPrint={offerToPrint}
             supplierOrderToPrint={supplierOrderToPrint}
-            batchToPrint={batchToPrint}
             aggregatedPrintData={aggregatedPrintData}
             preparationPrintData={preparationPrintData}
             technicianPrintData={technicianPrintData}
@@ -255,7 +254,6 @@ function AppContent() {
             setShipmentToPrint={setShipmentToPrint}
             setOfferToPrint={setOfferToPrint}
             setSupplierOrderToPrint={setSupplierOrderToPrint}
-            setBatchToPrint={setBatchToPrint}
             setAggregatedPrintData={setAggregatedPrintData}
             setPreparationPrintData={setPreparationPrintData}
             setTechnicianPrintData={setTechnicianPrintData}
@@ -390,7 +388,7 @@ function AppContent() {
     }} onPrintPartialOrder={(order, batches) => {
       setOrderToPrint(buildPartialOrderFromBatches(order, batches));
     }} />,
-    production: <ProductionPage products={products} materials={materials} molds={molds} onPrintBatch={setBatchToPrint} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintAssembly={handlePrintAssembly} onPrintLabels={setPrintItems} onPrintStageBatches={handlePrintStageBatches} />,
+    production: <ProductionPage products={products} materials={materials} molds={molds} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintAssembly={handlePrintAssembly} onPrintLabels={setPrintItems} onPrintStageBatches={handlePrintStageBatches} />,
     customers: <CustomersPage onPrintOrder={setOrderToPrint} />,
     suppliers: <SuppliersPage />,
     'ai-studio': <AiStudio />,
@@ -415,7 +413,6 @@ function AppContent() {
         shipmentToPrint={shipmentToPrint}
         offerToPrint={offerToPrint}
         supplierOrderToPrint={supplierOrderToPrint}
-        batchToPrint={batchToPrint}
         aggregatedPrintData={aggregatedPrintData}
         preparationPrintData={preparationPrintData}
         technicianPrintData={technicianPrintData}
@@ -431,7 +428,6 @@ function AppContent() {
         setShipmentToPrint={setShipmentToPrint}
         setOfferToPrint={setOfferToPrint}
         setSupplierOrderToPrint={setSupplierOrderToPrint}
-        setBatchToPrint={setBatchToPrint}
         setAggregatedPrintData={setAggregatedPrintData}
         setPreparationPrintData={setPreparationPrintData}
         setTechnicianPrintData={setTechnicianPrintData}
