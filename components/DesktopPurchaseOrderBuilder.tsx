@@ -7,7 +7,9 @@ import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { useSupplierOrderNeeds } from '../hooks/useSupplierOrderNeeds';
-import { mergeManyNeedsIntoItems } from '../utils/mergeSupplierNeedIntoOrder';
+import { mergeManyNeedsIntoItems, mergeNeedIntoItems } from '../utils/mergeSupplierNeedIntoOrder';
+import { needBreakdownKey } from '../utils/supplierOrderNeedBreakdown';
+import PurchaseNeedRow from './PurchaseNeedRow';
 
 interface Props {
     supplier: Supplier;
@@ -46,10 +48,10 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
     const [searchTerm, setSearchTerm] = useState('');
     const [searchType, setSearchType] = useState<SupplierOrderType>('Product');
     const [notes, setNotes] = useState('');
-    const [showAllProducts, setShowAllProducts] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [productionNeedsOpen, setProductionNeedsOpen] = useState(true);
     const [pendingNeedsOpen, setPendingNeedsOpen] = useState(true);
+    const [needBreakdownOpen, setNeedBreakdownOpen] = useState<Record<string, boolean>>({});
 
     const addAllProductionNeeds = () => {
         const withProduct = productionNeeds.filter(n => n.product);
@@ -71,98 +73,112 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
         showToast(`Προστέθηκαν ${withProduct.length} γραμμές από τις εκκρεμείς παραγγελίες.`, 'success');
     };
 
-    // Search Results Logic (Flattened to include Variants)
+    // Search: only products/materials linked to this supplier
     const searchResults = useMemo(() => {
         const lower = searchTerm.toLowerCase();
-        
+
         if (searchType === 'Material') {
             return materials?.filter(m => m.name.toLowerCase().includes(lower) && m.supplier_id === supplier.id).slice(0, 20) || [];
-        } else {
-            if (!products) return [];
-            
-            const results: { product: Product, variantSuffix: string, displayName: string, image?: string | null }[] = [];
-            
-            products.forEach(p => {
-                // Filter by supplier logic
-                const matchesSupplier = p.supplier_id === supplier.id;
-                if (!showAllProducts && !matchesSupplier && !lower) return; // Skip if no search & not linked
-                if (!showAllProducts && !matchesSupplier && lower && !p.sku.toLowerCase().includes(lower)) return; 
-
-                // Master match?
-                if (p.sku.toLowerCase().includes(lower)) {
-                    // If simple product or we want to allow master selection
-                    if (!p.variants || p.variants.length === 0) {
-                        results.push({ product: p, variantSuffix: '', displayName: p.sku, image: p.image_url });
-                    }
-                }
-                
-                // Variant match?
-                if (p.variants && p.variants.length > 0) {
-                   p.variants.forEach(v => {
-                       const fullSku = `${p.sku}${v.suffix}`;
-                       // Add if Search matches Full SKU OR Search matches Master SKU OR Search is empty (and matches supplier)
-                       if (!lower || fullSku.toLowerCase().includes(lower) || p.sku.toLowerCase().includes(lower)) {
-                            results.push({ 
-                                product: p, 
-                                variantSuffix: v.suffix, 
-                                displayName: fullSku, 
-                                image: p.image_url 
-                            });
-                       }
-                   });
-                }
-            });
-            
-            return results.slice(0, 20);
         }
-    }, [searchTerm, searchType, materials, products, supplier.id, showAllProducts]);
+        if (!products) return [];
 
-    const addItem = (item: any, type: SupplierOrderType, qty: number = 1, variantSuffix: string = '', size: string = '') => {
-        // Construct unique ID and Name
-        let id, name;
-        
-        if (type === 'Product') {
-            // item is the { product, variantSuffix ... } wrapper from search, OR the Product object from needs
-            const product = item.sku ? item : item.product; // Handle both direct product object and wrapper
-            const suffix = item.variantSuffix !== undefined ? item.variantSuffix : variantSuffix;
-            const sizeVal = item.size !== undefined ? item.size : size;
-            
-            id = product.sku;
-            name = `${product.sku}${suffix}`; // IMPORTANT: Full SKU name
-            // For checking existence, we need to consider size too
-        } else {
-            id = item.id;
-            name = item.name;
-        }
+        const results: { product: Product; variantSuffix: string; displayName: string; image?: string | null }[] = [];
 
-        // Zero pricing model
-        const cost = 0;
-        
-        // Ensure size from the need item object is used if passed
-        const finalSize = item.size || size;
+        products.forEach(p => {
+            if (p.supplier_id !== supplier.id) return;
 
-        setItems(prev => {
-            // Find if item exists with same name AND same size
-            const existingIdx = prev.findIndex(i => i.item_name === name && i.item_type === type && (i.size_info || '') === (finalSize || ''));
-            if (existingIdx >= 0) {
-                const updated = [...prev];
-                updated[existingIdx].quantity += qty;
-                updated[existingIdx].total_cost = 0;
-                return updated;
+            if (p.sku.toLowerCase().includes(lower)) {
+                if (!p.variants || p.variants.length === 0) {
+                    results.push({ product: p, variantSuffix: '', displayName: p.sku, image: p.image_url });
+                }
             }
-            return [...prev, {
-                id: Math.random().toString(36),
-                item_type: type,
-                item_id: id,     // Base SKU or ID
-                item_name: name, // Full Display Name (SKU+Suffix)
-                quantity: qty,
-                unit_cost: cost,
-                total_cost: 0,
-                size_info: finalSize || undefined
-            }];
+
+            if (p.variants && p.variants.length > 0) {
+                p.variants.forEach(v => {
+                    const fullSku = `${p.sku}${v.suffix}`;
+                    if (!lower || fullSku.toLowerCase().includes(lower) || p.sku.toLowerCase().includes(lower)) {
+                        results.push({
+                            product: p,
+                            variantSuffix: v.suffix,
+                            displayName: fullSku,
+                            image: p.image_url,
+                        });
+                    }
+                });
+            }
         });
+
+        return results.slice(0, 20);
+    }, [searchTerm, searchType, materials, products, supplier.id]);
+
+    const addItem = (
+        item: any,
+        type: SupplierOrderType,
+        qty: number = 1,
+        variantSuffix: string = '',
+        size: string = '',
+        addOptions?: { requirements?: { customer: string }[] }
+    ) => {
+        if (type === 'Material') {
+            const id = item.id;
+            const name = item.name;
+            const cost = 0;
+            setItems(prev => {
+                const existingIdx = prev.findIndex(i => i.item_name === name && i.item_type === type && (i.size_info || '') === '');
+                if (existingIdx >= 0) {
+                    const updated = [...prev];
+                    updated[existingIdx].quantity += qty;
+                    updated[existingIdx].total_cost = 0;
+                    return updated;
+                }
+                return [
+                    ...prev,
+                    {
+                        id: Math.random().toString(36),
+                        item_type: type,
+                        item_id: id,
+                        item_name: name,
+                        quantity: qty,
+                        unit_cost: cost,
+                        total_cost: 0,
+                    },
+                ];
+            });
+            setSearchTerm('');
+            showToast(`Προστέθηκε: ${name}`, 'success');
+            return;
+        }
+
+        const product: Product | undefined =
+            item?.product && typeof item.product.sku === 'string'
+                ? item.product
+                : typeof item?.sku === 'string'
+                  ? item
+                  : undefined;
+
+        if (!product?.sku) {
+            showToast('Το προϊόν δεν βρέθηκε.', 'error');
+            return;
+        }
+
+        const suffix = item.variantSuffix !== undefined ? item.variantSuffix : variantSuffix;
+        const finalSize = item.size !== undefined ? item.size : size;
+
+        setItems(prev =>
+            mergeNeedIntoItems(
+                prev,
+                {
+                    variant: suffix,
+                    size: finalSize || undefined,
+                    totalQty: qty,
+                    product,
+                    requirements: addOptions?.requirements,
+                },
+                'Product'
+            )
+        );
         setSearchTerm('');
-        showToast(`Προστέθηκε: ${name}`, "success");
+        showToast(`Προστέθηκε: ${product.sku}${suffix}`, 'success');
     };
 
     const updateItem = (index: number, field: 'qty' | 'notes', val: any) => {
@@ -256,30 +272,26 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
                                     </div>
                                     {productionNeedsOpen && (
                                     <div className="space-y-2">
-                                        {productionNeeds.map((n, idx) => (
-                                            <div key={idx} className="bg-white p-3 rounded-xl flex justify-between items-center border border-indigo-200">
-                                                <div className="min-w-0 flex-1 pr-2 flex items-center gap-3">
-                                                     <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0">
-                                                        {n.product?.image_url ? <img src={n.product.image_url} className="w-full h-full object-cover"/> : <ImageIcon size={16} className="m-auto text-slate-300"/>}
-                                                    </div>
-                                                    <div>
-                                                        <div className="text-sm font-black text-slate-800 flex items-center gap-2">
-                                                            {n.sku}{n.variant}
-                                                            {n.size && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px] font-black">{n.size}</span>}
-                                                        </div>
-                                                        <div className="text-[10px] text-slate-500 font-bold truncate max-w-[150px]">
-                                                            {n.requirements.map(r => `${r.customer} (${r.orderId.slice(0, 10)})`).join(', ')}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <button 
-                                                    onClick={() => addItem(n.product, 'Product', n.totalQty, n.variant, n.size)}
-                                                    className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-black transition-colors"
-                                                >
-                                                    +{n.totalQty}
-                                                </button>
-                                            </div>
-                                        ))}
+                                        {productionNeeds.map(n => {
+                                            const k = needBreakdownKey('prod', n);
+                                            return (
+                                                <PurchaseNeedRow
+                                                    key={k}
+                                                    need={n}
+                                                    accent="indigo"
+                                                    expanded={!!needBreakdownOpen[k]}
+                                                    onToggleBreakdown={() =>
+                                                        setNeedBreakdownOpen(p => ({ ...p, [k]: !p[k] }))
+                                                    }
+                                                    onAdd={() =>
+                                                        addItem(n, 'Product', n.totalQty, n.variant, n.size, {
+                                                            requirements: n.requirements,
+                                                        })
+                                                    }
+                                                    layout="desktop"
+                                                />
+                                            );
+                                        })}
                                     </div>
                                     )}
                                 </div>
@@ -316,30 +328,26 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
                                     </div>
                                     {pendingNeedsOpen && (
                                     <div className="space-y-2">
-                                        {pendingOrderNeeds.map((n, idx) => (
-                                            <div key={idx} className="bg-white p-3 rounded-xl flex justify-between items-center border border-blue-200">
-                                                <div className="min-w-0 flex-1 pr-2 flex items-center gap-3">
-                                                     <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0">
-                                                        {n.product?.image_url ? <img src={n.product.image_url} className="w-full h-full object-cover"/> : <ImageIcon size={16} className="m-auto text-slate-300"/>}
-                                                    </div>
-                                                    <div>
-                                                        <div className="text-sm font-black text-slate-800 flex items-center gap-2">
-                                                            {n.sku}{n.variant}
-                                                            {n.size && <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[10px] font-black">{n.size}</span>}
-                                                        </div>
-                                                        <div className="text-[10px] text-slate-500 font-bold truncate max-w-[150px]">
-                                                            {n.requirements.map(r => `${r.customer}`).join(', ')}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <button 
-                                                    onClick={() => addItem(n.product, 'Product', n.totalQty, n.variant, n.size)}
-                                                    className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-black transition-colors"
-                                                >
-                                                    +{n.totalQty}
-                                                </button>
-                                            </div>
-                                        ))}
+                                        {pendingOrderNeeds.map(n => {
+                                            const k = needBreakdownKey('pend', n);
+                                            return (
+                                                <PurchaseNeedRow
+                                                    key={k}
+                                                    need={n}
+                                                    accent="blue"
+                                                    expanded={!!needBreakdownOpen[k]}
+                                                    onToggleBreakdown={() =>
+                                                        setNeedBreakdownOpen(p => ({ ...p, [k]: !p[k] }))
+                                                    }
+                                                    onAdd={() =>
+                                                        addItem(n, 'Product', n.totalQty, n.variant, n.size, {
+                                                            requirements: n.requirements,
+                                                        })
+                                                    }
+                                                    layout="desktop"
+                                                />
+                                            );
+                                        })}
                                     </div>
                                     )}
                                 </div>
@@ -352,19 +360,6 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
                                     <button onClick={() => setSearchType('Material')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${searchType === 'Material' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500'}`}>Υλικά</button>
                                 </div>
                                 
-                                {searchType === 'Product' && (
-                                    <div className="flex items-center gap-2">
-                                        <input 
-                                            type="checkbox" 
-                                            checked={showAllProducts} 
-                                            onChange={e => setShowAllProducts(e.target.checked)} 
-                                            id="showAllProducts"
-                                            className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500"
-                                        />
-                                        <label htmlFor="showAllProducts" className="text-xs text-slate-600 font-bold cursor-pointer">Εμφάνιση όλων (όχι μόνο συνδεδεμένων)</label>
-                                    </div>
-                                )}
-
                                 <div className="relative">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
                                     <input 
@@ -420,9 +415,20 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
 
                     {/* RIGHT PANEL: CART */}
                     <div className="lg:w-2/3 bg-white flex flex-col">
-                        <div className="p-4 border-b border-slate-100 bg-slate-50/30 flex justify-between items-center">
-                            <h3 className="font-black text-slate-700 text-sm uppercase tracking-wide">Περιεχόμενα Εντολής</h3>
-                            <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-xs font-bold">{items.length} είδη</span>
+                        <div className="p-4 border-b border-slate-100 bg-slate-50/30 flex flex-wrap justify-between items-center gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                                <h3 className="font-black text-slate-700 text-sm uppercase tracking-wide">Περιεχόμενα Εντολής</h3>
+                                {items.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setItems([])}
+                                        className="text-[10px] font-black uppercase tracking-wide text-red-600 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded-lg border border-red-200/80 transition-colors"
+                                    >
+                                        Καθαρισμός
+                                    </button>
+                                )}
+                            </div>
+                            <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-xs font-bold shrink-0">{items.length} είδη</span>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-6 space-y-3 custom-scrollbar">
@@ -480,6 +486,12 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
                                                     {desc}
                                                     {stone.code && <span className={`ml-1 font-black ${stoneColor}`}>{stone.code}</span>}
                                                 </div>
+                                                {item.customer_reference && (
+                                                    <div className="text-[11px] font-bold text-slate-600 mt-1">
+                                                        <span className="text-slate-400 font-black uppercase text-[9px] mr-1">Πελάτης:</span>
+                                                        {item.customer_reference}
+                                                    </div>
+                                                )}
 
                                                 <input 
                                                     value={item.notes || ''}

@@ -7,7 +7,9 @@ import { api } from '../../lib/supabase';
 import { useUI } from '../UIProvider';
 import { getVariantComponents } from '../../utils/pricingEngine';
 import { useSupplierOrderNeeds } from '../../hooks/useSupplierOrderNeeds';
-import { mergeManyNeedsIntoItems } from '../../utils/mergeSupplierNeedIntoOrder';
+import { mergeManyNeedsIntoItems, mergeNeedIntoItems } from '../../utils/mergeSupplierNeedIntoOrder';
+import { needBreakdownKey } from '../../utils/supplierOrderNeedBreakdown';
+import PurchaseNeedRow from '../PurchaseNeedRow';
 
 interface Props {
     supplier: Supplier;
@@ -45,9 +47,9 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
     const [searchTerm, setSearchTerm] = useState('');
     const [searchType, setSearchType] = useState<SupplierOrderType>('Product');
     const [notes, setNotes] = useState('');
-    const [showAllProducts, setShowAllProducts] = useState(false);
     const [productionNeedsOpen, setProductionNeedsOpen] = useState(true);
     const [pendingNeedsOpen, setPendingNeedsOpen] = useState(true);
+    const [needBreakdownOpen, setNeedBreakdownOpen] = useState<Record<string, boolean>>({});
 
     const addAllProductionNeeds = () => {
         const withProduct = productionNeeds.filter(n => n.product);
@@ -69,80 +71,105 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
         showToast(`Προστέθηκαν ${withProduct.length} γραμμές από τις εκκρεμείς παραγγελίες.`, 'success');
     };
 
-    // Filter Logic
     const searchResults = useMemo(() => {
         const lower = searchTerm.toLowerCase();
         if (!lower) return [];
 
         if (searchType === 'Material') {
             return materials?.filter(m => m.name.toLowerCase().includes(lower) && m.supplier_id === supplier.id).slice(0, 10) || [];
-        } else {
-            if (!products) return [];
-
-            const results: { product: Product, variantSuffix: string, displayName: string, image?: string | null }[] = [];
-
-            products.forEach(p => {
-                const matchesSupplier = p.supplier_id === supplier.id;
-                if (!showAllProducts && !matchesSupplier && !lower) return;
-
-                // Base
-                if (p.sku.toLowerCase().includes(lower)) {
-                    if (!p.variants || p.variants.length === 0) {
-                        results.push({ product: p, variantSuffix: '', displayName: p.sku, image: p.image_url });
-                    }
-                }
-                // Variants
-                if (p.variants && p.variants.length > 0) {
-                    p.variants.forEach(v => {
-                        const fullSku = `${p.sku}${v.suffix}`;
-                        if (!lower || fullSku.toLowerCase().includes(lower) || p.sku.toLowerCase().includes(lower)) {
-                            results.push({ product: p, variantSuffix: v.suffix, displayName: fullSku, image: p.image_url });
-                        }
-                    });
-                }
-            });
-            return results.slice(0, 10);
         }
-    }, [searchTerm, searchType, materials, products, supplier.id, showAllProducts]);
+        if (!products) return [];
 
-    const addItem = (item: any, type: SupplierOrderType, qty: number = 1, variantSuffix: string = '', size: string = '') => {
-        let id, name;
-        if (type === 'Product') {
-            const product = item.sku ? item : item.product;
-            const suffix = item.variantSuffix !== undefined ? item.variantSuffix : variantSuffix;
-            const sizeVal = item.size !== undefined ? item.size : size;
+        const results: { product: Product; variantSuffix: string; displayName: string; image?: string | null }[] = [];
 
-            id = product.sku;
-            name = `${product.sku}${suffix}`;
-        } else {
-            id = item.id;
-            name = item.name;
-        }
+        products.forEach(p => {
+            if (p.supplier_id !== supplier.id) return;
 
-        const cost = 0;
-        const finalSize = item.size || size;
-
-        setItems(prev => {
-            const existingIdx = prev.findIndex(i => i.item_name === name && i.item_type === type && (i.size_info || '') === (finalSize || ''));
-            if (existingIdx >= 0) {
-                const updated = [...prev];
-                updated[existingIdx].quantity += qty;
-                updated[existingIdx].total_cost = 0;
-                return updated;
+            if (p.sku.toLowerCase().includes(lower)) {
+                if (!p.variants || p.variants.length === 0) {
+                    results.push({ product: p, variantSuffix: '', displayName: p.sku, image: p.image_url });
+                }
             }
-            return [...prev, {
-                id: Math.random().toString(36),
-                item_type: type,
-                item_id: id,
-                item_name: name,
-                quantity: qty,
-                unit_cost: cost,
-                total_cost: 0,
-                size_info: finalSize || undefined
-            }];
+            if (p.variants && p.variants.length > 0) {
+                p.variants.forEach(v => {
+                    const fullSku = `${p.sku}${v.suffix}`;
+                    if (fullSku.toLowerCase().includes(lower) || p.sku.toLowerCase().includes(lower)) {
+                        results.push({ product: p, variantSuffix: v.suffix, displayName: fullSku, image: p.image_url });
+                    }
+                });
+            }
         });
+        return results.slice(0, 10);
+    }, [searchTerm, searchType, materials, products, supplier.id]);
+
+    const addItem = (
+        item: any,
+        type: SupplierOrderType,
+        qty: number = 1,
+        variantSuffix: string = '',
+        size: string = '',
+        addOptions?: { requirements?: { customer: string }[] }
+    ) => {
+        if (type === 'Material') {
+            const id = item.id;
+            const name = item.name;
+            const cost = 0;
+            setItems(prev => {
+                const existingIdx = prev.findIndex(i => i.item_name === name && i.item_type === type && (i.size_info || '') === '');
+                if (existingIdx >= 0) {
+                    const updated = [...prev];
+                    updated[existingIdx].quantity += qty;
+                    updated[existingIdx].total_cost = 0;
+                    return updated;
+                }
+                return [
+                    ...prev,
+                    {
+                        id: Math.random().toString(36),
+                        item_type: type,
+                        item_id: id,
+                        item_name: name,
+                        quantity: qty,
+                        unit_cost: cost,
+                        total_cost: 0,
+                    },
+                ];
+            });
+            setSearchTerm('');
+            showToast(`Προστέθηκε: ${name}`, 'success');
+            return;
+        }
+
+        const product: Product | undefined =
+            item?.product && typeof item.product.sku === 'string'
+                ? item.product
+                : typeof item?.sku === 'string'
+                  ? item
+                  : undefined;
+
+        if (!product?.sku) {
+            showToast('Το προϊόν δεν βρέθηκε.', 'error');
+            return;
+        }
+
+        const suffix = item.variantSuffix !== undefined ? item.variantSuffix : variantSuffix;
+        const finalSize = item.size !== undefined ? item.size : size;
+
+        setItems(prev =>
+            mergeNeedIntoItems(
+                prev,
+                {
+                    variant: suffix,
+                    size: finalSize || undefined,
+                    totalQty: qty,
+                    product,
+                    requirements: addOptions?.requirements,
+                },
+                'Product'
+            )
+        );
         setSearchTerm('');
-        showToast(`Προστέθηκε: ${name}`, "success");
+        showToast(`Προστέθηκε: ${product.sku}${suffix}`, 'success');
     };
 
     const updateItem = (index: number, field: 'qty' | 'cost' | 'notes', val: any) => {
@@ -227,25 +254,27 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                                 </button>
                             </div>
                         </div>
-                        {productionNeedsOpen && productionNeeds.map((n, idx) => (
-                            <div key={idx} className="bg-white p-2 rounded-xl flex justify-between items-center border border-indigo-200">
-                                <div className="min-w-0 flex-1 pr-2">
-                                    <div className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                                        {n.sku}{n.variant}
-                                        {n.size && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px] font-black">{n.size}</span>}
-                                    </div>
-                                    <div className="text-[9px] text-slate-400 font-bold truncate">
-                                        {n.requirements.map(r => `${r.customer} (${r.orderId.slice(0, 10)})`).join(', ')}
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={() => addItem(n.product, 'Product', n.totalQty, n.variant, n.size)}
-                                    className="bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold shrink-0"
-                                >
-                                    +{n.totalQty}
-                                </button>
-                            </div>
-                        ))}
+                        {productionNeedsOpen &&
+                            productionNeeds.map(n => {
+                                const k = needBreakdownKey('prod', n);
+                                return (
+                                    <PurchaseNeedRow
+                                        key={k}
+                                        need={n}
+                                        accent="indigo"
+                                        expanded={!!needBreakdownOpen[k]}
+                                        onToggleBreakdown={() =>
+                                            setNeedBreakdownOpen(p => ({ ...p, [k]: !p[k] }))
+                                        }
+                                        onAdd={() =>
+                                            addItem(n, 'Product', n.totalQty, n.variant, n.size, {
+                                                requirements: n.requirements,
+                                            })
+                                        }
+                                        layout="mobile"
+                                    />
+                                );
+                            })}
                     </div>
                 )}
 
@@ -278,25 +307,27 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                                 </button>
                             </div>
                         </div>
-                        {pendingNeedsOpen && pendingOrderNeeds.map((n, idx) => (
-                            <div key={idx} className="bg-white p-2 rounded-xl flex justify-between items-center border border-blue-200">
-                                <div className="min-w-0 flex-1 pr-2">
-                                    <div className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                                        {n.sku}{n.variant}
-                                        {n.size && <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[10px] font-black">{n.size}</span>}
-                                    </div>
-                                    <div className="text-[9px] text-slate-400 font-bold truncate">
-                                        {n.requirements.map(r => `${r.customer}`).join(', ')}
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={() => addItem(n.product, 'Product', n.totalQty, n.variant, n.size)}
-                                    className="bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-bold shrink-0"
-                                >
-                                    +{n.totalQty}
-                                </button>
-                            </div>
-                        ))}
+                        {pendingNeedsOpen &&
+                            pendingOrderNeeds.map(n => {
+                                const k = needBreakdownKey('pend', n);
+                                return (
+                                    <PurchaseNeedRow
+                                        key={k}
+                                        need={n}
+                                        accent="blue"
+                                        expanded={!!needBreakdownOpen[k]}
+                                        onToggleBreakdown={() =>
+                                            setNeedBreakdownOpen(p => ({ ...p, [k]: !p[k] }))
+                                        }
+                                        onAdd={() =>
+                                            addItem(n, 'Product', n.totalQty, n.variant, n.size, {
+                                                requirements: n.requirements,
+                                            })
+                                        }
+                                        layout="mobile"
+                                    />
+                                );
+                            })}
                     </div>
                 )}
 
@@ -305,19 +336,6 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                         <button onClick={() => setSearchType('Product')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${searchType === 'Product' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>Προϊόντα</button>
                         <button onClick={() => setSearchType('Material')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${searchType === 'Material' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500'}`}>Υλικά</button>
                     </div>
-
-                    {searchType === 'Product' && (
-                        <div className="flex items-center gap-2">
-                            <input
-                                type="checkbox"
-                                checked={showAllProducts}
-                                onChange={e => setShowAllProducts(e.target.checked)}
-                                id="mobileShowAll"
-                                className="w-4 h-4 rounded text-blue-600"
-                            />
-                            <label htmlFor="mobileShowAll" className="text-xs text-slate-500 font-bold">Εμφάνιση όλων (όχι μόνο συνδεδεμένων)</label>
-                        </div>
-                    )}
 
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -353,6 +371,19 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                             </div>
                         )}
                     </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-black text-slate-500 uppercase">Περιεχόμενα ({items.length})</span>
+                    {items.length > 0 && (
+                        <button
+                            type="button"
+                            onClick={() => setItems([])}
+                            className="text-[10px] font-black uppercase text-red-600 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded-lg border border-red-200/80 transition-colors"
+                        >
+                            Καθαρισμός
+                        </button>
+                    )}
                 </div>
 
                 <div className="space-y-2">
@@ -411,9 +442,15 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                                                 {desc}
                                                 {stone.code && <span className={`ml-1 font-black ${stoneColor}`}>{stone.code}</span>}
                                             </div>
+                                            {item.customer_reference && (
+                                                <div className="text-[11px] font-bold text-slate-600 mt-1">
+                                                    <span className="text-slate-400 font-black uppercase text-[9px] mr-1">Πελάτης:</span>
+                                                    {item.customer_reference}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
-                                    <button onClick={() => removeItem(idx)} className="text-red-400"><Trash2 size={16} /></button>
+                                    <button type="button" onClick={() => removeItem(idx)} className="text-red-400"><Trash2 size={16} /></button>
                                 </div>
 
                                 <div className="flex gap-2 items-center mt-2">

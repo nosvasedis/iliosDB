@@ -4,6 +4,13 @@ import type { Product, Supplier } from '../types';
 import { ProductionStage, ProductionType } from '../types';
 import { api } from '../lib/supabase';
 
+/** One contribution line (batch or order item) feeding a grouped SKU row. */
+export type SupplierOrderNeedRequirement = {
+    orderId: string;
+    customer: string;
+    quantity: number;
+};
+
 /** One grouped row for supplier PO intelligence panels (production or pending orders). */
 export type SupplierOrderGroupedNeed = {
     sku: string;
@@ -11,22 +18,24 @@ export type SupplierOrderGroupedNeed = {
     size?: string;
     totalQty: number;
     product?: Product;
-    requirements: { orderId: string; customer: string }[];
+    requirements: SupplierOrderNeedRequirement[];
 };
 
 /**
- * Production needs: awaiting-delivery batches for products linked to this supplier or unassigned
- * (unassigned keeps manual / uncatalogued batches visible).
+ * Ανάγκες Παραγωγής (awaiting delivery): rows for this supplier if the product is linked to them,
+ * OR non-imported (in-house) products with no supplier on file — so batches moved to Αναμονή Παραλαβής
+ * for outsourced delivery stay addable from whichever supplier PO you are building.
  */
-function filterNeedBySupplier(product: Product | undefined, supplierId: string): boolean {
-    return product?.supplier_id === supplierId || !product?.supplier_id;
+function filterProductionNeedBySupplier(product: Product | undefined, supplierId: string): boolean {
+    if (!product) return false;
+    if (product.supplier_id === supplierId) return true;
+    if (product.production_type !== ProductionType.Imported && !product.supplier_id) return true;
+    return false;
 }
 
-/**
- * Pending order needs: same supplier filter, plus only Imported products (in-house items are not supplier-purchased here).
- */
+/** Pending orders: only imported goods tied to this supplier (normal resale pipeline). */
 function filterPendingNeedBySupplier(product: Product | undefined, supplierId: string): boolean {
-    return filterNeedBySupplier(product, supplierId) && product?.production_type === ProductionType.Imported;
+    return product?.supplier_id === supplierId && product?.production_type === ProductionType.Imported;
 }
 
 export function useSupplierOrderNeeds(supplier: Supplier) {
@@ -59,11 +68,18 @@ export function useSupplierOrderNeeds(supplier: Supplier) {
                 groupedNeeds[key].requirements.push({
                     orderId: b.order_id,
                     customer: order?.customer_name || 'Άγνωστος',
+                    quantity: b.quantity,
+                });
+            } else {
+                groupedNeeds[key].requirements.push({
+                    orderId: '',
+                    customer: 'Χωρίς σύνδεση παραγγελίας',
+                    quantity: b.quantity,
                 });
             }
         });
 
-        return Object.values(groupedNeeds).filter(n => filterNeedBySupplier(n.product, supplier.id));
+        return Object.values(groupedNeeds).filter(n => filterProductionNeedBySupplier(n.product, supplier.id));
     }, [productionBatches, products, supplier.id, orders]);
 
     const pendingOrderNeeds = useMemo((): SupplierOrderGroupedNeed[] => {
@@ -92,6 +108,7 @@ export function useSupplierOrderNeeds(supplier: Supplier) {
                 groupedOrderNeeds[key].requirements.push({
                     orderId: order.id,
                     customer: order.customer_name,
+                    quantity: item.quantity,
                 });
             });
         });

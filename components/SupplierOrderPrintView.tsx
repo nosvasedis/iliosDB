@@ -160,6 +160,11 @@ export default function SupplierOrderPrintView({ order, products }: Props) {
                                                 </span>
                                             )}
                                         </div>
+                                        {item.customer_reference && (
+                                            <div className="mt-1 text-[10px] text-slate-700 font-bold">
+                                                Πελάτης: {item.customer_reference}
+                                            </div>
+                                        )}
                                         {item.notes && (
                                             <div className="mt-1 bg-yellow-50 p-1.5 rounded border border-yellow-100 text-[10px] text-yellow-800 font-bold italic inline-block">
                                                 Σημείωση: {item.notes}

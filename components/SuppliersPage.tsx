@@ -494,13 +494,14 @@ export default function SuppliersPage() {
                                             <div className="max-h-[50vh] overflow-y-auto custom-scrollbar border rounded-2xl border-slate-100 bg-slate-50/50">
                                                 <table className="w-full text-sm text-left">
                                                     <thead className="bg-slate-100 text-slate-500 text-xs uppercase font-bold sticky top-0">
-                                                        <tr><th className="p-4">Είδος</th><th className="p-4">Τίτλος</th><th className="p-4 text-center">Ποσ.</th></tr>
+                                                        <tr><th className="p-4">Είδος</th><th className="p-4">Τίτλος</th><th className="p-4">Πελάτης</th><th className="p-4 text-center">Ποσ.</th></tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-slate-100 pb-2">
                                                         {relatedOrders.find(o => o.id === viewOrderId)?.items.map((item, i) => (
                                                             <tr key={i} className="hover:bg-white transition-colors">
                                                                 <td className="p-4 font-black text-slate-800 text-xs tracking-wider">{item.item_type === 'Product' ? 'ΠΡΟΪΟΝ' : 'ΥΛΙΚΟ'}</td>
                                                                 <td className="p-4 font-medium text-slate-700">{item.item_name}</td>
+                                                                <td className="p-4 text-sm text-slate-600">{item.customer_reference || '—'}</td>
                                                                 <td className="p-4 text-center font-mono font-bold text-slate-900">{item.quantity}</td>
                                                             </tr>
                                                         ))}

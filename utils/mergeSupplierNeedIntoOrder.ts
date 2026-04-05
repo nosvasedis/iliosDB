@@ -6,7 +6,27 @@ export type GroupedSupplierNeedForMerge = {
     size?: string;
     totalQty: number;
     product?: Product;
+    requirements?: { customer: string; quantity?: number }[];
 };
+
+export function customerRefsFromRequirements(requirements?: { customer: string }[]): string | undefined {
+    if (!requirements?.length) return undefined;
+    const names = [...new Set(requirements.map(r => r.customer).filter(Boolean))];
+    return names.length ? names.join(', ') : undefined;
+}
+
+export function mergeCustomerReferenceStrings(a: string | undefined, b: string | undefined): string | undefined {
+    const set = new Set<string>();
+    for (const part of [a, b]) {
+        if (!part) continue;
+        part.split(',').forEach(s => {
+            const t = s.trim();
+            if (t) set.add(t);
+        });
+    }
+    if (set.size === 0) return undefined;
+    return [...set].join(', ');
+}
 
 export function mergeNeedIntoItems(
     prev: SupplierOrderItem[],
@@ -24,11 +44,14 @@ export function mergeNeedIntoItems(
             (i.size_info || '') === (finalSize || '')
     );
 
+    const refFromNeed = customerRefsFromRequirements(need.requirements);
+
     if (existingIdx >= 0) {
         const updated = [...prev];
         const line = { ...updated[existingIdx] };
         line.quantity += need.totalQty;
         line.total_cost = 0;
+        line.customer_reference = mergeCustomerReferenceStrings(line.customer_reference, refFromNeed);
         updated[existingIdx] = line;
         return updated;
     }
@@ -44,6 +67,7 @@ export function mergeNeedIntoItems(
             unit_cost: 0,
             total_cost: 0,
             size_info: finalSize || undefined,
+            customer_reference: refFromNeed,
         },
     ];
 }

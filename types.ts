@@ -566,6 +566,8 @@ export interface SupplierOrderItem {
   total_cost: number;
   notes?: string;
   size_info?: string; // New: Store size for ring orders
+  /** Customer names when the line comes from production/pending needs (order demand). */
+  customer_reference?: string;
 }
 
 export interface SupplierOrder {
