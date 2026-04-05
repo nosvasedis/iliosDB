@@ -26,9 +26,10 @@ type Props = {
     batch: ProductionBatch & { customer_name?: string };
     onMoveToStage: (batch: ProductionBatch, targetStage: ProductionStage) => void;
     onToggleHold: (batch: ProductionBatch) => void;
+    hideNotes?: boolean;
 };
 
-export default function FinderBatchStageSelector({ batch, onMoveToStage, onToggleHold }: Props) {
+export default function FinderBatchStageSelector({ batch, onMoveToStage, onToggleHold, hideNotes = false }: Props) {
     const [isOpen, setIsOpen] = useState(false);
     const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0 });
     const buttonRef = useRef<HTMLButtonElement>(null);
@@ -128,7 +129,7 @@ export default function FinderBatchStageSelector({ batch, onMoveToStage, onToggl
                     <span>Σε Αναμονή{batch.on_hold_reason ? ` • ${batch.on_hold_reason}` : ''}</span>
                 </div>
             )}
-            {batch.notes && (
+            {!hideNotes && batch.notes && (
                 <div className="bg-amber-50 text-amber-800 text-xs font-bold p-1.5 px-2 rounded-lg flex items-center gap-1 border border-amber-100 mb-2 truncate">
                     <StickyNote size={10} className="shrink-0" />
                     <span className="truncate">{batch.notes}</span>

@@ -962,11 +962,13 @@ const FINDER_STAGE_ORDER: { id: ProductionStage, label: string }[] = [
 const FinderBatchStageSelector = ({ 
     batch, 
     onMoveToStage,
-    onToggleHold
+    onToggleHold,
+    hideNotes = false,
 }: { 
     batch: ProductionBatch & { customer_name?: string }, 
     onMoveToStage: (batch: ProductionBatch, targetStage: ProductionStage) => void,
-    onToggleHold: (batch: ProductionBatch) => void
+    onToggleHold: (batch: ProductionBatch) => void,
+    hideNotes?: boolean,
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0 });
@@ -1065,7 +1067,7 @@ const FinderBatchStageSelector = ({
                     <span>Σε Αναμονή{batch.on_hold_reason ? ` • ${batch.on_hold_reason}` : ''}</span>
                 </div>
             )}
-            {batch.notes && (
+            {!hideNotes && batch.notes && (
                 <div className="bg-amber-50 text-amber-800 text-xs font-bold p-1.5 px-2 rounded-lg flex items-center gap-1 border border-amber-100 mb-2 truncate">
                     <StickyNote size={10} className="shrink-0" />
                     <span className="truncate">{batch.notes}</span>
@@ -1271,6 +1273,13 @@ const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: {
 
 
 // ── StageInspectorModal ─────────────────────────────────────────────────────
+const TIMING_LEFT_BORDER_INSPECTOR: Record<string, string> = {
+    normal:    'border-l-emerald-400',
+    attention: 'border-l-amber-400',
+    delayed:   'border-l-orange-500',
+    critical:  'border-l-red-500',
+};
+
 const StageInspectorModal: React.FC<{
     stage: { id: ProductionStage; label: string; icon: React.ReactNode; color: string };
     batches: EnhancedProductionBatch[];
@@ -1314,8 +1323,7 @@ const StageInspectorModal: React.FC<{
     const orderCount = new Set(filtered.map(batch => batch.order_id).filter(Boolean)).size;
 
     const groupedByClient = useMemo(() => {
-        if (sortMode !== 'client') return [];
-
+        if (sortMode !== 'client') return new Map<string, { totalQty: number }>();
         const groups = new Map<string, EnhancedProductionBatch[]>();
         filtered.forEach(batch => {
             const key = (batch.customer_name || 'Χωρίς Πελάτη').trim() || 'Χωρίς Πελάτη';
@@ -1323,114 +1331,12 @@ const StageInspectorModal: React.FC<{
             existing.push(batch);
             groups.set(key, existing);
         });
-
-        return Array.from(groups.entries()).map(([clientName, clientBatches]) => ({
-            clientName,
-            batches: clientBatches,
-            totalQty: clientBatches.reduce((sum, batch) => sum + batch.quantity, 0),
-            onHold: clientBatches.filter(batch => batch.on_hold).length,
-            orders: new Set(clientBatches.map(batch => batch.order_id).filter(Boolean)).size,
-        }));
-    }, [filtered, sortMode]);
-
-    const renderBatchCard = (batch: EnhancedProductionBatch) => {
-        const ageInfo = getBatchAgeInfo(batch);
-        const variant = batch.product_details?.variants?.find(v => v.suffix === batch.variant_suffix);
-        const descriptor = [
-            variant?.description,
-            batch.product_details?.description,
-            batch.product_details?.category,
-        ].filter(Boolean).join(' • ');
-        const stageEnteredLabel = new Date(batch.stageEnteredAt || batch.created_at).toLocaleString('el-GR', {
-            day: '2-digit',
-            month: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
+        const summary = new Map<string, { totalQty: number }>();
+        groups.forEach((clientBatches, clientName) => {
+            summary.set(clientName, { totalQty: clientBatches.reduce((s, b) => s + b.quantity, 0) });
         });
-
-        return (
-            <div
-                key={batch.id}
-                className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${batch.on_hold ? 'border-amber-200' : 'border-slate-200'}`}
-            >
-                {batch.on_hold && (
-                    <div className="bg-amber-50 border-b border-amber-100 px-4 py-2 flex items-center gap-2">
-                        <PauseCircle size={14} className="text-amber-500 shrink-0" />
-                        <span className="text-xs font-black text-amber-800">
-                            Σε Αναμονή{batch.on_hold_reason ? ` - ${batch.on_hold_reason}` : ''}
-                        </span>
-                    </div>
-                )}
-                <div className="p-4 space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 space-y-2">
-                            <div className="flex items-center gap-2 flex-wrap min-w-0">
-                                <SkuColorizedText sku={batch.sku} suffix={batch.variant_suffix || ''} gender={batch.product_details?.gender} className="font-black text-lg" masterClassName="text-slate-800" />
-                                {batch.size_info && (
-                                    <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200 font-bold text-slate-600 shrink-0">
-                                        {batch.size_info}
-                                    </span>
-                                )}
-                                <span className="bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-lg text-xs font-black border border-slate-200 shrink-0">
-                                    {batch.quantity} τεμ
-                                </span>
-                            </div>
-                            {descriptor && (
-                                <p className="text-xs font-medium text-slate-600 leading-relaxed">{descriptor}</p>
-                            )}
-                        </div>
-                        <span className={`shrink-0 px-2.5 py-1 rounded-lg text-xs font-bold border ${ageInfo.style}`}>
-                            {ageInfo.label}
-                        </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                        <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
-                            <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Πελάτης</div>
-                            <div className="flex items-center gap-1.5 min-w-0">
-                                <User size={11} className="text-slate-400 shrink-0" />
-                                <span className="font-bold text-slate-700 truncate">{batch.customer_name || 'Χωρίς Πελάτη'}</span>
-                            </div>
-                        </div>
-                        <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
-                            <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Παραγγελία</div>
-                            <div className="flex items-center gap-1.5 text-slate-700 font-bold">
-                                <Hash size={11} className="text-slate-400 shrink-0" />
-                                <span>{batch.order_id ? formatOrderId(batch.order_id) : '-'}</span>
-                            </div>
-                        </div>
-                        <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
-                            <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Στο στάδιο από</div>
-                            <div className="flex items-center gap-1.5 text-slate-700 font-bold">
-                                <Calendar size={11} className="text-slate-400 shrink-0" />
-                                <span>{stageEnteredLabel}</span>
-                            </div>
-                        </div>
-                        <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
-                            <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Κατάσταση</div>
-                            <div className="flex items-center gap-1.5 text-slate-700 font-bold">
-                                <AlertTriangle size={11} className="text-slate-400 shrink-0" />
-                                <span>{getProductionTimingStatusLabel(batch.timingStatus || 'normal')}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {batch.notes && (
-                        <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 flex items-start gap-2">
-                            <StickyNote size={13} className="text-amber-500 shrink-0 mt-0.5" />
-                            <p className="text-xs font-medium text-amber-800 leading-relaxed whitespace-pre-wrap break-words">{batch.notes}</p>
-                        </div>
-                    )}
-
-                    <FinderBatchStageSelector
-                        batch={batch}
-                        onMoveToStage={onMoveBatch}
-                        onToggleHold={onToggleHold}
-                    />
-                </div>
-            </div>
-        );
-    };
+        return summary;
+    }, [filtered, sortMode]);
 
     return (
         <div
@@ -1438,11 +1344,11 @@ const StageInspectorModal: React.FC<{
             onClick={onClose}
         >
             <div
-                className="bg-white w-full max-w-6xl max-h-[92vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95"
+                className="bg-white w-full max-w-2xl max-h-[92vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95"
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className={`flex-shrink-0 px-6 py-5 border-b border-slate-100 ${colors.header} flex items-start justify-between gap-4 rounded-t-3xl`}>
+                <div className={`flex-shrink-0 px-6 py-5 border-b border-slate-100 ${colors.header} flex items-center justify-between gap-4 rounded-t-3xl`}>
                     <div className="flex items-center gap-3">
                         <div className={`p-2.5 bg-white rounded-xl shadow-sm ${colors.text}`}>
                             {React.cloneElement(stage.icon as React.ReactElement, { size: 22 })}
@@ -1450,9 +1356,9 @@ const StageInspectorModal: React.FC<{
                         <div>
                             <h3 className="font-black text-slate-900 text-xl">{stage.label}</h3>
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                                <span className="text-xs text-slate-500 font-medium">{batches.length} παρτίδες</span>
+                                <span className="text-xs text-slate-500 font-bold">{batches.length} παρτίδες</span>
                                 <span className="text-slate-300">·</span>
-                                <span className="text-xs text-slate-500 font-medium">{totalQty} τεμ.</span>
+                                <span className="text-xs text-slate-500 font-bold">{totalQty} τεμ.</span>
                                 {onHoldCount > 0 && (
                                     <>
                                         <span className="text-slate-300">·</span>
@@ -1469,25 +1375,32 @@ const StageInspectorModal: React.FC<{
                     </button>
                 </div>
 
-                {/* Controls */}
-                <div className="flex-shrink-0 px-6 py-4 border-b border-slate-100 bg-white space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Παρτίδες</div>
-                            <div className="text-2xl font-black text-slate-900">{filtered.length}</div>
-                            <div className="text-xs text-slate-500 font-medium">{totalQty} συνολικά τεμ.</div>
+                {/* Stats + controls */}
+                <div className="flex-shrink-0 px-5 py-4 border-b border-slate-100 bg-white space-y-3">
+                    {/* Stat pills */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Παρτίδες</span>
+                            <span className="text-sm font-black text-slate-900 ml-1">{filtered.length}</span>
+                            <span className="text-[10px] text-slate-400 font-medium">/ {totalQty} τεμ.</span>
                         </div>
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Πελάτες</div>
-                            <div className="text-2xl font-black text-slate-900">{clientCount}</div>
-                            <div className="text-xs text-slate-500 font-medium">ξεκάθαρος διαχωρισμός στο "Ανά Πελάτη"</div>
+                        <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Πελάτες</span>
+                            <span className="text-sm font-black text-slate-900 ml-1">{clientCount}</span>
                         </div>
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Παραγγελίες</div>
-                            <div className="text-2xl font-black text-slate-900">{orderCount}</div>
-                            <div className="text-xs text-slate-500 font-medium">{onHoldCount} σε αναμονή</div>
+                        <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Παραγγελίες</span>
+                            <span className="text-sm font-black text-slate-900 ml-1">{orderCount}</span>
                         </div>
+                        {onHoldCount > 0 && (
+                            <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                                <PauseCircle size={12} className="text-amber-500" />
+                                <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest">{onHoldCount} αναμονή</span>
+                            </div>
+                        )}
                     </div>
+
+                    {/* Sort buttons */}
                     <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Ταξινόμηση:</span>
                         <button
@@ -1500,17 +1413,19 @@ const StageInspectorModal: React.FC<{
                             onClick={() => setSortMode('oldest')}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${sortMode === 'oldest' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
                         >
-                            <ArrowUp size={12} /> Παλαιότερα Πρώτα
+                            <ArrowUp size={12} /> Παλαιότερα
                         </button>
                         <button
                             onClick={() => setSortMode('newest')}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${sortMode === 'newest' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
                         >
-                            <ArrowDown size={12} /> Νεότερα Πρώτα
+                            <ArrowDown size={12} /> Νεότερα
                         </button>
                     </div>
+
+                    {/* Search */}
                     <div className="relative">
-                        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input
                             type="text"
                             value={clientFilter}
@@ -1522,123 +1437,142 @@ const StageInspectorModal: React.FC<{
                 </div>
 
                 {/* Batch list */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-slate-50/30">
+                <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar bg-slate-50/40">
                     {filtered.length === 0 ? (
                         <div className="text-center py-12 text-slate-400 italic text-sm">Δεν βρέθηκαν παρτίδες.</div>
                     ) : (
                         filtered.map((batch, index) => {
                             const ageInfo = getBatchAgeInfo(batch);
+                            const timingStatus = batch.timingStatus || 'normal';
                             const previousCustomer = index > 0 ? ((filtered[index - 1].customer_name || 'Χωρίς Πελάτη').trim() || 'Χωρίς Πελάτη') : null;
                             const currentCustomer = (batch.customer_name || 'Χωρίς Πελάτη').trim() || 'Χωρίς Πελάτη';
                             const showClientDivider = sortMode === 'client' && currentCustomer !== previousCustomer;
+
                             const variant = batch.product_details?.variants?.find(v => v.suffix === batch.variant_suffix);
                             const descriptor = [variant?.description, batch.product_details?.description, batch.product_details?.category].filter(Boolean).join(' • ');
                             const stageEnteredLabel = new Date(batch.stageEnteredAt || batch.created_at).toLocaleString('el-GR', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                hour: '2-digit',
-                                minute: '2-digit',
+                                day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
                             });
+                            const productionTypeLabel = batch.product_details?.production_type === ProductionType.Imported ? 'Εισαγωγής' : 'Παραγωγή';
+                            const leftBorder = batch.on_hold
+                                ? 'border-l-amber-400'
+                                : (TIMING_LEFT_BORDER_INSPECTOR[timingStatus] || 'border-l-emerald-400');
+
                             return (
                                 <React.Fragment key={batch.id}>
+                                    {/* Client divider */}
                                     {showClientDivider && (
-                                        <div className={`rounded-2xl border px-4 py-3 ${colors.border} ${colors.header}`}>
-                                            <div className="flex items-center justify-between gap-3 flex-wrap">
-                                                <div className="flex items-center gap-2 min-w-0">
-                                                    <Users size={14} className={colors.text} />
-                                                    <span className="text-sm font-black text-slate-900 truncate">{currentCustomer}</span>
-                                                </div>
-                                                <span className="text-[11px] font-medium text-slate-500">
-                                                    {groupedByClient.find(group => group.clientName === currentCustomer)?.totalQty || batch.quantity} τεμ.
-                                                </span>
+                                        <div className={`flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl border ${colors.border} ${colors.header} mt-1`}>
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <Users size={13} className={colors.text} />
+                                                <span className={`text-sm font-black truncate ${colors.text}`}>{currentCustomer}</span>
                                             </div>
+                                            <span className="text-[11px] font-semibold text-slate-500 shrink-0">
+                                                {groupedByClient.get(currentCustomer)?.totalQty ?? batch.quantity} τεμ.
+                                            </span>
                                         </div>
                                     )}
-                                    <div
-                                        className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${batch.on_hold ? 'border-amber-200' : 'border-slate-200'}`}
+
+                                    {/* Batch card */}
+                                    <div className={`bg-white rounded-2xl border border-l-[3px] shadow-sm overflow-hidden transition-shadow hover:shadow-md ${leftBorder}
+                                        ${batch.on_hold ? 'border-amber-200 bg-amber-50/30' : 'border-slate-200'}`}
                                     >
-                                    {batch.on_hold && (
-                                        <div className="bg-amber-50 border-b border-amber-100 px-4 py-2 flex items-center gap-2">
-                                            <PauseCircle size={14} className="text-amber-500 shrink-0" />
-                                            <span className="text-xs font-black text-amber-800">
-                                                Σε Αναμονή{batch.on_hold_reason ? ` — ${batch.on_hold_reason}` : ''}
-                                            </span>
-                                        </div>
-                                    )}
-                                    <div className="p-4 space-y-3">
-                                        {/* SKU + qty + age */}
-                                        <div className="flex items-start justify-between gap-3 mb-2">
-                                            <div className="flex items-center gap-2 flex-wrap min-w-0">
-                                                <SkuColorizedText sku={batch.sku} suffix={batch.variant_suffix || ''} gender={batch.product_details?.gender} className="font-black text-lg" masterClassName="text-slate-800" />
-                                                {batch.size_info && (
-                                                    <span className="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-bold text-slate-600 shrink-0">{batch.size_info}</span>
-                                                )}
-                                                <span className="bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-lg text-xs font-black border border-slate-200 shrink-0">
-                                                    {batch.quantity} τμχ
+                                        {/* Hold bar */}
+                                        {batch.on_hold && (
+                                            <div className="bg-amber-50 border-b border-amber-100 px-4 py-1.5 flex items-center gap-2">
+                                                <PauseCircle size={13} className="text-amber-500 shrink-0" />
+                                                <span className="text-xs font-black text-amber-800">
+                                                    Σε Αναμονή{batch.on_hold_reason ? ` — ${batch.on_hold_reason}` : ''}
                                                 </span>
                                             </div>
-                                            <span className={`shrink-0 px-2 py-0.5 rounded-lg text-xs font-bold border ${ageInfo.style}`}>
-                                                {ageInfo.label}
-                                            </span>
-                                        </div>
-                                        {descriptor && (
-                                            <div className="text-xs font-medium text-slate-600 leading-relaxed">{descriptor}</div>
                                         )}
-                                        {/* Customer */}
-                                        {batch.customer_name && (
-                                            <div className="flex items-center gap-1.5 mb-2">
-                                                <User size={11} className="text-slate-400 shrink-0" />
-                                                <span className="text-xs font-bold text-slate-700">{batch.customer_name}</span>
-                                                {batch.order_id && (
-                                                    <span className="text-[9px] font-mono text-slate-400 ml-1">#{formatOrderId(batch.order_id)}</span>
-                                                )}
+
+                                        <div className="p-4">
+                                            {/* Top row: image + SKU info + age */}
+                                            <div className="flex items-start gap-3">
+                                                {/* Product image */}
+                                                <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-slate-100 bg-slate-50 flex items-center justify-center">
+                                                    {batch.product_image ? (
+                                                        <img src={batch.product_image} className="w-full h-full object-cover" alt={batch.sku} />
+                                                    ) : (
+                                                        <ImageIcon size={18} className="text-slate-300" />
+                                                    )}
+                                                </div>
+
+                                                {/* SKU + size + qty */}
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <SkuColorizedText
+                                                            sku={batch.sku}
+                                                            suffix={batch.variant_suffix || ''}
+                                                            gender={batch.product_details?.gender}
+                                                            className="font-black text-base"
+                                                            masterClassName="text-slate-800"
+                                                        />
+                                                        {batch.size_info && (
+                                                            <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-bold text-slate-500 shrink-0">
+                                                                {batch.size_info}
+                                                            </span>
+                                                        )}
+                                                        <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-[11px] font-black border border-slate-200 shrink-0">
+                                                            ×{batch.quantity} τεμ
+                                                        </span>
+                                                    </div>
+                                                    {descriptor && (
+                                                        <p className="text-[11px] font-medium text-slate-500 mt-0.5 leading-relaxed">{descriptor}</p>
+                                                    )}
+                                                </div>
+
+                                                {/* Age pill */}
+                                                <span className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-bold border ${ageInfo.style}`}>
+                                                    {ageInfo.label}
+                                                </span>
                                             </div>
-                                        )}
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                                            <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
-                                                <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Πελάτης</div>
-                                                <div className="flex items-center gap-1.5 min-w-0">
+
+                                            {/* Metadata line (single row, no grid) */}
+                                            <div className="mt-3 flex items-center flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500">
+                                                <span className="flex items-center gap-1 font-semibold text-slate-700">
                                                     <User size={11} className="text-slate-400 shrink-0" />
-                                                    <span className="font-bold text-slate-700 truncate">{currentCustomer}</span>
-                                                </div>
+                                                    {currentCustomer}
+                                                </span>
+                                                {batch.order_id && (
+                                                    <>
+                                                        <span className="text-slate-300">·</span>
+                                                        <span className="flex items-center gap-1 font-mono text-slate-500">
+                                                            <Hash size={10} className="text-slate-400 shrink-0" />
+                                                            {formatOrderId(batch.order_id)}
+                                                        </span>
+                                                    </>
+                                                )}
+                                                <span className="text-slate-300">·</span>
+                                                <span className="flex items-center gap-1 text-slate-500">
+                                                    <Calendar size={10} className="text-slate-400 shrink-0" />
+                                                    {stageEnteredLabel}
+                                                </span>
+                                                <span className="text-slate-300">·</span>
+                                                <span className="flex items-center gap-1 text-slate-500">
+                                                    <Package size={10} className="text-slate-400 shrink-0" />
+                                                    {productionTypeLabel}
+                                                </span>
                                             </div>
-                                            <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
-                                                <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Παραγγελία</div>
-                                                <div className="flex items-center gap-1.5 text-slate-700 font-bold">
-                                                    <Hash size={11} className="text-slate-400 shrink-0" />
-                                                    <span>{batch.order_id ? formatOrderId(batch.order_id) : '-'}</span>
+
+                                            {/* Notes (once, full text) */}
+                                            {batch.notes && (
+                                                <div className="mt-2.5 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 flex items-start gap-2">
+                                                    <StickyNote size={13} className="text-amber-500 shrink-0 mt-0.5" />
+                                                    <p className="text-xs font-medium text-amber-800 leading-relaxed whitespace-pre-wrap break-words">{batch.notes}</p>
                                                 </div>
-                                            </div>
-                                            <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
-                                                <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Στο στάδιο από</div>
-                                                <div className="flex items-center gap-1.5 text-slate-700 font-bold">
-                                                    <Calendar size={11} className="text-slate-400 shrink-0" />
-                                                    <span>{stageEnteredLabel}</span>
-                                                </div>
-                                            </div>
-                                            <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
-                                                <div className="text-[10px] uppercase tracking-widest text-slate-400 font-black mb-1">Τύπος</div>
-                                                <div className="flex items-center gap-1.5 text-slate-700 font-bold">
-                                                    <Package size={11} className="text-slate-400 shrink-0" />
-                                                    <span>{batch.product_details?.production_type === ProductionType.Imported ? 'Εισαγωγής' : 'Παραγωγή'}</span>
-                                                </div>
-                                            </div>
+                                            )}
+
+                                            {/* Hold + Move controls — hideNotes since we show notes above */}
+                                            <FinderBatchStageSelector
+                                                batch={batch}
+                                                onMoveToStage={onMoveBatch}
+                                                onToggleHold={onToggleHold}
+                                                hideNotes
+                                            />
                                         </div>
-                                        {/* Notes - full, untruncated */}
-                                        {batch.notes && (
-                                            <div className="mb-3 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 flex items-start gap-2">
-                                                <StickyNote size={13} className="text-amber-500 shrink-0 mt-0.5" />
-                                                <p className="text-xs font-medium text-amber-800 leading-relaxed whitespace-pre-wrap break-words">{batch.notes}</p>
-                                            </div>
-                                        )}
-                                        {/* Hold + Move controls */}
-                                        <FinderBatchStageSelector
-                                            batch={batch}
-                                            onMoveToStage={onMoveBatch}
-                                            onToggleHold={onToggleHold}
-                                        />
                                     </div>
-                                </div>
                                 </React.Fragment>
                             );
                         })
