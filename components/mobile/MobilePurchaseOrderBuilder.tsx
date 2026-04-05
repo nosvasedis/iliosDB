@@ -1,11 +1,13 @@
 
 import React, { useState, useMemo } from 'react';
-import { Supplier, SupplierOrderItem, SupplierOrderType, Product, ProductionStage, Gender, ProductionType } from '../../types';
-import { X, Search, Plus, Save, Trash2, Box, Gem, Factory, ImageIcon, StickyNote, ShoppingCart, Hash } from 'lucide-react';
+import { Supplier, SupplierOrderItem, SupplierOrderType, Product, Gender } from '../../types';
+import { X, Search, Plus, Save, Trash2, Box, Gem, Factory, ImageIcon, StickyNote, ShoppingCart, Hash, ListPlus, ChevronDown } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { useUI } from '../UIProvider';
-import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine';
+import { getVariantComponents } from '../../utils/pricingEngine';
+import { useSupplierOrderNeeds } from '../../hooks/useSupplierOrderNeeds';
+import { mergeManyNeedsIntoItems } from '../../utils/mergeSupplierNeedIntoOrder';
 
 interface Props {
     supplier: Supplier;
@@ -35,86 +37,37 @@ const STONE_TEXT_COLORS: Record<string, string> = {
 export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props) {
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
     const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
-    const { data: productionBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
-    const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
     const queryClient = useQueryClient();
     const { showToast } = useUI();
+    const { productionNeeds, pendingOrderNeeds } = useSupplierOrderNeeds(supplier);
 
     const [items, setItems] = useState<SupplierOrderItem[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [searchType, setSearchType] = useState<SupplierOrderType>('Product');
     const [notes, setNotes] = useState('');
     const [showAllProducts, setShowAllProducts] = useState(false);
+    const [productionNeedsOpen, setProductionNeedsOpen] = useState(true);
+    const [pendingNeedsOpen, setPendingNeedsOpen] = useState(true);
 
-    // Production Needs Logic
-    const productionNeeds = useMemo(() => {
-        if (!productionBatches || !products || !orders) return [];
-        const awaiting = productionBatches.filter(b => b.current_stage === ProductionStage.AwaitingDelivery);
-        const groupedNeeds: Record<string, { sku: string, variant: string, size?: string, totalQty: number, product?: Product, requirements: { orderId: string, customer: string }[] }> = {};
+    const addAllProductionNeeds = () => {
+        const withProduct = productionNeeds.filter(n => n.product);
+        if (withProduct.length === 0) {
+            showToast('Δεν υπάρχουν διαθέσιμες γραμμές.', 'error');
+            return;
+        }
+        setItems(prev => mergeManyNeedsIntoItems(prev, withProduct));
+        showToast(`Προστέθηκαν ${withProduct.length} γραμμές από τις ανάγκες παραγωγής.`, 'success');
+    };
 
-        awaiting.forEach(b => {
-            const key = `${b.sku}-${b.variant_suffix || ''}-${b.size_info || ''}`;
-            if (!groupedNeeds[key]) {
-                const product = products.find(p => p.sku === b.sku);
-                groupedNeeds[key] = {
-                    sku: b.sku,
-                    variant: b.variant_suffix || '',
-                    size: b.size_info || undefined,
-                    totalQty: 0,
-                    product,
-                    requirements: []
-                };
-            }
-            groupedNeeds[key].totalQty += b.quantity;
-            if (b.order_id) {
-                const order = orders.find(o => o.id === b.order_id);
-                groupedNeeds[key].requirements.push({
-                    orderId: b.order_id,
-                    customer: order?.customer_name || 'Άγνωστος'
-                });
-            }
-        });
-
-        // Filter: Show if assigned to this supplier OR if unassigned
-        return Object.values(groupedNeeds).filter(n => n.product?.supplier_id === supplier.id || !n.product?.supplier_id);
-    }, [productionBatches, products, supplier.id, orders]);
-
-    // Order Needs Logic (Pending Orders)
-    const pendingOrderNeeds = useMemo(() => {
-        if (!orders || !products) return [];
-
-        const groupedOrderNeeds: Record<string, { sku: string, variant: string, size?: string, totalQty: number, product?: Product, requirements: { orderId: string, customer: string }[] }> = {};
-
-        // Only look at Pending orders.
-        const pendingOrders = orders.filter(o => o.status === 'Pending');
-
-        pendingOrders.forEach(order => {
-            order.items.forEach(item => {
-                const product = products.find(p => p.sku === item.sku);
-                // Filter by supplier match (or unassigned) AND product is Imported
-                if ((product?.supplier_id === supplier.id || !product?.supplier_id) && product?.production_type === ProductionType.Imported) {
-                    const key = `${item.sku}-${item.variant_suffix || ''}-${item.size_info || ''}`;
-                    if (!groupedOrderNeeds[key]) {
-                        groupedOrderNeeds[key] = {
-                            sku: item.sku,
-                            variant: item.variant_suffix || '',
-                            size: item.size_info || undefined,
-                            totalQty: 0,
-                            product,
-                            requirements: []
-                        };
-                    }
-                    groupedOrderNeeds[key].totalQty += item.quantity;
-                    groupedOrderNeeds[key].requirements.push({
-                        orderId: order.id,
-                        customer: order.customer_name
-                    });
-                }
-            });
-        });
-
-        return Object.values(groupedOrderNeeds);
-    }, [orders, products, supplier.id]);
+    const addAllPendingOrderNeeds = () => {
+        const withProduct = pendingOrderNeeds.filter(n => n.product);
+        if (withProduct.length === 0) {
+            showToast('Δεν υπάρχουν διαθέσιμες γραμμές.', 'error');
+            return;
+        }
+        setItems(prev => mergeManyNeedsIntoItems(prev, withProduct));
+        showToast(`Προστέθηκαν ${withProduct.length} γραμμές από τις εκκρεμείς παραγγελίες.`, 'success');
+    };
 
     // Filter Logic
     const searchResults = useMemo(() => {
@@ -209,7 +162,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
     const removeItem = (index: number) => setItems(prev => prev.filter((_, i) => i !== index));
 
     const handleSave = async () => {
-        if (items.length === 0) { showToast("Η παραγγελία είναι κενή.", "error"); return; }
+        if (items.length === 0) { showToast("Η εντολή είναι κενή.", "error"); return; }
 
         try {
             const order = {
@@ -224,7 +177,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
             };
             await api.saveSupplierOrder(order as any);
             queryClient.invalidateQueries({ queryKey: ['supplier_orders'] });
-            showToast("Παραγγελία δημιουργήθηκε!", "success");
+            showToast("Η εντολή δημιουργήθηκε!", "success");
             onClose();
         } catch (e) {
             showToast("Σφάλμα.", "error");
@@ -233,9 +186,14 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
 
     return (
         <div className="fixed inset-0 z-[110] bg-slate-50 flex flex-col animate-in slide-in-from-bottom duration-300">
-            <div className="bg-white p-4 border-b border-slate-100 flex justify-between items-center shadow-sm z-10">
-                <h2 className="text-lg font-black text-slate-800">Νέα Παραγγελία Αγοράς</h2>
-                <button onClick={onClose}><X size={24} className="text-slate-500" /></button>
+            <div className="bg-white p-4 border-b border-slate-100 flex justify-between items-start gap-3 shadow-sm z-10">
+                <div className="min-w-0">
+                    <h2 className="text-lg font-black text-slate-800">Νέα Εντολή Αγοράς</h2>
+                    <p className="text-xs text-slate-500 font-bold truncate mt-0.5">{supplier.name}</p>
+                </div>
+                <button type="button" onClick={onClose} className="shrink-0 p-1 -mr-1 rounded-lg hover:bg-slate-100" aria-label="Κλείσιμο">
+                    <X size={24} className="text-slate-500" />
+                </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -243,10 +201,33 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                 {/* Production Needs */}
                 {productionNeeds.length > 0 && (
                     <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 space-y-2">
-                        <div className="flex items-center gap-2 text-xs font-black text-indigo-700 uppercase mb-2">
-                            <Factory size={14} /> Ανάγκες Παραγωγής
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                            <button
+                                type="button"
+                                onClick={() => setProductionNeedsOpen(o => !o)}
+                                className="flex items-center gap-2 text-xs font-black text-indigo-700 uppercase text-left min-w-0 flex-1 rounded-lg hover:bg-indigo-100/50 -m-1 p-1 transition-colors"
+                                aria-expanded={productionNeedsOpen}
+                            >
+                                <ChevronDown
+                                    size={16}
+                                    className={`shrink-0 text-indigo-600 transition-transform duration-200 ${productionNeedsOpen ? 'rotate-0' : '-rotate-90'}`}
+                                    aria-hidden
+                                />
+                                <Factory size={14} className="shrink-0" />
+                                <span className="truncate">Ανάγκες Παραγωγής</span>
+                            </button>
+                            <div className="flex items-center gap-2 shrink-0">
+                                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-100/80 px-2 py-0.5 rounded-md">{productionNeeds.length} είδη</span>
+                                <button
+                                    type="button"
+                                    onClick={addAllProductionNeeds}
+                                    className="flex items-center gap-1 bg-indigo-600 text-white px-2.5 py-1 rounded-lg text-[10px] font-black uppercase active:scale-95 transition-transform"
+                                >
+                                    <ListPlus size={14} /> Όλα
+                                </button>
+                            </div>
                         </div>
-                        {productionNeeds.map((n, idx) => (
+                        {productionNeedsOpen && productionNeeds.map((n, idx) => (
                             <div key={idx} className="bg-white p-2 rounded-xl flex justify-between items-center border border-indigo-200">
                                 <div className="min-w-0 flex-1 pr-2">
                                     <div className="text-sm font-bold text-slate-700 flex items-center gap-2">
@@ -271,10 +252,33 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                 {/* Pending Order Needs */}
                 {pendingOrderNeeds.length > 0 && (
                     <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 space-y-2">
-                        <div className="flex items-center gap-2 text-xs font-black text-blue-700 uppercase mb-2">
-                            <ShoppingCart size={14} /> Ανάγκες Παραγγελιών (Εκκρεμείς)
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                            <button
+                                type="button"
+                                onClick={() => setPendingNeedsOpen(o => !o)}
+                                className="flex items-center gap-2 text-xs font-black text-blue-700 uppercase text-left min-w-0 flex-1 rounded-lg hover:bg-blue-100/50 -m-1 p-1 transition-colors"
+                                aria-expanded={pendingNeedsOpen}
+                            >
+                                <ChevronDown
+                                    size={16}
+                                    className={`shrink-0 text-blue-600 transition-transform duration-200 ${pendingNeedsOpen ? 'rotate-0' : '-rotate-90'}`}
+                                    aria-hidden
+                                />
+                                <ShoppingCart size={14} className="shrink-0" />
+                                <span className="truncate">Ανάγκες Παραγγελιών (Εκκρεμείς)</span>
+                            </button>
+                            <div className="flex items-center gap-2 shrink-0">
+                                <span className="text-[10px] font-bold text-blue-600 bg-blue-100/80 px-2 py-0.5 rounded-md">{pendingOrderNeeds.length} είδη</span>
+                                <button
+                                    type="button"
+                                    onClick={addAllPendingOrderNeeds}
+                                    className="flex items-center gap-1 bg-blue-600 text-white px-2.5 py-1 rounded-lg text-[10px] font-black uppercase active:scale-95 transition-transform"
+                                >
+                                    <ListPlus size={14} /> Όλα
+                                </button>
+                            </div>
                         </div>
-                        {pendingOrderNeeds.map((n, idx) => (
+                        {pendingNeedsOpen && pendingOrderNeeds.map((n, idx) => (
                             <div key={idx} className="bg-white p-2 rounded-xl flex justify-between items-center border border-blue-200">
                                 <div className="min-w-0 flex-1 pr-2">
                                     <div className="text-sm font-bold text-slate-700 flex items-center gap-2">
@@ -438,14 +442,14 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                 </div>
 
                 <div className="pt-4">
-                    <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Σημειώσεις Παραγγελίας</label>
+                    <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Σημειώσεις Εντολής</label>
                     <textarea value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none h-20 resize-none mt-1" placeholder="Εσωτερικές σημειώσεις..." />
                 </div>
             </div>
 
             <div className="p-4 bg-white border-t border-slate-200 z-20">
                 <button onClick={handleSave} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform">
-                    <Save size={20} /> Αποθήκευση Παραγγελίας
+                    <Save size={20} /> Αποθήκευση Εντολής
                 </button>
             </div>
         </div>
