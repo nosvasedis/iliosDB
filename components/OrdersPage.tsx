@@ -17,8 +17,9 @@ import ShipmentCreationModal from './deliveries/ShipmentCreationModal';
 import { invalidateOrdersAndBatches } from '../lib/queryInvalidation';
 import { buildPartialOrderFromBatches, buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildSyntheticAggregatedBatches, getShipmentStageBreakdown, getShipmentSummary, getShipmentValue } from '../features/orders';
 import { getOrderStatusClasses, getOrderStatusLabel, getOrderStatusIcon } from '../features/orders/statusPresentation';
-import { getDeterministicTagColor } from '../features/orders/tagColors';
+import { getTagColor } from '../features/orders/tagColors';
 import { OrdersFilterPanel, OrderFilters, DEFAULT_FILTERS, countActiveFilters } from './orders/OrdersFilterPanel';
+import { useTagColorOverrides } from '../hooks/api/useTagColorOverrides';
 import { getSpecialCreationProductStub, isSpecialCreationSku } from '../utils/specialCreationSku';
 import { useCollections } from '../hooks/api/useCollections';
 import { useCustomers, useOrderShipmentsForOrder, useOrders } from '../hooks/api/useOrders';
@@ -468,6 +469,9 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     const [filters, setFilters] = useState<OrderFilters>(DEFAULT_FILTERS);
     const deferredSearchTerm = React.useDeferredValue(searchTerm);
 
+    // Tag color overrides — synced via Supabase, shared across all devices
+    const { overrides: tagColorOverrides, changeTagColor: handleChangeTagColor } = useTagColorOverrides();
+
     // Create/Edit/Manage State
     const [isCreating, setIsCreating] = useState(false);
     const [editingOrder, setEditingOrder] = useState<Order | null>(null);
@@ -903,6 +907,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                 allSellers={allSellers}
                 filters={filters}
                 onChange={setFilters}
+                tagColorOverrides={tagColorOverrides}
+                onChangeTagColor={handleChangeTagColor}
             />
 
             {/* ACTIVE FILTERS SUMMARY BAR */}
@@ -932,7 +938,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                         </span>
                     ))}
                     {Array.from(filters.tags).map(tag => {
-                        const c = getDeterministicTagColor(tag);
+                        const c = getTagColor(tag, tagColorOverrides);
                         return (
                             <span key={tag} className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border font-bold ${c.activeBg} ${c.activeText} ${c.activeBorder}`}>
                                 {tag}
@@ -1001,7 +1007,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                             {order.tags && order.tags.length > 0 && (
                                                 <div className="flex gap-1.5 mt-2 flex-wrap">
                                                     {order.tags.map(t => {
-                                                        const c = getDeterministicTagColor(t);
+                                                        const c = getTagColor(t, tagColorOverrides);
                                                         return (
                                                             <span key={t} className={`text-[10px] px-2 py-1 rounded-md border font-bold uppercase tracking-wide ${c.bg} ${c.text} ${c.border}`}>{t}</span>
                                                         );
@@ -1117,7 +1123,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                         <div className="p-6 space-y-4">
                             <div className="flex flex-wrap gap-2 min-h-9">
                                 {managingOrder.tags && managingOrder.tags.map(t => {
-                                    const c = getDeterministicTagColor(t);
+                                    const c = getTagColor(t, tagColorOverrides);
                                     return (
                                         <span key={t} className={`${c.bg} ${c.border} ${c.text} border px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5`}>
                                             {t}
@@ -1155,7 +1161,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                             <div className="text-[10px] font-bold text-slate-400 uppercase px-3 pt-2 pb-1">Υπάρχουσες ετικέτες</div>
                                             <div className="max-h-44 overflow-y-auto">
                                                 {tagSuggestions.map(s => {
-                                                    const c = getDeterministicTagColor(s);
+                                                    const c = getTagColor(s, tagColorOverrides);
                                                     return (
                                                         <button
                                                             key={s}

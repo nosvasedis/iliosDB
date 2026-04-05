@@ -47,10 +47,26 @@ const TAG_PALETTE: TagColorClassSet[] = [
   { bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-300', activeBg: 'bg-slate-700', activeText: 'text-white', activeBorder: 'border-slate-800', ring: 'ring-slate-400' },
 ];
 
+export const TAG_PALETTE_LENGTH = TAG_PALETTE.length;
+
+/** The `activeBg` Tailwind class for each palette entry — used to render color swatches. */
+export const TAG_PALETTE_PREVIEW: string[] = TAG_PALETTE.map(e => e.activeBg);
+
 export function getDeterministicTagColor(tag: string): TagColorClassSet {
   let hash = 0;
   for (let i = 0; i < tag.length; i += 1) {
     hash = (hash * 31 + tag.charCodeAt(i)) >>> 0;
   }
   return TAG_PALETTE[hash % TAG_PALETTE.length];
+}
+
+/**
+ * Returns the color set for a tag, respecting any manual override.
+ * `overrides` maps tag → palette index (0-based).
+ */
+export function getTagColor(tag: string, overrides?: Record<string, number>): TagColorClassSet {
+  if (overrides && overrides[tag] !== undefined) {
+    return TAG_PALETTE[overrides[tag] % TAG_PALETTE.length];
+  }
+  return getDeterministicTagColor(tag);
 }

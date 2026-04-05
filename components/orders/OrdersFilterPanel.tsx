@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, SlidersHorizontal, X, Calendar, Tag, User, Activity } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { ChevronDown, ChevronUp, SlidersHorizontal, X, Calendar, Tag, User, Activity, Palette } from 'lucide-react';
 import { OrderStatus } from '../../types';
-import { getDeterministicTagColor } from '../../features/orders/tagColors';
+import { getTagColor, TAG_PALETTE_LENGTH, TAG_PALETTE_PREVIEW } from '../../features/orders/tagColors';
 import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
 
 export interface OrderFilters {
@@ -38,6 +38,8 @@ interface OrdersFilterPanelProps {
   allSellers: string[];
   filters: OrderFilters;
   onChange: (f: OrderFilters) => void;
+  tagColorOverrides: Record<string, number>;
+  onChangeTagColor: (tag: string, paletteIndex: number) => void;
 }
 
 const ALL_STATUSES: OrderStatus[] = [
@@ -57,9 +59,35 @@ const DATE_PRESETS: Array<{ id: OrderFilters['datePreset']; label: string }> = [
   { id: 'custom', label: 'Προσαρμ.' },
 ];
 
-export function OrdersFilterPanel({ allTags, allSellers, filters, onChange }: OrdersFilterPanelProps) {
-  const [open, setOpen] = useState(true);
+const TAG_LOGIC_OPTIONS: Array<{ id: 'AND' | 'OR'; label: string }> = [
+  { id: 'AND', label: 'ΚΑΙ' },
+  { id: 'OR', label: 'Ή' },
+];
+
+export function OrdersFilterPanel({
+  allTags,
+  allSellers,
+  filters,
+  onChange,
+  tagColorOverrides,
+  onChangeTagColor,
+}: OrdersFilterPanelProps) {
+  const [open, setOpen] = useState(false);
+  const [colorPickerTag, setColorPickerTag] = useState<string | null>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
   const activeCount = countActiveFilters(filters);
+
+  // Close picker when clicking outside
+  useEffect(() => {
+    if (!colorPickerTag) return;
+    const handler = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setColorPickerTag(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [colorPickerTag]);
 
   const toggleStatus = (s: OrderStatus) => {
     const next = new Set(filters.statuses);
@@ -68,12 +96,11 @@ export function OrdersFilterPanel({ allTags, allSellers, filters, onChange }: Or
   };
 
   const setDatePreset = (preset: OrderFilters['datePreset']) => {
-    const isCustom = preset === 'custom';
     onChange({
       ...filters,
       datePreset: preset,
-      dateFrom: isCustom ? (filters.dateFrom ?? '') : null,
-      dateTo: isCustom ? (filters.dateTo ?? '') : null,
+      dateFrom: preset === 'custom' ? (filters.dateFrom ?? '') : null,
+      dateTo: preset === 'custom' ? (filters.dateTo ?? '') : null,
     });
   };
 
@@ -92,11 +119,11 @@ export function OrdersFilterPanel({ allTags, allSellers, filters, onChange }: Or
   const setTagLogic = (logic: 'AND' | 'OR') => onChange({ ...filters, tagLogic: logic });
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden transition-all">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-visible transition-all">
       {/* Header */}
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50/70 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50/70 transition-colors rounded-2xl"
       >
         <div className="flex items-center gap-2">
           <SlidersHorizontal size={14} className="text-slate-500" />
@@ -125,7 +152,7 @@ export function OrdersFilterPanel({ allTags, allSellers, filters, onChange }: Or
 
       {/* Body */}
       <div
-        className={`transition-all duration-300 ease-in-out overflow-hidden ${open ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'}`}
+        className={`transition-all duration-300 ease-in-out overflow-hidden ${open ? 'max-h-[700px] opacity-100' : 'max-h-0 opacity-0'}`}
       >
         <div className="px-4 pb-4 space-y-4 border-t border-slate-50 pt-3">
 
@@ -190,7 +217,7 @@ export function OrdersFilterPanel({ allTags, allSellers, filters, onChange }: Or
             )}
           </FilterSection>
 
-          {/* SELLERS — only shown when sellers exist */}
+          {/* SELLERS */}
           {allSellers.length > 0 && (
             <FilterSection icon={<User size={12} />} label="Πλάσιε">
               <div className="flex flex-wrap gap-1.5">
@@ -214,43 +241,83 @@ export function OrdersFilterPanel({ allTags, allSellers, filters, onChange }: Or
             </FilterSection>
           )}
 
-          {/* TAGS — only shown when tags exist */}
+          {/* TAGS */}
           {allTags.length > 0 && (
             <FilterSection icon={<Tag size={12} />} label="Ετικέτες">
               <div className="flex flex-wrap gap-1.5 items-center">
-                {/* AND/OR toggle */}
-                <div className="flex bg-slate-100 rounded-lg p-0.5 mr-1">
-                  {(['AND', 'OR'] as const).map(logic => (
+                {/* ΚΑΙ / Ή toggle */}
+                <div className="flex bg-slate-100 rounded-lg p-0.5 mr-1 shrink-0">
+                  {TAG_LOGIC_OPTIONS.map(({ id, label }) => (
                     <button
-                      key={logic}
-                      onClick={() => setTagLogic(logic)}
-                      className={`text-[10px] px-2 py-0.5 rounded-md font-black transition-all ${
-                        filters.tagLogic === logic
+                      key={id}
+                      onClick={() => setTagLogic(id)}
+                      className={`text-[10px] px-2.5 py-0.5 rounded-md font-black transition-all ${
+                        filters.tagLogic === id
                           ? 'bg-white text-slate-700 shadow-sm'
                           : 'text-slate-400 hover:text-slate-600'
                       }`}
                     >
-                      {logic}
+                      {label}
                     </button>
                   ))}
                 </div>
+
                 {allTags.map(tag => {
                   const active = filters.tags.has(tag);
-                  const c = getDeterministicTagColor(tag);
+                  const c = getTagColor(tag, tagColorOverrides);
+                  const isPickerOpen = colorPickerTag === tag;
                   return (
-                    <button
-                      key={tag}
-                      onClick={() => toggleTag(tag)}
-                      className={`text-[11px] px-2.5 py-1 rounded-full border font-bold transition-all ${
-                        active
-                          ? `${c.activeBg} ${c.activeText} ${c.activeBorder} shadow-sm ring-2 ring-offset-1 ${c.ring}`
-                          : `${c.bg} ${c.text} ${c.border} hover:opacity-80`
-                      }`}
-                    >
-                      {tag}
-                    </button>
+                    <div key={tag} className="relative flex items-center group">
+                      <button
+                        onClick={() => toggleTag(tag)}
+                        className={`text-[11px] px-2.5 py-1 rounded-full border font-bold transition-all pr-7 ${
+                          active
+                            ? `${c.activeBg} ${c.activeText} ${c.activeBorder} shadow-sm ring-2 ring-offset-1 ${c.ring}`
+                            : `${c.bg} ${c.text} ${c.border} hover:opacity-80`
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                      {/* Color picker trigger */}
+                      <button
+                        onClick={e => { e.stopPropagation(); setColorPickerTag(isPickerOpen ? null : tag); }}
+                        title="Αλλαγή χρώματος"
+                        className={`absolute right-1.5 flex items-center justify-center w-4 h-4 rounded-full transition-all ${
+                          active
+                            ? 'opacity-70 hover:opacity-100 text-white'
+                            : 'opacity-0 group-hover:opacity-60 hover:!opacity-100 text-slate-500'
+                        } ${isPickerOpen ? '!opacity-100' : ''}`}
+                      >
+                        <Palette size={9} />
+                      </button>
+
+                      {/* Color picker popover */}
+                      {isPickerOpen && (
+                        <div
+                          ref={pickerRef}
+                          className="absolute top-full left-0 mt-1.5 z-50 bg-white border border-slate-200 rounded-xl shadow-xl p-2.5 flex flex-wrap gap-1.5 w-[168px]"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <p className="w-full text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Χρώμα ετικέτας</p>
+                          {Array.from({ length: TAG_PALETTE_LENGTH }, (_, i) => (
+                            <button
+                              key={i}
+                              onClick={() => { onChangeTagColor(tag, i); setColorPickerTag(null); }}
+                              className={`w-6 h-6 rounded-full border-2 transition-all hover:scale-110 ${TAG_PALETTE_PREVIEW[i]} ${
+                                (tagColorOverrides[tag] === i) ||
+                                (tagColorOverrides[tag] === undefined && getDeterministicIndex(tag) === i)
+                                  ? 'border-slate-800 ring-2 ring-slate-400 ring-offset-1'
+                                  : 'border-white shadow-sm'
+                              }`}
+                              title={`Χρώμα ${i + 1}`}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
+
                 {filters.tags.size > 0 && (
                   <button
                     onClick={() => onChange({ ...filters, tags: new Set() })}
@@ -274,6 +341,15 @@ export function OrdersFilterPanel({ allTags, allSellers, filters, onChange }: Or
       </div>
     </div>
   );
+}
+
+/** Returns the deterministic palette index for a tag (mirrors getDeterministicTagColor logic). */
+function getDeterministicIndex(tag: string): number {
+  let hash = 0;
+  for (let i = 0; i < tag.length; i += 1) {
+    hash = (hash * 31 + tag.charCodeAt(i)) >>> 0;
+  }
+  return hash % TAG_PALETTE_LENGTH;
 }
 
 function FilterSection({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
