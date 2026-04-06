@@ -39,6 +39,7 @@ import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { getProductionStageLabel } from '../utils/productionStages';
+import DesktopPageHeader from './DesktopPageHeader';
 
 interface Props {
   products: Product[];
@@ -255,35 +256,36 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
 
   return (
     <div className="space-y-8 pb-12">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div>
-          <h1 className="text-3xl font-black text-[#060b00] tracking-tight">Πίνακας Ελέγχου</h1>
-          <p className="text-slate-500 mt-2 font-medium">Έξυπνη επισκόπηση και ανάλυση κερδοφορίας της επιχείρησης.</p>
-        </div>
-        
-        <div className="bg-white p-1.5 rounded-2xl border border-slate-100 shadow-sm flex overflow-x-auto scrollbar-hide">
+      <DesktopPageHeader
+        icon={Activity}
+        title="Πίνακας Ελέγχου"
+        subtitle="Έξυπνη επισκόπηση και ανάλυση κερδοφορίας της επιχείρησης."
+        tail={(
+          <div className="flex overflow-x-auto rounded-2xl border border-slate-100 bg-white p-1.5 shadow-sm scrollbar-hide">
             {[
-                { id: 'overview', label: 'Επισκόπηση', icon: Activity },
-                { id: 'financials', label: 'Οικονομικά', icon: DollarSign },
-                { id: 'production', label: 'Παραγωγή', icon: Factory },
-                { id: 'inventory', label: 'Αποθήκη', icon: Package },
+              { id: 'overview', label: 'Επισκόπηση', icon: Activity },
+              { id: 'financials', label: 'Οικονομικά', icon: DollarSign },
+              { id: 'production', label: 'Παραγωγή', icon: Factory },
+              { id: 'inventory', label: 'Αποθήκη', icon: Package },
             ].map(tab => (
-                <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id as any)}
-                    className={`
-                        flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap
-                        ${activeTab === tab.id 
-                            ? 'bg-[#060b00] text-white shadow-md' 
-                            : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                className={`
+                        flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold transition-all
+                        ${activeTab === tab.id
+                    ? 'bg-[#060b00] text-white shadow-md'
+                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}
                     `}
-                >
-                    <tab.icon size={16} />
-                    {tab.label}
-                </button>
+              >
+                <tab.icon size={16} />
+                {tab.label}
+              </button>
             ))}
-        </div>
-      </div>
+          </div>
+        )}
+      />
 
       {activeTab === 'overview' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">

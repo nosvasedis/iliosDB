@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Bell, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { Bell, CalendarRange, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import DesktopPageHeader from './DesktopPageHeader';
 import { useOrthodoxCalendarEvents } from '../hooks/api/useOrthodoxCalendarEvents';
 import { useOrderDeliveryPlans } from '../hooks/api/useOrderDeliveryPlans';
 import { useDeliveryAlerts } from '../hooks/useDeliveryAlerts';
@@ -206,22 +207,23 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-slate-900">Ημερολόγιο</h1>
-          <p className="text-sm font-medium text-slate-500 mt-1">Ατζέντα ημέρας, ενέργειες που χρειάζονται τώρα και λεπτομέρειες ανά παράδοση.</p>
-        </div>
-        <div className="flex gap-3">
-          {notificationPermission !== 'granted' && (
-            <button onClick={requestBrowserPermission} className="px-4 py-3 rounded-2xl bg-white border border-slate-200 text-slate-700 font-bold text-sm flex items-center gap-2">
-              <Bell size={16} /> Ενεργοποίηση ειδοποιήσεων
+      <DesktopPageHeader
+        icon={CalendarRange}
+        title="Ημερολόγιο"
+        subtitle="Ατζέντα ημέρας, ενέργειες που χρειάζονται τώρα και λεπτομέρειες ανά παράδοση."
+        tail={(
+          <div className="flex flex-wrap gap-3">
+            {notificationPermission !== 'granted' && (
+              <button type="button" onClick={requestBrowserPermission} className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700">
+                <Bell size={16} /> Ενεργοποίηση ειδοποιήσεων
+              </button>
+            )}
+            <button type="button" onClick={() => { setPlannerOrder(null); setSelectedItem(null); setIsPlannerOpen(true); }} className="flex items-center gap-2 rounded-2xl bg-[#060b00] px-4 py-3 text-sm font-bold text-white">
+              <Plus size={16} /> Νέο πλάνο
             </button>
-          )}
-          <button onClick={() => { setPlannerOrder(null); setSelectedItem(null); setIsPlannerOpen(true); }} className="px-4 py-3 rounded-2xl bg-[#060b00] text-white font-bold text-sm flex items-center gap-2">
-            <Plus size={16} /> Νέο πλάνο
-          </button>
-        </div>
-      </div>
+          </div>
+        )}
+      />
 
       <DeliverySummaryCards stats={stats} />
       <DeliveryFilters filter={filter} search={search} onFilterChange={setFilter} onSearchChange={setSearch} />

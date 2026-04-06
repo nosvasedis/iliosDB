@@ -17,6 +17,7 @@ import {
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { calculateBusinessStats } from '../utils/businessAnalytics';
 import { APP_LOGO } from '../constants';
+import DesktopPageHeader from './DesktopPageHeader';
 
 interface Props {
     products: Product[];
@@ -52,40 +53,34 @@ export default function AnalyticsView({ products, onBack, onPrint }: Props) {
     return (
         <div className="max-w-7xl mx-auto space-y-8 pb-20 print:hidden animate-in fade-in duration-500">
 
-            {/* HEADER */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
-                <div className="flex items-center gap-4">
-                    {onBack && (
-                        <button onClick={onBack} className="p-3 hover:bg-slate-100 rounded-2xl text-slate-400 hover:text-slate-800 transition-all active:scale-95">
-                            <ArrowLeft size={20} />
+            <DesktopPageHeader
+                icon={BarChart3}
+                title="Επιχειρηματική Ανάλυση"
+                leading={onBack ? (
+                    <button type="button" onClick={onBack} className="-ml-1 rounded-2xl p-3 text-slate-400 transition-all hover:bg-slate-100 hover:text-slate-800 active:scale-95">
+                        <ArrowLeft size={20} />
+                    </button>
+                ) : undefined}
+                tail={(
+                    <div className="flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setShowHelp(true)}
+                            className="rounded-2xl bg-slate-100 p-3 text-slate-600 transition-colors hover:bg-slate-200"
+                            title="Εξήγηση Όρων"
+                        >
+                            <HelpCircle size={20} />
                         </button>
-                    )}
-                    <div>
-                        <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-                            <div className="p-2.5 bg-blue-600 text-white rounded-2xl shadow-lg">
-                                <BarChart3 size={24} />
-                            </div>
-                            Επιχειρηματική Ανάλυση
-                        </h1>
+                        <button
+                            type="button"
+                            onClick={handlePrint}
+                            className="flex items-center gap-2 rounded-2xl bg-[#060b00] px-6 py-3.5 font-bold text-white shadow-xl transition-all hover:bg-black active:scale-95"
+                        >
+                            <Printer size={20} /> Εκτύπωση PDF
+                        </button>
                     </div>
-                </div>
-
-                <div className="flex gap-2">
-                    <button
-                        onClick={() => setShowHelp(true)}
-                        className="p-3 bg-slate-100 text-slate-600 rounded-2xl hover:bg-slate-200 transition-colors"
-                        title="Εξήγηση Όρων"
-                    >
-                        <HelpCircle size={20} />
-                    </button>
-                    <button
-                        onClick={handlePrint}
-                        className="flex items-center gap-2 bg-[#060b00] text-white px-6 py-3.5 rounded-2xl hover:bg-black font-bold transition-all shadow-xl active:scale-95"
-                    >
-                        <Printer size={20} /> Εκτύπωση PDF
-                    </button>
-                </div>
-            </div>
+                )}
+            />
 
             {/* MAIN KPIs */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

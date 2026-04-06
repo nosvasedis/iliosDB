@@ -18,6 +18,7 @@ import { useMolds } from '../hooks/api/useMolds';
 import { useProducts } from '../hooks/api/useProducts';
 import { useSettings } from '../hooks/api/useSettings';
 import { productsRepository } from '../features/products';
+import DesktopPageHeader from './DesktopPageHeader';
 import {
     buildPrintableSkuMap,
     buildRegistryTableVariants,
@@ -616,64 +617,59 @@ export default function ProductRegistry({ setPrintItems }: Props) {
 
     return (
         <div className="flex flex-col space-y-6">
-            <div ref={headerRef} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col gap-6 shrink-0">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                    <div>
-                        <h1 className="text-3xl font-bold text-[#060b00] tracking-tight flex items-center gap-3">
-                            <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
-                                <Database size={24} />
-                            </div>
-                            Μητρώο Κωδικών
-                        </h1>
-                        <p className="text-slate-500 mt-1 ml-14">
-                            {showStxOnly ? `Προβολή εξαρτημάτων (STX).` : `Διαχείριση προδιαγραφών και κοστολόγησης.`}
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-3 self-stretch md:self-auto w-full md:w-auto">
-                        <div className="flex bg-slate-100 p-1 rounded-xl">
-                            <button onClick={() => setViewMode('grid')} className={`p-2.5 flex items-center justify-center rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+            <DesktopPageHeader
+                ref={headerRef}
+                icon={Database}
+                title="Μητρώο Κωδικών"
+                subtitle={showStxOnly ? 'Προβολή εξαρτημάτων (STX).' : 'Διαχείριση προδιαγραφών και κοστολόγησης.'}
+                tailClassName="flex w-full min-w-0 flex-1 flex-wrap items-center gap-3 lg:ml-auto lg:max-w-none lg:justify-end"
+                tail={(
+                    <>
+                        <div className="flex rounded-xl bg-slate-100 p-1">
+                            <button type="button" onClick={() => setViewMode('grid')} className={`flex items-center justify-center rounded-lg p-2.5 transition-all ${viewMode === 'grid' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
                                 <LayoutGrid size={20} />
                             </button>
-                            <button onClick={() => setViewMode('table')} className={`p-2.5 flex items-center justify-center rounded-lg transition-all ${viewMode === 'table' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                            <button type="button" onClick={() => setViewMode('table')} className={`flex items-center justify-center rounded-lg p-2.5 transition-all ${viewMode === 'table' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
                                 <List size={20} />
                             </button>
                         </div>
-                        <div className="w-px h-8 bg-slate-200 hidden md:block mx-1"></div>
-                        <div className="flex bg-slate-100 p-1 rounded-xl">
-                            <button onClick={() => setShowStxOnly(false)} className={`px-4 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${!showStxOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                        <div className="hidden h-8 w-px bg-slate-200 md:block" aria-hidden />
+                        <div className="flex rounded-xl bg-slate-100 p-1">
+                            <button type="button" onClick={() => setShowStxOnly(false)} className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-all ${!showStxOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                                 <Database size={16} /> Προϊόντα
                             </button>
-                            <button onClick={() => setShowStxOnly(true)} className={`px-4 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${showStxOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                            <button type="button" onClick={() => setShowStxOnly(true)} className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-all ${showStxOnly ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                                 <Puzzle size={16} /> Εξαρτήματα
                             </button>
                         </div>
                         <div className="flex gap-2">
-                            <button onClick={() => setShowScanner(true)} className="flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 px-5 py-3 rounded-xl font-bold transition-all shadow-sm hover:bg-slate-50">
+                            <button type="button" onClick={() => setShowScanner(true)} className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 font-bold text-slate-600 shadow-sm transition-all hover:bg-slate-50">
                                 <Camera size={20} /> <span className="hidden sm:inline">Σάρωση</span>
                             </button>
-                            <button onClick={() => setIsCreating(true)} className="flex items-center justify-center gap-2 bg-[#060b00] hover:bg-black text-white px-5 py-3 rounded-xl font-bold transition-all shadow-md hover:shadow-lg">
+                            <button type="button" onClick={() => setIsCreating(true)} className="flex items-center justify-center gap-2 rounded-xl bg-[#060b00] px-5 py-3 font-bold text-white shadow-md transition-all hover:bg-black hover:shadow-lg">
                                 <PackagePlus size={20} /> <span className="whitespace-nowrap">Νέο</span>
                             </button>
                         </div>
+                    </>
+                )}
+                below={(
+                    <div className="flex flex-col gap-4 md:flex-row md:items-center">
+                        <div className="group relative w-full flex-1">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-emerald-500" size={20} />
+                            <input type="text" placeholder="Αναζήτηση Κωδικού (π.χ. K14300) ή Κατηγορίας..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 font-medium text-slate-900 outline-none transition-all focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/20" />
+                        </div>
+                        <div className="flex w-full gap-2 md:w-auto">
+                            <button type="button" onClick={() => setShowFiltersSidebar(true)} className={`relative flex flex-1 items-center justify-center gap-2 rounded-xl border px-6 py-3 text-sm font-bold transition-all md:flex-none ${(filterCategory !== 'All' || filterGender !== 'All' || subFilters.stone !== 'all' || subFilters.plating !== 'all') ? 'border-black bg-[#060b00] text-white shadow-md' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
+                                <Filter size={18} />
+                                <span>Φίλτρα</span>
+                                {(filterCategory !== 'All' || filterGender !== 'All' || subFilters.stone !== 'all' || subFilters.plating !== 'all') && (
+                                    <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] text-white">!</span>
+                                )}
+                            </button>
+                        </div>
                     </div>
-                </div>
-
-                <div className="flex flex-col md:flex-row gap-4 items-center">
-                    <div className="relative group flex-1 w-full">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={20} />
-                        <input type="text" placeholder="Αναζήτηση Κωδικού (π.χ. K14300) ή Κατηγορίας..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none w-full bg-slate-50 focus:bg-white transition-all text-slate-900 font-medium" />
-                    </div>
-                    <div className="flex gap-2 w-full md:w-auto">
-                        <button onClick={() => setShowFiltersSidebar(true)} className={`flex-1 md:flex-none relative px-6 py-3 rounded-xl font-bold text-sm transition-all border flex items-center justify-center gap-2 ${(filterCategory !== 'All' || filterGender !== 'All' || subFilters.stone !== 'all' || subFilters.plating !== 'all') ? 'bg-[#060b00] text-white shadow-md border-black' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>
-                            <Filter size={18} />
-                            <span>Φίλτρα</span>
-                            {(filterCategory !== 'All' || filterGender !== 'All' || subFilters.stone !== 'all' || subFilters.plating !== 'all') && (
-                                <span className="flex items-center justify-center w-5 h-5 ml-1 text-[10px] bg-emerald-500 text-white rounded-full">!</span>
-                            )}
-                        </button>
-                    </div>
-                </div>
-            </div>
+                )}
+            />
 
             <div ref={scrollContainerRef} className="overflow-y-auto custom-scrollbar pr-1 relative" style={{ maxHeight: 'calc(100dvh - 16rem)' }}>
                 {viewMode === 'grid' ? (

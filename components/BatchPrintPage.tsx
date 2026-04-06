@@ -10,6 +10,7 @@ import BarcodeView from './BarcodeView';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, SYSTEM_IDS, recordStockMovement, supabase } from '../lib/supabase';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
+import DesktopPageHeader from './DesktopPageHeader';
 
 // Set workerSrc for pdf.js.
 GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@4.4.168/build/pdf.worker.mjs`;
@@ -606,48 +607,46 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
 
     return (
         <div className="max-w-6xl mx-auto space-y-8">
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-800 tracking-tight flex items-center gap-3">
-                        <div className="p-2 bg-slate-800 text-white rounded-xl"><Printer size={24} /></div>
-                        Μαζική Εκτύπωση
-                    </h1>
-                    <p className="text-slate-500 mt-1 ml-14">Ετικέτες χονδρικής/λιανικής και φωτο-κατάλογος προϊόντων.</p>
-                </div>
-
-                <div className="flex gap-2">
-                    <input type="file" accept=".pdf" ref={fileInputRef} onChange={handlePdfUpload} className="hidden" />
-
-                    {activeTab === 'labels' && (
-                        <>
-                            <button
-                                onClick={() => setShowHistoryModal(true)}
-                                title="Ιστορικό"
-                                className="p-3 rounded-xl font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all border border-slate-200"
-                            >
-                                <History size={20} />
-                            </button>
-
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={isProcessing}
-                                title="Εισαγωγή PDF"
-                                className="p-3 rounded-xl font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all border border-amber-200 disabled:opacity-50"
-                            >
-                                {isProcessing ? <Loader2 size={20} className="animate-spin" /> : <FileUp size={20} />}
-                            </button>
-
-                            <button
-                                onClick={() => setShowScanner(true)}
-                                title="Σάρωση"
-                                className="p-3 rounded-xl font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-all border border-blue-200"
-                            >
-                                <Camera size={20} />
-                            </button>
-                        </>
-                    )}
-                </div>
-            </div>
+            <DesktopPageHeader
+                icon={Printer}
+                title="Μαζική Εκτύπωση"
+                subtitle="Ετικέτες χονδρικής/λιανικής και φωτο-κατάλογος προϊόντων."
+                tailClassName="flex w-full min-w-0 flex-1 flex-wrap items-center gap-2 lg:ml-auto lg:max-w-none lg:justify-end"
+                tail={(
+                    <>
+                        <input type="file" accept=".pdf" ref={fileInputRef} onChange={handlePdfUpload} className="hidden" />
+                        {activeTab === 'labels' && (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowHistoryModal(true)}
+                                    title="Ιστορικό"
+                                    className="rounded-xl border border-slate-200 bg-slate-100 p-3 font-bold text-slate-700 transition-all hover:bg-slate-200"
+                                >
+                                    <History size={20} />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={isProcessing}
+                                    title="Εισαγωγή PDF"
+                                    className="rounded-xl border border-amber-200 bg-amber-50 p-3 font-bold text-amber-700 transition-all hover:bg-amber-100 disabled:opacity-50"
+                                >
+                                    {isProcessing ? <Loader2 size={20} className="animate-spin" /> : <FileUp size={20} />}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowScanner(true)}
+                                    title="Σάρωση"
+                                    className="rounded-xl border border-blue-200 bg-blue-50 p-3 font-bold text-blue-700 transition-all hover:bg-blue-100"
+                                >
+                                    <Camera size={20} />
+                                </button>
+                            </>
+                        )}
+                    </>
+                )}
+            />
 
             {/* TAB SWITCHER */}
             <div className="bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100 flex gap-1 w-fit">

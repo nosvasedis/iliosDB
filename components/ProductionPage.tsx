@@ -6,6 +6,7 @@ import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender, ProductVariant, Order, OrderStatus, AssemblyPrintData, AssemblyPrintRow, StageBatchPrintData } from '../types';
 import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, ArrowUp, ArrowDown, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, Users, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList, Grid } from 'lucide-react';
 import { useUI } from './UIProvider';
+import DesktopPageHeader from './DesktopPageHeader';
 import { useAuth } from './AuthContext';
 import SkuColorizedText from './SkuColorizedText';
 import BatchBuildModal from './BatchBuildModal';
@@ -2616,21 +2617,14 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     return (
         <div className="h-[calc(100vh-100px)] flex flex-col space-y-4">
 
-            {/* HEADER MOVED TO TOP AND THINNER */}
-            <div className="shrink-0 bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 lg:gap-4">
-                <div className="flex items-center gap-3">
-                    <div className="p-1.5 bg-[#060b00] text-white rounded-xl">
-                        <Factory size={20} />
-                    </div>
-                    <div>
-                        <h1 className="text-xl font-bold text-[#060b00] tracking-tight">
-                            Παραγωγή
-                        </h1>
-                    </div>
-                </div>
-
-                {/* ORDER FINDER (DESKTOP) */}
-                <div className="flex-1 min-w-[260px] w-full mx-4 flex gap-2">
+            <DesktopPageHeader
+                padding="compact"
+                icon={Factory}
+                title="Παραγωγή"
+                tailClassName="flex w-full min-w-0 flex-1 flex-col gap-3 lg:flex-row lg:items-center lg:gap-4"
+                tail={(
+                    <>
+                        <div className="mx-4 flex w-full min-w-[260px] flex-1 gap-2">
                     <button
                         onClick={() => setIsMoldModalOpen(true)}
                         className="hidden lg:flex p-3 rounded-2xl border transition-all shadow-sm bg-white border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-300"
@@ -2839,7 +2833,9 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         <FileText size={12} /> Συγκεντρωτική
                     </button>
                 </div>
-            </div>
+                    </>
+                )}
+            />
 
             <ProductionHealthPanel
                 summary={productionHealthSummary}

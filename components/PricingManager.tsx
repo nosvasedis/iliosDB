@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 import { useUI } from './UIProvider';
+import DesktopPageHeader from './DesktopPageHeader';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
 interface Props {
@@ -516,49 +517,47 @@ export default function PricingManager({ products, settings, materials }: Props)
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto h-[calc(100vh-100px)] flex flex-col">
-      <div className="flex justify-between items-center">
-        <div>
-            <h1 className="text-3xl font-bold text-slate-800 tracking-tight flex items-center gap-3">
-                <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl">
-                    <DollarSign size={24} />
-                </div>
-                Διαχείριση Τιμών
-            </h1>
-            <p className="text-slate-500 mt-2 ml-14">Εργαλεία μαζικής κοστολόγησης και εμπορικής πολιτικής.</p>
-        </div>
-
-        {mode !== 'history' && (
-            <button 
+      <DesktopPageHeader
+        icon={DollarSign}
+        title="Διαχείριση Τιμών"
+        subtitle="Εργαλεία μαζικής κοστολόγησης και εμπορικής πολιτικής."
+        tail={mode !== 'history' ? (
+            <button
+                type="button"
                 onClick={handleCreateSnapshot}
                 disabled={isSnapshotting}
-                className="flex items-center gap-2 bg-white border-2 border-dashed border-slate-300 text-slate-600 px-5 py-3 rounded-2xl hover:border-blue-400 hover:text-blue-600 transition-all font-bold text-sm"
+                className="flex items-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-white px-5 py-3 text-sm font-bold text-slate-600 transition-all hover:border-blue-400 hover:text-blue-600"
             >
-                {isSnapshotting ? <Loader2 size={18} className="animate-spin" /> : <Save size={18}/>}
+                {isSnapshotting ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
                 Backup Τρεχουσών Τιμών
             </button>
+        ) : undefined}
+        below={(
+            <div className="flex w-fit rounded-2xl border border-slate-100 bg-white p-2 shadow-sm">
+                <button
+                    type="button"
+                    onClick={() => switchMode('cost')}
+                    className={`flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold transition-all ${mode === 'cost' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
+                >
+                    <RefreshCw size={16} /> Κόστος (Silver)
+                </button>
+                <button
+                    type="button"
+                    onClick={() => switchMode('selling')}
+                    className={`flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold transition-all ${mode === 'selling' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
+                >
+                    <TrendingUp size={16} /> Markup
+                </button>
+                <button
+                    type="button"
+                    onClick={() => switchMode('history')}
+                    className={`flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold transition-all ${mode === 'history' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
+                >
+                    <History size={16} /> Snapshots
+                </button>
+            </div>
         )}
-      </div>
-
-      <div className="bg-white p-2 rounded-2xl border border-slate-100 shadow-sm flex w-fit">
-          <button 
-            onClick={() => switchMode('cost')} 
-            className={`px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${mode === 'cost' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
-          >
-             <RefreshCw size={16} /> Κόστος (Silver)
-          </button>
-          <button 
-            onClick={() => switchMode('selling')} 
-            className={`px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${mode === 'selling' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
-          >
-             <TrendingUp size={16} /> Markup
-          </button>
-          <button 
-            onClick={() => switchMode('history')} 
-            className={`px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${mode === 'history' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
-          >
-             <History size={16} /> Snapshots
-          </button>
-      </div>
+      />
 
       {mode !== 'history' && (
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 flex flex-col md:flex-row items-start justify-between gap-8 animate-in fade-in">

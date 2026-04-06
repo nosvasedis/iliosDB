@@ -9,6 +9,7 @@ import { useUI } from './UIProvider';
 import { PriceListPrintData } from './PriceListPrintView';
 import { generateCollectionDescription } from '../lib/gemini';
 import ProductDetails from './ProductDetails';
+import DesktopPageHeader from './DesktopPageHeader';
 
 interface Props {
     products?: Product[];
@@ -288,10 +289,11 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
     if (isError) {
         return (
             <div className="max-w-7xl mx-auto space-y-6">
-                 <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
-                    <div className="p-2 bg-blue-100 text-blue-600 rounded-xl"><FolderKanban size={24} /></div>
-                    Διαχείριση Συλλογών
-                 </h1>
+                <DesktopPageHeader
+                    icon={FolderKanban}
+                    title="Διαχείριση Συλλογών"
+                    subtitle="Οργανώστε τα προϊόντα σε ομάδες για εύκολη εκτύπωση και οργάνωση."
+                />
                 <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-6 rounded-r-xl" role="alert">
                     <p className="font-bold mb-2">Σφάλμα!</p>
                     <p>Δεν ήταν δυνατή η φόρτωση των συλλογών.</p>
@@ -303,14 +305,12 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
 
     return (
         <div className="max-w-7xl mx-auto space-y-8 h-[calc(100vh-120px)] flex flex-col">
-            <div>
-                <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3 tracking-tight">
-                   <div className="p-2 bg-blue-100 text-blue-600 rounded-xl"><FolderKanban size={24} /></div>
-                   Διαχείριση Συλλογών
-                </h1>
-                <p className="text-slate-500 mt-2 ml-14">Οργανώστε τα προϊόντα σε ομάδες για εύκολη εκτύπωση και οργάνωση.</p>
-            </div>
-            
+            <DesktopPageHeader
+                icon={FolderKanban}
+                title="Διαχείριση Συλλογών"
+                subtitle="Οργανώστε τα προϊόντα σε ομάδες για εύκολη εκτύπωση και οργάνωση."
+            />
+
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 min-h-0">
                 
                 {/* LEFT: LIST */}

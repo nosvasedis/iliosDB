@@ -8,6 +8,7 @@ import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN } from '../constants';
 import { formatCurrency } from '../utils/pricingEngine';
+import DesktopPageHeader from './DesktopPageHeader';
 
 const MAT_TYPE_MAP: Record<MaterialType, string> = {
     [MaterialType.Stone]: 'Πέτρα',
@@ -449,39 +450,38 @@ export default function MaterialsPage({ settings }: Props) {
   return (
     <div className="space-y-6 h-full flex flex-col">
         {/* HEADER & TABS */}
-        <div ref={headerRef} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm shrink-0">
-            <div className="flex justify-between items-center mb-6">
-                <div>
-                    <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-                        <div className="p-2 bg-slate-900 text-white rounded-xl"><Gem size={24} /></div>
-                        Αποθήκη Υλικών
-                    </h1>
-                    <p className="text-slate-500 mt-1 ml-14 font-medium">Διαχείριση πρώτων υλών & εξαρτημάτων.</p>
-                </div>
+        <DesktopPageHeader
+            ref={headerRef}
+            icon={Gem}
+            title="Αποθήκη Υλικών"
+            subtitle="Διαχείριση πρώτων υλών & εξαρτημάτων."
+            tail={(
                 <div className="text-right">
-                     <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Αξια Αποθηκης</div>
-                     <div className="text-2xl font-black text-emerald-600">{formatCurrency(stats.totalValue)}</div>
+                    <div className="mb-1 text-xs font-bold uppercase tracking-widest text-slate-400">Αξια Αποθηκης</div>
+                    <div className="text-2xl font-black text-emerald-600">{formatCurrency(stats.totalValue)}</div>
                 </div>
-            </div>
-
-            <div className="flex gap-2 bg-slate-50 p-1.5 rounded-2xl overflow-x-auto">
-                {TABS.map(tab => (
-                    <button
-                        key={tab.id}
-                        onClick={() => { setActiveTab(tab.id as MaterialType); }}
-                        className={`
-                            flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm transition-all whitespace-nowrap
-                            ${activeTab === tab.id 
-                                ? 'bg-white text-slate-900 shadow-md ring-1 ring-slate-100' 
-                                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'}
+            )}
+            below={(
+                <div className="flex gap-2 overflow-x-auto rounded-2xl bg-slate-50 p-1.5">
+                    {TABS.map(tab => (
+                        <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => { setActiveTab(tab.id as MaterialType); }}
+                            className={`
+                            flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-3 text-sm font-bold transition-all
+                            ${activeTab === tab.id
+                                ? 'bg-white text-slate-900 shadow-md ring-1 ring-slate-100'
+                                : 'text-slate-500 hover:bg-slate-200 hover:text-slate-700'}
                         `}
-                    >
-                        <tab.icon size={18} className={activeTab === tab.id ? tab.color : 'text-slate-400'}/>
-                        {tab.label}
-                    </button>
-                ))}
-            </div>
-        </div>
+                        >
+                            <tab.icon size={18} className={activeTab === tab.id ? tab.color : 'text-slate-400'} />
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
+            )}
+        />
 
         {/* CONTROLS & CONTENT */}
         <div className="flex-1 min-h-0 flex flex-col">

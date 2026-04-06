@@ -10,6 +10,7 @@ import SupplierOrderPrintView from './SupplierOrderPrintView';
 import DesktopPurchaseOrderBuilder from './DesktopPurchaseOrderBuilder';
 import { usePrint } from './PrintContext';
 import { getSupplierOrderStatusClasses, getSupplierOrderStatusIcon, getSupplierOrderStatusLabel } from '../features/suppliers/statusPresentation';
+import DesktopPageHeader from './DesktopPageHeader';
 
 const MATERIAL_TYPE_LABELS: Record<string, string> = {
     'Stone': 'Πέτρα',
@@ -212,39 +213,33 @@ export default function SuppliersPage() {
     return (
         <div className="h-[calc(100vh-100px)] flex flex-col gap-6">
 
-            {/* Header Controls */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 shrink-0">
-                <div className="flex items-center gap-4">
-                    <div className="p-3 rounded-2xl bg-purple-100 text-purple-600 shadow-sm transition-colors">
-                        <Globe size={28} />
-                    </div>
-                    <div>
-                        <h1 className="text-3xl font-black text-slate-800 tracking-tight">Προμηθευτές</h1>
-                        <p className="text-slate-500 text-sm font-medium">Διαχείριση προμηθευτών και υλικών.</p>
-                    </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
-                    <div className="relative group flex-1 md:flex-none">
-                        <input
-                            type="text"
-                            placeholder="Αναζήτηση προμηθευτή..."
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                            className="pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all w-full md:w-64 shadow-inner font-bold text-sm"
-                        />
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-purple-500 transition-colors" size={18} />
-                    </div>
-
-                    <button
-                        onClick={() => { setSelectedSupplier(null); setSupplierForm({}); setIsEditing(true); }}
-                        className="p-3.5 rounded-xl text-white shadow-lg bg-purple-600 hover:bg-purple-700 transition-all hover:-translate-y-0.5 active:scale-95"
-                        title="Νέος Προμηθευτής"
-                    >
-                        <Plus size={22} strokeWidth={3} />
-                    </button>
-                </div>
-            </div>
+            <DesktopPageHeader
+                icon={Globe}
+                title="Προμηθευτές"
+                subtitle="Διαχείριση προμηθευτών και υλικών."
+                tail={(
+                    <>
+                        <div className="relative group min-w-[12rem] flex-1 md:max-w-xs md:flex-none">
+                            <input
+                                type="text"
+                                placeholder="Αναζήτηση προμηθευτή..."
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm font-bold shadow-inner outline-none transition-all focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10"
+                            />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-purple-500" size={18} />
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => { setSelectedSupplier(null); setSupplierForm({}); setIsEditing(true); }}
+                            className="rounded-xl bg-[#060b00] p-3.5 text-white shadow-lg transition-all hover:-translate-y-0.5 hover:bg-black active:scale-95"
+                            title="Νέος Προμηθευτής"
+                        >
+                            <Plus size={22} strokeWidth={3} />
+                        </button>
+                    </>
+                )}
+            />
 
             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2 pb-20">
                 {filteredSuppliers.length > 0 ? (

@@ -11,6 +11,7 @@ import { useUI } from './UIProvider';
 import { formatDecimal } from '../utils/pricingEngine';
 import { convertToCSV, downloadFile, downloadBlob, flattenForCSV } from '../utils/exportUtils';
 import { BACKUP_TABLE_REGISTRY, BackupProgress, validateBackup } from '../lib/backupConfig';
+import DesktopPageHeader from './DesktopPageHeader';
 
 export default function SettingsPage() {
     const queryClient = useQueryClient();
@@ -288,17 +289,11 @@ export default function SettingsPage() {
 
     return (
         <div className="max-w-4xl mx-auto space-y-8 pb-20">
-            <div className="flex justify-between items-center">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-800 tracking-tight flex items-center gap-3">
-                        <div className="p-2 bg-slate-200 text-slate-700 rounded-xl">
-                            <SettingsIcon size={24} />
-                        </div>
-                        Ρυθμίσεις Συστήματος
-                    </h1>
-                    <p className="text-slate-500 mt-2 ml-14">Παράμετροι τιμολόγησης και διαχείριση δεδομένων.</p>
-                </div>
-            </div>
+            <DesktopPageHeader
+                icon={SettingsIcon}
+                title="Ρυθμίσεις Συστήματος"
+                subtitle="Παράμετροι τιμολόγησης και διαχείριση δεδομένων."
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">

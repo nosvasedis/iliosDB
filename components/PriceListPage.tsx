@@ -6,6 +6,7 @@ import { ScrollText, Filter, CheckSquare, Square, Printer, Search, Layers, User,
 import { PriceListPrintData } from './PriceListPrintView';
 import { useUI } from './UIProvider';
 import { getVariantComponents, splitSkuComponents } from '../utils/pricingEngine';
+import DesktopPageHeader from './DesktopPageHeader';
 
 interface Props {
     products: Product[];
@@ -592,17 +593,11 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
 
     return (
         <div className="h-[calc(100vh-120px)] flex flex-col gap-8">
-            <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 shrink-0 flex justify-between items-center">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-800 tracking-tight flex items-center gap-3">
-                        <div className="p-2 bg-indigo-100 text-indigo-700 rounded-xl">
-                            <ScrollText size={24} />
-                        </div>
-                        Τιμοκατάλογος
-                    </h1>
-                    <p className="text-slate-500 mt-2 ml-14">Διαχειριστείτε τους κωδικούς που θα εμφανίζονται στην εκτύπωση.</p>
-                </div>
-            </div>
+            <DesktopPageHeader
+                icon={ScrollText}
+                title="Τιμοκατάλογος"
+                subtitle="Διαχειριστείτε τους κωδικούς που θα εμφανίζονται στην εκτύπωση."
+            />
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 min-h-0">
                 {/* CONTROLS PANEL (LEFT) */}

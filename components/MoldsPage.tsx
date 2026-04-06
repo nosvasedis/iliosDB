@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
+import DesktopPageHeader from './DesktopPageHeader';
 
 // -- MOLD CARD COMPONENT --
 interface MoldCardProps {
@@ -209,21 +210,18 @@ export default function MoldsPage() {
     return (
         <div className="space-y-6 h-full flex flex-col">
             {/* HEADER */}
-            <div ref={headerRef} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm shrink-0">
-                <div className="flex justify-between items-center">
-                    <div>
-                        <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-                            <div className="p-2 bg-amber-100 text-amber-600 rounded-xl"><MapPin size={24} /></div>
-                            Διαχείριση Λάστιχων
-                        </h1>
-                        <p className="text-slate-500 mt-1 ml-14 font-medium">Οργάνωση καλουπιών παραγωγής.</p>
-                    </div>
+            <DesktopPageHeader
+                ref={headerRef}
+                icon={MapPin}
+                title="Διαχείριση Λάστιχων"
+                subtitle="Οργάνωση καλουπιών παραγωγής."
+                tail={(
                     <div className="text-right">
-                        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Συνολο Λαστιχων</div>
+                        <div className="mb-1 text-xs font-bold uppercase tracking-widest text-slate-400">Συνολο Λαστιχων</div>
                         <div className="text-2xl font-black text-amber-600">{molds?.length || 0}</div>
                     </div>
-                </div>
-            </div>
+                )}
+            />
 
             {/* CONTROLS */}
             <div className="flex items-center justify-between shrink-0 px-2">

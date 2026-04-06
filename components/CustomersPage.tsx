@@ -8,6 +8,7 @@ import CustomerDetailsModal from './CustomerDetailsModal';
 import { normalizedIncludes } from '../utils/greekSearch';
 import { ordersRepository } from '../features/orders';
 import { useCustomers, useOrders } from '../hooks/api/useOrders';
+import DesktopPageHeader from './DesktopPageHeader';
 
 interface Props {
     onPrintOrder?: (order: Order) => void;
@@ -151,51 +152,45 @@ export default function CustomersPage({ onPrintOrder }: Props) {
     return (
         <div className="h-[calc(100vh-100px)] flex flex-col gap-6">
 
-            {/* Header Controls */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 shrink-0">
-                <div className="flex items-center gap-4">
-                    <div className="p-3 rounded-2xl bg-blue-100 text-blue-600 shadow-sm transition-colors">
-                        <Users size={28} />
-                    </div>
-                    <div>
-                        <h1 className="text-3xl font-black text-slate-800 tracking-tight">Πελάτες</h1>
-                        <p className="text-slate-500 text-sm font-medium">Διαχείριση πελατολογίου και ιστορικού.</p>
-                    </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
-                    <div className="relative group flex-1 md:flex-none">
-                        <input
-                            type="text"
-                            placeholder="Αναζήτηση πελάτη..."
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                            className="pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all w-full md:w-64 shadow-inner font-bold text-sm"
-                        />
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
-                    </div>
-
-                    <button
-                        onClick={() => {
-                            setSelectedCustomer({
-                                id: crypto.randomUUID(),
-                                full_name: '',
-                                phone: '',
-                                vat_number: '',
-                                vat_rate: VatRegime.Standard,
-                                address: '',
-                                notes: '',
-                                created_at: new Date().toISOString()
-                            });
-                            setIsCreating(true);
-                        }}
-                        className="p-3.5 rounded-xl text-white shadow-lg bg-[#060b00] hover:bg-black transition-all hover:-translate-y-0.5 active:scale-95"
-                        title="Νέος Πελάτης"
-                    >
-                        <Plus size={22} strokeWidth={3} />
-                    </button>
-                </div>
-            </div>
+            <DesktopPageHeader
+                icon={Users}
+                title="Πελάτες"
+                subtitle="Διαχείριση πελατολογίου και ιστορικού."
+                tail={(
+                    <>
+                        <div className="relative group min-w-[12rem] flex-1 md:max-w-xs md:flex-none">
+                            <input
+                                type="text"
+                                placeholder="Αναζήτηση πελάτη..."
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm font-bold shadow-inner outline-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                            />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-blue-500" size={18} />
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setSelectedCustomer({
+                                    id: crypto.randomUUID(),
+                                    full_name: '',
+                                    phone: '',
+                                    vat_number: '',
+                                    vat_rate: VatRegime.Standard,
+                                    address: '',
+                                    notes: '',
+                                    created_at: new Date().toISOString()
+                                });
+                                setIsCreating(true);
+                            }}
+                            className="rounded-xl bg-[#060b00] p-3.5 text-white shadow-lg transition-all hover:-translate-y-0.5 hover:bg-black active:scale-95"
+                            title="Νέος Πελάτης"
+                        >
+                            <Plus size={22} strokeWidth={3} />
+                        </button>
+                    </>
+                )}
+            />
 
             {/* Content Area */}
             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2 pb-20">

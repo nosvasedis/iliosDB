@@ -9,6 +9,7 @@ import { formatCurrency, formatDecimal, findProductByScannedCode, calculateProdu
 import { normalizedIncludes } from '../utils/greekSearch';
 import { generateOrderId } from '../utils/orderUtils';
 import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../utils/retailNotes';
+import DesktopPageHeader from './DesktopPageHeader';
 
 // SKU visualizer colors (synced with BatchPrint / Inventory)
 const FINISH_COLORS: Record<string, string> = {
@@ -839,20 +840,20 @@ export default function OffersPage({ products, materials, settings, collections,
     // List View
     return (
         <div className="h-[calc(100vh-100px)] flex flex-col gap-6">
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex justify-between items-center shrink-0">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-800 tracking-tight flex items-center gap-3">
-                        <div className="p-2 bg-purple-100 text-purple-700 rounded-xl">
-                            <FileText size={24} />
-                        </div>
-                        Προσφορές
-                    </h1>
-                    <p className="text-slate-500 mt-1 ml-14">Διαχείριση οικονομικών προσφορών.</p>
-                </div>
-                <button onClick={() => { setIsCreating(true); setEditingOffer(null); setItems([]); setCustomerName(''); setCustomerId(null); setCustomerPhone(''); setOfferNotes(''); setRetailClientLabel(''); setVatRate(VatRegime.Standard); }} className="flex items-center gap-2 bg-[#060b00] text-white px-5 py-3 rounded-xl hover:bg-black font-bold shadow-lg shadow-slate-200 transition-all hover:-translate-y-0.5">
-                    <Plus size={20} /> Νέα Προσφορά
-                </button>
-            </div>
+            <DesktopPageHeader
+                icon={FileText}
+                title="Προσφορές"
+                subtitle="Διαχείριση οικονομικών προσφορών."
+                tail={(
+                    <button
+                        type="button"
+                        onClick={() => { setIsCreating(true); setEditingOffer(null); setItems([]); setCustomerName(''); setCustomerId(null); setCustomerPhone(''); setOfferNotes(''); setRetailClientLabel(''); setVatRate(VatRegime.Standard); }}
+                        className="flex items-center gap-2 rounded-xl bg-[#060b00] px-5 py-3 font-bold text-white shadow-lg shadow-slate-200 transition-all hover:-translate-y-0.5 hover:bg-black"
+                    >
+                        <Plus size={20} /> Νέα Προσφορά
+                    </button>
+                )}
+            />
 
             <div className="flex-1 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
                 <div className="overflow-y-auto h-full custom-scrollbar">

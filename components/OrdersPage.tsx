@@ -25,6 +25,7 @@ import { useCollections } from '../hooks/api/useCollections';
 import { useCustomers, useOrderShipmentsForOrder, useOrders } from '../hooks/api/useOrders';
 import { useProductionBatches } from '../hooks/api/useProductionBatches';
 import { ordersRepository } from '../features/orders';
+import DesktopPageHeader from './DesktopPageHeader';
 import { productionRepository } from '../features/production';
 import { auditRepository } from '../features/audit';
 
@@ -858,36 +859,38 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
 
     return (
         <div className="space-y-6 flex flex-col">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 shrink-0">
-                <div>
-                    <h1 className="text-3xl font-bold text-[#060b00] tracking-tight flex items-center gap-3">
-                        <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
-                            <ShoppingCart size={24} />
+            <DesktopPageHeader
+                icon={ShoppingCart}
+                title="Παραγγελίες Πελατών"
+                subtitle="Διαχείριση λιανικής και χονδρικής."
+                tail={(
+                    <div className="flex flex-wrap gap-3">
+                        <div className="flex rounded-xl bg-slate-100 p-1">
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('active')}
+                                className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-all ${activeTab === 'active' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                <ShoppingCart size={16} /> Ενεργές
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('archived')}
+                                className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-all ${activeTab === 'archived' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                <Archive size={16} /> Αρχείο
+                            </button>
                         </div>
-                        Παραγγελίες Πελατών
-                    </h1>
-                    <p className="text-slate-500 mt-1 ml-14">Διαχείριση λιανικής και χονδρικής.</p>
-                </div>
-                <div className="flex gap-3">
-                    <div className="flex bg-slate-100 p-1 rounded-xl">
                         <button
-                            onClick={() => setActiveTab('active')}
-                            className={`px-4 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${activeTab === 'active' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            type="button"
+                            onClick={() => { setEditingOrder(null); setIsCreating(true); }}
+                            className="flex items-center gap-2 rounded-xl bg-[#060b00] px-5 py-3 font-bold text-white shadow-lg shadow-slate-200 transition-all hover:-translate-y-0.5 hover:bg-black"
                         >
-                            <ShoppingCart size={16} /> Ενεργές
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('archived')}
-                            className={`px-4 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${activeTab === 'archived' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            <Archive size={16} /> Αρχείο
+                            <Plus size={20} /> Νέα Παραγγελία
                         </button>
                     </div>
-                    <button onClick={() => { setEditingOrder(null); setIsCreating(true); }} className="flex items-center gap-2 bg-[#060b00] text-white px-5 py-3 rounded-xl hover:bg-black font-bold shadow-lg shadow-slate-200 transition-all hover:-translate-y-0.5">
-                        <Plus size={20} /> Νέα Παραγγελία
-                    </button>
-                </div>
-            </div>
+                )}
+            />
 
             {/* SEARCH BAR */}
             <div className="relative">

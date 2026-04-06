@@ -11,6 +11,7 @@ import BarcodeScanner from './BarcodeScanner';
 import { formatCurrency, formatDecimal, analyzeSku, getVariantComponents, findProductByScannedCode, transliterateForBarcode, splitSkuComponents, expandSkuRange } from '../utils/pricingEngine';
 import { getSizingInfo, isSizable } from '../utils/sizing';
 import { FINISH_CODES, STONE_CODES_MEN, STONE_CODES_WOMEN } from '../constants';
+import DesktopPageHeader from './DesktopPageHeader';
 
 // --- VISUAL CONSTANTS ---
 const FINISH_COLORS: Record<string, string> = {
@@ -651,18 +652,17 @@ export default function Inventory({ products, setPrintItems, settings, collectio
 
     return (
         <div className="flex flex-col h-full space-y-6">
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shrink-0">
-                <div>
-                    <h1 className="text-3xl font-bold text-[#060b00] tracking-tight flex items-center gap-3">
-                        <div className="p-2 bg-slate-800 text-white rounded-xl"><Store size={24} /></div>
-                        Κέντρο Αποθήκης
-                    </h1>
-                </div>
-                <div className="flex bg-slate-100 p-1 rounded-xl">
-                    <button onClick={() => setActiveTab('stock')} className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'stock' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><Package size={16} /> Απόθεμα</button>
-                    <button onClick={() => setActiveTab('warehouses')} className={`px-6 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'warehouses' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><Store size={16} /> Χώροι</button>
-                </div>
-            </div>
+            <DesktopPageHeader
+                icon={Store}
+                title="Κέντρο Αποθήκης"
+                subtitle="Απόθεμα, χώροι και ταχείες κινήσεις."
+                tail={(
+                    <div className="flex rounded-xl bg-slate-100 p-1">
+                        <button type="button" onClick={() => setActiveTab('stock')} className={`flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-bold transition-all ${activeTab === 'stock' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><Package size={16} /> Απόθεμα</button>
+                        <button type="button" onClick={() => setActiveTab('warehouses')} className={`flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-bold transition-all ${activeTab === 'warehouses' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><Store size={16} /> Χώροι</button>
+                    </div>
+                )}
+            />
 
             {activeTab === 'stock' && (
                 <div className="flex-1 flex flex-col min-h-0 space-y-6 animate-in slide-in-from-bottom-2">
