@@ -53,10 +53,9 @@ export default function MobileLayout({ children, activePage, onNavigate, isOnlin
       </main>
 
       <nav
-        className="fixed bottom-0 left-0 right-0 z-50 print:hidden border-t border-slate-200/90 bg-white/98 shadow-[0_-12px_44px_-16px_rgba(15,23,42,0.14)] backdrop-blur-xl"
+        className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-slate-50 print:hidden"
         aria-label="Κύρια πλοήγηση"
       >
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-200/40 to-transparent" />
         <div className="mx-auto flex max-w-2xl items-end justify-between gap-0.5 px-1.5 pt-2 pb-[max(0.4rem,env(safe-area-inset-bottom))]">
           {mobileAdminNavItems.map((item) => {
             const isActive = isBarNavActive(item.id, activePage);
@@ -67,12 +66,12 @@ export default function MobileLayout({ children, activePage, onNavigate, isOnlin
                 type="button"
                 onClick={() => onNavigate(item.id)}
                 className={`
-                  group flex min-w-0 flex-1 flex-col items-center justify-end gap-0.5 rounded-2xl py-1.5 px-0.5 transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-white
+                  group flex min-w-0 flex-1 flex-col items-center justify-end gap-0.5 rounded-xl py-1.5 px-0.5 transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50
                   ${isActive
                     ? isMenu
-                      ? 'bg-gradient-to-b from-slate-100 to-slate-50 text-slate-900 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.95),0_2px_10px_-2px_rgba(15,23,42,0.12)]'
-                      : 'bg-gradient-to-b from-emerald-50 to-teal-50/95 text-emerald-900 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.95),0_3px_14px_-3px_rgba(16,185,129,0.28)]'
-                    : 'text-slate-500 hover:bg-slate-50/90 active:scale-[0.96]'}
+                      ? 'bg-slate-200 text-slate-900'
+                      : 'bg-emerald-200 text-emerald-950'
+                    : 'text-slate-600 hover:bg-slate-200/70 active:scale-[0.97]'}
                 `}
               >
                 <span
@@ -94,7 +93,7 @@ export default function MobileLayout({ children, activePage, onNavigate, isOnlin
                 </span>
                 {isActive && (
                   <span
-                    className={`mt-0.5 h-[3px] w-5 rounded-full ${isMenu ? 'bg-slate-400/80' : 'bg-emerald-500'}`}
+                    className={`mt-0.5 h-[3px] w-5 rounded-full ${isMenu ? 'bg-slate-600' : 'bg-emerald-800'}`}
                   />
                 )}
               </button>
