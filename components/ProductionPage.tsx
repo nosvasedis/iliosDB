@@ -976,7 +976,7 @@ const FinderBatchStageSelector = ({
     hideNotes = false,
 }: { 
     batch: ProductionBatch & { customer_name?: string }, 
-    onMoveToStage: (batch: ProductionBatch, targetStage: ProductionStage) => void,
+    onMoveToStage: (batch: ProductionBatch, targetStage: ProductionStage, options?: { pendingDispatch?: boolean }) => void,
     onToggleHold: (batch: ProductionBatch) => void,
     hideNotes?: boolean,
 }) => {
@@ -1062,11 +1062,11 @@ const FinderBatchStageSelector = ({
         return false;
     };
     
-    const handleStageSelect = (targetStage: ProductionStage) => {
+    const handleStageSelect = (targetStage: ProductionStage, options?: { pendingDispatch?: boolean }) => {
         if (isStageDisabled(targetStage)) return;
-        if (targetStage === batch.current_stage) return;
+        if (targetStage === batch.current_stage && targetStage !== ProductionStage.Polishing) return;
         setIsOpen(false);
-        onMoveToStage(batch, targetStage);
+        onMoveToStage(batch, targetStage, options);
     };
     
     return (
@@ -1136,6 +1136,51 @@ const FinderBatchStageSelector = ({
                                              stage.id === ProductionStage.Assembly ? 'Assembly' :
                                              stage.id === ProductionStage.Labeling ? 'Labeling' : 'Ready';
                             const stageColors = FINDER_STAGE_BUTTON_COLORS[colorKey];
+                            
+                            // Split Polishing into two sub-stage buttons
+                            if (stage.id === ProductionStage.Polishing) {
+                                const isCurrentPending = isCurrent && batch.pending_dispatch;
+                                const isCurrentDispatched = isCurrent && !batch.pending_dispatch;
+                                
+                                return (
+                                    <React.Fragment key={stage.id}>
+                                        <button
+                                            onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: true })}
+                                            disabled={isDisabled}
+                                            className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between
+                                                ${isCurrentPending
+                                                    ? 'bg-amber-50 text-amber-700 border-amber-200 border ring-2 ring-offset-1 ring-amber-400/30'
+                                                    : isDisabled
+                                                    ? 'bg-slate-50/50 text-slate-300/50 border border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
+                                                    : isPast
+                                                    ? 'bg-amber-50/50 text-amber-700/70 border border-slate-100 hover:bg-amber-50'
+                                                    : 'bg-amber-50 text-amber-700 border-amber-200 border hover:shadow-md active:scale-95'
+                                                }
+                                            `}
+                                        >
+                                            <span>Τεχνίτης • Αναμονή</span>
+                                            {isCurrentPending && <span className="text-[8px]">●</span>}
+                                        </button>
+                                        <button
+                                            onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: false })}
+                                            disabled={isDisabled}
+                                            className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between
+                                                ${isCurrentDispatched
+                                                    ? 'bg-blue-50 text-blue-700 border-blue-200 border ring-2 ring-offset-1 ring-blue-400/30'
+                                                    : isDisabled
+                                                    ? 'bg-slate-50/50 text-slate-300/50 border border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
+                                                    : isPast
+                                                    ? 'bg-blue-50/50 text-blue-700/70 border border-slate-100 hover:bg-blue-50'
+                                                    : 'bg-blue-50 text-blue-700 border-blue-200 border hover:shadow-md active:scale-95'
+                                                }
+                                            `}
+                                        >
+                                            <span>Τεχνίτης • Στον Τεχν.</span>
+                                            {isCurrentDispatched && <span className="text-[8px]">●</span>}
+                                        </button>
+                                    </React.Fragment>
+                                );
+                            }
                             
                             return (
                                 <button
@@ -1294,16 +1339,24 @@ const StageInspectorModal: React.FC<{
     stage: { id: ProductionStage; label: string; icon: React.ReactNode; color: string };
     batches: EnhancedProductionBatch[];
     onClose: () => void;
-    onMoveBatch: (batch: ProductionBatch, targetStage: ProductionStage) => void;
+    onMoveBatch: (batch: ProductionBatch, targetStage: ProductionStage, options?: { pendingDispatch?: boolean }) => void;
     onToggleHold: (batch: ProductionBatch) => void;
     onOpenPdfBatchPicker?: () => void;
-}> = ({ stage, batches, onClose, onMoveBatch, onToggleHold, onOpenPdfBatchPicker }) => {
+    onDispatchBatches?: (batchIds: string[]) => void;
+    onRecallBatches?: (batchIds: string[]) => void;
+}> = ({ stage, batches, onClose, onMoveBatch, onToggleHold, onOpenPdfBatchPicker, onDispatchBatches, onRecallBatches }) => {
     const [sortMode, setSortMode] = useState<'sku' | 'client' | 'oldest' | 'newest'>('sku');
     const [clientFilter, setClientFilter] = useState('');
+    const [polishingTab, setPolishingTab] = useState<'pending' | 'dispatched'>('pending');
     const colors = STAGE_COLORS[stage.color as keyof typeof STAGE_COLORS];
+    const isPolishing = stage.id === ProductionStage.Polishing;
 
     const filtered = useMemo(() => {
         let list = [...batches];
+        // For Polishing stage, filter by sub-tab
+        if (isPolishing) {
+            list = list.filter(b => polishingTab === 'pending' ? b.pending_dispatch : !b.pending_dispatch);
+        }
         if (clientFilter.trim()) {
             const term = clientFilter.toLowerCase();
             list = list.filter(b =>
@@ -1342,12 +1395,16 @@ const StageInspectorModal: React.FC<{
             });
         }
         return list;
-    }, [batches, clientFilter, sortMode]);
+    }, [batches, clientFilter, sortMode, isPolishing, polishingTab]);
 
     const totalQty = batches.reduce((s, b) => s + b.quantity, 0);
     const onHoldCount = batches.filter(b => b.on_hold).length;
     const clientCount = new Set(filtered.map(batch => (batch.customer_name || 'Χωρίς Πελάτη').trim() || 'Χωρίς Πελάτη')).size;
     const orderCount = new Set(filtered.map(batch => batch.order_id).filter(Boolean)).size;
+
+    // Polishing sub-tab counts (computed from full batches, not filtered)
+    const pendingCount = isPolishing ? batches.filter(b => b.pending_dispatch).length : 0;
+    const dispatchedCount = isPolishing ? batches.filter(b => !b.pending_dispatch).length : 0;
 
     const groupedByClient = useMemo(() => {
         if (sortMode !== 'client') return new Map<string, { totalQty: number }>();
@@ -1468,6 +1525,62 @@ const StageInspectorModal: React.FC<{
                         />
                     </div>
                 </div>
+
+                {/* Polishing sub-tabs */}
+                {isPolishing && (
+                    <div className="flex-shrink-0 px-5 py-3 border-b border-slate-100 bg-white flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
+                            <button
+                                onClick={() => setPolishingTab('pending')}
+                                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-black transition-all ${
+                                    polishingTab === 'pending'
+                                        ? 'bg-amber-500 text-white shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'
+                                }`}
+                            >
+                                <Package size={13} />
+                                Αναμονή Αποστολής
+                                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${polishingTab === 'pending' ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-700'}`}>
+                                    {pendingCount}
+                                </span>
+                            </button>
+                            <button
+                                onClick={() => setPolishingTab('dispatched')}
+                                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-black transition-all ${
+                                    polishingTab === 'dispatched'
+                                        ? 'bg-blue-600 text-white shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'
+                                }`}
+                            >
+                                <Hammer size={13} />
+                                Στον Τεχνίτη
+                                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${polishingTab === 'dispatched' ? 'bg-white/25 text-white' : 'bg-blue-100 text-blue-700'}`}>
+                                    {dispatchedCount}
+                                </span>
+                            </button>
+                        </div>
+                        {polishingTab === 'pending' && onDispatchBatches && filtered.length > 0 && (
+                            <button
+                                onClick={() => onDispatchBatches(filtered.map(b => b.id))}
+                                className="flex items-center gap-1 px-3 py-2 rounded-lg bg-amber-600 text-white text-[11px] font-bold hover:bg-amber-700 transition-colors shadow-sm"
+                                title="Αποστολή όλων στον Τεχνίτη"
+                            >
+                                <Truck size={12} />
+                                Αποστολή Όλων
+                            </button>
+                        )}
+                        {polishingTab === 'dispatched' && onRecallBatches && filtered.length > 0 && (
+                            <button
+                                onClick={() => onRecallBatches(filtered.map(b => b.id))}
+                                className="flex items-center gap-1 px-3 py-2 rounded-lg bg-blue-600 text-white text-[11px] font-bold hover:bg-blue-700 transition-colors shadow-sm"
+                                title="Επιστροφή όλων σε Αναμονή"
+                            >
+                                <Package size={12} />
+                                Αναμονή Όλων
+                            </button>
+                        )}
+                    </div>
+                )}
 
                 {/* Batch list */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar bg-slate-50/40">
@@ -1659,6 +1772,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         batch: ProductionBatch;
         targetStage: ProductionStage;
         isReceive?: boolean;
+        pendingDispatch?: boolean;
     } | null>(null);
 
     // NEW: Sorting State - split into grouping and ordering
@@ -1678,6 +1792,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     // Multi-select & bulk move
     const [multiSelectIds, setMultiSelectIds] = useState<Set<string>>(new Set());
     const [bulkMoveTarget, setBulkMoveTarget] = useState<ProductionStage | null>(null);
+    const [bulkMovePendingDispatch, setBulkMovePendingDispatch] = useState<boolean | undefined>(undefined);
     const [isBulkMoving, setIsBulkMoving] = useState(false);
 
     useEffect(() => {
@@ -1978,11 +2093,22 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         setDropTarget(null);
     };
 
-    const attemptMove = (batch: ProductionBatch, targetStage: ProductionStage, skipModal: boolean = false) => {
+    const attemptMove = (batch: ProductionBatch, targetStage: ProductionStage, skipModal: boolean = false, pendingDispatch?: boolean) => {
         if (batch.on_hold) {
             showToast("Η παρτίδα είναι σε αναμονή. Ξεμπλοκάρετε την πρώτα.", "error");
             return;
         }
+
+        // Handle intra-Polishing sub-stage changes (dispatch / recall)
+        if (batch.current_stage === ProductionStage.Polishing && targetStage === ProductionStage.Polishing) {
+            if (pendingDispatch === true && !batch.pending_dispatch) {
+                handleRecallDispatchBatches([batch.id]);
+            } else if (pendingDispatch === false && batch.pending_dispatch) {
+                handleDispatchBatches([batch.id]);
+            }
+            return;
+        }
+
         if (batch.current_stage === targetStage) return;
 
         if (batch.current_stage === ProductionStage.Casting && targetStage === ProductionStage.Setting && !batch.requires_setting) {
@@ -1991,23 +2117,23 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         }
 
         if (batch.current_stage === ProductionStage.AwaitingDelivery) {
-            handleImportReceive(batch, targetStage);
+            handleImportReceive(batch, targetStage, pendingDispatch);
             return;
         }
 
         // If skipModal is true or quantity is 1, move directly without showing modal
         if (skipModal || batch.quantity === 1) {
-            handleDirectMove(batch, targetStage);
+            handleDirectMove(batch, targetStage, pendingDispatch);
             return;
         }
 
-        setSplitModalState({ batch, targetStage });
+        setSplitModalState({ batch, targetStage, pendingDispatch });
     };
 
-    const handleDirectMove = async (batch: ProductionBatch, targetStage: ProductionStage) => {
+    const handleDirectMove = async (batch: ProductionBatch, targetStage: ProductionStage, pendingDispatch?: boolean) => {
         setIsProcessingSplit(true);
         try {
-            await productionRepository.updateBatchStage(batch.id, targetStage, profile?.full_name);
+            await productionRepository.updateBatchStage(batch.id, targetStage, profile?.full_name, pendingDispatch);
             await auditRepository.logAction(profile?.full_name || 'System', 'Μετακίνηση Παρτίδας', { sku: batch.sku, target_stage: targetStage });
             void invalidateOrdersAndBatches(queryClient);
             showToast('Η παρτίδα μετακινήθηκε.', 'success');
@@ -2023,10 +2149,10 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         if (!draggedBatchId) return;
         const batch = enhancedBatches.find(b => b.id === draggedBatchId);
         if (!batch) return;
-        attemptMove(batch, targetStage);
+        attemptMove(batch, targetStage, false, targetStage === ProductionStage.Polishing ? true : undefined);
     };
 
-    const handleImportReceive = async (batch: ProductionBatch, targetStage: ProductionStage) => {
+    const handleImportReceive = async (batch: ProductionBatch, targetStage: ProductionStage, pendingDispatch?: boolean) => {
         const targetStageInfo = STAGES.find(s => s.id === targetStage);
         const confirmed = await confirm({
             title: 'Παραλαβή Εισαγόμενου',
@@ -2038,13 +2164,13 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
 
         // If batch has more than 1 item, ask how many were actually delivered by the supplier
         if (batch.quantity > 1) {
-            setSplitModalState({ batch, targetStage, isReceive: true });
+            setSplitModalState({ batch, targetStage, isReceive: true, pendingDispatch });
             return;
         }
 
         setIsProcessingSplit(true);
         try {
-            await productionRepository.updateBatchStage(batch.id, targetStage, profile?.full_name);
+            await productionRepository.updateBatchStage(batch.id, targetStage, profile?.full_name, pendingDispatch);
             await auditRepository.logAction(profile?.full_name || 'System', 'Παραλαβή Εισαγόμενου', { sku: batch.sku, quantity: batch.quantity, target_stage: targetStage });
             void invalidateOrdersAndBatches(queryClient);
             showToast('Η παρτίδα παραλήφθηκε και μετακινήθηκε.', 'success');
@@ -2066,7 +2192,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         try {
             if (quantityToMove >= batch.quantity) {
                 // Move the whole batch
-                await productionRepository.updateBatchStage(batch.id, targetStage, profile?.full_name);
+                await productionRepository.updateBatchStage(batch.id, targetStage, profile?.full_name, splitModalState?.pendingDispatch);
                 await auditRepository.logAction(profile?.full_name || 'System', isReceive ? 'Παραλαβή Εισαγόμενου' : 'Μετακίνηση Παρτίδας', { sku: batch.sku, target_stage: targetStage });
             } else {
                 // Split the batch
@@ -2091,7 +2217,8 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                     current_stage: targetStage,
                     created_at: batch.created_at,
                     updated_at: new Date().toISOString(),
-                    requires_setting: !!requires_setting // DB now supports this column
+                    requires_setting: !!requires_setting, // DB now supports this column
+                    ...(targetStage === ProductionStage.Polishing ? { pending_dispatch: splitModalState?.pendingDispatch ?? true } : {}),
                 };
 
                 await productionRepository.splitBatch(batch.id, originalNewQty, newBatchData, profile?.full_name);
@@ -2189,8 +2316,23 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         }
     };
 
-    const handleMoveBatch = (batch: ProductionBatch, stage: ProductionStage) => {
-        attemptMove(batch, stage);
+    // ── Recall batches back to pending dispatch ──────────────────────────────
+    const handleRecallDispatchBatches = async (batchIds: string[]) => {
+        if (batchIds.length === 0) return;
+        setIsProcessingSplit(true);
+        try {
+            const count = await productionRepository.markBatchesPendingDispatch(batchIds, profile?.full_name);
+            void invalidateProductionBatches(queryClient);
+            showToast(`${count} παρτίδ${count === 1 ? 'α' : 'ες'} επέστρεψ${count === 1 ? 'ε' : 'αν'} σε Αναμονή.`, 'success');
+        } catch (e: any) {
+            showToast(`Σφάλμα: ${e.message}`, 'error');
+        } finally {
+            setIsProcessingSplit(false);
+        }
+    };
+
+    const handleMoveBatch = (batch: ProductionBatch, stage: ProductionStage, options?: { pendingDispatch?: boolean }) => {
+        attemptMove(batch, stage, false, options?.pendingDispatch);
     }
 
     const toggleBatchSelect = useCallback((batchId: string) => {
@@ -2213,12 +2355,13 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         }
         setIsBulkMoving(true);
         try {
-            await Promise.all(batchesToMove.map(b => productionRepository.updateBatchStage(b.id, bulkMoveTarget!, profile?.full_name)));
+            await Promise.all(batchesToMove.map(b => productionRepository.updateBatchStage(b.id, bulkMoveTarget!, profile?.full_name, bulkMovePendingDispatch)));
             await auditRepository.logAction(profile?.full_name || 'System', 'Μαζική Μετακίνηση Παρτίδων', { count: batchesToMove.length, target_stage: bulkMoveTarget });
             void invalidateOrdersAndBatches(queryClient);
             showToast(`${batchesToMove.length} παρτίδες μετακινήθηκαν.`, 'success');
             setMultiSelectIds(new Set());
             setBulkMoveTarget(null);
+            setBulkMovePendingDispatch(undefined);
         } catch (e: any) {
             showToast(`Σφάλμα: ${e.message}`, 'error');
         } finally {
@@ -2243,7 +2386,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     // Determines next logical stage for "Quick Move" button
     const handleQuickNext = (batch: ProductionBatch) => {
         const nextStage = getNextProductionStage(batch.current_stage, batch);
-        if (nextStage) attemptMove(batch, nextStage);
+        if (nextStage) attemptMove(batch, nextStage, false, nextStage === ProductionStage.Polishing ? true : undefined);
     };
 
     const groupedStageBatches = useMemo(() => {
@@ -2445,7 +2588,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     }
 
     // ── Reusable batch-groups renderer (used for normal columns + Polishing sub-sections) ──
-    const renderBatchGroups = (groupedData: Record<string, Record<string, (ProductionBatch & { customer_name?: string })[]>>) => {
+    const renderBatchGroups = (groupedData: Record<string, Record<string, (ProductionBatch & { customer_name?: string })[]>>, options?: { onRecallDispatch?: (batchId: string) => void }) => {
         return (groupMode === 'customer' ? sortedClients : SORTED_GENDERS).map(level1Key => {
             const l1Batches = groupedData[level1Key];
             if (!l1Batches || Object.keys(l1Batches).length === 0) return null;
@@ -2482,7 +2625,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                     <ProductionBatchCard
                                         batch={batch}
                                         onDragStart={handleDragStart}
-                                        onMoveToStage={(b, stg) => attemptMove(b, stg)}
+                                        onMoveToStage={(b, stg, opts) => attemptMove(b, stg, false, opts?.pendingDispatch)}
                                         onEditNote={() => setEditingNoteBatch(batch)}
                                         onToggleHold={() => handleToggleHold(batch)}
                                         onDelete={() => handleDeleteBatch(batch)}
@@ -2491,6 +2634,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                         isSelected={multiSelectIds.has(batch.id)}
                                         onToggleSelect={(e) => { e.stopPropagation(); toggleBatchSelect(batch.id); }}
                                         onDispatch={batch.current_stage === ProductionStage.Polishing && batch.pending_dispatch ? () => handleDispatchBatches([batch.id]) : undefined}
+                                        onRecallDispatch={options?.onRecallDispatch && batch.current_stage === ProductionStage.Polishing && !batch.pending_dispatch ? () => options.onRecallDispatch!(batch.id) : undefined}
                                     />
                                 </React.Fragment>
                             ))}
@@ -2681,7 +2825,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                             </div>
                                             <FinderBatchStageSelector 
                                                 batch={b} 
-                                                onMoveToStage={(batch, stage) => attemptMove(batch, stage, true)}
+                                                onMoveToStage={(batch, stage, opts) => attemptMove(batch, stage, true, opts?.pendingDispatch)}
                                                 onToggleHold={handleToggleHold}
                                             />
                                         </div>
@@ -2856,12 +3000,23 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                             {/* Dispatched Section */}
                                             {polishingDispatchedBatches.length > 0 && (
                                                 <div className="space-y-3">
-                                                    <div className="flex items-center gap-2 px-2 py-2 rounded-xl bg-blue-50 border border-blue-200">
-                                                        <Hammer size={14} className="text-blue-600" />
-                                                        <span className="text-[11px] font-black text-blue-700 uppercase tracking-wide">Στον Τεχνίτη</span>
-                                                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-700 border border-blue-200">{polishingDispatchedBatches.length}</span>
+                                                    <div className="flex items-center justify-between gap-2 px-2 py-2 rounded-xl bg-blue-50 border border-blue-200">
+                                                        <div className="flex items-center gap-2">
+                                                            <Hammer size={14} className="text-blue-600" />
+                                                            <span className="text-[11px] font-black text-blue-700 uppercase tracking-wide">Στον Τεχνίτη</span>
+                                                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-700 border border-blue-200">{polishingDispatchedBatches.length}</span>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => handleRecallDispatchBatches(polishingDispatchedBatches.map(b => b.id))}
+                                                            disabled={isProcessingSplit}
+                                                            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-600 text-white text-[10px] font-bold hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50"
+                                                            title="Επιστροφή όλων σε Αναμονή Αποστολής"
+                                                        >
+                                                            {isProcessingSplit ? <Loader2 size={10} className="animate-spin" /> : <Package size={10} />}
+                                                            <span>Αναμονή Όλων</span>
+                                                        </button>
                                                     </div>
-                                                    {renderBatchGroups(groupedPolishingDispatched)}
+                                                    {renderBatchGroups(groupedPolishingDispatched, { onRecallDispatch: (batchId) => handleRecallDispatchBatches([batchId]) })}
                                                 </div>
                                             )}
 
@@ -3008,7 +3163,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                     filterType={overviewModal.type}
                     batches={enhancedBatches}
                     collections={collections || []}
-                    onMoveToStage={(b, stage) => attemptMove(b, stage)}
+                    onMoveToStage={(b, stage, opts) => attemptMove(b, stage, false, opts?.pendingDispatch)}
                     onEditNote={(b: ProductionBatch) => setEditingNoteBatch(b)}
                     onToggleHold={(b: ProductionBatch) => handleToggleHold(b)}
                     onDelete={(b: ProductionBatch) => handleDeleteBatch(b)}
@@ -3042,13 +3197,15 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         stage={stageConf}
                         batches={stageBatches}
                         onClose={() => setStageInspectorStage(null)}
-                        onMoveBatch={(b, targetStage) => { attemptMove(b, targetStage); }}
+                        onMoveBatch={(b, targetStage, opts) => { attemptMove(b, targetStage, false, opts?.pendingDispatch); }}
                         onToggleHold={handleToggleHold}
                         onOpenPdfBatchPicker={
                             onPrintStageBatches && stageInspectorStage
                                 ? () => handleOpenStagePdfBatchPicker(stageInspectorStage)
                                 : undefined
                         }
+                        onDispatchBatches={stageInspectorStage === ProductionStage.Polishing ? handleDispatchBatches : undefined}
+                        onRecallBatches={stageInspectorStage === ProductionStage.Polishing ? handleRecallDispatchBatches : undefined}
                     />
                 );
             })()}
@@ -3066,21 +3223,53 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         <div className="w-px h-6 bg-white/20 shrink-0" />
                         <div className="flex-1 min-w-0">
                             <select
-                                value={bulkMoveTarget || ''}
-                                onChange={e => setBulkMoveTarget((e.target.value as ProductionStage) || null)}
+                                value={bulkMoveTarget === ProductionStage.Polishing ? (bulkMovePendingDispatch ? 'Polishing__pending' : 'Polishing__dispatched') : (bulkMoveTarget || '')}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    if (val === 'Polishing__pending') {
+                                        setBulkMoveTarget(ProductionStage.Polishing);
+                                        setBulkMovePendingDispatch(true);
+                                    } else if (val === 'Polishing__dispatched') {
+                                        setBulkMoveTarget(ProductionStage.Polishing);
+                                        setBulkMovePendingDispatch(false);
+                                    } else {
+                                        setBulkMoveTarget((val as ProductionStage) || null);
+                                        setBulkMovePendingDispatch(undefined);
+                                    }
+                                }}
                                 className="w-full border border-white/20 rounded-xl px-3 py-1.5 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-400/50 cursor-pointer"
                                 style={{ backgroundColor: '#1e293b', color: bulkMoveTarget ? STAGE_SELECT_COLORS[bulkMoveTarget]?.color ?? '#fff' : '#94a3b8' }}
                             >
                                 <option value="" disabled style={{ backgroundColor: '#1e293b', color: '#94a3b8' }}>Επιλογή σταδίου...</option>
-                                {STAGES.map(s => (
-                                    <option
-                                        key={s.id}
-                                        value={s.id}
-                                        style={{ backgroundColor: STAGE_SELECT_COLORS[s.id]?.bg ?? '#f8fafc', color: STAGE_SELECT_COLORS[s.id]?.color ?? '#1e293b' }}
-                                    >
-                                        {s.label}
-                                    </option>
-                                ))}
+                                {STAGES.map(s => {
+                                    if (s.id === ProductionStage.Polishing) {
+                                        return (
+                                            <React.Fragment key={s.id}>
+                                                <option
+                                                    value="Polishing__pending"
+                                                    style={{ backgroundColor: '#fffbeb', color: '#b45309' }}
+                                                >
+                                                    {s.label} • Αναμονή
+                                                </option>
+                                                <option
+                                                    value="Polishing__dispatched"
+                                                    style={{ backgroundColor: STAGE_SELECT_COLORS[s.id]?.bg ?? '#f8fafc', color: STAGE_SELECT_COLORS[s.id]?.color ?? '#1e293b' }}
+                                                >
+                                                    {s.label} • Στον Τεχν.
+                                                </option>
+                                            </React.Fragment>
+                                        );
+                                    }
+                                    return (
+                                        <option
+                                            key={s.id}
+                                            value={s.id}
+                                            style={{ backgroundColor: STAGE_SELECT_COLORS[s.id]?.bg ?? '#f8fafc', color: STAGE_SELECT_COLORS[s.id]?.color ?? '#1e293b' }}
+                                        >
+                                            {s.label}
+                                        </option>
+                                    );
+                                })}
                             </select>
                         </div>
                         <button
@@ -3092,7 +3281,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                             Μετακίνηση
                         </button>
                         <button
-                            onClick={() => { setMultiSelectIds(new Set()); setBulkMoveTarget(null); }}
+                            onClick={() => { setMultiSelectIds(new Set()); setBulkMoveTarget(null); setBulkMovePendingDispatch(undefined); }}
                             className="shrink-0 p-1.5 hover:bg-white/10 rounded-lg text-white/50 hover:text-white transition-colors"
                             title="Αποεπιλογή όλων"
                         >

@@ -6,14 +6,17 @@ export const productionRepository = {
   getBatchStageHistoryEntries: () => api.getBatchStageHistoryEntries(),
   getOrders: () => api.getOrders(),
   getCollections: () => api.getCollections(),
-  updateBatchStage: (batchId: string, stage: ProductionStage, userName?: string) => api.updateBatchStage(batchId, stage, userName),
-  bulkUpdateBatchStages: (batchIds: string[], stage: ProductionStage, userName?: string) => api.bulkUpdateBatchStages(batchIds, stage, userName),
+  updateBatchStage: (batchId: string, stage: ProductionStage, userName?: string, pendingDispatch?: boolean) =>
+    api.updateBatchStage(batchId, stage, userName, pendingDispatch),
+  bulkUpdateBatchStages: (batchIds: string[], stage: ProductionStage, userName?: string, pendingDispatch?: boolean) =>
+    api.bulkUpdateBatchStages(batchIds, stage, userName, pendingDispatch),
   deleteProductionBatch: (batchId: string) => api.deleteProductionBatch(batchId),
   getBatchHistory: (batchId: string): Promise<BatchStageHistoryEntry[]> => api.getBatchHistory(batchId),
   logBatchHistory: (batchId: string, fromStage: ProductionStage | null, toStage: ProductionStage, userName: string, notes?: string) =>
     api.logBatchHistory(batchId, fromStage, toStage, userName, notes),
   toggleBatchHold: (batchId: string, isHeld: boolean, reason?: string) => api.toggleBatchHold(batchId, isHeld, reason),
   markBatchesDispatched: (batchIds: string[], userName?: string) => api.markBatchesDispatched(batchIds, userName),
+  markBatchesPendingDispatch: (batchIds: string[], userName?: string) => api.markBatchesPendingDispatch(batchIds, userName),
   updateOrderStatus: (orderId: string, status: OrderStatus) => api.updateOrderStatus(orderId, status),
   sendOrderToProduction: (orderId: string, products: Product[], materials: Material[]) =>
     api.sendOrderToProduction(orderId, products, materials),

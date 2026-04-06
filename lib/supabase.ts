@@ -1245,7 +1245,7 @@ export const api = {
         await safeMutate('orders', 'DELETE', null, { match: { id: id } });
     },
 
-    updateBatchStage: async (id: string, stage: ProductionStage, userName?: string): Promise<void> => {
+    updateBatchStage: async (id: string, stage: ProductionStage, userName?: string, pendingDispatch?: boolean): Promise<void> => {
         const now = new Date().toISOString();
         const currentBatch = await getBatchSnapshot(id);
         if (!currentBatch) return;
@@ -1254,7 +1254,7 @@ export const api = {
         const updatePayload: Record<string, any> = { current_stage: stage, updated_at: now };
         // Auto-flag pending_dispatch when entering Polishing (Τεχνίτης)
         if (stage === ProductionStage.Polishing) {
-            updatePayload.pending_dispatch = true;
+            updatePayload.pending_dispatch = pendingDispatch ?? true;
         }
         // Clear pending_dispatch when leaving Polishing
         if (currentBatch.current_stage === ProductionStage.Polishing && stage !== ProductionStage.Polishing) {
@@ -1272,7 +1272,7 @@ export const api = {
         });
         await syncOrderStatusAfterBatchChange(currentBatch?.order_id);
     },
-    bulkUpdateBatchStages: async (batchIds: string[], stage: ProductionStage, userName?: string): Promise<BulkBatchStageUpdateSummary> => {
+    bulkUpdateBatchStages: async (batchIds: string[], stage: ProductionStage, userName?: string, pendingDispatch?: boolean): Promise<BulkBatchStageUpdateSummary> => {
         const uniqueIds = Array.from(new Set(batchIds.filter(Boolean)));
         if (uniqueIds.length === 0) {
             return { movedCount: 0, skippedCount: 0, impactedOrderIds: [] };
@@ -1301,7 +1301,7 @@ export const api = {
                     current_stage: stage,
                     updated_at: now,
                     // Auto-flag pending_dispatch when entering Polishing
-                    ...(stage === ProductionStage.Polishing ? { pending_dispatch: true } : {}),
+                    ...(stage === ProductionStage.Polishing ? { pending_dispatch: pendingDispatch ?? true } : {}),
                     // Clear pending_dispatch when leaving Polishing
                     ...(batch.current_stage === ProductionStage.Polishing && stage !== ProductionStage.Polishing ? { pending_dispatch: false } : {}),
                 },
@@ -1395,6 +1395,38 @@ export const api = {
                 moved_by: userName || 'System',
                 moved_at: now,
                 notes: 'Αποστολή στον Τεχνίτη'
+            })),
+            { noSelect: true }
+        );
+
+        return uniqueIds.length;
+    },
+
+    // Recall batches back to pending dispatch (pending_dispatch = true)
+    markBatchesPendingDispatch: async (batchIds: string[], userName?: string): Promise<number> => {
+        const uniqueIds = Array.from(new Set(batchIds.filter(Boolean)));
+        if (uniqueIds.length === 0) return 0;
+
+        const now = new Date().toISOString();
+        await Promise.all(uniqueIds.map((id) =>
+            safeMutate('production_batches', 'UPDATE', {
+                pending_dispatch: true,
+                updated_at: now,
+            }, { match: { id } })
+        ));
+
+        // Log history entries for audit trail
+        await safeMutate(
+            'batch_stage_history',
+            'INSERT',
+            uniqueIds.map((id) => ({
+                id: crypto.randomUUID(),
+                batch_id: id,
+                from_stage: ProductionStage.Polishing,
+                to_stage: ProductionStage.Polishing,
+                moved_by: userName || 'System',
+                moved_at: now,
+                notes: 'Επιστροφή σε Αναμονή Αποστολής'
             })),
             { noSelect: true }
         );

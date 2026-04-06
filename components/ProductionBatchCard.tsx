@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { ProductionBatch, ProductionStage } from '../types';
 import { isSpecialCreationSku } from '../utils/specialCreationSku';
-import { Clock, PauseCircle, StickyNote, Trash2, Printer, MoveRight, ImageIcon, AlertTriangle, PlayCircle, RefreshCcw, ChevronUp, ChevronDown, History, X, Check, Truck } from 'lucide-react';
+import { Clock, PauseCircle, StickyNote, Trash2, Printer, MoveRight, ImageIcon, AlertTriangle, PlayCircle, RefreshCcw, ChevronUp, ChevronDown, History, X, Check, Truck, Package, Hammer } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { formatOrderId } from '../utils/orderUtils';
 import { formatGreekDurationFromMs, getProductionTimingStatusClasses, getProductionTimingStatusLabel } from '../utils/productionTiming';
@@ -76,7 +76,7 @@ interface BatchCardProps {
     onDragStart?: (e: React.DragEvent<HTMLDivElement>, batchId: string) => void;
     onPrint?: (batch: ProductionBatch) => void;
     onNextStage?: (batch: ProductionBatch) => void;
-    onMoveToStage?: (batch: ProductionBatch, targetStage: ProductionStage) => void;
+    onMoveToStage?: (batch: ProductionBatch, targetStage: ProductionStage, options?: { pendingDispatch?: boolean }) => void;
     onEditNote: (batch: ProductionBatch) => void;
     onToggleHold: (batch: ProductionBatch) => void;
     onDelete: (batch: ProductionBatch) => void;
@@ -89,6 +89,8 @@ interface BatchCardProps {
     onToggleSelect?: (e: React.MouseEvent) => void;
     // Dispatch to technician (pending_dispatch batches only)
     onDispatch?: () => void;
+    // Recall from technician back to pending dispatch
+    onRecallDispatch?: () => void;
 }
 
 export const ProductionBatchCard: React.FC<BatchCardProps> = ({
@@ -106,6 +108,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
     isSelected = false,
     onToggleSelect,
     onDispatch,
+    onRecallDispatch,
 }) => {
     const isRefurbish = batch.type === 'Φρεσκάρισμα';
     const isAwaiting = batch.current_stage === ProductionStage.AwaitingDelivery;
@@ -205,12 +208,13 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
     };
     
     // Handle stage selection
-    const handleStageSelect = (targetStage: ProductionStage) => {
+    const handleStageSelect = (targetStage: ProductionStage, options?: { pendingDispatch?: boolean }) => {
         if (isStageDisabled(targetStage)) return;
-        if (targetStage === batch.current_stage) return;
+        // Allow intra-Polishing sub-stage changes
+        if (targetStage === batch.current_stage && targetStage !== ProductionStage.Polishing) return;
         setStageSelectorOpen(false);
         if (onMoveToStage) {
-            onMoveToStage(batch, targetStage);
+            onMoveToStage(batch, targetStage, options);
         }
     };
 
@@ -296,6 +300,12 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                         <div className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1">
                             <Truck size={10} />
                             <span>Αναμονή</span>
+                        </div>
+                    )}
+                    {onRecallDispatch && (
+                        <div className="bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1">
+                            <Hammer size={10} />
+                            <span>Στον Τεχνίτη</span>
                         </div>
                     )}
                 </div>
@@ -421,6 +431,16 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                                     Αποστολή
                                 </button>
                             )}
+                            {onRecallDispatch && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onRecallDispatch(); }}
+                                    className="flex items-center gap-1 bg-blue-100 hover:bg-blue-200 text-blue-700 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
+                                    title="Επιστροφή σε Αναμονή Αποστολής"
+                                >
+                                    <Package size={12} />
+                                    Αναμονή
+                                </button>
+                            )}
                             {/* Main button */}
                             <button
                                 ref={buttonRef}
@@ -463,6 +483,51 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                                              stage.id === ProductionStage.Assembly ? 'Assembly' :
                                              stage.id === ProductionStage.Labeling ? 'Labeling' : 'Ready';
                             const stageColors = STAGE_BUTTON_COLORS[colorKey];
+                            
+                            // Split Polishing into two sub-stage buttons
+                            if (stage.id === ProductionStage.Polishing) {
+                                const isCurrentPending = isCurrent && batch.pending_dispatch;
+                                const isCurrentDispatched = isCurrent && !batch.pending_dispatch;
+                                
+                                return (
+                                    <React.Fragment key={stage.id}>
+                                        <button
+                                            onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: true })}
+                                            disabled={isDisabled}
+                                            className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between
+                                                ${isCurrentPending
+                                                    ? 'bg-amber-50 text-amber-700 border-amber-200 border ring-2 ring-offset-1 ring-amber-400/30'
+                                                    : isDisabled
+                                                    ? 'bg-slate-50/50 text-slate-300/50 border border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
+                                                    : isPast
+                                                    ? 'bg-amber-50/50 text-amber-700/70 border border-slate-100 hover:bg-amber-50'
+                                                    : 'bg-amber-50 text-amber-700 border-amber-200 border hover:shadow-md'
+                                                }
+                                            `}
+                                        >
+                                            <span>Τεχνίτης • Αναμονή</span>
+                                            {isCurrentPending && <span className="text-[8px]">●</span>}
+                                        </button>
+                                        <button
+                                            onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: false })}
+                                            disabled={isDisabled}
+                                            className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between
+                                                ${isCurrentDispatched
+                                                    ? 'bg-blue-50 text-blue-700 border-blue-200 border ring-2 ring-offset-1 ring-blue-400/30'
+                                                    : isDisabled
+                                                    ? 'bg-slate-50/50 text-slate-300/50 border border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
+                                                    : isPast
+                                                    ? 'bg-blue-50/50 text-blue-700/70 border border-slate-100 hover:bg-blue-50'
+                                                    : 'bg-blue-50 text-blue-700 border-blue-200 border hover:shadow-md'
+                                                }
+                                            `}
+                                        >
+                                            <span>Τεχνίτης • Στον Τεχν.</span>
+                                            {isCurrentDispatched && <span className="text-[8px]">●</span>}
+                                        </button>
+                                    </React.Fragment>
+                                );
+                            }
                             
                             return (
                                 <button

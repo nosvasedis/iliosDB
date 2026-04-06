@@ -70,7 +70,7 @@ type PrintSelectorType = 'technician' | 'preparation' | 'aggregated' | 'labels';
 const MobileBatchCard: React.FC<{ 
     batch: ProductionBatch & { isDelayed?: boolean, customer_name?: string, product_image?: string | null, stageEnteredAt?: string, timingStatus?: 'normal' | 'attention' | 'delayed' | 'critical', timingLabel?: string, reminderKey?: string }, 
     onNext: (b: ProductionBatch) => void, 
-    onMoveToStage?: (b: ProductionBatch, stage: ProductionStage) => void,
+    onMoveToStage?: (b: ProductionBatch, stage: ProductionStage, options?: { pendingDispatch?: boolean }) => void,
     onToggleHold: (b: ProductionBatch) => void, 
     onClick: (b: ProductionBatch) => void,
 }> = ({ batch, onNext, onMoveToStage, onToggleHold, onClick }) => {
@@ -94,12 +94,12 @@ const MobileBatchCard: React.FC<{
     };
     
     // Handle stage selection
-    const handleStageSelect = (targetStage: ProductionStage) => {
+    const handleStageSelect = (targetStage: ProductionStage, options?: { pendingDispatch?: boolean }) => {
         if (isStageDisabled(targetStage)) return;
-        if (targetStage === batch.current_stage) return;
+        if (targetStage === batch.current_stage && targetStage !== ProductionStage.Polishing) return;
         setStageSelectorOpen(false);
         if (onMoveToStage) {
-            onMoveToStage(batch, targetStage);
+            onMoveToStage(batch, targetStage, options);
         }
     };
 
@@ -192,6 +192,50 @@ const MobileBatchCard: React.FC<{
                                             const isDisabled = isStageDisabled(stage.id);
                                             const isPast = index < currentStageIndex;
                                             const stageColors = STAGE_COLORS[stage.color];
+
+                                            // Split Polishing into two sub-stage buttons
+                                            if (stage.id === ProductionStage.Polishing) {
+                                                const isCurrentPending = isCurrent && batch.pending_dispatch;
+                                                const isCurrentDispatched = isCurrent && !batch.pending_dispatch;
+                                                return (
+                                                    <React.Fragment key={stage.id}>
+                                                        <button
+                                                            onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: true })}
+                                                            disabled={isDisabled}
+                                                            className={`w-full text-left px-2.5 py-2 rounded-xl text-[11px] font-bold transition-all flex items-center justify-between
+                                                                ${isCurrentPending
+                                                                    ? 'bg-amber-50 text-amber-700 border border-amber-200 ring-2 ring-offset-1 ring-amber-400/30'
+                                                                    : isDisabled
+                                                                    ? 'bg-slate-50/50 text-slate-300/50 cursor-not-allowed blur-[1px] opacity-50'
+                                                                    : isPast
+                                                                    ? 'bg-slate-50 text-slate-500 border border-slate-100'
+                                                                    : 'bg-amber-50 text-amber-700 border border-amber-200 hover:shadow-md'
+                                                                }
+                                                            `}
+                                                        >
+                                                            <span className="truncate">Τεχνίτης • Αναμονή</span>
+                                                            {isCurrentPending && <span className="text-[8px]">●</span>}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: false })}
+                                                            disabled={isDisabled}
+                                                            className={`w-full text-left px-2.5 py-2 rounded-xl text-[11px] font-bold transition-all flex items-center justify-between
+                                                                ${isCurrentDispatched
+                                                                    ? 'bg-blue-50 text-blue-700 border border-blue-200 ring-2 ring-offset-1 ring-blue-400/30'
+                                                                    : isDisabled
+                                                                    ? 'bg-slate-50/50 text-slate-300/50 cursor-not-allowed blur-[1px] opacity-50'
+                                                                    : isPast
+                                                                    ? 'bg-slate-50 text-slate-500 border border-slate-100'
+                                                                    : 'bg-blue-50 text-blue-700 border border-blue-200 hover:shadow-md'
+                                                                }
+                                                            `}
+                                                        >
+                                                            <span className="truncate">Τεχνίτης • Στον Τεχν.</span>
+                                                            {isCurrentDispatched && <span className="text-[8px]">●</span>}
+                                                        </button>
+                                                    </React.Fragment>
+                                                );
+                                            }
                                             
                                             return (
                                                 <button
@@ -723,7 +767,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     const [, setIsLoadingHistory] = useState(false);
 
     // Split/Move State
-    const [splitModalState, setSplitModalState] = useState<{ batch: ProductionBatch, targetStage: ProductionStage } | null>(null);
+    const [splitModalState, setSplitModalState] = useState<{ batch: ProductionBatch, targetStage: ProductionStage, pendingDispatch?: boolean } | null>(null);
     const [isProcessingSplit, setIsProcessingSplit] = useState(false);
 
     // Print Modal State
@@ -798,7 +842,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         const nextStage = getMobileProductionNextStage(batch);
         if (!nextStage) return;
         try {
-            await productionRepository.updateBatchStage(batch.id, nextStage);
+            await productionRepository.updateBatchStage(batch.id, nextStage, undefined, nextStage === ProductionStage.Polishing ? true : undefined);
             void invalidateProductionBatches(queryClient);
             showToast(`Το ${batch.sku} μετακινήθηκε στο στάδιο ${STAGES.find(s => s.id === nextStage)?.label}.`, "success");
         } catch (error) {
@@ -840,27 +884,47 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         }
     };
 
-    const handleMoveBatch = async (batch: ProductionBatch, stage: ProductionStage) => {
+    const handleMoveBatch = async (batch: ProductionBatch, stage: ProductionStage, options?: { pendingDispatch?: boolean }) => {
         if (batch.on_hold) {
             showToast("Η παρτίδα είναι σε αναμονή.", "error");
             return;
         }
-        if (batch.current_stage === stage) return;
 
-        if (batch.current_stage === ProductionStage.AwaitingDelivery) {
-            handleImportReceive(batch, stage);
+        // Handle intra-Polishing sub-stage transitions (dispatch / recall)
+        if (batch.current_stage === ProductionStage.Polishing && stage === ProductionStage.Polishing) {
+            const wantPending = options?.pendingDispatch ?? true;
+            const currentlyPending = !!batch.pending_dispatch;
+            if (wantPending === currentlyPending) return; // No change
+            try {
+                if (wantPending) {
+                    await productionRepository.markBatchesPendingDispatch([batch.id]);
+                } else {
+                    await productionRepository.markBatchesDispatched([batch.id]);
+                }
+                void invalidateProductionBatches(queryClient);
+                showToast(wantPending ? 'Επιστροφή σε Αναμονή Αποστολής' : 'Αποστολή στον Τεχνίτη', 'success');
+            } catch (e: any) {
+                showToast(`Σφάλμα: ${e.message}`, 'error');
+            }
             return;
         }
 
-        setSplitModalState({ batch, targetStage: stage });
+        if (batch.current_stage === stage) return;
+
+        if (batch.current_stage === ProductionStage.AwaitingDelivery) {
+            handleImportReceive(batch, stage, options?.pendingDispatch);
+            return;
+        }
+
+        setSplitModalState({ batch, targetStage: stage, pendingDispatch: options?.pendingDispatch });
     };
 
-    const handleImportReceive = async (batch: ProductionBatch, targetStage: ProductionStage) => {
+    const handleImportReceive = async (batch: ProductionBatch, targetStage: ProductionStage, pendingDispatch?: boolean) => {
         const confirmed = window.confirm(`Επιβεβαιώνετε την παραλαβή για την παρτίδα ${batch.sku}${batch.variant_suffix || ''}?`);
         if (confirmed) {
             setIsProcessingSplit(true);
             try {
-                await productionRepository.updateBatchStage(batch.id, targetStage);
+                await productionRepository.updateBatchStage(batch.id, targetStage, undefined, pendingDispatch);
                 void invalidateProductionBatches(queryClient);
                 showToast('Η παρτίδα παρελήφθη.', 'success');
             } catch (e: any) {
@@ -873,12 +937,12 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
 
     const handleConfirmSplit = async (quantityToMove: number, targetStage: ProductionStage) => {
         if (!splitModalState) return;
-        const { batch } = splitModalState;
+        const { batch, pendingDispatch } = splitModalState;
 
         setIsProcessingSplit(true);
         try {
             if (quantityToMove >= batch.quantity) {
-                await productionRepository.updateBatchStage(batch.id, targetStage);
+                await productionRepository.updateBatchStage(batch.id, targetStage, undefined, pendingDispatch);
             } else {
                 const originalNewQty = batch.quantity - quantityToMove;
                 const { product_details, isDelayed, customer_name, ...dbBatch } = batch as any;
@@ -888,6 +952,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                     id: crypto.randomUUID(),
                     quantity: quantityToMove,
                     current_stage: targetStage,
+                    ...(targetStage === ProductionStage.Polishing ? { pending_dispatch: pendingDispatch ?? true } : {}),
                     updated_at: new Date().toISOString()
                 };
 
@@ -1022,7 +1087,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                                 </div>
                                 <FinderBatchStageSelector
                                     batch={b}
-                                    onMoveToStage={(batch, stage) => handleMoveBatch(batch, stage)}
+                                    onMoveToStage={(batch, stage, opts) => handleMoveBatch(batch, stage, opts)}
                                     onToggleHold={handleToggleHold}
                                 />
                             </div>

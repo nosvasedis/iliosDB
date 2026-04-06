@@ -24,7 +24,7 @@ const FINDER_STAGE_ORDER: { id: ProductionStage, label: string }[] = PRODUCTION_
 
 type Props = {
     batch: ProductionBatch & { customer_name?: string };
-    onMoveToStage: (batch: ProductionBatch, targetStage: ProductionStage) => void;
+    onMoveToStage: (batch: ProductionBatch, targetStage: ProductionStage, options?: { pendingDispatch?: boolean }) => void;
     onToggleHold: (batch: ProductionBatch) => void;
     hideNotes?: boolean;
 };
@@ -114,11 +114,11 @@ export default function FinderBatchStageSelector({ batch, onMoveToStage, onToggl
         return false;
     };
 
-    const handleStageSelect = (targetStage: ProductionStage) => {
+    const handleStageSelect = (targetStage: ProductionStage, options?: { pendingDispatch?: boolean }) => {
         if (isStageDisabled(targetStage)) return;
-        if (targetStage === batch.current_stage) return;
+        if (targetStage === batch.current_stage && targetStage !== ProductionStage.Polishing) return;
         setIsOpen(false);
-        onMoveToStage(batch, targetStage);
+        onMoveToStage(batch, targetStage, options);
     };
 
     return (
@@ -189,6 +189,51 @@ export default function FinderBatchStageSelector({ batch, onMoveToStage, onToggl
                                                 stage.id === ProductionStage.Assembly ? 'Assembly' :
                                                     stage.id === ProductionStage.Labeling ? 'Labeling' : 'Ready';
                             const stageColors = FINDER_STAGE_BUTTON_COLORS[colorKey];
+
+                            // Split Polishing into two sub-stage buttons
+                            if (stage.id === ProductionStage.Polishing) {
+                                const isCurrentPending = isCurrent && batch.pending_dispatch;
+                                const isCurrentDispatched = isCurrent && !batch.pending_dispatch;
+
+                                return (
+                                    <React.Fragment key={stage.id}>
+                                        <button
+                                            onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: true })}
+                                            disabled={isDisabled}
+                                            className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between
+                                                ${isCurrentPending
+                                                    ? 'bg-amber-50 text-amber-700 border-amber-200 border ring-2 ring-offset-1 ring-amber-400/30'
+                                                    : isDisabled
+                                                    ? 'bg-slate-50/50 text-slate-300/50 border border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
+                                                    : isPast
+                                                    ? 'bg-amber-50/50 text-amber-700/70 border border-slate-100 hover:bg-amber-50'
+                                                    : 'bg-amber-50 text-amber-700 border-amber-200 border hover:shadow-md active:scale-95'
+                                                }
+                                            `}
+                                        >
+                                            <span>\u03A4\u03B5\u03C7\u03BD\u03AF\u03C4\u03B7\u03C2 \u2022 \u0391\u03BD\u03B1\u03BC\u03BF\u03BD\u03AE</span>
+                                            {isCurrentPending && <span className="text-[8px]">\u25CF</span>}
+                                        </button>
+                                        <button
+                                            onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: false })}
+                                            disabled={isDisabled}
+                                            className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between
+                                                ${isCurrentDispatched
+                                                    ? 'bg-blue-50 text-blue-700 border-blue-200 border ring-2 ring-offset-1 ring-blue-400/30'
+                                                    : isDisabled
+                                                    ? 'bg-slate-50/50 text-slate-300/50 border border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
+                                                    : isPast
+                                                    ? 'bg-blue-50/50 text-blue-700/70 border border-slate-100 hover:bg-blue-50'
+                                                    : 'bg-blue-50 text-blue-700 border-blue-200 border hover:shadow-md active:scale-95'
+                                                }
+                                            `}
+                                        >
+                                            <span>\u03A4\u03B5\u03C7\u03BD\u03AF\u03C4\u03B7\u03C2 \u2022 \u03A3\u03C4\u03BF\u03BD \u03A4\u03B5\u03C7\u03BD.</span>
+                                            {isCurrentDispatched && <span className="text-[8px]">\u25CF</span>}
+                                        </button>
+                                    </React.Fragment>
+                                );
+                            }
 
                             return (
                                 <button

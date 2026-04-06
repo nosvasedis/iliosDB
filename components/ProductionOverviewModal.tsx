@@ -25,7 +25,7 @@ interface Props {
     })[];
     collections: Collection[];
     onNextStage?: (batch: ProductionBatch) => void;
-    onMoveToStage?: (batch: ProductionBatch, targetStage: ProductionStage) => void;
+    onMoveToStage?: (batch: ProductionBatch, targetStage: ProductionStage, options?: { pendingDispatch?: boolean }) => void;
     onEditNote: (batch: ProductionBatch) => void;
     onToggleHold: (batch: ProductionBatch) => void;
     onDelete: (batch: ProductionBatch) => void;
@@ -78,7 +78,7 @@ const STAGE_MOVE_COLORS: Record<string, { bg: string; text: string; border: stri
 // Inline compact stage mover — uses a portal so the dropdown escapes modal overflow clipping
 function InlineStageMover({ batch, onMoveToStage, onToggleHold }: {
     batch: ProductionBatch & { requires_setting?: boolean; requires_assembly?: boolean };
-    onMoveToStage: (batch: ProductionBatch, s: ProductionStage) => void;
+    onMoveToStage: (batch: ProductionBatch, s: ProductionStage, options?: { pendingDispatch?: boolean }) => void;
     onToggleHold: (batch: ProductionBatch) => void;
 }) {
     const [open, setOpen] = useState(false);
@@ -175,6 +175,43 @@ function InlineStageMover({ batch, onMoveToStage, onToggleHold }: {
                                 const disabled = isDisabled(s.id);
                                 const isPast = idx < currentIdx;
                                 const sc = STAGE_MOVE_COLORS[s.id] || { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200' };
+
+                                // Split Polishing into two sub-stage buttons
+                                if (s.id === ProductionStage.Polishing) {
+                                    const isCurrentPending = isCurrent && batch.pending_dispatch;
+                                    const isCurrentDispatched = isCurrent && !batch.pending_dispatch;
+                                    return (
+                                        <React.Fragment key={s.id}>
+                                            <button
+                                                disabled={disabled}
+                                                onClick={(e) => { e.stopPropagation(); setOpen(false); onMoveToStage(batch, s.id, { pendingDispatch: true }); }}
+                                                className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between
+                                                    ${isCurrentPending ? 'bg-amber-50 text-amber-700 border-amber-200 border ring-2 ring-offset-1 ring-amber-400/20'
+                                                        : disabled ? 'opacity-40 cursor-not-allowed text-slate-300 border border-transparent'
+                                                        : isPast ? 'bg-amber-50 text-amber-700 border border-amber-200 opacity-70 hover:opacity-100'
+                                                        : 'bg-amber-50 text-amber-700 border border-amber-200 hover:shadow-sm'}
+                                                `}
+                                            >
+                                                <span>Τεχνίτης • Αναμονή</span>
+                                                {isCurrentPending && <span className="text-[8px]">●</span>}
+                                            </button>
+                                            <button
+                                                disabled={disabled}
+                                                onClick={(e) => { e.stopPropagation(); setOpen(false); onMoveToStage(batch, s.id, { pendingDispatch: false }); }}
+                                                className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between
+                                                    ${isCurrentDispatched ? 'bg-blue-50 text-blue-700 border-blue-200 border ring-2 ring-offset-1 ring-blue-400/20'
+                                                        : disabled ? 'opacity-40 cursor-not-allowed text-slate-300 border border-transparent'
+                                                        : isPast ? 'bg-blue-50 text-blue-700 border border-blue-200 opacity-70 hover:opacity-100'
+                                                        : 'bg-blue-50 text-blue-700 border border-blue-200 hover:shadow-sm'}
+                                                `}
+                                            >
+                                                <span>Τεχνίτης • Στον Τεχν.</span>
+                                                {isCurrentDispatched && <span className="text-[8px]">●</span>}
+                                            </button>
+                                        </React.Fragment>
+                                    );
+                                }
+
                                 return (
                                     <button
                                         key={s.id}
