@@ -237,10 +237,15 @@ export default function StageBatchPrintView({ data, allProducts }: Props) {
                                     )}
                                 </td>
 
-                                {/* SKU + on-hold tag */}
+                                {/* SKU + client + on-hold tag */}
                                 <td style={{ padding: '7px 8px', verticalAlign: 'middle' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
                                         <SkuColoredPrint sku={batch.sku} suffix={batch.variant_suffix} gender={product?.gender} />
+                                        {batch.customer_name?.trim() && (
+                                            <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', whiteSpace: 'nowrap' }}>
+                                                · {batch.customer_name.trim()}
+                                            </span>
+                                        )}
                                         {isOnHold && (
                                             <span style={{
                                                 background: '#fef3c7', border: '1px solid #fcd34d',

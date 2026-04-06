@@ -48,6 +48,14 @@ import {
     type LabelPrintSortMode,
 } from '../features/production/workflowSelectors';
 
+function compareBatchesBySkuAscending(a: ProductionBatch, b: ProductionBatch): number {
+    return `${a.sku}${a.variant_suffix || ''}`.localeCompare(
+        `${b.sku}${b.variant_suffix || ''}`,
+        undefined,
+        { numeric: true, sensitivity: 'base' }
+    );
+}
+
 interface Props {
     products: Product[];
     materials: Material[];
@@ -358,6 +366,10 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelS
                 };
             }
             groups[key].items.push(b);
+        });
+
+        Object.values(groups).forEach(g => {
+            g.items.sort(compareBatchesBySkuAscending);
         });
 
         return Object.entries(groups)
@@ -1294,7 +1306,7 @@ const StageInspectorModal: React.FC<{
     onToggleHold: (batch: ProductionBatch) => void;
     onOpenPdfBatchPicker?: () => void;
 }> = ({ stage, batches, onClose, onMoveBatch, onToggleHold, onOpenPdfBatchPicker }) => {
-    const [sortMode, setSortMode] = useState<'client' | 'oldest' | 'newest'>('client');
+    const [sortMode, setSortMode] = useState<'sku' | 'client' | 'oldest' | 'newest'>('sku');
     const [clientFilter, setClientFilter] = useState('');
     const colors = STAGE_COLORS[stage.color as keyof typeof STAGE_COLORS];
 
@@ -1308,18 +1320,34 @@ const StageInspectorModal: React.FC<{
                 (b.order_id || '').toLowerCase().includes(term)
             );
         }
-        if (sortMode === 'client') {
+        if (sortMode === 'sku') {
+            list.sort((a, b) => {
+                const holdCmp = (a.on_hold ? 1 : 0) - (b.on_hold ? 1 : 0);
+                if (holdCmp !== 0) return holdCmp;
+                return compareBatchesBySkuAscending(a, b);
+            });
+        } else if (sortMode === 'client') {
             list.sort((a, b) => {
                 const cA = (a.customer_name || '').toLocaleLowerCase('el');
                 const cB = (b.customer_name || '').toLocaleLowerCase('el');
                 const cmp = cA.localeCompare(cB, 'el');
                 if (cmp !== 0) return cmp;
+                const skuCmp = compareBatchesBySkuAscending(a, b);
+                if (skuCmp !== 0) return skuCmp;
                 return getBatchStageChronologyTimestamp(a) - getBatchStageChronologyTimestamp(b);
             });
         } else if (sortMode === 'oldest') {
-            list.sort((a, b) => getBatchStageChronologyTimestamp(a) - getBatchStageChronologyTimestamp(b));
+            list.sort((a, b) => {
+                const t = getBatchStageChronologyTimestamp(a) - getBatchStageChronologyTimestamp(b);
+                if (t !== 0) return t;
+                return compareBatchesBySkuAscending(a, b);
+            });
         } else {
-            list.sort((a, b) => getBatchStageChronologyTimestamp(b) - getBatchStageChronologyTimestamp(a));
+            list.sort((a, b) => {
+                const t = getBatchStageChronologyTimestamp(b) - getBatchStageChronologyTimestamp(a);
+                if (t !== 0) return t;
+                return compareBatchesBySkuAscending(a, b);
+            });
         }
         return list;
     }, [batches, clientFilter, sortMode]);
@@ -1410,6 +1438,12 @@ const StageInspectorModal: React.FC<{
                     {/* Sort buttons */}
                     <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Ταξινόμηση:</span>
+                        <button
+                            onClick={() => setSortMode('sku')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${sortMode === 'sku' ? `${colors.header} ${colors.text} ${colors.border}` : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+                        >
+                            <Hash size={12} /> Ανά Κωδικό
+                        </button>
                         <button
                             onClick={() => setSortMode('client')}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${sortMode === 'client' ? `${colors.header} ${colors.text} ${colors.border}` : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}

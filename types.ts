@@ -442,6 +442,8 @@ export type BatchType = 'Νέα' | 'Φρεσκάρισμα' | 'Από Stock';
 export interface ProductionBatch {
   id: string;
   order_id?: string;
+  /** Present when batch is enriched from order / UI (e.g. production boards, stage PDF). */
+  customer_name?: string;
   sku: string;
   variant_suffix?: string;
   quantity: number;
@@ -475,7 +477,6 @@ export interface EnhancedProductionBatch extends ProductionBatch {
   product_image?: string | null;
   diffHours?: number;
   isDelayed?: boolean;
-  customer_name?: string;
   stageEnteredAt?: string;
   timeInStageHours?: number;
   timingStatus?: ProductionTimingStatus;
