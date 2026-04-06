@@ -271,7 +271,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
     settings: <MobileSettings />,
     resources: <MobileResources />,
     customers: <MobileCustomers mode="customers" />,
-    suppliers: <MobileCustomers mode="suppliers" />,
+    suppliers: <MobileCustomers mode="suppliers" onPrintSupplierOrder={setSupplierOrderToPrint} />,
     pricing: <MobilePricing />,
     'batch-print': <MobileBatchPrint />,
     collections: <MobileCollections />,

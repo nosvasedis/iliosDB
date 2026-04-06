@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { Search, Phone, Mail, User, MapPin, Globe, Plus, X, Save, Trash2, Edit, Hash, Zap, Loader2, Wallet, ShoppingBag, PieChart, Package, Calendar, Clock, Trophy, Users as UsersIcon, ArrowLeft, Gift } from 'lucide-react';
-import { Customer, Supplier, VatRegime, OrderStatus } from '../../types';
+import { Customer, Supplier, SupplierOrder, VatRegime, OrderStatus } from '../../types';
 import { useUI } from '../UIProvider';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { normalizedIncludes } from '../../utils/greekSearch';
@@ -17,9 +17,10 @@ import { useSuppliers } from '../../hooks/api/useSuppliers';
 
 interface Props {
     mode: 'customers' | 'suppliers';
+    onPrintSupplierOrder?: (order: SupplierOrder) => void;
 }
 
-export default function MobileCustomers({ mode }: Props) {
+export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
     const { data: customers } = useCustomers();
     const { data: suppliers } = useSuppliers();
     const { data: orders } = useOrders();
@@ -37,6 +38,7 @@ export default function MobileCustomers({ mode }: Props) {
 
     // Supplier Detail View
     const [viewSupplier, setViewSupplier] = useState<Supplier | null>(null);
+    const [showRetailStats, setShowRetailStats] = useState(false);
 
     // Calculate customer stats (Total Spent Net, etc.)
     const customerStats = useMemo(() => {
@@ -68,6 +70,51 @@ export default function MobileCustomers({ mode }: Props) {
             );
         }
     }, [customers, suppliers, mode, search]);
+
+    const retailStats = useMemo(() => {
+        if (!orders || !editData || editData.id !== RETAIL_CUSTOMER_ID) return null;
+        const customerOrders = orders.filter(o => o.status !== OrderStatus.Cancelled && (o.customer_id === RETAIL_CUSTOMER_ID)).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+        const totalSpent = customerOrders.reduce((acc, o) => acc + o.total_price / (1 + (o.vat_rate || 0.24)), 0);
+        const orderCount = customerOrders.length;
+        const avgOrderValue = orderCount > 0 ? totalSpent / orderCount : 0;
+        let totalItems = 0;
+        const catStats: Record<string, { count: number; value: number }> = {};
+        customerOrders.forEach(o => {
+            const discountFactor = 1 - ((o.discount_percent || 0) / 100);
+            o.items.forEach(item => {
+                const cat = item.product_details?.category || 'Άλλο';
+                if (!catStats[cat]) catStats[cat] = { count: 0, value: 0 };
+                catStats[cat].count += item.quantity;
+                catStats[cat].value += (item.price_at_order * item.quantity * discountFactor);
+                totalItems += item.quantity;
+            });
+        });
+        const prefData = Object.entries(catStats).map(([name, s]) => ({ name, count: s.count, value: s.value, percentage: totalItems > 0 ? (s.count / totalItems) * 100 : 0 })).sort((a, b) => b.count - a.count).slice(0, 5);
+
+        const latestOrder = customerOrders[0];
+        const oldestOrder = customerOrders[customerOrders.length - 1];
+        let activeMonths = 0;
+        if (latestOrder && oldestOrder) {
+            activeMonths = Math.max(1, Math.round((new Date(latestOrder.created_at).getTime() - new Date(oldestOrder.created_at).getTime()) / (1000 * 60 * 60 * 24 * 30)));
+        }
+
+        const clientMap: Record<string, { name: string; orderCount: number; totalRevenue: number }> = {};
+        customerOrders.forEach(o => {
+            const label = extractRetailClientFromNotes(o.notes).retailClientLabel || 'Χωρίς τελικό πελάτη';
+            if (!clientMap[label]) clientMap[label] = { name: label, orderCount: 0, totalRevenue: 0 };
+            clientMap[label].orderCount += 1;
+            clientMap[label].totalRevenue += o.total_price / (1 + (o.vat_rate || 0.24));
+        });
+        const topClients = Object.values(clientMap).sort((a, b) => b.totalRevenue - a.totalRevenue).slice(0, 8);
+
+        const recentOrders = customerOrders.slice(0, 5).map(o => ({
+            order: o,
+            retailClientLabel: extractRetailClientFromNotes(o.notes).retailClientLabel
+        }));
+
+        return { totalSpent, orderCount, avgOrderValue, totalItems, latestOrder, activeMonths, prefData, topClients, recentOrders };
+    }, [orders, editData]);
 
     const handleCreate = () => {
         setEditType(mode === 'customers' ? 'customer' : 'supplier');
@@ -187,61 +234,22 @@ export default function MobileCustomers({ mode }: Props) {
 
     // If viewing a supplier, render the detail component
     if (viewSupplier) {
-        return <MobileSupplierDetails supplier={viewSupplier} onClose={() => setViewSupplier(null)} />;
+        return (
+            <MobileSupplierDetails
+                supplier={viewSupplier}
+                onClose={() => setViewSupplier(null)}
+                onEditSupplier={() => {
+                    setEditData({ ...viewSupplier });
+                    setEditType('supplier');
+                    setIsEditing(true);
+                    setViewSupplier(null);
+                }}
+                onPrintSupplierOrder={onPrintSupplierOrder}
+            />
+        );
     }
 
     const isRetailSystemCustomer = editType === 'customer' && editData?.id === RETAIL_CUSTOMER_ID;
-
-    // Retail stats view for Λιανική
-    const [showRetailStats, setShowRetailStats] = useState(false);
-
-    // Retail customer statistics
-    const retailStats = useMemo(() => {
-        if (!orders || !editData || editData.id !== RETAIL_CUSTOMER_ID) return null;
-        const customerOrders = orders.filter(o => o.status !== OrderStatus.Cancelled && (o.customer_id === RETAIL_CUSTOMER_ID)).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-        const totalSpent = customerOrders.reduce((acc, o) => acc + o.total_price / (1 + (o.vat_rate || 0.24)), 0);
-        const orderCount = customerOrders.length;
-        const avgOrderValue = orderCount > 0 ? totalSpent / orderCount : 0;
-        let totalItems = 0;
-        const catStats: Record<string, { count: number; value: number }> = {};
-        customerOrders.forEach(o => {
-            const discountFactor = 1 - ((o.discount_percent || 0) / 100);
-            o.items.forEach(item => {
-                const cat = item.product_details?.category || 'Άλλο';
-                if (!catStats[cat]) catStats[cat] = { count: 0, value: 0 };
-                catStats[cat].count += item.quantity;
-                catStats[cat].value += (item.price_at_order * item.quantity * discountFactor);
-                totalItems += item.quantity;
-            });
-        });
-        const prefData = Object.entries(catStats).map(([name, s]) => ({ name, count: s.count, value: s.value, percentage: totalItems > 0 ? (s.count / totalItems) * 100 : 0 })).sort((a, b) => b.count - a.count).slice(0, 5);
-
-        const latestOrder = customerOrders[0];
-        const oldestOrder = customerOrders[customerOrders.length - 1];
-        let activeMonths = 0;
-        if (latestOrder && oldestOrder) {
-            activeMonths = Math.max(1, Math.round((new Date(latestOrder.created_at).getTime() - new Date(oldestOrder.created_at).getTime()) / (1000 * 60 * 60 * 24 * 30)));
-        }
-
-        // Top retail clients
-        const clientMap: Record<string, { name: string; orderCount: number; totalRevenue: number }> = {};
-        customerOrders.forEach(o => {
-            const label = extractRetailClientFromNotes(o.notes).retailClientLabel || 'Χωρίς τελικό πελάτη';
-            if (!clientMap[label]) clientMap[label] = { name: label, orderCount: 0, totalRevenue: 0 };
-            clientMap[label].orderCount += 1;
-            clientMap[label].totalRevenue += o.total_price / (1 + (o.vat_rate || 0.24));
-        });
-        const topClients = Object.values(clientMap).sort((a, b) => b.totalRevenue - a.totalRevenue).slice(0, 8);
-
-        // Recent orders with labels
-        const recentOrders = customerOrders.slice(0, 5).map(o => ({
-            order: o,
-            retailClientLabel: extractRetailClientFromNotes(o.notes).retailClientLabel
-        }));
-
-        return { totalSpent, orderCount, avgOrderValue, totalItems, latestOrder, activeMonths, prefData, topClients, recentOrders };
-    }, [orders, editData]);
 
     // When retail customer is clicked, show stats view instead of edit form
     if (showRetailStats && retailStats) {

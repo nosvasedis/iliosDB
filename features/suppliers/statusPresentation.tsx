@@ -11,7 +11,7 @@ const SUPPLIER_ORDER_STATUS_CLASSES: Record<SupplierOrderStatus, string> = {
 };
 
 export const getSupplierOrderStatusClasses = (status: SupplierOrderStatus): string =>
-  SUPPLIER_ORDER_STATUS_CLASSES[status];
+  SUPPLIER_ORDER_STATUS_CLASSES[status] ?? 'bg-slate-100 text-slate-600';
 
 export const getSupplierOrderStatusIcon = (status: SupplierOrderStatus, size = 16): React.ReactNode => {
   switch (status) {
