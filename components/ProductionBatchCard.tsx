@@ -409,26 +409,27 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
 
             {/* Action Footer */}
             {!hideActions && (
-                <div className="mt-auto pt-3 border-t border-slate-50 flex justify-between items-center">
+                <div className="mt-auto pt-3 border-t border-slate-50 flex flex-col gap-2">
+                    {/* Row 1: order / client info — full width, no truncation pressure */}
                     <div className="flex flex-col pointer-events-none">
-                        {batch.order_id ? (
+                        {batch.order_id && (
                             <div className="text-[10px] font-mono font-medium text-slate-400">#{formatOrderId(batch.order_id)}</div>
-                        ) : <div />}
+                        )}
                         {batch.customer_name && (
-                            <div className="text-[10px] font-bold text-slate-600 truncate max-w-[120px]">{batch.customer_name}</div>
+                            <div className="text-[10px] font-bold text-slate-600 truncate">{batch.customer_name}</div>
                         )}
                     </div>
 
+                    {/* Row 2: action buttons — always has full width to itself */}
                     {!isReady && !batch.on_hold && (onMoveToStage || onNextStage) && (
                         <div className="flex items-center gap-1.5">
                             {onDispatch && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); onDispatch(); }}
-                                    className="flex items-center gap-1 bg-teal-100 hover:bg-teal-200 text-teal-700 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
+                                    className="flex items-center gap-1 bg-teal-100 hover:bg-teal-200 text-teal-700 p-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
                                     title="Αποστολή στον Τεχνίτη"
                                 >
                                     <Truck size={12} />
-                                    Αποστολή
                                 </button>
                             )}
                             {onRecallDispatch && (
@@ -440,7 +441,6 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                                     <Package size={12} />
                                 </button>
                             )}
-                            {/* Main button */}
                             <button
                                 ref={buttonRef}
                                 onClick={handleToggle}

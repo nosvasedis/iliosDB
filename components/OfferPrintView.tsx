@@ -37,6 +37,35 @@ export default function OfferPrintView({ offer }: Props) {
         [offer.items]
     );
 
+    const renderOfferItem = (item: Offer['items'][number], globalIndex: number, isLeft: boolean) => {
+        const fullSku = item.sku + (item.variant_suffix || '');
+        const imageUrl = item.product_details?.image_url;
+        const description = item.product_details?.variants?.find(v => v.suffix === item.variant_suffix)?.description || item.product_details?.category || 'Προϊόν';
+        return (
+            <div
+                key={globalIndex}
+                className={`flex items-center py-1.5 border-b border-slate-100 break-inside-avoid ${isLeft ? 'pr-3' : 'pl-3'}`}
+            >
+                <div className="w-5 text-center text-slate-400 font-mono text-[8px]">{globalIndex + 1}</div>
+                <div className="w-10 flex justify-center">
+                    <div className="w-8 h-8 bg-slate-50 rounded overflow-hidden border border-slate-200">
+                        {imageUrl && (
+                            <img src={imageUrl} alt={item.sku} className="w-full h-full object-cover" />
+                        )}
+                    </div>
+                </div>
+                <div className="flex-1 px-1 min-w-0">
+                    <div className="font-black text-slate-900 truncate">{fullSku}</div>
+                    <div className="text-slate-500 font-medium truncate text-[8px]">{description}</div>
+                    {item.size_info && <span className="inline-block text-[7px] bg-slate-100 px-1 rounded text-slate-600 border border-slate-200 leading-none mt-0.5">{item.size_info}</span>}
+                </div>
+                <div className="w-8 text-center font-bold text-slate-800">{item.quantity}</div>
+                <div className="w-12 text-right font-mono text-slate-600">{formatCurrency(item.price_at_order)}</div>
+                <div className="w-14 text-right font-black text-slate-900 font-mono">{formatCurrency(item.price_at_order * item.quantity)}</div>
+            </div>
+        );
+    };
+
     return (
         <div className="bg-white text-black font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 page-break-after-always relative flex flex-col">
             
@@ -116,46 +145,20 @@ export default function OfferPrintView({ offer }: Props) {
                     </div>
                 </div>
 
-                {/* Grid Content */}
-                <div className="grid grid-cols-2 text-[9px] leading-tight auto-rows-min">
-                    {sortedItems.map((item, index) => {
-                        const fullSku = item.sku + (item.variant_suffix || '');
-                        const imageUrl = item.product_details?.image_url;
-                        const description = item.product_details?.variants?.find(v => v.suffix === item.variant_suffix)?.description || item.product_details?.category || 'Προϊόν';
-
-                        return (
-                            <div 
-                                key={index} 
-                                className={`
-                                    flex items-center py-1.5 border-b border-slate-100 break-inside-avoid
-                                    ${index % 2 === 0 ? 'pr-3 border-r border-dashed border-slate-200' : 'pl-3'}
-                                `}
-                            >
-                                <div className="w-5 text-center text-slate-400 font-mono text-[8px]">{index + 1}</div>
-                                
-                                <div className="w-10 flex justify-center">
-                                    <div className="w-8 h-8 bg-slate-50 rounded overflow-hidden border border-slate-200">
-                                        {imageUrl && (
-                                            <img src={imageUrl} alt={item.sku} className="w-full h-full object-cover" />
-                                        )}
-                                    </div>
-                                </div>
-                                
-                                <div className="flex-1 px-1 min-w-0">
-                                    <div className="font-black text-slate-900 truncate">{fullSku}</div>
-                                    <div className="text-slate-500 font-medium truncate text-[8px]">{description}</div>
-                                    {item.size_info && <span className="inline-block text-[7px] bg-slate-100 px-1 rounded text-slate-600 border border-slate-200 leading-none mt-0.5">{item.size_info}</span>}
-                                </div>
-                                
-                                <div className="w-8 text-center font-bold text-slate-800">{item.quantity}</div>
-                                
-                                <div className="w-12 text-right font-mono text-slate-600">{formatCurrency(item.price_at_order)}</div>
-                                
-                                <div className="w-14 text-right font-black text-slate-900 font-mono">{formatCurrency(item.price_at_order * item.quantity)}</div>
+                {/* Grid Content - vertical fill: left column top-to-bottom, then right column */}
+                {(() => {
+                    const half = Math.ceil(sortedItems.length / 2);
+                    return (
+                        <div className="flex text-[9px] leading-tight">
+                            <div className="flex-1 min-w-0 border-r border-dashed border-slate-200">
+                                {sortedItems.slice(0, half).map((item, i) => renderOfferItem(item, i, true))}
                             </div>
-                        );
-                    })}
-                </div>
+                            <div className="flex-1 min-w-0">
+                                {sortedItems.slice(half).map((item, i) => renderOfferItem(item, half + i, false))}
+                            </div>
+                        </div>
+                    );
+                })()}
             </main>
 
             {/* FOOTER */}

@@ -55,6 +55,46 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
         email: "ilioskosmima@gmail.com"
     };
 
+    const renderShipmentItem = (item: OrderShipmentItem, globalIndex: number, isLeft: boolean) => {
+        const product = products.find(p => p.sku === item.sku);
+        const variant = product?.variants?.find(v => v.suffix === item.variant_suffix);
+        const fullSku = item.sku + (item.variant_suffix || '');
+        const imageUrl = product?.image_url;
+        const description = variant?.description || product?.category || 'Προϊόν';
+        const isOverridden = isShipmentItemOverridden(item);
+        return (
+            <div
+                key={globalIndex}
+                className={`flex items-center py-1.5 border-b border-slate-100 break-inside-avoid ${isLeft ? 'pr-3' : 'pl-3'}`}
+            >
+                <div className="w-6 text-center text-slate-400 text-[11px] tabular-nums">{globalIndex + 1}</div>
+                <div className="w-8 text-center">
+                    <div className="w-6 h-6 bg-slate-50 rounded overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
+                        {imageUrl ? (
+                            <img src={imageUrl} alt={item.sku} className="w-full h-full object-cover" />
+                        ) : (
+                            <ImageIcon size={10} className="text-slate-300" />
+                        )}
+                    </div>
+                </div>
+                <div className="flex-1 px-1 min-w-0">
+                    <div className="flex flex-col">
+                        <div className="flex items-baseline gap-1">
+                            <span className="font-bold text-slate-900">{fullSku}</span>
+                            {item.size_info && <span className="text-[9px] bg-slate-100 px-1 rounded text-slate-600 border border-slate-200 font-bold whitespace-nowrap">{item.size_info}</span>}
+                            {item.cord_color && <span className="text-[9px] bg-amber-50 px-1 rounded text-amber-700 border border-amber-100 font-bold whitespace-nowrap">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
+                            {item.enamel_color && <span className="text-[9px] bg-rose-50 px-1 rounded text-rose-700 border border-rose-100 font-bold whitespace-nowrap">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
+                        </div>
+                        <span className="text-[10px] text-slate-600 truncate max-w-[200px] font-medium">{description}</span>
+                    </div>
+                </div>
+                <div className="w-8 text-center font-bold text-slate-800 text-[12px]">{item.quantity}</div>
+                <div className="w-12 text-right text-slate-700 tabular-nums font-semibold text-[12px]">{item.price_at_order.toFixed(2).replace('.', ',')}{isOverridden ? '*' : ''}</div>
+                <div className="w-14 text-right font-black text-slate-900 tabular-nums text-[12px]">{(item.price_at_order * item.quantity).toFixed(2).replace('.', ',')}</div>
+            </div>
+        );
+    };
+
     return (
         <div className="bg-white text-black font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 page-break-after-always flex flex-col relative">
 
@@ -141,51 +181,20 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 text-[12px] leading-snug auto-rows-min">
-                    {sortedShipmentItems.map((item, index) => {
-                        const product = products.find(p => p.sku === item.sku);
-                        const variant = product?.variants?.find(v => v.suffix === item.variant_suffix);
-                        const fullSku = item.sku + (item.variant_suffix || '');
-                        const imageUrl = product?.image_url;
-                        const description = variant?.description || product?.category || 'Προϊόν';
-                        const isOverridden = isShipmentItemOverridden(item);
-
-                        return (
-                            <div
-                                key={index}
-                                className={`
-                                    flex items-center py-1.5 border-b border-slate-100 break-inside-avoid
-                                    ${index % 2 === 0 ? 'pr-3 border-r border-dashed border-slate-200' : 'pl-3'}
-                                `}
-                            >
-                                <div className="w-6 text-center text-slate-400 text-[11px] tabular-nums">{index + 1}</div>
-                                <div className="w-8 text-center">
-                                    <div className="w-6 h-6 bg-slate-50 rounded overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
-                                        {imageUrl ? (
-                                            <img src={imageUrl} alt={item.sku} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <ImageIcon size={10} className="text-slate-300" />
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="flex-1 px-1 min-w-0">
-                                    <div className="flex flex-col">
-                                        <div className="flex items-baseline gap-1">
-                                            <span className="font-bold text-slate-900">{fullSku}</span>
-                                            {item.size_info && <span className="text-[9px] bg-slate-100 px-1 rounded text-slate-600 border border-slate-200 font-bold whitespace-nowrap">{item.size_info}</span>}
-                                            {item.cord_color && <span className="text-[9px] bg-amber-50 px-1 rounded text-amber-700 border border-amber-100 font-bold whitespace-nowrap">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
-                                            {item.enamel_color && <span className="text-[9px] bg-rose-50 px-1 rounded text-rose-700 border border-rose-100 font-bold whitespace-nowrap">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
-                                        </div>
-                                        <span className="text-[10px] text-slate-600 truncate max-w-[200px] font-medium">{description}</span>
-                                    </div>
-                                </div>
-                                <div className="w-8 text-center font-bold text-slate-800 text-[12px]">{item.quantity}</div>
-                                <div className="w-12 text-right text-slate-700 tabular-nums font-semibold text-[12px]">{item.price_at_order.toFixed(2).replace('.', ',')}{isOverridden ? '*' : ''}</div>
-                                <div className="w-14 text-right font-black text-slate-900 tabular-nums text-[12px]">{(item.price_at_order * item.quantity).toFixed(2).replace('.', ',')}</div>
+                {/* Items Grid - vertical fill: left column top-to-bottom, then right column */}
+                {(() => {
+                    const half = Math.ceil(sortedShipmentItems.length / 2);
+                    return (
+                        <div className="flex text-[12px] leading-snug">
+                            <div className="flex-1 min-w-0 border-r border-dashed border-slate-200">
+                                {sortedShipmentItems.slice(0, half).map((item, i) => renderShipmentItem(item, i, true))}
                             </div>
-                        );
-                    })}
-                </div>
+                            <div className="flex-1 min-w-0">
+                                {sortedShipmentItems.slice(half).map((item, i) => renderShipmentItem(item, half + i, false))}
+                            </div>
+                        </div>
+                    );
+                })()}
             </main>
 
             {/* FOOTER */}
