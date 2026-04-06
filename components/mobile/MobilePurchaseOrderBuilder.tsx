@@ -1,19 +1,29 @@
 
-import React, { useState, useMemo } from 'react';
-import { Supplier, SupplierOrderItem, SupplierOrderType, Product, Gender } from '../../types';
-import { X, Search, Plus, Save, Trash2, Box, Gem, Factory, ImageIcon, StickyNote, ShoppingCart, Hash, ListPlus, ChevronDown } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { Supplier, SupplierOrderItem, SupplierOrderType, Product, Gender, SupplierOrder } from '../../types';
+import { X, Search, Plus, Save, Trash2, Box, Gem, Factory, ImageIcon, StickyNote, ShoppingCart, Hash, ListPlus, ChevronDown, Loader2 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { useUI } from '../UIProvider';
 import { getVariantComponents } from '../../utils/pricingEngine';
-import { useSupplierOrderNeeds } from '../../hooks/useSupplierOrderNeeds';
-import { mergeManyNeedsIntoItems, mergeNeedIntoItems } from '../../utils/mergeSupplierNeedIntoOrder';
-import { needBreakdownKey } from '../../utils/supplierOrderNeedBreakdown';
+import { useSupplierOrderNeeds, type SupplierOrderGroupedNeed } from '../../hooks/useSupplierOrderNeeds';
+import { mergeNeedIntoItems } from '../../utils/mergeSupplierNeedIntoOrder';
+import { needBreakdownKey, unattributedQty } from '../../utils/supplierOrderNeedBreakdown';
+import {
+    defaultMaskForNeed,
+    mergeManyNeedsWithCustomerFilter,
+    normCustomerKey,
+    purchaseOrderFilterFromTab,
+    type PurchaseOrderCustomerFilter,
+    type PurchaseOrderFilterTab,
+} from '../../utils/supplierOrderCustomerFilter';
 import PurchaseNeedRow from '../PurchaseNeedRow';
+import PurchaseOrderCustomerFilterBar from '../PurchaseOrderCustomerFilterBar';
 
 interface Props {
     supplier: Supplier;
     onClose: () => void;
+    initialOrder?: SupplierOrder | null;
 }
 
 // Visual Config
@@ -36,20 +46,78 @@ const STONE_TEXT_COLORS: Record<string, string> = {
     'MV': 'text-purple-400', 'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
 };
 
-export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props) {
+export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialOrder = null }: Props) {
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
     const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
     const queryClient = useQueryClient();
     const { showToast } = useUI();
     const { productionNeeds, pendingOrderNeeds } = useSupplierOrderNeeds(supplier);
+    const cartSectionRef = useRef<HTMLDivElement>(null);
 
-    const [items, setItems] = useState<SupplierOrderItem[]>([]);
+    const [items, setItems] = useState<SupplierOrderItem[]>(() => initialOrder?.items ?? []);
     const [searchTerm, setSearchTerm] = useState('');
     const [searchType, setSearchType] = useState<SupplierOrderType>('Product');
-    const [notes, setNotes] = useState('');
+    const [notes, setNotes] = useState(() => initialOrder?.notes ?? '');
+    const [isSaving, setIsSaving] = useState(false);
     const [productionNeedsOpen, setProductionNeedsOpen] = useState(true);
     const [pendingNeedsOpen, setPendingNeedsOpen] = useState(true);
     const [needBreakdownOpen, setNeedBreakdownOpen] = useState<Record<string, boolean>>({});
+    const [customerFilterExpanded, setCustomerFilterExpanded] = useState(false);
+    const [customerFilterTab, setCustomerFilterTab] = useState<PurchaseOrderFilterTab>('all');
+    const [customerPickKeys, setCustomerPickKeys] = useState<Set<string>>(() => new Set());
+    const [rowSelectionMasks, setRowSelectionMasks] = useState<Record<string, boolean[]>>({});
+
+    const poCustomerFilter: PurchaseOrderCustomerFilter = useMemo(
+        () => purchaseOrderFilterFromTab(customerFilterTab, customerPickKeys),
+        [customerFilterTab, customerPickKeys]
+    );
+
+    const uniquePoCustomers = useMemo(() => {
+        const m = new Map<string, string>();
+        for (const n of [...productionNeeds, ...pendingOrderNeeds]) {
+            for (const r of n.requirements) {
+                const k = normCustomerKey(r.customer);
+                if (!m.has(k)) m.set(k, r.customer.trim() || r.customer);
+            }
+        }
+        return [...m.values()].sort((a, b) => a.localeCompare(b, 'el'));
+    }, [productionNeeds, pendingOrderNeeds]);
+
+    useEffect(() => {
+        setRowSelectionMasks({});
+    }, [customerFilterTab, customerPickKeys]);
+
+    useEffect(() => {
+        if (initialOrder) {
+            setItems(initialOrder.items.map(i => ({ ...i })));
+            setNotes(initialOrder.notes ?? '');
+        }
+    }, [initialOrder?.id]);
+
+    const resolveRowMask = (key: string, need: SupplierOrderGroupedNeed): boolean[] => {
+        const extra = unattributedQty(need.totalQty, need.requirements);
+        const expectedLen = need.requirements.length + (extra > 0 ? 1 : 0);
+        const stored = rowSelectionMasks[key];
+        if (stored && stored.length === expectedLen) return stored;
+        return defaultMaskForNeed(need, extra, poCustomerFilter);
+    };
+
+    const setRowMask = (key: string, need: SupplierOrderGroupedNeed, next: boolean[]) => {
+        const extra = unattributedQty(need.totalQty, need.requirements);
+        const expectedLen = need.requirements.length + (extra > 0 ? 1 : 0);
+        if (next.length !== expectedLen) return;
+        setRowSelectionMasks(p => ({ ...p, [key]: next }));
+    };
+
+    const toggleCustomerPick = (displayName: string) => {
+        const k = normCustomerKey(displayName);
+        setCustomerPickKeys(prev => {
+            const n = new Set(prev);
+            if (n.has(k)) n.delete(k);
+            else n.add(k);
+            return n;
+        });
+    };
 
     const addAllProductionNeeds = () => {
         const withProduct = productionNeeds.filter(n => n.product);
@@ -57,8 +125,12 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
             showToast('Δεν υπάρχουν διαθέσιμες γραμμές.', 'error');
             return;
         }
-        setItems(prev => mergeManyNeedsIntoItems(prev, withProduct));
-        showToast(`Προστέθηκαν ${withProduct.length} γραμμές από τις ανάγκες παραγωγής.`, 'success');
+        if (customerFilterTab === 'include_only' && customerPickKeys.size === 0) {
+            showToast('Επιλέξτε πελάτες στη λειτουργία «Μόνο…» ή αλλάξτε φίλτρο.', 'error');
+            return;
+        }
+        setItems(prev => mergeManyNeedsWithCustomerFilter(prev, withProduct, poCustomerFilter));
+        showToast('Προστέθηκαν ποσότητες (φίλτρο πελατών).', 'success');
     };
 
     const addAllPendingOrderNeeds = () => {
@@ -67,8 +139,12 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
             showToast('Δεν υπάρχουν διαθέσιμες γραμμές.', 'error');
             return;
         }
-        setItems(prev => mergeManyNeedsIntoItems(prev, withProduct));
-        showToast(`Προστέθηκαν ${withProduct.length} γραμμές από τις εκκρεμείς παραγγελίες.`, 'success');
+        if (customerFilterTab === 'include_only' && customerPickKeys.size === 0) {
+            showToast('Επιλέξτε πελάτες στη λειτουργία «Μόνο…» ή αλλάξτε φίλτρο.', 'error');
+            return;
+        }
+        setItems(prev => mergeManyNeedsWithCustomerFilter(prev, withProduct, poCustomerFilter));
+        showToast('Προστέθηκαν ποσότητες (φίλτρο πελατών).', 'success');
     };
 
     const searchResults = useMemo(() => {
@@ -191,32 +267,56 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
     const handleSave = async () => {
         if (items.length === 0) { showToast("Η εντολή είναι κενή.", "error"); return; }
 
+        setIsSaving(true);
         try {
-            const order = {
-                id: crypto.randomUUID(),
-                supplier_id: supplier.id,
-                supplier_name: supplier.name,
-                created_at: new Date().toISOString(),
-                status: 'Pending',
-                total_amount: 0,
-                items,
-                notes
-            };
-            await api.saveSupplierOrder(order as any);
-            queryClient.invalidateQueries({ queryKey: ['supplier_orders'] });
-            showToast("Η εντολή δημιουργήθηκε!", "success");
+            if (initialOrder) {
+                const order: SupplierOrder = {
+                    ...initialOrder,
+                    items,
+                    notes,
+                    total_amount: 0,
+                };
+                await api.updateSupplierOrder(order);
+                queryClient.invalidateQueries({ queryKey: ['supplier_orders'] });
+                showToast('Η εντολή ενημερώθηκε.', 'success');
+            } else {
+                const order: SupplierOrder = {
+                    id: crypto.randomUUID(),
+                    supplier_id: supplier.id,
+                    supplier_name: supplier.name,
+                    created_at: new Date().toISOString(),
+                    status: 'Pending',
+                    total_amount: 0,
+                    items,
+                    notes
+                };
+                await api.saveSupplierOrder(order);
+                queryClient.invalidateQueries({ queryKey: ['supplier_orders'] });
+                showToast("Η εντολή δημιουργήθηκε!", "success");
+            }
             onClose();
         } catch (e) {
             showToast("Σφάλμα.", "error");
+        } finally {
+            setIsSaving(false);
         }
     };
 
     return (
         <div className="fixed inset-0 z-[110] bg-slate-50 flex flex-col animate-in slide-in-from-bottom duration-300">
             <div className="bg-white p-4 border-b border-slate-100 flex justify-between items-start gap-3 shadow-sm z-10">
-                <div className="min-w-0">
-                    <h2 className="text-lg font-black text-slate-800">Νέα Εντολή Αγοράς</h2>
+                <div className="min-w-0 flex-1">
+                    <h2 className="text-lg font-black text-slate-800">
+                        {initialOrder ? 'Επεξεργασία Εντολής' : 'Νέα Εντολή Αγοράς'}
+                    </h2>
                     <p className="text-xs text-slate-500 font-bold truncate mt-0.5">{supplier.name}</p>
+                    <button
+                        type="button"
+                        onClick={() => cartSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                        className="mt-2 text-[10px] font-black uppercase tracking-wide text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-lg active:scale-[0.98] transition-transform"
+                    >
+                        Καλάθι · {items.length} είδη
+                    </button>
                 </div>
                 <button type="button" onClick={onClose} className="shrink-0 p-1 -mr-1 rounded-lg hover:bg-slate-100" aria-label="Κλείσιμο">
                     <X size={24} className="text-slate-500" />
@@ -224,6 +324,16 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <PurchaseOrderCustomerFilterBar
+                    uniqueCustomers={uniquePoCustomers}
+                    tab={customerFilterTab}
+                    onTabChange={setCustomerFilterTab}
+                    pickedKeys={customerPickKeys}
+                    onTogglePicked={toggleCustomerPick}
+                    expanded={customerFilterExpanded}
+                    onToggleExpanded={() => setCustomerFilterExpanded(o => !o)}
+                    layout="mobile"
+                />
 
                 {/* Production Needs */}
                 {productionNeeds.length > 0 && (
@@ -266,10 +376,15 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                                         onToggleBreakdown={() =>
                                             setNeedBreakdownOpen(p => ({ ...p, [k]: !p[k] }))
                                         }
-                                        onAdd={() =>
-                                            addItem(n, 'Product', n.totalQty, n.variant, n.size, {
-                                                requirements: n.requirements,
+                                        selectionMask={resolveRowMask(k, n)}
+                                        onSelectionChange={next => setRowMask(k, n, next)}
+                                        onAddFiltered={(qty, reqs) =>
+                                            addItem(n, 'Product', qty, n.variant, n.size, {
+                                                requirements: reqs,
                                             })
+                                        }
+                                        onNotifyZero={() =>
+                                            showToast('Επιλέξτε τουλάχιστον μία γραμμή ποσότητας.', 'error')
                                         }
                                         layout="mobile"
                                     />
@@ -319,10 +434,15 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                                         onToggleBreakdown={() =>
                                             setNeedBreakdownOpen(p => ({ ...p, [k]: !p[k] }))
                                         }
-                                        onAdd={() =>
-                                            addItem(n, 'Product', n.totalQty, n.variant, n.size, {
-                                                requirements: n.requirements,
+                                        selectionMask={resolveRowMask(k, n)}
+                                        onSelectionChange={next => setRowMask(k, n, next)}
+                                        onAddFiltered={(qty, reqs) =>
+                                            addItem(n, 'Product', qty, n.variant, n.size, {
+                                                requirements: reqs,
                                             })
+                                        }
+                                        onNotifyZero={() =>
+                                            showToast('Επιλέξτε τουλάχιστον μία γραμμή ποσότητας.', 'error')
                                         }
                                         layout="mobile"
                                     />
@@ -373,7 +493,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
                     </div>
                 </div>
 
-                <div className="flex items-center justify-between gap-2">
+                <div ref={cartSectionRef} className="flex items-center justify-between gap-2 scroll-mt-4">
                     <span className="text-xs font-black text-slate-500 uppercase">Περιεχόμενα ({items.length})</span>
                     {items.length > 0 && (
                         <button
@@ -485,8 +605,14 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose }: Props)
             </div>
 
             <div className="p-4 bg-white border-t border-slate-200 z-20">
-                <button onClick={handleSave} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform">
-                    <Save size={20} /> Αποθήκευση Εντολής
+                <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={isSaving || items.length === 0}
+                    className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform disabled:opacity-50 disabled:pointer-events-none"
+                >
+                    {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
+                    {initialOrder ? 'Αποθήκευση αλλαγών' : 'Αποθήκευση Εντολής'}
                 </button>
             </div>
         </div>

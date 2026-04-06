@@ -1,19 +1,30 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Supplier, SupplierOrderItem, SupplierOrderType, Product, SupplierOrder, Gender } from '../types';
 import { X, Search, Plus, Save, Trash2, Box, Gem, Factory, ImageIcon, Loader2, ShoppingCart, Hash, ListPlus, ChevronDown } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { getVariantComponents } from '../utils/pricingEngine';
-import { useSupplierOrderNeeds } from '../hooks/useSupplierOrderNeeds';
-import { mergeManyNeedsIntoItems, mergeNeedIntoItems } from '../utils/mergeSupplierNeedIntoOrder';
-import { needBreakdownKey } from '../utils/supplierOrderNeedBreakdown';
+import { useSupplierOrderNeeds, type SupplierOrderGroupedNeed } from '../hooks/useSupplierOrderNeeds';
+import { mergeNeedIntoItems } from '../utils/mergeSupplierNeedIntoOrder';
+import { needBreakdownKey, unattributedQty } from '../utils/supplierOrderNeedBreakdown';
+import {
+    defaultMaskForNeed,
+    mergeManyNeedsWithCustomerFilter,
+    normCustomerKey,
+    purchaseOrderFilterFromTab,
+    type PurchaseOrderCustomerFilter,
+    type PurchaseOrderFilterTab,
+} from '../utils/supplierOrderCustomerFilter';
 import PurchaseNeedRow from './PurchaseNeedRow';
+import PurchaseOrderCustomerFilterBar from './PurchaseOrderCustomerFilterBar';
 
 interface Props {
     supplier: Supplier;
     onClose: () => void;
+    /** When set, builder updates this pending order instead of creating a new one. */
+    initialOrder?: SupplierOrder | null;
 }
 
 // Visual Config for Suffixes
@@ -36,7 +47,7 @@ const STONE_TEXT_COLORS: Record<string, string> = {
     'MV': 'text-purple-400', 'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
 };
 
-export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props) {
+export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initialOrder = null }: Props) {
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
     const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
 
@@ -44,14 +55,70 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
     const { showToast } = useUI();
     const { productionNeeds, pendingOrderNeeds } = useSupplierOrderNeeds(supplier);
 
-    const [items, setItems] = useState<SupplierOrderItem[]>([]);
+    const [items, setItems] = useState<SupplierOrderItem[]>(() => initialOrder?.items ?? []);
     const [searchTerm, setSearchTerm] = useState('');
     const [searchType, setSearchType] = useState<SupplierOrderType>('Product');
-    const [notes, setNotes] = useState('');
+    const [notes, setNotes] = useState(() => initialOrder?.notes ?? '');
     const [isSaving, setIsSaving] = useState(false);
     const [productionNeedsOpen, setProductionNeedsOpen] = useState(true);
     const [pendingNeedsOpen, setPendingNeedsOpen] = useState(true);
     const [needBreakdownOpen, setNeedBreakdownOpen] = useState<Record<string, boolean>>({});
+    const [customerFilterExpanded, setCustomerFilterExpanded] = useState(false);
+    const [customerFilterTab, setCustomerFilterTab] = useState<PurchaseOrderFilterTab>('all');
+    const [customerPickKeys, setCustomerPickKeys] = useState<Set<string>>(() => new Set());
+    const [rowSelectionMasks, setRowSelectionMasks] = useState<Record<string, boolean[]>>({});
+
+    const poCustomerFilter: PurchaseOrderCustomerFilter = useMemo(
+        () => purchaseOrderFilterFromTab(customerFilterTab, customerPickKeys),
+        [customerFilterTab, customerPickKeys]
+    );
+
+    const uniquePoCustomers = useMemo(() => {
+        const m = new Map<string, string>();
+        for (const n of [...productionNeeds, ...pendingOrderNeeds]) {
+            for (const r of n.requirements) {
+                const k = normCustomerKey(r.customer);
+                if (!m.has(k)) m.set(k, r.customer.trim() || r.customer);
+            }
+        }
+        return [...m.values()].sort((a, b) => a.localeCompare(b, 'el'));
+    }, [productionNeeds, pendingOrderNeeds]);
+
+    useEffect(() => {
+        setRowSelectionMasks({});
+    }, [customerFilterTab, customerPickKeys]);
+
+    useEffect(() => {
+        if (initialOrder) {
+            setItems(initialOrder.items.map(i => ({ ...i })));
+            setNotes(initialOrder.notes ?? '');
+        }
+    }, [initialOrder?.id]);
+
+    const resolveRowMask = (key: string, need: SupplierOrderGroupedNeed): boolean[] => {
+        const extra = unattributedQty(need.totalQty, need.requirements);
+        const expectedLen = need.requirements.length + (extra > 0 ? 1 : 0);
+        const stored = rowSelectionMasks[key];
+        if (stored && stored.length === expectedLen) return stored;
+        return defaultMaskForNeed(need, extra, poCustomerFilter);
+    };
+
+    const setRowMask = (key: string, need: SupplierOrderGroupedNeed, next: boolean[]) => {
+        const extra = unattributedQty(need.totalQty, need.requirements);
+        const expectedLen = need.requirements.length + (extra > 0 ? 1 : 0);
+        if (next.length !== expectedLen) return;
+        setRowSelectionMasks(p => ({ ...p, [key]: next }));
+    };
+
+    const toggleCustomerPick = (displayName: string) => {
+        const k = normCustomerKey(displayName);
+        setCustomerPickKeys(prev => {
+            const n = new Set(prev);
+            if (n.has(k)) n.delete(k);
+            else n.add(k);
+            return n;
+        });
+    };
 
     const addAllProductionNeeds = () => {
         const withProduct = productionNeeds.filter(n => n.product);
@@ -59,8 +126,12 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
             showToast('Δεν υπάρχουν διαθέσιμες γραμμές.', 'error');
             return;
         }
-        setItems(prev => mergeManyNeedsIntoItems(prev, withProduct));
-        showToast(`Προστέθηκαν ${withProduct.length} γραμμές από τις ανάγκες παραγωγής.`, 'success');
+        if (customerFilterTab === 'include_only' && customerPickKeys.size === 0) {
+            showToast('Επιλέξτε πελάτες στη λειτουργία «Μόνο…» ή αλλάξτε φίλτρο.', 'error');
+            return;
+        }
+        setItems(prev => mergeManyNeedsWithCustomerFilter(prev, withProduct, poCustomerFilter));
+        showToast('Οι ποσότητες προστέθηκαν σύμφωνα με το φίλτρο πελατών (συγχώνευση σε υπάρχοντα SKU όπου υπάρχει).', 'success');
     };
 
     const addAllPendingOrderNeeds = () => {
@@ -69,8 +140,12 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
             showToast('Δεν υπάρχουν διαθέσιμες γραμμές.', 'error');
             return;
         }
-        setItems(prev => mergeManyNeedsIntoItems(prev, withProduct));
-        showToast(`Προστέθηκαν ${withProduct.length} γραμμές από τις εκκρεμείς παραγγελίες.`, 'success');
+        if (customerFilterTab === 'include_only' && customerPickKeys.size === 0) {
+            showToast('Επιλέξτε πελάτες στη λειτουργία «Μόνο…» ή αλλάξτε φίλτρο.', 'error');
+            return;
+        }
+        setItems(prev => mergeManyNeedsWithCustomerFilter(prev, withProduct, poCustomerFilter));
+        showToast('Οι ποσότητες προστέθηκαν σύμφωνα με το φίλτρο πελατών (συγχώνευση σε υπάρχοντα SKU όπου υπάρχει).', 'success');
     };
 
     // Search: only products/materials linked to this supplier
@@ -201,19 +276,31 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
         
         setIsSaving(true);
         try {
-            const order: SupplierOrder = {
-                id: crypto.randomUUID(),
-                supplier_id: supplier.id,
-                supplier_name: supplier.name,
-                created_at: new Date().toISOString(),
-                status: 'Pending',
-                total_amount: 0,
-                items,
-                notes
-            };
-            await api.saveSupplierOrder(order);
-            queryClient.invalidateQueries({ queryKey: ['supplier_orders'] });
-            showToast("Η εντολή δημιουργήθηκε!", "success");
+            if (initialOrder) {
+                const order: SupplierOrder = {
+                    ...initialOrder,
+                    items,
+                    notes,
+                    total_amount: 0,
+                };
+                await api.updateSupplierOrder(order);
+                queryClient.invalidateQueries({ queryKey: ['supplier_orders'] });
+                showToast('Η εντολή ενημερώθηκε.', 'success');
+            } else {
+                const order: SupplierOrder = {
+                    id: crypto.randomUUID(),
+                    supplier_id: supplier.id,
+                    supplier_name: supplier.name,
+                    created_at: new Date().toISOString(),
+                    status: 'Pending',
+                    total_amount: 0,
+                    items,
+                    notes
+                };
+                await api.saveSupplierOrder(order);
+                queryClient.invalidateQueries({ queryKey: ['supplier_orders'] });
+                showToast("Η εντολή δημιουργήθηκε!", "success");
+            }
             onClose();
         } catch (e) {
             showToast("Σφάλμα κατά την αποθήκευση.", "error");
@@ -229,7 +316,9 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
                 {/* Header */}
                 <div className="bg-white p-6 border-b border-slate-100 flex justify-between items-center shadow-sm z-10">
                     <div>
-                        <h2 className="text-xl font-black text-slate-800">Νέα Εντολή Αγοράς</h2>
+                        <h2 className="text-xl font-black text-slate-800">
+                            {initialOrder ? 'Επεξεργασία Εντολής Αγοράς' : 'Νέα Εντολή Αγοράς'}
+                        </h2>
                         <p className="text-sm text-slate-500 font-bold">{supplier.name}</p>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"><X size={24}/></button>
@@ -240,7 +329,17 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
                     {/* LEFT PANEL: SELECTION & INTELLIGENCE */}
                     <div className="lg:w-1/3 border-r border-slate-100 flex flex-col bg-slate-50">
                         <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar flex-1">
-                            
+                            <PurchaseOrderCustomerFilterBar
+                                uniqueCustomers={uniquePoCustomers}
+                                tab={customerFilterTab}
+                                onTabChange={setCustomerFilterTab}
+                                pickedKeys={customerPickKeys}
+                                onTogglePicked={toggleCustomerPick}
+                                expanded={customerFilterExpanded}
+                                onToggleExpanded={() => setCustomerFilterExpanded(o => !o)}
+                                layout="desktop"
+                            />
+
                             {/* Production Needs (Existing Batches) */}
                             {(productionNeeds.length > 0) && (
                                 <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 space-y-3 shadow-sm">
@@ -283,10 +382,15 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
                                                     onToggleBreakdown={() =>
                                                         setNeedBreakdownOpen(p => ({ ...p, [k]: !p[k] }))
                                                     }
-                                                    onAdd={() =>
-                                                        addItem(n, 'Product', n.totalQty, n.variant, n.size, {
-                                                            requirements: n.requirements,
+                                                    selectionMask={resolveRowMask(k, n)}
+                                                    onSelectionChange={next => setRowMask(k, n, next)}
+                                                    onAddFiltered={(qty, reqs) =>
+                                                        addItem(n, 'Product', qty, n.variant, n.size, {
+                                                            requirements: reqs,
                                                         })
+                                                    }
+                                                    onNotifyZero={() =>
+                                                        showToast('Επιλέξτε τουλάχιστον μία γραμμή ποσότητας.', 'error')
                                                     }
                                                     layout="desktop"
                                                 />
@@ -339,10 +443,15 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
                                                     onToggleBreakdown={() =>
                                                         setNeedBreakdownOpen(p => ({ ...p, [k]: !p[k] }))
                                                     }
-                                                    onAdd={() =>
-                                                        addItem(n, 'Product', n.totalQty, n.variant, n.size, {
-                                                            requirements: n.requirements,
+                                                    selectionMask={resolveRowMask(k, n)}
+                                                    onSelectionChange={next => setRowMask(k, n, next)}
+                                                    onAddFiltered={(qty, reqs) =>
+                                                        addItem(n, 'Product', qty, n.variant, n.size, {
+                                                            requirements: reqs,
                                                         })
+                                                    }
+                                                    onNotifyZero={() =>
+                                                        showToast('Επιλέξτε τουλάχιστον μία γραμμή ποσότητας.', 'error')
                                                     }
                                                     layout="desktop"
                                                 />
@@ -540,7 +649,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose }: Props
                                 className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black text-lg shadow-xl hover:bg-black transition-all flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {isSaving ? <Loader2 size={24} className="animate-spin"/> : <Save size={24}/>}
-                                Αποθήκευση Εντολής
+                                {initialOrder ? 'Αποθήκευση αλλαγών' : 'Αποθήκευση Εντολής'}
                             </button>
                         </div>
                     </div>

@@ -1,16 +1,15 @@
 import React from 'react';
 import { ImageIcon, ChevronDown, ChevronRight } from 'lucide-react';
-import type { SupplierOrderGroupedNeed } from '../hooks/useSupplierOrderNeeds';
-import {
-    aggregateRequirementsByCustomer,
-    unattributedQty,
-} from '../utils/supplierOrderNeedBreakdown';
+import type { SupplierOrderGroupedNeed, SupplierOrderNeedRequirement } from '../hooks/useSupplierOrderNeeds';
+import { aggregateRequirementsByCustomer, unattributedQty } from '../utils/supplierOrderNeedBreakdown';
+import { quantitiesFromSelection, selectedQtyFromMask } from '../utils/supplierOrderCustomerFilter';
+import { formatOrderId } from '../utils/orderUtils';
 
 type Accent = 'indigo' | 'blue';
 
 const accentAdd: Record<Accent, string> = {
-    indigo: 'bg-indigo-100 hover:bg-indigo-200 text-indigo-700',
-    blue: 'bg-blue-100 hover:bg-blue-200 text-blue-700',
+    indigo: 'bg-indigo-100 hover:bg-indigo-200 text-indigo-700 disabled:opacity-40 disabled:pointer-events-none',
+    blue: 'bg-blue-100 hover:bg-blue-200 text-blue-700 disabled:opacity-40 disabled:pointer-events-none',
 };
 
 const accentToggle: Record<Accent, string> = {
@@ -38,7 +37,10 @@ interface Props {
     accent: Accent;
     expanded: boolean;
     onToggleBreakdown: () => void;
-    onAdd: () => void;
+    selectionMask: boolean[];
+    onSelectionChange: (next: boolean[]) => void;
+    onAddFiltered: (qty: number, requirements: SupplierOrderNeedRequirement[]) => void;
+    onNotifyZero?: () => void;
     layout: 'desktop' | 'mobile';
 }
 
@@ -47,7 +49,10 @@ export default function PurchaseNeedRow({
     accent,
     expanded,
     onToggleBreakdown,
-    onAdd,
+    selectionMask,
+    onSelectionChange,
+    onAddFiltered,
+    onNotifyZero,
     layout,
 }: Props) {
     const extra = unattributedQty(n.totalQty, n.requirements);
@@ -55,6 +60,30 @@ export default function PurchaseNeedRow({
     const hasBreakdown = n.requirements.length > 0 || extra > 0;
     const lineCount = byCustomer.length + (extra > 0 ? 1 : 0);
     const isDesktop = layout === 'desktop';
+
+    const selectedQty = selectedQtyFromMask(n, selectionMask, extra);
+    const addDisabled = selectedQty <= 0;
+
+    const setAll = (v: boolean) => {
+        const len = n.requirements.length + (extra > 0 ? 1 : 0);
+        onSelectionChange(new Array(len).fill(v));
+    };
+
+    const toggleAt = (index: number) => {
+        const next = [...selectionMask];
+        if (index < 0 || index >= next.length) return;
+        next[index] = !next[index];
+        onSelectionChange(next);
+    };
+
+    const handleAdd = () => {
+        const { totalQty, requirements } = quantitiesFromSelection(n, selectionMask, extra);
+        if (totalQty <= 0) {
+            onNotifyZero?.();
+            return;
+        }
+        onAddFiltered(totalQty, requirements);
+    };
 
     return (
         <div
@@ -82,6 +111,12 @@ export default function PurchaseNeedRow({
                     </div>
                     <p className={`text-slate-700 font-bold mt-1 ${isDesktop ? 'text-[11px]' : 'text-[10px]'}`}>
                         <span className="text-slate-900 font-black tabular-nums">{n.totalQty}</span> τμχ συνολικά
+                        {selectedQty !== n.totalQty && (
+                            <>
+                                {' '}
+                                · <span className="text-emerald-800 font-black tabular-nums">{selectedQty}</span> επιλεγμένα
+                            </>
+                        )}
                     </p>
                     {hasBreakdown && (
                         <>
@@ -99,23 +134,72 @@ export default function PurchaseNeedRow({
                                 ) : (
                                     <ChevronRight size={14} className="shrink-0" aria-hidden />
                                 )}
-                                Ανάλυση ανά πελάτη{lineCount > 0 ? ` (${lineCount})` : ''}
+                                Ανάλυση &amp; επιλογή{lineCount > 0 ? ` (${lineCount})` : ''}
                             </button>
                             {expanded && (
-                                <ul className={`mt-2 space-y-1 border-l-2 pl-2.5 ${accentBar[accent]}`} role="list">
-                                    {byCustomer.map(row => (
-                                        <li key={row.customer} className="flex justify-between gap-2 text-[11px] text-slate-700">
-                                            <span className="font-semibold truncate min-w-0">{row.customer}</span>
-                                            <span className="font-black shrink-0 tabular-nums">{row.qty} τμχ</span>
-                                        </li>
-                                    ))}
-                                    {extra > 0 && (
-                                        <li className="flex justify-between gap-2 text-[11px] text-amber-900 font-bold">
-                                            <span>Λοιπά (αναντίστοιχα)</span>
-                                            <span className="tabular-nums">{extra} τμχ</span>
-                                        </li>
-                                    )}
-                                </ul>
+                                <div className={`mt-2 space-y-2 border-l-2 pl-2.5 ${accentBar[accent]}`}>
+                                    <div className="flex flex-wrap gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setAll(true)}
+                                            className="text-[10px] font-black uppercase text-slate-600 hover:text-slate-900 underline decoration-slate-300"
+                                        >
+                                            Όλα
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAll(false)}
+                                            className="text-[10px] font-black uppercase text-slate-600 hover:text-slate-900 underline decoration-slate-300"
+                                        >
+                                            Κανένα
+                                        </button>
+                                    </div>
+                                    <ul className="space-y-1" role="list">
+                                        {n.requirements.map((r, i) => (
+                                            <li key={`${r.orderId}-${i}-${r.customer}`}>
+                                                <label
+                                                    className={`flex items-center gap-2 rounded-lg cursor-pointer hover:bg-slate-50/80 -mx-1 px-1 py-1 ${isDesktop ? '' : 'touch-manipulation'}`}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={!!selectionMask[i]}
+                                                        onChange={() => toggleAt(i)}
+                                                        className="rounded border-slate-300 w-4 h-4 shrink-0 accent-slate-800"
+                                                    />
+                                                    <span className={`font-semibold text-slate-800 truncate flex-1 min-w-0 ${isDesktop ? 'text-[11px]' : 'text-[10px]'}`}>
+                                                        {r.customer}
+                                                    </span>
+                                                    {r.orderId ? (
+                                                        <span className="text-[9px] font-mono text-slate-400 shrink-0">#{formatOrderId(r.orderId)}</span>
+                                                    ) : null}
+                                                    <span className={`font-black tabular-nums text-slate-900 shrink-0 ${isDesktop ? 'text-[11px]' : 'text-[10px]'}`}>
+                                                        {r.quantity} τμχ
+                                                    </span>
+                                                </label>
+                                            </li>
+                                        ))}
+                                        {extra > 0 && (
+                                            <li>
+                                                <label
+                                                    className={`flex items-center gap-2 rounded-lg cursor-pointer hover:bg-amber-50/80 -mx-1 px-1 py-1 ${isDesktop ? '' : 'touch-manipulation'}`}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={!!selectionMask[n.requirements.length]}
+                                                        onChange={() => toggleAt(n.requirements.length)}
+                                                        className="rounded border-slate-300 w-4 h-4 shrink-0 accent-amber-800"
+                                                    />
+                                                    <span className={`font-bold text-amber-950 flex-1 min-w-0 ${isDesktop ? 'text-[11px]' : 'text-[10px]'}`}>
+                                                        Λοιπά (αναντίστοιχα)
+                                                    </span>
+                                                    <span className={`font-black tabular-nums text-amber-950 shrink-0 ${isDesktop ? 'text-[11px]' : 'text-[10px]'}`}>
+                                                        {extra} τμχ
+                                                    </span>
+                                                </label>
+                                            </li>
+                                        )}
+                                    </ul>
+                                </div>
                             )}
                         </>
                     )}
@@ -123,10 +207,11 @@ export default function PurchaseNeedRow({
             </div>
             <button
                 type="button"
-                onClick={onAdd}
+                onClick={handleAdd}
+                disabled={addDisabled}
                 className={`rounded-lg font-black transition-colors shrink-0 ${isDesktop ? 'px-3 py-1.5 text-xs' : 'px-3 py-1.5 text-xs self-end'} ${accentAdd[accent]}`}
             >
-                +{n.totalQty}
+                +{selectedQty}
             </button>
         </div>
     );

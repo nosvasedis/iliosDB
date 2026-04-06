@@ -32,6 +32,7 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
     const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
 
     const [isCreatingOrder, setIsCreatingOrder] = useState(false);
+    const [editingOrder, setEditingOrder] = useState<SupplierOrder | null>(null);
     const [viewTab, setViewTab] = useState<'info' | 'orders' | 'products' | 'materials'>('orders');
     const [viewOrderId, setViewOrderId] = useState<string | null>(null);
     const [productSearchTerm, setProductSearchTerm] = useState('');
@@ -133,11 +134,15 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
 
     const viewOrder = viewOrderId ? supplierOrders.find(o => o.id === viewOrderId) : undefined;
 
-    if (isCreatingOrder) {
+    if (isCreatingOrder || editingOrder) {
         return (
             <MobilePurchaseOrderBuilder
                 supplier={supplier}
-                onClose={() => setIsCreatingOrder(false)}
+                initialOrder={editingOrder}
+                onClose={() => {
+                    setIsCreatingOrder(false);
+                    setEditingOrder(null);
+                }}
             />
         );
     }
@@ -281,6 +286,15 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
                                         >
                                             Λεπτομέρειες
                                         </button>
+                                        {order.status === 'Pending' && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setEditingOrder(order)}
+                                                className="py-2 px-3 bg-indigo-50 text-indigo-800 rounded-lg font-bold text-xs border border-indigo-100 active:scale-95 transition-transform flex items-center gap-1"
+                                            >
+                                                <Pencil size={14} /> Επεξεργασία
+                                            </button>
+                                        )}
                                         {order.status === 'Pending' && (
                                             <button
                                                 type="button"

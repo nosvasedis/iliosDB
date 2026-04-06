@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Supplier, Product, Material, SupplierOrder } from '../types';
-import { Trash2, Plus, Globe, Phone, Mail, MapPin, Search, X, Check, ImageIcon, Box, Clock, FileText, Printer } from 'lucide-react';
+import { Trash2, Plus, Globe, Phone, Mail, MapPin, Search, X, Check, ImageIcon, Box, Clock, FileText, Printer, Pencil } from 'lucide-react';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
@@ -93,6 +93,7 @@ export default function SuppliersPage() {
 
     // Purchase Order State
     const [isCreatingOrder, setIsCreatingOrder] = useState(false);
+    const [editingOrder, setEditingOrder] = useState<SupplierOrder | null>(null);
     const [viewOrderId, setViewOrderId] = useState<string | null>(null);
     const [orderToPrint, setOrderToPrint] = useState<SupplierOrder | null>(null);
 
@@ -475,6 +476,14 @@ export default function SuppliersPage() {
                                                         <button onClick={() => setOrderToPrint(o)} className="p-2 text-slate-400 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors"><Printer size={18} /></button>
                                                         <button onClick={() => setViewOrderId(viewOrderId === o.id ? null : o.id)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-700 transition-colors">Λεπτομέρειες</button>
                                                         {o.status === 'Pending' && (
+                                                            <button
+                                                                onClick={() => setEditingOrder(o)}
+                                                                className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 border border-indigo-100"
+                                                            >
+                                                                <Pencil size={14} /> Επεξεργασία
+                                                            </button>
+                                                        )}
+                                                        {o.status === 'Pending' && (
                                                             <button onClick={() => handleReceiveOrder(o)} className="px-4 py-2 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-bold transition-colors shadow-md">Παραλαβή</button>
                                                         )}
                                                         <button onClick={() => handleDeleteOrder(o.id)} className="p-2 text-slate-400 hover:text-red-600 bg-slate-50 hover:bg-red-50 rounded-lg transition-colors" title="Διαγραφή"><Trash2 size={18} /></button>
@@ -545,11 +554,15 @@ export default function SuppliersPage() {
                     </div>
                 )}
 
-                {/* Create Order Modal */}
-                {isCreatingOrder && selectedSupplier && (
+                {/* Create / edit purchase order */}
+                {(isCreatingOrder || editingOrder) && selectedSupplier && (
                     <DesktopPurchaseOrderBuilder
                         supplier={selectedSupplier}
-                        onClose={() => setIsCreatingOrder(false)}
+                        initialOrder={editingOrder}
+                        onClose={() => {
+                            setIsCreatingOrder(false);
+                            setEditingOrder(null);
+                        }}
                     />
                 )}
             </div>
