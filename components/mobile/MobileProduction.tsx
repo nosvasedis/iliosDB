@@ -15,6 +15,7 @@ import { getSpecialCreationProductStub, isSpecialCreationSku } from '../../utils
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import FinderBatchStageSelector from '../production/FinderBatchStageSelector';
 import { PRODUCTION_STAGES, getProductionStageLabel } from '../../utils/productionStages';
+import { getFinderSearchBadgeTone, getFinderSearchResultSurface } from '../../utils/productionFinderSurfaces';
 import {
     buildBatchStageHistoryLookup,
     formatGreekDurationFromMs,
@@ -999,8 +1000,11 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                     <div className="mt-4 space-y-3 max-h-80 overflow-y-auto custom-scrollbar relative z-10">
                         {foundBatches.map(b => {
                             const isSpecialBatch = isSpecialCreationSku(b.sku);
+                            const stageMeta = STAGES.find(s => s.id === b.current_stage);
+                            const finderSurface = getFinderSearchResultSurface(stageMeta?.color);
+                            const finderBadgeTone = getFinderSearchBadgeTone(stageMeta?.color);
                             return (
-                            <div key={b.id} onClick={() => setViewBuildBatch(b)} className={`bg-white rounded-2xl p-4 shadow-xl border-l-8 animate-in slide-in-from-top-2 active:scale-95 transition-transform cursor-pointer ${isSpecialBatch ? 'border-violet-500 ring-1 ring-violet-100' : 'border-emerald-500'}`}>
+                            <div key={b.id} onClick={() => setViewBuildBatch(b)} className={`rounded-2xl p-4 shadow-lg animate-in slide-in-from-top-2 active:scale-95 transition-transform cursor-pointer ${finderSurface} ${isSpecialBatch ? 'ring-1 ring-violet-200/65' : ''}`}>
                                 <div className="flex justify-between items-start mb-2">
                                     <div>
                                         <div className="flex items-center gap-2 mb-1">
@@ -1011,8 +1015,8 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                                     </div>
                                     <div className="text-right flex flex-col items-end gap-1">
                                         <div className="text-[10px] font-mono font-bold text-slate-400 select-all tracking-wider">#{formatOrderId(b.order_id)}</div>
-                                        <div className={`text-[10px] font-black px-2 py-1 rounded-full border ${STAGE_COLORS[STAGES.find(s => s.id === b.current_stage)?.color || 'slate']}`}>
-                                            {STAGES.find(s => s.id === b.current_stage)?.label}
+                                        <div className={`text-[10px] font-black px-2 py-1 rounded-full border bg-white/75 backdrop-blur-sm shadow-sm ${finderBadgeTone}`}>
+                                            {stageMeta?.label}
                                         </div>
                                     </div>
                                 </div>

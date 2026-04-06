@@ -24,6 +24,7 @@ import ProductionMoldRequirementsModal from './ProductionMoldRequirementsModal';
 import { buildProductionAlertGroups } from './production/productionAlerts';
 import { invalidateOrdersAndBatches, invalidateProductionBatches } from '../lib/queryInvalidation';
 import { PRODUCTION_STAGE_ORDER_INDEX, PRODUCTION_STAGES, getProductionStageLabel, getProductionStageShortLabel } from '../utils/productionStages';
+import { getFinderSearchResultSurface } from '../utils/productionFinderSurfaces';
 import {
     formatGreekDurationFromMs,
     getProductionTimingInfo,
@@ -104,18 +105,6 @@ const GENDER_CONFIG: Record<string, { label: string, style: string }> = {
     [Gender.Unisex]: { label: 'Unisex / Άλλα', style: 'bg-slate-100 text-slate-600 border-slate-200 ring-slate-100' },
     'Unknown': { label: 'Ακατηγοριοποίητα', style: 'bg-gray-50 text-gray-600 border-gray-200 ring-gray-100' }
 };
-
-// Subtle matte container styles for finder results by metal suffix
-const FINDER_METAL_CONTAINER_STYLES: Record<string, string> = {
-    'X': 'bg-amber-50/80 border-amber-100',
-    'P': 'bg-slate-50/80 border-slate-200',
-    'D': 'bg-orange-50/80 border-orange-100',
-    'H': 'bg-cyan-50/80 border-cyan-100',
-    '': 'bg-slate-50/80 border-slate-100'
-};
-
-const FINDER_SPECIAL_CREATION_CONTAINER =
-    'bg-violet-50/80 border-violet-200 ring-1 ring-violet-100/80';
 
 type PrintSelectorType = 'technician' | 'preparation' | 'aggregated' | 'labels' | 'assembly' | 'stagePdf';
 
@@ -2534,20 +2523,17 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                 {foundBatches.map((b, index) => {
                                     const stageConf = STAGES.find(s => s.id === b.current_stage);
                                     const colors = STAGE_COLORS[stageConf?.color as keyof typeof STAGE_COLORS] || STAGE_COLORS['slate'];
-                                    const colorClassString = `${colors.bg} ${colors.text} ${colors.border}`;
+                                    const finderBadgeClass = `bg-white/70 backdrop-blur-sm ${colors.text} ${colors.border}`;
                                     const age = getBatchAgeInfo(b);
-                                    const { finish } = getVariantComponents(b.variant_suffix || '', b.product_details?.gender);
                                     const isSpecialBatch = isSpecialCreationSku(b.sku);
-                                    const finderMetalClass = isSpecialBatch
-                                        ? FINDER_SPECIAL_CREATION_CONTAINER
-                                        : FINDER_METAL_CONTAINER_STYLES[finish.code] || FINDER_METAL_CONTAINER_STYLES[''];
+                                    const finderRowSurface = getFinderSearchResultSurface(stageConf?.color);
                                     const isSelected = multiSelectIds.has(b.id);
 
                                     return (
                                         <div
                                             key={b.id}
                                             onClick={() => setViewBuildBatch(b)}
-                                            className={`rounded-xl p-3 hover:bg-white transition-all group cursor-pointer border hover:border-emerald-300 ${finderMetalClass} ${isSelected ? 'ring-2 ring-blue-400 ring-offset-0 border-blue-300 bg-blue-50/30' : ''} ${index > 0 ? 'border-t border-t-slate-100 mt-1 pt-3' : ''}`}
+                                            className={`rounded-xl p-3 transition-all group cursor-pointer ${finderRowSurface} ${isSpecialBatch ? 'ring-1 ring-violet-200/65' : ''} ${isSelected ? '!ring-2 !ring-blue-400 ring-offset-0 !border-blue-300/80 !bg-blue-50/35' : ''} ${index > 0 ? 'mt-1 border-t border-t-slate-200/60 pt-3' : ''}`}
                                         >
                                             <div className="flex justify-between items-start">
                                                 <div className="flex items-start gap-2">
@@ -2564,11 +2550,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                                         {isSelected && <Check size={11} className="text-white" />}
                                                     </button>
 
-                                                    <div className={`flex items-start gap-3 border-l-4 pl-2 ${
-                                                        stageConf?.color
-                                                            ? STAGE_COLORS[stageConf.color as keyof typeof STAGE_COLORS].border
-                                                            : 'border-slate-200'
-                                                    }`}>
+                                                    <div className="flex items-start gap-3 min-w-0">
                                                         {/* Image */}
                                                         <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0 relative">
                                                             {b.product_image ? <img src={b.product_image} className="w-full h-full object-cover" /> : <ImageIcon size={16} className="m-auto text-slate-300" />}
@@ -2601,7 +2583,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                                 </div>
                                                 <div className="text-right flex flex-col items-end gap-1">
                                                     <div className="text-[10px] font-mono text-slate-400">#{formatOrderId(b.order_id)}</div>
-                                                    <span className={`text-[10px] uppercase font-bold border px-2 py-0.5 rounded flex items-center gap-1 ${colorClassString}`}>
+                                                    <span className={`text-[10px] uppercase font-bold border px-2 py-0.5 rounded flex items-center gap-1 shadow-sm ${finderBadgeClass}`}>
                                                         {stageConf?.icon && React.cloneElement(stageConf.icon as any, { size: 10 })}
                                                         {stageConf?.label || b.current_stage}
                                                     </span>
