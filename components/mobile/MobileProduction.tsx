@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType, Order, ProductVariant, AssemblyPrintData, StageBatchPrintData } from '../../types';
-import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, ArrowLeft, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save, Square, CheckSquare, Image as ImageIcon, Gem, Package, Truck, Layers } from 'lucide-react';
+import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, ArrowLeft, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save, Image as ImageIcon, Gem, Package, Truck, Layers } from 'lucide-react';
 import MobileScreenHeader from './MobileScreenHeader';
 import { useUI } from '../UIProvider';
 import SkuColorizedText from '../SkuColorizedText';
@@ -15,6 +15,7 @@ import { requiresAssemblyStage } from '../../constants';
 import { getSpecialCreationProductStub, isSpecialCreationSku } from '../../utils/specialCreationSku';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import FinderBatchStageSelector from '../production/FinderBatchStageSelector';
+import MobileBatchStageMoveSheet from './MobileBatchStageMoveSheet';
 import { PRODUCTION_STAGES, getProductionStageLabel } from '../../utils/productionStages';
 import { getFinderSearchBadgeTone, getFinderSearchResultSurface } from '../../utils/productionFinderSurfaces';
 import {
@@ -89,27 +90,7 @@ const MobileBatchCard: React.FC<{
         label: batch.timingLabel || formatGreekDurationFromMs(Date.now() - new Date(batch.stageEnteredAt || batch.created_at).getTime()),
         colorClass: getProductionTimingStatusClasses(timingStatus),
     };
-    const [stageSelectorOpen, setStageSelectorOpen] = useState(false);
-    
-    // Get current stage index
-    const currentStageIndex = STAGES.findIndex(s => s.id === batch.current_stage);
-    
-    // Determine which stages should be disabled (skipped)
-    const isStageDisabled = (stageId: ProductionStage): boolean => {
-        if (stageId === ProductionStage.Setting && !batch.requires_setting) return true;
-        if (stageId === ProductionStage.Assembly && !batch.requires_assembly) return true;
-        return false;
-    };
-    
-    // Handle stage selection
-    const handleStageSelect = (targetStage: ProductionStage, options?: { pendingDispatch?: boolean }) => {
-        if (isStageDisabled(targetStage)) return;
-        if (targetStage === batch.current_stage && targetStage !== ProductionStage.Polishing) return;
-        setStageSelectorOpen(false);
-        if (onMoveToStage) {
-            onMoveToStage(batch, targetStage, options);
-        }
-    };
+    const [stageSheetOpen, setStageSheetOpen] = useState(false);
 
     const outerSurface = batch.on_hold
         ? 'border-amber-400 bg-amber-50/30'
@@ -120,6 +101,7 @@ const MobileBatchCard: React.FC<{
                 : 'bg-white border-slate-200 hover:border-slate-300';
 
     return (
+        <>
         <div
             onClick={() => onClick(batch)}
             className={`p-3 rounded-2xl border shadow-sm relative transition-transform active:scale-[0.98] cursor-pointer touch-manipulation ${outerSurface}`}
@@ -216,118 +198,44 @@ const MobileBatchCard: React.FC<{
                     )}
 
                     {!isReady && !batch.on_hold && (
-                        <div className="relative">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    if (onMoveToStage) {
-                                        setStageSelectorOpen(!stageSelectorOpen);
-                                    } else {
-                                        onNext(batch);
-                                    }
-                                }}
-                                className="flex items-center gap-1 bg-slate-100 active:bg-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[10px] font-bold transition-all shadow-sm active:scale-95"
-                            >
-                                <MoveRight size={11} />
-                                Μετακ.
-                                {onMoveToStage && (stageSelectorOpen ? <ChevronUp size={11} /> : <ChevronDown size={11} />)}
-                            </button>
-
-                            {stageSelectorOpen && onMoveToStage && (
-                                <div className="absolute bottom-full right-0 mb-2 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50 w-[min(100vw-2rem,220px)]">
-                                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-2">Στάδια</div>
-                                    <div className="space-y-1 max-h-[280px] overflow-y-auto">
-                                        {STAGES.map((stage, index) => {
-                                            const isCurrent = stage.id === batch.current_stage;
-                                            const isDisabled = isStageDisabled(stage.id);
-                                            const isPast = index < currentStageIndex;
-                                            const stageColors = STAGE_COLORS[stage.color];
-
-                                            if (stage.id === ProductionStage.Polishing) {
-                                                const isCurrentPending = isCurrent && batch.pending_dispatch;
-                                                const isCurrentDispatched = isCurrent && !batch.pending_dispatch;
-                                                return (
-                                                    <div key={stage.id} className="flex gap-1">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: true })}
-                                                            disabled={isDisabled}
-                                                            className={`flex-1 min-w-0 text-center px-1.5 py-1.5 rounded-lg text-[9px] font-bold transition-all border flex items-center justify-between gap-0.5
-                                                                ${isCurrentPending
-                                                                    ? 'bg-teal-50 text-teal-700 border-teal-200 ring-2 ring-offset-1 ring-teal-400/30'
-                                                                    : isDisabled
-                                                                    ? 'bg-slate-50/50 text-slate-300/50 cursor-not-allowed opacity-50'
-                                                                    : isPast
-                                                                    ? 'bg-teal-50/50 text-teal-700/80 border border-slate-100'
-                                                                    : 'bg-teal-50 text-teal-700 border-teal-200 hover:shadow-md'
-                                                                }
-                                                            `}
-                                                        >
-                                                            <span className="truncate">Τεχν. • Αναμ.</span>
-                                                            {isCurrentPending && <span className="text-[8px] shrink-0">●</span>}
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: false })}
-                                                            disabled={isDisabled}
-                                                            className={`flex-1 min-w-0 text-center px-1.5 py-1.5 rounded-lg text-[9px] font-bold transition-all border flex items-center justify-between gap-0.5
-                                                                ${isCurrentDispatched
-                                                                    ? 'bg-blue-50 text-blue-700 border-blue-200 ring-2 ring-offset-1 ring-blue-400/30'
-                                                                    : isDisabled
-                                                                    ? 'bg-slate-50/50 text-slate-300/50 cursor-not-allowed opacity-50'
-                                                                    : isPast
-                                                                    ? 'bg-blue-50/50 text-blue-700/80 border border-slate-100'
-                                                                    : 'bg-blue-50 text-blue-700 border-blue-200 hover:shadow-md'
-                                                                }
-                                                            `}
-                                                        >
-                                                            <span className="truncate">Τεχν. • Τεχν.</span>
-                                                            {isCurrentDispatched && <span className="text-[8px] shrink-0">●</span>}
-                                                        </button>
-                                                    </div>
-                                                );
-                                            }
-
-                                            return (
-                                                <button
-                                                    key={stage.id}
-                                                    type="button"
-                                                    onClick={() => handleStageSelect(stage.id)}
-                                                    disabled={isDisabled}
-                                                    className={`w-full text-left px-2.5 py-2 rounded-xl text-[11px] font-bold transition-all flex items-center justify-between
-                                                        ${isCurrent
-                                                            ? `${stageColors} ring-2 ring-offset-1 ring-current/30`
-                                                            : isDisabled
-                                                            ? 'bg-slate-50/50 text-slate-300/50 cursor-not-allowed blur-[1px] opacity-50'
-                                                            : isPast
-                                                            ? 'bg-slate-50 text-slate-500 border border-slate-100'
-                                                            : `${stageColors} hover:shadow-md`
-                                                        }
-                                                    `}
-                                                >
-                                                    <span className="truncate">{stage.label}</span>
-                                                    {isCurrent && <span className="text-[8px]">●</span>}
-                                                    {isDisabled && <span className="text-[7px] opacity-50">παράλειψη</span>}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (onMoveToStage) {
+                                    setStageSheetOpen(true);
+                                } else {
+                                    onNext(batch);
+                                }
+                            }}
+                            className="flex items-center gap-1 bg-slate-100 active:bg-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[10px] font-bold transition-all shadow-sm active:scale-95"
+                        >
+                            <MoveRight size={11} />
+                            Στάδιο
+                            {onMoveToStage ? <ChevronDown size={11} /> : null}
+                        </button>
                     )}
                 </div>
             </div>
         </div>
+        {!isReady && !batch.on_hold && onMoveToStage ? (
+            <MobileBatchStageMoveSheet
+                isOpen={stageSheetOpen}
+                onClose={() => setStageSheetOpen(false)}
+                batch={batch}
+                onMove={(targetStage, options) => onMoveToStage(batch, targetStage, options)}
+            />
+        ) : null}
+        </>
     );
 };
 
-const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelSortMode, onLabelSortModeChange }: {
+const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, subtitle, labelSortMode, onLabelSortModeChange }: {
     isOpen: boolean,
     onClose: () => void,
     onConfirm: (selected: ProductionBatch[]) => void,
     batches: (ProductionBatch & { customer_name?: string })[],
     title: string,
+    subtitle?: string,
     labelSortMode?: LabelPrintSortMode,
     onLabelSortModeChange?: (mode: LabelPrintSortMode) => void
 }) => {
@@ -335,10 +243,17 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelS
     const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
-        if (isOpen) setSelectedIds(new Set(batches.map(b => b.id)));
+        if (!isOpen) return;
+        setSearchTerm('');
+        setSelectedIds(new Set(batches.map(b => b.id)));
     }, [isOpen, batches]);
 
     const groupedBatches = useMemo(() => groupMobilePrintSelectorBatches(batches, searchTerm), [batches, searchTerm]);
+
+    const visibleBatchIds = useMemo(
+        () => groupedBatches.flatMap(([, group]) => group.items.map((b) => b.id)),
+        [groupedBatches]
+    );
 
     const toggleBatch = (id: string) => {
         const next = new Set(selectedIds);
@@ -358,12 +273,8 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelS
         setSelectedIds(next);
     };
 
-    const toggleAll = () => {
-        if (selectedIds.size === batches.length) {
-            setSelectedIds(new Set());
-        } else {
-            setSelectedIds(new Set(batches.map(b => b.id)));
-        }
+    const handleSelectAllVisible = () => {
+        setSelectedIds(new Set(visibleBatchIds));
     };
 
     const handleConfirm = () => {
@@ -375,114 +286,138 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelS
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-            <div className="bg-white w-full max-w-lg max-h-[85vh] rounded-3xl shadow-2xl flex flex-col animate-in zoom-in-95">
-                <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                    <div>
-                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                            <Printer size={18} className="text-blue-600" /> {title}
-                        </h3>
+        <div className="fixed inset-0 z-[210] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end animate-in fade-in" onClick={onClose}>
+            <div
+                className="bg-white rounded-t-[2rem] px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-full duration-300 max-h-[88vh] flex flex-col overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="mb-4 flex shrink-0 items-start justify-between gap-4">
+                    <div className="min-w-0 pr-2">
+                        <h3 className="text-lg font-black text-slate-900">{title}</h3>
+                        {subtitle ? (
+                            <p className="mt-1 text-xs font-medium text-slate-500">{subtitle}</p>
+                        ) : null}
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-400"><X size={20} /></button>
+                    <button type="button" onClick={onClose} className="shrink-0 rounded-full bg-slate-100 p-2 text-slate-500">
+                        <X size={18} />
+                    </button>
                 </div>
 
-                <div className="p-4 border-b border-slate-100 bg-white space-y-3">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <div className="mb-4 flex shrink-0 gap-2">
+                    <div className="relative flex-1">
+                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input
                             type="text"
-                            placeholder="Αναζήτηση..."
                             value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full pl-9 p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 text-sm font-medium"
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder="Αναζήτηση πελάτη, SKU, εντολής..."
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm font-medium outline-none focus:border-pink-300 focus:ring-2 focus:ring-pink-500/20"
                         />
                     </div>
                     <button
-                        onClick={toggleAll}
-                        className="w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-slate-100 bg-slate-50 text-slate-500 flex items-center justify-center gap-2 active:bg-slate-100"
+                        type="button"
+                        onClick={handleSelectAllVisible}
+                        disabled={visibleBatchIds.length === 0}
+                        className="shrink-0 rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700 disabled:opacity-40"
                     >
-                        {selectedIds.size === batches.length ? (
-                            <><Square size={14} /> Αποεπιλογη ολων</>
-                        ) : (
-                            <><CheckSquare size={14} /> Επιλογη ολων</>
-                        )}
+                        Όλα
                     </button>
-                    {labelSortMode && onLabelSortModeChange && (
-                        <div className="grid grid-cols-2 gap-2">
-                            <button
-                                onClick={() => onLabelSortModeChange('as_sent')}
-                                className={`py-2 rounded-xl text-[11px] font-black border transition-all ${labelSortMode === 'as_sent' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}
-                            >
-                                Όπως Στάλθηκαν
-                            </button>
-                            <button
-                                onClick={() => onLabelSortModeChange('customer')}
-                                className={`py-2 rounded-xl text-[11px] font-black border transition-all ${labelSortMode === 'customer' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}
-                            >
-                                Ανά Πελάτη
-                            </button>
-                        </div>
-                    )}
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-4 bg-slate-50/30">
+                {labelSortMode && onLabelSortModeChange && (
+                    <div className="mb-4 grid shrink-0 grid-cols-2 gap-2">
+                        <button
+                            type="button"
+                            onClick={() => onLabelSortModeChange('as_sent')}
+                            className={`rounded-2xl py-2.5 text-[11px] font-black transition-all ${labelSortMode === 'as_sent' ? 'border-2 border-pink-300 bg-pink-50 text-pink-800' : 'border-2 border-slate-200 bg-white text-slate-600'}`}
+                        >
+                            Όπως στάλθηκαν
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onLabelSortModeChange('customer')}
+                            className={`rounded-2xl py-2.5 text-[11px] font-black transition-all ${labelSortMode === 'customer' ? 'border-2 border-pink-300 bg-pink-50 text-pink-800' : 'border-2 border-slate-200 bg-white text-slate-600'}`}
+                        >
+                            Ανά πελάτη
+                        </button>
+                    </div>
+                )}
+
+                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pb-1">
                     {groupedBatches.map(([key, group]) => {
                         const allSelected = group.items.every(b => selectedIds.has(b.id));
                         const someSelected = group.items.some(b => selectedIds.has(b.id));
 
                         return (
-                            <div key={key} className={`bg-white rounded-xl border transition-all ${allSelected ? 'border-blue-300 ring-1 ring-blue-100' : 'border-slate-200'}`}>
-                                <div
-                                    className="p-3 border-b border-slate-100 flex items-center gap-3 cursor-pointer hover:bg-slate-50 rounded-t-xl"
+                            <div
+                                key={key}
+                                className={`rounded-2xl border-2 transition-all ${allSelected ? 'border-pink-300 bg-pink-50' : someSelected ? 'border-pink-200 bg-pink-50/40' : 'border-slate-200 bg-white'}`}
+                            >
+                                <button
+                                    type="button"
                                     onClick={() => toggleGroup(group.items.map(b => b.id))}
+                                    className="flex w-full items-start gap-3 border-b border-slate-100/80 px-4 py-3 text-left active:bg-white/60"
                                 >
-                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${allSelected ? 'bg-blue-600 border-blue-600' : (someSelected ? 'bg-blue-100 border-blue-300' : 'bg-white border-slate-300')}`}>
-                                        {allSelected && <Check size={14} className="text-white" />}
-                                        {someSelected && !allSelected && <div className="w-2 h-2 bg-blue-600 rounded-sm" />}
-                                    </div>
-                                    <div className="flex-1">
-                                        <div className="font-bold text-slate-800 text-sm">{group.name}</div>
-                                        <div className="text-[10px] text-slate-500">{group.items.length} είδη</div>
-                                    </div>
-                                </div>
-                                <div className="p-2 space-y-1">
-                                    {group.items.map(item => (
-                                        <div
-                                            key={item.id}
-                                            onClick={() => toggleBatch(item.id)}
-                                            className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer"
-                                        >
-                                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedIds.has(item.id) ? 'bg-blue-500 border-blue-500' : 'bg-white border-slate-300'}`}>
-                                                {selectedIds.has(item.id) && <Check size={12} className="text-white" />}
-                                            </div>
-                                            <div className="flex-1 flex justify-between items-center">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-mono font-bold text-sm text-slate-700">{item.sku}{item.variant_suffix}</span>
-                                                    {item.size_info && <span className="text-[9px] bg-slate-100 px-1.5 rounded border border-slate-200 font-bold text-slate-500">{item.size_info}</span>}
-                                                </div>
-                                                <div className="text-xs font-black bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
-                                                    {item.quantity} τμχ
-                                                </div>
-                                            </div>
+                                    <div className="min-w-0 flex-1">
+                                        <div className="font-black text-slate-900">{group.name}</div>
+                                        <div className="mt-1 flex flex-wrap gap-2 text-[10px] font-black uppercase">
+                                            <span className="rounded-lg border border-slate-200 bg-slate-100 px-2 py-1 text-slate-700">
+                                                {group.items.length} {group.items.length === 1 ? 'είδος' : 'είδη'}
+                                            </span>
                                         </div>
-                                    ))}
+                                    </div>
+                                    <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${allSelected ? 'border-pink-600 bg-pink-600 text-white' : someSelected ? 'border-pink-400 bg-pink-200' : 'border-slate-300 bg-white text-transparent'}`}>
+                                        {someSelected && !allSelected ? <div className="h-2 w-2 rounded-sm bg-pink-700" /> : <Check size={13} />}
+                                    </div>
+                                </button>
+                                <div className="space-y-1 px-2 py-2">
+                                    {group.items.map(item => {
+                                        const on = selectedIds.has(item.id);
+                                        return (
+                                            <button
+                                                key={item.id}
+                                                type="button"
+                                                onClick={() => toggleBatch(item.id)}
+                                                className={`flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left transition-colors ${on ? 'bg-pink-100/60' : 'active:bg-slate-50'}`}
+                                            >
+                                                <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${on ? 'border-pink-600 bg-pink-600 text-white' : 'border-slate-300 bg-white text-transparent'}`}>
+                                                    <Check size={13} />
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <span className="font-mono text-sm font-black text-slate-800">{item.sku}{item.variant_suffix}</span>
+                                                        {item.size_info ? (
+                                                            <span className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-black text-slate-500">{item.size_info}</span>
+                                                        ) : null}
+                                                    </div>
+                                                    <div className="mt-1.5 inline-flex rounded-lg border border-pink-200 bg-pink-100 px-2 py-0.5 text-[10px] font-black text-pink-800">
+                                                        {item.quantity} τμχ
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         );
                     })}
-                    {groupedBatches.length === 0 && <div className="text-center py-10 text-slate-400 italic">Δεν βρέθηκαν παρτίδες.</div>}
+                    {groupedBatches.length === 0 && (
+                        <div className="py-10 text-center text-sm italic text-slate-400">Δεν βρέθηκαν παρτίδες.</div>
+                    )}
                 </div>
 
-                <div className="p-4 border-t border-slate-100 bg-white flex justify-end gap-3 rounded-b-3xl">
-                    <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-slate-600 font-bold hover:bg-slate-100 transition-colors flex-1">
+                <div className="mt-5 flex shrink-0 gap-2 border-t border-slate-100 pt-4">
+                    <button type="button" onClick={onClose} className="flex-1 rounded-2xl bg-slate-100 px-4 py-3 text-sm font-bold text-slate-700">
                         Άκυρο
                     </button>
                     <button
+                        type="button"
                         onClick={handleConfirm}
                         disabled={selectedIds.size === 0}
-                        className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 flex-[2]"
+                        className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-pink-600 px-4 py-3 text-sm font-black text-white shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                        <Printer size={18} /> Εκτύπωση ({selectedIds.size})
+                        <Printer size={17} />
+                        Εκτύπωση ({selectedIds.size})
                     </button>
                 </div>
             </div>
@@ -1263,6 +1198,34 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             } else {
                 showToast("Δεν βρέθηκαν προϊόντα για τις παρτίδες.", "error");
             }
+        } else if (type === 'stagePdf') {
+            const meta = printSelectorState.stageMeta;
+            if (!meta || !onPrintStageBatches || selected.length === 0) return;
+            const orderIds = [...new Set(selected.map(b => (b.order_id || '').trim()).filter(Boolean))];
+            let customerName: string;
+            let orderId: string;
+            if (orderIds.length === 1) {
+                orderId = orderIds[0];
+                customerName = selected.find(b => (b.order_id || '').trim() === orderId)?.customer_name?.trim() || '—';
+            } else if (orderIds.length === 0) {
+                orderId = '';
+                const names = [...new Set(selected.map(b => (b.customer_name || '').trim()).filter(Boolean))];
+                customerName =
+                    names.length === 1 ? names[0]
+                    : names.length > 1 ? 'Διάφοροι πελάτες (χωρίς εντολή)'
+                    : 'Χωρίς εντολή';
+            } else {
+                orderId = '';
+                customerName = `Πολλαπλές εντολές (${orderIds.length})`;
+            }
+            onPrintStageBatches({
+                stageName: meta.stageName,
+                stageId: meta.stageId,
+                customerName,
+                orderId,
+                batches: selected,
+                generatedAt: new Date().toISOString(),
+            });
         }
     };
 
@@ -1654,7 +1617,21 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                     title={
                         printSelectorState.type === 'technician' ? 'Εκτύπωση Τεχνίτη' :
                             printSelectorState.type === 'preparation' ? 'Εκτύπωση Προετοιμασίας' :
-                                printSelectorState.type === 'labels' ? 'Εκτύπωση Ετικετών' : 'Συγκεντρωτική Εκτύπωση'
+                                printSelectorState.type === 'labels' ? 'Εκτύπωση Ετικετών' :
+                                    printSelectorState.type === 'stagePdf'
+                                        ? `Φύλλο σταδίου — ${printSelectorState.stageMeta?.stageName ?? ''}`
+                                        : 'Συγκεντρωτική Εκτύπωση'
+                    }
+                    subtitle={
+                        printSelectorState.type === 'technician'
+                            ? 'Επιλέξτε παρτίδες για φύλλο τεχνίτη.'
+                            : printSelectorState.type === 'preparation'
+                                ? 'Επιλέξτε παρτίδες για φύλλο προετοιμασίας.'
+                                : printSelectorState.type === 'labels'
+                                    ? 'Επιλέξτε παρτίδες και σειρά εκτύπωσης ετικετών.'
+                                    : printSelectorState.type === 'stagePdf'
+                                        ? 'Επιλέξτε παρτίδες για εκτύπωση λίστας σταδίου.'
+                                        : 'Επιλέξτε παρτίδες για συγκεντρωτική λίστα παραγωγής.'
                     }
                     labelSortMode={printSelectorState.type === 'labels' ? labelPrintSortMode : undefined}
                     onLabelSortModeChange={printSelectorState.type === 'labels' ? setLabelPrintSortMode : undefined}
