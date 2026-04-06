@@ -477,6 +477,31 @@ const AssemblyOrderSelectorSheet = ({
         );
     }, [candidates, searchTerm]);
 
+    const visibleOrderIds = useMemo(
+        () => filteredCandidates.map((c) => c.order.id),
+        [filteredCandidates]
+    );
+
+    const allVisibleOrdersSelected =
+        visibleOrderIds.length > 0 && visibleOrderIds.every((id) => selectedOrderIds.has(id));
+
+    const toggleAllVisibleOrders = () => {
+        if (visibleOrderIds.length === 0) return;
+        if (allVisibleOrdersSelected) {
+            setSelectedOrderIds((prev) => {
+                const next = new Set(prev);
+                visibleOrderIds.forEach((id) => next.delete(id));
+                return next;
+            });
+        } else {
+            setSelectedOrderIds((prev) => {
+                const next = new Set(prev);
+                visibleOrderIds.forEach((id) => next.add(id));
+                return next;
+            });
+        }
+    };
+
     if (!isOpen) return null;
 
     return (
@@ -507,10 +532,12 @@ const AssemblyOrderSelectorSheet = ({
                         />
                     </div>
                     <button
-                        onClick={() => setSelectedOrderIds(new Set(filteredCandidates.map((candidate) => candidate.order.id)))}
-                        className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700"
+                        type="button"
+                        onClick={toggleAllVisibleOrders}
+                        disabled={visibleOrderIds.length === 0}
+                        className="shrink-0 rounded-xl bg-slate-100 px-2.5 py-2 text-center text-[10px] font-black leading-snug text-slate-700 disabled:opacity-40 max-w-[6.25rem]"
                     >
-                        Όλα
+                        {allVisibleOrdersSelected ? 'Καμία επιλογή' : 'Όλοι οι πελάτες'}
                     </button>
                 </div>
 
