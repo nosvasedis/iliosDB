@@ -18,7 +18,8 @@ export default function SkuColorizedText({
     className = '',
     masterClassName = 'text-slate-900'
 }: Props) {
-    const skuWithSuffix = suffix === undefined ? sku : `${sku}${suffix}`;
+    // DB / JSON may yield null; only concatenate when a real suffix string is provided
+    const skuWithSuffix = suffix == null ? sku : `${sku}${suffix}`;
     const { master, suffix: variantSuffix } = splitSkuComponents(skuWithSuffix);
     const { finish, stone } = getVariantComponents(variantSuffix, gender);
 

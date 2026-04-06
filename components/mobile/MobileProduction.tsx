@@ -997,12 +997,14 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                 </div>
                 {finderTerm.length >= 2 && (
                     <div className="mt-4 space-y-3 max-h-80 overflow-y-auto custom-scrollbar relative z-10">
-                        {foundBatches.map(b => (
-                            <div key={b.id} onClick={() => setViewBuildBatch(b)} className="bg-white rounded-2xl p-4 shadow-xl border-l-8 border-emerald-500 animate-in slide-in-from-top-2 active:scale-95 transition-transform cursor-pointer">
+                        {foundBatches.map(b => {
+                            const isSpecialBatch = isSpecialCreationSku(b.sku);
+                            return (
+                            <div key={b.id} onClick={() => setViewBuildBatch(b)} className={`bg-white rounded-2xl p-4 shadow-xl border-l-8 animate-in slide-in-from-top-2 active:scale-95 transition-transform cursor-pointer ${isSpecialBatch ? 'border-violet-500 ring-1 ring-violet-100' : 'border-emerald-500'}`}>
                                 <div className="flex justify-between items-start mb-2">
                                     <div>
                                         <div className="flex items-center gap-2 mb-1">
-                                            <SkuColorizedText sku={b.sku} suffix={b.variant_suffix} gender={b.product_details?.gender} className="font-black text-lg tracking-tight" masterClassName="text-slate-800" />
+                                            <SkuColorizedText sku={b.sku} suffix={b.variant_suffix || ''} gender={b.product_details?.gender} className="font-black text-lg tracking-tight" masterClassName={isSpecialBatch ? 'text-violet-900' : 'text-slate-800'} />
                                             {b.size_info && <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-lg text-xs font-black border border-blue-100 flex items-center gap-1"> {b.size_info}</span>}
                                         </div>
                                         <div className="text-xs text-slate-500 font-bold flex items-center gap-1.5 uppercase tracking-tight py-1 inline-block"><User size={12} className="text-slate-400" /> {b.customerName}</div>
@@ -1020,7 +1022,8 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                                     onToggleHold={handleToggleHold}
                                 />
                             </div>
-                        ))}
+                            );
+                        })}
                         {foundBatches.length === 0 && <div className="text-center py-8 text-white/40 italic font-bold">Δεν βρέθηκαν παρτίδες.</div>}
                     </div>
                 )}

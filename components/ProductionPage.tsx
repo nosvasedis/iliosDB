@@ -114,6 +114,9 @@ const FINDER_METAL_CONTAINER_STYLES: Record<string, string> = {
     '': 'bg-slate-50/80 border-slate-100'
 };
 
+const FINDER_SPECIAL_CREATION_CONTAINER =
+    'bg-violet-50/80 border-violet-200 ring-1 ring-violet-100/80';
+
 type PrintSelectorType = 'technician' | 'preparation' | 'aggregated' | 'labels' | 'assembly' | 'stagePdf';
 
 type PrintSelectorState = {
@@ -2534,7 +2537,10 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                     const colorClassString = `${colors.bg} ${colors.text} ${colors.border}`;
                                     const age = getBatchAgeInfo(b);
                                     const { finish } = getVariantComponents(b.variant_suffix || '', b.product_details?.gender);
-                                    const finderMetalClass = FINDER_METAL_CONTAINER_STYLES[finish.code] || FINDER_METAL_CONTAINER_STYLES[''];
+                                    const isSpecialBatch = isSpecialCreationSku(b.sku);
+                                    const finderMetalClass = isSpecialBatch
+                                        ? FINDER_SPECIAL_CREATION_CONTAINER
+                                        : FINDER_METAL_CONTAINER_STYLES[finish.code] || FINDER_METAL_CONTAINER_STYLES[''];
                                     const isSelected = multiSelectIds.has(b.id);
 
                                     return (
@@ -2573,7 +2579,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
 
                                                         <div>
                                                             <div className="flex items-center gap-2">
-                                                                <SkuColorizedText sku={b.sku} suffix={b.variant_suffix} gender={b.product_details?.gender} className="font-black text-lg" masterClassName="text-slate-800" />
+                                                                <SkuColorizedText sku={b.sku} suffix={b.variant_suffix || ''} gender={b.product_details?.gender} className="font-black text-lg" masterClassName={isSpecialBatch ? 'text-violet-900' : 'text-slate-800'} />
                                                                 <span className="bg-slate-900 text-white px-2 py-0.5 rounded-md text-xs font-bold shadow-sm">x{b.quantity}</span>
                                                                 {b.size_info && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-black flex items-center gap-1"><Hash size={10} /> {b.size_info}</span>}
                                                                 {b.on_hold && <span className="bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded text-[10px] font-black flex items-center gap-1"><PauseCircle size={10} /> Σε Αναμονή</span>}
