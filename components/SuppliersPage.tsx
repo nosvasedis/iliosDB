@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Supplier, Product, Material, SupplierOrder } from '../types';
-import { Trash2, Plus, Globe, Phone, Mail, MapPin, Search, X, Check, ImageIcon, Box, Clock, CheckCircle, FileText, Printer } from 'lucide-react';
+import { Trash2, Plus, Globe, Phone, Mail, MapPin, Search, X, Check, ImageIcon, Box, Clock, FileText, Printer } from 'lucide-react';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
@@ -9,6 +9,7 @@ import { formatCurrency } from '../utils/pricingEngine';
 import SupplierOrderPrintView from './SupplierOrderPrintView';
 import DesktopPurchaseOrderBuilder from './DesktopPurchaseOrderBuilder';
 import { usePrint } from './PrintContext';
+import { getSupplierOrderStatusClasses, getSupplierOrderStatusIcon, getSupplierOrderStatusLabel } from '../features/suppliers/statusPresentation';
 
 const MATERIAL_TYPE_LABELS: Record<string, string> = {
     'Stone': 'Πέτρα',
@@ -455,14 +456,14 @@ export default function SuppliersPage() {
                                             {relatedOrders.map(o => (
                                                 <div key={o.id} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row justify-between sm:items-center gap-4 group hover:border-slate-300 transition-all">
                                                     <div className="flex items-center gap-4">
-                                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${o.status === 'Pending' ? 'bg-amber-100 text-amber-600' : (o.status === 'Received' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600')}`}>
-                                                            {o.status === 'Pending' ? <Clock size={20} /> : (o.status === 'Received' ? <CheckCircle size={20} /> : <X size={20} />)}
+                                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${o.status === 'Pending' ? 'bg-amber-100 text-amber-600' : o.status === 'Received' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                                                            {getSupplierOrderStatusIcon(o.status, 20)}
                                                         </div>
                                                         <div>
-                                                            <div className="font-black text-slate-800 text-lg flex items-center gap-2">
+                                                            <div className="font-black text-slate-800 text-lg flex items-center gap-2 flex-wrap">
                                                                 #{o.id.slice(0, 6).toUpperCase()}
-                                                                <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase tracking-wider ${o.status === 'Pending' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
-                                                                    {o.status === 'Pending' ? 'ΕΚΚΡΕΜΕΙ' : 'ΠΑΡΑΛΗΦΘΗΚΕ'}
+                                                                <span className={`text-[10px] font-black px-2 py-0.5 rounded border tracking-wide ${getSupplierOrderStatusClasses(o.status)}`}>
+                                                                    {getSupplierOrderStatusLabel(o.status)}
                                                                 </span>
                                                             </div>
                                                             <div className="text-xs text-slate-500 font-bold mt-1">

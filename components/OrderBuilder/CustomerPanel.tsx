@@ -2,6 +2,8 @@ import React from 'react';
 import { User, Tag, Plus, X, Percent, Check, Store } from 'lucide-react';
 import { VatRegime } from '../../types';
 import { useOrderState } from '../../hooks/useOrderState';
+import { getTagColor } from '../../features/orders/tagColors';
+import { useTagColorOverrides } from '../../hooks/api/useTagColorOverrides';
 
 interface Props {
     orderState: ReturnType<typeof useOrderState>;
@@ -9,6 +11,7 @@ interface Props {
 
 export const CustomerPanel: React.FC<Props> = ({ orderState }) => {
     const { state, setters, actions } = orderState;
+    const { overrides: tagColorOverrides } = useTagColorOverrides();
 
     return (
         <div className="lg:col-span-3 bg-white rounded-3xl border border-slate-100 p-6 shadow-sm overflow-y-auto custom-scrollbar h-full">
@@ -90,11 +93,17 @@ export const CustomerPanel: React.FC<Props> = ({ orderState }) => {
                         <button onClick={actions.handleAddTag} className="bg-slate-200 text-slate-600 p-2 rounded-lg hover:bg-slate-300"><Plus size={16} /></button>
                     </div>
                     <div className="flex flex-wrap gap-1">
-                        {state.tags.map(t => (
-                            <span key={t} className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-100 flex items-center gap-1 font-bold">
-                                {t} <button onClick={() => actions.removeTag(t)} className="hover:text-red-500"><X size={10} /></button>
-                            </span>
-                        ))}
+                        {state.tags.map(t => {
+                            const c = getTagColor(t, tagColorOverrides);
+                            return (
+                                <span key={t} className={`text-[10px] px-2 py-0.5 rounded border flex items-center gap-1 font-bold ${c.bg} ${c.text} ${c.border}`}>
+                                    {t}{' '}
+                                    <button type="button" onClick={() => actions.removeTag(t)} className="hover:text-red-600 opacity-70 hover:opacity-100" aria-label={`Αφαίρεση ${t}`}>
+                                        <X size={10} />
+                                    </button>
+                                </span>
+                            );
+                        })}
                     </div>
                 </div>
 

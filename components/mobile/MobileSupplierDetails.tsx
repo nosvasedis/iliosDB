@@ -5,7 +5,7 @@ import { ChevronLeft, Phone, Mail, MapPin, Plus, Trash2, Printer, Pencil, FileTe
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../../lib/supabase';
 import MobilePurchaseOrderBuilder from './MobilePurchaseOrderBuilder';
-import { getSupplierOrderStatusClasses, getSupplierOrderStatusIcon } from '../../features/suppliers/statusPresentation';
+import { getSupplierOrderStatusClasses, getSupplierOrderStatusIcon, getSupplierOrderStatusLabel } from '../../features/suppliers/statusPresentation';
 import { invalidateProductsAndCatalog } from '../../lib/queryInvalidation';
 import { useUI } from '../UIProvider';
 
@@ -255,9 +255,9 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
                                             </div>
                                         </div>
                                         <span
-                                            className={`shrink-0 px-2 py-1 rounded-lg text-[10px] font-bold uppercase flex items-center gap-1 ${getSupplierOrderStatusClasses(order.status)}`}
+                                            className={`shrink-0 px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 ${getSupplierOrderStatusClasses(order.status)}`}
                                         >
-                                            {getSupplierOrderStatusIcon(order.status, 16)} {order.status}
+                                            {getSupplierOrderStatusIcon(order.status, 16)} {getSupplierOrderStatusLabel(order.status)}
                                         </span>
                                     </div>
                                     <div className="text-xs text-slate-500 font-medium mb-3">

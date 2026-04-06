@@ -24,13 +24,15 @@ async function fetchOverrides(): Promise<Record<string, number>> {
     .from('tag_color_overrides')
     .select('tag_name, palette_index');
   if (error) throw error;
-  const result: Record<string, number> = {};
+  const fromServer: Record<string, number> = {};
   for (const row of data ?? []) {
-    result[row.tag_name] = row.palette_index;
+    fromServer[row.tag_name] = row.palette_index;
   }
-  // Keep localStorage in sync with the authoritative Supabase data
-  writeToLocalStorage(result);
-  return result;
+  // Merge: server wins on conflicts, but never drop local-only keys on empty/partial
+  // responses (avoids flashing deterministic colors until the user re-opens the palette).
+  const merged = { ...readFromLocalStorage(), ...fromServer };
+  writeToLocalStorage(merged);
+  return merged;
 }
 
 async function upsertOverride(tag: string, paletteIndex: number): Promise<void> {

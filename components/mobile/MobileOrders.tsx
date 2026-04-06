@@ -867,11 +867,17 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintRemaini
                                     <button onClick={handleAddTag} disabled={!tagInput.trim()} className="bg-indigo-600 text-white px-4 rounded-xl font-bold shadow-md">Προσθήκη</button>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
-                                    {managingOrder.tags && managingOrder.tags.map(t => (
-                                        <span key={t} className="bg-white border border-indigo-200 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 shadow-sm">
-                                            {t} <button onClick={() => handleRemoveTag(t)}><X size={14} className="text-indigo-300 hover:text-red-500" /></button>
-                                        </span>
-                                    ))}
+                                    {managingOrder.tags && managingOrder.tags.map(t => {
+                                        const c = getTagColor(t, tagColorOverrides);
+                                        return (
+                                            <span key={t} className={`${c.bg} ${c.border} ${c.text} border px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 shadow-sm`}>
+                                                {t}{' '}
+                                                <button type="button" onClick={() => handleRemoveTag(t)} aria-label={`Αφαίρεση ${t}`}>
+                                                    <X size={14} className="opacity-50 hover:opacity-100 hover:text-red-600 transition-opacity" />
+                                                </button>
+                                            </span>
+                                        );
+                                    })}
                                 </div>
                             </div>
 
