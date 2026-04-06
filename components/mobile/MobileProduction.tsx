@@ -266,6 +266,9 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, subtit
         [groupedBatches]
     );
 
+    const allVisibleSelected =
+        visibleBatchIds.length > 0 && visibleBatchIds.every((id) => selectedIds.has(id));
+
     const toggleBatch = (id: string) => {
         const next = new Set(selectedIds);
         if (next.has(id)) next.delete(id);
@@ -284,8 +287,17 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, subtit
         setSelectedIds(next);
     };
 
-    const handleSelectAllVisible = () => {
-        setSelectedIds(new Set(visibleBatchIds));
+    const toggleAllVisibleInView = () => {
+        if (visibleBatchIds.length === 0) return;
+        if (allVisibleSelected) {
+            const next = new Set(selectedIds);
+            visibleBatchIds.forEach((id) => next.delete(id));
+            setSelectedIds(next);
+        } else {
+            const next = new Set(selectedIds);
+            visibleBatchIds.forEach((id) => next.add(id));
+            setSelectedIds(next);
+        }
     };
 
     const handleConfirm = () => {
@@ -327,11 +339,11 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, subtit
                     </div>
                     <button
                         type="button"
-                        onClick={handleSelectAllVisible}
+                        onClick={toggleAllVisibleInView}
                         disabled={visibleBatchIds.length === 0}
-                        className="shrink-0 rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700 disabled:opacity-40"
+                        className="shrink-0 rounded-xl bg-slate-100 px-2.5 py-2 text-center text-[10px] font-black leading-snug text-slate-700 disabled:opacity-40 max-w-[6.25rem]"
                     >
-                        Όλα
+                        {allVisibleSelected ? 'Καμία επιλογή' : 'Όλοι οι πελάτες'}
                     </button>
                 </div>
 
