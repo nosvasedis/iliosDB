@@ -80,7 +80,7 @@ const sanitizeBatchData = (data: any) => {
     const validColumns = [
         'id', 'order_id', 'sku', 'variant_suffix', 'quantity', 'current_stage',
         'created_at', 'updated_at', 'priority', 'type', 'notes', 'requires_setting', 'requires_assembly',
-        'size_info', 'cord_color', 'enamel_color', 'line_id', 'on_hold', 'on_hold_reason'
+        'size_info', 'cord_color', 'enamel_color', 'line_id', 'on_hold', 'on_hold_reason', 'pending_dispatch'
     ];
     const sanitized: any = {};
     validColumns.forEach(col => {
@@ -1251,7 +1251,17 @@ export const api = {
         if (!currentBatch) return;
         if (!canMoveBatchToStageHelper(currentBatch, stage)) return;
 
-        await safeMutate('production_batches', 'UPDATE', { current_stage: stage, updated_at: now }, { match: { id } });
+        const updatePayload: Record<string, any> = { current_stage: stage, updated_at: now };
+        // Auto-flag pending_dispatch when entering Polishing (Τεχνίτης)
+        if (stage === ProductionStage.Polishing) {
+            updatePayload.pending_dispatch = true;
+        }
+        // Clear pending_dispatch when leaving Polishing
+        if (currentBatch.current_stage === ProductionStage.Polishing && stage !== ProductionStage.Polishing) {
+            updatePayload.pending_dispatch = false;
+        }
+
+        await safeMutate('production_batches', 'UPDATE', updatePayload, { match: { id } });
         await insertBatchStageHistory({
             id: crypto.randomUUID(),
             batch_id: id,
@@ -1287,7 +1297,14 @@ export const api = {
             safeMutate(
                 'production_batches',
                 'UPDATE',
-                { current_stage: stage, updated_at: now },
+                {
+                    current_stage: stage,
+                    updated_at: now,
+                    // Auto-flag pending_dispatch when entering Polishing
+                    ...(stage === ProductionStage.Polishing ? { pending_dispatch: true } : {}),
+                    // Clear pending_dispatch when leaving Polishing
+                    ...(batch.current_stage === ProductionStage.Polishing && stage !== ProductionStage.Polishing ? { pending_dispatch: false } : {}),
+                },
                 { match: { id: batch.id } }
             )
         ));
@@ -1351,6 +1368,38 @@ export const api = {
             on_hold_reason: reason || null,
             updated_at: new Date().toISOString()
         }, { match: { id } });
+    },
+
+    // Mark batches as dispatched to technician (pending_dispatch = false)
+    markBatchesDispatched: async (batchIds: string[], userName?: string): Promise<number> => {
+        const uniqueIds = Array.from(new Set(batchIds.filter(Boolean)));
+        if (uniqueIds.length === 0) return 0;
+
+        const now = new Date().toISOString();
+        await Promise.all(uniqueIds.map((id) =>
+            safeMutate('production_batches', 'UPDATE', {
+                pending_dispatch: false,
+                updated_at: now,
+            }, { match: { id } })
+        ));
+
+        // Log history entries for audit trail
+        await safeMutate(
+            'batch_stage_history',
+            'INSERT',
+            uniqueIds.map((id) => ({
+                id: crypto.randomUUID(),
+                batch_id: id,
+                from_stage: ProductionStage.Polishing,
+                to_stage: ProductionStage.Polishing,
+                moved_by: userName || 'System',
+                moved_at: now,
+                notes: 'Αποστολή στον Τεχνίτη'
+            })),
+            { noSelect: true }
+        );
+
+        return uniqueIds.length;
     },
 
     updateOrderStatus: async (id: string, status: OrderStatus): Promise<void> => {

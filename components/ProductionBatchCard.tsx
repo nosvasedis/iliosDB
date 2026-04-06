@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { ProductionBatch, ProductionStage } from '../types';
 import { isSpecialCreationSku } from '../utils/specialCreationSku';
-import { Clock, PauseCircle, StickyNote, Trash2, Printer, MoveRight, ImageIcon, AlertTriangle, PlayCircle, RefreshCcw, ChevronUp, ChevronDown, History, X, Check } from 'lucide-react';
+import { Clock, PauseCircle, StickyNote, Trash2, Printer, MoveRight, ImageIcon, AlertTriangle, PlayCircle, RefreshCcw, ChevronUp, ChevronDown, History, X, Check, Truck } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { formatOrderId } from '../utils/orderUtils';
 import { formatGreekDurationFromMs, getProductionTimingStatusClasses, getProductionTimingStatusLabel } from '../utils/productionTiming';
@@ -87,6 +87,8 @@ interface BatchCardProps {
     // Multi-select support
     isSelected?: boolean;
     onToggleSelect?: (e: React.MouseEvent) => void;
+    // Dispatch to technician (pending_dispatch batches only)
+    onDispatch?: () => void;
 }
 
 export const ProductionBatchCard: React.FC<BatchCardProps> = ({
@@ -103,6 +105,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
     hideActions = false,
     isSelected = false,
     onToggleSelect,
+    onDispatch,
 }) => {
     const isRefurbish = batch.type === 'Φρεσκάρισμα';
     const isAwaiting = batch.current_stage === ProductionStage.AwaitingDelivery;
@@ -289,6 +292,12 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                             <RefreshCcw size={10} /> Repair
                         </div>
                     )}
+                    {onDispatch && (
+                        <div className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1">
+                            <Truck size={10} />
+                            <span>Αναμονή</span>
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex gap-1">
@@ -401,7 +410,17 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                     </div>
 
                     {!isReady && !batch.on_hold && (onMoveToStage || onNextStage) && (
-                        <div>
+                        <div className="flex items-center gap-1.5">
+                            {onDispatch && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onDispatch(); }}
+                                    className="flex items-center gap-1 bg-amber-100 hover:bg-amber-200 text-amber-700 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
+                                    title="Αποστολή στον Τεχνίτη"
+                                >
+                                    <Truck size={12} />
+                                    Αποστολή
+                                </button>
+                            )}
                             {/* Main button */}
                             <button
                                 ref={buttonRef}

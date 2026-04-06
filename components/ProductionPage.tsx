@@ -2174,6 +2174,21 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         }
     };
 
+    // ── Dispatch to Technician (pending_dispatch) ────────────────────────────
+    const handleDispatchBatches = async (batchIds: string[]) => {
+        if (batchIds.length === 0) return;
+        setIsProcessingSplit(true);
+        try {
+            const count = await productionRepository.markBatchesDispatched(batchIds, profile?.full_name);
+            void invalidateProductionBatches(queryClient);
+            showToast(`${count} παρτίδ${count === 1 ? 'α' : 'ες'} στάλθηκ${count === 1 ? 'ε' : 'αν'} στον Τεχνίτη.`, 'success');
+        } catch (e: any) {
+            showToast(`Σφάλμα: ${e.message}`, 'error');
+        } finally {
+            setIsProcessingSplit(false);
+        }
+    };
+
     const handleMoveBatch = (batch: ProductionBatch, stage: ProductionStage) => {
         attemptMove(batch, stage);
     }
@@ -2242,6 +2257,24 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             return acc;
         }, {});
     }, [stageBatchesByStage, groupMode, sortOrder, collectionsMap]);
+
+    // ── Polishing column sub-groups: pending dispatch vs dispatched ──────────
+    const polishingPendingBatches = useMemo(
+        () => (stageBatchesByStage[ProductionStage.Polishing] || []).filter(b => b.pending_dispatch),
+        [stageBatchesByStage]
+    );
+    const polishingDispatchedBatches = useMemo(
+        () => (stageBatchesByStage[ProductionStage.Polishing] || []).filter(b => !b.pending_dispatch),
+        [stageBatchesByStage]
+    );
+    const groupedPolishingPending = useMemo(
+        () => groupProductionBatchesForDisplay(polishingPendingBatches as any, collectionsMap, groupMode, sortOrder),
+        [polishingPendingBatches, collectionsMap, groupMode, sortOrder]
+    );
+    const groupedPolishingDispatched = useMemo(
+        () => groupProductionBatchesForDisplay(polishingDispatchedBatches as any, collectionsMap, groupMode, sortOrder),
+        [polishingDispatchedBatches, collectionsMap, groupMode, sortOrder]
+    );
 
     const preparationBatches = useMemo(
         () => enhancedBatches.filter(batch => [ProductionStage.Waxing, ProductionStage.Casting].includes(batch.current_stage)),
@@ -2410,6 +2443,63 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             </div>
         );
     }
+
+    // ── Reusable batch-groups renderer (used for normal columns + Polishing sub-sections) ──
+    const renderBatchGroups = (groupedData: Record<string, Record<string, (ProductionBatch & { customer_name?: string })[]>>) => {
+        return (groupMode === 'customer' ? sortedClients : SORTED_GENDERS).map(level1Key => {
+            const l1Batches = groupedData[level1Key];
+            if (!l1Batches || Object.keys(l1Batches).length === 0) return null;
+
+            const gConfig = groupMode === 'customer' ? null : (GENDER_CONFIG[level1Key] || GENDER_CONFIG['Unknown']);
+            const collectionKeys = Object.keys(l1Batches).sort();
+
+            return (
+                <div key={level1Key} className="space-y-3">
+                    {groupMode === 'customer' ? (
+                        <div className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border bg-slate-900 text-white border-slate-900 shadow-sm flex justify-between items-center`}>
+                            <span>{level1Key}</span>
+                            <span className="opacity-60 text-[9px]">{Object.values(l1Batches).flat().length}</span>
+                        </div>
+                    ) : (
+                        <div className={`text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border ${gConfig?.style} flex justify-between items-center`}>
+                            <span>{gConfig?.label}</span>
+                            <span className="opacity-60 text-[9px]">{Object.values(l1Batches).flat().length}</span>
+                        </div>
+                    )}
+
+                    {collectionKeys.map(collName => (
+                        <div key={collName} className="pl-2 border-l-2 border-slate-200 ml-1 space-y-2">
+                            <div className="flex items-center gap-2 px-1">
+                                <FolderKanban size={10} className="text-slate-400" />
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{collName}</span>
+                            </div>
+
+                            {l1Batches[collName].map((batch, idx) => (
+                                <React.Fragment key={batch.id}>
+                                    {idx > 0 && l1Batches[collName][idx - 1].sku !== batch.sku && (
+                                        <div className="border-t border-slate-200 my-2" />
+                                    )}
+                                    <ProductionBatchCard
+                                        batch={batch}
+                                        onDragStart={handleDragStart}
+                                        onMoveToStage={(b, stg) => attemptMove(b, stg)}
+                                        onEditNote={() => setEditingNoteBatch(batch)}
+                                        onToggleHold={() => handleToggleHold(batch)}
+                                        onDelete={() => handleDeleteBatch(batch)}
+                                        onClick={() => setViewBuildBatch(batch)}
+                                        onViewHistory={handleViewHistory}
+                                        isSelected={multiSelectIds.has(batch.id)}
+                                        onToggleSelect={(e) => { e.stopPropagation(); toggleBatchSelect(batch.id); }}
+                                        onDispatch={batch.current_stage === ProductionStage.Polishing && batch.pending_dispatch ? () => handleDispatchBatches([batch.id]) : undefined}
+                                    />
+                                </React.Fragment>
+                            ))}
+                        </div>
+                    ))}
+                </div>
+            );
+        });
+    };
 
     return (
         <div className="h-[calc(100vh-100px)] flex flex-col space-y-4">
@@ -2710,6 +2800,11 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                             </>
                                         )}
                                         <span className={`px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-sm ${colors.text}`}>{stageBatches.length}</span>
+                                        {stage.id === ProductionStage.Polishing && polishingPendingBatches.length > 0 && (
+                                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-700 border border-amber-200 shadow-sm" title="Αναμονή Αποστολής">
+                                                {polishingPendingBatches.length} αν.
+                                            </span>
+                                        )}
                                         <div className="lg:hidden text-slate-400">
                                             {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                                         </div>
@@ -2727,64 +2822,68 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                         </div>
                                     )}
 
-                                    {(groupMode === 'customer' ? sortedClients : SORTED_GENDERS).map(level1Key => {
-                                        const l1Batches = groupedData[level1Key];
-                                        if (!l1Batches || Object.keys(l1Batches).length === 0) return null;
-
-                                        const gConfig = groupMode === 'customer' ? null : (GENDER_CONFIG[level1Key] || GENDER_CONFIG['Unknown']);
-                                        const collectionKeys = Object.keys(l1Batches).sort();
-
-                                        return (
-                                            <div key={level1Key} className="space-y-3">
-                                                {groupMode === 'customer' ? (
-                                                    <div className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border bg-slate-900 text-white border-slate-900 shadow-sm flex justify-between items-center`}>
-                                                        <span>{level1Key}</span>
-                                                        <span className="opacity-60 text-[9px]">{Object.values(l1Batches).flat().length}</span>
-                                                    </div>
-                                                ) : (
-                                                    <div className={`text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border ${gConfig?.style} flex justify-between items-center`}>
-                                                        <span>{gConfig?.label}</span>
-                                                        <span className="opacity-60 text-[9px]">{Object.values(l1Batches).flat().length}</span>
-                                                    </div>
-                                                )}
-
-                                                {collectionKeys.map(collName => (
-                                                    <div key={collName} className="pl-2 border-l-2 border-slate-200 ml-1 space-y-2">
-                                                        <div className="flex items-center gap-2 px-1">
-                                                            <FolderKanban size={10} className="text-slate-400" />
-                                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{collName}</span>
+                                    {/* ── Polishing column: split into Pending Dispatch + Dispatched sub-sections ── */}
+                                    {stage.id === ProductionStage.Polishing ? (
+                                        <>
+                                            {/* Pending Dispatch Section */}
+                                            {polishingPendingBatches.length > 0 && (
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center justify-between gap-2 px-2 py-2 rounded-xl bg-amber-50 border border-amber-200">
+                                                        <div className="flex items-center gap-2">
+                                                            <Package size={14} className="text-amber-600" />
+                                                            <span className="text-[11px] font-black text-amber-700 uppercase tracking-wide">Αναμονή Αποστολής</span>
+                                                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-700 border border-amber-200">{polishingPendingBatches.length}</span>
                                                         </div>
-
-                                                        {l1Batches[collName].map((batch, idx) => (
-                                                            <React.Fragment key={batch.id}>
-                                                                {idx > 0 && l1Batches[collName][idx - 1].sku !== batch.sku && (
-                                                                    <div className="border-t border-slate-200 my-2" />
-                                                                )}
-                                                                <ProductionBatchCard
-                                                                    batch={batch}
-                                                                    onDragStart={handleDragStart}
-                                                                    onMoveToStage={(b, stage) => attemptMove(b, stage)}
-                                                                    onEditNote={() => setEditingNoteBatch(batch)}
-                                                                    onToggleHold={() => handleToggleHold(batch)}
-                                                                    onDelete={() => handleDeleteBatch(batch)}
-                                                                    onClick={() => setViewBuildBatch(batch)}
-                                                                    onViewHistory={handleViewHistory}
-                                                                    isSelected={multiSelectIds.has(batch.id)}
-                                                                    onToggleSelect={(e) => { e.stopPropagation(); toggleBatchSelect(batch.id); }}
-                                                            />
-                                                            </React.Fragment>
-                                                        ))}
+                                                        <button
+                                                            onClick={() => handleDispatchBatches(polishingPendingBatches.map(b => b.id))}
+                                                            disabled={isProcessingSplit}
+                                                            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-600 text-white text-[10px] font-bold hover:bg-amber-700 transition-colors shadow-sm disabled:opacity-50"
+                                                            title="Αποστολή όλων στον Τεχνίτη"
+                                                        >
+                                                            {isProcessingSplit ? <Loader2 size={10} className="animate-spin" /> : <Truck size={10} />}
+                                                            <span>Αποστολή Όλων</span>
+                                                        </button>
                                                     </div>
-                                                ))}
-                                            </div>
-                                        );
-                                    })}
+                                                    {renderBatchGroups(groupedPolishingPending)}
+                                                </div>
+                                            )}
 
-                                    {stageBatches.length === 0 && (
-                                        <div className="h-24 lg:h-full flex flex-col items-center justify-center text-slate-400/50 p-4 border-2 border-dashed border-slate-200/50 rounded-2xl">
-                                            <Package size={24} className="mb-2" />
-                                            <p className="text-[10px] font-bold uppercase tracking-widest text-center">Τίποτα</p>
-                                        </div>
+                                            {/* Divider between sections */}
+                                            {polishingPendingBatches.length > 0 && polishingDispatchedBatches.length > 0 && (
+                                                <div className="border-t-2 border-blue-200 my-1" />
+                                            )}
+
+                                            {/* Dispatched Section */}
+                                            {polishingDispatchedBatches.length > 0 && (
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center gap-2 px-2 py-2 rounded-xl bg-blue-50 border border-blue-200">
+                                                        <Hammer size={14} className="text-blue-600" />
+                                                        <span className="text-[11px] font-black text-blue-700 uppercase tracking-wide">Στον Τεχνίτη</span>
+                                                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-700 border border-blue-200">{polishingDispatchedBatches.length}</span>
+                                                    </div>
+                                                    {renderBatchGroups(groupedPolishingDispatched)}
+                                                </div>
+                                            )}
+
+                                            {stageBatches.length === 0 && (
+                                                <div className="h-24 lg:h-full flex flex-col items-center justify-center text-slate-400/50 p-4 border-2 border-dashed border-slate-200/50 rounded-2xl">
+                                                    <Package size={24} className="mb-2" />
+                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-center">Τίποτα</p>
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        /* ── Normal column rendering ── */
+                                        <>
+                                            {renderBatchGroups(groupedData)}
+
+                                            {stageBatches.length === 0 && (
+                                                <div className="h-24 lg:h-full flex flex-col items-center justify-center text-slate-400/50 p-4 border-2 border-dashed border-slate-200/50 rounded-2xl">
+                                                    <Package size={24} className="mb-2" />
+                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-center">Τίποτα</p>
+                                                </div>
+                                            )}
+                                        </>
                                     )}
                                 </div>
                             </div>

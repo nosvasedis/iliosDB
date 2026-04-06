@@ -27,6 +27,7 @@ export default function TechnicianView({ batches }: Props) {
         batches
             // INTELLIGENT FILTER: Only items currently in the Technician (Polishing) stage
             .filter(batch => batch.current_stage === ProductionStage.Polishing)
+            .filter(batch => !batch.pending_dispatch) // Only dispatched batches (not awaiting in box)
             .filter(batch => batch.product_details?.production_type !== ProductionType.Imported) 
             .filter(batch => !batch.on_hold) 
             .forEach(batch => {

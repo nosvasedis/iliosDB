@@ -13,6 +13,7 @@ export const productionRepository = {
   logBatchHistory: (batchId: string, fromStage: ProductionStage | null, toStage: ProductionStage, userName: string, notes?: string) =>
     api.logBatchHistory(batchId, fromStage, toStage, userName, notes),
   toggleBatchHold: (batchId: string, isHeld: boolean, reason?: string) => api.toggleBatchHold(batchId, isHeld, reason),
+  markBatchesDispatched: (batchIds: string[], userName?: string) => api.markBatchesDispatched(batchIds, userName),
   updateOrderStatus: (orderId: string, status: OrderStatus) => api.updateOrderStatus(orderId, status),
   sendOrderToProduction: (orderId: string, products: Product[], materials: Material[]) =>
     api.sendOrderToProduction(orderId, products, materials),
