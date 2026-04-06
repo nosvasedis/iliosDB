@@ -11,7 +11,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 import { useUI } from './UIProvider';
 import SkuColorizedText from './SkuColorizedText';
-import SkuVariantBadges from './SkuVariantBadges';
 import JsBarcode from 'jsbarcode';
 import BarcodeView from './BarcodeView';
 import { useSuppliers } from '../hooks/api/useSuppliers';
@@ -538,19 +537,8 @@ const BarcodeGallery = React.memo(({ product, variants, onPrint, settings }: { p
                             </div>
                         </div>
 
-                        <div className="w-full text-center space-y-2">
-                            <SkuColorizedText
-                                sku={product.sku}
-                                suffix={variant ? variant.suffix : ''}
-                                gender={product.gender}
-                                className="justify-center text-lg font-black"
-                                masterClassName="text-slate-900"
-                            />
-                            {variant ? (
-                                <div className="flex justify-center">
-                                    <SkuVariantBadges suffix={variant.suffix} gender={product.gender} product={product} compact />
-                                </div>
-                            ) : null}
+                        <div className="w-full text-center">
+                            <div className="font-bold text-slate-800 text-lg">{variant ? `${product.sku}${variant.suffix}` : product.sku}</div>
                             <div className="text-xs text-slate-500">{variant ? variant.description : product.category}</div>
                         </div>
 
@@ -1335,32 +1323,22 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                     </button>
                                 </div>
                             ) : (
-                                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 group">
-                                    <h2 className="text-2xl font-black tracking-tight flex flex-wrap items-center gap-3 m-0">
-                                        <SkuColorizedText
-                                            sku={editedProduct.sku}
-                                            suffix={currentViewVariant?.suffix ?? ''}
-                                            gender={editedProduct.gender}
-                                            masterClassName="text-slate-900"
-                                        />
-                                        {viewMode === 'registry' && (
-                                            <button
-                                                onClick={() => setIsEditingSku(true)}
-                                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 rounded"
-                                                title="Μετονομασία SKU"
-                                            >
-                                                <Edit size={16} />
-                                            </button>
-                                        )}
-                                    </h2>
-                                    {currentViewVariant ? (
-                                        <SkuVariantBadges
-                                            suffix={currentViewVariant.suffix}
-                                            gender={editedProduct.gender}
-                                            product={editedProduct}
-                                        />
-                                    ) : null}
-                                </div>
+                                <h2 className="text-2xl font-black tracking-tight flex items-center gap-3 group">
+                                    <SkuColorizedText
+                                        sku={displayedSku}
+                                        gender={editedProduct.gender}
+                                        masterClassName="text-slate-900"
+                                    />
+                                    {viewMode === 'registry' && (
+                                        <button
+                                            onClick={() => setIsEditingSku(true)}
+                                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 rounded"
+                                            title="Μετονομασία SKU"
+                                        >
+                                            <Edit size={16} />
+                                        </button>
+                                    )}
+                                </h2>
                             )}
 
                             {showPager && (
@@ -1369,21 +1347,14 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                         <button
                                             type="button"
                                             onClick={() => setIsVariantPickerOpen(prev => !prev)}
-                                            className="flex min-w-[15rem] max-w-[22rem] items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left shadow-sm transition-colors hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                            className="flex min-w-[15rem] max-w-[20rem] items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left shadow-sm transition-colors hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                                         >
-                                            <div className="min-w-0 flex-1 space-y-1">
+                                            <div className="min-w-0">
                                                 <SkuColorizedText
-                                                    sku={editedProduct.sku}
-                                                    suffix={currentViewVariant?.suffix ?? ''}
+                                                    sku={displayedSku}
                                                     gender={editedProduct.gender}
                                                     className="block truncate text-[13px]"
                                                     masterClassName="text-slate-900"
-                                                />
-                                                <SkuVariantBadges
-                                                    suffix={currentViewVariant?.suffix ?? ''}
-                                                    gender={editedProduct.gender}
-                                                    product={editedProduct}
-                                                    compact
                                                 />
                                                 <div className="truncate text-[11px] font-semibold text-slate-500">
                                                     {displayedLabel}
@@ -1396,6 +1367,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                             <div className="absolute left-0 top-full z-[140] mt-2 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
                                                 <div className="max-h-80 overflow-y-auto p-2">
                                                     {sortedVariantsList.map((variant, index) => {
+                                                        const variantSku = `${editedProduct.sku}${variant.suffix}`;
                                                         const isActive = index === normalizedViewIndex;
 
                                                         return (
@@ -1406,21 +1378,14 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                     setViewIndex(index);
                                                                     setIsVariantPickerOpen(false);
                                                                 }}
-                                                                className={`flex w-full items-start justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${isActive ? 'bg-emerald-50 text-emerald-900 ring-1 ring-emerald-200/60' : 'hover:bg-slate-50'}`}
+                                                                className={`flex w-full items-start justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${isActive ? 'bg-emerald-50 text-emerald-900' : 'hover:bg-slate-50'}`}
                                                             >
-                                                                <div className="min-w-0 flex-1 space-y-1">
+                                                                <div className="min-w-0">
                                                                     <SkuColorizedText
-                                                                        sku={editedProduct.sku}
-                                                                        suffix={variant.suffix}
+                                                                        sku={variantSku}
                                                                         gender={editedProduct.gender}
                                                                         className="block truncate text-[13px]"
                                                                         masterClassName={isActive ? 'text-emerald-900' : 'text-slate-900'}
-                                                                    />
-                                                                    <SkuVariantBadges
-                                                                        suffix={variant.suffix}
-                                                                        gender={editedProduct.gender}
-                                                                        product={editedProduct}
-                                                                        compact
                                                                     />
                                                                     <div className={`truncate text-[11px] font-semibold ${isActive ? 'text-emerald-700' : 'text-slate-500'}`}>
                                                                         {variant.description || variant.suffix || 'Βασικό'}
@@ -2119,21 +2084,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                             </div>
                                             {sortedVariantsList.map((v, index) => (
                                                 <div key={v.suffix} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-slate-100 shadow-sm group hover:border-blue-200 transition-colors">
-                                                    <div className="flex min-w-0 w-[8.5rem] shrink-0 flex-col gap-1">
-                                                        <SkuColorizedText
-                                                            sku={editedProduct.sku}
-                                                            suffix={v.suffix}
-                                                            gender={editedProduct.gender}
-                                                            className="truncate text-sm"
-                                                            masterClassName="text-slate-900"
-                                                        />
-                                                        <SkuVariantBadges
-                                                            suffix={v.suffix}
-                                                            gender={editedProduct.gender}
-                                                            product={editedProduct}
-                                                            compact
-                                                        />
-                                                    </div>
+                                                    <div className="font-mono font-black w-14 text-center text-lg bg-slate-50 rounded-lg py-1 text-slate-700">{v.suffix}</div>
                                                     <input value={v.description} onChange={e => updateVariant(index, 'description', e.target.value)} className="flex-1 bg-transparent text-sm font-medium outline-none text-slate-700 placeholder-slate-300" />
                                                     <div className="text-right">
                                                         <div className="text-[10px] text-slate-400 font-bold uppercase">Κόστος</div>

@@ -9,10 +9,7 @@ import QRCode from 'qrcode';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { invalidateProductsAndCatalog } from '../../lib/queryInvalidation';
 import html2canvas from 'html2canvas';
-import { APP_ICON_ONLY } from '../../constants';
-import SkuColorizedText from '../SkuColorizedText';
-import SkuVariantBadges from '../SkuVariantBadges';
-import { getSortedProductVariants } from '../../features/products';
+import { APP_LOGO, APP_ICON_ONLY } from '../../constants';
 
 interface Props {
   product: Product;
@@ -32,6 +29,14 @@ const PLATING_LABELS: Record<string, string> = {
     [PlatingType.GoldPlated]: 'Επίχρυσο',
     [PlatingType.TwoTone]: 'Δίχρωμο',
     [PlatingType.Platinum]: 'Επιπλατινωμένο'
+};
+
+const FINISH_COLORS: Record<string, string> = {
+    'X': 'bg-amber-100 text-amber-700 border-amber-200',
+    'P': 'bg-slate-100 text-slate-600 border-slate-200',
+    'D': 'bg-orange-100 text-orange-700 border-orange-200',
+    'H': 'bg-cyan-100 text-cyan-700 border-cyan-200',
+    '': 'bg-emerald-50 text-emerald-700 border-emerald-200'
 };
 
 // Proxy helper to fetch images through Cloudflare and return Base64 for Canvas stability
@@ -82,33 +87,19 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
 
   const variants = product.variants || [];
   const [variantIndex, setVariantIndex] = useState(0);
-  const [variantMenuOpen, setVariantMenuOpen] = useState(false);
-  const variantMenuRef = useRef<HTMLDivElement>(null);
 
-  const sortedVariants = useMemo(
-      () => (variants.length > 0 ? getSortedProductVariants(product, variants) : []),
-      [product, variants]
-  );
-
-  useEffect(() => {
-      setVariantIndex(0);
-      setVariantMenuOpen(false);
-  }, [product.sku]);
-
-  useEffect(() => {
-      if (!variantMenuOpen) return;
-      const onDown = (e: MouseEvent) => {
-          if (variantMenuRef.current && !variantMenuRef.current.contains(e.target as Node)) {
-              setVariantMenuOpen(false);
-          }
-      };
-      document.addEventListener('mousedown', onDown);
-      return () => document.removeEventListener('mousedown', onDown);
-  }, [variantMenuOpen]);
-
-  const activeVariant = sortedVariants.length > 0
-      ? sortedVariants[Math.min(variantIndex, sortedVariants.length - 1)]
-      : null;
+  const activeVariant = useMemo(() => {
+      if (variants.length === 0) return null;
+      const sorted = [...variants].sort((a, b) => {
+          const score = (s: string) => {
+              if (s === '' || s === 'P') return 1;
+              if (s === 'X') return 2;
+              return 3;
+          };
+          return score(a.suffix) - score(b.suffix);
+      });
+      return sorted[variantIndex];
+  }, [variants, variantIndex]);
 
   useEffect(() => {
       const sku = `${product.sku}${activeVariant?.suffix || ''}`;
@@ -130,15 +121,8 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
       }
   }, [showShareModal, product.image_url]);
 
-  const nVar = sortedVariants.length;
-  const nextVariant = (e?: React.MouseEvent) => {
-      e?.stopPropagation();
-      if (nVar > 0) setVariantIndex((prev) => (prev + 1) % nVar);
-  };
-  const prevVariant = (e?: React.MouseEvent) => {
-      e?.stopPropagation();
-      if (nVar > 0) setVariantIndex((prev) => (prev - 1 + nVar) % nVar);
-  };
+  const nextVariant = (e?: React.MouseEvent) => { e?.stopPropagation(); if (variants.length > 0) setVariantIndex((prev) => (prev + 1) % variants.length); };
+  const prevVariant = (e?: React.MouseEvent) => { e?.stopPropagation(); if (variants.length > 0) setVariantIndex((prev) => (prev - 1 + variants.length) % variants.length); };
   
   const displayGender = GENDER_LABELS[product.gender] || product.gender;
   const displayPrice = activeVariant ? (activeVariant.selling_price || 0) : (product.selling_price || 0);
@@ -178,6 +162,12 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
           plating: isGoldOrPlat ? product.labor.plating_cost_x : (isTwoTone ? product.labor.plating_cost_d : 0)
       };
   }, [product, activeVariant]);
+
+  const activeBadgeColor = useMemo(() => {
+      const suffix = activeVariant?.suffix || '';
+      const { finish } = getVariantComponents(suffix, product.gender);
+      return FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-600 border-slate-200';
+  }, [activeVariant, product.gender]);
 
   const handleShare = async () => {
       if (!cardRef.current && shareTab === 'card') return;
@@ -309,27 +299,8 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                         <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded border border-white/10 uppercase tracking-wide">{product.category}</span>
                         <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded border border-white/10 uppercase tracking-wide">{displayGender}</span>
                     </div>
-                    <div className="text-3xl font-black tracking-tight leading-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.45)]">
-                        <SkuColorizedText
-                            sku={product.sku}
-                            suffix={activeVariant?.suffix ?? ''}
-                            gender={product.gender}
-                            masterClassName="text-white font-black"
-                            className="font-black"
-                        />
-                    </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                        {activeVariant ? (
-                            <div className="[&_span]:border-white/35 [&_span]:bg-white/12 [&_span]:text-white [&_span]:backdrop-blur-sm">
-                                <SkuVariantBadges suffix={activeVariant.suffix} gender={product.gender} product={product} compact />
-                            </div>
-                        ) : null}
-                    </div>
-                    <div className="mt-1 flex items-center gap-2 text-white/80 text-xs font-bold">
-                        <span className="flex items-center gap-1"><Palette size={10}/> {displayPlating}</span>
-                        {displayStone ? <><span>•</span><span className="flex items-center gap-1"><Gem size={10}/> {displayStone}</span></> : null}
-                        <span>•</span><span>{product.weight_g}g</span>
-                    </div>
+                    <h1 className="text-3xl font-black text-white tracking-tight leading-none">{product.sku}</h1>
+                    <div className="mt-1 flex items-center gap-2 text-white/80 text-xs font-bold"><span className="flex items-center gap-1"><Palette size={10}/> {displayPlating}</span><span>•</span><span>{product.weight_g}g</span></div>
                 </div>
             </div>
         </div>
@@ -337,65 +308,26 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
 
       <div className="flex-1 overflow-y-auto p-5 space-y-6 bg-slate-50 pb-20">
           <div className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
-              <div className="mb-4 space-y-3">
-                  {nVar > 0 ? (
-                      <div className="flex items-stretch gap-2 w-full">
-                          <button type="button" onClick={prevVariant} className="shrink-0 self-center p-2.5 bg-slate-100 rounded-xl text-slate-500 active:bg-slate-200" aria-label="Προηγούμενη παραλλαγή"><ChevronLeft size={20}/></button>
-                          <div ref={variantMenuRef} className="relative min-w-0 flex-1">
-                              <button
-                                  type="button"
-                                  onClick={() => setVariantMenuOpen((o) => !o)}
-                                  className="flex w-full flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-3 text-left shadow-sm transition-colors active:bg-slate-100"
-                              >
-                                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Παραλλαγή</div>
-                                  <SkuColorizedText
-                                      sku={product.sku}
-                                      suffix={activeVariant?.suffix ?? ''}
-                                      gender={product.gender}
-                                      className="text-lg font-black"
-                                      masterClassName="text-slate-900"
-                                  />
-                                  <SkuVariantBadges suffix={activeVariant?.suffix ?? ''} gender={product.gender} product={product} compact />
-                                  <div className="text-xs font-bold text-slate-600 leading-snug line-clamp-2">
-                                      {activeVariant?.description || 'Βασικό'}
-                                  </div>
-                                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-400">
-                                      <span>{variantIndex + 1} / {nVar}</span>
-                                      <ChevronDown size={16} className={`text-slate-400 transition-transform ${variantMenuOpen ? 'rotate-180' : ''}`} />
-                                  </div>
-                              </button>
-                              {variantMenuOpen && (
-                                  <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-xl">
-                                      {sortedVariants.map((v, i) => {
-                                          const sel = i === variantIndex;
-                                          return (
-                                              <button
-                                                  key={v.suffix || `v-${i}`}
-                                                  type="button"
-                                                  onClick={() => { setVariantIndex(i); setVariantMenuOpen(false); }}
-                                                  className={`flex w-full flex-col gap-1 px-3 py-2.5 text-left transition-colors ${sel ? 'bg-emerald-50 ring-1 ring-inset ring-emerald-200/60' : 'hover:bg-slate-50'}`}
-                                              >
-                                                  <SkuColorizedText
-                                                      sku={product.sku}
-                                                      suffix={v.suffix}
-                                                      gender={product.gender}
-                                                      className="text-sm font-black"
-                                                      masterClassName={sel ? 'text-emerald-950' : 'text-slate-900'}
-                                                  />
-                                                  <SkuVariantBadges suffix={v.suffix} gender={product.gender} product={product} compact />
-                                                  <span className={`text-[11px] font-semibold leading-tight ${sel ? 'text-emerald-800' : 'text-slate-500'}`}>
-                                                      {v.description || v.suffix || 'Βασικό'}
-                                                  </span>
-                                              </button>
-                                          );
-                                      })}
-                                  </div>
-                              )}
+              <div className="flex items-center justify-between mb-4">
+                  {variants.length > 0 ? (
+                      <div className="flex items-center gap-3 w-full">
+                          <button onClick={prevVariant} className="p-2 bg-slate-100 rounded-lg text-slate-500 active:bg-slate-200"><ChevronLeft size={20}/></button>
+                          
+                          {/* UPDATED: Prominent Suffix & Description */}
+                          <div className="flex-1 flex flex-col items-center justify-center">
+                              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Παραλλαγή</div>
+                              <div className={`px-4 py-1.5 rounded-xl font-black text-xl border shadow-sm mb-2 ${activeBadgeColor}`}>
+                                  {activeVariant?.suffix || 'ΒΑΣ'}
+                              </div>
+                              <div className="text-sm text-slate-800 font-bold text-center leading-tight">
+                                  {activeVariant?.description || 'Βασικό'}
+                              </div>
                           </div>
-                          <button type="button" onClick={nextVariant} className="shrink-0 self-center p-2.5 bg-slate-100 rounded-xl text-slate-500 active:bg-slate-200" aria-label="Επόμενη παραλλαγή"><ChevronRight size={20}/></button>
+                          
+                          <button onClick={nextVariant} className="p-2 bg-slate-100 rounded-lg text-slate-500 active:bg-slate-200"><ChevronRight size={20}/></button>
                       </div>
                   ) : (
-                      <div className="text-center w-full py-2"><div className="text-[10px] font-bold text-slate-400 uppercase">ΕΚΔΟΣΗ</div><div className="font-black text-slate-800 text-xl">MASTER</div></div>
+                      <div className="text-center w-full"><div className="text-[10px] font-bold text-slate-400 uppercase">ΕΚΔΟΣΗ</div><div className="font-black text-slate-800 text-xl">MASTER</div></div>
                   )}
               </div>
               <div className="grid grid-cols-2 gap-3 border-t border-slate-50 pt-3">
@@ -501,140 +433,96 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                       <button onClick={() => setShowShareModal(false)} className="p-2 text-slate-400 hover:text-slate-600"><X size={20}/></button>
                   </div>
 
-                  <div className="p-6 flex flex-col items-center justify-center bg-slate-50 min-h-[480px]">
+                  <div className="p-6 flex flex-col items-center justify-center bg-slate-50 min-h-[440px]">
                       {shareTab === 'card' ? (
-                          <div
+                          /* REDESIGNED PROFESSIONAL PRODUCT CARD - COMPACT SQUARE STYLE */
+                          <div 
                             ref={cardRef}
-                            className="relative w-[320px] shrink-0 rounded-[28px] bg-gradient-to-br from-amber-200/90 via-emerald-100/80 to-slate-200/90 p-[3px] shadow-[0_24px_60px_-12px_rgba(6,11,0,0.35)] font-sans"
+                            className="bg-white rounded-[24px] shadow-2xl overflow-hidden w-[320px] border-4 border-white flex flex-col relative font-sans"
+                            style={{ aspectRatio: '1/1.1' }}
                           >
-                              <div className="flex flex-col overflow-hidden rounded-[25px] bg-white">
-                                  <div className="relative flex items-start justify-between gap-3 border-b border-slate-100/90 bg-gradient-to-r from-white via-emerald-50/30 to-amber-50/25 px-4 pt-4 pb-3">
-                                      <Sparkles className="pointer-events-none absolute -right-1 -top-1 h-14 w-14 text-amber-300/35" aria-hidden />
-                                      <div className="relative flex min-w-0 flex-1 items-center gap-2.5">
-                                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#060b00] shadow-md shadow-emerald-900/10">
-                                              {logoBase64 ? (
-                                                  <img src={logoBase64} className="h-6 w-6 object-contain" alt="" />
-                                              ) : (
-                                                  <Gem className="h-4 w-4 text-emerald-300" aria-hidden />
-                                              )}
-                                          </div>
-                                          <div className="min-w-0">
-                                              <p className="truncate text-[11px] font-black tracking-tight text-[#060b00]">Ilios Kosmima</p>
-                                              <p className="text-[7px] font-bold uppercase tracking-[0.2em] text-amber-700/90">Χειροποίητο · Παραγωγή</p>
-                                          </div>
+                              {/* Decorative Background Accent */}
+                              <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-emerald-50/50 to-transparent pointer-events-none" />
+
+                              {/* Header */}
+                              <div className="flex justify-between items-center p-5 pb-2 relative z-10">
+                                  <div className="flex items-center gap-2">
+                                      {/* Logo */}
+                                      <div className="w-6 h-6 shrink-0">
+                                          {logoBase64 ? <img src={logoBase64} className="w-full h-full object-contain" /> : <div className="w-6 h-6 bg-[#060b00] rounded-full"/>}
                                       </div>
-                                      <div className="relative flex shrink-0 flex-col items-end gap-1 text-right">
-                                          {displayPrice > 0 ? (
-                                              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Λιανική</p>
-                                          ) : null}
-                                          {displayPrice > 0 ? (
-                                              <p className="text-lg font-black leading-none text-[#060b00]">{formatCurrency(displayPrice)}</p>
-                                          ) : (
-                                              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-slate-500">
-                                                  Κατάλογος
-                                              </span>
-                                          )}
+                                      <div className="flex flex-col">
+                                          <span className="font-bold text-[#060b00] text-xs leading-none tracking-tight">Ilios Kosmima</span>
+                                          <span className="text-[7px] font-medium text-amber-600 uppercase tracking-widest leading-none mt-0.5">ΠΑΡΑΓΩΓΗ</span>
                                       </div>
                                   </div>
+                                  {displayPrice > 0 && (
+                                      <div className="flex flex-col items-end">
+                                          <span className="text-lg font-black text-[#060b00] leading-none">{formatCurrency(displayPrice)}</span>
+                                      </div>
+                                  )}
+                              </div>
 
-                                  <div className="relative px-3 pt-3">
-                                      <div className="pointer-events-none absolute inset-x-3 top-3 h-[min(200px,42vw)] rounded-2xl bg-gradient-to-b from-slate-100/90 to-white" aria-hidden />
-                                      <div className="relative flex min-h-[168px] items-center justify-center px-2 pb-1">
-                                          {cardImageBase64 ? (
-                                              <img src={cardImageBase64} className="max-h-[200px] w-full object-contain drop-shadow-[0_12px_24px_rgba(15,23,42,0.12)]" alt="" />
-                                          ) : product.image_url ? (
-                                              <img src={product.image_url} className="max-h-[200px] w-full object-contain" crossOrigin="anonymous" alt="" />
-                                          ) : (
-                                              <ImageIcon className="h-12 w-12 text-slate-200" aria-hidden />
-                                          )}
+                              {/* Hero Image Section */}
+                              <div className="w-full flex-1 flex items-center justify-center px-4 relative z-10 min-h-0">
+                                  <div className="w-full h-full relative flex items-center justify-center">
+                                      {cardImageBase64 ? (
+                                          <img src={cardImageBase64} className="max-w-full max-h-full object-contain drop-shadow-xl" alt="Product" />
+                                      ) : (
+                                          <div className="w-full h-full flex items-center justify-center text-slate-300">
+                                              {product.image_url ? <img src={product.image_url} className="max-w-[80%] max-h-[80%] object-contain" crossOrigin="anonymous" alt="Fallback" /> : <ImageIcon size={40} className="opacity-20"/>}
+                                          </div>
+                                      )}
+                                  </div>
+                              </div>
+
+                              {/* Details Content - Gold Border Top */}
+                              <div className="px-5 pb-5 pt-3 relative z-10">
+                                  <div className="flex justify-between items-end mb-3">
+                                      <div>
+                                          <h1 className="text-2xl font-black text-[#060b00] leading-none tracking-tight">{displaySku}</h1>
+                                          <p className="text-[10px] font-bold text-slate-500 mt-1 capitalize">{product.category}</p>
+                                      </div>
+                                      {/* Pill Box - Fixed Alignment */}
+                                      <div className="flex items-center justify-center">
+                                           <span className="bg-emerald-50 border border-emerald-100 text-emerald-800 text-[9px] font-bold px-2.5 h-5 flex items-center justify-center rounded-full capitalize shadow-sm pb-[1px]">
+                                              {displayGender}
+                                           </span>
                                       </div>
                                   </div>
-
-                                  <div className="space-y-3 px-4 pb-4 pt-1">
-                                      <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white p-3 shadow-sm">
-                                          <p className="mb-1 text-[8px] font-black uppercase tracking-[0.18em] text-slate-400">Πλήρης κωδικός</p>
-                                          <SkuColorizedText
-                                              sku={product.sku}
-                                              suffix={activeVariant?.suffix ?? ''}
-                                              gender={product.gender}
-                                              className="text-[22px] font-black leading-tight"
-                                              masterClassName="text-slate-900"
-                                          />
-                                          <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                                              <SkuVariantBadges
-                                                  suffix={activeVariant?.suffix ?? ''}
-                                                  gender={product.gender}
-                                                  product={product}
-                                                  compact
-                                              />
-                                              <span className="inline-flex items-center rounded-full border border-emerald-200/80 bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-emerald-900">
-                                                  {displayGender}
-                                              </span>
-                                          </div>
-                                          <p className="mt-2 line-clamp-2 text-[10px] font-bold capitalize leading-snug text-slate-600">{product.category}</p>
-                                          {displayLabel ? (
-                                              <p className="mt-1 line-clamp-2 text-[10px] font-semibold text-slate-500">{displayLabel}</p>
-                                          ) : null}
+                                  
+                                  {/* Specs Grid with Gold Accents */}
+                                  <div className="grid grid-cols-2 gap-2">
+                                      <div className="bg-amber-50/50 p-2 rounded-xl border border-amber-100/50 flex flex-col justify-center min-h-[40px]">
+                                          <span className="text-[7px] font-bold text-amber-700 uppercase tracking-wider mb-0.5">Υλικό / Φινίρισμα</span>
+                                          <span className="font-bold text-slate-700 text-[9px] leading-tight break-words">{displayPlating}</span>
                                       </div>
-
-                                      <div className="grid grid-cols-2 gap-2">
-                                          <div className="rounded-xl border border-amber-100/80 bg-gradient-to-br from-amber-50/80 to-white p-2.5">
-                                              <p className="mb-0.5 flex items-center gap-1 text-[7px] font-black uppercase tracking-wider text-amber-800/90">
-                                                  <Palette className="h-2.5 w-2.5 shrink-0" aria-hidden />
-                                                  Φινίρισμα
-                                              </p>
-                                              <p className="text-[10px] font-bold leading-tight text-slate-800">{displayPlating}</p>
-                                          </div>
-                                          <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-2.5">
-                                              <p className="mb-0.5 flex items-center gap-1 text-[7px] font-black uppercase tracking-wider text-slate-500">
-                                                  <Weight className="h-2.5 w-2.5 shrink-0" aria-hidden />
-                                                  Βάρος
-                                              </p>
-                                              <p className="text-[11px] font-black text-slate-800">{product.weight_g}g</p>
-                                          </div>
-                                          {displayStone ? (
-                                              <div className="col-span-2 rounded-xl border border-violet-100/90 bg-gradient-to-r from-violet-50/60 to-white p-2.5">
-                                                  <p className="mb-0.5 flex items-center gap-1 text-[7px] font-black uppercase tracking-wider text-violet-800/90">
-                                                      <Gem className="h-2.5 w-2.5 shrink-0" aria-hidden />
-                                                      Πέτρα / Λεπτομέρεια
-                                                  </p>
-                                                  <p className="text-[10px] font-bold leading-tight text-slate-800">{displayStone}</p>
-                                              </div>
-                                          ) : null}
+                                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex flex-col justify-center min-h-[40px]">
+                                          <span className="text-[7px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Βάρος</span>
+                                          <span className="font-bold text-slate-700 text-[10px]">{product.weight_g}g</span>
                                       </div>
-
-                                      <div className="flex items-stretch gap-2.5 rounded-2xl border border-slate-200/90 bg-white p-2 shadow-sm">
-                                          <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white p-1">
-                                              {qrDataUrl ? (
-                                                  <img src={qrDataUrl} className="h-full w-full object-contain" alt="" />
-                                              ) : null}
+                                      
+                                      {/* Footer / QR Row */}
+                                      <div className="col-span-2 mt-1 flex items-center gap-3 bg-white rounded-xl border border-slate-100 p-1.5 pr-3 shadow-sm">
+                                          <div className="w-9 h-9 bg-slate-50 rounded-lg p-0.5 shrink-0 border border-slate-200 flex items-center justify-center">
+                                              {qrDataUrl && <img src={qrDataUrl} className="w-full h-full object-contain mix-blend-multiply" />}
                                           </div>
-                                          <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-0.5">
-                                              <p className="text-[8px] font-black uppercase tracking-wider text-slate-400">Σάρωση · σημείωση</p>
-                                              <p className="text-[10px] font-bold leading-snug text-[#060b00]">{qrDescription}</p>
+                                          <div className="flex-1 flex flex-col justify-center">
+                                              <span className="text-[10px] font-bold text-[#060b00] leading-tight break-words">{qrDescription}</span>
                                           </div>
                                       </div>
                                   </div>
                               </div>
                           </div>
                       ) : (
-                          <div className="flex flex-col items-center gap-6 rounded-[40px] border border-slate-200 bg-white p-8 shadow-xl">
-                              <div className="rounded-[32px] border border-slate-100 bg-slate-50 p-4">
-                                  {qrDataUrl && <img src={qrDataUrl} className="h-56 w-56 object-contain" alt="" />}
+                          /* QR ONLY VIEW */
+                          <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-xl flex flex-col items-center gap-6">
+                              <div className="p-4 bg-slate-50 rounded-[32px] border border-slate-100">
+                                  {qrDataUrl && <img src={qrDataUrl} className="w-56 h-56 object-contain" />}
                               </div>
                               <div className="text-center">
-                                  <div className="flex justify-center text-2xl font-black tracking-tight text-[#060b00]">
-                                      <SkuColorizedText
-                                          sku={product.sku}
-                                          suffix={activeVariant?.suffix ?? ''}
-                                          gender={product.gender}
-                                          masterClassName="text-slate-900"
-                                      />
-                                  </div>
-                                  <div className="mt-2 flex justify-center">
-                                      <SkuVariantBadges suffix={activeVariant?.suffix ?? ''} gender={product.gender} product={product} compact />
-                                  </div>
-                                  <div className="mt-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Σάρωση για λεπτομέρειες</div>
+                                  <div className="text-3xl font-black text-[#060b00] tracking-tighter uppercase">{displaySku}</div>
+                                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Σάρωση για λεπτομέρειες</div>
                               </div>
                           </div>
                       )}
