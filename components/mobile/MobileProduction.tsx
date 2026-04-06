@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType, Order, ProductVariant, AssemblyPrintData, StageBatchPrintData } from '../../types';
@@ -91,6 +91,17 @@ const MobileBatchCard: React.FC<{
         colorClass: getProductionTimingStatusClasses(timingStatus),
     };
     const [stageSheetOpen, setStageSheetOpen] = useState(false);
+    const lastStageSheetCloseAt = useRef(0);
+    const closeStageSheet = useCallback(() => {
+        lastStageSheetCloseAt.current = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        setStageSheetOpen(false);
+    }, []);
+    const openStageSheet = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        if (now - lastStageSheetCloseAt.current < 450) return;
+        setStageSheetOpen(true);
+    }, []);
 
     const outerSurface = batch.on_hold
         ? 'border-amber-400 bg-amber-50/30'
@@ -200,9 +211,9 @@ const MobileBatchCard: React.FC<{
                     {!isReady && !batch.on_hold && (
                         <button
                             type="button"
-                            onClick={() => {
+                            onClick={(e) => {
                                 if (onMoveToStage) {
-                                    setStageSheetOpen(true);
+                                    openStageSheet(e);
                                 } else {
                                     onNext(batch);
                                 }
@@ -220,7 +231,7 @@ const MobileBatchCard: React.FC<{
         {!isReady && !batch.on_hold && onMoveToStage ? (
             <MobileBatchStageMoveSheet
                 isOpen={stageSheetOpen}
-                onClose={() => setStageSheetOpen(false)}
+                onClose={closeStageSheet}
                 batch={batch}
                 onMove={(targetStage, options) => onMoveToStage(batch, targetStage, options)}
             />

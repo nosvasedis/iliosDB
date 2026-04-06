@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import {
     Boxes,
     CheckCircle,
@@ -115,14 +116,14 @@ export default function MobileBatchStageMoveSheet({ isOpen, onClose, batch, onMo
 
     const isSpecialCreation = isSpecialCreationSku(batch.sku);
 
-    return (
+    const overlay = (
         <div
-            className="fixed inset-0 z-[220] flex flex-col justify-end bg-slate-950/75 backdrop-blur-[2px] animate-in fade-in duration-150"
+            className="fixed inset-0 z-[300] flex flex-col justify-end bg-slate-950/75 backdrop-blur-[2px] animate-in fade-in duration-150"
             onClick={onClose}
             role="presentation"
         >
             <div
-                className="flex max-h-[min(92dvh,880px)] flex-col rounded-t-[1.75rem] bg-white shadow-[0_-12px_40px_rgba(15,23,42,0.18)] animate-in slide-in-from-bottom duration-200 ease-out"
+                className="flex max-h-[min(92dvh,880px)] flex-col rounded-t-[1.75rem] bg-white pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-12px_40px_rgba(15,23,42,0.18)] animate-in slide-in-from-bottom duration-200 ease-out"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex shrink-0 flex-col px-5 pb-3 pt-3">
@@ -145,19 +146,20 @@ export default function MobileBatchStageMoveSheet({ isOpen, onClose, batch, onMo
                         </div>
                         <button
                             type="button"
-                            onClick={onClose}
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onClose();
+                            }}
                             className="shrink-0 rounded-full bg-slate-100 p-2.5 text-slate-600 active:scale-95"
                             aria-label="Κλείσιμο"
                         >
                             <X size={20} strokeWidth={2.25} />
                         </button>
                     </div>
-                    <p className="mt-3 text-xs font-semibold leading-snug text-slate-500">
-                        Επιλέξτε στάδιο μετακίνησης. Οι επιλογές Τεχνίτη εμφανίζονται δίπλα-δίπλα.
-                    </p>
                 </div>
 
-                <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-1">
+                <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain px-4 pb-[calc(5rem+env(safe-area-inset-bottom,0px)+0.75rem)] pt-1">
                     {PRODUCTION_STAGES.map((stage, index) => {
                         const isDisabled = isStageDisabled(stage.id);
                         const isPast = index < currentStageIndex;
@@ -260,4 +262,6 @@ export default function MobileBatchStageMoveSheet({ isOpen, onClose, batch, onMo
             </div>
         </div>
     );
+
+    return typeof document !== 'undefined' ? createPortal(overlay, document.body) : null;
 }

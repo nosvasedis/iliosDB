@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, MoveRight, PauseCircle, PlayCircle, StickyNote } from 'lucide-react';
 import { ProductionBatch, ProductionStage } from '../../types';
 import MobileBatchStageMoveSheet from '../mobile/MobileBatchStageMoveSheet';
@@ -10,17 +10,33 @@ type Props = {
     hideNotes?: boolean;
 };
 
+/** Ignore opener clicks right after close (avoids ghost tap on «Στάδιο» reopening the sheet). */
+const SHEET_REOPEN_GUARD_MS = 450;
+
 export default function FinderBatchStageSelector({ batch, onMoveToStage, onToggleHold, hideNotes = false }: Props) {
     const [isOpen, setIsOpen] = useState(false);
+    const lastSheetCloseAt = useRef(0);
+
+    const closeSheet = useCallback(() => {
+        lastSheetCloseAt.current = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        setIsOpen(false);
+    }, []);
+
+    const openSheet = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        if (now - lastSheetCloseAt.current < SHEET_REOPEN_GUARD_MS) return;
+        setIsOpen(true);
+    };
 
     useEffect(() => {
         if (!isOpen) return;
         const onKey = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') setIsOpen(false);
+            if (e.key === 'Escape') closeSheet();
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [isOpen]);
+    }, [isOpen, closeSheet]);
 
     return (
         <div className="mt-2 pt-2 border-t border-slate-200/50">
@@ -37,38 +53,32 @@ export default function FinderBatchStageSelector({ batch, onMoveToStage, onToggl
                 </div>
             )}
 
-            <div className="flex items-center justify-between">
-                <span className="text-[9px] font-bold text-slate-400 uppercase">Στάδιο:</span>
+            <div className="flex items-center justify-end gap-2">
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleHold(batch);
+                    }}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 ${batch.on_hold ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700' : 'bg-amber-100 hover:bg-amber-200 text-amber-700'}`}
+                >
+                    {batch.on_hold ? <PlayCircle size={12} className="fill-current" /> : <PauseCircle size={12} />}
+                    {batch.on_hold ? 'Συνέχεια' : 'Αναμονή'}
+                </button>
 
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onToggleHold(batch);
-                        }}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 ${batch.on_hold ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700' : 'bg-amber-100 hover:bg-amber-200 text-amber-700'}`}
-                    >
-                        {batch.on_hold ? <PlayCircle size={12} className="fill-current" /> : <PauseCircle size={12} />}
-                        {batch.on_hold ? 'Συνέχεια' : 'Αναμονή'}
-                    </button>
-
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setIsOpen(!isOpen);
-                        }}
-                        className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
-                    >
-                        <MoveRight size={12} />
-                        Στάδιο
-                        {isOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                    </button>
-                </div>
+                <button
+                    type="button"
+                    onClick={openSheet}
+                    className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
+                >
+                    <MoveRight size={12} />
+                    Στάδιο
+                    {isOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                </button>
             </div>
 
             <MobileBatchStageMoveSheet
                 isOpen={isOpen}
-                onClose={() => setIsOpen(false)}
+                onClose={closeSheet}
                 batch={batch}
                 onMove={(targetStage, options) => onMoveToStage(batch, targetStage, options)}
             />
