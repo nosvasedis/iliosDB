@@ -148,8 +148,8 @@ const MobileBatchCard: React.FC<{
                 </div>
             )}
 
-            <div className="flex justify-between items-center mt-3 pt-2.5 border-t border-slate-50">
-                <div className="flex gap-2">
+            <div className="mt-3 pt-2.5 border-t border-slate-50 space-y-2">
+                <div className="flex flex-wrap gap-2 items-center">
                     <div className={`text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1 border ${timeInfo.colorClass}`}>
                         <Clock size={10} />
                         <span>{timeInfo.label}</span>
@@ -161,16 +161,49 @@ const MobileBatchCard: React.FC<{
                     )}
                 </div>
 
-                <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-end gap-1.5 flex-wrap" onClick={e => e.stopPropagation()}>
                     <button
+                        type="button"
                         onClick={() => onToggleHold(batch)}
-                        className={`p-2 rounded-xl transition-colors border ${batch.on_hold ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-400 border-slate-200'}`}
+                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all shadow-sm active:scale-95 border ${
+                            batch.on_hold
+                                ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                                : 'bg-amber-100 text-amber-700 border-amber-200'
+                        }`}
                     >
-                        {batch.on_hold ? <PlayCircle size={18} className="fill-current" /> : <PauseCircle size={18} />}
+                        {batch.on_hold ? <PlayCircle size={12} className="fill-current" /> : <PauseCircle size={12} />}
+                        {batch.on_hold ? 'Συνέχεια' : 'Αναμονή'}
                     </button>
+
+                    {batch.current_stage === ProductionStage.Polishing && !batch.on_hold && onMoveToStage && (
+                        <>
+                            {batch.pending_dispatch && (
+                                <button
+                                    type="button"
+                                    onClick={() => onMoveToStage(batch, ProductionStage.Polishing, { pendingDispatch: false })}
+                                    className="flex items-center gap-1 bg-teal-100 active:bg-teal-200 text-teal-700 p-1.5 rounded-lg text-[10px] font-bold border border-teal-200 transition-all shadow-sm active:scale-95"
+                                    title="Αποστολή στον Τεχνίτη"
+                                >
+                                    <Truck size={12} />
+                                </button>
+                            )}
+                            {!batch.pending_dispatch && (
+                                <button
+                                    type="button"
+                                    onClick={() => onMoveToStage(batch, ProductionStage.Polishing, { pendingDispatch: true })}
+                                    className="flex items-center gap-1 bg-blue-100 active:bg-blue-200 text-blue-700 p-1.5 rounded-lg text-[10px] font-bold border border-blue-200 transition-all shadow-sm active:scale-95"
+                                    title="Επιστροφή σε Αναμονή Αποστολής"
+                                >
+                                    <Package size={12} />
+                                </button>
+                            )}
+                        </>
+                    )}
+
                     {!isReady && !batch.on_hold && (
                         <div className="relative">
                             <button
+                                type="button"
                                 onClick={() => {
                                     if (onMoveToStage) {
                                         setStageSelectorOpen(!stageSelectorOpen);
@@ -178,14 +211,15 @@ const MobileBatchCard: React.FC<{
                                         onNext(batch);
                                     }
                                 }}
-                                className="bg-slate-600 active:bg-slate-700 text-white px-3 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm active:scale-95 transition-all"
+                                className="flex items-center gap-1 bg-slate-100 active:bg-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[10px] font-bold transition-all shadow-sm active:scale-95"
                             >
-                                <MoveRight size={14} /> Μετακίνηση {stageSelectorOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                                <MoveRight size={11} />
+                                Μετακ.
+                                {onMoveToStage && (stageSelectorOpen ? <ChevronUp size={11} /> : <ChevronDown size={11} />)}
                             </button>
-                            
-                            {/* Expanding stage selector */}
+
                             {stageSelectorOpen && onMoveToStage && (
-                                <div className="absolute bottom-full right-0 mb-2 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50 min-w-[130px]">
+                                <div className="absolute bottom-full right-0 mb-2 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50 w-[min(100vw-2rem,220px)]">
                                     <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-2">Στάδια</div>
                                     <div className="space-y-1 max-h-[280px] overflow-y-auto">
                                         {STAGES.map((stage, index) => {
@@ -194,58 +228,60 @@ const MobileBatchCard: React.FC<{
                                             const isPast = index < currentStageIndex;
                                             const stageColors = STAGE_COLORS[stage.color];
 
-                                            // Split Polishing into two sub-stage buttons
                                             if (stage.id === ProductionStage.Polishing) {
                                                 const isCurrentPending = isCurrent && batch.pending_dispatch;
                                                 const isCurrentDispatched = isCurrent && !batch.pending_dispatch;
                                                 return (
-                                                    <React.Fragment key={stage.id}>
+                                                    <div key={stage.id} className="flex gap-1">
                                                         <button
+                                                            type="button"
                                                             onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: true })}
                                                             disabled={isDisabled}
-                                                            className={`w-full text-left px-2.5 py-2 rounded-xl text-[11px] font-bold transition-all flex items-center justify-between
+                                                            className={`flex-1 min-w-0 text-center px-1.5 py-1.5 rounded-lg text-[9px] font-bold transition-all border flex items-center justify-between gap-0.5
                                                                 ${isCurrentPending
-                                                                    ? 'bg-amber-50 text-amber-700 border border-amber-200 ring-2 ring-offset-1 ring-amber-400/30'
+                                                                    ? 'bg-teal-50 text-teal-700 border-teal-200 ring-2 ring-offset-1 ring-teal-400/30'
                                                                     : isDisabled
-                                                                    ? 'bg-slate-50/50 text-slate-300/50 cursor-not-allowed blur-[1px] opacity-50'
+                                                                    ? 'bg-slate-50/50 text-slate-300/50 cursor-not-allowed opacity-50'
                                                                     : isPast
-                                                                    ? 'bg-slate-50 text-slate-500 border border-slate-100'
-                                                                    : 'bg-amber-50 text-amber-700 border border-amber-200 hover:shadow-md'
+                                                                    ? 'bg-teal-50/50 text-teal-700/80 border border-slate-100'
+                                                                    : 'bg-teal-50 text-teal-700 border-teal-200 hover:shadow-md'
                                                                 }
                                                             `}
                                                         >
-                                                            <span className="truncate">Τεχνίτης • Αναμονή</span>
-                                                            {isCurrentPending && <span className="text-[8px]">●</span>}
+                                                            <span className="truncate">Τεχν. • Αναμ.</span>
+                                                            {isCurrentPending && <span className="text-[8px] shrink-0">●</span>}
                                                         </button>
                                                         <button
+                                                            type="button"
                                                             onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: false })}
                                                             disabled={isDisabled}
-                                                            className={`w-full text-left px-2.5 py-2 rounded-xl text-[11px] font-bold transition-all flex items-center justify-between
+                                                            className={`flex-1 min-w-0 text-center px-1.5 py-1.5 rounded-lg text-[9px] font-bold transition-all border flex items-center justify-between gap-0.5
                                                                 ${isCurrentDispatched
-                                                                    ? 'bg-blue-50 text-blue-700 border border-blue-200 ring-2 ring-offset-1 ring-blue-400/30'
+                                                                    ? 'bg-blue-50 text-blue-700 border-blue-200 ring-2 ring-offset-1 ring-blue-400/30'
                                                                     : isDisabled
-                                                                    ? 'bg-slate-50/50 text-slate-300/50 cursor-not-allowed blur-[1px] opacity-50'
+                                                                    ? 'bg-slate-50/50 text-slate-300/50 cursor-not-allowed opacity-50'
                                                                     : isPast
-                                                                    ? 'bg-slate-50 text-slate-500 border border-slate-100'
-                                                                    : 'bg-blue-50 text-blue-700 border border-blue-200 hover:shadow-md'
+                                                                    ? 'bg-blue-50/50 text-blue-700/80 border border-slate-100'
+                                                                    : 'bg-blue-50 text-blue-700 border-blue-200 hover:shadow-md'
                                                                 }
                                                             `}
                                                         >
-                                                            <span className="truncate">Τεχνίτης • Στον Τεχν.</span>
-                                                            {isCurrentDispatched && <span className="text-[8px]">●</span>}
+                                                            <span className="truncate">Τεχν. • Τεχν.</span>
+                                                            {isCurrentDispatched && <span className="text-[8px] shrink-0">●</span>}
                                                         </button>
-                                                    </React.Fragment>
+                                                    </div>
                                                 );
                                             }
-                                            
+
                                             return (
                                                 <button
                                                     key={stage.id}
+                                                    type="button"
                                                     onClick={() => handleStageSelect(stage.id)}
                                                     disabled={isDisabled}
                                                     className={`w-full text-left px-2.5 py-2 rounded-xl text-[11px] font-bold transition-all flex items-center justify-between
-                                                        ${isCurrent 
-                                                            ? `${stageColors} ring-2 ring-offset-1 ring-current/30` 
+                                                        ${isCurrent
+                                                            ? `${stageColors} ring-2 ring-offset-1 ring-current/30`
                                                             : isDisabled
                                                             ? 'bg-slate-50/50 text-slate-300/50 cursor-not-allowed blur-[1px] opacity-50'
                                                             : isPast
@@ -1087,7 +1123,8 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                     </div>
                 </div>
                 {finderTerm.length >= 2 && (
-                    <div className="mt-4 space-y-3 max-h-80 overflow-y-auto custom-scrollbar relative z-10">
+                    <div className="mt-4 rounded-2xl bg-white p-3 shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-slate-200/90 relative z-10">
+                    <div className="space-y-3 max-h-80 overflow-y-auto custom-scrollbar">
                         {foundBatches.map(b => {
                             const isSpecialBatch = isSpecialCreationSku(b.sku);
                             const stageMeta = STAGES.find(s => s.id === b.current_stage);
@@ -1145,7 +1182,8 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                             </div>
                             );
                         })}
-                        {foundBatches.length === 0 && <div className="text-center py-8 text-white/40 italic font-bold">Δεν βρέθηκαν παρτίδες.</div>}
+                        {foundBatches.length === 0 && <div className="text-center py-8 text-slate-400 italic font-bold text-sm">Δεν βρέθηκαν παρτίδες.</div>}
+                    </div>
                     </div>
                 )}
             </div>

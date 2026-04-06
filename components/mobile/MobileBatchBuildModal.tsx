@@ -386,18 +386,17 @@ export default function MobileBatchBuildModal({
                                                 const stageColors = STAGE_BUTTON_COLORS[colorKey];
                                                 const isPast = index < currentStageIndex;
 
-                                                // Split Polishing into two amber/blue substage buttons
                                                 if (stage.id === ProductionStage.Polishing) {
                                                     const isCurrentPending = isCurrent && batch.pending_dispatch;
                                                     const isCurrentDispatched = isCurrent && !batch.pending_dispatch;
                                                     const isDisabled = isStageDisabled(stage.id);
                                                     return (
-                                                        <React.Fragment key={stage.id}>
+                                                        <div key={stage.id} className="col-span-full flex gap-1.5 w-full">
                                                             <button
                                                                 type="button"
                                                                 onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: true })}
                                                                 disabled={isMoving || isDisabled}
-                                                                className={`px-1.5 py-2 rounded-lg font-bold text-[10px] leading-tight transition-all border text-center min-h-[2.5rem] flex flex-col items-center justify-center gap-0.5 touch-manipulation ${
+                                                                className={`flex-1 min-w-0 px-2 py-2 rounded-lg font-bold text-[9px] sm:text-[10px] leading-tight transition-all border text-center flex items-center justify-center gap-1 touch-manipulation whitespace-normal ${
                                                                     isCurrentPending
                                                                         ? 'bg-teal-50 text-teal-700 border-teal-200 ring-2 ring-offset-1 ring-teal-400/25'
                                                                         : isDisabled
@@ -407,15 +406,14 @@ export default function MobileBatchBuildModal({
                                                                         : 'bg-teal-50 text-teal-700 border-teal-200 active:scale-[0.98]'
                                                                 }`}
                                                             >
-                                                                <span>Τεχν.</span>
-                                                                <span>Αναμονή</span>
-                                                                {isCurrentPending && <span className="text-[7px]">τρέχον</span>}
+                                                                <span className="text-center">Τεχν. • Αναμονή</span>
+                                                                {isCurrentPending && <span className="text-[7px] shrink-0">●</span>}
                                                             </button>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: false })}
                                                                 disabled={isMoving || isDisabled}
-                                                                className={`px-1.5 py-2 rounded-lg font-bold text-[10px] leading-tight transition-all border text-center min-h-[2.5rem] flex flex-col items-center justify-center gap-0.5 touch-manipulation ${
+                                                                className={`flex-1 min-w-0 px-2 py-2 rounded-lg font-bold text-[9px] sm:text-[10px] leading-tight transition-all border text-center flex items-center justify-center gap-1 touch-manipulation whitespace-normal ${
                                                                     isCurrentDispatched
                                                                         ? 'bg-blue-50 text-blue-700 border-blue-200 ring-2 ring-offset-1 ring-blue-400/25'
                                                                         : isDisabled
@@ -425,11 +423,10 @@ export default function MobileBatchBuildModal({
                                                                         : 'bg-blue-50 text-blue-700 border-blue-200 active:scale-[0.98]'
                                                                 }`}
                                                             >
-                                                                <span>Τεχν.</span>
-                                                                <span>Στον Τεχν.</span>
-                                                                {isCurrentDispatched && <span className="text-[7px]">τρέχον</span>}
+                                                                <span className="text-center">Τεχν. • Στον Τεχν.</span>
+                                                                {isCurrentDispatched && <span className="text-[7px] shrink-0">●</span>}
                                                             </button>
-                                                        </React.Fragment>
+                                                        </div>
                                                     );
                                                 }
 
