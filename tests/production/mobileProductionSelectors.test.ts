@@ -7,6 +7,7 @@ import {
   buildMobileSettingStoneOrderList,
   getMobileProductionNextStage,
   groupMobilePrintSelectorBatches,
+  matchesProductionFinderBatch,
 } from '../../features/production/workflowSelectors';
 
 describe('mobile production selectors', () => {
@@ -52,6 +53,81 @@ describe('mobile production selectors', () => {
 
     expect(found.map((batch) => batch.sku)).toEqual(['PN1']);
     expect(found[0].customerName).toBe('Beta');
+  });
+
+  it('uses SKU prefix matching so internal fragments do not match', () => {
+    const found = buildMobileProductionFoundBatches(
+      [
+        {
+          id: 'b1',
+          sku: 'DA100',
+          quantity: 1,
+          current_stage: ProductionStage.Waxing,
+          created_at: '2024-01-01T00:00:00.000Z',
+          updated_at: '2024-01-01T00:00:00.000Z',
+          priority: 'Normal',
+          requires_setting: true,
+          customer_name: 'Zed',
+        },
+        {
+          id: 'b2',
+          sku: 'XR5',
+          quantity: 1,
+          current_stage: ProductionStage.Waxing,
+          created_at: '2024-01-01T00:00:00.000Z',
+          updated_at: '2024-01-01T00:00:00.000Z',
+          priority: 'Normal',
+          requires_setting: true,
+          customer_name: 'Zed',
+        },
+      ] as any,
+      'XR',
+    );
+    expect(found.map((b) => b.sku)).toEqual(['XR5']);
+  });
+
+  it('strict letter-led queries ignore order_id so other SKUs on the same order do not appear', () => {
+    const batchDa = {
+      id: 'b-da',
+      sku: 'DA1',
+      order_id: 'order-with-XR-in-id',
+      quantity: 1,
+      current_stage: ProductionStage.Waxing,
+      created_at: '2024-01-01T00:00:00.000Z',
+      updated_at: '2024-01-01T00:00:00.000Z',
+      priority: 'Normal',
+      requires_setting: true,
+      customer_name: 'Client',
+    };
+    const batchXr = {
+      ...batchDa,
+      id: 'b-xr',
+      sku: 'XR99',
+    };
+    const found = buildMobileProductionFoundBatches([batchDa, batchXr] as any, 'XR');
+    expect(found.map((b) => b.sku)).toEqual(['XR99']);
+    expect(matchesProductionFinderBatch(batchDa as any, 'XR')).toBe(false);
+  });
+
+  it('non letter-led queries still match customer name (Greek)', () => {
+    const found = buildMobileProductionFoundBatches(
+      [
+        {
+          id: 'b1',
+          sku: 'ZZ9',
+          quantity: 1,
+          current_stage: ProductionStage.Waxing,
+          created_at: '2024-01-01T00:00:00.000Z',
+          updated_at: '2024-01-01T00:00:00.000Z',
+          priority: 'Normal',
+          requires_setting: true,
+          customer_name: 'Νίκος Α.',
+        },
+      ] as any,
+      'Νίκ',
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0].sku).toBe('ZZ9');
   });
 
   it('groups print selector batches and builds the setting-stone breakdown', () => {

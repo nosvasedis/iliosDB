@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType, Order, ProductVariant } from '../../types';
-import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, ArrowLeft, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save, Square, CheckSquare, Image as ImageIcon, Gem } from 'lucide-react';
+import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, ArrowLeft, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save, Square, CheckSquare, Image as ImageIcon, Gem, Package, Truck } from 'lucide-react';
 import { useUI } from '../UIProvider';
 import SkuColorizedText from '../SkuColorizedText';
 import MobileBatchBuildModal from './MobileBatchBuildModal';
@@ -38,6 +38,7 @@ import { useMolds } from '../../hooks/api/useMolds';
 import { useOrders } from '../../hooks/api/useOrders';
 import { useBatchStageHistoryEntries, useProductionBatches } from '../../hooks/api/useProductionBatches';
 import { productionRepository } from '../../features/production';
+import { getBatchAgeInfo } from '../../features/production/selectors';
 import { invalidateProductionBatches } from '../../lib/queryInvalidation';
 
 interface Props {
@@ -751,6 +752,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     const [timingNow, setTimingNow] = useState(() => Date.now());
 
     const [openStage, setOpenStage] = useState<string | null>(ProductionStage.Waxing);
+    const [polishingTab, setPolishingTab] = useState<'pending' | 'dispatched'>('pending');
     const [viewBuildBatch, setViewBuildBatch] = useState<ProductionBatch | null>(null);
     const [finderTerm, setFinderTerm] = useState('');
     const deferredFinderTerm = React.useDeferredValue(finderTerm);
@@ -836,7 +838,13 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
 
     const foundBatches = useMemo(() => buildMobileProductionFoundBatches(enrichedBatches, deferredFinderTerm), [enrichedBatches, deferredFinderTerm]);
 
-    const toggleStage = (stageId: string) => setOpenStage(openStage === stageId ? null : stageId);
+    const toggleStage = (stageId: string) => {
+        setOpenStage((prev) => {
+            if (prev === stageId) return null;
+            if (stageId === ProductionStage.Polishing) setPolishingTab('pending');
+            return stageId;
+        });
+    };
 
     const handleNextStage = async (batch: ProductionBatch) => {
         const nextStage = getMobileProductionNextStage(batch);
@@ -917,6 +925,23 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         }
 
         setSplitModalState({ batch, targetStage: stage, pendingDispatch: options?.pendingDispatch });
+    };
+
+    const handleDispatchAllPendingPolishing = async () => {
+        const ids = enrichedBatches
+            .filter((b) => b.current_stage === ProductionStage.Polishing && b.pending_dispatch && !b.on_hold)
+            .map((b) => b.id);
+        if (ids.length === 0) return;
+        setIsProcessingSplit(true);
+        try {
+            const count = await productionRepository.markBatchesDispatched(ids);
+            void invalidateProductionBatches(queryClient);
+            showToast(`${count} παρτίδ${count === 1 ? 'α' : 'ες'} στάλθηκ${count === 1 ? 'ε' : 'αν'} στον Τεχνίτη.`, 'success');
+        } catch (e: any) {
+            showToast(`Σφάλμα: ${e.message}`, 'error');
+        } finally {
+            setIsProcessingSplit(false);
+        }
     };
 
     const handleImportReceive = async (batch: ProductionBatch, targetStage: ProductionStage, pendingDispatch?: boolean) => {
@@ -1056,7 +1081,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                         {finderTerm && <div className="text-[10px] font-black bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-lg border border-emerald-500/20">{foundBatches.length} ΑΠΟΤΕΛΕΣΜΑΤΑ</div>}
                     </div>
                     <div className="relative">
-                        <input type="text" value={finderTerm} onChange={(e) => setFinderTerm(e.target.value)} placeholder="SKU ή Πελάτης..." className="w-full pl-10 p-4 rounded-2xl bg-white/10 border border-white/20 text-white placeholder-white/40 outline-none focus:bg-white/20 focus:ring-2 focus:ring-emerald-500/20 font-bold transition-all uppercase" />
+                        <input type="text" value={finderTerm} onChange={(e) => setFinderTerm(e.target.value)} placeholder="Εύρεση SKU / Εντολής / Πελάτη..." className="w-full pl-10 p-4 rounded-2xl bg-white/10 border border-white/20 text-white placeholder-white/40 outline-none focus:bg-white/20 focus:ring-2 focus:ring-emerald-500/20 font-bold transition-all uppercase" />
                         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" size={20} />
                         {finderTerm && <button onClick={() => setFinderTerm('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white p-1.5 bg-white/5 rounded-full"><X size={16} /></button>}
                     </div>
@@ -1066,22 +1091,49 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                         {foundBatches.map(b => {
                             const isSpecialBatch = isSpecialCreationSku(b.sku);
                             const stageMeta = STAGES.find(s => s.id === b.current_stage);
-                            const finderSurface = getFinderSearchResultSurface(stageMeta?.color);
-                            const finderBadgeTone = getFinderSearchBadgeTone(stageMeta?.color);
+                            const isPendingPolishing = b.current_stage === ProductionStage.Polishing && b.pending_dispatch;
+                            const finderSurface = isPendingPolishing
+                                ? 'bg-teal-50/25 border border-teal-100/80 border-l-4 border-l-teal-400/45 hover:bg-teal-50/40'
+                                : getFinderSearchResultSurface(stageMeta?.color);
+                            const finderBadgeTone = isPendingPolishing
+                                ? 'text-teal-700 border-teal-200'
+                                : getFinderSearchBadgeTone(stageMeta?.color);
+                            const stagePillLabel =
+                                b.current_stage === ProductionStage.Polishing
+                                    ? (b.pending_dispatch ? 'Τεχν. • Αναμονή' : 'Τεχν. • Στον Τεχν.')
+                                    : (stageMeta?.label || b.current_stage);
+                            const age = getBatchAgeInfo(b);
                             return (
                             <div key={b.id} onClick={() => setViewBuildBatch(b)} className={`rounded-2xl p-4 shadow-lg animate-in slide-in-from-top-2 active:scale-95 transition-transform cursor-pointer ${finderSurface} ${isSpecialBatch ? 'ring-1 ring-violet-200/65' : ''}`}>
-                                <div className="flex justify-between items-start mb-2">
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-1">
+                                <div className="flex justify-between items-start gap-2 mb-2">
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-2 flex-wrap mb-1">
                                             <SkuColorizedText sku={b.sku} suffix={b.variant_suffix || ''} gender={b.product_details?.gender} className="font-black text-lg tracking-tight" masterClassName={isSpecialBatch ? 'text-violet-900' : 'text-slate-800'} />
-                                            {b.size_info && <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-lg text-xs font-black border border-blue-100 flex items-center gap-1"> {b.size_info}</span>}
+                                            <span className="bg-slate-900 text-white px-2 py-0.5 rounded-md text-xs font-bold shadow-sm">x{b.quantity}</span>
+                                            {b.size_info && <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-lg text-xs font-black border border-blue-100 flex items-center gap-1"><Hash size={10} /> {b.size_info}</span>}
+                                            {b.on_hold && (
+                                                <span className="bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded text-[10px] font-black flex items-center gap-1">
+                                                    <PauseCircle size={10} /> Σε Αναμονή
+                                                </span>
+                                            )}
                                         </div>
-                                        <div className="text-xs text-slate-500 font-bold flex items-center gap-1.5 uppercase tracking-tight py-1 inline-block"><User size={12} className="text-slate-400" /> {b.customerName}</div>
+                                        <div className="flex items-center justify-between gap-2 mt-1 min-w-0">
+                                            <span className="text-xs font-bold text-slate-700 truncate flex items-center gap-1.5"><User size={12} className="text-slate-400 shrink-0" /> {b.customerName}</span>
+                                            {b.on_hold ? (
+                                                <div className="text-[9px] font-black px-1.5 py-0.5 rounded border flex items-center gap-1 shrink-0 bg-amber-50 text-amber-700 border-amber-200">
+                                                    <PauseCircle size={10} /> Hold
+                                                </div>
+                                            ) : (
+                                                <div className={`text-[9px] font-black px-1.5 py-0.5 rounded border flex items-center gap-1 shrink-0 ${age.style}`}>
+                                                    <Clock size={10} /> {age.label}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="text-right flex flex-col items-end gap-1">
-                                        <div className="text-[10px] font-mono font-bold text-slate-400 select-all tracking-wider">#{formatOrderId(b.order_id)}</div>
+                                    <div className="text-right flex flex-col items-end gap-1 shrink-0">
+                                        <div className="text-[10px] font-mono font-bold text-slate-500 select-all tracking-wider">#{formatOrderId(b.order_id)}</div>
                                         <div className={`text-[10px] font-black px-2 py-1 rounded-full border bg-white/75 backdrop-blur-sm shadow-sm ${finderBadgeTone}`}>
-                                            {stageMeta?.label}
+                                            {stagePillLabel}
                                         </div>
                                     </div>
                                 </div>
@@ -1140,9 +1192,20 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
 
             <div className="space-y-3">
                 {STAGES.map(stage => {
-                    const stageBatches = enrichedBatches.filter(b => b.current_stage === stage.id);
+                    const allAtStage = enrichedBatches.filter(b => b.current_stage === stage.id);
+                    const isPolishingStage = stage.id === ProductionStage.Polishing;
+                    const pendingPolishingCount = isPolishingStage
+                        ? allAtStage.filter(b => b.pending_dispatch).length
+                        : 0;
+                    const dispatchedPolishingCount = isPolishingStage
+                        ? allAtStage.filter(b => !b.pending_dispatch).length
+                        : 0;
+                    const stageBatches = isPolishingStage
+                        ? allAtStage.filter(b => (polishingTab === 'pending' ? b.pending_dispatch : !b.pending_dispatch))
+                        : allAtStage;
                     const isOpen = openStage === stage.id;
                     const colorClass = STAGE_COLORS[stage.color];
+                    const headerCount = allAtStage.length;
                     return (
                         <div key={stage.id} className={`rounded-2xl border transition-all duration-300 overflow-hidden ${isOpen ? 'bg-white border-slate-300 shadow-md' : `bg-white border-slate-100 shadow-sm opacity-90`}`}>
                             <div onClick={() => toggleStage(stage.id)} className={`p-4 flex justify-between items-center cursor-pointer ${isOpen ? 'bg-slate-50' : ''}`}>
@@ -1157,13 +1220,70 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                                             <Gem size={13} />
                                         </button>
                                     )}
-                                    <span className={`px-2 py-0.5 rounded-md text-xs font-black ${stageBatches.length > 0 ? colorClass : 'bg-slate-100 text-slate-400'}`}>{stageBatches.length}</span>{isOpen ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
+                                    <span className={`px-2 py-0.5 rounded-md text-xs font-black ${headerCount > 0 ? colorClass : 'bg-slate-100 text-slate-400'}`}>{headerCount}</span>{isOpen ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
                                 </div>
                             </div>
+                            {isOpen && isPolishingStage && (
+                                <div
+                                    className="px-3 pt-0 pb-3 border-b border-slate-100 bg-slate-50 space-y-2"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setPolishingTab('pending')}
+                                            className={`flex-1 flex items-center justify-center gap-1 px-2 py-2 rounded-lg text-[10px] font-black transition-all ${
+                                                polishingTab === 'pending'
+                                                    ? 'bg-teal-600 text-white shadow-sm'
+                                                    : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'
+                                            }`}
+                                        >
+                                            <Package size={12} className="shrink-0" />
+                                            <span className="truncate">Αναμονή Αποστολής</span>
+                                            <span className={`px-1 py-0.5 rounded-full text-[9px] font-black shrink-0 ${polishingTab === 'pending' ? 'bg-white/25 text-white' : 'bg-teal-100 text-teal-700'}`}>
+                                                {pendingPolishingCount}
+                                            </span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setPolishingTab('dispatched')}
+                                            className={`flex-1 flex items-center justify-center gap-1 px-2 py-2 rounded-lg text-[10px] font-black transition-all ${
+                                                polishingTab === 'dispatched'
+                                                    ? 'bg-blue-600 text-white shadow-sm'
+                                                    : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'
+                                            }`}
+                                        >
+                                            <Hammer size={12} className="shrink-0" />
+                                            <span className="truncate">Στον Τεχνίτη</span>
+                                            <span className={`px-1 py-0.5 rounded-full text-[9px] font-black shrink-0 ${polishingTab === 'dispatched' ? 'bg-white/25 text-white' : 'bg-blue-100 text-blue-700'}`}>
+                                                {dispatchedPolishingCount}
+                                            </span>
+                                        </button>
+                                    </div>
+                                    {polishingTab === 'pending' && pendingPolishingCount > 0 && (
+                                        <button
+                                            type="button"
+                                            disabled={isProcessingSplit}
+                                            onClick={() => void handleDispatchAllPendingPolishing()}
+                                            className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-teal-600 text-white text-[11px] font-bold hover:bg-teal-700 transition-colors shadow-sm disabled:opacity-50"
+                                            title="Αποστολή όλων στον Τεχνίτη"
+                                        >
+                                            <Truck size={14} />
+                                            Αποστολή Όλων
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                             {isOpen && (
                                 <div className="p-3 space-y-3 bg-slate-50/50 border-t border-slate-100">
                                     {stageBatches.map(batch => <MobileBatchCard key={batch.id} batch={batch} onNext={handleNextStage} onMoveToStage={handleMoveBatch} onToggleHold={handleToggleHold} onClick={setViewBuildBatch} />)}
-                                    {stageBatches.length === 0 && <div className="text-center py-6 text-slate-400 text-xs italic">Κανένα προϊόν σε αυτό το στάδιο.</div>}
+                                    {stageBatches.length === 0 && (
+                                        <div className="text-center py-6 text-slate-400 text-xs italic">
+                                            {isPolishingStage
+                                                ? (polishingTab === 'pending' ? 'Κανένα προϊόν σε αναμονή αποστολής.' : 'Κανένα προϊόν στον τεχνίτη.')
+                                                : 'Κανένα προϊόν σε αυτό το στάδιο.'}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

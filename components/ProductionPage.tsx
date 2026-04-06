@@ -23,7 +23,7 @@ import { getSpecialCreationProductStub, isSpecialCreationSku } from '../utils/sp
 import ProductionMoldRequirementsModal from './ProductionMoldRequirementsModal';
 import { buildProductionAlertGroups } from './production/productionAlerts';
 import { invalidateOrdersAndBatches, invalidateProductionBatches } from '../lib/queryInvalidation';
-import { PRODUCTION_STAGE_ORDER_INDEX, PRODUCTION_STAGES, getProductionStageLabel, getProductionStageShortLabel } from '../utils/productionStages';
+import { PRODUCTION_STAGES, getProductionStageLabel, getProductionStageShortLabel } from '../utils/productionStages';
 import { getFinderSearchResultSurface } from '../utils/productionFinderSurfaces';
 import {
     formatGreekDurationFromMs,
@@ -43,6 +43,7 @@ import { productionRepository } from '../features/production';
 import { auditRepository } from '../features/audit';
 import {
     buildLabelPrintQueue,
+    filterAndSortProductionFinderBatches,
     getNextProductionStage,
     groupProductionBatchesByStage,
     groupProductionBatchesForDisplay,
@@ -1890,28 +1891,10 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
 
     const stageBatchesByStage = useMemo(() => groupProductionBatchesByStage(enhancedBatches), [enhancedBatches]);
 
-    // @FIX: Explicitly type foundBatches result to include customer_name.
-    const foundBatches = useMemo(() => {
-        if (!deferredFinderTerm || deferredFinderTerm.length < 2) return [] as (ProductionBatch & { customer_name: string })[];
-        const term = deferredFinderTerm.toUpperCase();
-
-        return enhancedBatches
-            .filter(b => {
-                const fullSku = `${b.sku}${b.variant_suffix || ''}`.toUpperCase();
-                return fullSku.includes(term) || (b.order_id && b.order_id.includes(term)) || (b.customer_name && b.customer_name.toUpperCase().includes(term));
-            })
-            // Sort by Stage Order first, then Exact Match
-            .sort((a, b) => {
-                const stageA = PRODUCTION_STAGE_ORDER_INDEX[a.current_stage] ?? 99;
-                const stageB = PRODUCTION_STAGE_ORDER_INDEX[b.current_stage] ?? 99;
-
-                if (stageA !== stageB) return stageA - stageB;
-
-                const aExact = `${a.sku}${a.variant_suffix || ''}` === term;
-                const bExact = `${b.sku}${b.variant_suffix || ''}` === term;
-                return (aExact === bExact) ? 0 : aExact ? -1 : 1;
-            }) as EnhancedProductionBatch[];
-    }, [enhancedBatches, deferredFinderTerm]);
+    const foundBatches = useMemo(
+        () => filterAndSortProductionFinderBatches(enhancedBatches, deferredFinderTerm) as EnhancedProductionBatch[],
+        [enhancedBatches, deferredFinderTerm],
+    );
 
     const sortedClients = useMemo(() => {
         if (groupMode !== 'customer') return [];

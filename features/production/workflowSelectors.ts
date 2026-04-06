@@ -167,33 +167,78 @@ export function buildLabelPrintQueue(
     });
 }
 
+/** Minimum finder term length (after trim). */
+export const PRODUCTION_FINDER_MIN_TERM_LENGTH = 2;
+
+export type ProductionFinderBatchFields = Pick<
+  ProductionBatch,
+  'sku' | 'current_stage' | 'order_id' | 'variant_suffix'
+> & { customer_name?: string | null };
+
+export function normalizeProductionFinderTerm(finderTerm: string): string | null {
+  const term = finderTerm.trim().toUpperCase();
+  if (term.length < PRODUCTION_FINDER_MIN_TERM_LENGTH) return null;
+  return term;
+}
+
+/**
+ * Letter-led alphanumeric queries (e.g. XR, DA, PN1) use SKU-prefix matching only,
+ * so order_id / customer overlaps do not pull unrelated SKUs from the same order.
+ */
+export function isStrictProductionFinderSkuQuery(term: string): boolean {
+  return /^[A-Z]{2}[A-Z0-9]*$/.test(term);
+}
+
+export function matchesProductionFinderBatch(batch: ProductionFinderBatchFields, term: string): boolean {
+  const fullSku = `${batch.sku}${batch.variant_suffix || ''}`.toUpperCase();
+  const skuMatch = fullSku.startsWith(term);
+
+  if (isStrictProductionFinderSkuQuery(term)) {
+    return skuMatch;
+  }
+
+  const orderMatch = (batch.order_id || '').toUpperCase().includes(term);
+  const customerMatch = !!(batch.customer_name && batch.customer_name.toUpperCase().includes(term));
+  return skuMatch || orderMatch || customerMatch;
+}
+
+export function compareProductionFinderBatches(
+  a: ProductionFinderBatchFields,
+  b: ProductionFinderBatchFields,
+  term: string,
+): number {
+  const stageA = PRODUCTION_STAGE_ORDER_INDEX[a.current_stage] ?? 99;
+  const stageB = PRODUCTION_STAGE_ORDER_INDEX[b.current_stage] ?? 99;
+  if (stageA !== stageB) return stageA - stageB;
+
+  const fullA = `${a.sku}${a.variant_suffix || ''}`.toUpperCase();
+  const fullB = `${b.sku}${b.variant_suffix || ''}`.toUpperCase();
+  const aExact = fullA === term;
+  const bExact = fullB === term;
+  if (aExact === bExact) return 0;
+  return aExact ? -1 : 1;
+}
+
+export function filterAndSortProductionFinderBatches<T extends ProductionFinderBatchFields>(
+  batches: T[],
+  finderTerm: string,
+): T[] {
+  const term = normalizeProductionFinderTerm(finderTerm);
+  if (!term) return [];
+
+  return batches
+    .filter((batch) => matchesProductionFinderBatch(batch, term))
+    .sort((a, b) => compareProductionFinderBatches(a, b, term));
+}
+
 export function buildMobileProductionFoundBatches(
   enrichedBatches: MobileFoundBatch[],
   finderTerm: string,
 ): MobileFoundBatch[] {
-  if (!finderTerm || finderTerm.length < 2) return [];
-  const term = finderTerm.toUpperCase();
-
-  return enrichedBatches
-    .filter((batch) => {
-      const fullSku = `${batch.sku}${batch.variant_suffix || ''}`.toUpperCase();
-      return fullSku.includes(term)
-        || (batch.order_id && batch.order_id.includes(term))
-        || (batch.customer_name && batch.customer_name.toUpperCase().includes(term));
-    })
-    .sort((a, b) => {
-      const stageA = PRODUCTION_STAGE_ORDER_INDEX[a.current_stage] ?? 99;
-      const stageB = PRODUCTION_STAGE_ORDER_INDEX[b.current_stage] ?? 99;
-      if (stageA !== stageB) return stageA - stageB;
-
-      const aExact = `${a.sku}${a.variant_suffix || ''}` === term;
-      const bExact = `${b.sku}${b.variant_suffix || ''}` === term;
-      return (aExact === bExact) ? 0 : aExact ? -1 : 1;
-    })
-    .map((batch) => ({
-      ...batch,
-      customerName: batch.customer_name || 'Άγνωστο',
-    }));
+  return filterAndSortProductionFinderBatches(enrichedBatches, finderTerm).map((batch) => ({
+    ...batch,
+    customerName: batch.customer_name || 'Άγνωστο',
+  }));
 }
 
 export function groupMobilePrintSelectorBatches(
