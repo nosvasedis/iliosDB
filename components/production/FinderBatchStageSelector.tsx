@@ -190,17 +190,17 @@ export default function FinderBatchStageSelector({ batch, onMoveToStage, onToggl
                                                     stage.id === ProductionStage.Labeling ? 'Labeling' : 'Ready';
                             const stageColors = FINDER_STAGE_BUTTON_COLORS[colorKey];
 
-                            // Split Polishing into two sub-stage buttons
+                            // Split Polishing into two sub-stage buttons (side by side)
                             if (stage.id === ProductionStage.Polishing) {
                                 const isCurrentPending = isCurrent && batch.pending_dispatch;
                                 const isCurrentDispatched = isCurrent && !batch.pending_dispatch;
 
                                 return (
-                                    <React.Fragment key={stage.id}>
+                                    <div key={stage.id} className="flex gap-1">
                                         <button
                                             onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: true })}
                                             disabled={isDisabled}
-                                            className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between
+                                            className={`flex-1 text-center px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between
                                                 ${isCurrentPending
                                                     ? 'bg-amber-50 text-amber-700 border-amber-200 border ring-2 ring-offset-1 ring-amber-400/30'
                                                     : isDisabled
@@ -211,13 +211,13 @@ export default function FinderBatchStageSelector({ batch, onMoveToStage, onToggl
                                                 }
                                             `}
                                         >
-                                            <span>\u03A4\u03B5\u03C7\u03BD\u03AF\u03C4\u03B7\u03C2 \u2022 \u0391\u03BD\u03B1\u03BC\u03BF\u03BD\u03AE</span>
-                                            {isCurrentPending && <span className="text-[8px]">\u25CF</span>}
+                                            <span>Τεχν. • Αναμονή</span>
+                                            {isCurrentPending && <span className="text-[8px]">●</span>}
                                         </button>
                                         <button
                                             onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: false })}
                                             disabled={isDisabled}
-                                            className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between
+                                            className={`flex-1 text-center px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between
                                                 ${isCurrentDispatched
                                                     ? 'bg-blue-50 text-blue-700 border-blue-200 border ring-2 ring-offset-1 ring-blue-400/30'
                                                     : isDisabled
@@ -228,10 +228,10 @@ export default function FinderBatchStageSelector({ batch, onMoveToStage, onToggl
                                                 }
                                             `}
                                         >
-                                            <span>\u03A4\u03B5\u03C7\u03BD\u03AF\u03C4\u03B7\u03C2 \u2022 \u03A3\u03C4\u03BF\u03BD \u03A4\u03B5\u03C7\u03BD.</span>
-                                            {isCurrentDispatched && <span className="text-[8px]">\u25CF</span>}
+                                            <span>Τεχν. • Στον Τεχν.</span>
+                                            {isCurrentDispatched && <span className="text-[8px]">●</span>}
                                         </button>
-                                    </React.Fragment>
+                                    </div>
                                 );
                             }
 

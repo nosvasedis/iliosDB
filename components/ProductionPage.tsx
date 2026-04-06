@@ -1137,17 +1137,17 @@ const FinderBatchStageSelector = ({
                                              stage.id === ProductionStage.Labeling ? 'Labeling' : 'Ready';
                             const stageColors = FINDER_STAGE_BUTTON_COLORS[colorKey];
                             
-                            // Split Polishing into two sub-stage buttons
+                            // Split Polishing into two sub-stage buttons (side by side)
                             if (stage.id === ProductionStage.Polishing) {
                                 const isCurrentPending = isCurrent && batch.pending_dispatch;
                                 const isCurrentDispatched = isCurrent && !batch.pending_dispatch;
                                 
                                 return (
-                                    <React.Fragment key={stage.id}>
+                                    <div key={stage.id} className="flex gap-1">
                                         <button
                                             onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: true })}
                                             disabled={isDisabled}
-                                            className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between
+                                            className={`flex-1 text-center px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between
                                                 ${isCurrentPending
                                                     ? 'bg-amber-50 text-amber-700 border-amber-200 border ring-2 ring-offset-1 ring-amber-400/30'
                                                     : isDisabled
@@ -1158,13 +1158,13 @@ const FinderBatchStageSelector = ({
                                                 }
                                             `}
                                         >
-                                            <span>Τεχνίτης • Αναμονή</span>
+                                            <span>Τεχν. • Αναμονή</span>
                                             {isCurrentPending && <span className="text-[8px]">●</span>}
                                         </button>
                                         <button
                                             onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: false })}
                                             disabled={isDisabled}
-                                            className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between
+                                            className={`flex-1 text-center px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between
                                                 ${isCurrentDispatched
                                                     ? 'bg-blue-50 text-blue-700 border-blue-200 border ring-2 ring-offset-1 ring-blue-400/30'
                                                     : isDisabled
@@ -1175,10 +1175,10 @@ const FinderBatchStageSelector = ({
                                                 }
                                             `}
                                         >
-                                            <span>Τεχνίτης • Στον Τεχν.</span>
+                                            <span>Τεχν. • Στον Τεχν.</span>
                                             {isCurrentDispatched && <span className="text-[8px]">●</span>}
                                         </button>
-                                    </React.Fragment>
+                                    </div>
                                 );
                             }
                             
@@ -1567,16 +1567,6 @@ const StageInspectorModal: React.FC<{
                             >
                                 <Truck size={12} />
                                 Αποστολή Όλων
-                            </button>
-                        )}
-                        {polishingTab === 'dispatched' && onRecallBatches && filtered.length > 0 && (
-                            <button
-                                onClick={() => onRecallBatches(filtered.map(b => b.id))}
-                                className="flex items-center gap-1 px-3 py-2 rounded-lg bg-blue-600 text-white text-[11px] font-bold hover:bg-blue-700 transition-colors shadow-sm"
-                                title="Επιστροφή όλων σε Αναμονή"
-                            >
-                                <Package size={12} />
-                                Αναμονή Όλων
                             </button>
                         )}
                     </div>
@@ -2819,7 +2809,9 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                                     <div className="text-[10px] font-mono text-slate-400">#{formatOrderId(b.order_id)}</div>
                                                     <span className={`text-[10px] uppercase font-bold border px-2 py-0.5 rounded flex items-center gap-1 shadow-sm ${finderBadgeClass}`}>
                                                         {stageConf?.icon && React.cloneElement(stageConf.icon as any, { size: 10 })}
-                                                        {stageConf?.label || b.current_stage}
+                                                        {b.current_stage === ProductionStage.Polishing
+                                                            ? (b.pending_dispatch ? 'Τεχν. • Αναμονή' : 'Τεχν. • Στον Τεχν.')
+                                                            : (stageConf?.label || b.current_stage)}
                                                     </span>
                                                 </div>
                                             </div>
@@ -3006,15 +2998,6 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                                             <span className="text-[11px] font-black text-blue-700 uppercase tracking-wide">Στον Τεχνίτη</span>
                                                             <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-700 border border-blue-200">{polishingDispatchedBatches.length}</span>
                                                         </div>
-                                                        <button
-                                                            onClick={() => handleRecallDispatchBatches(polishingDispatchedBatches.map(b => b.id))}
-                                                            disabled={isProcessingSplit}
-                                                            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-600 text-white text-[10px] font-bold hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50"
-                                                            title="Επιστροφή όλων σε Αναμονή Αποστολής"
-                                                        >
-                                                            {isProcessingSplit ? <Loader2 size={10} className="animate-spin" /> : <Package size={10} />}
-                                                            <span>Αναμονή Όλων</span>
-                                                        </button>
                                                     </div>
                                                     {renderBatchGroups(groupedPolishingDispatched, { onRecallDispatch: (batchId) => handleRecallDispatchBatches([batchId]) })}
                                                 </div>

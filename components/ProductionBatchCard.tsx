@@ -434,11 +434,10 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                             {onRecallDispatch && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); onRecallDispatch(); }}
-                                    className="flex items-center gap-1 bg-blue-100 hover:bg-blue-200 text-blue-700 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
+                                    className="flex items-center gap-1 bg-blue-100 hover:bg-blue-200 text-blue-700 p-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
                                     title="Επιστροφή σε Αναμονή Αποστολής"
                                 >
                                     <Package size={12} />
-                                    Αναμονή
                                 </button>
                             )}
                             {/* Main button */}
@@ -484,17 +483,17 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                                              stage.id === ProductionStage.Labeling ? 'Labeling' : 'Ready';
                             const stageColors = STAGE_BUTTON_COLORS[colorKey];
                             
-                            // Split Polishing into two sub-stage buttons
+                            // Split Polishing into two sub-stage buttons (side by side)
                             if (stage.id === ProductionStage.Polishing) {
                                 const isCurrentPending = isCurrent && batch.pending_dispatch;
                                 const isCurrentDispatched = isCurrent && !batch.pending_dispatch;
                                 
                                 return (
-                                    <React.Fragment key={stage.id}>
+                                    <div key={stage.id} className="flex gap-1">
                                         <button
                                             onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: true })}
                                             disabled={isDisabled}
-                                            className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between
+                                            className={`flex-1 text-center px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between
                                                 ${isCurrentPending
                                                     ? 'bg-amber-50 text-amber-700 border-amber-200 border ring-2 ring-offset-1 ring-amber-400/30'
                                                     : isDisabled
@@ -505,13 +504,13 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                                                 }
                                             `}
                                         >
-                                            <span>Τεχνίτης • Αναμονή</span>
+                                            <span>Τεχν. • Αναμονή</span>
                                             {isCurrentPending && <span className="text-[8px]">●</span>}
                                         </button>
                                         <button
                                             onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: false })}
                                             disabled={isDisabled}
-                                            className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between
+                                            className={`flex-1 text-center px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between
                                                 ${isCurrentDispatched
                                                     ? 'bg-blue-50 text-blue-700 border-blue-200 border ring-2 ring-offset-1 ring-blue-400/30'
                                                     : isDisabled
@@ -522,10 +521,10 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                                                 }
                                             `}
                                         >
-                                            <span>Τεχνίτης • Στον Τεχν.</span>
+                                            <span>Τεχν. • Στον Τεχν.</span>
                                             {isCurrentDispatched && <span className="text-[8px]">●</span>}
                                         </button>
-                                    </React.Fragment>
+                                    </div>
                                 );
                             }
                             

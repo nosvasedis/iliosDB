@@ -13,7 +13,7 @@ interface Props {
     allMolds: Mold[];
     allProducts: Product[];
     onClose: () => void;
-    onMove?: (batch: ProductionBatch, stage: ProductionStage) => void;
+    onMove?: (batch: ProductionBatch, stage: ProductionStage, options?: { pendingDispatch?: boolean }) => void;
     onEditNote?: (batch: ProductionBatch) => void;
     onToggleHold?: (batch: ProductionBatch) => void;
     onViewHistory?: (batch: ProductionBatch) => void;
@@ -148,13 +148,16 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
     }, [stageSelectorOpen, updatePosition]);
     
     // Handle stage selection
-    const handleStageSelect = (targetStage: ProductionStage) => {
+    const handleStageSelect = (targetStage: ProductionStage, opts?: { pendingDispatch?: boolean }) => {
         if (isStageDisabled(targetStage)) return;
-        if (targetStage === batch.current_stage) return;
+        // For Polishing, allow same-stage move when switching substage
+        const isSameStage = targetStage === batch.current_stage;
+        const isSameSubstage = isSameStage && targetStage === ProductionStage.Polishing && opts?.pendingDispatch === batch.pending_dispatch;
+        if (isSameStage && (targetStage !== ProductionStage.Polishing || isSameSubstage)) return;
         setStageSelectorOpen(false);
         if (onMove) {
             setIsMoving(true);
-            onMove(batch, targetStage);
+            onMove(batch, targetStage, opts);
             setTimeout(() => {
                 setIsMoving(false);
                 onClose();
@@ -291,7 +294,11 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                                 >
                                     {isMoving ? <Check size={16} className="animate-bounce"/> : <MoveRight size={16}/>}
                                     <span className="font-bold text-sm">
-                                        {isMoving ? 'Μετακίνηση...' : (STAGES.find(s => s.id === batch.current_stage)?.label || batch.current_stage)}
+                                        {isMoving ? 'Μετακίνηση...' : (
+                                            batch.current_stage === ProductionStage.Polishing
+                                                ? (batch.pending_dispatch ? 'Τεχν. • Αναμονή' : 'Τεχν. • Στον Τεχν.')
+                                                : (STAGES.find(s => s.id === batch.current_stage)?.label || batch.current_stage)
+                                        )}
                                     </span>
                                     {stageSelectorOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                                 </button>
@@ -321,45 +328,87 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                                     {batch.on_hold ? 'Συνέχιση Παραγωγής' : 'Θέση σε Αναμονή'}
                                 </button>
                              )}
-                             <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Μετακίνηση Σταδίου</label>
-                             <div className="flex flex-wrap gap-1">
-                                {STAGES.map((stage, index) => {
-                                    const isCurrent = stage.id === batch.current_stage;
-                                    const isDisabled = isStageDisabled(stage.id);
-                                    const isPast = index < currentStageIndex;
-                                    
-                                    // Get correct color key for this stage
-                                    const colorKey = stage.id === ProductionStage.AwaitingDelivery ? 'AwaitingDelivery' :
-                                                     stage.id === ProductionStage.Waxing ? 'Waxing' :
-                                                     stage.id === ProductionStage.Casting ? 'Casting' :
-                                                     stage.id === ProductionStage.Setting ? 'Setting' :
-                                                     stage.id === ProductionStage.Polishing ? 'Polishing' :
-                                                     stage.id === ProductionStage.Assembly ? 'Assembly' :
-                                                     stage.id === ProductionStage.Labeling ? 'Labeling' : 'Ready';
-                                    const stageColors = STAGE_BUTTON_COLORS[colorKey];
-                                    
-                                    return (
-                                        <button
-                                            key={stage.id}
-                                            onClick={() => handleStageSelect(stage.id)}
-                                            disabled={isMoving || isDisabled}
-                                            className={`px-2.5 py-1.5 rounded-lg font-bold text-[10px] uppercase transition-all border flex items-center gap-1 ${
-                                                isCurrent
-                                                    ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} ring-2 ring-offset-1 ring-current/30 shadow-sm`
-                                                    : isDisabled
-                                                    ? 'bg-slate-50/50 text-slate-300/50 border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
-                                                    : isPast
-                                                    ? `${stageColors.bg}/50 ${stageColors.text}/70 border border-slate-100 hover:${stageColors.bg}`
-                                                    : `${stageColors.bg} ${stageColors.text} ${stageColors.border} hover:shadow-md`
-                                            }`}
-                                        >
-                                            {stage.label}
-                                            {isCurrent && <span className="text-[7px]">●</span>}
-                                            {isDisabled && <span className="text-[7px] opacity-50">παράλειψη</span>}
-                                        </button>
-                                    );
-                                })}
-                             </div>
+             <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Μετακίνηση Σταδίου</label>
+             <div className="flex flex-wrap gap-1">
+                {STAGES.map((stage, index) => {
+                    const isCurrent = stage.id === batch.current_stage;
+                    const isDisabled = isStageDisabled(stage.id);
+                    const isPast = index < currentStageIndex;
+                    
+                    // Get correct color key for this stage
+                    const colorKey = stage.id === ProductionStage.AwaitingDelivery ? 'AwaitingDelivery' :
+                                     stage.id === ProductionStage.Waxing ? 'Waxing' :
+                                     stage.id === ProductionStage.Casting ? 'Casting' :
+                                     stage.id === ProductionStage.Setting ? 'Setting' :
+                                     stage.id === ProductionStage.Polishing ? 'Polishing' :
+                                     stage.id === ProductionStage.Assembly ? 'Assembly' :
+                                     stage.id === ProductionStage.Labeling ? 'Labeling' : 'Ready';
+                    const stageColors = STAGE_BUTTON_COLORS[colorKey];
+
+                    // Split Polishing into two side-by-side substage buttons
+                    if (stage.id === ProductionStage.Polishing) {
+                        const isCurrentPending = isCurrent && batch.pending_dispatch;
+                        const isCurrentDispatched = isCurrent && !batch.pending_dispatch;
+                        return (
+                            <React.Fragment key={stage.id}>
+                                <button
+                                    onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: true })}
+                                    disabled={isMoving || isDisabled}
+                                    className={`px-2.5 py-1.5 rounded-lg font-bold text-[10px] uppercase transition-all border flex items-center gap-1 ${
+                                        isCurrentPending
+                                            ? 'bg-amber-50 text-amber-700 border-amber-200 ring-2 ring-offset-1 ring-amber-400/30 shadow-sm'
+                                            : isDisabled
+                                            ? 'bg-slate-50/50 text-slate-300/50 border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
+                                            : isPast
+                                            ? 'bg-amber-50/50 text-amber-700/70 border-slate-100 hover:bg-amber-50'
+                                            : 'bg-amber-50 text-amber-700 border-amber-200 hover:shadow-md'
+                                    }`}
+                                >
+                                    Τεχν. • Αναμονή
+                                    {isCurrentPending && <span className="text-[7px]">●</span>}
+                                </button>
+                                <button
+                                    onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: false })}
+                                    disabled={isMoving || isDisabled}
+                                    className={`px-2.5 py-1.5 rounded-lg font-bold text-[10px] uppercase transition-all border flex items-center gap-1 ${
+                                        isCurrentDispatched
+                                            ? 'bg-blue-50 text-blue-700 border-blue-200 ring-2 ring-offset-1 ring-blue-400/30 shadow-sm'
+                                            : isDisabled
+                                            ? 'bg-slate-50/50 text-slate-300/50 border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
+                                            : isPast
+                                            ? 'bg-blue-50/50 text-blue-700/70 border-slate-100 hover:bg-blue-50'
+                                            : 'bg-blue-50 text-blue-700 border-blue-200 hover:shadow-md'
+                                    }`}
+                                >
+                                    Τεχν. • Στον Τεχν.
+                                    {isCurrentDispatched && <span className="text-[7px]">●</span>}
+                                </button>
+                            </React.Fragment>
+                        );
+                    }
+                    
+                    return (
+                        <button
+                            key={stage.id}
+                            onClick={() => handleStageSelect(stage.id)}
+                            disabled={isMoving || isDisabled}
+                            className={`px-2.5 py-1.5 rounded-lg font-bold text-[10px] uppercase transition-all border flex items-center gap-1 ${
+                                isCurrent
+                                    ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} ring-2 ring-offset-1 ring-current/30 shadow-sm`
+                                    : isDisabled
+                                    ? 'bg-slate-50/50 text-slate-300/50 border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
+                                    : isPast
+                                    ? `${stageColors.bg}/50 ${stageColors.text}/70 border border-slate-100 hover:${stageColors.bg}`
+                                    : `${stageColors.bg} ${stageColors.text} ${stageColors.border} hover:shadow-md`
+                            }`}
+                        >
+                            {stage.label}
+                            {isCurrent && <span className="text-[7px]">●</span>}
+                            {isDisabled && <span className="text-[7px] opacity-50">παράλειψη</span>}
+                        </button>
+                    );
+                })}
+             </div>
                         </div>
                     )}
 
@@ -528,6 +577,50 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                                              stage.id === ProductionStage.Assembly ? 'Assembly' :
                                              stage.id === ProductionStage.Labeling ? 'Labeling' : 'Ready';
                             const stageColors = STAGE_BUTTON_COLORS[colorKey];
+
+                            // Split Polishing into two side-by-side substage buttons
+                            if (stage.id === ProductionStage.Polishing) {
+                                const isCurrentPending = isCurrent && batch.pending_dispatch;
+                                const isCurrentDispatched = isCurrent && !batch.pending_dispatch;
+                                return (
+                                    <div key={stage.id} className="flex gap-1">
+                                        <button
+                                            onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: true })}
+                                            disabled={isMoving || isDisabled}
+                                            className={`flex-1 text-center px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between
+                                                ${isCurrentPending
+                                                    ? 'bg-amber-50 text-amber-700 border-amber-200 border ring-2 ring-offset-1 ring-amber-400/30'
+                                                    : isDisabled
+                                                    ? 'bg-slate-50/50 text-slate-300/50 border border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
+                                                    : isPast
+                                                    ? 'bg-amber-50/50 text-amber-700/70 border border-slate-100 hover:bg-amber-50'
+                                                    : 'bg-amber-50 text-amber-700 border-amber-200 border hover:shadow-md'
+                                                }
+                                            `}
+                                        >
+                                            <span>Τεχν. • Αναμονή</span>
+                                            {isCurrentPending && <span className="text-[8px]">●</span>}
+                                        </button>
+                                        <button
+                                            onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: false })}
+                                            disabled={isMoving || isDisabled}
+                                            className={`flex-1 text-center px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between
+                                                ${isCurrentDispatched
+                                                    ? 'bg-blue-50 text-blue-700 border-blue-200 border ring-2 ring-offset-1 ring-blue-400/30'
+                                                    : isDisabled
+                                                    ? 'bg-slate-50/50 text-slate-300/50 border border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
+                                                    : isPast
+                                                    ? 'bg-blue-50/50 text-blue-700/70 border border-slate-100 hover:bg-blue-50'
+                                                    : 'bg-blue-50 text-blue-700 border-blue-200 border hover:shadow-md'
+                                                }
+                                            `}
+                                        >
+                                            <span>Τεχν. • Στον Τεχν.</span>
+                                            {isCurrentDispatched && <span className="text-[8px]">●</span>}
+                                        </button>
+                                    </div>
+                                );
+                            }
                             
                             return (
                                 <button
