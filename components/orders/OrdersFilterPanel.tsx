@@ -41,6 +41,10 @@ interface OrdersFilterPanelProps {
   onChange: (f: OrderFilters) => void;
   tagColorOverrides: Record<string, number>;
   onChangeTagColor: (tag: string, paletteIndex: number) => void;
+  /** `embedded`: form only (e.g. mobile sheet), no collapsible header */
+  variant?: 'collapsible' | 'embedded';
+  /** Show tag palette button without hover (touch devices) */
+  alwaysShowTagPalette?: boolean;
 }
 
 const ALL_STATUSES: OrderStatus[] = [
@@ -72,6 +76,8 @@ export function OrdersFilterPanel({
   onChange,
   tagColorOverrides,
   onChangeTagColor,
+  variant = 'collapsible',
+  alwaysShowTagPalette = false,
 }: OrdersFilterPanelProps) {
   const [open, setOpen] = useState(false);
   const [pickerState, setPickerState] = useState<{ tag: string; x: number; y: number } | null>(null);
@@ -133,44 +139,19 @@ export function OrdersFilterPanel({
 
   const setTagLogic = (logic: 'AND' | 'OR') => onChange({ ...filters, tagLogic: logic });
 
-  return (
-    <>
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-visible transition-all">
-      {/* Header */}
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50/70 transition-colors rounded-2xl"
-      >
-        <div className="flex items-center gap-2">
-          <SlidersHorizontal size={14} className="text-slate-500" />
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Φίλτρα</span>
-          {activeCount > 0 && (
-            <span className="bg-emerald-500 text-white text-[9px] font-black min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center">
-              {activeCount}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {activeCount > 0 && (
-            <span
-              role="button"
-              tabIndex={0}
-              onClick={e => { e.stopPropagation(); onChange({ ...DEFAULT_FILTERS }); }}
-              onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); onChange({ ...DEFAULT_FILTERS }); } }}
-              className="text-[10px] font-bold text-slate-400 hover:text-rose-500 flex items-center gap-0.5 transition-colors"
-            >
-              <X size={10} /> Καθαρισμός
-            </span>
-          )}
-          {open ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
-        </div>
-      </button>
+  const paletteBtnClass = (active: boolean, isPickerOpen: boolean) =>
+    `absolute right-1.5 flex items-center justify-center w-4 h-4 rounded-full transition-all ${
+      alwaysShowTagPalette
+        ? active
+          ? 'opacity-90 text-white'
+          : 'opacity-70 text-slate-500'
+        : active
+          ? 'opacity-70 hover:opacity-100 text-white'
+          : 'opacity-0 group-hover:opacity-60 hover:!opacity-100 text-slate-500'
+    } ${isPickerOpen ? '!opacity-100' : ''}`;
 
-      {/* Body */}
-      <div
-        className={`transition-all duration-300 ease-in-out overflow-hidden ${open ? 'max-h-[700px] opacity-100' : 'max-h-0 opacity-0'}`}
-      >
-        <div className="px-4 pb-4 space-y-4 border-t border-slate-50 pt-3">
+  const filterForm = (
+        <div className={`px-4 pb-4 space-y-4 ${variant === 'collapsible' ? 'border-t border-slate-50 pt-3' : 'pt-1'}`}>
 
           {/* STATUS */}
           <FilterSection icon={<Activity size={12} />} label="Κατάσταση">
@@ -302,11 +283,7 @@ export function OrdersFilterPanel({
                           else { openPicker(tag, e.currentTarget as HTMLButtonElement); }
                         }}
                         title="Αλλαγή χρώματος"
-                        className={`absolute right-1.5 flex items-center justify-center w-4 h-4 rounded-full transition-all ${
-                          active
-                            ? 'opacity-70 hover:opacity-100 text-white'
-                            : 'opacity-0 group-hover:opacity-60 hover:!opacity-100 text-slate-500'
-                        } ${isPickerOpen ? '!opacity-100' : ''}`}
+                        className={paletteBtnClass(active, isPickerOpen)}
                       >
                         <Palette size={9} />
                       </button>
@@ -334,8 +311,50 @@ export function OrdersFilterPanel({
           )}
 
         </div>
+  );
+
+  return (
+    <>
+    {variant === 'embedded' ? (
+      <div className="overflow-visible">{filterForm}</div>
+    ) : (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-visible transition-all">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50/70 transition-colors rounded-2xl"
+      >
+        <div className="flex items-center gap-2">
+          <SlidersHorizontal size={14} className="text-slate-500" />
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Φίλτρα</span>
+          {activeCount > 0 && (
+            <span className="bg-emerald-500 text-white text-[9px] font-black min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center">
+              {activeCount}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {activeCount > 0 && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={e => { e.stopPropagation(); onChange({ ...DEFAULT_FILTERS }); }}
+              onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); onChange({ ...DEFAULT_FILTERS }); } }}
+              className="text-[10px] font-bold text-slate-400 hover:text-rose-500 flex items-center gap-0.5 transition-colors"
+            >
+              <X size={10} /> Καθαρισμός
+            </span>
+          )}
+          {open ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+        </div>
+      </button>
+
+      <div
+        className={`transition-all duration-300 ease-in-out overflow-hidden ${open ? 'max-h-[700px] opacity-100' : 'max-h-0 opacity-0'}`}
+      >
+        {filterForm}
       </div>
     </div>
+    )}
 
     {/* Color picker portal — rendered at document.body to escape overflow:hidden */}
     

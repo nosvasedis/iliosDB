@@ -1,9 +1,9 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useDeferredValue } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { Order, OrderShipment, OrderShipmentItem, OrderStatus, Product, ProductVariant, ProductionBatch, ProductionStage } from '../../types';
-import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings, ShoppingBag, Image as ImageIcon, PackageCheck, Globe, Flame, Gem, Hammer, CheckCircle2 } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings, ShoppingBag, Image as ImageIcon, PackageCheck, Globe, Flame, Gem, Hammer, CheckCircle2, SlidersHorizontal } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
@@ -14,6 +14,9 @@ import { OrderListProgressBar } from '../orders/OrderListProgressBar';
 import { buildItemIdentityKey } from '../../utils/itemIdentity';
 import { getRemainingOrderItems } from '../../utils/shipmentUtils';
 import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
+import { getTagColor } from '../../features/orders/tagColors';
+import { OrdersFilterPanel, OrderFilters, DEFAULT_FILTERS, countActiveFilters } from '../orders/OrdersFilterPanel';
+import { useTagColorOverrides } from '../../hooks/api/useTagColorOverrides';
 import { invalidateOrdersAndBatches } from '../../lib/queryInvalidation';
 import { PRODUCTION_STAGE_COLORS, getProductionStageLabel } from '../../utils/deliveryLabels';
 
@@ -266,7 +269,8 @@ const OrderCard: React.FC<{
     onComplete?: (o: Order) => void,
     onPrint?: (o: Order) => void,
     onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
-}> = ({ order, products, batches, onEdit, onDelete, onCancel, onManage, isReady, onComplete, onPrint, onPrintLabels }) => {
+    tagColorOverrides?: Record<string, number>;
+}> = ({ order, products, batches, onEdit, onDelete, onCancel, onManage, isReady, onComplete, onPrint, onPrintLabels, tagColorOverrides = {} }) => {
     const isRetailOrder = order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME;
     const { retailClientLabel } = extractRetailClientFromNotes(order.notes);
     const [expanded, setExpanded] = useState(false);
@@ -333,9 +337,12 @@ const OrderCard: React.FC<{
                         {order.seller_name && <p className="text-[10px] text-slate-500 mt-0.5">Πλάσιε: {order.seller_name}</p>}
                         {order.tags && order.tags.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1">
-                                {order.tags.map(t => (
-                                    <span key={t} className="text-[8px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100 font-bold uppercase">{t}</span>
-                                ))}
+                                {order.tags.map(t => {
+                                    const c = getTagColor(t, tagColorOverrides);
+                                    return (
+                                        <span key={t} className={`text-[8px] px-1.5 py-0.5 rounded border font-bold uppercase ${c.bg} ${c.text} ${c.border}`}>{t}</span>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
@@ -525,41 +532,98 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintRemaini
     const { showToast, confirm } = useUI();
     const { data: orders, isLoading } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
     const { data: batches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
+    const { overrides: tagColorOverrides, changeTagColor: handleChangeTagColor } = useTagColorOverrides();
 
     const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
-    const [filterStatus, setFilterStatus] = useState<OrderStatus | 'ALL'>('ALL');
+    const [filters, setFilters] = useState<OrderFilters>(DEFAULT_FILTERS);
     const [search, setSearch] = useState('');
+    const deferredSearchTerm = useDeferredValue(search);
     const [managingOrder, setManagingOrder] = useState<Order | null>(null);
     const [printModalOrder, setPrintModalOrder] = useState<Order | null>(null);
     const [tagInput, setTagInput] = useState('');
+    const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
+
+    const allTags = useMemo(() => {
+        if (!orders) return [];
+        const tagSet = new Set<string>();
+        orders.forEach(o => o.tags?.forEach(t => tagSet.add(t)));
+        return Array.from(tagSet).sort((a, b) => a.localeCompare(b, 'el'));
+    }, [orders]);
+
+    const allSellers = useMemo(() => {
+        if (!orders) return [];
+        const sellerSet = new Set<string>();
+        orders.forEach(o => { if (o.seller_name) sellerSet.add(o.seller_name); });
+        return Array.from(sellerSet).sort((a, b) => a.localeCompare(b, 'el'));
+    }, [orders]);
 
     const filteredOrders = useMemo(() => {
         if (!orders) return [];
+
+        const now = new Date();
+        const todayStr = now.toISOString().slice(0, 10);
+        const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
+        const monthAgo = new Date(now); monthAgo.setMonth(now.getMonth() - 1);
+
         return orders.filter(o => {
             const isArchived = o.is_archived === true;
-            // When filtering by Ready or Delivered, show both active and archived so the status tabs work
-            const showRegardlessOfArchive = filterStatus === OrderStatus.Ready || filterStatus === OrderStatus.Delivered;
-            if (!showRegardlessOfArchive) {
+            const relaxArchive =
+                filters.statuses.has(OrderStatus.Ready) ||
+                filters.statuses.has(OrderStatus.Delivered);
+            if (!relaxArchive) {
                 if (activeTab === 'active' && isArchived) return false;
                 if (activeTab === 'archived' && !isArchived) return false;
             }
 
-            // For the "Έτοιμα" filter: also match orders that are production-ready (flashing checkmark)
-            // even if their status is still InProduction
-            let matchesStatus: boolean;
-            if (filterStatus === OrderStatus.Ready) {
-                matchesStatus = String(o.status).trim() === String(OrderStatus.Ready).trim() || isOrderReady(o, batches);
-            } else {
-                matchesStatus = filterStatus === 'ALL' || String(o.status).trim() === String(filterStatus).trim();
+            if (filters.statuses.size > 0) {
+                const inSet = filters.statuses.has(o.status as OrderStatus);
+                const readyExtra = filters.statuses.has(OrderStatus.Ready) && isOrderReady(o, batches);
+                if (!inSet && !readyExtra) return false;
             }
 
-            const matchesSearch = search === '' ||
-                o.customer_name.toLowerCase().includes(search.toLowerCase()) ||
-                o.id.includes(search) ||
-                (o.tags && o.tags.some(t => t.toLowerCase().includes(search.toLowerCase())));
-            return matchesStatus && matchesSearch;
+            if (filters.datePreset !== 'all') {
+                const created = new Date(o.created_at);
+                if (filters.datePreset === 'today') {
+                    if (o.created_at.slice(0, 10) !== todayStr) return false;
+                } else if (filters.datePreset === 'week') {
+                    if (created < weekAgo) return false;
+                } else if (filters.datePreset === 'month') {
+                    if (created < monthAgo) return false;
+                } else if (filters.datePreset === 'custom') {
+                    if (filters.dateFrom && o.created_at.slice(0, 10) < filters.dateFrom) return false;
+                    if (filters.dateTo && o.created_at.slice(0, 10) > filters.dateTo) return false;
+                }
+            }
+
+            if (filters.sellers.size > 0) {
+                const sellerName = o.seller_name ?? '';
+                if (!filters.sellers.has(sellerName)) return false;
+            }
+
+            if (filters.tags.size > 0) {
+                const orderTags = new Set(o.tags || []);
+                if (filters.tagLogic === 'AND') {
+                    for (const t of filters.tags) {
+                        if (!orderTags.has(t)) return false;
+                    }
+                } else {
+                    let anyMatch = false;
+                    for (const t of filters.tags) {
+                        if (orderTags.has(t)) { anyMatch = true; break; }
+                    }
+                    if (!anyMatch) return false;
+                }
+            }
+
+            if (!deferredSearchTerm) return true;
+            const term = deferredSearchTerm.toLowerCase();
+            return (
+                o.id.toLowerCase().includes(term) ||
+                o.customer_name.toLowerCase().includes(term) ||
+                (o.tags && o.tags.some(t => t.toLowerCase().includes(term)))
+            );
         });
-    }, [orders, batches, activeTab, filterStatus, search]);
+    }, [orders, batches, activeTab, deferredSearchTerm, filters]);
 
     const handleDeleteOrder = async (order: Order) => {
         const yes = await confirm({
@@ -660,13 +724,7 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintRemaini
 
     if (isLoading) return <div className="p-8 text-center text-slate-400">Φόρτωση...</div>;
 
-    const statusTabs = [
-        { id: 'ALL', label: 'Όλα' },
-        { id: OrderStatus.Pending, label: 'Εκκρεμεί' },
-        { id: OrderStatus.InProduction, label: 'Παραγωγή' },
-        { id: OrderStatus.Ready, label: 'Έτοιμα' },
-        { id: OrderStatus.Delivered, label: 'Παραδόθηκε' },
-    ];
+    const activeFilterCount = countActiveFilters(filters);
 
     return (
         <div className="min-h-full bg-slate-50 pb-4">
@@ -685,31 +743,75 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintRemaini
                     )}
                 </div>
 
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                    <input
-                        type="text"
-                        placeholder="Αναζήτηση πελάτη, ID ή ετικέτας..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm font-medium"
-                    />
+                <div className="flex gap-2">
+                    <div className="relative flex-1 min-w-0">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <input
+                            type="text"
+                            placeholder="Αναζήτηση πελάτη, ID ή ετικέτας..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="w-full pl-10 pr-3 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm font-medium"
+                        />
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setFiltersSheetOpen(true)}
+                        className="shrink-0 flex items-center justify-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-xl shadow-sm font-bold text-slate-700 active:scale-95 transition-transform"
+                    >
+                        <SlidersHorizontal size={18} className="text-slate-500" />
+                        <span className="text-xs">Φίλτρα</span>
+                        {activeFilterCount > 0 && (
+                            <span className="bg-emerald-500 text-white text-[9px] font-black min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center">
+                                {activeFilterCount}
+                            </span>
+                        )}
+                    </button>
                 </div>
 
-                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4">
-                    {statusTabs.map(tab => (
+                {activeFilterCount > 0 && (
+                    <div className="flex flex-wrap items-center gap-2 -mx-1">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Ενεργά:</span>
+                        {Array.from(filters.statuses).map(s => (
+                            <span key={s} className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border font-bold ${getOrderStatusClasses(s)}`}>
+                                {getOrderStatusIcon(s, 10)}
+                                {getOrderStatusLabel(s)}
+                                <button type="button" onClick={() => { const next = new Set(filters.statuses); next.delete(s); setFilters(f => ({ ...f, statuses: next })); }} className="ml-0.5 hover:opacity-70 transition-opacity"><X size={9} /></button>
+                            </span>
+                        ))}
+                        {filters.datePreset !== 'all' && (
+                            <span className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border font-bold bg-violet-100 text-violet-700 border-violet-200">
+                                {filters.datePreset === 'today' && 'Σήμερα'}
+                                {filters.datePreset === 'week' && 'Εβδομάδα'}
+                                {filters.datePreset === 'month' && 'Μήνας'}
+                                {filters.datePreset === 'custom' && `${filters.dateFrom ?? '…'} — ${filters.dateTo ?? '…'}`}
+                                <button type="button" onClick={() => setFilters(f => ({ ...f, datePreset: 'all', dateFrom: null, dateTo: null }))} className="ml-0.5 hover:opacity-70 transition-opacity"><X size={9} /></button>
+                            </span>
+                        )}
+                        {Array.from(filters.sellers).map(seller => (
+                            <span key={seller} className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border font-bold bg-sky-100 text-sky-700 border-sky-200">
+                                {seller}
+                                <button type="button" onClick={() => { const next = new Set(filters.sellers); next.delete(seller); setFilters(f => ({ ...f, sellers: next })); }} className="ml-0.5 hover:opacity-70 transition-opacity"><X size={9} /></button>
+                            </span>
+                        ))}
+                        {Array.from(filters.tags).map(tag => {
+                            const c = getTagColor(tag, tagColorOverrides);
+                            return (
+                                <span key={tag} className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border font-bold ${c.activeBg} ${c.activeText} ${c.activeBorder}`}>
+                                    {tag}
+                                    <button type="button" onClick={() => { const next = new Set(filters.tags); next.delete(tag); setFilters(f => ({ ...f, tags: next })); }} className="ml-0.5 hover:opacity-70 transition-opacity"><X size={9} /></button>
+                                </span>
+                            );
+                        })}
                         <button
-                            key={tab.id}
-                            onClick={() => setFilterStatus(tab.id as any)}
-                            className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${filterStatus === tab.id
-                                ? 'bg-slate-900 text-white border-slate-900 shadow-md'
-                                : 'bg-white text-slate-500 border-slate-200'
-                                }`}
+                            type="button"
+                            onClick={() => setFilters(DEFAULT_FILTERS)}
+                            className="text-[10px] font-black text-slate-400 hover:text-rose-500 flex items-center gap-0.5 transition-colors"
                         >
-                            {tab.label}
+                            <X size={10} /> Καθαρισμός
                         </button>
-                    ))}
-                </div>
+                    </div>
+                )}
             </div>
 
             {/* List */}
@@ -728,6 +830,7 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintRemaini
                         onComplete={handleCompleteOrder}
                         onPrint={setPrintModalOrder}
                         onPrintLabels={onPrintLabels}
+                        tagColorOverrides={tagColorOverrides}
                     />
                 ))}
                 {filteredOrders.length === 0 && (
@@ -805,6 +908,51 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintRemaini
                     onPrintRemainingOrder={onPrintRemainingOrder}
                     onPrintShipment={onPrintShipment}
                 />
+            )}
+
+            {filtersSheetOpen && (
+                <div className="fixed inset-0 z-[160] flex flex-col bg-slate-900/50" role="dialog" aria-modal="true">
+                    <button type="button" className="absolute inset-0" aria-label="Κλείσιμο" onClick={() => setFiltersSheetOpen(false)} />
+                    <div
+                        className="relative mt-auto max-h-[min(92vh,720px)] flex flex-col rounded-t-[2rem] bg-white shadow-2xl border-t border-slate-200"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between px-5 pt-4 pb-2 border-b border-slate-100 shrink-0">
+                            <h2 className="text-lg font-black text-slate-900">Φίλτρα</h2>
+                            <button type="button" onClick={() => setFiltersSheetOpen(false)} className="p-2 rounded-full bg-slate-100 text-slate-600">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="overflow-y-auto flex-1 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                            <OrdersFilterPanel
+                                variant="embedded"
+                                alwaysShowTagPalette
+                                allTags={allTags}
+                                allSellers={allSellers}
+                                filters={filters}
+                                onChange={setFilters}
+                                tagColorOverrides={tagColorOverrides}
+                                onChangeTagColor={handleChangeTagColor}
+                            />
+                            <div className="px-4 pb-4 flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setFilters(DEFAULT_FILTERS)}
+                                    className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-bold text-slate-600"
+                                >
+                                    Καθαρισμός όλων
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setFiltersSheetOpen(false)}
+                                    className="flex-1 py-3 rounded-xl bg-slate-900 text-white text-sm font-bold"
+                                >
+                                    Έτοιμο
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

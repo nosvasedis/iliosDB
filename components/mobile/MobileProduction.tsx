@@ -75,6 +75,7 @@ const MobileBatchCard: React.FC<{
     onToggleHold: (b: ProductionBatch) => void, 
     onClick: (b: ProductionBatch) => void,
 }> = ({ batch, onNext, onMoveToStage, onToggleHold, onClick }) => {
+    const isSpecialCreation = isSpecialCreationSku(batch.sku);
     const isDelayed = batch.isDelayed;
     const isReady = batch.current_stage === ProductionStage.Ready;
     const timingStatus = batch.timingStatus || 'normal';
@@ -104,10 +105,18 @@ const MobileBatchCard: React.FC<{
         }
     };
 
+    const outerSurface = batch.on_hold
+        ? 'border-amber-400 bg-amber-50/30'
+        : isDelayed
+            ? 'border-red-300 ring-1 ring-red-50 bg-white'
+            : isSpecialCreation
+                ? 'bg-violet-50/40 border-violet-200 ring-1 ring-violet-100/80 hover:border-violet-400'
+                : 'bg-white border-slate-200 hover:border-slate-300';
+
     return (
         <div
             onClick={() => onClick(batch)}
-            className={`bg-white p-3 rounded-2xl border shadow-sm relative transition-transform active:scale-[0.98] cursor-pointer touch-manipulation ${batch.on_hold ? 'border-amber-400 bg-amber-50/30' : (isDelayed ? 'border-red-300 ring-1 ring-red-50' : 'border-slate-200 hover:border-slate-300')}`}
+            className={`p-3 rounded-2xl border shadow-sm relative transition-transform active:scale-[0.98] cursor-pointer touch-manipulation ${outerSurface}`}
         >
             <div className="flex justify-between items-start gap-3 mb-2">
                 <div className="w-11 h-11 shrink-0 rounded-xl overflow-hidden border border-slate-100 bg-slate-50 flex items-center justify-center">
@@ -118,7 +127,7 @@ const MobileBatchCard: React.FC<{
                     )}
                 </div>
                 <div className="min-w-0 flex-1">
-                    <SkuColorizedText sku={batch.sku} suffix={batch.variant_suffix || ''} gender={batch.product_details?.gender} className="font-black text-lg tracking-tight" masterClassName="text-slate-800" />
+                    <SkuColorizedText sku={batch.sku} suffix={batch.variant_suffix || ''} gender={batch.product_details?.gender} className="font-black text-lg tracking-tight" masterClassName={isSpecialCreation ? 'text-violet-900' : 'text-slate-800'} />
                     {batch.size_info && <div className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 font-bold inline-block mt-1">{batch.size_info}</div>}
                     {batch.customer_name && <div className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-tight">{batch.customer_name}</div>}
                 </div>
@@ -787,7 +796,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     const { showToast } = useUI();
     const [timingNow, setTimingNow] = useState(() => Date.now());
 
-    const [openStage, setOpenStage] = useState<string | null>(ProductionStage.Waxing);
+    const [openStage, setOpenStage] = useState<string | null>(null);
     const [polishingTab, setPolishingTab] = useState<'pending' | 'dispatched'>('pending');
     const [viewBuildBatch, setViewBuildBatch] = useState<ProductionBatch | null>(null);
     const [finderTerm, setFinderTerm] = useState('');
@@ -1123,8 +1132,8 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                     </div>
                 </div>
                 {finderTerm.length >= 2 && (
-                    <div className="mt-4 rounded-2xl bg-white p-3 shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-slate-200/90 relative z-10">
-                    <div className="space-y-3 max-h-80 overflow-y-auto custom-scrollbar">
+                    <div className="mt-4 rounded-2xl bg-white p-2.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-slate-200/90 relative z-10">
+                    <div className="space-y-2 max-h-[min(50vh,20rem)] overflow-y-auto custom-scrollbar">
                         {foundBatches.map(b => {
                             const isSpecialBatch = isSpecialCreationSku(b.sku);
                             const stageMeta = STAGES.find(s => s.id === b.current_stage);
@@ -1140,45 +1149,55 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                                     ? (b.pending_dispatch ? 'Τεχν. • Αναμονή' : 'Τεχν. • Στον Τεχν.')
                                     : (stageMeta?.label || b.current_stage);
                             const age = getBatchAgeInfo(b);
+                            const imgUrl = (b as { product_image?: string | null }).product_image;
                             return (
-                            <div key={b.id} onClick={() => setViewBuildBatch(b)} className={`rounded-2xl p-4 shadow-lg animate-in slide-in-from-top-2 active:scale-95 transition-transform cursor-pointer ${finderSurface} ${isSpecialBatch ? 'ring-1 ring-violet-200/65' : ''}`}>
-                                <div className="flex justify-between items-start gap-2 mb-2">
+                            <div key={b.id} onClick={() => setViewBuildBatch(b)} className={`rounded-xl p-2.5 shadow-sm active:scale-[0.99] transition-transform cursor-pointer touch-manipulation ${finderSurface} ${isSpecialBatch ? 'ring-1 ring-violet-100/80' : ''}`}>
+                                <div className="flex gap-2.5 items-start">
+                                    <div className="w-11 h-11 shrink-0 bg-slate-100 rounded-xl overflow-hidden border border-slate-200 relative flex items-center justify-center">
+                                        {imgUrl ? (
+                                            <img src={imgUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                                        ) : (
+                                            <ImageIcon size={20} className="text-slate-300 relative z-0" />
+                                        )}
+                                        <div className="absolute bottom-0 right-0 z-[1] bg-slate-900 text-white text-[9px] font-bold px-1 py-0.5 rounded-tl-md leading-none">x{b.quantity}</div>
+                                    </div>
                                     <div className="min-w-0 flex-1">
-                                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                                            <SkuColorizedText sku={b.sku} suffix={b.variant_suffix || ''} gender={b.product_details?.gender} className="font-black text-lg tracking-tight" masterClassName={isSpecialBatch ? 'text-violet-900' : 'text-slate-800'} />
-                                            <span className="bg-slate-900 text-white px-2 py-0.5 rounded-md text-xs font-bold shadow-sm">x{b.quantity}</span>
-                                            {b.size_info && <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-lg text-xs font-black border border-blue-100 flex items-center gap-1"><Hash size={10} /> {b.size_info}</span>}
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                            <SkuColorizedText sku={b.sku} suffix={b.variant_suffix || ''} gender={b.product_details?.gender} className="font-black text-base tracking-tight" masterClassName={isSpecialBatch ? 'text-violet-900' : 'text-slate-800'} />
+                                            {b.size_info && <span className="bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-md text-[10px] font-black border border-blue-100 flex items-center gap-0.5"><Hash size={9} /> {b.size_info}</span>}
                                             {b.on_hold && (
-                                                <span className="bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded text-[10px] font-black flex items-center gap-1">
-                                                    <PauseCircle size={10} /> Σε Αναμονή
+                                                <span className="bg-amber-100 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded text-[9px] font-black flex items-center gap-0.5">
+                                                    <PauseCircle size={9} /> Αναμ.
                                                 </span>
                                             )}
                                         </div>
-                                        <div className="flex items-center justify-between gap-2 mt-1 min-w-0">
-                                            <span className="text-xs font-bold text-slate-700 truncate flex items-center gap-1.5"><User size={12} className="text-slate-400 shrink-0" /> {b.customerName}</span>
+                                        <div className="flex items-center gap-2 mt-1 min-w-0 flex-wrap">
+                                            <span className="text-[11px] font-bold text-slate-700 truncate flex items-center gap-1 min-w-0"><User size={11} className="text-slate-400 shrink-0" /> {b.customerName}</span>
                                             {b.on_hold ? (
-                                                <div className="text-[9px] font-black px-1.5 py-0.5 rounded border flex items-center gap-1 shrink-0 bg-amber-50 text-amber-700 border-amber-200">
-                                                    <PauseCircle size={10} /> Hold
+                                                <div className="text-[9px] font-black px-1.5 py-0.5 rounded border flex items-center gap-0.5 shrink-0 bg-amber-50 text-amber-700 border-amber-200">
+                                                    <PauseCircle size={9} /> Hold
                                                 </div>
                                             ) : (
-                                                <div className={`text-[9px] font-black px-1.5 py-0.5 rounded border flex items-center gap-1 shrink-0 ${age.style}`}>
-                                                    <Clock size={10} /> {age.label}
+                                                <div className={`text-[9px] font-black px-1.5 py-0.5 rounded border flex items-center gap-0.5 shrink-0 ${age.style}`}>
+                                                    <Clock size={9} /> {age.label}
                                                 </div>
                                             )}
                                         </div>
                                     </div>
-                                    <div className="text-right flex flex-col items-end gap-1 shrink-0">
-                                        <div className="text-[10px] font-mono font-bold text-slate-500 select-all tracking-wider">#{formatOrderId(b.order_id)}</div>
-                                        <div className={`text-[10px] font-black px-2 py-1 rounded-full border bg-white/75 backdrop-blur-sm shadow-sm ${finderBadgeTone}`}>
+                                    <div className="text-right flex flex-col items-end gap-1 shrink-0 max-w-[38%]">
+                                        <div className="text-[9px] font-mono font-bold text-slate-500 select-all tracking-wider truncate w-full">#{formatOrderId(b.order_id)}</div>
+                                        <div className={`text-[9px] font-black px-1.5 py-0.5 rounded-full border bg-white/80 backdrop-blur-sm ${finderBadgeTone}`}>
                                             {stagePillLabel}
                                         </div>
                                     </div>
                                 </div>
-                                <FinderBatchStageSelector
-                                    batch={b}
-                                    onMoveToStage={(batch, stage, opts) => handleMoveBatch(batch, stage, opts)}
-                                    onToggleHold={handleToggleHold}
-                                />
+                                <div className="mt-2 pt-2 border-t border-slate-200/60" onClick={e => e.stopPropagation()}>
+                                    <FinderBatchStageSelector
+                                        batch={b}
+                                        onMoveToStage={(batch, stage, opts) => handleMoveBatch(batch, stage, opts)}
+                                        onToggleHold={handleToggleHold}
+                                    />
+                                </div>
                             </div>
                             );
                         })}
