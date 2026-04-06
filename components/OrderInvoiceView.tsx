@@ -77,7 +77,7 @@ export default function OrderInvoiceView({ order, title }: Props) {
         email: "ilioskosmima@gmail.com"
     };
 
-    const renderOrderItem = (item: Order['items'][number], globalIndex: number, isLeft: boolean) => {
+    const renderOrderItem = (item: Order['items'][number], globalIndex: number) => {
         const product = allProducts?.find(p => p.sku === item.sku);
         const variant = product?.variants?.find(v => v.suffix === item.variant_suffix);
         const fullSku = item.sku + (item.variant_suffix || '');
@@ -88,7 +88,7 @@ export default function OrderInvoiceView({ order, title }: Props) {
         return (
             <div
                 key={globalIndex}
-                className={`flex items-center py-1.5 border-b border-slate-100 break-inside-avoid ${isLeft ? 'pr-3' : 'pl-3'}`}
+                className="flex items-center py-1.5 border-b border-slate-100 break-inside-avoid"
             >
                 <div className="w-6 text-center text-slate-400 text-[11px] tabular-nums">{globalIndex + 1}</div>
                 <div className="w-8 text-center">
@@ -203,20 +203,13 @@ export default function OrderInvoiceView({ order, title }: Props) {
                     </div>
                 </div>
 
-                {/* Items Grid - vertical fill: left column top-to-bottom, then right column */}
-                {(() => {
-                    const half = Math.ceil(sortedItems.length / 2);
-                    return (
-                        <div className="flex text-[12px] leading-snug">
-                            <div className="flex-1 min-w-0 border-r border-dashed border-slate-200">
-                                {sortedItems.slice(0, half).map((item, i) => renderOrderItem(item, i, true))}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                {sortedItems.slice(half).map((item, i) => renderOrderItem(item, half + i, false))}
-                            </div>
-                        </div>
-                    );
-                })()}
+                {/* Items Grid - CSS columns: page-aware vertical flow, left→right per page */}
+                <div
+                    className="text-[12px] leading-snug"
+                    style={{ columnCount: 2, columnGap: '1.5rem', columnRuleWidth: '1px', columnRuleStyle: 'dashed', columnRuleColor: '#e2e8f0' }}
+                >
+                    {sortedItems.map((item, index) => renderOrderItem(item, index))}
+                </div>
             </main>
 
             {/* COMPACT FOOTER */}

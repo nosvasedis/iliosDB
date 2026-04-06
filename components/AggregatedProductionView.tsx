@@ -92,12 +92,12 @@ export default function AggregatedProductionView({ data, settings }: Props) {
 
     const totalTechnicianSilver = techMetal.P + techMetal.X + techMetal.H;
 
-    const renderBatchItem = (batch: AggregatedData['batches'][number], globalIndex: number, isLeft: boolean) => {
+    const renderBatchItem = (batch: AggregatedData['batches'][number], globalIndex: number) => {
         const totalWeight = (batch.product_details?.weight_g || 0) * batch.quantity;
         return (
             <div
                 key={batch.id}
-                className={`flex items-center py-1 border-b border-slate-50 break-inside-avoid${isLeft ? ' pr-3' : ' pl-3'}`}
+                className="flex items-center py-1 border-b border-slate-50 break-inside-avoid"
             >
                 <div className="w-5 text-center text-slate-400 font-mono text-[9px] shrink-0">{globalIndex + 1}</div>
                 <div className="w-7 shrink-0">
@@ -242,20 +242,13 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                     </div>
                 </div>
 
-                {/* Items Grid - vertical fill: left column top-to-bottom, then right column */}
-                {(() => {
-                    const half = Math.ceil(sortedInHouseBatches.length / 2);
-                    return (
-                        <div className="flex text-[11px] leading-snug">
-                            <div className="flex-1 min-w-0 border-r border-dashed border-slate-200">
-                                {sortedInHouseBatches.slice(0, half).map((batch, i) => renderBatchItem(batch, i, true))}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                {sortedInHouseBatches.slice(half).map((batch, i) => renderBatchItem(batch, half + i, false))}
-                            </div>
-                        </div>
-                    );
-                })()}
+                {/* Items Grid - CSS columns: page-aware vertical flow, left→right per page */}
+                <div
+                    className="text-[11px] leading-snug"
+                    style={{ columnCount: 2, columnGap: '1.5rem', columnRuleWidth: '1px', columnRuleStyle: 'dashed', columnRuleColor: '#e2e8f0' }}
+                >
+                    {sortedInHouseBatches.map((batch, index) => renderBatchItem(batch, index))}
+                </div>
             </div>
 
             {importedBatches.length > 0 && (

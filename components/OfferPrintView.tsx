@@ -37,14 +37,14 @@ export default function OfferPrintView({ offer }: Props) {
         [offer.items]
     );
 
-    const renderOfferItem = (item: Offer['items'][number], globalIndex: number, isLeft: boolean) => {
+    const renderOfferItem = (item: Offer['items'][number], globalIndex: number) => {
         const fullSku = item.sku + (item.variant_suffix || '');
         const imageUrl = item.product_details?.image_url;
         const description = item.product_details?.variants?.find(v => v.suffix === item.variant_suffix)?.description || item.product_details?.category || 'Προϊόν';
         return (
             <div
                 key={globalIndex}
-                className={`flex items-center py-1.5 border-b border-slate-100 break-inside-avoid ${isLeft ? 'pr-3' : 'pl-3'}`}
+                className="flex items-center py-1.5 border-b border-slate-100 break-inside-avoid"
             >
                 <div className="w-5 text-center text-slate-400 font-mono text-[8px]">{globalIndex + 1}</div>
                 <div className="w-10 flex justify-center">
@@ -145,20 +145,13 @@ export default function OfferPrintView({ offer }: Props) {
                     </div>
                 </div>
 
-                {/* Grid Content - vertical fill: left column top-to-bottom, then right column */}
-                {(() => {
-                    const half = Math.ceil(sortedItems.length / 2);
-                    return (
-                        <div className="flex text-[9px] leading-tight">
-                            <div className="flex-1 min-w-0 border-r border-dashed border-slate-200">
-                                {sortedItems.slice(0, half).map((item, i) => renderOfferItem(item, i, true))}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                {sortedItems.slice(half).map((item, i) => renderOfferItem(item, half + i, false))}
-                            </div>
-                        </div>
-                    );
-                })()}
+                {/* Grid Content - CSS columns: page-aware vertical flow, left→right per page */}
+                <div
+                    className="text-[9px] leading-tight"
+                    style={{ columnCount: 2, columnGap: '1.5rem', columnRuleWidth: '1px', columnRuleStyle: 'dashed', columnRuleColor: '#e2e8f0' }}
+                >
+                    {sortedItems.map((item, index) => renderOfferItem(item, index))}
+                </div>
             </main>
 
             {/* FOOTER */}

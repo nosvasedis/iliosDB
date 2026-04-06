@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { X, Image as ImageIcon, StickyNote, Box, MapPin, PauseCircle, PlayCircle, User, Edit, History, LayoutList, Layers, Wrench } from 'lucide-react';
-import { formatDecimal, getVariantComponents } from '../../utils/pricingEngine';
+import { formatDecimal } from '../../utils/pricingEngine';
+import SkuColorizedText from '../SkuColorizedText';
 import { buildBatchBuildData } from '../../utils/batchBuildData';
 import { Material, Mold, ProductionBatch, ProductionStage, Product, ProductionType } from '../../types';
 import { PRODUCTION_STAGES } from '../../utils/productionStages';
@@ -78,11 +79,6 @@ export default function MobileBatchBuildModal({
         return buildBatchBuildData(batch, product, allMaterials, allMolds, allProducts);
     }, [batch, product, allMaterials, allMolds, allProducts]);
 
-    const { finish, stone } = useMemo(() => {
-        if (!product) return { finish: { code: '', name: '' }, stone: { code: '', name: '' } };
-        return getVariantComponents(batch.variant_suffix || '', product.gender);
-    }, [batch.variant_suffix, product]);
-
     if (!product || !buildData) return null;
 
     const currentStageIndex = STAGES.findIndex(s => s.id === batch.current_stage);
@@ -140,32 +136,18 @@ export default function MobileBatchBuildModal({
 
                         <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                                <h2 className="text-base sm:text-lg font-black text-slate-800 tracking-tight leading-tight">{batch.sku}</h2>
+                                <SkuColorizedText sku={batch.sku} suffix={batch.variant_suffix || ''} gender={product.gender} className="text-base sm:text-lg font-black tracking-tight leading-tight" masterClassName="text-slate-800" />
                                 <span className="inline-flex items-center gap-1 shrink-0 rounded-md bg-emerald-100 px-1.5 py-0.5 text-xs font-black text-emerald-800">
                                     ×{batch.quantity}
                                 </span>
                             </div>
-                            <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                                {batch.variant_suffix && (
-                                    <>
-                                        {finish.code && (
-                                            <span className="px-1.5 py-0.5 rounded text-[11px] font-mono font-bold border border-slate-200 bg-white text-slate-700">
-                                                {finish.code}
-                                            </span>
-                                        )}
-                                        {stone.code && (
-                                            <span className="px-1.5 py-0.5 rounded text-[11px] font-mono font-bold border border-emerald-100 bg-emerald-50 text-emerald-800">
-                                                {stone.code}
-                                            </span>
-                                        )}
-                                    </>
-                                )}
-                                {product.production_type === ProductionType.Imported && product.supplier_sku && (
+                            {product.production_type === ProductionType.Imported && product.supplier_sku && (
+                                <div className="mt-0.5">
                                     <span className="text-[10px] font-mono text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
                                         SUP {product.supplier_sku}
                                     </span>
-                                )}
-                            </div>
+                                </div>
+                            )}
                             {batch.customer_name && (
                                 <div className="flex items-center gap-1 text-blue-700 font-bold text-xs mt-0.5 truncate">
                                     <User size={12} className="shrink-0" />

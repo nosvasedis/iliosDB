@@ -55,7 +55,7 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
         email: "ilioskosmima@gmail.com"
     };
 
-    const renderShipmentItem = (item: OrderShipmentItem, globalIndex: number, isLeft: boolean) => {
+    const renderShipmentItem = (item: OrderShipmentItem, globalIndex: number) => {
         const product = products.find(p => p.sku === item.sku);
         const variant = product?.variants?.find(v => v.suffix === item.variant_suffix);
         const fullSku = item.sku + (item.variant_suffix || '');
@@ -65,7 +65,7 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
         return (
             <div
                 key={globalIndex}
-                className={`flex items-center py-1.5 border-b border-slate-100 break-inside-avoid ${isLeft ? 'pr-3' : 'pl-3'}`}
+                className="flex items-center py-1.5 border-b border-slate-100 break-inside-avoid"
             >
                 <div className="w-6 text-center text-slate-400 text-[11px] tabular-nums">{globalIndex + 1}</div>
                 <div className="w-8 text-center">
@@ -181,20 +181,13 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                     </div>
                 </div>
 
-                {/* Items Grid - vertical fill: left column top-to-bottom, then right column */}
-                {(() => {
-                    const half = Math.ceil(sortedShipmentItems.length / 2);
-                    return (
-                        <div className="flex text-[12px] leading-snug">
-                            <div className="flex-1 min-w-0 border-r border-dashed border-slate-200">
-                                {sortedShipmentItems.slice(0, half).map((item, i) => renderShipmentItem(item, i, true))}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                {sortedShipmentItems.slice(half).map((item, i) => renderShipmentItem(item, half + i, false))}
-                            </div>
-                        </div>
-                    );
-                })()}
+                {/* Items Grid - CSS columns: page-aware vertical flow, left→right per page */}
+                <div
+                    className="text-[12px] leading-snug"
+                    style={{ columnCount: 2, columnGap: '1.5rem', columnRuleWidth: '1px', columnRuleStyle: 'dashed', columnRuleColor: '#e2e8f0' }}
+                >
+                    {sortedShipmentItems.map((item, index) => renderShipmentItem(item, index))}
+                </div>
             </main>
 
             {/* FOOTER */}
