@@ -2336,9 +2336,15 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
 
     const handleBulkMove = async () => {
         if (!bulkMoveTarget || multiSelectIds.size === 0) return;
-        const batchesToMove = enhancedBatches.filter(b =>
-            multiSelectIds.has(b.id) && !b.on_hold && b.current_stage !== bulkMoveTarget
-        );
+        const batchesToMove = enhancedBatches.filter(b => {
+            if (!multiSelectIds.has(b.id) || b.on_hold) return false;
+            if (b.current_stage !== bulkMoveTarget) return true;
+            // Same stage is only valid for Polishing sub-stage switching
+            if (bulkMoveTarget === ProductionStage.Polishing && bulkMovePendingDispatch !== undefined) {
+                return b.pending_dispatch !== bulkMovePendingDispatch;
+            }
+            return false;
+        });
         if (batchesToMove.length === 0) {
             showToast('Δεν υπάρχουν παρτίδες για μετακίνηση.', 'info');
             return;
@@ -3226,7 +3232,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                     }
                                 }}
                                 className="w-full border border-white/20 rounded-xl px-3 py-1.5 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-400/50 cursor-pointer"
-                                style={{ backgroundColor: '#1e293b', color: bulkMoveTarget ? STAGE_SELECT_COLORS[bulkMoveTarget]?.color ?? '#fff' : '#94a3b8' }}
+                                style={{ backgroundColor: '#1e293b', color: bulkMoveTarget === ProductionStage.Polishing && bulkMovePendingDispatch === true ? '#0f766e' : bulkMoveTarget ? STAGE_SELECT_COLORS[bulkMoveTarget]?.color ?? '#fff' : '#94a3b8' }}
                             >
                                 <option value="" disabled style={{ backgroundColor: '#1e293b', color: '#94a3b8' }}>Επιλογή σταδίου...</option>
                                 {STAGES.map(s => {
@@ -3235,7 +3241,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                             <React.Fragment key={s.id}>
                                                 <option
                                                     value="Polishing__pending"
-                                                    style={{ backgroundColor: '#fffbeb', color: '#b45309' }}
+                                                    style={{ backgroundColor: '#f0fdfa', color: '#0f766e' }}
                                                 >
                                                     {s.label} • Αναμονή
                                                 </option>
