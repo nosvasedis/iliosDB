@@ -202,12 +202,12 @@ export default function FinderBatchStageSelector({ batch, onMoveToStage, onToggl
                                             disabled={isDisabled}
                                             className={`flex-1 text-center px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between
                                                 ${isCurrentPending
-                                                    ? 'bg-amber-50 text-amber-700 border-amber-200 border ring-2 ring-offset-1 ring-amber-400/30'
+                                                    ? 'bg-teal-50 text-teal-700 border-teal-200 border ring-2 ring-offset-1 ring-teal-400/30'
                                                     : isDisabled
                                                     ? 'bg-slate-50/50 text-slate-300/50 border border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
                                                     : isPast
-                                                    ? 'bg-amber-50/50 text-amber-700/70 border border-slate-100 hover:bg-amber-50'
-                                                    : 'bg-amber-50 text-amber-700 border-amber-200 border hover:shadow-md active:scale-95'
+                                                    ? 'bg-teal-50/50 text-teal-700/70 border border-slate-100 hover:bg-teal-50'
+                                                    : 'bg-teal-50 text-teal-700 border-teal-200 border hover:shadow-md active:scale-95'
                                                 }
                                             `}
                                         >

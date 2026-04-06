@@ -15,7 +15,7 @@ type Props = {
     allMolds: Mold[];
     allProducts: Product[];
     onClose: () => void;
-    onMove?: (batch: ProductionBatch, stage: ProductionStage) => void;
+    onMove?: (batch: ProductionBatch, stage: ProductionStage, options?: { pendingDispatch?: boolean }) => void;
     onEditNote?: (batch: ProductionBatch) => void;
     onToggleHold?: (batch: ProductionBatch) => void;
     onViewHistory?: (batch: ProductionBatch) => void;
@@ -93,20 +93,20 @@ export default function MobileBatchBuildModal({
         return false;
     };
 
-    const handleStageSelect = (targetStage: ProductionStage) => {
+    const handleStageSelect = (targetStage: ProductionStage, opts?: { pendingDispatch?: boolean }) => {
         if (!onMove) return;
         if (isStageDisabled(targetStage)) return;
-        if (targetStage === batch.current_stage) return;
+        const isSameStage = targetStage === batch.current_stage;
+        const isSameSubstage = isSameStage && targetStage === ProductionStage.Polishing && opts?.pendingDispatch === batch.pending_dispatch;
+        if (isSameStage && (targetStage !== ProductionStage.Polishing || isSameSubstage)) return;
         if (batch.on_hold) {
-            // Parent will show the appropriate toast; keep this modal open.
-            onMove(batch, targetStage);
+            onMove(batch, targetStage, opts);
             return;
         }
         setIsMoving(true);
         try {
-            onMove(batch, targetStage);
+            onMove(batch, targetStage, opts);
         } finally {
-            // Give parent a moment to open the split/move modal, then close this one.
             window.setTimeout(() => {
                 setIsMoving(false);
                 onClose();
@@ -400,11 +400,58 @@ export default function MobileBatchBuildModal({
                                         <div className="grid grid-cols-2 min-[400px]:grid-cols-3 sm:grid-cols-4 gap-1.5">
                                             {STAGES.map((stage, index) => {
                                                 const isCurrent = stage.id === batch.current_stage;
-                                                const disabled = isMoving || isStageDisabled(stage.id) || isCurrent;
                                                 const colorKey = colorKeyForStage(stage.id);
                                                 const stageColors = STAGE_BUTTON_COLORS[colorKey];
                                                 const isPast = index < currentStageIndex;
 
+                                                // Split Polishing into two amber/blue substage buttons
+                                                if (stage.id === ProductionStage.Polishing) {
+                                                    const isCurrentPending = isCurrent && batch.pending_dispatch;
+                                                    const isCurrentDispatched = isCurrent && !batch.pending_dispatch;
+                                                    const isDisabled = isStageDisabled(stage.id);
+                                                    return (
+                                                        <React.Fragment key={stage.id}>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: true })}
+                                                                disabled={isMoving || isDisabled}
+                                                                className={`px-1.5 py-2 rounded-lg font-bold text-[10px] leading-tight transition-all border text-center min-h-[2.5rem] flex flex-col items-center justify-center gap-0.5 touch-manipulation ${
+                                                                    isCurrentPending
+                                                                        ? 'bg-teal-50 text-teal-700 border-teal-200 ring-2 ring-offset-1 ring-teal-400/25'
+                                                                        : isDisabled
+                                                                        ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed opacity-60'
+                                                                        : isPast
+                                                                        ? 'bg-teal-50/60 text-teal-700 border-slate-100'
+                                                                        : 'bg-teal-50 text-teal-700 border-teal-200 active:scale-[0.98]'
+                                                                }`}
+                                                            >
+                                                                <span>Τεχν.</span>
+                                                                <span>Αναμονή</span>
+                                                                {isCurrentPending && <span className="text-[7px]">τρέχον</span>}
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: false })}
+                                                                disabled={isMoving || isDisabled}
+                                                                className={`px-1.5 py-2 rounded-lg font-bold text-[10px] leading-tight transition-all border text-center min-h-[2.5rem] flex flex-col items-center justify-center gap-0.5 touch-manipulation ${
+                                                                    isCurrentDispatched
+                                                                        ? 'bg-blue-50 text-blue-700 border-blue-200 ring-2 ring-offset-1 ring-blue-400/25'
+                                                                        : isDisabled
+                                                                        ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed opacity-60'
+                                                                        : isPast
+                                                                        ? 'bg-blue-50/60 text-blue-700 border-slate-100'
+                                                                        : 'bg-blue-50 text-blue-700 border-blue-200 active:scale-[0.98]'
+                                                                }`}
+                                                            >
+                                                                <span>Τεχν.</span>
+                                                                <span>Στον Τεχν.</span>
+                                                                {isCurrentDispatched && <span className="text-[7px]">τρέχον</span>}
+                                                            </button>
+                                                        </React.Fragment>
+                                                    );
+                                                }
+
+                                                const disabled = isMoving || isStageDisabled(stage.id) || isCurrent;
                                                 return (
                                                     <button
                                                         key={stage.id}

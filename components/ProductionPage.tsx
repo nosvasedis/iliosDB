@@ -1149,12 +1149,12 @@ const FinderBatchStageSelector = ({
                                             disabled={isDisabled}
                                             className={`flex-1 text-center px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between
                                                 ${isCurrentPending
-                                                    ? 'bg-amber-50 text-amber-700 border-amber-200 border ring-2 ring-offset-1 ring-amber-400/30'
+                                                    ? 'bg-teal-50 text-teal-700 border-teal-200 border ring-2 ring-offset-1 ring-teal-400/30'
                                                     : isDisabled
                                                     ? 'bg-slate-50/50 text-slate-300/50 border border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
                                                     : isPast
-                                                    ? 'bg-amber-50/50 text-amber-700/70 border border-slate-100 hover:bg-amber-50'
-                                                    : 'bg-amber-50 text-amber-700 border-amber-200 border hover:shadow-md active:scale-95'
+                                                    ? 'bg-teal-50/50 text-teal-700/70 border border-slate-100 hover:bg-teal-50'
+                                                    : 'bg-teal-50 text-teal-700 border-teal-200 border hover:shadow-md active:scale-95'
                                                 }
                                             `}
                                         >
@@ -1534,13 +1534,13 @@ const StageInspectorModal: React.FC<{
                                 onClick={() => setPolishingTab('pending')}
                                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-black transition-all ${
                                     polishingTab === 'pending'
-                                        ? 'bg-amber-500 text-white shadow-sm'
+                                        ? 'bg-teal-600 text-white shadow-sm'
                                         : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'
                                 }`}
                             >
                                 <Package size={13} />
                                 Αναμονή Αποστολής
-                                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${polishingTab === 'pending' ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-700'}`}>
+                                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${polishingTab === 'pending' ? 'bg-white/25 text-white' : 'bg-teal-100 text-teal-700'}`}>
                                     {pendingCount}
                                 </span>
                             </button>
@@ -1562,7 +1562,7 @@ const StageInspectorModal: React.FC<{
                         {polishingTab === 'pending' && onDispatchBatches && filtered.length > 0 && (
                             <button
                                 onClick={() => onDispatchBatches(filtered.map(b => b.id))}
-                                className="flex items-center gap-1 px-3 py-2 rounded-lg bg-amber-600 text-white text-[11px] font-bold hover:bg-amber-700 transition-colors shadow-sm"
+                                className="flex items-center gap-1 px-3 py-2 rounded-lg bg-teal-600 text-white text-[11px] font-bold hover:bg-teal-700 transition-colors shadow-sm"
                                 title="Αποστολή όλων στον Τεχνίτη"
                             >
                                 <Truck size={12} />
@@ -2746,11 +2746,16 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                 )}
                                 {foundBatches.map((b, index) => {
                                     const stageConf = STAGES.find(s => s.id === b.current_stage);
-                                    const colors = STAGE_COLORS[stageConf?.color as keyof typeof STAGE_COLORS] || STAGE_COLORS['slate'];
+                                    const isPendingPolishing = b.current_stage === ProductionStage.Polishing && b.pending_dispatch;
+                                    const colors = isPendingPolishing
+                                        ? { text: 'text-teal-700', border: 'border-teal-200' }
+                                        : (STAGE_COLORS[stageConf?.color as keyof typeof STAGE_COLORS] || STAGE_COLORS['slate']);
                                     const finderBadgeClass = `bg-white/70 backdrop-blur-sm ${colors.text} ${colors.border}`;
                                     const age = getBatchAgeInfo(b);
                                     const isSpecialBatch = isSpecialCreationSku(b.sku);
-                                    const finderRowSurface = getFinderSearchResultSurface(stageConf?.color);
+                                    const finderRowSurface = isPendingPolishing
+                                        ? 'bg-teal-50/25 border border-teal-100/80 border-l-4 border-l-teal-400/45 hover:bg-teal-50/40'
+                                        : getFinderSearchResultSurface(stageConf?.color);
                                     const isSelected = multiSelectIds.has(b.id);
 
                                     return (
@@ -2937,7 +2942,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                         )}
                                         <span className={`px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-sm ${colors.text}`}>{stageBatches.length}</span>
                                         {stage.id === ProductionStage.Polishing && polishingPendingBatches.length > 0 && (
-                                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-700 border border-amber-200 shadow-sm" title="Αναμονή Αποστολής">
+                                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-teal-100 text-teal-700 border border-teal-200 shadow-sm" title="Αναμονή Αποστολής">
                                                 {polishingPendingBatches.length} αν.
                                             </span>
                                         )}
@@ -2964,16 +2969,16 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                             {/* Pending Dispatch Section */}
                                             {polishingPendingBatches.length > 0 && (
                                                 <div className="space-y-3">
-                                                    <div className="flex items-center justify-between gap-2 px-2 py-2 rounded-xl bg-amber-50 border border-amber-200">
+                                                    <div className="flex items-center justify-between gap-2 px-2 py-2 rounded-xl bg-teal-50 border border-teal-200">
                                                         <div className="flex items-center gap-2">
-                                                            <Package size={14} className="text-amber-600" />
-                                                            <span className="text-[11px] font-black text-amber-700 uppercase tracking-wide">Αναμονή Αποστολής</span>
-                                                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-700 border border-amber-200">{polishingPendingBatches.length}</span>
+                                                            <Package size={14} className="text-teal-600" />
+                                                            <span className="text-[11px] font-black text-teal-700 uppercase tracking-wide">Αναμονή Αποστολής</span>
+                                                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-teal-100 text-teal-700 border border-teal-200">{polishingPendingBatches.length}</span>
                                                         </div>
                                                         <button
                                                             onClick={() => handleDispatchBatches(polishingPendingBatches.map(b => b.id))}
                                                             disabled={isProcessingSplit}
-                                                            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-600 text-white text-[10px] font-bold hover:bg-amber-700 transition-colors shadow-sm disabled:opacity-50"
+                                                            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-600 text-white text-[10px] font-bold hover:bg-teal-700 transition-colors shadow-sm disabled:opacity-50"
                                                             title="Αποστολή όλων στον Τεχνίτη"
                                                         >
                                                             {isProcessingSplit ? <Loader2 size={10} className="animate-spin" /> : <Truck size={10} />}

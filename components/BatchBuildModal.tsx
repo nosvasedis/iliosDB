@@ -290,7 +290,12 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                                 <button
                                     ref={buttonRef}
                                     onClick={handleToggle}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all ${isMoving ? 'bg-emerald-100 border-emerald-200 text-emerald-700' : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'}`}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all ${
+                                        isMoving ? 'bg-emerald-100 border-emerald-200 text-emerald-700'
+                                        : batch.current_stage === ProductionStage.Polishing && batch.pending_dispatch ? 'bg-teal-50 border-teal-200 text-teal-700 hover:border-teal-300'
+                                        : batch.current_stage === ProductionStage.Polishing ? 'bg-blue-50 border-blue-200 text-blue-700 hover:border-blue-300'
+                                        : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                                    }`}
                                 >
                                     {isMoving ? <Check size={16} className="animate-bounce"/> : <MoveRight size={16}/>}
                                     <span className="font-bold text-sm">
@@ -356,12 +361,12 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                                     disabled={isMoving || isDisabled}
                                     className={`px-2.5 py-1.5 rounded-lg font-bold text-[10px] uppercase transition-all border flex items-center gap-1 ${
                                         isCurrentPending
-                                            ? 'bg-amber-50 text-amber-700 border-amber-200 ring-2 ring-offset-1 ring-amber-400/30 shadow-sm'
+                                            ? 'bg-teal-50 text-teal-700 border-teal-200 ring-2 ring-offset-1 ring-teal-400/30 shadow-sm'
                                             : isDisabled
                                             ? 'bg-slate-50/50 text-slate-300/50 border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
                                             : isPast
-                                            ? 'bg-amber-50/50 text-amber-700/70 border-slate-100 hover:bg-amber-50'
-                                            : 'bg-amber-50 text-amber-700 border-amber-200 hover:shadow-md'
+                                            ? 'bg-teal-50/50 text-teal-700/70 border-slate-100 hover:bg-teal-50'
+                                            : 'bg-teal-50 text-teal-700 border-teal-200 hover:shadow-md'
                                     }`}
                                 >
                                     Τεχν. • Αναμονή
@@ -589,12 +594,12 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                                             disabled={isMoving || isDisabled}
                                             className={`flex-1 text-center px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between
                                                 ${isCurrentPending
-                                                    ? 'bg-amber-50 text-amber-700 border-amber-200 border ring-2 ring-offset-1 ring-amber-400/30'
+                                                    ? 'bg-teal-50 text-teal-700 border-teal-200 border ring-2 ring-offset-1 ring-teal-400/30'
                                                     : isDisabled
                                                     ? 'bg-slate-50/50 text-slate-300/50 border border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
                                                     : isPast
-                                                    ? 'bg-amber-50/50 text-amber-700/70 border border-slate-100 hover:bg-amber-50'
-                                                    : 'bg-amber-50 text-amber-700 border-amber-200 border hover:shadow-md'
+                                                    ? 'bg-teal-50/50 text-teal-700/70 border border-slate-100 hover:bg-teal-50'
+                                                    : 'bg-teal-50 text-teal-700 border-teal-200 border hover:shadow-md'
                                                 }
                                             `}
                                         >
