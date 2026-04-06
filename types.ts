@@ -312,8 +312,14 @@ export interface CalendarDayEvent {
 export interface ShipmentGroup {
   time_key: string;
   shipment_index: number;
+  /** Πλήθος παρτίδων (για εσωτερική λογική· το UI προτιμά total_qty). */
   total: number;
+  /** Παρτίδες σε στάδιο Έτοιμα. */
   ready: number;
+  /** Σύνολο τεμαχίων σε αυτή την ομαδοποίηση αποστολής. */
+  total_qty: number;
+  /** Τεμάχια που είναι ήδη στο στάδιο Έτοιμα. */
+  ready_qty: number;
   is_ready: boolean;
   not_ready_batches: Array<{ sku: string; variant_suffix?: string; current_stage: ProductionStage; size_info?: string; cord_color?: ProductOptionColor; enamel_color?: ProductOptionColor; product_image?: string | null; gender?: Gender }>;
 }
@@ -321,6 +327,10 @@ export interface ShipmentGroup {
 export interface ShipmentReadinessSummary {
   total_batches: number;
   ready_batches: number;
+  /** Σύνολο τεμαχίων σε όλες τις παρτίδες της παραγγελίας (βάρος ποσοτήτων). */
+  total_qty: number;
+  /** Τεμάχια σε στάδιο Έτοιμα. */
+  ready_qty: number;
   ready_fraction: number;
   is_fully_ready: boolean;
   is_partially_ready: boolean;

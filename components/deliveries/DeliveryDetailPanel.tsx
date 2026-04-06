@@ -167,7 +167,7 @@ export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onM
                   />
                 </div>
                 <span className="text-sm font-black text-slate-700 whitespace-nowrap">
-                  {item.shipment_readiness.ready_batches}/{item.shipment_readiness.total_batches} έτοιμα
+                  {item.shipment_readiness.ready_qty}/{item.shipment_readiness.total_qty} τεμ. έτοιμα
                 </span>
               </div>
             </div>
@@ -185,7 +185,7 @@ export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onM
                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                         : 'bg-amber-50 text-amber-700 border-amber-200'
                     }`}>
-                      {shipment.ready}/{shipment.total} έτοιμα
+                      {shipment.ready_qty}/{shipment.total_qty} τεμ. έτοιμα
                     </span>
                   </div>
                   <div className="p-3">

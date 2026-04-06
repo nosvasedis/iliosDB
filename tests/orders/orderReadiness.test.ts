@@ -5,6 +5,7 @@ import {
   buildPartialDeliveryProgressSegments,
   getOrderItemProductionStageBreakdown,
   getOrderProductionQtyProgress,
+  getShipmentReadiness,
   orderStatusShowsProductionProgress,
 } from '../../utils/orderReadiness';
 
@@ -156,6 +157,58 @@ describe('getOrderItemProductionStageBreakdown', () => {
       { kind: 'stage', stage: ProductionStage.Casting, quantity: 1 },
       { kind: 'unbatched', quantity: 3 },
     ]);
+  });
+});
+
+describe('getShipmentReadiness', () => {
+  it('aggregates τεμάχια (quantities), not just batch counts', () => {
+    const batches = [
+      {
+        id: 'a',
+        order_id: 'o1',
+        sku: 'X',
+        quantity: 10,
+        current_stage: ProductionStage.Ready,
+        created_at: '2025-01-01T10:00:00.000Z',
+        updated_at: '',
+        priority: 'Normal',
+        requires_setting: false,
+      },
+      {
+        id: 'b',
+        order_id: 'o1',
+        sku: 'Y',
+        quantity: 3,
+        current_stage: ProductionStage.Waxing,
+        created_at: '2025-01-01T10:00:00.000Z',
+        updated_at: '',
+        priority: 'Normal',
+        requires_setting: false,
+      },
+      {
+        id: 'c',
+        order_id: 'o1',
+        sku: 'Z',
+        quantity: 7,
+        current_stage: ProductionStage.Casting,
+        created_at: '2025-01-02T11:00:00.000Z',
+        updated_at: '',
+        priority: 'Normal',
+        requires_setting: false,
+      },
+    ];
+    const r = getShipmentReadiness('o1', batches);
+    expect(r.total_batches).toBe(3);
+    expect(r.ready_batches).toBe(1);
+    expect(r.total_qty).toBe(20);
+    expect(r.ready_qty).toBe(10);
+    expect(r.ready_fraction).toBeCloseTo(0.5);
+    expect(r.shipments).toHaveLength(2);
+    const first = r.shipments[0];
+    expect(first.total).toBe(2);
+    expect(first.ready).toBe(1);
+    expect(first.total_qty).toBe(13);
+    expect(first.ready_qty).toBe(10);
   });
 });
 

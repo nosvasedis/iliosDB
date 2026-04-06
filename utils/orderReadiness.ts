@@ -288,7 +288,24 @@ export function getNotReadyBatches(orderId: string, batches: ProductionBatch[] |
 export function getShipmentReadiness(orderId: string, batches: ProductionBatch[] | undefined | null): ShipmentReadinessSummary {
   const orderBatches = getOrderBatches(orderId, batches);
   if (orderBatches.length === 0) {
-    return { total_batches: 0, ready_batches: 0, ready_fraction: 0, is_fully_ready: false, is_partially_ready: false, shipments: [] };
+    return {
+      total_batches: 0,
+      ready_batches: 0,
+      total_qty: 0,
+      ready_qty: 0,
+      ready_fraction: 0,
+      is_fully_ready: false,
+      is_partially_ready: false,
+      shipments: [],
+    };
+  }
+
+  let orderTotalQty = 0;
+  let orderReadyQty = 0;
+  for (const b of orderBatches) {
+    const q = b.quantity || 0;
+    orderTotalQty += q;
+    if (b.current_stage === ProductionStage.Ready) orderReadyQty += q;
   }
 
   const grouped = groupBatchesByShipment(orderBatches);
@@ -298,11 +315,20 @@ export function getShipmentReadiness(orderId: string, batches: ProductionBatch[]
   const shipments = ascending.map(([timeKey, shipmentBatches], idx) => {
     const total = shipmentBatches.length;
     const ready = shipmentBatches.filter((b) => b.current_stage === ProductionStage.Ready).length;
+    let total_qty = 0;
+    let ready_qty = 0;
+    for (const b of shipmentBatches) {
+      const q = b.quantity || 0;
+      total_qty += q;
+      if (b.current_stage === ProductionStage.Ready) ready_qty += q;
+    }
     return {
       time_key: timeKey,
       shipment_index: idx + 1,
       total,
       ready,
+      total_qty,
+      ready_qty,
       is_ready: ready === total,
       not_ready_batches: shipmentBatches
         .filter((b) => b.current_stage !== ProductionStage.Ready)
@@ -326,7 +352,9 @@ export function getShipmentReadiness(orderId: string, batches: ProductionBatch[]
   return {
     total_batches: totalBatches,
     ready_batches: readyBatches,
-    ready_fraction: totalBatches > 0 ? readyBatches / totalBatches : 0,
+    total_qty: orderTotalQty,
+    ready_qty: orderReadyQty,
+    ready_fraction: orderTotalQty > 0 ? orderReadyQty / orderTotalQty : totalBatches > 0 ? readyBatches / totalBatches : 0,
     is_fully_ready: isFullyReady,
     is_partially_ready: readyBatches > 0 && !isFullyReady,
     shipments

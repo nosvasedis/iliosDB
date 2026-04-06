@@ -213,7 +213,7 @@ export function enrichDeliveryItems(
       }
     }
     if (shipment_readiness.is_partially_ready && plan.plan_status === 'active') {
-      callReasons.push(`Μέρος της παραγγελίας είναι έτοιμο (${shipment_readiness.ready_batches}/${shipment_readiness.total_batches} τμήματα). Ενημερώστε τον πελάτη για μερική παράδοση.`);
+      callReasons.push(`Μέρος της παραγγελίας είναι έτοιμο (${shipment_readiness.ready_qty}/${shipment_readiness.total_qty} τεμ.). Ενημερώστε τον πελάτη για μερική παράδοση.`);
     }
     if (ready && plan.plan_status === 'active') {
       callReasons.push('Η παραγγελία είναι έτοιμη· απαιτείται επικοινωνία για οργάνωση παράδοσης.');

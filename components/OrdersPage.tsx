@@ -1215,7 +1215,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                     onClick={() => { setShipmentModalOrder(managingOrder); setManagingOrder(null); }}
                                     className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors"
                                 >
-                                    <Truck size={18} /> Μερική Αποστολή ({managingShipmentReadiness.ready_batches}/{managingShipmentReadiness.total_batches} έτοιμα)
+                                    <Truck size={18} /> Μερική Αποστολή ({managingShipmentReadiness.ready_qty}/{managingShipmentReadiness.total_qty} τεμ. έτοιμα)
                                 </button>
                             )}
 
