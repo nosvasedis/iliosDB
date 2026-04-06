@@ -124,7 +124,7 @@ export default function MoldsPage() {
 
     // Modals / FAB
     const [isCreating, setIsCreating] = useState(false);
-    const [newMold, setNewMold] = useState<Mold>({ code: 'L-', location: '', description: '', weight_g: 0 });
+    const [newMold, setNewMold] = useState<Mold>({ code: 'L', location: '', description: '', weight_g: 0 });
     const [showFab, setShowFab] = useState(false);
     const headerRef = useRef<HTMLDivElement>(null);
 
@@ -149,7 +149,7 @@ export default function MoldsPage() {
     }, [molds, searchTerm]);
 
     const handleCreate = async () => {
-        if (!newMold.code || newMold.code === 'L-') {
+        if (!newMold.code || newMold.code === 'L') {
             showToast("Ο Κωδικός είναι υποχρεωτικός και πρέπει να είναι συμπληρωμένος.", 'error');
             return;
         }
@@ -159,7 +159,7 @@ export default function MoldsPage() {
             if (error) throw error;
 
             queryClient.invalidateQueries({ queryKey: ['molds'] });
-            setNewMold({ code: 'L-', location: '', description: '', weight_g: 0 });
+            setNewMold({ code: 'L', location: '', description: '', weight_g: 0 });
             setIsCreating(false);
             showToast("Το λάστιχο προστέθηκε.", 'success');
         } catch (e) {
@@ -279,7 +279,7 @@ export default function MoldsPage() {
                         <div className="space-y-4 mb-6">
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">Κωδικός</label>
-                                <input type="text" value={newMold.code} onChange={e => setNewMold({ ...newMold, code: e.target.value.toUpperCase() })} placeholder="π.χ. L-12" className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 uppercase font-mono font-bold focus:ring-4 focus:ring-amber-500/20 outline-none transition-all" />
+                                <input type="text" value={newMold.code} onChange={e => setNewMold({ ...newMold, code: e.target.value.toUpperCase() })} placeholder="π.χ. L12" className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 uppercase font-mono font-bold focus:ring-4 focus:ring-amber-500/20 outline-none transition-all" />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>

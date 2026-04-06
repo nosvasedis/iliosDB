@@ -2,8 +2,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
-import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType, Order, ProductVariant } from '../../types';
-import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, ArrowLeft, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save, Square, CheckSquare, Image as ImageIcon, Gem, Package, Truck } from 'lucide-react';
+import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType, Order, ProductVariant, AssemblyPrintData, StageBatchPrintData } from '../../types';
+import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, ArrowLeft, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save, Square, CheckSquare, Image as ImageIcon, Gem, Package, Truck, Layers } from 'lucide-react';
 import MobileScreenHeader from './MobileScreenHeader';
 import { useUI } from '../UIProvider';
 import SkuColorizedText from '../SkuColorizedText';
@@ -25,6 +25,9 @@ import {
     getProductionTimingStatusLabel,
 } from '../../utils/productionTiming';
 import {
+    AssemblyOrderCandidate,
+    buildAssemblyOrderCandidates,
+    buildStageBatchPrintPayload,
     buildLabelPrintQueue,
     buildMobileProductionFoundBatches,
     buildMobileSettingStoneBreakdown,
@@ -47,6 +50,8 @@ interface Props {
     onPrintAggregated: (batches: ProductionBatch[]) => void;
     onPrintPreparation: (batches: ProductionBatch[]) => void;
     onPrintTechnician: (batches: ProductionBatch[]) => void;
+    onPrintAssembly?: (data: AssemblyPrintData) => void;
+    onPrintStageBatches?: (data: StageBatchPrintData) => void;
     onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail' }[]) => void;
 }
 
@@ -67,7 +72,7 @@ const STAGE_COLORS: Record<string, string> = {
     emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
 };
 
-type PrintSelectorType = 'technician' | 'preparation' | 'aggregated' | 'labels';
+type PrintSelectorType = 'technician' | 'preparation' | 'aggregated' | 'labels' | 'stagePdf';
 
 const MobileBatchCard: React.FC<{ 
     batch: ProductionBatch & { isDelayed?: boolean, customer_name?: string, product_image?: string | null, stageEnteredAt?: string, timingStatus?: 'normal' | 'attention' | 'delayed' | 'critical', timingLabel?: string, reminderKey?: string }, 
@@ -103,6 +108,10 @@ const MobileBatchCard: React.FC<{
         setStageSelectorOpen(false);
         if (onMoveToStage) {
             onMoveToStage(batch, targetStage, options);
+        } else if (type === 'stagePdf') {
+            const meta = printSelectorState.stageMeta;
+            if (!meta || !onPrintStageBatches || selected.length === 0) return;
+            onPrintStageBatches(buildStageBatchPrintPayload(selected, meta.stageId, meta.stageName));
         }
     };
 
@@ -485,6 +494,133 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelS
     );
 };
 
+const AssemblyOrderSelectorSheet = ({
+    isOpen,
+    onClose,
+    candidates,
+    onConfirm
+}: {
+    isOpen: boolean;
+    onClose: () => void;
+    candidates: AssemblyOrderCandidate[];
+    onConfirm: (selectedOrderIds: string[]) => void;
+}) => {
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set(candidates.map((candidate) => candidate.order.id)));
+
+    useEffect(() => {
+        if (!isOpen) return;
+        setSearchTerm('');
+        setSelectedOrderIds(new Set(candidates.map((candidate) => candidate.order.id)));
+    }, [isOpen, candidates]);
+
+    const filteredCandidates = useMemo(() => {
+        const term = searchTerm.trim().toLowerCase();
+        if (!term) return candidates;
+        return candidates.filter((candidate) =>
+            candidate.order.customer_name.toLowerCase().includes(term) ||
+            candidate.order.id.toLowerCase().includes(term)
+        );
+    }, [candidates, searchTerm]);
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[210] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end" onClick={onClose}>
+            <div
+                className="bg-white rounded-t-[2rem] px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-full duration-300 max-h-[88vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="mb-4 flex items-start justify-between gap-4">
+                    <div>
+                        <h3 className="text-lg font-black text-slate-900">Εκτύπωση Συναρμολόγησης</h3>
+                        <p className="mt-1 text-xs font-medium text-slate-500">Επιλέξτε εντολές που έχουν εκκρεμή είδη για συναρμολόγηση.</p>
+                    </div>
+                    <button onClick={onClose} className="rounded-full bg-slate-100 p-2 text-slate-500">
+                        <X size={18} />
+                    </button>
+                </div>
+
+                <div className="mb-4 flex gap-2">
+                    <div className="relative flex-1">
+                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                            type="text"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder="Αναζήτηση πελάτη ή εντολής..."
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm font-medium outline-none focus:border-pink-300 focus:ring-2 focus:ring-pink-500/20"
+                        />
+                    </div>
+                    <button
+                        onClick={() => setSelectedOrderIds(new Set(filteredCandidates.map((candidate) => candidate.order.id)))}
+                        className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700"
+                    >
+                        Όλα
+                    </button>
+                </div>
+
+                <div className="space-y-3">
+                    {filteredCandidates.map((candidate) => {
+                        const selected = selectedOrderIds.has(candidate.order.id);
+                        return (
+                            <button
+                                key={candidate.order.id}
+                                onClick={() => {
+                                    setSelectedOrderIds((prev) => {
+                                        const next = new Set(prev);
+                                        if (next.has(candidate.order.id)) next.delete(candidate.order.id);
+                                        else next.add(candidate.order.id);
+                                        return next;
+                                    });
+                                }}
+                                className={`w-full rounded-2xl border-2 px-4 py-4 text-left transition-all ${selected ? 'border-pink-300 bg-pink-50' : 'border-slate-200 bg-white'}`}
+                            >
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <div className="font-black text-slate-900">{candidate.order.customer_name}</div>
+                                        <div className="mt-1 text-xs font-mono text-slate-500">#{formatOrderId(candidate.order.id)}</div>
+                                        <div className="mt-2 flex gap-2 text-[10px] font-black uppercase">
+                                            <span className="rounded-lg border border-slate-200 bg-slate-100 px-2 py-1 text-slate-700">
+                                                Κωδικοί: {candidate.assemblySkuCount}
+                                            </span>
+                                            <span className="rounded-lg border border-pink-200 bg-pink-100 px-2 py-1 text-pink-700">
+                                                Τεμάχια: {candidate.totalAssemblyQty}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded border ${selected ? 'border-pink-600 bg-pink-600 text-white' : 'border-slate-300 bg-white text-transparent'}`}>
+                                        <Check size={13} />
+                                    </div>
+                                </div>
+                            </button>
+                        );
+                    })}
+                    {filteredCandidates.length === 0 && (
+                        <div className="py-10 text-center text-sm italic text-slate-400">Δεν βρέθηκαν επιλέξιμες εντολές.</div>
+                    )}
+                </div>
+
+                <div className="mt-5 flex gap-2">
+                    <button onClick={onClose} className="flex-1 rounded-2xl bg-slate-100 px-4 py-3 text-sm font-bold text-slate-700">
+                        Άκυρο
+                    </button>
+                    <button
+                        onClick={() => {
+                            onConfirm(Array.from(selectedOrderIds));
+                            onClose();
+                        }}
+                        disabled={selectedOrderIds.size === 0}
+                        className="flex-1 rounded-2xl bg-pink-600 px-4 py-3 text-sm font-black text-white shadow-lg disabled:opacity-50"
+                    >
+                        Εκτύπωση ({selectedOrderIds.size})
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const MobileHoldModal = ({ batch, onClose, onConfirm }: { batch: ProductionBatch, onClose: () => void, onConfirm: (reason: string) => void }) => {
     const [reason, setReason] = useState('');
     return (
@@ -786,7 +922,7 @@ const SettingStoneModal: React.FC<{
     );
 };
 
-export default function MobileProduction({ allProducts, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintLabels }: Props) {
+export default function MobileProduction({ allProducts, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintAssembly, onPrintStageBatches, onPrintLabels }: Props) {
     const { data: batches, isLoading: loadingBatches } = useProductionBatches();
     const { data: batchStageHistoryEntries = [] } = useBatchStageHistoryEntries();
     const { data: materials, isLoading: loadingMaterials } = useMaterials();
@@ -804,6 +940,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     const deferredFinderTerm = React.useDeferredValue(finderTerm);
     const [holdBatch, setHoldBatch] = useState<ProductionBatch | null>(null);
     const [showSettingStones, setShowSettingStones] = useState(false);
+    const [assemblySelectorOpen, setAssemblySelectorOpen] = useState(false);
 
     // Note Saving Handler
     const [editingNoteBatch, setEditingNoteBatch] = useState<ProductionBatch | null>(null);
@@ -819,7 +956,12 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     const [isProcessingSplit, setIsProcessingSplit] = useState(false);
 
     // Print Modal State
-    const [printSelectorState, setPrintSelectorState] = useState<{ isOpen: boolean, type: PrintSelectorType | '', batches: (ProductionBatch & { customer_name?: string })[] }>({ isOpen: false, type: '', batches: [] });
+    const [printSelectorState, setPrintSelectorState] = useState<{
+        isOpen: boolean,
+        type: PrintSelectorType | '',
+        batches: (ProductionBatch & { customer_name?: string })[],
+        stageMeta?: { stageId: ProductionStage; stageName: string }
+    }>({ isOpen: false, type: '', batches: [] });
     const [labelPrintSortMode, setLabelPrintSortMode] = useState<LabelPrintSortMode>('as_sent');
     const batchHistoryLookup = useMemo(() => buildBatchStageHistoryLookup(batchStageHistoryEntries), [batchStageHistoryEntries]);
     const productsMap = useMemo(() => new Map(allProducts.map((product) => [product.sku, product])), [allProducts]);
@@ -881,6 +1023,11 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             };
         });
     }, [batches, allProducts, materials, orders, batchHistoryLookup, timingNow]);
+
+    const assemblyOrderCandidates = useMemo<AssemblyOrderCandidate[]>(() => {
+        if (!orders) return [];
+        return buildAssemblyOrderCandidates(orders, enrichedBatches);
+    }, [orders, enrichedBatches]);
 
     const foundBatches = useMemo(() => buildMobileProductionFoundBatches(enrichedBatches, deferredFinderTerm), [enrichedBatches, deferredFinderTerm]);
 
@@ -1066,6 +1213,42 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             isOpen: true,
             type: 'labels',
             batches: stageBatches
+        });
+    };
+
+    const handleOpenStagePdfBatchPicker = (stageId: ProductionStage) => {
+        if (!onPrintStageBatches) return;
+        const stageConfig = STAGES.find((stage) => stage.id === stageId);
+        const stageBatches = enrichedBatches.filter((batch) => batch.current_stage === stageId && !batch.on_hold);
+        if (!stageConfig || stageBatches.length === 0) {
+            showToast('Δεν υπάρχουν παρτίδες για εκτύπωση φύλλου σταδίου.', 'info');
+            return;
+        }
+
+        setPrintSelectorState({
+            isOpen: true,
+            type: 'stagePdf',
+            batches: stageBatches,
+            stageMeta: { stageId, stageName: stageConfig.label }
+        });
+    };
+
+    const handleAssemblyOrderPrintConfirm = (selectedOrderIds: string[]) => {
+        if (!onPrintAssembly) return;
+
+        const rows = assemblyOrderCandidates
+            .filter((candidate) => selectedOrderIds.includes(candidate.order.id))
+            .flatMap((candidate) => candidate.rows);
+
+        if (rows.length === 0) {
+            showToast('Δεν βρέθηκαν είδη συναρμολόγησης για τις επιλεγμένες εντολές.', 'info');
+            return;
+        }
+
+        onPrintAssembly({
+            rows,
+            selected_order_ids: selectedOrderIds,
+            generated_at: new Date().toISOString()
         });
     };
 
@@ -1263,6 +1446,13 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
 
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                 <button
+                    onClick={() => setAssemblySelectorOpen(true)}
+                    disabled={!onPrintAssembly || assemblyOrderCandidates.length === 0}
+                    className="flex items-center gap-1.5 bg-white border border-slate-200 text-pink-700 px-4 py-2.5 rounded-2xl text-xs font-black shadow-sm whitespace-nowrap active:scale-95 transition-all disabled:opacity-50"
+                >
+                    <Layers size={14} /> Συναρμολόγηση
+                </button>
+                <button
                     onClick={() => handlePrintRequest(enrichedBatches.filter(b => [ProductionStage.Waxing, ProductionStage.Casting].includes(b.current_stage)), 'preparation')}
                     className="flex items-center gap-1.5 bg-white border border-slate-200 text-purple-700 px-4 py-2.5 rounded-2xl text-xs font-black shadow-sm whitespace-nowrap active:scale-95 transition-all"
                 >
@@ -1309,6 +1499,15 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                             <div onClick={() => toggleStage(stage.id)} className={`p-4 flex justify-between items-center cursor-pointer ${isOpen ? 'bg-slate-50' : ''}`}>
                                 <div className="flex items-center gap-3"><div className={`w-3 h-3 rounded-full ${colorClass.split(' ')[0].replace('bg-', 'bg-').replace('50', '500')}`} /><span className={`font-bold text-sm ${isOpen ? 'text-slate-900' : 'text-slate-600'}`}>{stage.label}</span></div>
                                 <div className="flex items-center gap-3">
+                                    {onPrintStageBatches && headerCount > 0 && (
+                                        <button
+                                            onClick={e => { e.stopPropagation(); handleOpenStagePdfBatchPicker(stage.id); }}
+                                            className="p-1.5 bg-blue-100 text-blue-600 rounded-xl hover:bg-blue-200 active:scale-90 transition-all"
+                                            title="Εκτύπωση φύλλου σταδίου"
+                                        >
+                                            <FileText size={13} />
+                                        </button>
+                                    )}
                                     {stage.id === ProductionStage.Setting && (
                                         <button
                                             onClick={e => { e.stopPropagation(); setShowSettingStones(true); }}
@@ -1442,6 +1641,13 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                     isProcessing={isProcessingSplit}
                 />
             )}
+
+            <AssemblyOrderSelectorSheet
+                isOpen={assemblySelectorOpen}
+                onClose={() => setAssemblySelectorOpen(false)}
+                candidates={assemblyOrderCandidates}
+                onConfirm={handleAssemblyOrderPrintConfirm}
+            />
 
             {printSelectorState.isOpen && (
                 <PrintSelectorModal

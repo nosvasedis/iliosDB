@@ -5,7 +5,7 @@ import { Customer, VatRegime } from '../../types';
 import { Search, Phone, MapPin, User, Mail, Plus, Clock } from 'lucide-react';
 import { useUI } from '../UIProvider';
 import CustomerDetailsModal from '../CustomerDetailsModal';
-import MobileCustomerForm from '../mobile/MobileCustomerForm';
+import CreateCustomerModal from '../CreateCustomerModal';
 import { normalizedIncludes } from '../../utils/greekSearch';
 import { ordersRepository } from '../../features/orders';
 import { useCustomers, useOrders } from '../../hooks/api/useOrders';
@@ -176,16 +176,26 @@ export default function SellerCustomers() {
                                         <Clock size={10} /> Τελευταία: {new Date(latestOrdersMap[c.id]).toLocaleDateString('el-GR')}
                                     </div>
                                 )}
-                                {c.address && <div className="text-[10px] text-slate-400 flex items-center gap-1 truncate"><MapPin size={10} /> {c.address}</div>}
+                                {c.id === RETAIL_CUSTOMER_ID ? (
+                                    <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
+                                        Συλλογικός λογαριασμός· όχι ένα ΑΦΜ/διεύθυνση.
+                                    </p>
+                                ) : (
+                                    c.address && (
+                                        <div className="text-[10px] text-slate-400 flex items-center gap-1 truncate">
+                                            <MapPin size={10} /> {c.address}
+                                        </div>
+                                    )
+                                )}
                             </div>
                         </div>
                         <div className="flex gap-2 mt-3 pt-2 border-t border-slate-50" onClick={e => e.stopPropagation()}>
-                            {c.phone && (
+                            {c.id !== RETAIL_CUSTOMER_ID && c.phone && (
                                 <a href={`tel:${c.phone}`} className="flex-1 bg-slate-50 py-2 rounded-lg text-xs font-bold text-slate-600 flex items-center justify-center gap-2">
                                     <Phone size={12} /> Κλήση
                                 </a>
                             )}
-                            {c.email && (
+                            {c.id !== RETAIL_CUSTOMER_ID && c.email && (
                                 <a href={`mailto:${c.email}`} className="flex-1 bg-slate-50 py-2 rounded-lg text-xs font-bold text-slate-600 flex items-center justify-center gap-2">
                                     <Mail size={12} /> Email
                                 </a>
@@ -207,8 +217,8 @@ export default function SellerCustomers() {
             )}
 
             {isCreating && selectedCustomer && (
-                <MobileCustomerForm
-                    customer={selectedCustomer}
+                <CreateCustomerModal
+                    draft={selectedCustomer}
                     onSave={handleCreateCustomer}
                     onCancel={() => { setIsCreating(false); setSelectedCustomer(null); }}
                 />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Camera, Trash2, Printer, Tag, ShoppingBag, ArrowLeft, Search, X, ChevronRight, ImageIcon, Plus, ScanBarcode } from 'lucide-react';
 import { useUI } from '../UIProvider';
 import MobileScreenHeader from './MobileScreenHeader';
@@ -8,6 +8,11 @@ import { api } from '../../lib/supabase';
 import { findProductByScannedCode, getVariantComponents, expandSkuRange, splitSkuComponents } from '../../utils/pricingEngine';
 import BarcodeView from '../BarcodeView';
 import { Product, ProductVariant } from '../../types';
+
+interface Props {
+    onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail' }[]) => void;
+    onPrintPhotoCatalog?: (products: Product[]) => void;
+}
 
 interface QueueItem {
     skuString: string;
@@ -36,7 +41,7 @@ const STONE_TEXT_COLORS: Record<string, string> = {
     'MV': 'text-purple-400', 'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
 };
 
-export default function MobileBatchPrint() {
+export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
     const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
     
@@ -46,6 +51,10 @@ export default function MobileBatchPrint() {
     const [showScanner, setShowScanner] = useState(false);
     const [viewMode, setViewMode] = useState<'list' | 'preview'>('list');
     const [printFormat, setPrintFormat] = useState<'standard' | 'retail'>('standard');
+    const [activeTab, setActiveTab] = useState<'labels' | 'catalog'>('labels');
+    const [catalogSearch, setCatalogSearch] = useState('');
+    const [catalogOnlyWithImage, setCatalogOnlyWithImage] = useState(false);
+    const [selectedSkus, setSelectedSkus] = useState<Set<string>>(new Set());
 
     // Smart Entry State
     const [input, setInput] = useState('');
@@ -53,6 +62,18 @@ export default function MobileBatchPrint() {
     const [activeMaster, setActiveMaster] = useState<Product | null>(null);
     const [qty, setQty] = useState(1);
     const inputRef = useRef<HTMLInputElement>(null);
+
+    const catalogProducts = useMemo(() => {
+        return (products || [])
+            .filter((product) => {
+                if (product.is_component) return false;
+                if (catalogOnlyWithImage && !product.image_url) return false;
+                if (!catalogSearch.trim()) return true;
+                const term = catalogSearch.trim().toUpperCase();
+                return product.sku.toUpperCase().includes(term) || (product.description || '').toUpperCase().includes(term);
+            })
+            .sort((a, b) => a.sku.localeCompare(b.sku));
+    }, [products, catalogOnlyWithImage, catalogSearch]);
 
     // --- SMART SEARCH LOGIC ---
     useEffect(() => {
@@ -243,6 +264,34 @@ export default function MobileBatchPrint() {
         window.print();
     };
 
+    const handleToggleCatalogSku = (sku: string) => {
+        setSelectedSkus((prev) => {
+            const next = new Set(prev);
+            if (next.has(sku)) next.delete(sku);
+            else next.add(sku);
+            return next;
+        });
+    };
+
+    const handleToggleCatalogAll = () => {
+        if (selectedSkus.size === catalogProducts.length) {
+            setSelectedSkus(new Set());
+        } else {
+            setSelectedSkus(new Set(catalogProducts.map((product) => product.sku)));
+        }
+    };
+
+    const handlePrintCatalog = () => {
+        const toPrint = catalogProducts.filter((product) => selectedSkus.has(product.sku));
+        if (toPrint.length === 0) {
+            showToast('Δεν έχετε επιλέξει προϊόντα για φωτοκατάλογο.', 'info');
+            return;
+        }
+
+        onPrintPhotoCatalog?.(toPrint);
+        showToast(`Στάλθηκαν ${toPrint.length} προϊόντα για εκτύπωση φωτοκαταλόγου.`, 'success');
+    };
+
     const hasVariants = activeMaster && activeMaster.variants && activeMaster.variants.length > 0;
 
     // --- VISUALIZERS ---
@@ -347,9 +396,127 @@ export default function MobileBatchPrint() {
         );
     }
 
+    if (activeTab === 'catalog') {
+        return (
+            <div className="flex h-full min-h-0 flex-col bg-slate-50">
+                <MobileScreenHeader icon={ScanBarcode} title="Μαζική Εκτύπωση" subtitle="Ετικέτες & φωτοκατάλογος" iconClassName="text-slate-700" />
+
+                <div className="px-4 pt-3">
+                    <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
+                        <button
+                            onClick={() => setActiveTab('labels')}
+                            className="rounded-xl px-3 py-2 text-sm font-black text-slate-500"
+                        >
+                            Ετικέτες
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('catalog')}
+                            className="rounded-xl bg-white px-3 py-2 text-sm font-black text-slate-900 shadow-sm"
+                        >
+                            Φωτοκατάλογος
+                        </button>
+                    </div>
+                </div>
+
+                <div className="flex min-h-0 flex-1 flex-col px-4 pb-24 pt-3">
+                    <div className="mb-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                            <div>
+                                <div className="text-sm font-black text-slate-900">Επιλογή Προϊόντων</div>
+                                <div className="text-xs font-medium text-slate-500">Φιλτράρισμα και επιλογή κωδικών για φωτοκατάλογο.</div>
+                            </div>
+                            <button
+                                onClick={handleToggleCatalogAll}
+                                className="rounded-xl bg-slate-100 px-3 py-2 text-[11px] font-black text-slate-700"
+                            >
+                                {selectedSkus.size === catalogProducts.length && catalogProducts.length > 0 ? 'Καμία' : 'Όλα'}
+                            </button>
+                        </div>
+
+                        <div className="relative mb-3">
+                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                                type="text"
+                                value={catalogSearch}
+                                onChange={(e) => setCatalogSearch(e.target.value)}
+                                placeholder="Αναζήτηση SKU ή περιγραφής..."
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-3 text-sm font-medium outline-none focus:border-slate-400"
+                            />
+                        </div>
+
+                        <button
+                            onClick={() => setCatalogOnlyWithImage((prev) => !prev)}
+                            className={`rounded-xl px-3 py-2 text-xs font-black ${catalogOnlyWithImage ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}
+                        >
+                            {catalogOnlyWithImage ? 'Μόνο με φωτογραφία' : 'Όλα τα προϊόντα'}
+                        </button>
+                    </div>
+
+                    <div className="mb-4 flex-1 overflow-y-auto rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+                        <div className="space-y-2">
+                            {catalogProducts.map((product) => {
+                                const selected = selectedSkus.has(product.sku);
+                                return (
+                                    <button
+                                        key={product.sku}
+                                        onClick={() => handleToggleCatalogSku(product.sku)}
+                                        className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-all ${selected ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-white'}`}
+                                    >
+                                        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
+                                            {product.image_url ? (
+                                                <img src={product.image_url} alt={product.sku} className="h-full w-full object-cover" />
+                                            ) : (
+                                                <ImageIcon size={20} className="text-slate-300" />
+                                            )}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="font-black text-slate-900">{product.sku}</div>
+                                            <div className="mt-0.5 truncate text-xs font-medium text-slate-500">{product.description || product.category}</div>
+                                        </div>
+                                        <div className={`flex h-5 w-5 items-center justify-center rounded border ${selected ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 bg-white text-transparent'}`}>
+                                            <Plus size={12} className={selected ? 'rotate-45' : ''} />
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                            {catalogProducts.length === 0 && (
+                                <div className="py-10 text-center text-sm italic text-slate-400">Δεν βρέθηκαν προϊόντα για τα τρέχοντα φίλτρα.</div>
+                            )}
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={handlePrintCatalog}
+                        disabled={selectedSkus.size === 0}
+                        className="w-full rounded-2xl bg-[#060b00] py-4 text-lg font-bold text-white shadow-lg disabled:opacity-50"
+                    >
+                        Εκτύπωση Φωτοκαταλόγου ({selectedSkus.size})
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="flex h-full min-h-0 flex-col bg-slate-50">
             <MobileScreenHeader icon={ScanBarcode} title="Μαζική εκτύπωση" subtitle="Barcode & ετικέτες" iconClassName="text-slate-700" />
+
+            <div className="px-4 pt-3">
+                <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
+                    <button
+                        onClick={() => setActiveTab('labels')}
+                        className="rounded-xl bg-white px-3 py-2 text-sm font-black text-slate-900 shadow-sm"
+                    >
+                        Ετικέτες
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('catalog')}
+                        className="rounded-xl px-3 py-2 text-sm font-black text-slate-500"
+                    >
+                        Φωτοκατάλογος
+                    </button>
+                </div>
+            </div>
 
             <div className="flex min-h-0 flex-1 flex-col px-4 pb-24 pt-3">
             {!activeMaster ? (

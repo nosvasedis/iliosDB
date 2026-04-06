@@ -20,6 +20,7 @@ import {
   ShoppingCart,
   Factory,
   Menu,
+  BarChart3,
   type LucideIcon,
 } from 'lucide-react';
 import { APP_LOGO } from '../../constants';
@@ -183,6 +184,7 @@ export default function MobileMenu({ onNavigate, activePage }: Props) {
   ];
 
   const toolsAccount: MenuItem[] = [
+    { id: 'analytics', label: 'Ανάλυση', description: 'Οικονομικά στοιχεία και τάσεις', icon: BarChart3, color: 'text-indigo-600', bg: 'bg-indigo-50' },
     { id: 'ai-studio', label: 'AI Studio', description: 'Βοηθός & εργαλεία', icon: Sparkles, color: 'text-purple-600', bg: 'bg-purple-50' },
     { id: 'settings', label: 'Ρυθμίσεις', description: 'Λογαριασμός & εφαρμογή', icon: Settings, color: 'text-slate-600', bg: 'bg-slate-100' },
   ];

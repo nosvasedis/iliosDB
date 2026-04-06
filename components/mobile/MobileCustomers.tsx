@@ -356,8 +356,8 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                     const hasLabel = !!retailClientLabel;
                                     return (
                                         <div key={order.id} className="flex items-center justify-between gap-2 bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
-                                            <div className="flex items-center gap-2 min-w-0">
-                                                <span className="font-mono font-bold text-slate-600 text-[10px]">#{order.id.slice(0, 6).toUpperCase()}</span>
+                                            <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                                                <span className="font-mono font-bold text-slate-700 text-[10px] leading-tight break-all">{order.id}</span>
                                                 <span className="text-[10px] text-slate-400">{new Date(order.created_at).toLocaleDateString('el-GR')}</span>
                                             </div>
                                             <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full truncate max-w-[120px] ${hasLabel ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-400 border border-slate-200'}`}>
@@ -386,7 +386,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                         </h2>
                         <button onClick={() => setIsEditing(false)} className="p-2 bg-slate-100 rounded-full text-slate-500"><X size={20} /></button>
                     </div>
-                    {editType === 'customer' && editData.full_name && (() => {
+                    {editType === 'customer' && editData.full_name && editData.id !== RETAIL_CUSTOMER_ID && (() => {
                         const nextNameday = getNextNamedayForName(editData.full_name);
                         return nextNameday ? (
                             <div className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200 px-2.5 py-1 rounded-full w-fit">
@@ -599,20 +599,28 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                         </div>
 
                         <div className="space-y-2 pt-2 border-t border-slate-50">
-                            {item.phone && (
-                                <div className="flex items-center gap-2 text-xs text-slate-600">
-                                    <Phone size={14} className="text-slate-400" /> {item.phone}
-                                </div>
-                            )}
-                            {item.email && (
-                                <div className="flex items-center gap-2 text-xs text-slate-600">
-                                    <Mail size={14} className="text-slate-400" /> {item.email}
-                                </div>
-                            )}
-                            {item.address && (
-                                <div className="flex items-center gap-2 text-xs text-slate-600">
-                                    <MapPin size={14} className="text-slate-400" /> {item.address}
-                                </div>
+                            {mode === 'customers' && item.id === RETAIL_CUSTOMER_ID ? (
+                                <p className="text-[11px] text-slate-500 leading-relaxed">
+                                    Συλλογικός λογαριασμός για πολλούς τελικούς πελάτες· δεν εμφανίζονται κοινό ΑΦΜ, τηλέφωνο ή διεύθυνση εδώ.
+                                </p>
+                            ) : (
+                                <>
+                                    {item.phone && (
+                                        <div className="flex items-center gap-2 text-xs text-slate-600">
+                                            <Phone size={14} className="text-slate-400" /> {item.phone}
+                                        </div>
+                                    )}
+                                    {item.email && (
+                                        <div className="flex items-center gap-2 text-xs text-slate-600">
+                                            <Mail size={14} className="text-slate-400" /> {item.email}
+                                        </div>
+                                    )}
+                                    {item.address && (
+                                        <div className="flex items-center gap-2 text-xs text-slate-600">
+                                            <MapPin size={14} className="text-slate-400" /> {item.address}
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
                     </div>

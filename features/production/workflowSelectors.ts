@@ -1,9 +1,12 @@
-import { Collection, EnhancedProductionBatch, Product, ProductVariant, ProductionBatch, ProductionStage } from '../../types';
-import { Material, MaterialType, Order } from '../../types';
+import { AssemblyPrintRow, Collection, EnhancedProductionBatch, Material, MaterialType, Order, OrderStatus, Product, ProductVariant, ProductionBatch, ProductionStage, StageBatchPrintData } from '../../types';
 import { formatOrderId } from '../../utils/orderUtils';
 import { PRODUCTION_STAGE_ORDER_INDEX } from '../../utils/productionStages';
 import { getVariantComponents } from '../../utils/pricingEngine';
 import { getBatchStageChronologyTimestamp } from './selectors';
+import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
+import { extractRetailClientFromNotes } from '../../utils/retailNotes';
+import { requiresAssemblyStage } from '../../constants';
+import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 
 export type ProductionDisplayGroupMode = 'gender' | 'customer';
 export type ProductionDisplaySortOrder = 'alpha' | 'newest' | 'oldest';
@@ -96,6 +99,13 @@ export interface MobileSettingStoneItem {
   description?: string;
   quantity: number;
   unit: string;
+}
+
+export interface AssemblyOrderCandidate {
+  order: Order;
+  rows: AssemblyPrintRow[];
+  assemblySkuCount: number;
+  totalAssemblyQty: number;
 }
 
 export interface MobileSettingStoneOrderListItem {
@@ -423,4 +433,137 @@ export function buildMobileSettingStoneBreakdown(
   });
 
   return Array.from(stoneMap.values()).sort((a, b) => b.quantity - a.quantity);
+}
+
+export function buildAssemblyOrderCandidates(
+  orders: Order[],
+  batches: Array<EnhancedProductionBatch | ProductionBatch>,
+): AssemblyOrderCandidate[] {
+  if (!orders || orders.length === 0) return [];
+
+  const readyQtyByKey = new Map<string, number>();
+  batches.forEach((batch) => {
+    if (!batch.order_id) return;
+    if (batch.current_stage !== ProductionStage.Ready) return;
+    const key = [
+      batch.order_id,
+      batch.sku,
+      batch.variant_suffix || '',
+      batch.size_info || '',
+    ].join('::');
+    readyQtyByKey.set(key, (readyQtyByKey.get(key) || 0) + (batch.quantity || 0));
+  });
+
+  return orders
+    .filter((order) =>
+      !order.is_archived &&
+      (order.status === OrderStatus.Pending || order.status === OrderStatus.InProduction) &&
+      order.items.some((item) => requiresAssemblyStage(item.sku) && !isSpecialCreationSku(item.sku)),
+    )
+    .map((order) => {
+      const qtyByKey = new Map<string, number>();
+      const notesByKey = new Map<string, Set<string>>();
+
+      const isRetailOrder =
+        order.customer_id === RETAIL_CUSTOMER_ID ||
+        order.customer_name === RETAIL_CUSTOMER_NAME;
+      const { retailClientLabel } = extractRetailClientFromNotes(order.notes);
+      const displayCustomerName =
+        isRetailOrder && retailClientLabel
+          ? `${RETAIL_CUSTOMER_NAME} - ${retailClientLabel}`
+          : order.customer_name;
+
+      order.items.forEach((item) => {
+        if (!requiresAssemblyStage(item.sku) || isSpecialCreationSku(item.sku)) return;
+
+        const key = [
+          order.id,
+          item.sku,
+          item.variant_suffix || '',
+          item.size_info || '',
+        ].join('::');
+
+        qtyByKey.set(key, (qtyByKey.get(key) || 0) + (item.quantity || 0));
+        if (item.notes && item.notes.trim()) {
+          if (!notesByKey.has(key)) notesByKey.set(key, new Set());
+          notesByKey.get(key)!.add(item.notes.trim());
+        }
+      });
+
+      const rows = Array.from(qtyByKey.entries())
+        .map(([key, orderedQty], idx) => {
+          const [orderId, sku, variantSuffix, sizeInfo] = key.split('::');
+          const readyQty = readyQtyByKey.get(key) || 0;
+          const remainingQty = Math.max(0, orderedQty - readyQty);
+          if (remainingQty <= 0) return null;
+
+          const notes = Array.from(notesByKey.get(key) || [])
+            .filter(Boolean)
+            .join(' - ');
+
+          return {
+            id: `assembly-order-${order.id}-${idx}`,
+            order_id: orderId,
+            customer_name: displayCustomerName,
+            sku,
+            variant_suffix: variantSuffix || undefined,
+            size_info: sizeInfo || undefined,
+            quantity: remainingQty,
+            notes: notes || undefined,
+          } as AssemblyPrintRow;
+        })
+        .filter((row): row is AssemblyPrintRow => row !== null)
+        .sort((a, b) => {
+          const skuA = `${a.sku}${a.variant_suffix || ''}`.toUpperCase();
+          const skuB = `${b.sku}${b.variant_suffix || ''}`.toUpperCase();
+          const bySku = skuA.localeCompare(skuB, undefined, { numeric: true });
+          if (bySku !== 0) return bySku;
+          return (a.size_info || '').localeCompare(b.size_info || '');
+        });
+
+      return {
+        order,
+        rows,
+        assemblySkuCount: rows.length,
+        totalAssemblyQty: rows.reduce((sum, row) => sum + row.quantity, 0),
+      } as AssemblyOrderCandidate;
+    })
+    .filter((candidate) => candidate.rows.length > 0)
+    .sort((a, b) => new Date(b.order.created_at).getTime() - new Date(a.order.created_at).getTime());
+}
+
+export function buildStageBatchPrintPayload(
+  selected: ProductionBatch[],
+  stageId: ProductionStage,
+  stageName: string,
+): StageBatchPrintData | null {
+  if (!selected.length) return null;
+
+  const orderIds = [...new Set(selected.map((batch) => (batch.order_id || '').trim()).filter(Boolean))];
+  let customerName: string;
+  let orderId: string;
+
+  if (orderIds.length === 1) {
+    orderId = orderIds[0];
+    customerName = selected.find((batch) => (batch.order_id || '').trim() === orderId)?.customer_name?.trim() || '—';
+  } else if (orderIds.length === 0) {
+    orderId = '';
+    const names = [...new Set(selected.map((batch) => (batch.customer_name || '').trim()).filter(Boolean))];
+    customerName =
+      names.length === 1 ? names[0]
+      : names.length > 1 ? `Διάφοροι πελάτες (${names.length})`
+      : 'Χωρίς πελάτη';
+  } else {
+    orderId = '';
+    customerName = `Πολλαπλές εντολές (${orderIds.length})`;
+  }
+
+  return {
+    stageName,
+    stageId,
+    customerName,
+    orderId,
+    batches: selected,
+    generatedAt: new Date().toISOString(),
+  };
 }

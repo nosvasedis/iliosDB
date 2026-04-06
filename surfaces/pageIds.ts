@@ -35,7 +35,8 @@ export type MobileAdminPage =
   | 'batch-print'
   | 'collections'
   | 'pricelist'
-  | 'offers';
+  | 'offers'
+  | 'analytics';
 
 export type EmployeePage =
   | 'dashboard'

@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import CustomerDetailsModal from './CustomerDetailsModal';
+import CreateCustomerModal from './CreateCustomerModal';
 import { normalizedIncludes } from '../utils/greekSearch';
 import { ordersRepository } from '../features/orders';
 import { useCustomers, useOrders } from '../hooks/api/useOrders';
@@ -50,22 +51,38 @@ const CustomerCard: React.FC<CustomerCardProps> = ({ customer, onClick, latestOr
                         </span>
                     )}
                 </div>
-                {customer.vat_number && (
-                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">ΑΦΜ: {customer.vat_number}</div>
+                {isSystem ? (
+                    <p className="text-[10px] text-slate-500 leading-snug mt-1">
+                        Πολλοί τελικοί πελάτες· χωρίς κοινό ΑΦΜ ή διεύθυνση εδώ.
+                    </p>
+                ) : (
+                    customer.vat_number && (
+                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">ΑΦΜ: {customer.vat_number}</div>
+                    )
                 )}
             </div>
 
             <div className="mt-auto pt-3 border-t border-slate-50 space-y-1.5">
-                {customer.phone ? (
-                    <div className="flex items-center gap-2 text-xs text-slate-600">
-                        <Phone size={12} className="text-slate-400" /> {customer.phone}
-                    </div>
-                ) : <div className="h-4" />}
-                {customer.address ? (
-                    <div className="flex items-center gap-2 text-xs text-slate-600 truncate">
-                        <MapPin size={12} className="text-slate-400 shrink-0" /> {customer.address}
-                    </div>
-                ) : <div className="h-4" />}
+                {isSystem ? (
+                    <div className="text-[10px] text-slate-400 italic">Ανοίξτε για στατιστικά και ιστορικό παραγγελιών.</div>
+                ) : (
+                    <>
+                        {customer.phone ? (
+                            <div className="flex items-center gap-2 text-xs text-slate-600">
+                                <Phone size={12} className="text-slate-400" /> {customer.phone}
+                            </div>
+                        ) : (
+                            <div className="h-4" />
+                        )}
+                        {customer.address ? (
+                            <div className="flex items-center gap-2 text-xs text-slate-600 truncate">
+                                <MapPin size={12} className="text-slate-400 shrink-0" /> {customer.address}
+                            </div>
+                        ) : (
+                            <div className="h-4" />
+                        )}
+                    </>
+                )}
             </div>
         </div>
     );
@@ -175,6 +192,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                                     id: crypto.randomUUID(),
                                     full_name: '',
                                     phone: '',
+                                    email: '',
                                     vat_number: '',
                                     vat_rate: VatRegime.Standard,
                                     address: '',
@@ -220,15 +238,11 @@ export default function CustomersPage({ onPrintOrder }: Props) {
                 />
             )}
 
-            {/* Create Modal */}
             {isCreating && selectedCustomer && (
-                <CustomerDetailsModal
-                    customer={selectedCustomer}
-                    orders={[]}
-                    onClose={() => { setIsCreating(false); setSelectedCustomer(null); }}
-                    onUpdate={handleCreateCustomer}
-                    onDelete={async () => { setIsCreating(false); setSelectedCustomer(null); }}
-                    onPrintOrder={undefined}
+                <CreateCustomerModal
+                    draft={selectedCustomer}
+                    onSave={handleCreateCustomer}
+                    onCancel={() => { setIsCreating(false); setSelectedCustomer(null); }}
                 />
             )}
         </div>

@@ -3,23 +3,23 @@ import React, { useState, useMemo, useDeferredValue } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { Order, OrderShipment, OrderShipmentItem, OrderStatus, Product, ProductVariant, ProductionBatch, ProductionStage } from '../../types';
-import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings, ShoppingBag, Image as ImageIcon, PackageCheck, Globe, Flame, Gem, Hammer, CheckCircle2, SlidersHorizontal, ShoppingCart } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings, ShoppingBag, Image as ImageIcon, PackageCheck, Globe, Flame, Gem, Hammer, CheckCircle2, SlidersHorizontal, ShoppingCart, BookOpen, FileText, BarChart3 } from 'lucide-react';
 import MobileScreenHeader, { MOBILE_HEADER_SURFACE } from './MobileScreenHeader';
 import type { LucideIcon } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import { useUI } from '../UIProvider';
 import SkuColorizedText from '../SkuColorizedText';
-import { buildOrderProductionStageSegments, getOrderItemProductionStageBreakdown, isOrderReady, orderStatusShowsProductionProgress } from '../../utils/orderReadiness';
+import { buildOrderProductionStageSegments, getOrderItemProductionStageBreakdown, groupBatchesByShipment, isOrderReady, orderStatusShowsProductionProgress } from '../../utils/orderReadiness';
 import { OrderListProgressBar } from '../orders/OrderListProgressBar';
 import { buildItemIdentityKey } from '../../utils/itemIdentity';
-import { getRemainingOrderItems } from '../../utils/shipmentUtils';
 import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
 import { getTagColor } from '../../features/orders/tagColors';
 import { OrdersFilterPanel, OrderFilters, DEFAULT_FILTERS, countActiveFilters } from '../orders/OrdersFilterPanel';
 import { useTagColorOverrides } from '../../hooks/api/useTagColorOverrides';
 import { invalidateOrdersAndBatches } from '../../lib/queryInvalidation';
 import { PRODUCTION_STAGE_COLORS, getProductionStageLabel } from '../../utils/deliveryLabels';
+import { buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildSyntheticAggregatedBatches } from '../../features/orders';
 
 const STAGE_ICON_MAP: Record<ProductionStage, LucideIcon> = {
     [ProductionStage.AwaitingDelivery]: Globe,
@@ -75,38 +75,11 @@ const UnbatchedBadge: React.FC<{ quantity: number; compact?: boolean }> = ({ qua
     </div>
 );
 
-const buildRemainingOrderForPrint = (order: Order, shipmentItems: OrderShipmentItem[]): Order | null => {
-    const remainingItems = getRemainingOrderItems(order, shipmentItems);
-    if (remainingItems.length === 0) return null;
+function buildRemainingOrderForPrint(order: Order, _shipmentItems?: OrderShipmentItem[]) {
+    return order;
+}
 
-    const vatRate = order.vat_rate !== undefined ? order.vat_rate : 0.24;
-    const discountFactor = 1 - ((order.discount_percent || 0) / 100);
-    const subtotal = remainingItems.reduce((sum, item) => sum + item.price_at_order * item.quantity, 0);
-    const totalPrice = subtotal * discountFactor * (1 + vatRate);
-
-    const items = remainingItems
-        .map((remainingItem) => {
-            const remainingItemKey = buildItemIdentityKey(remainingItem);
-            const existingItem = order.items.find(item => buildItemIdentityKey(item) === remainingItemKey);
-            if (!existingItem) return null;
-            return {
-                ...existingItem,
-                quantity: remainingItem.quantity,
-                price_at_order: remainingItem.price_at_order
-            };
-        })
-        .filter((item): item is Order['items'][number] => item !== null);
-
-    if (items.length === 0) return null;
-
-    return {
-        ...order,
-        items,
-        total_price: totalPrice
-    };
-};
-
-const OrderPrintSheet: React.FC<{
+const LegacyOrderPrintSheet: React.FC<{
     order: Order;
     onClose: () => void;
     onPrintOrder?: (order: Order) => void;
@@ -252,6 +225,444 @@ const OrderPrintSheet: React.FC<{
                             </div>
                         </div>
                     </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const OrderPartSelectorSheet: React.FC<{
+    order: Order;
+    batches: ProductionBatch[];
+    onBack: () => void;
+    onClose: () => void;
+    onConfirm: (selectedBatches: ProductionBatch[]) => void;
+    onPrintAll: () => void;
+}> = ({ order, batches, onBack, onClose, onConfirm, onPrintAll }) => {
+    const shipments = useMemo(() => groupBatchesByShipment(batches), [batches]);
+    const [selectedShipments, setSelectedShipments] = useState<Set<string>>(() => new Set(shipments.map(([key]) => key)));
+
+    React.useEffect(() => {
+        setSelectedShipments(new Set(shipments.map(([key]) => key)));
+    }, [shipments]);
+
+    const selectedBatches = useMemo(
+        () => shipments.filter(([key]) => selectedShipments.has(key)).flatMap(([, grouped]) => grouped),
+        [shipments, selectedShipments]
+    );
+
+    return (
+        <div className="fixed inset-0 z-[175] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end" onClick={onClose}>
+            <div
+                className="bg-white rounded-t-[2rem] px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-full duration-300 max-h-[88vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="mb-4 flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                        <h3 className="text-lg font-black text-slate-900">Μερική Εκτύπωση Παραγγελίας</h3>
+                        <p className="mt-1 text-xs font-bold uppercase text-slate-500">
+                            {order.customer_name} • #{order.id.slice(-6)}
+                        </p>
+                    </div>
+                    <button onClick={onClose} className="rounded-full bg-slate-100 p-2 text-slate-500">
+                        <X size={18} />
+                    </button>
+                </div>
+
+                <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs font-medium text-blue-800">
+                    Η παραγγελία έχει χωριστεί σε {shipments.length} τμήματα παραγωγής. Επιλέξτε ποια τμήματα θέλετε να συμπεριληφθούν στο εκτυπώσιμο παραστατικό.
+                </div>
+
+                <div className="mb-4 flex gap-2">
+                    <button
+                        onClick={() => setSelectedShipments(new Set(shipments.map(([key]) => key)))}
+                        className="flex-1 rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700"
+                    >
+                        Επιλογή Όλων
+                    </button>
+                    <button
+                        onClick={() => setSelectedShipments(new Set())}
+                        className="flex-1 rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700"
+                    >
+                        Καμία Επιλογή
+                    </button>
+                </div>
+
+                <div className="space-y-3">
+                    {shipments.map(([shipmentKey, shipmentBatches]) => {
+                        const selected = selectedShipments.has(shipmentKey);
+                        const totalQuantity = shipmentBatches.reduce((sum, batch) => sum + batch.quantity, 0);
+                        const label = new Date(shipmentKey).toLocaleString('el-GR', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                        });
+
+                        return (
+                            <button
+                                key={shipmentKey}
+                                onClick={() => {
+                                    setSelectedShipments((prev) => {
+                                        const next = new Set(prev);
+                                        if (next.has(shipmentKey)) next.delete(shipmentKey);
+                                        else next.add(shipmentKey);
+                                        return next;
+                                    });
+                                }}
+                                className={`w-full rounded-2xl border-2 px-4 py-4 text-left transition-all ${selected ? 'border-blue-400 bg-blue-50 text-blue-950' : 'border-slate-200 bg-white text-slate-900'}`}
+                            >
+                                <div className="flex items-start gap-3">
+                                    <div className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl ${selected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                        {selected ? <CheckSquare size={18} /> : <Layers size={18} />}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <div className="font-black">{label}</div>
+                                        <div className="mt-1 text-xs font-medium text-slate-600">
+                                            {shipmentBatches.length} batches • {totalQuantity} τεμ.
+                                        </div>
+                                        <div className="mt-2 flex flex-wrap gap-1.5">
+                                            {shipmentBatches.slice(0, 6).map((batch) => (
+                                                <span key={batch.id} className="rounded-full border border-slate-200 bg-white/80 px-2 py-1 text-[10px] font-bold text-slate-700">
+                                                    {batch.sku}{batch.variant_suffix || ''} ×{batch.quantity}
+                                                </span>
+                                            ))}
+                                            {shipmentBatches.length > 6 && (
+                                                <span className="rounded-full border border-slate-200 bg-white/80 px-2 py-1 text-[10px] font-bold text-slate-700">
+                                                    +{shipmentBatches.length - 6} ακόμη
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
+
+                <div className="mt-5 space-y-2">
+                    <button
+                        onClick={() => onConfirm(selectedBatches)}
+                        disabled={selectedBatches.length === 0}
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#060b00] px-4 py-3.5 text-sm font-black text-white shadow-lg disabled:opacity-50"
+                    >
+                        <Printer size={18} />
+                        Εκτύπωση Επιλεγμένων ({selectedBatches.reduce((sum, batch) => sum + batch.quantity, 0)} τεμ.)
+                    </button>
+                    <div className="flex gap-2">
+                        <button onClick={onBack} className="flex-1 rounded-2xl bg-slate-100 px-4 py-3 text-sm font-bold text-slate-700">
+                            Πίσω
+                        </button>
+                        <button onClick={onPrintAll} className="flex-1 rounded-2xl bg-slate-200 px-4 py-3 text-sm font-bold text-slate-800">
+                            Όλη η Παραγγελία
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const OrderPrintSheet: React.FC<{
+    order: Order;
+    products: Product[];
+    batches?: ProductionBatch[] | null;
+    showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
+    onClose: () => void;
+    onPrintOrder?: (order: Order) => void;
+    onPrintRemainingOrder?: (order: Order) => void;
+    onPrintShipment?: (payload: { order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] }) => void;
+    onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
+    onPrintAggregated?: (batches: ProductionBatch[], orderDetails?: { orderId: string; customerName: string }) => void;
+    onPrintPreparation?: (batches: ProductionBatch[]) => void;
+    onPrintTechnician?: (batches: ProductionBatch[]) => void;
+    onPrintAnalytics?: (order: Order) => void;
+    onPrintPartialOrder?: (order: Order, selectedBatches: ProductionBatch[]) => void;
+}> = ({
+    order,
+    products,
+    batches,
+    showToast,
+    onClose,
+    onPrintOrder,
+    onPrintRemainingOrder,
+    onPrintShipment,
+    onPrintLabels,
+    onPrintAggregated,
+    onPrintPreparation,
+    onPrintTechnician,
+    onPrintAnalytics,
+    onPrintPartialOrder,
+}) => {
+    const [showPartSelector, setShowPartSelector] = useState(false);
+    const shipmentsQuery = useQuery({
+        queryKey: ['order-shipments', order.id],
+        queryFn: () => api.getShipmentsForOrder(order.id),
+        enabled: !!order.id,
+    });
+
+    const orderBatches = useMemo(() => (batches || []).filter((batch) => batch.order_id === order.id), [batches, order.id]);
+    const shipments = useMemo(() => groupBatchesByShipment(orderBatches), [orderBatches]);
+    const hasMultipleShipments = shipments.length > 1;
+    const latestShipmentData = useMemo(() => buildLatestShipmentPrintData(order, shipmentsQuery.data), [order, shipmentsQuery.data]);
+
+    const handlePrintLabelsAction = () => {
+        const itemsToPrint = buildOrderLabelPrintItems(order, products);
+        if (itemsToPrint.length === 0) {
+            showToast('Δεν βρέθηκαν είδη για εκτύπωση ετικετών.', 'info');
+            return;
+        }
+        onPrintLabels?.(itemsToPrint);
+        showToast(`Στάλθηκαν ${itemsToPrint.reduce((sum, item) => sum + item.quantity, 0)} τεμάχια για εκτύπωση ετικετών.`, 'success');
+        onClose();
+    };
+
+    const handleProductionSheet = (type: 'aggregated' | 'preparation' | 'technician') => {
+        if (type === 'aggregated' && orderBatches.length === 0) {
+            const syntheticBatches = buildSyntheticAggregatedBatches(order);
+            if (syntheticBatches.length === 0) {
+                showToast('Η παραγγελία δεν έχει είδη για εκτύπωση.', 'info');
+                return;
+            }
+            onPrintAggregated?.(syntheticBatches, { orderId: order.id, customerName: order.customer_name });
+            onClose();
+            return;
+        }
+
+        if (orderBatches.length === 0) {
+            showToast('Η παραγγελία δεν έχει σταλεί ακόμη στην παραγωγή.', 'info');
+            return;
+        }
+
+        if (type === 'aggregated') onPrintAggregated?.(orderBatches, { orderId: order.id, customerName: order.customer_name });
+        if (type === 'preparation') onPrintPreparation?.(orderBatches);
+        if (type === 'technician') onPrintTechnician?.(orderBatches);
+        onClose();
+    };
+
+    if (showPartSelector) {
+        return (
+            <OrderPartSelectorSheet
+                order={order}
+                batches={orderBatches}
+                onBack={() => setShowPartSelector(false)}
+                onClose={onClose}
+                onConfirm={(selectedBatches) => {
+                    onPrintPartialOrder?.(order, selectedBatches);
+                    onClose();
+                }}
+                onPrintAll={() => {
+                    onPrintOrder?.(order);
+                    onClose();
+                }}
+            />
+        );
+    }
+
+    return (
+        <div className="fixed inset-0 z-[170] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end" onClick={onClose}>
+            <div
+                className="bg-white rounded-t-[2rem] px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-full duration-300 max-h-[88vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="mb-4 flex items-start justify-between gap-4">
+                    <div>
+                        <h3 className="text-lg font-black text-slate-900">Επιλογές Εκτύπωσης</h3>
+                        <p className="mt-1 text-xs font-bold uppercase text-slate-500">
+                            {order.customer_name} • #{order.id.slice(-6)}
+                        </p>
+                    </div>
+                    <button onClick={onClose} className="rounded-full bg-slate-100 p-2 text-slate-500">
+                        <X size={18} />
+                    </button>
+                </div>
+
+                {shipmentsQuery.isLoading && (
+                    <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
+                        Έλεγχος μερικών αποστολών...
+                    </div>
+                )}
+
+                {latestShipmentData && (
+                    <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900">
+                        Η παραγγελία έχει ήδη μερική αποστολή #{latestShipmentData.shipment.shipment_number}. Μπορείτε να εκτυπώσετε μόνο τα σταλμένα είδη ή μόνο τα υπόλοιπα.
+                    </div>
+                )}
+
+                <div className="mb-3">
+                    <div className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Παραστατικά</div>
+                    <div className="space-y-3">
+                        <button
+                            onClick={() => {
+                                if (hasMultipleShipments && onPrintPartialOrder) {
+                                    setShowPartSelector(true);
+                                    return;
+                                }
+                                onPrintOrder?.(order);
+                                onClose();
+                            }}
+                            className="w-full rounded-2xl border-2 border-slate-200 bg-white px-4 py-4 text-left text-slate-900"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 shadow-sm">
+                                    <Printer size={18} />
+                                </div>
+                                <div>
+                                    <div className="font-black">{hasMultipleShipments ? 'Εκτύπωση Παραγγελίας / Τμημάτων' : 'Ολόκληρη Παραγγελία'}</div>
+                                    <div className="mt-0.5 text-xs font-medium text-slate-600">
+                                        {hasMultipleShipments ? 'Επιλέξτε αν θέλετε όλη την παραγγελία ή μόνο συγκεκριμένα τμήματα.' : 'Εκτύπωση του πλήρους παραστατικού της παραγγελίας.'}
+                                    </div>
+                                </div>
+                            </div>
+                        </button>
+
+                        {latestShipmentData && (
+                            <button
+                                onClick={() => {
+                                    onPrintShipment?.({
+                                        order,
+                                        shipment: latestShipmentData.shipment,
+                                        shipmentItems: latestShipmentData.shipmentItems,
+                                    });
+                                    onClose();
+                                }}
+                                className="w-full rounded-2xl border-2 border-amber-200 bg-amber-50 px-4 py-4 text-left text-amber-900"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-amber-700 shadow-sm">
+                                        <Truck size={18} />
+                                    </div>
+                                    <div>
+                                        <div className="font-black">Μερική Αποστολή</div>
+                                        <div className="mt-0.5 text-xs font-medium text-amber-800">
+                                            Μόνο τα είδη της αποστολής #{latestShipmentData.shipment.shipment_number}.
+                                        </div>
+                                    </div>
+                                </div>
+                            </button>
+                        )}
+
+                        {latestShipmentData && (
+                            <button
+                                onClick={() => {
+                                    onPrintRemainingOrder?.(latestShipmentData.remainingOrder);
+                                    onClose();
+                                }}
+                                className="w-full rounded-2xl border-2 border-blue-200 bg-blue-50 px-4 py-4 text-left text-blue-900"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-sm">
+                                        <PackageCheck size={18} />
+                                    </div>
+                                    <div>
+                                        <div className="font-black">Υπόλοιπα Είδη</div>
+                                        <div className="mt-0.5 text-xs font-medium text-blue-800">
+                                            Μόνο όσα είδη δεν έχουν σταλεί ακόμη.
+                                        </div>
+                                    </div>
+                                </div>
+                            </button>
+                        )}
+
+                        <button
+                            onClick={handlePrintLabelsAction}
+                            disabled={!onPrintLabels}
+                            className="w-full rounded-2xl border-2 border-emerald-200 bg-emerald-50 px-4 py-4 text-left text-emerald-900 disabled:opacity-50"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-emerald-700 shadow-sm">
+                                    <Tag size={18} />
+                                </div>
+                                <div>
+                                    <div className="font-black">Ετικέτες Παραγγελίας</div>
+                                    <div className="mt-0.5 text-xs font-medium text-emerald-800">
+                                        Εκτύπωση ετικετών για όλα τα είδη της παραγγελίας.
+                                    </div>
+                                </div>
+                            </div>
+                        </button>
+
+                        <button
+                            onClick={() => {
+                                onPrintAnalytics?.(order);
+                                onClose();
+                            }}
+                            disabled={!onPrintAnalytics}
+                            className="w-full rounded-2xl border-2 border-teal-200 bg-teal-50 px-4 py-4 text-left text-teal-900 disabled:opacity-50"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-teal-700 shadow-sm">
+                                    <BarChart3 size={18} />
+                                </div>
+                                <div>
+                                    <div className="font-black">Οικονομική Αναφορά</div>
+                                    <div className="mt-0.5 text-xs font-medium text-teal-800">
+                                        Εκτύπωση οικονομικών στοιχείων για τη συγκεκριμένη παραγγελία.
+                                    </div>
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <div className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Παραγωγή</div>
+                    <div className="space-y-3">
+                        <button
+                            onClick={() => handleProductionSheet('aggregated')}
+                            disabled={!onPrintAggregated}
+                            className="w-full rounded-2xl border-2 border-blue-200 bg-blue-50 px-4 py-4 text-left text-blue-900 disabled:opacity-50"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-sm">
+                                    <FileText size={18} />
+                                </div>
+                                <div>
+                                    <div className="font-black">Συγκεντρωτική Παραγωγής</div>
+                                    <div className="mt-0.5 text-xs font-medium text-blue-800">
+                                        Συνοπτικό φύλλο παραγωγής για τα είδη της παραγγελίας.
+                                    </div>
+                                </div>
+                            </div>
+                        </button>
+
+                        <button
+                            onClick={() => handleProductionSheet('preparation')}
+                            disabled={!onPrintPreparation}
+                            className="w-full rounded-2xl border-2 border-purple-200 bg-purple-50 px-4 py-4 text-left text-purple-900 disabled:opacity-50"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-purple-700 shadow-sm">
+                                    <BookOpen size={18} />
+                                </div>
+                                <div>
+                                    <div className="font-black">Φύλλο Προετοιμασίας</div>
+                                    <div className="mt-0.5 text-xs font-medium text-purple-800">
+                                        Εκτύπωση φύλλου για κερί και χύτευση.
+                                    </div>
+                                </div>
+                            </div>
+                        </button>
+
+                        <button
+                            onClick={() => handleProductionSheet('technician')}
+                            disabled={!onPrintTechnician}
+                            className="w-full rounded-2xl border-2 border-orange-200 bg-orange-50 px-4 py-4 text-left text-orange-900 disabled:opacity-50"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-orange-700 shadow-sm">
+                                    <Hammer size={18} />
+                                </div>
+                                <div>
+                                    <div className="font-black">Φύλλο Τεχνίτη</div>
+                                    <div className="mt-0.5 text-xs font-medium text-orange-800">
+                                        Εκτύπωση τεχνικού φύλλου για τα batches της παραγγελίας.
+                                    </div>
+                                </div>
+                            </div>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -524,11 +935,30 @@ interface MobileOrdersProps {
     onPrintRemainingOrder?: (order: Order) => void;
     onPrintShipment?: (payload: { order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] }) => void;
     onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
+    onPrintAggregated?: (batches: ProductionBatch[], orderDetails?: { orderId: string; customerName: string }) => void;
+    onPrintPreparation?: (batches: ProductionBatch[]) => void;
+    onPrintTechnician?: (batches: ProductionBatch[]) => void;
+    onPrintAnalytics?: (order: Order) => void;
+    onPrintPartialOrder?: (order: Order, selectedBatches: ProductionBatch[]) => void;
     products?: Product[];
     onOpenDeliveries?: (order: Order) => void;
 }
 
-export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintRemainingOrder, onPrintShipment, onPrintLabels, products = [], onOpenDeliveries }: MobileOrdersProps) {
+export default function MobileOrders({
+    onCreate,
+    onEdit,
+    onPrint,
+    onPrintRemainingOrder,
+    onPrintShipment,
+    onPrintLabels,
+    onPrintAggregated,
+    onPrintPreparation,
+    onPrintTechnician,
+    onPrintAnalytics,
+    onPrintPartialOrder,
+    products = [],
+    onOpenDeliveries
+}: MobileOrdersProps) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { data: orders, isLoading } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
@@ -919,10 +1349,19 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintRemaini
             {printModalOrder && (
                 <OrderPrintSheet
                     order={printModalOrder}
+                    products={products}
+                    batches={batches}
+                    showToast={showToast}
                     onClose={() => setPrintModalOrder(null)}
                     onPrintOrder={onPrint}
                     onPrintRemainingOrder={onPrintRemainingOrder}
                     onPrintShipment={onPrintShipment}
+                    onPrintLabels={onPrintLabels}
+                    onPrintAggregated={onPrintAggregated}
+                    onPrintPreparation={onPrintPreparation}
+                    onPrintTechnician={onPrintTechnician}
+                    onPrintAnalytics={onPrintAnalytics}
+                    onPrintPartialOrder={onPrintPartialOrder}
                 />
             )}
 
