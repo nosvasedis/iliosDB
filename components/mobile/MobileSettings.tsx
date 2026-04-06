@@ -246,10 +246,10 @@ export default function MobileSettings() {
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-emerald-600 uppercase block flex items-center gap-1"><ShoppingBag size={10} /> Λιανική</label>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase block flex items-center gap-1"><ShoppingBag size={10} className="text-fuchsia-600" /> Λιανική</label>
                             <div className="flex gap-2">
-                                <input type="number" value={localSettings.retail_barcode_width_mm} onChange={(e) => handleLocalUpdate('retail_barcode_width_mm', parseInt(e.target.value))} className="w-full p-2 bg-emerald-50 border border-emerald-100 rounded-lg text-sm font-bold text-emerald-800 text-center outline-none" />
-                                <input type="number" value={localSettings.retail_barcode_height_mm} onChange={(e) => handleLocalUpdate('retail_barcode_height_mm', parseInt(e.target.value))} className="w-full p-2 bg-emerald-50 border border-emerald-100 rounded-lg text-sm font-bold text-emerald-800 text-center outline-none" />
+                                <input type="number" value={localSettings.retail_barcode_width_mm} onChange={(e) => handleLocalUpdate('retail_barcode_width_mm', parseInt(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 text-center outline-none" />
+                                <input type="number" value={localSettings.retail_barcode_height_mm} onChange={(e) => handleLocalUpdate('retail_barcode_height_mm', parseInt(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-800 text-center outline-none" />
                             </div>
                         </div>
                     </div>

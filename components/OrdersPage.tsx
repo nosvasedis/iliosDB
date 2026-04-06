@@ -5,6 +5,7 @@ import { Order, OrderStatus, Product, ProductVariant, ProductionStage, Productio
 import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare, PackageCheck, FileCheck } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
+import { retailEndClientPillClass } from '../utils/retailPresentation';
 import { useUI } from './UIProvider';
 import { useAuth } from './AuthContext';
 import { formatCurrency, getVariantComponents } from '../utils/pricingEngine';
@@ -994,7 +995,10 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                             <div className="font-bold text-slate-800">
                                                 {order.customer_name}
                                                 {isRetailOrder && retailClientLabel && (
-                                                    <span className="ml-2 align-middle text-[10px] font-mono uppercase tracking-[0.18em] text-emerald-600">
+                                                    <span
+                                                        className={`ml-2 align-middle ${retailEndClientPillClass}`}
+                                                        title="Τελικός πελάτης (λιανική)"
+                                                    >
                                                         {retailClientLabel}
                                                     </span>
                                                 )}
@@ -1061,7 +1065,10 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                 <p className="text-sm font-bold text-slate-500">
                                     {managingOrder.customer_name}
                                     {(managingOrder.customer_id === RETAIL_CUSTOMER_ID || managingOrder.customer_name === RETAIL_CUSTOMER_NAME) && (orderMetaById.get(managingOrder.id)?.retailClientLabel || '') && (
-                                        <span className="ml-2 align-middle text-[10px] font-mono uppercase tracking-[0.18em] text-emerald-600">
+                                        <span
+                                            className={`ml-2 align-middle ${retailEndClientPillClass}`}
+                                            title="Τελικός πελάτης (λιανική)"
+                                        >
                                             {orderMetaById.get(managingOrder.id)?.retailClientLabel}
                                         </span>
                                     )}

@@ -12,6 +12,7 @@ import { getNextNamedayForName } from '../../utils/namedays';
 import { formatGreekDate } from '../../utils/deliveryLabels';
 import MobileSupplierDetails from './MobileSupplierDetails';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
+import { retailEndClientPillClass } from '../../utils/retailPresentation';
 import { ordersRepository } from '../../features/orders';
 import { useCustomers, useOrders } from '../../hooks/api/useOrders';
 import { useSuppliers } from '../../hooks/api/useSuppliers';
@@ -360,7 +361,10 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                                 <span className="font-mono font-bold text-slate-700 text-[10px] leading-tight break-all">{order.id}</span>
                                                 <span className="text-[10px] text-slate-400">{new Date(order.created_at).toLocaleDateString('el-GR')}</span>
                                             </div>
-                                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full truncate max-w-[120px] ${hasLabel ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-400 border border-slate-200'}`}>
+                                            <span
+                                                className={`max-w-[120px] truncate ${hasLabel ? retailEndClientPillClass : 'inline-flex items-center rounded-md border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 tracking-tight'}`}
+                                                title={hasLabel ? 'Τελικός πελάτης (λιανική)' : undefined}
+                                            >
                                                 {hasLabel ? retailClientLabel : '-'}
                                             </span>
                                             <span className="font-mono font-black text-xs text-slate-800 shrink-0">{formatCurrency(netValue)}</span>

@@ -31,29 +31,36 @@ export default function SkuColorizedText({
         master = split.master;
         variantSuffix = split.suffix;
     }
-    const { finish, stone } = getVariantComponents(variantSuffix, gender);
+    const { finish, stone, bridge } = getVariantComponents(variantSuffix, gender);
 
     const finishColor = getSkuFinishTextColor(finish.code);
     const stoneColor = getSkuStoneTextColor(stone.code);
+
+    const charColorAt = (index: number): string => {
+        const fLen = finish.code.length;
+        const sLen = stone.code.length;
+        const bLen = bridge ? bridge.length : 0;
+        if (fLen + sLen + bLen === variantSuffix.length) {
+            if (fLen > 0 && index < fLen) return finishColor;
+            if (index < fLen + sLen) return stoneColor;
+            if (index < fLen + sLen + bLen) return 'text-slate-500';
+            return 'text-slate-400';
+        }
+        // Legacy heuristic when decomposition length does not match raw suffix (e.g. BAS… tails)
+        if (finish.code && index < finish.code.length) return finishColor;
+        if (stone.code && index >= variantSuffix.length - stone.code.length) return stoneColor;
+        return 'text-slate-400';
+    };
 
     return (
         <span className={`font-sans tracking-[-0.01em] tabular-nums cursor-default ${className}`.trim()}>
             <span className={`font-extrabold ${masterClassName}`.trim()}>{master}</span>
             <span className="font-bold">
-                {variantSuffix.split('').map((char, index) => {
-                    let colorClass = 'text-slate-400';
-                    if (finish.code && index < finish.code.length) {
-                        colorClass = finishColor;
-                    } else if (stone.code && index >= variantSuffix.length - stone.code.length) {
-                        colorClass = stoneColor;
-                    }
-
-                    return (
-                        <span key={`${variantSuffix}-${index}`} className={colorClass}>
-                            {char}
-                        </span>
-                    );
-                })}
+                {variantSuffix.split('').map((char, index) => (
+                    <span key={`${variantSuffix}-${index}`} className={charColorAt(index)}>
+                        {char}
+                    </span>
+                ))}
             </span>
         </span>
     );

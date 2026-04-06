@@ -8,6 +8,7 @@ import MobileScreenHeader, { MOBILE_HEADER_SURFACE } from './MobileScreenHeader'
 import type { LucideIcon } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
+import { retailEndClientPillClass, retailOrderBagIconClass } from '../../utils/retailPresentation';
 import { useUI } from '../UIProvider';
 import SkuColorizedText from '../SkuColorizedText';
 import { buildOrderProductionStageSegments, getOrderItemProductionStageBreakdown, groupBatchesByShipment, isOrderReady, orderStatusShowsProductionProgress } from '../../utils/orderReadiness';
@@ -737,14 +738,20 @@ const OrderCard: React.FC<{
                         </div>
                         <h3 className="font-bold text-slate-800 text-base truncate">
                             {isRetailOrder ? (
-                                <span className="flex items-center gap-1.5">
-                                    <ShoppingBag size={13} className="text-emerald-600 shrink-0" />
-                                    {order.customer_name}
+                                <span className="flex min-w-0 items-center gap-1.5">
+                                    <ShoppingBag size={13} className={retailOrderBagIconClass} aria-hidden />
+                                    <span className="truncate">{order.customer_name}</span>
                                 </span>
-                            ) : order.customer_name}
+                            ) : (
+                                order.customer_name
+                            )}
                         </h3>
                         {isRetailOrder && retailClientLabel && (
-                            <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-600 mt-0.5">{retailClientLabel}</p>
+                            <div className="mt-1">
+                                <span className={retailEndClientPillClass} title="Τελικός πελάτης (λιανική)">
+                                    {retailClientLabel}
+                                </span>
+                            </div>
                         )}
                         {order.seller_name && <p className="text-[10px] text-slate-500 mt-0.5">Πλάσιε: {order.seller_name}</p>}
                         {order.tags && order.tags.length > 0 && (

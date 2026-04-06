@@ -108,10 +108,6 @@ const MobileBatchCard: React.FC<{
         setStageSelectorOpen(false);
         if (onMoveToStage) {
             onMoveToStage(batch, targetStage, options);
-        } else if (type === 'stagePdf') {
-            const meta = printSelectorState.stageMeta;
-            if (!meta || !onPrintStageBatches || selected.length === 0) return;
-            onPrintStageBatches(buildStageBatchPrintPayload(selected, meta.stageId, meta.stageName));
         }
     };
 

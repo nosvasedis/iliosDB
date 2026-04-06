@@ -1,3 +1,8 @@
+import {
+    DELIVERY_SKU_FINISH_STYLES,
+    DELIVERY_SKU_STONE_STYLES
+} from './deliveryLabels';
+
 export const SKU_FINISH_TEXT_COLORS: Record<string, string> = {
     X: 'text-amber-500',
     P: 'text-slate-500',
@@ -32,3 +37,11 @@ export const getSkuFinishTextColor = (finishCode: string): string =>
 
 export const getSkuStoneTextColor = (stoneCode: string): string =>
     SKU_STONE_TEXT_COLORS[stoneCode] || 'text-emerald-500';
+
+/** Badge / chip surfaces (aligned with Παραγωγή / παράδοση). */
+export const getSkuFinishChipClass = (finishCode: string): string =>
+    DELIVERY_SKU_FINISH_STYLES[finishCode] ?? DELIVERY_SKU_FINISH_STYLES[''];
+
+export const getSkuStoneChipClass = (stoneCode: string): string =>
+    DELIVERY_SKU_STONE_STYLES[stoneCode] ??
+    'rounded-lg border border-emerald-200/80 bg-emerald-50 text-emerald-800';
