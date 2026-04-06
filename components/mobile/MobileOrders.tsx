@@ -3,7 +3,8 @@ import React, { useState, useMemo, useDeferredValue } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { Order, OrderShipment, OrderShipmentItem, OrderStatus, Product, ProductVariant, ProductionBatch, ProductionStage } from '../../types';
-import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings, ShoppingBag, Image as ImageIcon, PackageCheck, Globe, Flame, Gem, Hammer, CheckCircle2, SlidersHorizontal } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings, ShoppingBag, Image as ImageIcon, PackageCheck, Globe, Flame, Gem, Hammer, CheckCircle2, SlidersHorizontal, ShoppingCart } from 'lucide-react';
+import MobileScreenHeader, { MOBILE_HEADER_SURFACE } from './MobileScreenHeader';
 import type { LucideIcon } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
@@ -730,7 +731,15 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintRemaini
         <div className="min-h-full bg-slate-50 pb-4">
 
             {/* Sticky Header Group */}
-            <div className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-sm pt-4 pb-2 px-4 shadow-sm border-b border-slate-100 space-y-3">
+            <div className={`sticky top-0 z-10 shadow-sm ${MOBILE_HEADER_SURFACE}`}>
+                <div className="space-y-3 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top,0px))]">
+                <MobileScreenHeader
+                    embedded
+                    icon={ShoppingCart}
+                    title="Παραγγελίες"
+                    subtitle="Πωλήσεις & κατάσταση"
+                    iconClassName="text-emerald-700"
+                />
                 <div className="flex justify-between items-center">
                     <div className="flex bg-slate-200 p-1 rounded-xl">
                         <button onClick={() => setActiveTab('active')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'active' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Ενεργές</button>
@@ -812,6 +821,7 @@ export default function MobileOrders({ onCreate, onEdit, onPrint, onPrintRemaini
                         </button>
                     </div>
                 )}
+                </div>
             </div>
 
             {/* List */}

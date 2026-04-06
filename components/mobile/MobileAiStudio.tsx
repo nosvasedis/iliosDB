@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Sparkles, Send, Camera, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { ChatMessage } from '../../types';
+import MobileScreenHeader from './MobileScreenHeader';
 import { generateMarketingCopy, generateTrendAnalysis, identifyProductFromImage } from '../../lib/gemini';
 import { compressImage } from '../../utils/imageHelpers';
 import { useUI } from '../UIProvider';
@@ -125,14 +126,13 @@ export default function MobileAiStudio() {
     };
 
     return (
-        <div className="flex flex-col h-full bg-slate-50">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-[#060b00] to-emerald-900 p-6 shadow-lg shrink-0">
-                <h1 className="text-white text-xl font-black flex items-center gap-2">
-                    <Sparkles className="text-yellow-300 animate-pulse" size={20} /> Ilios AI Studio
-                </h1>
-                <p className="text-emerald-100/70 text-xs mt-1">Ο προσωπικός σας βοηθός κοσμημάτων.</p>
-            </div>
+        <div className="flex h-full min-h-0 flex-col bg-slate-50">
+            <MobileScreenHeader
+                icon={Sparkles}
+                title="AI Studio"
+                subtitle="Βοηθός κοσμημάτων"
+                iconClassName="text-violet-600"
+            />
 
             {/* Chat Area */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={scrollRef}>

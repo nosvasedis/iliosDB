@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Bell, Plus, Sparkles } from 'lucide-react';
+import { Bell, Plus, Sparkles, CalendarRange } from 'lucide-react';
+import MobileScreenHeader from './MobileScreenHeader';
 import { useOrthodoxCalendarEvents } from '../../hooks/api/useOrthodoxCalendarEvents';
 import { useOrderDeliveryPlans } from '../../hooks/api/useOrderDeliveryPlans';
 import { useDeliveryAlerts } from '../../hooks/useDeliveryAlerts';
@@ -182,17 +183,25 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
   }
 
   return (
-    <div className="p-4 pb-28 space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900">Παραδόσεις</h1>
-          <p className="text-xs font-medium text-slate-500 mt-1">Κέντρο υπενθυμίσεων και επικοινωνίας πελατών για κινητό.</p>
-        </div>
-        <button onClick={() => { setPlannerOrder(null); setSelectedItem(null); setIsPlannerOpen(true); }} className="w-12 h-12 rounded-2xl bg-[#060b00] text-white flex items-center justify-center shadow-lg">
-          <Plus size={18} />
-        </button>
-      </div>
+    <div className="flex min-h-0 flex-col bg-slate-50 pb-28">
+      <MobileScreenHeader
+        icon={CalendarRange}
+        title="Ημερολόγιο παραδόσεων"
+        subtitle="Υπενθυμίσεις & πλάνα"
+        iconClassName="text-emerald-700"
+        right={
+          <button
+            type="button"
+            onClick={() => { setPlannerOrder(null); setSelectedItem(null); setIsPlannerOpen(true); }}
+            className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#060b00] text-white shadow-lg transition-transform active:scale-95"
+            aria-label="Νέο πλάνο"
+          >
+            <Plus size={18} />
+          </button>
+        }
+      />
 
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pt-3">
       {notificationPermission !== 'granted' && (
         <button onClick={requestBrowserPermission} className="w-full rounded-3xl border border-slate-200 bg-white px-4 py-4 text-sm font-bold text-slate-700 flex items-center justify-center gap-2 shadow-sm">
           <Bell size={16} /> Ενεργοποίηση ειδοποιήσεων όσο είναι ανοιχτή η εφαρμογή
@@ -226,6 +235,7 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
       )}
 
       <MobileDeliveryDayList items={filteredItems} onSelect={setSelectedItem} />
+      </div>
 
       <MobilePlannerSheet
         isOpen={isPlannerOpen}

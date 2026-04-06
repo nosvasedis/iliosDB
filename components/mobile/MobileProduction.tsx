@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, ProductionType, Order, ProductVariant } from '../../types';
 import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, ArrowLeft, CheckCircle, Factory, MoveRight, Printer, BookOpen, FileText, Hammer, Search, User, StickyNote, Hash, X, PauseCircle, PlayCircle, Check, Tag, Loader2, Save, Square, CheckSquare, Image as ImageIcon, Gem, Package, Truck } from 'lucide-react';
+import MobileScreenHeader from './MobileScreenHeader';
 import { useUI } from '../UIProvider';
 import SkuColorizedText from '../SkuColorizedText';
 import MobileBatchBuildModal from './MobileBatchBuildModal';
@@ -1110,13 +1111,21 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     const activeBatchesCount = enrichedBatches.filter(b => b.current_stage !== ProductionStage.Ready && !b.on_hold).length;
 
     return (
-        <div className="p-4 space-y-4 pb-24">
-            <div className="flex justify-between items-center mb-2">
-                <h1 className="text-2xl font-black text-slate-900">Παραγωγή</h1>
-                <span className="bg-slate-900 text-white text-[10px] font-black px-2 py-1 rounded-lg uppercase tracking-widest">{activeBatchesCount} ΕΝΕΡΓΑ</span>
-            </div>
+        <div className="flex min-h-0 flex-col bg-slate-50 pb-24">
+            <MobileScreenHeader
+                icon={Factory}
+                title="Παραγωγή"
+                subtitle="Ροή παρτίδων & σταδίων"
+                iconClassName="text-amber-700"
+                right={
+                    <span className="rounded-lg bg-slate-900 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-white">
+                        {activeBatchesCount} ενεργά
+                    </span>
+                }
+            />
 
-            <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100 relative overflow-hidden">
+            <div className="space-y-4 px-4 pt-3">
+            <div className="relative overflow-hidden rounded-3xl border border-slate-100 bg-white p-4 shadow-sm">
                 <div className="pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full bg-emerald-500/[0.07]" aria-hidden />
                 <div className="relative z-10">
                     <div className="mb-3 flex items-center justify-between gap-2">
@@ -1378,6 +1387,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                         </div>
                     );
                 })}
+            </div>
             </div>
 
             {holdBatch && <MobileHoldModal batch={holdBatch} onClose={() => setHoldBatch(null)} onConfirm={confirmHold} />}

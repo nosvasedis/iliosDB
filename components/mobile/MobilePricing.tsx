@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { Search, DollarSign, TrendingUp, Tag } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
+import MobileScreenHeader from './MobileScreenHeader';
 
 export default function MobilePricing() {
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
@@ -65,9 +66,10 @@ export default function MobilePricing() {
     }, [products, search]);
 
     return (
-        <div className="p-4 h-full flex flex-col">
-            <h1 className="text-2xl font-black text-slate-900 mb-4">Τιμολόγηση</h1>
+        <div className="flex h-full min-h-0 flex-col bg-slate-50">
+            <MobileScreenHeader icon={DollarSign} title="Τιμολόγηση" subtitle="Κόστος & χονδρική" iconClassName="text-lime-700" />
 
+            <div className="flex min-h-0 flex-1 flex-col px-4 pb-24 pt-3">
             <div className="relative mb-4 shrink-0">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input 
@@ -116,6 +118,7 @@ export default function MobilePricing() {
                         Δεν βρέθηκαν προϊόντα.
                     </div>
                 )}
+            </div>
             </div>
         </div>
     );

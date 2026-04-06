@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../../lib/supabase';
-import { Search, Gem, Box, MapPin, Plus, X, Save, Activity, Puzzle, Scroll, Palette, Filter, Calculator, Trash2 } from 'lucide-react';
+import { Search, Gem, Box, MapPin, Plus, X, Save, Activity, Puzzle, Scroll, Palette, Filter, Calculator, Trash2, Layers } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { Material, MaterialType, Mold } from '../../types';
 import { useUI } from '../UIProvider';
+import MobileScreenHeader, { MOBILE_HEADER_SURFACE } from './MobileScreenHeader';
 
 const MAT_TYPE_LABELS: Record<string, string> = {
     [MaterialType.Stone]: 'Πέτρα',
@@ -132,21 +133,31 @@ export default function MobileResources() {
     };
 
     return (
-        <div className="flex flex-col h-full bg-slate-50">
-            {/* Header */}
-            <div className="p-4 bg-white border-b border-slate-100 flex justify-between items-center shadow-sm z-10 shrink-0">
-                <div className="flex bg-slate-100 p-1 rounded-xl">
-                    <button onClick={() => setViewMode('materials')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${viewMode === 'materials' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500'}`}>Υλικά</button>
-                    <button onClick={() => setViewMode('molds')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${viewMode === 'molds' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500'}`}>Λάστιχα</button>
+        <div className="flex h-full min-h-0 flex-col bg-slate-50">
+            <div className={`z-10 shrink-0 ${MOBILE_HEADER_SURFACE}`}>
+                <div className="space-y-3 px-4 pb-3 pt-[max(0.5rem,env(safe-area-inset-top,0px))]">
+                    <MobileScreenHeader
+                        embedded
+                        icon={Layers}
+                        title="Υλικά & λάστιχα"
+                        subtitle="Α' ύλες & καλούπια"
+                        iconClassName="text-indigo-600"
+                    />
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="flex rounded-xl bg-slate-100 p-1">
+                            <button type="button" onClick={() => setViewMode('materials')} className={`rounded-lg px-4 py-2 text-xs font-bold transition-all ${viewMode === 'materials' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500'}`}>Υλικά</button>
+                            <button type="button" onClick={() => setViewMode('molds')} className={`rounded-lg px-4 py-2 text-xs font-bold transition-all ${viewMode === 'molds' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500'}`}>Λάστιχα</button>
+                        </div>
+                        <button type="button" onClick={() => viewMode === 'materials' ? handleNewMaterial() : (setEditingMold({ code: '', location: '', description: '' }), setIsCreating(true))} className="rounded-xl bg-[#060b00] p-2 text-white shadow-md active:scale-95">
+                            <Plus size={20} />
+                        </button>
+                    </div>
                 </div>
-                <button onClick={() => viewMode === 'materials' ? handleNewMaterial() : (setEditingMold({ code: '', location: '', description: '' }), setIsCreating(true))} className="bg-[#060b00] text-white p-2 rounded-xl shadow-md active:scale-95">
-                    <Plus size={20}/>
-                </button>
             </div>
 
             {/* Material Type Tabs */}
             {viewMode === 'materials' && (
-                <div className="bg-white px-4 pb-2 border-b border-slate-100 shrink-0">
+                <div className="shrink-0 border-b border-slate-100 bg-white px-4 pb-2">
                     <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                         {TABS.map(tab => (
                             <button

@@ -2,9 +2,10 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
-import { Search, Printer, Share2, Plus, X, ListPlus, FolderKanban, Check, Trash2 } from 'lucide-react';
+import { Search, Printer, Share2, Plus, X, ListPlus, FolderKanban, Check, Trash2, ScrollText } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { useUI } from '../UIProvider';
+import MobileScreenHeader from './MobileScreenHeader';
 import { PriceListPrintData } from '../PriceListPrintView';
 
 interface Props {
@@ -105,13 +106,21 @@ export default function MobilePriceList({ onPrint }: Props) {
     };
 
     return (
-        <div className="p-4 h-full flex flex-col pb-24">
-            <div className="flex justify-between items-center mb-4">
-                <h1 className="text-2xl font-black text-slate-900">Τιμοκατάλογος</h1>
-                <button onClick={handlePrint} className="p-2 bg-slate-900 text-white rounded-xl shadow-md active:scale-95 transition-transform"><Printer size={20}/></button>
-            </div>
+        <div className="flex h-full min-h-0 flex-col bg-slate-50 pb-24">
+            <MobileScreenHeader
+                icon={ScrollText}
+                title="Τιμοκατάλογος"
+                subtitle="Εκτύπωση τιμών"
+                iconClassName="text-teal-600"
+                right={
+                    <button type="button" onClick={handlePrint} className="rounded-xl bg-slate-900 p-2 text-white shadow-md transition-transform active:scale-95">
+                        <Printer size={20} />
+                    </button>
+                }
+            />
 
-            <div className="flex bg-slate-100 p-1 rounded-xl mb-4 shrink-0">
+            <div className="flex min-h-0 flex-1 flex-col px-4 pt-3">
+            <div className="mb-4 flex shrink-0 rounded-xl bg-slate-100 p-1">
                 <button onClick={() => { setMode('collections'); setSearch(''); }} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${mode === 'collections' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}><FolderKanban size={14}/> Συλλογές</button>
                 <button onClick={() => { setMode('custom'); setSearch(''); }} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${mode === 'custom' ? 'bg-white text-teal-600 shadow-sm' : 'text-slate-500'}`}><ListPlus size={14}/> Επιλογή ({customList.length})</button>
             </div>
@@ -176,6 +185,7 @@ export default function MobilePriceList({ onPrint }: Props) {
                         {displayedItems.length === 0 && <div className="p-12 text-center text-slate-400 text-sm flex flex-col items-center"><ListPlus size={32} className="mb-2 opacity-30"/>{mode === 'custom' && !search ? 'Η λίστα είναι κενή.' : 'Κανένα αποτέλεσμα.'}</div>}
                     </div>
                 </div>
+            </div>
             </div>
         </div>
     );

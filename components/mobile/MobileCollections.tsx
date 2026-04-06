@@ -7,6 +7,7 @@ import { Collection, Product } from '../../types';
 import { FolderKanban, Plus, Trash2, Search, X, ChevronRight, Check } from 'lucide-react';
 import { useUI } from '../UIProvider';
 import MobileProductDetails from './MobileProductDetails';
+import MobileScreenHeader, { MOBILE_HEADER_SURFACE } from './MobileScreenHeader';
 
 export default function MobileCollections() {
     const { data: collections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
@@ -71,16 +72,27 @@ export default function MobileCollections() {
 
     if (view === 'detail' && selectedCollection) {
         return (
-            <div className="flex flex-col h-full bg-slate-50">
-                <div className="p-4 bg-white border-b border-slate-100 flex items-center justify-between shadow-sm sticky top-0 z-10">
-                    <button onClick={() => setView('list')} className="text-slate-500 font-bold text-sm flex items-center gap-1">
-                        <ChevronRight className="rotate-180" size={18}/> Πίσω
-                    </button>
-                    <h2 className="font-black text-slate-800">{selectedCollection.name}</h2>
-                    <div className="w-8"/>
-                </div>
+            <div className="flex h-full min-h-0 flex-col bg-slate-50">
+                <header className={`sticky top-0 z-10 ${MOBILE_HEADER_SURFACE}`}>
+                    <div className="flex items-center gap-2 px-4 pb-3 pt-[max(0.5rem,env(safe-area-inset-top,0px))]">
+                        <button type="button" onClick={() => setView('list')} className="flex shrink-0 items-center gap-1 rounded-xl py-2 pl-1 pr-2 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-100">
+                            <ChevronRight className="rotate-180" size={18} /> Πίσω
+                        </button>
+                        <div className="min-w-0 flex-1">
+                            <MobileScreenHeader
+                                embedded
+                                icon={FolderKanban}
+                                title={selectedCollection.name}
+                                subtitle="Περιεχόμενα συλλογής"
+                                iconClassName="text-pink-600"
+                                className="!gap-2"
+                            />
+                        </div>
+                        <div className="w-10 shrink-0" aria-hidden />
+                    </div>
+                </header>
 
-                <div className="p-4 space-y-4 flex-1 overflow-y-auto pb-24">
+                <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-24">
                     
                     {/* Collection Description Display */}
                     {selectedCollection.description && (
@@ -167,10 +179,11 @@ export default function MobileCollections() {
     }
 
     return (
-        <div className="p-4 h-full flex flex-col pb-24">
-            <h1 className="text-2xl font-black text-slate-900 mb-6">Συλλογές</h1>
-            
-            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-6">
+        <div className="flex h-full min-h-0 flex-col bg-slate-50 pb-24">
+            <MobileScreenHeader icon={FolderKanban} title="Συλλογές" subtitle="Οργάνωση καταλόγου" iconClassName="text-pink-600" />
+
+            <div className="flex min-h-0 flex-1 flex-col px-4 pt-3">
+            <div className="mb-6 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
                 <div className="flex gap-2">
                     <input 
                         type="text" 
@@ -183,7 +196,7 @@ export default function MobileCollections() {
                 </div>
             </div>
 
-            <div className="space-y-3 overflow-y-auto flex-1 custom-scrollbar">
+            <div className="custom-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto">
                 {collections?.map(c => (
                     <div 
                         key={c.id} 
@@ -204,6 +217,7 @@ export default function MobileCollections() {
                         </button>
                     </div>
                 ))}
+            </div>
             </div>
         </div>
     );

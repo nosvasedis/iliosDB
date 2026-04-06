@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, Trash2, Printer, Tag, ShoppingBag, ArrowLeft, Search, X, ChevronRight, ImageIcon, Plus } from 'lucide-react';
+import { Camera, Trash2, Printer, Tag, ShoppingBag, ArrowLeft, Search, X, ChevronRight, ImageIcon, Plus, ScanBarcode } from 'lucide-react';
 import { useUI } from '../UIProvider';
+import MobileScreenHeader from './MobileScreenHeader';
 import BarcodeScanner from '../BarcodeScanner';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
@@ -347,9 +348,10 @@ export default function MobileBatchPrint() {
     }
 
     return (
-        <div className="p-4 h-full flex flex-col">
-            <h1 className="text-2xl font-black text-slate-900 mb-4">Εκτυπώσεις</h1>
-            
+        <div className="flex h-full min-h-0 flex-col bg-slate-50">
+            <MobileScreenHeader icon={ScanBarcode} title="Μαζική εκτύπωση" subtitle="Barcode & ετικέτες" iconClassName="text-slate-700" />
+
+            <div className="flex min-h-0 flex-1 flex-col px-4 pb-24 pt-3">
             {!activeMaster ? (
                 <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-4 animate-in fade-in slide-in-from-bottom-2">
                     <label className="text-xs font-black text-slate-400 uppercase mb-2 block">Προσθήκη Κωδικού</label>
@@ -517,6 +519,7 @@ export default function MobileBatchPrint() {
             >
                 <Printer size={20}/> Προεπισκόπηση & Εκτύπωση
             </button>
+            </div>
 
             {showScanner && (
                 <BarcodeScanner 

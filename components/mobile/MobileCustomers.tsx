@@ -2,7 +2,8 @@
 import React, { useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
-import { Search, Phone, Mail, User, MapPin, Globe, Plus, X, Save, Trash2, Edit, Hash, Zap, Loader2, Wallet, ShoppingBag, PieChart, Package, Calendar, Clock, Trophy, Users as UsersIcon, ArrowLeft, Gift } from 'lucide-react';
+import { Search, Phone, Mail, User, MapPin, Globe, Plus, X, Save, Trash2, Edit, Hash, Zap, Loader2, Wallet, ShoppingBag, PieChart, Package, Calendar, Clock, Trophy, Users as UsersIcon, Users, ArrowLeft, Gift } from 'lucide-react';
+import MobileScreenHeader from './MobileScreenHeader';
 import { Customer, Supplier, SupplierOrder, VatRegime, OrderStatus } from '../../types';
 import { useUI } from '../UIProvider';
 import { formatCurrency } from '../../utils/pricingEngine';
@@ -537,22 +538,26 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
     }
 
     return (
-        <div className="p-4 h-full flex flex-col">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-                    {mode === 'customers' ? <User className="text-blue-600" /> : <Globe className="text-purple-600" />}
-                    {mode === 'customers' ? 'Πελάτες' : 'Προμηθευτές'}
-                </h1>
-
-                <div className="flex items-center gap-3 w-full md:w-auto">
-                    <button onClick={handleCreate} className={`flex items-center gap-2 text-white px-4 py-2.5 rounded-xl font-black transition-all shadow-md active:scale-95 ${mode === 'customers' ? 'bg-[#060b00] hover:bg-black' : 'bg-purple-600 hover:bg-purple-700'}`}>
-                        <Plus size={20} /> <span className="sm:inline">Νέα Εγγραφή</span>
+        <div className="flex h-full min-h-0 flex-col bg-slate-50">
+            <MobileScreenHeader
+                icon={mode === 'customers' ? Users : Globe}
+                title={mode === 'customers' ? 'Πελάτες' : 'Προμηθευτές'}
+                subtitle={mode === 'customers' ? 'Επαφές & στοιχεία τιμολόγησης' : 'Προμηθευτές & εντολές αγοράς'}
+                iconClassName={mode === 'customers' ? 'text-cyan-600' : 'text-purple-600'}
+                right={
+                    <button
+                        type="button"
+                        onClick={handleCreate}
+                        className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-white shadow-md transition-all active:scale-95 sm:px-4 sm:text-sm ${mode === 'customers' ? 'bg-[#060b00] hover:bg-black' : 'bg-purple-600 hover:bg-purple-700'}`}
+                    >
+                        <Plus size={18} /> <span className="hidden sm:inline">Νέα Εγγραφή</span>
                     </button>
-                </div>
-            </div>
+                }
+            />
 
+            <div className="flex min-h-0 flex-1 flex-col px-4 pb-24 pt-3">
             {/* Search */}
-            <div className="relative shrink-0 mt-4">
+            <div className="relative shrink-0">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input
                     type="text"
@@ -564,7 +569,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
             </div>
 
             {/* Content List */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-24 mt-4 overflow-y-auto custom-scrollbar pr-1">
+            <div className="mt-4 grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto pr-1 custom-scrollbar auto-rows-min md:grid-cols-2 lg:grid-cols-3">
                 {filteredList.map((item: any) => (
                     <div
                         key={item.id}
@@ -618,6 +623,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                         Δεν βρέθηκαν αποτελέσματα.
                     </div>
                 )}
+            </div>
             </div>
         </div>
     );

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Product, GlobalSettings, OrderStatus, Order } from '../../types';
 import { Activity, Factory, Coins, Plus, ScanBarcode, Zap, Package, ShoppingCart, Users, ScrollText, Settings, Clock, CheckCircle, Truck, XCircle, AlertCircle, PackageCheck, Eye, EyeOff } from 'lucide-react';
+import MobileScreenHeader from './MobileScreenHeader';
 import { formatCurrency, formatDecimal } from '../../utils/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
@@ -104,20 +105,15 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
     }, [products, orders, batches]);
 
     return (
-        <div className="p-5 space-y-6 pb-28 bg-slate-50 min-h-screen">
-            {/* Header */}
-            <div className="flex items-center justify-between pt-2">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center justify-center p-1.5">
-                        <img src={APP_ICON_ONLY} alt="Logo" className="w-full h-full object-contain" />
-                    </div>
-                    <div>
-                        <h1 className="text-lg font-black text-slate-900 leading-tight">Ilios ERP</h1>
-                        <p className="text-xs text-slate-500 font-bold">Καλησπέρα, {profile?.full_name?.split(' ')[0] || 'User'}</p>
-                    </div>
-                </div>
-            </div>
+        <div className="min-h-screen bg-slate-50 pb-28">
+            <MobileScreenHeader
+                iconElement={<img src={APP_ICON_ONLY} alt="" className="h-7 w-7 object-contain" />}
+                iconWrapClassName="border-slate-200/80 bg-white p-1 shadow-sm"
+                title="Αρχική"
+                subtitle={`Καλησπέρα, ${profile?.full_name?.split(' ')[0] || 'User'} · Ilios ERP`}
+            />
 
+            <div className="space-y-6 p-5 pt-4">
             {/* Main Stats Grid */}
             <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
@@ -273,6 +269,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
                         </div>
                     )}
                 </div>
+            </div>
             </div>
         </div>
     );

@@ -29,6 +29,7 @@ import { useUI } from '../UIProvider';
 import BarcodeScanner from '../BarcodeScanner';
 import { useMaterials } from '../../hooks/api/useMaterials';
 import { useCollections } from '../../hooks/api/useCollections';
+import MobileScreenHeader from './MobileScreenHeader';
 import {
     buildSearchableProducts,
     filterRegistryProducts,
@@ -323,27 +324,29 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
     }
 
     return (
-        <div className="p-4 h-full flex flex-col">
-            <div className="flex justify-between items-center mb-4 shrink-0">
-                <h1 className="text-2xl font-black text-slate-900">
-                    {showStxOnly ? 'Εξαρτήματα (STX)' : 'Μητρώο Κωδικών'}
-                </h1>
-
-                <div className="flex gap-2">
+        <div className="flex h-full min-h-0 flex-col bg-slate-50">
+            <MobileScreenHeader
+                icon={showStxOnly ? Puzzle : Database}
+                title={showStxOnly ? 'Εξαρτήματα (STX)' : 'Μητρώο Κωδικών'}
+                subtitle={showStxOnly ? 'STX & εξαρτήματα' : 'Κωδικοί & κατάλογος'}
+                iconClassName={showStxOnly ? 'text-blue-600' : 'text-slate-700'}
+                right={
                     <button
                         type="button"
                         onClick={() => {
                             setShowStxOnly(!showStxOnly);
                             setFilterCategory('All');
                         }}
-                        className={`p-2 rounded-xl border transition-all ${showStxOnly ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-slate-200 text-slate-500'}`}
+                        className={`rounded-xl border p-2 transition-all ${showStxOnly ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-500'}`}
+                        aria-label={showStxOnly ? 'Πλήρες μητρώο' : 'Μόνο STX'}
                     >
-                        {showStxOnly ? <Puzzle size={20}/> : <Database size={20}/>}
+                        {showStxOnly ? <Puzzle size={20} /> : <Database size={20} />}
                     </button>
-                </div>
-            </div>
+                }
+            />
 
-            <div className="flex gap-2 mb-3 shrink-0">
+            <div className="flex min-h-0 flex-1 flex-col px-4">
+            <div className="mb-3 mt-3 flex shrink-0 gap-2">
                 <div className="relative flex-1 min-w-0">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <input
@@ -392,7 +395,7 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
                 ))}
             </div>
 
-            <div className="flex-1 overflow-y-auto pb-24 custom-scrollbar min-h-0">
+            <div className="min-h-0 flex-1 overflow-y-auto pb-24 custom-scrollbar">
                 <div className="grid grid-cols-2 gap-3 pb-4">
                     {displayedProducts.map((p) => (
                         <RegistryCard
@@ -418,6 +421,7 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
                         Δεν βρέθηκαν προϊόντα.
                     </div>
                 )}
+            </div>
             </div>
 
             {showScanner && (

@@ -43,6 +43,7 @@ import {
     parseMobileOrderBuilderDraft,
     serializeMobileOrderBuilderDraft,
 } from '../../features/orders/mobileOrderBuilderHelpers';
+import MobileScreenHeader, { MOBILE_HEADER_SURFACE } from './MobileScreenHeader';
 
 interface Props {
     onBack: () => void;
@@ -630,25 +631,33 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             )}
 
             {/* ── Top Bar ──────────────────────────────────────────── */}
-            <div className="bg-white p-4 border-b border-slate-200 flex items-center justify-between shadow-sm shrink-0 z-20">
-                {/* Back button — shows warning if items exist */}
+            <div className={`z-20 flex shrink-0 items-center gap-2 px-3 py-2.5 pt-[max(0.35rem,env(safe-area-inset-top,0px))] shadow-sm ${MOBILE_HEADER_SURFACE}`}>
                 <button
+                    type="button"
                     onClick={handleBackNav}
-                    className={`flex items-center gap-1.5 p-2 -ml-2 rounded-xl transition-colors ${items.length > 0
+                    className={`flex shrink-0 items-center gap-1 rounded-xl p-2 transition-colors ${items.length > 0
                         ? 'text-amber-600 hover:bg-amber-50'
                         : 'text-slate-500 hover:bg-slate-100'
                         }`}
                 >
                     <ArrowLeft size={22} />
-                    {items.length > 0 && <span className="text-[10px] font-black uppercase tracking-wide">Ακύρωση</span>}
+                    {items.length > 0 && <span className="hidden text-[10px] font-black uppercase tracking-wide min-[360px]:inline">Ακύρωση</span>}
                 </button>
-                <div className="font-black text-slate-800 text-lg">
-                    {initialOrder ? `Επεξεργασία #${initialOrder.id.slice(-6)}` : 'Νέα Παραγγελία'}
+                <div className="min-w-0 flex-1">
+                    <MobileScreenHeader
+                        embedded
+                        icon={ShoppingCart}
+                        title={initialOrder ? `Επεξεργασία #${initialOrder.id.slice(-6)}` : 'Νέα παραγγελία'}
+                        subtitle={initialOrder ? 'Ενημέρωση γραμμών' : 'Καλάθι & πελάτης'}
+                        iconClassName="text-emerald-700"
+                        className="!gap-2"
+                    />
                 </div>
                 <button
+                    type="button"
                     onClick={handleSaveOrder}
                     disabled={isSaving}
-                    className="bg-[#060b00] text-white p-2 rounded-xl shadow-md disabled:opacity-50"
+                    className="shrink-0 rounded-xl bg-[#060b00] p-2.5 text-white shadow-md disabled:opacity-50"
                 >
                     {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
                 </button>

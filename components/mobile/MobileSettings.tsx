@@ -3,7 +3,8 @@ import React, { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase, GEMINI_API_KEY, AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL } from '../../lib/supabase';
 import { useAuth } from '../AuthContext';
-import { LogOut, Coins, ShieldCheck, User, Wifi, WifiOff, Upload, Save, Tag, ShoppingBag, Key, RefreshCw, FileText, Download, Loader2, Database } from 'lucide-react';
+import { LogOut, Coins, ShieldCheck, User, Wifi, WifiOff, Upload, Save, Tag, ShoppingBag, Key, RefreshCw, FileText, Download, Loader2, Database, Settings } from 'lucide-react';
+import MobileScreenHeader from './MobileScreenHeader';
 import { formatDecimal } from '../../utils/pricingEngine';
 import { useUI } from '../UIProvider';
 import { downloadFile, downloadBlob, flattenForCSV, convertToCSV } from '../../utils/exportUtils';
@@ -209,10 +210,9 @@ export default function MobileSettings() {
     if (!localSettings) return <div className="p-8 text-center text-slate-400">Φόρτωση...</div>;
 
     return (
-        <div className="p-4 h-full bg-slate-50 overflow-y-auto pb-32">
-            <h1 className="text-2xl font-black text-slate-900 mb-6">Ρυθμίσεις</h1>
-
-            <div className="space-y-4">
+        <div className="flex h-full min-h-0 flex-col overflow-hidden bg-slate-50">
+            <MobileScreenHeader icon={Settings} title="Ρυθμίσεις" subtitle="Λογαριασμός & εφαρμογή" iconClassName="text-slate-600" />
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-32 pt-3">
                 {/* Profile */}
                 <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
                     <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-500"><User size={24} /></div>

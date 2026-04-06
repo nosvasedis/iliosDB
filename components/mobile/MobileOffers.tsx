@@ -4,11 +4,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { Offer, Product, Customer, OrderItem, VatRegime } from '../../types';
 import {
-    Plus, Search, Trash2, Printer, Save, FileText, User, Phone, Check, RefreshCw,
+    Plus, Search, Trash2, Printer, Save, FileText, FileBadge, User, Phone, Check, RefreshCw,
     Loader2, ChevronRight, X, ArrowLeft, Coins, Percent, MoreHorizontal, Ban, ShoppingCart, ScanBarcode, Box, Image as ImageIcon,
     Settings, ListPlus, FolderKanban
 } from 'lucide-react';
 import { useUI } from '../UIProvider';
+import MobileScreenHeader from './MobileScreenHeader';
 import { formatCurrency, formatDecimal, calculateProductCost, calculateSuggestedWholesalePrice, findProductByScannedCode, expandSkuRange } from '../../utils/pricingEngine';
 import { normalizedIncludes } from '../../utils/greekSearch';
 import { generateOrderId } from '../../utils/orderUtils';
@@ -637,17 +638,21 @@ export default function MobileOffers({ onPrintOffer }: Props) {
 
     // LIST VIEW
     return (
-        <div className="p-4 h-full flex flex-col">
-            <div className="flex justify-between items-center mb-4 shrink-0">
-                <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-                    <FileText className="text-purple-600" /> Προσφορές
-                </h1>
-                <button onClick={() => initBuilder()} className="bg-[#060b00] text-white p-2 rounded-xl shadow-md active:scale-95 transition-transform">
-                    <Plus size={24} />
-                </button>
-            </div>
+        <div className="flex h-full min-h-0 flex-col bg-slate-50">
+            <MobileScreenHeader
+                icon={FileBadge}
+                title="Προσφορές"
+                subtitle="Προσφορές πελατών"
+                iconClassName="text-amber-600"
+                right={
+                    <button type="button" onClick={() => initBuilder()} className="rounded-xl bg-[#060b00] p-2 text-white shadow-md transition-transform active:scale-95">
+                        <Plus size={22} />
+                    </button>
+                }
+            />
 
-            <div className="bg-white p-1 rounded-xl shadow-sm border border-slate-100 flex mb-4 shrink-0 overflow-x-auto">
+            <div className="flex min-h-0 flex-1 flex-col px-4 pb-24 pt-3">
+            <div className="mb-4 flex shrink-0 overflow-x-auto rounded-xl border border-slate-100 bg-white p-1 shadow-sm">
                 {['ALL', 'Pending', 'Accepted', 'Declined'].map(s => (
                     <button
                         key={s}
@@ -704,6 +709,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                     </div>
                 ))}
                 {filteredOffers.length === 0 && <div className="text-center py-10 text-slate-400 text-sm font-medium">Δεν βρέθηκαν προσφορές.</div>}
+            </div>
             </div>
         </div>
     );

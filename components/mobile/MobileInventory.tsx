@@ -1,7 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Product, Warehouse, ProductVariant } from '../../types';
-import { Search, Box, MapPin, ImageIcon, Camera, Plus, Minus, ScanBarcode, ArrowDown, ArrowUp, History, X, ChevronRight, Hash, Save } from 'lucide-react';
+import { Search, Box, MapPin, ImageIcon, Camera, Plus, Minus, ScanBarcode, ArrowDown, ArrowUp, History, X, ChevronRight, Hash, Save, Warehouse as WarehouseIcon } from 'lucide-react';
+import MobileScreenHeader from './MobileScreenHeader';
 import { formatCurrency, findProductByScannedCode, getVariantComponents } from '../../utils/pricingEngine';
 import { getSizingInfo } from '../../utils/sizing';
 import { useUI } from '../UIProvider';
@@ -346,20 +347,25 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
     const sizingInfo = activeMaster ? getSizingInfo(activeMaster) : null;
 
     return (
-        <div className="space-y-6 h-full flex flex-col">
-            <div className="flex justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-slate-100 shrink-0">
-                <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                    <Box className="text-emerald-600"/> Διαχείριση Αποθήκης
-                </h1>
-                <button 
-                    onClick={() => { setShowQuickManager(true); setActiveMaster(null); setActiveVariant(null); setQmSkuInput(''); }}
-                    className="bg-[#060b00] text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg active:scale-95 transition-transform"
-                >
-                    <ScanBarcode size={18}/> Ταχεία Κίνηση
-                </button>
-            </div>
+        <div className="flex h-full min-h-0 flex-col bg-slate-50">
+            <MobileScreenHeader
+                icon={WarehouseIcon}
+                title="Διαχείριση Αποθήκης"
+                subtitle="Στοκ & κινήσεις"
+                iconClassName="text-violet-600"
+                right={
+                    <button
+                        type="button"
+                        onClick={() => { setShowQuickManager(true); setActiveMaster(null); setActiveVariant(null); setQmSkuInput(''); }}
+                        className="flex items-center gap-2 rounded-xl bg-[#060b00] px-3 py-2 text-xs font-bold text-white shadow-lg transition-transform active:scale-95 sm:text-sm"
+                    >
+                        <ScanBarcode size={18} /> <span className="hidden sm:inline">Ταχεία Κίνηση</span>
+                    </button>
+                }
+            />
 
-            <div className="bg-white rounded-3xl border border-slate-100 flex flex-col flex-1 overflow-hidden shadow-sm">
+            <div className="min-h-0 flex-1 px-4 pb-6 pt-3">
+            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
                 <div className="p-4 border-b border-slate-100 flex items-center gap-4">
                     <Search className="text-slate-400" size={20}/>
                     <input 
@@ -398,6 +404,7 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
                     ))}
                     {inventoryList.length === 0 && <div className="p-10 text-center text-slate-400 italic">Δεν βρέθηκαν προϊόντα.</div>}
                 </div>
+            </div>
             </div>
 
             {showScanner && <BarcodeScanner onScan={handleScan} onClose={() => setShowScanner(false)} />}

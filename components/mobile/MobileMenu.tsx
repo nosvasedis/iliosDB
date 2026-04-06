@@ -25,6 +25,7 @@ import {
 import { APP_LOGO } from '../../constants';
 import { useAuth } from '../AuthContext';
 import { useDeliveryNavBadge } from '../../hooks/api/useOrderDeliveryPlans';
+import MobileScreenHeader from './MobileScreenHeader';
 
 interface Props {
   onNavigate: (page: string) => void;
@@ -187,7 +188,10 @@ export default function MobileMenu({ onNavigate, activePage }: Props) {
   ];
 
   return (
-    <div className="min-h-full bg-gradient-to-b from-slate-50 to-slate-100/80 px-4 pb-28 pt-6 animate-in slide-in-from-bottom-4 duration-300">
+    <div className="min-h-full animate-in bg-gradient-to-b from-slate-50 to-slate-100/80 pb-28 duration-300 slide-in-from-bottom-4">
+      <MobileScreenHeader icon={Menu} title="Μενού" subtitle="Όλες οι λειτουργίες" iconClassName="text-slate-700" />
+
+      <div className="px-4 pt-4">
       <header className="mb-8 flex items-center gap-4 rounded-3xl border border-white/80 bg-white/90 p-5 shadow-sm backdrop-blur-sm">
         <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white p-2 shadow-inner ring-1 ring-slate-100">
           <img src={APP_LOGO} alt="Ilios" className="h-full w-full object-contain" />
@@ -242,6 +246,7 @@ export default function MobileMenu({ onNavigate, activePage }: Props) {
           <LogOut size={18} /> Αποσύνδεση
         </button>
         <p className="text-center text-[10px] font-mono text-slate-300">v1.2.1-mobile</p>
+      </div>
       </div>
     </div>
   );
