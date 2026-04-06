@@ -47,6 +47,7 @@ import {
     getNextProductionStage,
     groupProductionBatchesByStage,
     groupProductionBatchesForDisplay,
+    sortProductionDisplayLevel1Keys,
     type LabelPrintSortMode,
 } from '../features/production/workflowSelectors';
 
@@ -1378,9 +1379,9 @@ const StageInspectorModal: React.FC<{
                 const cB = (b.customer_name || '').toLocaleLowerCase('el');
                 const cmp = cA.localeCompare(cB, 'el');
                 if (cmp !== 0) return cmp;
-                const skuCmp = compareBatchesBySkuAscending(a, b);
-                if (skuCmp !== 0) return skuCmp;
-                return getBatchStageChronologyTimestamp(a) - getBatchStageChronologyTimestamp(b);
+                const t = getBatchStageChronologyTimestamp(a) - getBatchStageChronologyTimestamp(b);
+                if (t !== 0) return t;
+                return compareBatchesBySkuAscending(a, b);
             });
         } else if (sortMode === 'oldest') {
             list.sort((a, b) => {
@@ -1895,24 +1896,6 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         () => filterAndSortProductionFinderBatches(enhancedBatches, deferredFinderTerm) as EnhancedProductionBatch[],
         [enhancedBatches, deferredFinderTerm],
     );
-
-    const sortedClients = useMemo(() => {
-        if (groupMode !== 'customer') return [];
-
-        const clientLatestActionMap: Record<string, number> = {};
-
-        enhancedBatches.forEach(b => {
-            const client = b.customer_name || 'Χωρίς Πελάτη';
-            const time = new Date(b.created_at).getTime(); // Group by latest order creation
-            if (!clientLatestActionMap[client] || time > clientLatestActionMap[client]) {
-                clientLatestActionMap[client] = time;
-            }
-        });
-
-        return Object.entries(clientLatestActionMap)
-            .sort((a, b) => b[1] - a[1]) // Newest First
-            .map(entry => entry[0]);
-    }, [enhancedBatches, groupMode]);
 
     const quickPickEntries = useMemo(() => {
         if (!orders || orders.length === 0 || enhancedBatches.length === 0) return [] as ProductionQuickPickEntry[];
@@ -2568,12 +2551,18 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
 
     // ── Reusable batch-groups renderer (used for normal columns + Polishing sub-sections) ──
     const renderBatchGroups = (groupedData: Record<string, Record<string, (ProductionBatch & { customer_name?: string })[]>>, options?: { onRecallDispatch?: (batchId: string) => void }) => {
-        return (groupMode === 'customer' ? sortedClients : SORTED_GENDERS).map(level1Key => {
+        const level1Keys =
+            groupMode === 'customer'
+                ? sortProductionDisplayLevel1Keys(Object.keys(groupedData), groupedData as any, groupMode, sortOrder)
+                : SORTED_GENDERS;
+
+        return level1Keys.map(level1Key => {
             const l1Batches = groupedData[level1Key];
             if (!l1Batches || Object.keys(l1Batches).length === 0) return null;
 
             const gConfig = groupMode === 'customer' ? null : (GENDER_CONFIG[level1Key] || GENDER_CONFIG['Unknown']);
-            const collectionKeys = Object.keys(l1Batches).sort();
+            // Collection order is set inside groupProductionBatchesForDisplay (chronology or el alpha).
+            const collectionKeys = Object.keys(l1Batches);
 
             return (
                 <div key={level1Key} className="space-y-3">

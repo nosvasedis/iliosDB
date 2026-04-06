@@ -25,6 +25,7 @@ import {
     filterRegistryProducts,
     getAvailableRegistryStones,
     getGroupedProductCategories,
+    getStoneChipStyle,
 } from '../features/products';
 
 interface Props {
@@ -65,56 +66,6 @@ const stoneFilters = [
     { label: 'Με Πέτρες', value: 'with' },
     { label: 'Χωρίς Πέτρες', value: 'without' }
 ];
-
-// Per stone-code colour chips (keyed by variant suffix stone code from STONE_CODES_WOMEN/MEN)
-const STONE_CHIP_STYLES: Record<string, { bg: string; text: string; dot: string }> = {
-    // Women — Zircon family
-    'LE': { bg: 'bg-slate-50', text: 'text-slate-700', dot: 'bg-slate-300' },   // Λευκά Ζιργκόν
-    'MP': { bg: 'bg-blue-50', text: 'text-blue-800', dot: 'bg-blue-400' },    // Μπλε Ζιργκόν
-    'PR': { bg: 'bg-green-50', text: 'text-green-800', dot: 'bg-green-500' },   // Πράσινα Ζιργκόν
-    'KO': { bg: 'bg-red-50', text: 'text-red-800', dot: 'bg-red-400' },     // Κόκκινα Ζιργκόν
-    'MV': { bg: 'bg-purple-50', text: 'text-purple-800', dot: 'bg-purple-400' },  // Μωβ Ζιργκόν
-    'RZ': { bg: 'bg-pink-50', text: 'text-pink-800', dot: 'bg-pink-300' },    // Ροζ Ζιργκόν
-    'AK': { bg: 'bg-cyan-50', text: 'text-cyan-800', dot: 'bg-cyan-400' },    // Άκουα Ζιργκόν
-    // Women — Agate family
-    'PAX': { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-400' },   // Πράσινος Αχάτης
-    'MAX': { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-400' },    // Μπλε Αχάτης
-    'KAX': { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-400' },     // Κόκκινος Αχάτης
-    // Women — Copper family (these ARE turquoise/teal in appearance)
-    'CO': { bg: 'bg-teal-50', text: 'text-teal-800', dot: 'bg-teal-400' },    // Κόπερ (turquoise)
-    'PCO': { bg: 'bg-emerald-50', text: 'text-emerald-800', dot: 'bg-emerald-500' }, // Πράσινο Κόπερ
-    'MCO': { bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-400' },  // Μωβ Κόπερ
-    // Women — Triplets
-    'TPR': { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-400' }, // Τριπλέτα Πράσινη
-    'TKO': { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-400' },     // Τριπλέτα Κόκκινη
-    'TMP': { bg: 'bg-indigo-50', text: 'text-indigo-700', dot: 'bg-indigo-400' },  // Τριπλέτα Μπλε
-    // Women — Other
-    'AI': { bg: 'bg-zinc-100', text: 'text-zinc-700', dot: 'bg-zinc-500' },    // Αιματίτης (dark metallic)
-    'AP': { bg: 'bg-teal-50', text: 'text-teal-700', dot: 'bg-teal-300' },    // Απατίτης
-    'AM': { bg: 'bg-teal-50', text: 'text-teal-800', dot: 'bg-teal-400' },    // Αμαζονίτης
-    'LR': { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-300' },    // Λαμπραδορίτης
-    'LA': { bg: 'bg-blue-100', text: 'text-blue-900', dot: 'bg-blue-600' },    // Λάπις (deep blue)
-    'FI': { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-200' },   // Φίλντισι (ivory)
-    'BST': { bg: 'bg-sky-50', text: 'text-sky-700', dot: 'bg-sky-400' },     // Blue Sky Topaz
-    'XAL': { bg: 'bg-blue-50', text: 'text-blue-600', dot: 'bg-blue-200' },    // Χαλκηδόνιο
-    // Men
-    'KR': { bg: 'bg-orange-50', text: 'text-orange-800', dot: 'bg-orange-400' },  // Κορνεόλη (orange-red)
-    'AX': { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-400' },   // Πράσινος Αχάτης
-    'TG': { bg: 'bg-amber-50', text: 'text-amber-800', dot: 'bg-amber-500' },   // Μάτι Τίγρης (golden)
-    'QN': { bg: 'bg-zinc-100', text: 'text-zinc-800', dot: 'bg-zinc-700' },    // Όνυχας (black)
-    'TY': { bg: 'bg-teal-50', text: 'text-teal-800', dot: 'bg-teal-400' },    // Τυρκουάζ
-    'IA': { bg: 'bg-rose-50', text: 'text-rose-800', dot: 'bg-rose-400' },    // Ίασπης
-    'BSU': { bg: 'bg-zinc-100', text: 'text-zinc-800', dot: 'bg-zinc-600' },    // Μαύρος Σουλεμάνης
-    'GSU': { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500' },   // Πράσινος Σουλεμάνης
-    'RSU': { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-400' },     // Κόκκινος Σουλεμάνης
-    'MA': { bg: 'bg-emerald-50', text: 'text-emerald-800', dot: 'bg-emerald-500' }, // Μαλαχίτης
-    'OP': { bg: 'bg-stone-50', text: 'text-stone-600', dot: 'bg-stone-300' },   // Οπάλιο
-    'NF': { bg: 'bg-green-50', text: 'text-green-800', dot: 'bg-green-600' },   // Νεφρίτης
-    'SD': { bg: 'bg-indigo-50', text: 'text-indigo-900', dot: 'bg-indigo-600' },  // Σοδαλίτης (deep blue)
-};
-const DEFAULT_STONE_STYLE = { bg: 'bg-slate-50', text: 'text-slate-600', dot: 'bg-slate-300' };
-
-const getStoneChipStyle = (code: string) => STONE_CHIP_STYLES[code] ?? DEFAULT_STONE_STYLE;
 
 const getPaginationRange = (current: number, total: number) => {
     const range: (number | string)[] = [];

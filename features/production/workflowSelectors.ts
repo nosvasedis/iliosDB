@@ -18,6 +18,71 @@ export interface ProductionLabelPrintItem {
 }
 
 type ProductionDisplayBatch = EnhancedProductionBatch & { customer_name?: string };
+
+function compareBatchesBySkuForDisplay(a: ProductionDisplayBatch, b: ProductionDisplayBatch): number {
+  const fullA = `${a.sku}${a.variant_suffix || ''}`;
+  const fullB = `${b.sku}${b.variant_suffix || ''}`;
+  return fullA.localeCompare(fullB, undefined, { numeric: true, sensitivity: 'base' });
+}
+
+function minMaxChronologyForBatches(batches: ProductionDisplayBatch[]): { minT: number; maxT: number } {
+  let minT = Infinity;
+  let maxT = -Infinity;
+  batches.forEach((batch) => {
+    const t = getBatchStageChronologyTimestamp(batch);
+    if (t < minT) minT = t;
+    if (t > maxT) maxT = t;
+  });
+  return {
+    minT: minT === Infinity ? 0 : minT,
+    maxT: maxT === -Infinity ? 0 : maxT,
+  };
+}
+
+/**
+ * Order top-level keys (e.g. customer names) for one stage column using the batches visible there.
+ */
+export function sortProductionDisplayLevel1Keys(
+  level1Keys: string[],
+  groupedData: Record<string, Record<string, ProductionDisplayBatch[]>>,
+  groupMode: ProductionDisplayGroupMode,
+  sortOrder: ProductionDisplaySortOrder,
+): string[] {
+  if (groupMode !== 'customer') return level1Keys;
+
+  return [...level1Keys].sort((a, b) => {
+    if (sortOrder === 'alpha') {
+      return a.localeCompare(b, 'el', { sensitivity: 'base' });
+    }
+
+    const agg = (key: string) => {
+      const byColl = groupedData[key];
+      if (!byColl) return { minT: 0, maxT: 0 };
+      let minT = Infinity;
+      let maxT = -Infinity;
+      Object.values(byColl).forEach((batches) => {
+        const { minT: lo, maxT: hi } = minMaxChronologyForBatches(batches);
+        if (lo < minT) minT = lo;
+        if (hi > maxT) maxT = hi;
+      });
+      return {
+        minT: minT === Infinity ? 0 : minT,
+        maxT: maxT === -Infinity ? 0 : maxT,
+      };
+    };
+
+    const aa = agg(a);
+    const ab = agg(b);
+
+    if (sortOrder === 'newest') {
+      if (ab.maxT !== aa.maxT) return ab.maxT - aa.maxT;
+    } else if (sortOrder === 'oldest') {
+      if (aa.minT !== ab.minT) return aa.minT - ab.minT;
+    }
+
+    return a.localeCompare(b, 'el', { sensitivity: 'base' });
+  });
+}
 type MobileFoundBatch = EnhancedProductionBatch & { customer_name?: string; customerName?: string };
 type MobilePrintSelectorBatch = ProductionBatch & { customer_name?: string };
 
@@ -109,19 +174,43 @@ export function groupProductionBatchesForDisplay(
   });
 
   Object.keys(groups).forEach((level1Key) => {
-    Object.keys(groups[level1Key]).forEach((collectionKey) => {
-      groups[level1Key][collectionKey].sort((a, b) => {
+    const inner = groups[level1Key];
+    Object.keys(inner).forEach((collectionKey) => {
+      inner[collectionKey].sort((a, b) => {
         if (sortOrder === 'newest' || sortOrder === 'oldest') {
           const timeA = getBatchStageChronologyTimestamp(a);
           const timeB = getBatchStageChronologyTimestamp(b);
-          return sortOrder === 'newest' ? timeB - timeA : timeA - timeB;
+          const primary = sortOrder === 'newest' ? timeB - timeA : timeA - timeB;
+          if (primary !== 0) return primary;
+          return compareBatchesBySkuForDisplay(a, b);
         }
 
-        const fullA = a.sku + (a.variant_suffix || '');
-        const fullB = b.sku + (b.variant_suffix || '');
-        return fullA.localeCompare(fullB, undefined, { numeric: true, sensitivity: 'base' });
+        return compareBatchesBySkuForDisplay(a, b);
       });
     });
+
+    // Preserve insertion order of collection sub-groups: alpha (el) or by chronology so
+    // newest/oldest applies across collections, not only inside each collection bucket.
+    const collKeys = Object.keys(inner);
+    collKeys.sort((a, b) => {
+      if (sortOrder === 'alpha') {
+        return a.localeCompare(b, 'el', { sensitivity: 'base' });
+      }
+      const sa = minMaxChronologyForBatches(inner[a]);
+      const sb = minMaxChronologyForBatches(inner[b]);
+      if (sortOrder === 'newest') {
+        if (sb.maxT !== sa.maxT) return sb.maxT - sa.maxT;
+      } else if (sortOrder === 'oldest') {
+        if (sa.minT !== sb.minT) return sa.minT - sb.minT;
+      }
+      return a.localeCompare(b, 'el', { sensitivity: 'base' });
+    });
+
+    const reordered: Record<string, ProductionDisplayBatch[]> = {};
+    collKeys.forEach((k) => {
+      reordered[k] = inner[k];
+    });
+    groups[level1Key] = reordered;
   });
 
   return groups;

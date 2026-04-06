@@ -5,6 +5,7 @@ import {
   getNextProductionStage,
   groupProductionBatchesByStage,
   groupProductionBatchesForDisplay,
+  sortProductionDisplayLevel1Keys,
 } from '../../features/production/workflowSelectors';
 
 describe('production workflow selectors', () => {
@@ -70,6 +71,61 @@ describe('production workflow selectors', () => {
 
     expect(byStage.Waxing).toHaveLength(2);
     expect(byDisplay[Gender.Women].Spring.map((batch) => batch.sku)).toEqual(['PN1', 'PN2']);
+  });
+
+  it('orders collection sub-groups by chronology when sort is newest', () => {
+    const batches = [
+      {
+        id: 'oldColl',
+        sku: 'AA1',
+        quantity: 1,
+        current_stage: ProductionStage.Waxing,
+        created_at: '2024-01-01T00:00:00.000Z',
+        updated_at: '2024-01-01T00:00:00.000Z',
+        stageEnteredAt: '2024-01-01T08:00:00.000Z',
+        priority: 'Normal',
+        requires_setting: true,
+        product_details: { gender: Gender.Women, collections: [1] } as any,
+      },
+      {
+        id: 'newColl',
+        sku: 'ZZ9',
+        quantity: 1,
+        current_stage: ProductionStage.Waxing,
+        created_at: '2024-01-02T00:00:00.000Z',
+        updated_at: '2024-01-02T00:00:00.000Z',
+        stageEnteredAt: '2024-06-01T08:00:00.000Z',
+        priority: 'Normal',
+        requires_setting: true,
+        product_details: { gender: Gender.Women, collections: [2] } as any,
+      },
+    ] as any;
+
+    const byDisplay = groupProductionBatchesForDisplay(
+      batches,
+      new Map([
+        [1, { name: 'AlphaColl' }],
+        [2, { name: 'ZetaColl' }],
+      ]),
+      'gender',
+      'newest',
+    );
+
+    const collOrder = Object.keys(byDisplay[Gender.Women]);
+    // Alphabetical would be AlphaColl, ZetaColl; newest puts ZetaColl (June) first.
+    expect(collOrder).toEqual(['ZetaColl', 'AlphaColl']);
+    expect(byDisplay[Gender.Women].ZetaColl.map((b) => b.sku)).toEqual(['ZZ9']);
+  });
+
+  it('sorts customer keys per stage column from visible batch chronology', () => {
+    const grouped = {
+      Βήτα: { Γενικά: [{ stageEnteredAt: '2024-01-01T00:00:00.000Z', created_at: '2024-01-01T00:00:00.000Z' } as any] },
+      Άλφα: { Γενικά: [{ stageEnteredAt: '2024-06-01T00:00:00.000Z', created_at: '2024-06-01T00:00:00.000Z' } as any] },
+    };
+
+    expect(sortProductionDisplayLevel1Keys(['Βήτα', 'Άλφα'], grouped, 'customer', 'alpha')).toEqual(['Άλφα', 'Βήτα']);
+    expect(sortProductionDisplayLevel1Keys(['Βήτα', 'Άλφα'], grouped, 'customer', 'newest')).toEqual(['Άλφα', 'Βήτα']);
+    expect(sortProductionDisplayLevel1Keys(['Βήτα', 'Άλφα'], grouped, 'customer', 'oldest')).toEqual(['Βήτα', 'Άλφα']);
   });
 
   it('builds label print queues in customer order', () => {
