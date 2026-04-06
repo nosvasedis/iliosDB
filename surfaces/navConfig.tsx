@@ -7,7 +7,6 @@ import {
   FileBadge,
   FolderKanban as FolderKanbanIcon,
   Globe,
-  FileText,
   LayoutDashboard,
   Layers,
   Menu,
@@ -79,14 +78,24 @@ export const adminQuickActionNavItems: SurfaceNavItem<AdminPage>[] = [
   { id: 'ai-studio', icon: Sparkles, label: 'AI Studio' },
 ];
 
+/** Horizontal bottom bar on mobile admin: scroll for all shortcuts; «Μενού» stays last for the full grid. */
 export const mobileAdminNavItems: SurfaceNavItem<MobileAdminPage>[] = [
   { id: 'dashboard', icon: LayoutDashboard, label: 'Αρχική' },
   { id: 'registry', icon: DatabaseIcon, label: 'Μητρώο' },
   { id: 'orders', icon: ShoppingCart, label: 'Παραγγελίες' },
-  { id: 'offers', icon: FileText, label: 'Προσφορές' },
   { id: 'production', icon: FactoryIcon, label: 'Παραγωγή' },
-  { id: 'inventory', icon: Package, label: 'Αποθήκη' },
   { id: 'customers', icon: Users, label: 'Πελάτες' },
+  { id: 'inventory', icon: Package, label: 'Αποθήκη' },
+  { id: 'deliveries', icon: CalendarRange, label: 'Ημερολόγιο' },
+  { id: 'offers', icon: FileBadge, label: 'Προσφορές' },
+  { id: 'suppliers', icon: Globe, label: 'Προμηθευτές' },
+  { id: 'collections', icon: FolderKanbanIcon, label: 'Συλλογές' },
+  { id: 'resources', icon: Layers, label: 'Υλικά' },
+  { id: 'pricelist', icon: ScrollText, label: 'Τιμοκατάλογος' },
+  { id: 'pricing', icon: DollarSign, label: 'Τιμολόγηση' },
+  { id: 'batch-print', icon: Printer, label: 'Εκτύπωση' },
+  { id: 'ai-studio', icon: Sparkles, label: 'AI Studio' },
+  { id: 'settings', icon: SettingsIcon, label: 'Ρυθμίσεις' },
   { id: 'menu', icon: Menu, label: 'Μενού' },
 ];
 

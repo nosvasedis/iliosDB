@@ -1,10 +1,9 @@
 
 import React, { useMemo, useState } from 'react';
-import { Product, Supplier, SupplierOrder } from '../../types';
+import { Material, Product, Supplier, SupplierOrder } from '../../types';
 import { ChevronLeft, Phone, Mail, MapPin, Plus, Trash2, Printer, Pencil, FileText, X, Search, ImageIcon, Box } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../../lib/supabase';
-import { formatCurrency } from '../../utils/pricingEngine';
 import MobilePurchaseOrderBuilder from './MobilePurchaseOrderBuilder';
 import { getSupplierOrderStatusClasses, getSupplierOrderStatusIcon } from '../../features/suppliers/statusPresentation';
 import { invalidateProductsAndCatalog } from '../../lib/queryInvalidation';
@@ -64,6 +63,18 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
             .sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true }))
             .slice(0, 20);
     }, [products, supplier.id, productSearchTerm]);
+
+    const productBySku = useMemo(() => {
+        const m = new Map<string, Product>();
+        products?.forEach(p => m.set(p.sku, p));
+        return m;
+    }, [products]);
+
+    const materialById = useMemo(() => {
+        const m = new Map<string, Material>();
+        materials?.forEach(mat => m.set(mat.id, mat));
+        return m;
+    }, [materials]);
 
     const handleLinkProduct = async (sku: string) => {
         try {
@@ -239,7 +250,9 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
                                     <div className="flex justify-between items-start mb-2 gap-2">
                                         <div className="min-w-0">
                                             <div className="text-[10px] font-mono text-slate-400 mb-0.5">#{order.id.slice(0, 6).toUpperCase()}</div>
-                                            <div className="font-black text-slate-900 text-lg">{formatCurrency(order.total_amount)}</div>
+                                            <div className="text-sm font-bold text-slate-600">
+                                                {lineCount} {lineCount === 1 ? 'γραμμή' : 'γραμμές'}
+                                            </div>
                                         </div>
                                         <span
                                             className={`shrink-0 px-2 py-1 rounded-lg text-[10px] font-bold uppercase flex items-center gap-1 ${getSupplierOrderStatusClasses(order.status)}`}
@@ -336,9 +349,9 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="font-black text-slate-800 text-sm">{p.sku}</div>
-                                        <div className="text-xs font-bold text-slate-500 mt-0.5">
-                                            {formatCurrency(p.active_price || p.supplier_cost || 0)}
-                                        </div>
+                                        {!!p.category?.trim() && (
+                                            <div className="text-[11px] font-medium text-slate-400 mt-0.5 truncate">{p.category}</div>
+                                        )}
                                     </div>
                                     <button
                                         type="button"
@@ -373,8 +386,8 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
                                         <div className="text-xs font-bold text-slate-500">{MATERIAL_TYPE_LABELS[m.type] || m.type}</div>
                                     </div>
                                 </div>
-                                <div className="text-sm font-black text-slate-700 pt-2 border-t border-slate-50">
-                                    {formatCurrency(m.cost_per_unit)} / <span className="text-xs text-slate-400 font-bold uppercase">{m.unit}</span>
+                                <div className="text-xs font-bold text-slate-500 pt-2 border-t border-slate-50 uppercase tracking-wide">
+                                    Μον. μέτρησης: {m.unit}
                                 </div>
                             </div>
                         ))}
@@ -411,29 +424,75 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
                                 <X size={20} />
                             </button>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                            <table className="w-full text-sm text-left">
-                                <thead className="text-slate-500 text-[10px] uppercase font-bold border-b border-slate-100">
-                                    <tr>
-                                        <th className="pb-2 pr-2">Τύπος</th>
-                                        <th className="pb-2 pr-2">Τίτλος</th>
-                                        <th className="pb-2 pr-2">Πελάτης</th>
-                                        <th className="pb-2 text-center">Ποσ.</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {(viewOrder.items || []).map((item, i) => (
-                                        <tr key={item.id || i}>
-                                            <td className="py-2.5 pr-2 font-bold text-slate-700 text-[10px]">
-                                                {item.item_type === 'Product' ? 'ΠΡΟΪΟΝ' : 'ΥΛΙΚΟ'}
-                                            </td>
-                                            <td className="py-2.5 pr-2 text-slate-700">{item.item_name}</td>
-                                            <td className="py-2.5 pr-2 text-xs text-slate-600">{item.customer_reference || '—'}</td>
-                                            <td className="py-2.5 text-center font-mono font-bold">{item.quantity}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                        <div className="flex-1 overflow-y-auto p-4 pt-2 custom-scrollbar space-y-3">
+                            {(viewOrder.items || []).map((item, i) => {
+                                const isProduct = item.item_type === 'Product';
+                                const prod = isProduct ? productBySku.get(item.item_id) : undefined;
+                                const mat = !isProduct ? materialById.get(item.item_id) : undefined;
+                                const thumbUrl = prod?.image_url || null;
+                                return (
+                                    <div
+                                        key={item.id || `${item.item_id}-${i}`}
+                                        className="flex gap-3 rounded-2xl border border-slate-100 bg-gradient-to-b from-white to-slate-50/80 p-3 shadow-sm"
+                                    >
+                                        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-slate-200/80 bg-slate-100 shadow-inner">
+                                            {thumbUrl ? (
+                                                <img src={thumbUrl} alt="" className="h-full w-full object-cover" />
+                                            ) : isProduct ? (
+                                                <div className="flex h-full w-full items-center justify-center text-slate-300">
+                                                    <ImageIcon size={28} strokeWidth={1.5} />
+                                                </div>
+                                            ) : (
+                                                <div className="flex h-full w-full flex-col items-center justify-center gap-0.5 bg-amber-50 text-amber-700">
+                                                    <Box size={22} strokeWidth={2} />
+                                                    <span className="text-[8px] font-black uppercase tracking-wider">Υλικό</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="min-w-0 flex-1 flex flex-col justify-center gap-1">
+                                            <div className="flex flex-wrap items-center gap-1.5">
+                                                <span
+                                                    className={`rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${
+                                                        isProduct
+                                                            ? 'bg-violet-100 text-violet-800'
+                                                            : 'bg-amber-100 text-amber-900'
+                                                    }`}
+                                                >
+                                                    {isProduct ? 'Προϊόν' : 'Υλικό'}
+                                                </span>
+                                                {isProduct && prod?.sku && (
+                                                    <span className="font-mono text-[10px] font-bold text-slate-400">{prod.sku}</span>
+                                                )}
+                                                {!isProduct && mat && (
+                                                    <span className="text-[10px] font-bold text-slate-400">
+                                                        {MATERIAL_TYPE_LABELS[mat.type] || mat.type}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-sm font-bold leading-snug text-slate-900">{item.item_name}</p>
+                                            {item.size_info?.trim() && (
+                                                <p className="text-xs font-semibold text-slate-500">Μέγεθος: {item.size_info}</p>
+                                            )}
+                                            {item.notes?.trim() && (
+                                                <p className="text-[11px] leading-relaxed text-slate-500 italic">{item.notes}</p>
+                                            )}
+                                            {item.customer_reference?.trim() && (
+                                                <p className="text-[11px] font-medium text-emerald-800/90">
+                                                    <span className="text-slate-400 font-bold uppercase tracking-wide">Πελάτης </span>
+                                                    {item.customer_reference}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <div className="flex shrink-0 flex-col items-end justify-center border-l border-slate-100 pl-3">
+                                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Ποσ.</span>
+                                            <span className="text-xl font-black tabular-nums text-slate-900">{item.quantity}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            {(viewOrder.items || []).length === 0 && (
+                                <p className="py-8 text-center text-sm text-slate-400">Δεν υπάρχουν γραμμές σε αυτή την εντολή.</p>
+                            )}
                         </div>
                     </div>
                 </div>

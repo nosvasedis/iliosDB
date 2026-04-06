@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { WifiOff, RefreshCw, CloudOff } from 'lucide-react';
 import { mobileAdminNavItems, renderNavIcon } from '../../surfaces/navConfig';
 import type { MobileAdminPage } from '../../surfaces/pageIds';
@@ -13,13 +13,29 @@ interface MobileLayoutProps {
   pendingCount?: number;
 }
 
+const barPageIds = new Set<MobileAdminPage>(mobileAdminNavItems.map((i) => i.id));
+
+function isBarNavActive(itemId: MobileAdminPage, activePage: MobileAdminPage): boolean {
+  if (itemId === 'menu') {
+    if (activePage === 'menu') return true;
+    if (activePage === 'order-builder') return false;
+    return !barPageIds.has(activePage);
+  }
+  if (itemId === 'orders' && activePage === 'order-builder') return true;
+  return activePage === itemId;
+}
+
 export default function MobileLayout({ children, activePage, onNavigate, isOnline = true, isSyncing = false, pendingCount = 0 }: MobileLayoutProps) {
   const showStatus = !isOnline || isSyncing || pendingCount > 0;
+  const activeBtnRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    activeBtnRef.current?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [activePage]);
 
   return (
     <div className="flex flex-col h-screen bg-slate-50 text-[#060b00] overflow-hidden">
 
-      {/* Smart Connectivity Status Bar */}
       {showStatus && (
         <div className={`
             w-full px-4 py-2 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest transition-colors duration-300 z-50 shadow-sm
@@ -37,34 +53,50 @@ export default function MobileLayout({ children, activePage, onNavigate, isOnlin
         </div>
       )}
 
-      {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto pb-24 scroll-smooth overscroll-none">
+      <main className="flex-1 overflow-y-auto pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] scroll-smooth overscroll-none">
         {children}
       </main>
 
-      {/* Bottom Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-slate-200 pb-safe z-50 shadow-[0_-8px_30px_rgb(0,0,0,0.04)] print:hidden">
-        <div className="flex justify-around items-center h-16 px-0.5">
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-50 print:hidden border-t border-slate-200/80 bg-white/90 backdrop-blur-2xl shadow-[0_-12px_40px_-12px_rgba(15,23,42,0.12)]"
+        aria-label="Κύρια πλοήγηση"
+      >
+        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-white via-white/95 to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-white via-white/95 to-transparent" />
+
+        <div
+          className="flex overflow-x-auto overflow-y-hidden gap-1.5 px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden snap-x snap-mandatory"
+        >
           {mobileAdminNavItems.map((item) => {
-            const isActive =
-              activePage === item.id ||
-              (item.id === 'menu' && !mobileAdminNavItems.some(ni => ni.id !== 'menu' && ni.id === activePage));
+            const isActive = isBarNavActive(item.id, activePage);
             return (
               <button
                 key={item.id}
+                ref={isActive ? activeBtnRef : undefined}
+                type="button"
                 onClick={() => onNavigate(item.id)}
-                className={`flex flex-col items-center justify-center w-full h-full relative transition-all duration-300 ${isActive ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-500'}`}
+                className={`
+                  flex shrink-0 snap-center flex-col items-center justify-center gap-0.5 rounded-2xl px-3 py-2 min-w-[4.25rem] max-w-[5.5rem] transition-all duration-300 outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/80 focus-visible:ring-offset-2
+                  ${isActive
+                    ? 'bg-gradient-to-b from-emerald-50 to-teal-50/90 text-emerald-800 shadow-[0_4px_14px_-4px_rgba(16,185,129,0.35)] ring-1 ring-emerald-200/70'
+                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50/90 active:scale-[0.97]'}
+                `}
               >
-                <div className={`p-1.5 rounded-xl mb-0.5 transition-all duration-500 ${isActive ? 'bg-emerald-50 scale-110 shadow-sm shadow-emerald-100/50' : 'opacity-80'}`}>
-                  {renderNavIcon(item.icon, 18, isActive ? 2.5 : 2)}
-                </div>
-                <span className={`text-[8.5px] font-bold truncate w-full text-center px-0.5 tracking-tight transition-all duration-300 ${isActive ? 'opacity-100' : 'opacity-70'}`}>
+                <span
+                  className={`
+                    flex h-9 w-9 items-center justify-center rounded-xl transition-transform duration-300
+                    ${isActive ? 'scale-105 text-emerald-700' : 'text-slate-400'}
+                  `}
+                >
+                  {renderNavIcon(item.icon, 20, isActive ? 2.5 : 2)}
+                </span>
+                <span
+                  className={`text-[9px] font-bold leading-tight text-center tracking-tight line-clamp-2 w-full ${isActive ? 'text-emerald-900' : 'text-slate-500'}`}
+                >
                   {item.label}
                 </span>
-
-                {/* Active Indicator Dot */}
                 {isActive && (
-                  <div className="absolute bottom-1 w-1 h-1 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-in fade-in zoom-in duration-500" />
+                  <span className="h-1 w-1 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.7)]" />
                 )}
               </button>
             );
