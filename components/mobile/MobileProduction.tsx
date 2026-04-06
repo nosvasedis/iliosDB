@@ -1116,24 +1116,54 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                 <span className="bg-slate-900 text-white text-[10px] font-black px-2 py-1 rounded-lg uppercase tracking-widest">{activeBatchesCount} ΕΝΕΡΓΑ</span>
             </div>
 
-            <div className="bg-slate-900 rounded-3xl p-5 shadow-lg relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-10 text-white"><Search size={80} /></div>
+            <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100 relative overflow-hidden">
+                <div className="pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full bg-emerald-500/[0.07]" aria-hidden />
                 <div className="relative z-10">
-                    <div className="flex items-center justify-between mb-3 text-white">
-                        <h2 className="font-bold text-sm flex items-center gap-2">
-                            <Search size={16} className="text-emerald-400" /> Εύρεση Παρτίδας
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                        <h2 className="flex items-center gap-2.5 text-sm font-bold tracking-tight text-slate-800">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[#060b00] text-white shadow-sm">
+                                <Search size={17} strokeWidth={2.25} aria-hidden />
+                            </span>
+                            Εύρεση Παρτίδας
                         </h2>
-                        {finderTerm && <div className="text-[10px] font-black bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-lg border border-emerald-500/20">{foundBatches.length} ΑΠΟΤΕΛΕΣΜΑΤΑ</div>}
+                        {finderTerm ? (
+                            <span className="shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                {foundBatches.length} αποτ.
+                            </span>
+                        ) : null}
                     </div>
-                    <div className="relative">
-                        <input type="text" value={finderTerm} onChange={(e) => setFinderTerm(e.target.value)} placeholder="Εύρεση SKU / Εντολής / Πελάτη..." className="w-full pl-10 p-4 rounded-2xl bg-white/10 border border-white/20 text-white placeholder-white/40 outline-none focus:bg-white/20 focus:ring-2 focus:ring-emerald-500/20 font-bold transition-all uppercase" />
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" size={20} />
-                        {finderTerm && <button onClick={() => setFinderTerm('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white p-1.5 bg-white/5 rounded-full"><X size={16} /></button>}
+                    <div className="group relative">
+                        <input
+                            type="text"
+                            enterKeyHint="search"
+                            autoComplete="off"
+                            autoCorrect="off"
+                            spellCheck={false}
+                            value={finderTerm}
+                            onChange={(e) => setFinderTerm(e.target.value)}
+                            placeholder="Εύρεση SKU / Εντολής / Πελάτη..."
+                            className="min-h-[48px] w-full rounded-2xl border border-slate-200 bg-slate-100 py-3.5 pl-11 pr-12 text-[15px] font-bold uppercase text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/20"
+                        />
+                        <Search
+                            className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-600"
+                            strokeWidth={2.25}
+                            aria-hidden
+                        />
+                        {finderTerm ? (
+                            <button
+                                type="button"
+                                onClick={() => setFinderTerm('')}
+                                className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-200/80 hover:text-slate-700 active:scale-95 touch-manipulation"
+                                aria-label="Καθαρισμός αναζήτησης"
+                            >
+                                <X size={18} />
+                            </button>
+                        ) : null}
                     </div>
                 </div>
                 {finderTerm.length >= 2 && (
-                    <div className="mt-4 rounded-2xl bg-white p-2.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-slate-200/90 relative z-10">
-                    <div className="space-y-2 max-h-[min(50vh,20rem)] overflow-y-auto custom-scrollbar">
+                    <div className="relative z-10 mt-3 rounded-2xl border border-slate-100 bg-slate-50/80 p-2 shadow-inner">
+                        <div className="custom-scrollbar max-h-[min(50vh,20rem)] space-y-2 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]">
                         {foundBatches.map(b => {
                             const isSpecialBatch = isSpecialCreationSku(b.sku);
                             const stageMeta = STAGES.find(s => s.id === b.current_stage);
@@ -1201,8 +1231,10 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                             </div>
                             );
                         })}
-                        {foundBatches.length === 0 && <div className="text-center py-8 text-slate-400 italic font-bold text-sm">Δεν βρέθηκαν παρτίδες.</div>}
-                    </div>
+                        {foundBatches.length === 0 && (
+                            <div className="py-10 text-center text-sm font-bold italic text-slate-400">Δεν βρέθηκαν παρτίδες.</div>
+                        )}
+                        </div>
                     </div>
                 )}
             </div>
