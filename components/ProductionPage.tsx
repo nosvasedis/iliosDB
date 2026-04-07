@@ -4,7 +4,7 @@ import ReactDOM from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender, ProductVariant, Order, OrderStatus, AssemblyPrintData, AssemblyPrintRow, StageBatchPrintData } from '../types';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, ArrowUp, ArrowDown, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, Users, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList, Grid } from 'lucide-react';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, ArrowUp, ArrowDown, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, Users, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList, Grid, Maximize2, Minimize2 } from 'lucide-react';
 import { useUI } from './UIProvider';
 import DesktopPageHeader from './DesktopPageHeader';
 import { useAuth } from './AuthContext';
@@ -1362,10 +1362,11 @@ const StageInspectorModal: React.FC<{
     onOpenPdfBatchPicker?: () => void;
     onDispatchBatches?: (batchIds: string[]) => void;
     onRecallBatches?: (batchIds: string[]) => void;
-}> = ({ stage, batches, onClose, onMoveBatch, onToggleHold, onEditNote, onOpenPdfBatchPicker, onDispatchBatches, onRecallBatches }) => {
+    initialPolishingTab?: 'pending' | 'dispatched';
+}> = ({ stage, batches, onClose, onMoveBatch, onToggleHold, onEditNote, onOpenPdfBatchPicker, onDispatchBatches, onRecallBatches, initialPolishingTab }) => {
     const [sortMode, setSortMode] = useState<'sku' | 'client' | 'oldest' | 'newest'>('sku');
     const [clientFilter, setClientFilter] = useState('');
-    const [polishingTab, setPolishingTab] = useState<'pending' | 'dispatched'>('pending');
+    const [polishingTab, setPolishingTab] = useState<'pending' | 'dispatched'>(initialPolishingTab ?? 'pending');
     const colors = STAGE_COLORS[stage.color as keyof typeof STAGE_COLORS];
     const isPolishing = stage.id === ProductionStage.Polishing;
 
@@ -1762,6 +1763,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     const [draggedBatchId, setDraggedBatchId] = useState<string | null>(null);
     const [dropTarget, setDropTarget] = useState<ProductionStage | null>(null);
     const [polishingDropTarget, setPolishingDropTarget] = useState<'pending' | 'dispatched' | null>(null);
+    const [polishingFocus, setPolishingFocus] = useState<'equal' | 'pending' | 'dispatched'>('equal');
     const [isProcessingSplit, setIsProcessingSplit] = useState(false);
 
     // Note Editing
@@ -1809,6 +1811,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     const [isMoldModalOpen, setIsMoldModalOpen] = useState(false);
     const [showSettingStones, setShowSettingStones] = useState(false);
     const [stageInspectorStage, setStageInspectorStage] = useState<ProductionStage | null>(null);
+    const [stageInspectorInitialPolishingTab, setStageInspectorInitialPolishingTab] = useState<'pending' | 'dispatched'>('pending');
 
     // Multi-select & bulk move
     const [multiSelectIds, setMultiSelectIds] = useState<Set<string>>(new Set());
@@ -2903,6 +2906,9 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
 
                         // ── Two separate Kanban panels for the Polishing (Τεχνίτης) sub-stages ──
                         if (stage.id === ProductionStage.Polishing) {
+                            const pendingCollapsed = polishingFocus === 'dispatched';
+                            const dispatchedCollapsed = polishingFocus === 'pending';
+
                             return (
                                 <div
                                     key={stage.id}
@@ -2919,12 +2925,12 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                     <div
                                         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropTarget(ProductionStage.Polishing); setPolishingDropTarget('pending'); }}
                                         onDrop={() => { void handleDrop(ProductionStage.Polishing, true); setPolishingDropTarget(null); }}
-                                        className={`flex flex-col rounded-3xl border transition-all duration-300 w-full lg:flex-1 lg:min-h-0 ${polishingDropTarget === 'pending' ? 'bg-emerald-50 border-emerald-300 shadow-2xl scale-[1.01]' : 'bg-teal-50 border-teal-200'}`}
+                                        className={`flex flex-col rounded-3xl border transition-all duration-300 w-full min-h-[180px] lg:min-h-0 ${pendingCollapsed ? 'lg:flex-none' : 'lg:flex-1'} ${polishingDropTarget === 'pending' ? 'bg-emerald-50 border-emerald-300 shadow-2xl scale-[1.01]' : 'bg-teal-50 border-teal-200'}`}
                                     >
-                                        <div className="p-4 rounded-t-3xl border-b border-teal-200 flex justify-between items-center bg-teal-100/60">
+                                        <div className={`p-4 rounded-t-3xl flex justify-between items-center bg-teal-100/60 ${pendingCollapsed ? 'rounded-b-3xl' : 'border-b border-teal-200'}`}>
                                             <div className="flex items-center gap-3">
                                                 <button
-                                                    onClick={() => setStageInspectorStage(ProductionStage.Polishing)}
+                                                    onClick={() => { setStageInspectorInitialPolishingTab('pending'); setStageInspectorStage(ProductionStage.Polishing); }}
                                                     className="p-2 rounded-lg bg-white shadow-sm text-teal-600 hover:bg-teal-50 transition-colors"
                                                     title="Προβολή παρτίδων Τεχνίτη"
                                                 >
@@ -2936,7 +2942,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                {polishingPendingBatches.length > 0 && (
+                                                {!pendingCollapsed && polishingPendingBatches.length > 0 && (
                                                     <button
                                                         onClick={() => handleDispatchBatches(polishingPendingBatches.map(b => b.id))}
                                                         disabled={isProcessingSplit}
@@ -2948,29 +2954,38 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                                     </button>
                                                 )}
                                                 <span className="px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-sm text-teal-700">{polishingPendingBatches.length}</span>
+                                                <button
+                                                    onClick={() => setPolishingFocus(polishingFocus === 'pending' ? 'equal' : 'pending')}
+                                                    className="p-1.5 rounded-lg bg-white shadow-sm text-teal-500 hover:bg-teal-100 hover:text-teal-700 transition-colors"
+                                                    title={polishingFocus === 'pending' ? 'Ισόποση κατανομή' : 'Μεγέθυνση αυτής της στήλης'}
+                                                >
+                                                    {polishingFocus === 'pending' ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                                                </button>
                                             </div>
                                         </div>
-                                        <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar min-h-[120px] lg:min-h-0">
-                                            {renderBatchGroups(groupedPolishingPending)}
-                                            {polishingPendingBatches.length === 0 && (
-                                                <div className="h-24 lg:h-full flex flex-col items-center justify-center text-teal-300/60 p-4 border-2 border-dashed border-teal-200/50 rounded-2xl">
-                                                    <Truck size={24} className="mb-2" />
-                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-center">Τίποτα σε αναμονή</p>
-                                                </div>
-                                            )}
-                                        </div>
+                                        {!pendingCollapsed && (
+                                            <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar lg:min-h-0">
+                                                {renderBatchGroups(groupedPolishingPending)}
+                                                {polishingPendingBatches.length === 0 && (
+                                                    <div className="h-24 lg:h-full flex flex-col items-center justify-center text-teal-300/60 p-4 border-2 border-dashed border-teal-200/50 rounded-2xl">
+                                                        <Truck size={24} className="mb-2" />
+                                                        <p className="text-[10px] font-bold uppercase tracking-widest text-center">Τίποτα σε αναμονή</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* ── Panel 2: Στον Τεχνίτη (blue) ── */}
                                     <div
                                         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropTarget(ProductionStage.Polishing); setPolishingDropTarget('dispatched'); }}
                                         onDrop={() => { void handleDrop(ProductionStage.Polishing, false); setPolishingDropTarget(null); }}
-                                        className={`flex flex-col rounded-3xl border transition-all duration-300 w-full lg:flex-1 lg:min-h-0 ${polishingDropTarget === 'dispatched' ? 'bg-emerald-50 border-emerald-300 shadow-2xl scale-[1.01]' : 'bg-blue-50 border-blue-200'}`}
+                                        className={`flex flex-col rounded-3xl border transition-all duration-300 w-full min-h-[180px] lg:min-h-0 ${dispatchedCollapsed ? 'lg:flex-none' : 'lg:flex-1'} ${polishingDropTarget === 'dispatched' ? 'bg-emerald-50 border-emerald-300 shadow-2xl scale-[1.01]' : 'bg-blue-50 border-blue-200'}`}
                                     >
-                                        <div className="p-4 rounded-t-3xl border-b border-blue-200 flex justify-between items-center bg-blue-100/60">
+                                        <div className={`p-4 rounded-t-3xl flex justify-between items-center bg-blue-100/60 ${dispatchedCollapsed ? 'rounded-b-3xl' : 'border-b border-blue-200'}`}>
                                             <div className="flex items-center gap-3">
                                                 <button
-                                                    onClick={() => setStageInspectorStage(ProductionStage.Polishing)}
+                                                    onClick={() => { setStageInspectorInitialPolishingTab('dispatched'); setStageInspectorStage(ProductionStage.Polishing); }}
                                                     className="p-2 rounded-lg bg-white shadow-sm text-blue-600 hover:bg-blue-50 transition-colors"
                                                     title="Προβολή παρτίδων Τεχνίτη"
                                                 >
@@ -2983,17 +2998,26 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-sm text-blue-700">{polishingDispatchedBatches.length}</span>
+                                                <button
+                                                    onClick={() => setPolishingFocus(polishingFocus === 'dispatched' ? 'equal' : 'dispatched')}
+                                                    className="p-1.5 rounded-lg bg-white shadow-sm text-blue-500 hover:bg-blue-100 hover:text-blue-700 transition-colors"
+                                                    title={polishingFocus === 'dispatched' ? 'Ισόποση κατανομή' : 'Μεγέθυνση αυτής της στήλης'}
+                                                >
+                                                    {polishingFocus === 'dispatched' ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                                                </button>
                                             </div>
                                         </div>
-                                        <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar min-h-[120px] lg:min-h-0">
-                                            {renderBatchGroups(groupedPolishingDispatched, { onRecallDispatch: (batchId) => handleRecallDispatchBatches([batchId]) })}
-                                            {polishingDispatchedBatches.length === 0 && (
-                                                <div className="h-24 lg:h-full flex flex-col items-center justify-center text-blue-300/60 p-4 border-2 border-dashed border-blue-200/50 rounded-2xl">
-                                                    <Hammer size={24} className="mb-2" />
-                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-center">Κανένα στον Τεχνίτη</p>
-                                                </div>
-                                            )}
-                                        </div>
+                                        {!dispatchedCollapsed && (
+                                            <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar lg:min-h-0">
+                                                {renderBatchGroups(groupedPolishingDispatched, { onRecallDispatch: (batchId) => handleRecallDispatchBatches([batchId]) })}
+                                                {polishingDispatchedBatches.length === 0 && (
+                                                    <div className="h-24 lg:h-full flex flex-col items-center justify-center text-blue-300/60 p-4 border-2 border-dashed border-blue-200/50 rounded-2xl">
+                                                        <Hammer size={24} className="mb-2" />
+                                                        <p className="text-[10px] font-bold uppercase tracking-widest text-center">Κανένα στον Τεχνίτη</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             );
@@ -3252,6 +3276,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         }
                         onDispatchBatches={stageInspectorStage === ProductionStage.Polishing ? handleDispatchBatches : undefined}
                         onRecallBatches={stageInspectorStage === ProductionStage.Polishing ? handleRecallDispatchBatches : undefined}
+                        initialPolishingTab={stageInspectorStage === ProductionStage.Polishing ? stageInspectorInitialPolishingTab : undefined}
                     />
                 );
             })()}
