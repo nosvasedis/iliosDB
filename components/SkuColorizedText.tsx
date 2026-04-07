@@ -24,7 +24,7 @@ export default function SkuColorizedText({
         suffix === undefined
             ? splitSkuComponents(sku)
             : { master: sku, suffix };
-    const { finish, stone } = getVariantComponents(variantSuffix, gender);
+    const { finish, stone, prefixLength } = getVariantComponents(variantSuffix, gender);
 
     const finishColor = getSkuFinishTextColor(finish.code);
     const stoneColor = getSkuStoneTextColor(stone.code);
@@ -35,10 +35,17 @@ export default function SkuColorizedText({
             <span className="font-bold">
                 {variantSuffix.split('').map((char, index) => {
                     let colorClass = 'text-slate-400';
-                    if (finish.code && index < finish.code.length) {
-                        colorClass = finishColor;
-                    } else if (stone.code && index >= variantSuffix.length - stone.code.length) {
-                        colorClass = stoneColor;
+                    if (index < prefixLength) {
+                        // Prefix chars sit between the master digits and the finish letter;
+                        // they belong to the master SKU visually (e.g. the "S" in DA752S·DLE).
+                        colorClass = masterClassName;
+                    } else {
+                        const suffixIdx = index - prefixLength;
+                        if (finish.code && suffixIdx < finish.code.length) {
+                            colorClass = finishColor;
+                        } else if (stone.code && index >= variantSuffix.length - stone.code.length) {
+                            colorClass = stoneColor;
+                        }
                     }
 
                     return (

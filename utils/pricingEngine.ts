@@ -334,10 +334,36 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
     let detectedFinishCode = '';
     let detectedBridge = '';
 
-    // STRATEGY 1: LOOKAHEAD FOR FINISH CODE FIRST
-    // If the suffix starts with a known finish (P, X, D, H) and the remainder is a valid stone or empty, 
-    // we prioritize this decomposition. This solves conflicts like "PCO" (Patina + Copper vs Lustre + Green Copper).
+    // Metal finish letters — always exactly one of these, or none (λουστρέ).
     const possibleFinishes = ['P', 'X', 'D', 'H'];
+
+    // PRE-STEP: Handle leading prefix characters that come before the finish code.
+    // The structure is: [prefix][finish P/D/H/X][stone] or [stone only] (λουστρέ).
+    // e.g. "SDLE"  → prefix "S" (part of master SKU display), finish "D", stone "LE"
+    // e.g. "MSPAK" → prefix "MS", finish "P", stone "AK"
+    // e.g. "TG"    → no finish anywhere → pure stone (λουστρέ), prefixLength = 0
+    // e.g. "SD"    → "SD" is itself a known stone (Σοδαλίτης) → λουστρέ, prefixLength = 0
+    let prefixLength = 0;
+    if (!possibleFinishes.includes(cleanSuffix.charAt(0))) {
+        if ((relevantStones as any)[cleanSuffix]) {
+            // Entire suffix is a known stone code → λουστρέ variant, return immediately.
+            return {
+                finish: { code: '', name: FINISH_CODES[''] },
+                bridge: '',
+                stone: { code: cleanSuffix, name: (relevantStones as any)[cleanSuffix] },
+                prefixLength: 0
+            };
+        }
+        const firstFinishIdx = [...cleanSuffix].findIndex(c => possibleFinishes.includes(c));
+        if (firstFinishIdx > 0) {
+            prefixLength = firstFinishIdx;
+            workingString = cleanSuffix.slice(firstFinishIdx);
+        }
+    }
+
+    // STRATEGY 1: LOOKAHEAD FOR FINISH CODE FIRST
+    // If workingString starts with a known finish (P, X, D, H) and the remainder is a valid stone or empty,
+    // we prioritize this decomposition. This solves conflicts like "PCO" (Patina + Copper vs Lustre + Green Copper).
     const firstChar = workingString.charAt(0);
     const restOfSuffix = workingString.substring(1);
 
@@ -364,7 +390,8 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
                 stone: {
                     code: detectedStoneCode,
                     name: (relevantStones as any)[detectedStoneCode] || detectedStoneCode || ''
-                }
+                },
+                prefixLength
             };
         }
     }
@@ -419,7 +446,8 @@ export const getVariantComponents = (suffix: string, gender?: Gender) => {
         stone: {
             code: detectedStoneCode,
             name: (relevantStones as any)[detectedStoneCode] || detectedStoneCode || ''
-        }
+        },
+        prefixLength
     };
 };
 
@@ -477,14 +505,36 @@ export const getVariantSuffixDisplayCodes = (
 };
 
 /**
- * Helper to split a full SKU into master and suffix parts for visualization
+ * Helper to split a full SKU into master and suffix parts for visualization.
+ * Understands that P/D/H/X is always the metal finish letter; any letters between
+ * the digits and the first finish letter belong to the master SKU display.
+ * e.g. "DA752SDLE" → master "DA752S", suffix "DLE"  (D=finish, LE=stone)
+ * e.g. "BR001MSPAK" → master "BR001MS", suffix "PAK" (P=finish, AK=stone)
+ * e.g. "RN045TG"   → master "RN045",   suffix "TG"  (λουστρέ, TG=stone)
  */
 export const splitSkuComponents = (fullSku: string): { master: string, suffix: string } => {
-    // Basic heuristic: First 2-3 letters + numbers is master (e.g. DA100, ΒΔΑ014)
-    // Everything else is suffix. Supports Greek characters.
     const match = fullSku.match(/^([A-ZΑ-Ω]{2,3}\d+)(.*)$/i);
     if (match) {
-        return { master: match[1], suffix: match[2] };
+        const baseMaster = match[1];
+        const remainder = match[2];
+        if (remainder) {
+            const upperRemainder = remainder.toUpperCase();
+            const allStones = { ...STONE_CODES_MEN, ...STONE_CODES_WOMEN };
+            const possibleFinishes = ['P', 'X', 'D', 'H'];
+            // If the entire remainder is a known stone code it's a λουστρέ variant — keep as-is.
+            if (allStones[upperRemainder]) {
+                return { master: baseMaster, suffix: remainder };
+            }
+            // Any letters before the first finish code belong to the master SKU.
+            const firstFinishIdx = [...upperRemainder].findIndex(c => possibleFinishes.includes(c));
+            if (firstFinishIdx > 0) {
+                return {
+                    master: baseMaster + remainder.slice(0, firstFinishIdx),
+                    suffix: remainder.slice(firstFinishIdx)
+                };
+            }
+        }
+        return { master: baseMaster, suffix: remainder };
     }
     return { master: fullSku, suffix: '' };
 };
