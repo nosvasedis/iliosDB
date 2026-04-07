@@ -53,19 +53,28 @@ const UNBATCHED_STAGE_STYLES = {
     bar: 'bg-slate-300',
 };
 
+const POLISHING_PENDING_COLORS = { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-200' };
+
 const StageBadge: React.FC<{
     stage: ProductionStage;
     quantity: number;
     compact?: boolean;
-}> = ({ stage, quantity, compact = false }) => {
+    pendingDispatch?: boolean;
+}> = ({ stage, quantity, compact = false, pendingDispatch }) => {
     const Icon = STAGE_ICON_MAP[stage];
-    const stageColors = PRODUCTION_STAGE_COLORS[stage] ?? PRODUCTION_STAGE_COLORS[ProductionStage.Waxing];
+    const isPendingPolishing = stage === ProductionStage.Polishing && pendingDispatch === true;
+    const stageColors = isPendingPolishing
+        ? POLISHING_PENDING_COLORS
+        : (PRODUCTION_STAGE_COLORS[stage] ?? PRODUCTION_STAGE_COLORS[ProductionStage.Waxing]);
+    const label = stage === ProductionStage.Polishing
+        ? (pendingDispatch ? 'Τεχν. • Αναμονή' : 'Τεχν. • Στον Τεχν.')
+        : getProductionStageLabel(stage);
 
     return (
         <div className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-bold ${compact ? 'text-[10px]' : 'text-[11px]'} ${stageColors.bg} ${stageColors.text} ${stageColors.border}`}>
             <Icon size={compact ? 12 : 13} />
             <span>{quantity}x</span>
-            <span>{getProductionStageLabel(stage)}</span>
+            <span>{label}</span>
         </div>
     );
 };
@@ -868,7 +877,7 @@ const OrderCard: React.FC<{
                             <div className="mt-3 flex flex-wrap gap-2">
                                 {stageProgress.segments.map((segment, index) => (
                                     segment.kind === 'stage' ? (
-                                        <StageBadge key={`${segment.stage}-${index}`} stage={segment.stage} quantity={segment.quantity} compact />
+                                        <StageBadge key={`${segment.stage}-${index}`} stage={segment.stage} quantity={segment.quantity} compact pendingDispatch={(segment as any).pendingDispatch} />
                                     ) : (
                                         <UnbatchedBadge key={`unbatched-${index}`} quantity={segment.quantity} compact />
                                     )
@@ -912,7 +921,7 @@ const OrderCard: React.FC<{
                                                 <div className="mt-1.5 flex flex-wrap gap-1.5">
                                                     {itemStageBreakdown.map((entry, stageIndex) => (
                                                         entry.kind === 'stage' ? (
-                                                            <StageBadge key={`${entry.stage}-${stageIndex}`} stage={entry.stage} quantity={entry.quantity} />
+                                                            <StageBadge key={`${entry.stage}-${entry.pendingDispatch}-${stageIndex}`} stage={entry.stage} quantity={entry.quantity} pendingDispatch={entry.pendingDispatch} />
                                                         ) : (
                                                             <UnbatchedBadge key={`unbatched-${stageIndex}`} quantity={entry.quantity} />
                                                         )

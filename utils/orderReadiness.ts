@@ -58,6 +58,8 @@ export type OrderProductionStageBreakdownEntry =
       kind: 'stage';
       stage: ProductionStage;
       quantity: number;
+      /** For Polishing stage only: distinguishes "Αναμονή αποστολής" (true) from "Στον Τεχνίτη" (false/undefined). */
+      pendingDispatch?: boolean;
     }
   | {
       kind: 'unbatched';
@@ -114,21 +116,38 @@ export function getOrderItemProductionStageBreakdown(
   batches: ProductionBatch[] | undefined | null
 ): OrderProductionStageBreakdownEntry[] {
   const matchingBatches = getMatchingOrderItemBatches(item, batches);
-  const stageCounts = new Map<ProductionStage, number>();
+  // Use a compound key so Polishing pending vs dispatched are tracked separately.
+  const stageCounts = new Map<string, { stage: ProductionStage; quantity: number; pendingDispatch?: boolean }>();
   let matchedQty = 0;
 
   for (const batch of matchingBatches) {
     const qty = batch.quantity || 0;
     matchedQty += qty;
-    stageCounts.set(batch.current_stage, (stageCounts.get(batch.current_stage) || 0) + qty);
+    const isPendingDispatch = batch.current_stage === ProductionStage.Polishing ? !!batch.pending_dispatch : undefined;
+    const key = batch.current_stage + (isPendingDispatch !== undefined ? `:${isPendingDispatch ? '1' : '0'}` : '');
+    const existing = stageCounts.get(key);
+    if (existing) {
+      existing.quantity += qty;
+    } else {
+      stageCounts.set(key, { stage: batch.current_stage, quantity: qty, pendingDispatch: isPendingDispatch });
+    }
   }
 
-  const entries: OrderProductionStageBreakdownEntry[] = Array.from(stageCounts.entries())
-    .sort((a, b) => (PRODUCTION_STAGE_ORDER_INDEX[a[0]] ?? 99) - (PRODUCTION_STAGE_ORDER_INDEX[b[0]] ?? 99))
-    .map(([stage, quantity]) => ({
+  const entries: OrderProductionStageBreakdownEntry[] = Array.from(stageCounts.values())
+    .sort((a, b) => {
+      const stageOrder = (PRODUCTION_STAGE_ORDER_INDEX[a.stage] ?? 99) - (PRODUCTION_STAGE_ORDER_INDEX[b.stage] ?? 99);
+      if (stageOrder !== 0) return stageOrder;
+      // Within Polishing: pending (awaiting dispatch) comes before dispatched
+      if (a.pendingDispatch !== undefined && b.pendingDispatch !== undefined) {
+        return (b.pendingDispatch ? 1 : 0) - (a.pendingDispatch ? 1 : 0);
+      }
+      return 0;
+    })
+    .map(({ stage, quantity, pendingDispatch }) => ({
       kind: 'stage' as const,
       stage,
       quantity,
+      ...(pendingDispatch !== undefined ? { pendingDispatch } : {}),
     }));
 
   const unbatchedQty = Math.max(0, (item.quantity || 0) - matchedQty);
