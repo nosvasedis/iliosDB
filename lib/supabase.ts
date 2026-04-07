@@ -1380,7 +1380,7 @@ export const api = {
             safeMutate('production_batches', 'UPDATE', {
                 pending_dispatch: false,
                 updated_at: now,
-            }, { match: { id } })
+            }, { match: { id }, noSelect: true })
         ));
 
         // Log history entries for audit trail
@@ -1412,7 +1412,7 @@ export const api = {
             safeMutate('production_batches', 'UPDATE', {
                 pending_dispatch: true,
                 updated_at: now,
-            }, { match: { id } })
+            }, { match: { id }, noSelect: true })
         ));
 
         // Log history entries for audit trail

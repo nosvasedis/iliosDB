@@ -18,8 +18,12 @@ export default function SkuColorizedText({
     className = '',
     masterClassName = 'text-slate-900'
 }: Props) {
-    const skuWithSuffix = suffix === undefined ? sku : `${sku}${suffix}`;
-    const { master, suffix: variantSuffix } = splitSkuComponents(skuWithSuffix);
+    // If `suffix` is provided, we already have an explicit master + variant suffix.
+    // Re-splitting can misclassify masters that end with a letter (e.g. SK263S + XKO).
+    const { master, suffix: variantSuffix } =
+        suffix === undefined
+            ? splitSkuComponents(sku)
+            : { master: sku, suffix };
     const { finish, stone } = getVariantComponents(variantSuffix, gender);
 
     const finishColor = getSkuFinishTextColor(finish.code);
