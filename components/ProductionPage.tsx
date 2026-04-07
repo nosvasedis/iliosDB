@@ -1761,6 +1761,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
 
     const [draggedBatchId, setDraggedBatchId] = useState<string | null>(null);
     const [dropTarget, setDropTarget] = useState<ProductionStage | null>(null);
+    const [polishingDropTarget, setPolishingDropTarget] = useState<'pending' | 'dispatched' | null>(null);
     const [isProcessingSplit, setIsProcessingSplit] = useState(false);
 
     // Note Editing
@@ -2075,6 +2076,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     const handleDragEnd = () => {
         setDraggedBatchId(null);
         setDropTarget(null);
+        setPolishingDropTarget(null);
     };
 
     const attemptMove = (batch: ProductionBatch, targetStage: ProductionStage, skipModal: boolean = false, pendingDispatch?: boolean) => {
@@ -2129,11 +2131,11 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         }
     };
 
-    const handleDrop = async (targetStage: ProductionStage) => {
+    const handleDrop = async (targetStage: ProductionStage, pendingDispatch?: boolean) => {
         if (!draggedBatchId) return;
         const batch = enhancedBatches.find(b => b.id === draggedBatchId);
         if (!batch) return;
-        attemptMove(batch, targetStage, false, targetStage === ProductionStage.Polishing ? true : undefined);
+        attemptMove(batch, targetStage, false, pendingDispatch ?? (targetStage === ProductionStage.Polishing ? true : undefined));
     };
 
     const handleImportReceive = async (batch: ProductionBatch, targetStage: ProductionStage, pendingDispatch?: boolean) => {
@@ -2899,6 +2901,104 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         const isTarget = dropTarget === stage.id;
                         const isExpanded = expandedStageId === stage.id;
 
+                        // ── Two separate Kanban panels for the Polishing (Τεχνίτης) sub-stages ──
+                        if (stage.id === ProductionStage.Polishing) {
+                            return (
+                                <div
+                                    key={stage.id}
+                                    className="flex flex-col gap-4 w-full lg:w-80 lg:h-full"
+                                    onDragLeave={(e) => {
+                                        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                                            setDropTarget(null);
+                                            setPolishingDropTarget(null);
+                                        }
+                                    }}
+                                    onDragEnd={handleDragEnd}
+                                >
+                                    {/* ── Panel 1: Αναμονή Αποστολής (teal) ── */}
+                                    <div
+                                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropTarget(ProductionStage.Polishing); setPolishingDropTarget('pending'); }}
+                                        onDrop={() => { void handleDrop(ProductionStage.Polishing, true); setPolishingDropTarget(null); }}
+                                        className={`flex flex-col rounded-3xl border transition-all duration-300 w-full lg:flex-1 lg:min-h-0 ${polishingDropTarget === 'pending' ? 'bg-emerald-50 border-emerald-300 shadow-2xl scale-[1.01]' : 'bg-teal-50 border-teal-200'}`}
+                                    >
+                                        <div className="p-4 rounded-t-3xl border-b border-teal-200 flex justify-between items-center bg-teal-100/60">
+                                            <div className="flex items-center gap-3">
+                                                <button
+                                                    onClick={() => setStageInspectorStage(ProductionStage.Polishing)}
+                                                    className="p-2 rounded-lg bg-white shadow-sm text-teal-600 hover:bg-teal-50 transition-colors"
+                                                    title="Προβολή παρτίδων Τεχνίτη"
+                                                >
+                                                    <Truck size={20} />
+                                                </button>
+                                                <div>
+                                                    <h3 className="font-bold text-teal-800 text-sm leading-tight">Τεχνίτης</h3>
+                                                    <p className="text-[10px] text-teal-600 font-semibold uppercase tracking-wide leading-tight mt-0.5">Αναμονή Αποστολής</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {polishingPendingBatches.length > 0 && (
+                                                    <button
+                                                        onClick={() => handleDispatchBatches(polishingPendingBatches.map(b => b.id))}
+                                                        disabled={isProcessingSplit}
+                                                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-600 text-white text-[10px] font-bold hover:bg-teal-700 transition-colors shadow-sm disabled:opacity-50"
+                                                        title="Αποστολή όλων στον Τεχνίτη"
+                                                    >
+                                                        {isProcessingSplit ? <Loader2 size={10} className="animate-spin" /> : <Truck size={10} />}
+                                                        <span className="hidden xl:inline">Αποστολή Όλων</span>
+                                                    </button>
+                                                )}
+                                                <span className="px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-sm text-teal-700">{polishingPendingBatches.length}</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar min-h-[120px] lg:min-h-0">
+                                            {renderBatchGroups(groupedPolishingPending)}
+                                            {polishingPendingBatches.length === 0 && (
+                                                <div className="h-24 lg:h-full flex flex-col items-center justify-center text-teal-300/60 p-4 border-2 border-dashed border-teal-200/50 rounded-2xl">
+                                                    <Truck size={24} className="mb-2" />
+                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-center">Τίποτα σε αναμονή</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* ── Panel 2: Στον Τεχνίτη (blue) ── */}
+                                    <div
+                                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropTarget(ProductionStage.Polishing); setPolishingDropTarget('dispatched'); }}
+                                        onDrop={() => { void handleDrop(ProductionStage.Polishing, false); setPolishingDropTarget(null); }}
+                                        className={`flex flex-col rounded-3xl border transition-all duration-300 w-full lg:flex-1 lg:min-h-0 ${polishingDropTarget === 'dispatched' ? 'bg-emerald-50 border-emerald-300 shadow-2xl scale-[1.01]' : 'bg-blue-50 border-blue-200'}`}
+                                    >
+                                        <div className="p-4 rounded-t-3xl border-b border-blue-200 flex justify-between items-center bg-blue-100/60">
+                                            <div className="flex items-center gap-3">
+                                                <button
+                                                    onClick={() => setStageInspectorStage(ProductionStage.Polishing)}
+                                                    className="p-2 rounded-lg bg-white shadow-sm text-blue-600 hover:bg-blue-50 transition-colors"
+                                                    title="Προβολή παρτίδων Τεχνίτη"
+                                                >
+                                                    <Hammer size={20} />
+                                                </button>
+                                                <div>
+                                                    <h3 className="font-bold text-blue-800 text-sm leading-tight">Τεχνίτης</h3>
+                                                    <p className="text-[10px] text-blue-600 font-semibold uppercase tracking-wide leading-tight mt-0.5">Στον Τεχνίτη</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-sm text-blue-700">{polishingDispatchedBatches.length}</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar min-h-[120px] lg:min-h-0">
+                                            {renderBatchGroups(groupedPolishingDispatched, { onRecallDispatch: (batchId) => handleRecallDispatchBatches([batchId]) })}
+                                            {polishingDispatchedBatches.length === 0 && (
+                                                <div className="h-24 lg:h-full flex flex-col items-center justify-center text-blue-300/60 p-4 border-2 border-dashed border-blue-200/50 rounded-2xl">
+                                                    <Hammer size={24} className="mb-2" />
+                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-center">Κανένα στον Τεχνίτη</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        }
+
                         return (
                             <div
                                 key={stage.id}
@@ -2960,11 +3060,6 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                             </>
                                         )}
                                         <span className={`px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-sm ${colors.text}`}>{stageBatches.length}</span>
-                                        {stage.id === ProductionStage.Polishing && polishingPendingBatches.length > 0 && (
-                                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-teal-100 text-teal-700 border border-teal-200 shadow-sm" title="Αναμονή Αποστολής">
-                                                {polishingPendingBatches.length} αν.
-                                            </span>
-                                        )}
                                         <div className="lg:hidden text-slate-400">
                                             {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                                         </div>
@@ -2982,70 +3077,13 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                         </div>
                                     )}
 
-                                    {/* ── Polishing column: split into Pending Dispatch + Dispatched sub-sections ── */}
-                                    {stage.id === ProductionStage.Polishing ? (
-                                        <>
-                                            {/* Pending Dispatch Section */}
-                                            {polishingPendingBatches.length > 0 && (
-                                                <div className="space-y-3">
-                                                    <div className="flex items-center justify-between gap-2 px-2 py-2 rounded-xl bg-teal-50 border border-teal-200">
-                                                        <div className="flex items-center gap-2">
-                                                            <Package size={14} className="text-teal-600" />
-                                                            <span className="text-[11px] font-black text-teal-700 uppercase tracking-wide">Αναμονή Αποστολής</span>
-                                                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-teal-100 text-teal-700 border border-teal-200">{polishingPendingBatches.length}</span>
-                                                        </div>
-                                                        <button
-                                                            onClick={() => handleDispatchBatches(polishingPendingBatches.map(b => b.id))}
-                                                            disabled={isProcessingSplit}
-                                                            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-600 text-white text-[10px] font-bold hover:bg-teal-700 transition-colors shadow-sm disabled:opacity-50"
-                                                            title="Αποστολή όλων στον Τεχνίτη"
-                                                        >
-                                                            {isProcessingSplit ? <Loader2 size={10} className="animate-spin" /> : <Truck size={10} />}
-                                                            <span>Αποστολή Όλων</span>
-                                                        </button>
-                                                    </div>
-                                                    {renderBatchGroups(groupedPolishingPending)}
-                                                </div>
-                                            )}
+                                    {renderBatchGroups(groupedData)}
 
-                                            {/* Divider between sections */}
-                                            {polishingPendingBatches.length > 0 && polishingDispatchedBatches.length > 0 && (
-                                                <div className="border-t-2 border-blue-200 my-1" />
-                                            )}
-
-                                            {/* Dispatched Section */}
-                                            {polishingDispatchedBatches.length > 0 && (
-                                                <div className="space-y-3">
-                                                    <div className="flex items-center justify-between gap-2 px-2 py-2 rounded-xl bg-blue-50 border border-blue-200">
-                                                        <div className="flex items-center gap-2">
-                                                            <Hammer size={14} className="text-blue-600" />
-                                                            <span className="text-[11px] font-black text-blue-700 uppercase tracking-wide">Στον Τεχνίτη</span>
-                                                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-700 border border-blue-200">{polishingDispatchedBatches.length}</span>
-                                                        </div>
-                                                    </div>
-                                                    {renderBatchGroups(groupedPolishingDispatched, { onRecallDispatch: (batchId) => handleRecallDispatchBatches([batchId]) })}
-                                                </div>
-                                            )}
-
-                                            {stageBatches.length === 0 && (
-                                                <div className="h-24 lg:h-full flex flex-col items-center justify-center text-slate-400/50 p-4 border-2 border-dashed border-slate-200/50 rounded-2xl">
-                                                    <Package size={24} className="mb-2" />
-                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-center">Τίποτα</p>
-                                                </div>
-                                            )}
-                                        </>
-                                    ) : (
-                                        /* ── Normal column rendering ── */
-                                        <>
-                                            {renderBatchGroups(groupedData)}
-
-                                            {stageBatches.length === 0 && (
-                                                <div className="h-24 lg:h-full flex flex-col items-center justify-center text-slate-400/50 p-4 border-2 border-dashed border-slate-200/50 rounded-2xl">
-                                                    <Package size={24} className="mb-2" />
-                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-center">Τίποτα</p>
-                                                </div>
-                                            )}
-                                        </>
+                                    {stageBatches.length === 0 && (
+                                        <div className="h-24 lg:h-full flex flex-col items-center justify-center text-slate-400/50 p-4 border-2 border-dashed border-slate-200/50 rounded-2xl">
+                                            <Package size={24} className="mb-2" />
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-center">Τίποτα</p>
+                                        </div>
                                     )}
                                 </div>
                             </div>

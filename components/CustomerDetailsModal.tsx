@@ -399,13 +399,36 @@ export default function CustomerDetailsModal({
                                     )}
                                 </div>
                                 {!isRetailSystemCustomer && !isEditing && (
-                                    <p className="mt-3 max-w-2xl text-xs leading-relaxed text-slate-600">
-                                        <span className="font-mono font-semibold text-slate-800">ΑΦΜ:</span>{' '}
-                                        {customer.vat_number || '—'}
-                                        <span className="mx-2 text-slate-300">·</span>
-                                        <MapPin size={12} className="mr-0.5 inline align-text-bottom text-slate-400" />
-                                        {customer.address || 'Χωρίς διεύθυνση'}
-                                    </p>
+                                    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-600">
+                                        <span>
+                                            <span className="font-mono font-semibold text-slate-800">ΑΦΜ</span>{' '}
+                                            {customer.vat_number || '—'}
+                                        </span>
+                                        {customer.address && (
+                                            <span className="flex items-center gap-1">
+                                                <MapPin size={11} className="shrink-0 text-slate-400" />
+                                                {customer.address}
+                                            </span>
+                                        )}
+                                        {customer.phone && (
+                                            <a
+                                                href={`tel:${customer.phone}`}
+                                                className="flex items-center gap-1 font-semibold text-blue-600 hover:text-blue-800 transition-colors"
+                                            >
+                                                <Phone size={11} className="shrink-0" />
+                                                {customer.phone}
+                                            </a>
+                                        )}
+                                        {customer.email && (
+                                            <a
+                                                href={`mailto:${customer.email}`}
+                                                className="flex items-center gap-1 font-semibold text-blue-600 hover:text-blue-800 transition-colors"
+                                            >
+                                                <Mail size={11} className="shrink-0" />
+                                                {customer.email}
+                                            </a>
+                                        )}
+                                    </div>
                                 )}
                                 {isRetailSystemCustomer && (
                                     <p className="mt-3 max-w-2xl rounded-xl border border-fuchsia-100 bg-fuchsia-50/50 px-3 py-2 text-xs leading-relaxed text-fuchsia-950">
@@ -572,33 +595,6 @@ export default function CustomerDetailsModal({
                                     </div>
                                 </div>
 
-                                <div className={`${sectionCard} p-5`}>
-                                    <h3 className="mb-3 text-sm font-bold text-slate-700">Γρήγορα</h3>
-                                    <div className="flex flex-wrap gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => setActiveTab('end_clients')}
-                                            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 transition-colors hover:border-indigo-200 hover:bg-indigo-50"
-                                        >
-                                            Τελικοί πελάτες
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setActiveTab('categories')}
-                                            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 transition-colors hover:border-amber-200 hover:bg-amber-50"
-                                        >
-                                            Κατηγορίες
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setActiveTab('orders')}
-                                            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 transition-colors hover:border-blue-200 hover:bg-blue-50"
-                                        >
-                                            Όλες οι παραγγελίες
-                                        </button>
-                                    </div>
-                                </div>
-
                                 <div className={`${sectionCard} p-6`}>
                                     <div className="flex items-center justify-between mb-4">
                                         <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
@@ -689,63 +685,6 @@ export default function CustomerDetailsModal({
                                                 ? new Date(stats.latestOrder.created_at).toLocaleDateString('el-GR')
                                                 : '—'}
                                         </div>
-                                    </div>
-                                </div>
-
-                                <div className={`${sectionCard} p-5`}>
-                                    <h3 className="mb-3 text-sm font-bold text-slate-800">Γρήγορες ενέργειες</h3>
-                                    <div className="flex flex-wrap gap-2">
-                                        {customer.phone ? (
-                                            <a
-                                                href={`tel:${customer.phone}`}
-                                                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-blue-600 shadow-sm transition-colors hover:border-blue-200 hover:bg-blue-50/50"
-                                            >
-                                                <Phone size={16} /> Κλήση
-                                            </a>
-                                        ) : null}
-                                        {customer.email ? (
-                                            <a
-                                                href={`mailto:${customer.email}`}
-                                                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-blue-600 shadow-sm transition-colors hover:border-blue-200 hover:bg-blue-50/50"
-                                            >
-                                                <Mail size={16} /> Email
-                                            </a>
-                                        ) : null}
-                                        <button
-                                            type="button"
-                                            onClick={() => setActiveTab('contact')}
-                                            className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:border-blue-200 hover:bg-blue-50/40"
-                                        >
-                                            Επικοινωνία
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setActiveTab('billing')}
-                                            className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:border-amber-200 hover:bg-amber-50/50"
-                                        >
-                                            Τιμολόγηση
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setActiveTab('notes')}
-                                            className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:border-violet-200 hover:bg-violet-50/50"
-                                        >
-                                            Σημειώσεις
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setActiveTab('analytics')}
-                                            className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:border-indigo-200 hover:bg-indigo-50/40"
-                                        >
-                                            Ανάλυση
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setActiveTab('orders')}
-                                            className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:border-blue-200 hover:bg-blue-50/40"
-                                        >
-                                            Όλες οι παραγγελίες
-                                        </button>
                                     </div>
                                 </div>
 
