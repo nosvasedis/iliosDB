@@ -2124,7 +2124,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         try {
             await productionRepository.updateBatchStage(batch.id, targetStage, profile?.full_name, pendingDispatch);
             await auditRepository.logAction(profile?.full_name || 'System', 'Μετακίνηση Παρτίδας', { sku: batch.sku, target_stage: targetStage });
-            void invalidateOrdersAndBatches(queryClient);
+            await invalidateOrdersAndBatches(queryClient);
             showToast('Η παρτίδα μετακινήθηκε.', 'success');
         } catch (e: any) {
             console.error("Move failure:", e);
@@ -2161,7 +2161,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         try {
             await productionRepository.updateBatchStage(batch.id, targetStage, profile?.full_name, pendingDispatch);
             await auditRepository.logAction(profile?.full_name || 'System', 'Παραλαβή Εισαγόμενου', { sku: batch.sku, quantity: batch.quantity, target_stage: targetStage });
-            void invalidateOrdersAndBatches(queryClient);
+            await invalidateOrdersAndBatches(queryClient);
             showToast('Η παρτίδα παραλήφθηκε και μετακινήθηκε.', 'success');
         } catch (e: any) {
             showToast(`Σφάλμα: ${e.message}`, 'error');
@@ -2214,7 +2214,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                 await auditRepository.logAction(profile?.full_name || 'System', isReceive ? 'Μερική Παραλαβή Εισαγόμενου' : 'Διαχωρισμός Παρτίδας', { sku: batch.sku, moving_qty: quantityToMove, target_stage: targetStage });
             }
 
-            void invalidateOrdersAndBatches(queryClient);
+            await invalidateOrdersAndBatches(queryClient);
             showToast(isReceive ? `Παραλήφθηκαν ${quantityToMove} τμχ. Τα υπόλοιπα παραμένουν στην Αναμονή.` : 'Η παρτίδα μετακινήθηκε.', 'success');
             setSplitModalState(null);
 
@@ -2238,7 +2238,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             try {
                 await productionRepository.deleteProductionBatch(batch.id);
                 await auditRepository.logAction(profile?.full_name || 'System', 'Διαγραφή Παρτίδας', { sku: batch.sku, quantity: batch.quantity });
-                void invalidateOrdersAndBatches(queryClient);
+                await invalidateOrdersAndBatches(queryClient);
                 showToast("Η παρτίδα διαγράφηκε.", "success");
             } catch (e) {
                 showToast("Σφάλμα κατά τη διαγραφή.", "error");
@@ -2253,7 +2253,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             const { error } = await productionRepository.updateBatchNotes(editingNoteBatch.id, newNote || null);
             if (error) throw error;
 
-            void invalidateProductionBatches(queryClient);
+            await invalidateProductionBatches(queryClient);
             showToast("Η σημείωση αποθηκεύτηκε.", "success");
             setEditingNoteBatch(null);
         } catch (e) {
@@ -2267,7 +2267,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         if (batch.on_hold) {
             // Resume directly
             await productionRepository.toggleBatchHold(batch.id, false);
-            void invalidateProductionBatches(queryClient);
+            await invalidateProductionBatches(queryClient);
             showToast("Η παρτίδα συνεχίζει την παραγωγή.", "success");
         } else {
             // Open Modal
@@ -2280,7 +2280,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         setIsSavingNote(true);
         try {
             await productionRepository.toggleBatchHold(holdingBatch.id, true, reason);
-            void invalidateProductionBatches(queryClient);
+            await invalidateProductionBatches(queryClient);
             showToast("Η παρτίδα τέθηκε σε αναμονή.", "warning");
             setHoldingBatch(null);
         } catch (e) {
@@ -2296,7 +2296,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         setIsProcessingSplit(true);
         try {
             const count = await productionRepository.markBatchesDispatched(batchIds, profile?.full_name);
-            void invalidateProductionBatches(queryClient);
+            await invalidateProductionBatches(queryClient);
             showToast(`${count} παρτίδ${count === 1 ? 'α' : 'ες'} στάλθηκ${count === 1 ? 'ε' : 'αν'} στον Τεχνίτη.`, 'success');
         } catch (e: any) {
             showToast(`Σφάλμα: ${e.message}`, 'error');
@@ -2311,7 +2311,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         setIsProcessingSplit(true);
         try {
             const count = await productionRepository.markBatchesPendingDispatch(batchIds, profile?.full_name);
-            void invalidateProductionBatches(queryClient);
+            await invalidateProductionBatches(queryClient);
             showToast(`${count} παρτίδ${count === 1 ? 'α' : 'ες'} επέστρεψ${count === 1 ? 'ε' : 'αν'} σε Αναμονή.`, 'success');
         } catch (e: any) {
             showToast(`Σφάλμα: ${e.message}`, 'error');
@@ -2369,7 +2369,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                 ),
             ]);
             await auditRepository.logAction(profile?.full_name || 'System', 'Μαζική Μετακίνηση Παρτίδων', { count: batchesToMove.length, target_stage: bulkMoveTarget });
-            void invalidateOrdersAndBatches(queryClient);
+            await invalidateOrdersAndBatches(queryClient);
             showToast(`${batchesToMove.length} παρτίδες μετακινήθηκαν.`, 'success');
             setMultiSelectIds(new Set());
             setBulkMoveTarget(null);
@@ -2477,7 +2477,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                 await productionRepository.updateBatchStage(batch.id, ProductionStage.Ready, profile?.full_name);
                 await auditRepository.logAction(profile?.full_name || 'System', 'Μετακίνηση Παρτίδας', { sku: batch.sku, target_stage: ProductionStage.Ready });
             }));
-            void invalidateOrdersAndBatches(queryClient);
+            await invalidateOrdersAndBatches(queryClient);
             showToast(`${labelingBatches.length} παρτίδες ολοκληρώθηκαν.`, 'success');
         } catch (e: any) {
             console.error("Complete all failure:", e);

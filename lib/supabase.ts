@@ -274,7 +274,11 @@ async function fetchFullTable(tableName: string, select: string = '*', filter?: 
     pendingOps.forEach(op => {
         const payload = Array.isArray(op.data) ? op.data : (op.data ? [op.data] : []);
         if (op.method === 'INSERT') {
-            mergedData = [...mergedData, ...payload];
+            // Skip items already present in the live server data (by id) to avoid phantom
+            // duplicates when an INSERT succeeded in Supabase but failed to dequeue locally.
+            const existingIds = new Set(mergedData.map((row: any) => row.id).filter(Boolean));
+            const newItems = payload.filter((item: any) => !item.id || !existingIds.has(item.id));
+            mergedData = [...mergedData, ...newItems];
         }
         else if (op.method === 'UPDATE' || op.method === 'UPSERT') {
             if (op.match) {
