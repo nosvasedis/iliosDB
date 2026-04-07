@@ -976,11 +976,13 @@ const FinderBatchStageSelector = ({
     batch, 
     onMoveToStage,
     onToggleHold,
+    onEditNote,
     hideNotes = false,
 }: { 
     batch: ProductionBatch & { customer_name?: string }, 
     onMoveToStage: (batch: ProductionBatch, targetStage: ProductionStage, options?: { pendingDispatch?: boolean }) => void,
     onToggleHold: (batch: ProductionBatch) => void,
+    onEditNote?: (batch: ProductionBatch) => void,
     hideNotes?: boolean,
 }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -1080,10 +1082,22 @@ const FinderBatchStageSelector = ({
                     <span>Σε Αναμονή{batch.on_hold_reason ? ` • ${batch.on_hold_reason}` : ''}</span>
                 </div>
             )}
-            {!hideNotes && batch.notes && (
-                <div className="bg-amber-50 text-amber-800 text-xs font-bold p-1.5 px-2 rounded-lg flex items-center gap-1 border border-amber-100 mb-2 truncate">
+            {!hideNotes && (
+                <div
+                    className={`flex items-center gap-1 text-xs font-bold p-1.5 px-2 rounded-lg border mb-2 truncate transition-colors ${
+                        batch.notes
+                            ? onEditNote
+                                ? 'bg-amber-50 text-amber-800 border-amber-100 cursor-pointer hover:bg-amber-100'
+                                : 'bg-amber-50 text-amber-800 border-amber-100'
+                            : onEditNote
+                                ? 'bg-slate-50 text-slate-400 border-slate-100 cursor-pointer hover:bg-slate-100'
+                                : 'hidden'
+                    }`}
+                    onClick={onEditNote ? (e) => { e.stopPropagation(); onEditNote(batch); } : undefined}
+                    title={onEditNote ? 'Επεξεργασία σημείωσης' : undefined}
+                >
                     <StickyNote size={10} className="shrink-0" />
-                    <span className="truncate">{batch.notes}</span>
+                    <span className="truncate">{batch.notes || 'Προσθήκη σημείωσης…'}</span>
                 </div>
             )}
             
@@ -1344,10 +1358,11 @@ const StageInspectorModal: React.FC<{
     onClose: () => void;
     onMoveBatch: (batch: ProductionBatch, targetStage: ProductionStage, options?: { pendingDispatch?: boolean }) => void;
     onToggleHold: (batch: ProductionBatch) => void;
+    onEditNote?: (batch: ProductionBatch) => void;
     onOpenPdfBatchPicker?: () => void;
     onDispatchBatches?: (batchIds: string[]) => void;
     onRecallBatches?: (batchIds: string[]) => void;
-}> = ({ stage, batches, onClose, onMoveBatch, onToggleHold, onOpenPdfBatchPicker, onDispatchBatches, onRecallBatches }) => {
+}> = ({ stage, batches, onClose, onMoveBatch, onToggleHold, onEditNote, onOpenPdfBatchPicker, onDispatchBatches, onRecallBatches }) => {
     const [sortMode, setSortMode] = useState<'sku' | 'client' | 'oldest' | 'newest'>('sku');
     const [clientFilter, setClientFilter] = useState('');
     const [polishingTab, setPolishingTab] = useState<'pending' | 'dispatched'>('pending');
@@ -1695,13 +1710,25 @@ const StageInspectorModal: React.FC<{
                                                 </span>
                                             </div>
 
-                                            {/* Notes (once, full text) */}
-                                            {batch.notes && (
-                                                <div className="mt-2.5 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 flex items-start gap-2">
-                                                    <StickyNote size={13} className="text-amber-500 shrink-0 mt-0.5" />
-                                                    <p className="text-xs font-medium text-amber-800 leading-relaxed whitespace-pre-wrap break-words">{batch.notes}</p>
-                                                </div>
-                                            )}
+                                            {/* Notes (once, full text) — clickable to edit when onEditNote provided */}
+                                            <div
+                                                className={`mt-2.5 rounded-xl px-3 py-2 flex items-start gap-2 border transition-colors ${
+                                                    batch.notes
+                                                        ? onEditNote
+                                                            ? 'bg-amber-50 border-amber-100 cursor-pointer hover:bg-amber-100'
+                                                            : 'bg-amber-50 border-amber-100'
+                                                        : onEditNote
+                                                            ? 'bg-slate-50 border-slate-100 cursor-pointer hover:bg-slate-100'
+                                                            : 'hidden'
+                                                }`}
+                                                onClick={onEditNote ? (e) => { e.stopPropagation(); onEditNote(batch); } : undefined}
+                                                title={onEditNote ? 'Επεξεργασία σημείωσης' : undefined}
+                                            >
+                                                <StickyNote size={13} className={`shrink-0 mt-0.5 ${batch.notes ? 'text-amber-500' : 'text-slate-400'}`} />
+                                                <p className={`text-xs font-medium leading-relaxed whitespace-pre-wrap break-words ${batch.notes ? 'text-amber-800' : 'text-slate-400 italic'}`}>
+                                                    {batch.notes || 'Προσθήκη σημείωσης…'}
+                                                </p>
+                                            </div>
 
                                             {/* Hold + Move controls — hideNotes since we show notes above */}
                                             <FinderBatchStageSelector
@@ -2796,6 +2823,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                                 batch={b} 
                                                 onMoveToStage={(batch, stage, opts) => attemptMove(batch, stage, true, opts?.pendingDispatch)}
                                                 onToggleHold={handleToggleHold}
+                                                onEditNote={(b) => setEditingNoteBatch(b)}
                                             />
                                         </div>
                                     )
@@ -3161,6 +3189,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         onClose={() => setStageInspectorStage(null)}
                         onMoveBatch={(b, targetStage, opts) => { attemptMove(b, targetStage, false, opts?.pendingDispatch); }}
                         onToggleHold={handleToggleHold}
+                        onEditNote={(b) => setEditingNoteBatch(b)}
                         onOpenPdfBatchPicker={
                             onPrintStageBatches && stageInspectorStage
                                 ? () => handleOpenStagePdfBatchPicker(stageInspectorStage)

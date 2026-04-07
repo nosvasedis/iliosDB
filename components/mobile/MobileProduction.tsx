@@ -1427,6 +1427,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                                         batch={b}
                                         onMoveToStage={(batch, stage, opts) => handleMoveBatch(batch, stage, opts)}
                                         onToggleHold={handleToggleHold}
+                                        onEditNote={(b) => setEditingNoteBatch(b)}
                                     />
                                 </div>
                             </div>

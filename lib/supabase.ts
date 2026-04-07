@@ -1690,7 +1690,8 @@ export const api = {
                                 id: batch.id,
                                 quantity: batch.quantity - surplus,
                                 updated_at: now,
-                                notes: demandItem ? (demandItem.notes ?? null) : undefined,
+                                // Only push order notes when they exist; otherwise preserve the batch-level note
+                                notes: demandItem ? (demandItem.notes != null ? demandItem.notes : (batch.notes ?? null)) : undefined,
                                 size_info: demandItem ? (demandItem.size_info ?? null) : undefined,
                                 cord_color: demandItem ? (demandItem.cord_color ?? null) : undefined,
                                 enamel_color: demandItem ? (demandItem.enamel_color ?? null) : undefined
@@ -1699,14 +1700,16 @@ export const api = {
                         }
                     }
                 }
-                // CASE C: Exact match — sync notes/size_info from order so re-edits to notes/size are reflected
+                // CASE C: Exact match — sync metadata from order so re-edits are reflected.
+                // Notes are only overwritten when the order line actually carries notes; otherwise
+                // any note added directly in Παραγωγή is preserved.
                 if (targetQty === currentQty && demandItem && existingList.length > 0) {
                     const now = new Date().toISOString();
-                    const notes = demandItem.notes ?? null;
                     const size_info = demandItem.size_info ?? null;
                     const cord_color = demandItem.cord_color ?? null;
                     const enamel_color = demandItem.enamel_color ?? null;
                     for (const b of existingList) {
+                        const notes = demandItem.notes != null ? demandItem.notes : (b.notes ?? null);
                         batchMetadataUpdates.push({ id: b.id, notes, size_info, cord_color, enamel_color, updated_at: now });
                     }
                 }

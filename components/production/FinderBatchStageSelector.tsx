@@ -7,13 +7,14 @@ type Props = {
     batch: ProductionBatch & { customer_name?: string; requires_setting?: boolean; requires_assembly?: boolean; product_details?: { gender?: string } };
     onMoveToStage: (batch: ProductionBatch, targetStage: ProductionStage, options?: { pendingDispatch?: boolean }) => void;
     onToggleHold: (batch: ProductionBatch) => void;
+    onEditNote?: (batch: ProductionBatch) => void;
     hideNotes?: boolean;
 };
 
 /** Ignore opener clicks right after close (avoids ghost tap on «Στάδιο» reopening the sheet). */
 const SHEET_REOPEN_GUARD_MS = 450;
 
-export default function FinderBatchStageSelector({ batch, onMoveToStage, onToggleHold, hideNotes = false }: Props) {
+export default function FinderBatchStageSelector({ batch, onMoveToStage, onToggleHold, onEditNote, hideNotes = false }: Props) {
     const [isOpen, setIsOpen] = useState(false);
     const lastSheetCloseAt = useRef(0);
 
@@ -46,10 +47,22 @@ export default function FinderBatchStageSelector({ batch, onMoveToStage, onToggl
                     <span>Σε Αναμονή{batch.on_hold_reason ? ` • ${batch.on_hold_reason}` : ''}</span>
                 </div>
             )}
-            {!hideNotes && batch.notes && (
-                <div className="bg-amber-50 text-amber-800 text-xs font-bold p-1.5 px-2 rounded-lg flex items-center gap-1 border border-amber-100 mb-2 truncate">
+            {!hideNotes && (
+                <div
+                    className={`flex items-center gap-1 text-xs font-bold p-1.5 px-2 rounded-lg border mb-2 truncate transition-colors ${
+                        batch.notes
+                            ? onEditNote
+                                ? 'bg-amber-50 text-amber-800 border-amber-100 cursor-pointer hover:bg-amber-100'
+                                : 'bg-amber-50 text-amber-800 border-amber-100'
+                            : onEditNote
+                                ? 'bg-slate-50 text-slate-400 border-slate-100 cursor-pointer hover:bg-slate-100'
+                                : 'hidden'
+                    }`}
+                    onClick={onEditNote ? (e) => { e.stopPropagation(); onEditNote(batch); } : undefined}
+                    title={onEditNote ? 'Επεξεργασία σημείωσης' : undefined}
+                >
                     <StickyNote size={10} className="shrink-0" />
-                    <span className="truncate">{batch.notes}</span>
+                    <span className="truncate">{batch.notes || 'Προσθήκη σημείωσης…'}</span>
                 </div>
             )}
 
