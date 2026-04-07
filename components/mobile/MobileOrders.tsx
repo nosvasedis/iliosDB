@@ -21,6 +21,8 @@ import { useTagColorOverrides } from '../../hooks/api/useTagColorOverrides';
 import { invalidateOrdersAndBatches } from '../../lib/queryInvalidation';
 import { PRODUCTION_STAGE_COLORS, getProductionStageLabel } from '../../utils/deliveryLabels';
 import { buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildSyntheticAggregatedBatches } from '../../features/orders';
+import { isSpecialCreationSku } from '../../utils/specialCreationSku';
+import { StickyNote } from 'lucide-react';
 
 const STAGE_ICON_MAP: Record<ProductionStage, LucideIcon> = {
     [ProductionStage.AwaitingDelivery]: Globe,
@@ -884,19 +886,27 @@ const OrderCard: React.FC<{
                     {order.items.map((item, idx) => {
                         const product = products.find(p => p.sku === item.sku);
                         const itemStageBreakdown = itemStageBreakdownByKey.get(buildItemIdentityKey(item)) || [];
+                        const isSP = isSpecialCreationSku(item.sku);
                         return (
-                            <div key={idx} className="flex justify-between items-center text-sm bg-white p-2.5 rounded-xl border border-slate-100">
+                            <div key={idx} className={`flex justify-between items-center text-sm p-2.5 rounded-xl border ${isSP ? 'bg-violet-50 border-violet-100' : 'bg-white border-slate-100'}`}>
                                 <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 shrink-0 rounded-lg overflow-hidden border border-slate-100 bg-slate-50 flex items-center justify-center">
-                                        {product?.image_url ? (
+                                    <div className={`w-10 h-10 shrink-0 rounded-lg overflow-hidden border flex items-center justify-center ${isSP ? 'bg-violet-100 border-violet-200' : 'bg-slate-50 border-slate-100'}`}>
+                                        {isSP ? (
+                                            <span className="text-[11px] font-black text-violet-700">SP</span>
+                                        ) : product?.image_url ? (
                                             <img src={product.image_url} alt="" className="w-full h-full object-cover" />
                                         ) : (
                                             <ImageIcon size={18} className="text-slate-300" />
                                         )}
                                     </div>
                                     <div className="min-w-0">
-                                        <SkuColorizedText sku={item.sku} suffix={item.variant_suffix} gender={product?.gender} className="font-black text-sm tracking-tight" masterClassName="text-slate-800" />
+                                        <SkuColorizedText sku={item.sku} suffix={item.variant_suffix} gender={product?.gender} className="font-black text-sm tracking-tight" masterClassName={isSP ? 'text-violet-900' : 'text-slate-800'} />
                                         {item.size_info && <div className="text-[10px] text-slate-400 font-medium mt-0.5">Size: {item.size_info}</div>}
+                                        {item.notes && (
+                                            <div className="text-[10px] text-emerald-700 italic flex items-center gap-1 mt-0.5 leading-tight font-medium">
+                                                <StickyNote size={9} className="shrink-0" />{item.notes}
+                                            </div>
+                                        )}
                                         {order.status === OrderStatus.InProduction && (
                                             itemStageBreakdown.length > 0 ? (
                                                 <div className="mt-1.5 flex flex-wrap gap-1.5">
