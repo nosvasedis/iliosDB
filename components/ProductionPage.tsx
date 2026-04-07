@@ -2345,7 +2345,24 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         }
         setIsBulkMoving(true);
         try {
-            await Promise.all(batchesToMove.map(b => productionRepository.updateBatchStage(b.id, bulkMoveTarget!, profile?.full_name, bulkMovePendingDispatch)));
+            // Batches that need an actual stage change
+            const stageChangeBatches = batchesToMove.filter(b => b.current_stage !== bulkMoveTarget);
+            // Batches already at Polishing that only need their pending_dispatch toggled
+            const pendingDispatchToggleBatches = batchesToMove.filter(
+                b => b.current_stage === ProductionStage.Polishing && bulkMoveTarget === ProductionStage.Polishing
+            );
+
+            await Promise.all([
+                ...stageChangeBatches.map(b =>
+                    productionRepository.updateBatchStage(b.id, bulkMoveTarget!, profile?.full_name, bulkMovePendingDispatch)
+                ),
+                ...(pendingDispatchToggleBatches.length > 0
+                    ? [bulkMovePendingDispatch === false
+                        ? productionRepository.markBatchesDispatched(pendingDispatchToggleBatches.map(b => b.id), profile?.full_name)
+                        : productionRepository.markBatchesPendingDispatch(pendingDispatchToggleBatches.map(b => b.id), profile?.full_name)]
+                    : []
+                ),
+            ]);
             await auditRepository.logAction(profile?.full_name || 'System', 'Μαζική Μετακίνηση Παρτίδων', { count: batchesToMove.length, target_stage: bulkMoveTarget });
             void invalidateOrdersAndBatches(queryClient);
             showToast(`${batchesToMove.length} παρτίδες μετακινήθηκαν.`, 'success');
