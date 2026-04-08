@@ -33,7 +33,7 @@ export default function DesktopOrderBuilder({ onBack, initialOrder, products, cu
                     </button>
                     <div>
                         <h2 className="text-xl font-black text-slate-800">
-                            {state.isEditing ? `Επεξεργασία #${state.orderId?.slice(0, 8)}` : 'Νέα Παραγγελία'}
+                            {state.isEditing ? `Επεξεργασία #${state.orderId ?? ''}` : 'Νέα Παραγγελία'}
                         </h2>
                     </div>
                 </div>
