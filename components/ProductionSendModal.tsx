@@ -121,18 +121,18 @@ const BulkStageActions = ({
                         <button
                             onClick={() => onMove(stageId, { pendingDispatch: true })}
                             disabled={disabled}
-                            className={`min-h-[44px] rounded-xl border px-2 py-2 text-[10px] font-black leading-tight transition-all bg-amber-50 text-amber-700 border-amber-200 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed`}
-                            title={`Μετακίνηση επιλεγμένων σε ${stage.label} • Αναμονή`}
+                            className={`min-h-[44px] rounded-xl border px-2 py-2 text-[10px] font-black leading-tight transition-all bg-teal-50 text-teal-700 border-teal-200 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed`}
+                            title={`Μετακίνηση επιλεγμένων σε ${stage.label} • Αναμονή Αποστολής`}
                         >
-                            <span className="block text-center break-words leading-tight">Τεχνίτης Αναμονή</span>
+                            <span className="block text-center break-words leading-tight">Τεχνίτης • Αναμονή Αποστολής</span>
                         </button>
                         <button
                             onClick={() => onMove(stageId, { pendingDispatch: false })}
                             disabled={disabled}
                             className={`min-h-[44px] rounded-xl border px-2 py-2 text-[10px] font-black leading-tight transition-all bg-blue-50 text-blue-700 border-blue-200 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed`}
-                            title={`Μετακίνηση επιλεγμένων σε ${stage.label} • Στον τεχνίτη`}
+                            title={`Μετακίνηση επιλεγμένων σε ${stage.label} • Στον Τεχνίτη`}
                         >
-                            <span className="block text-center break-words leading-tight">Τεχνίτης Στον Τεχνίτη</span>
+                            <span className="block text-center break-words leading-tight">Τεχνίτης • Στον Τεχνίτη</span>
                         </button>
                     </div>
                 );
@@ -209,14 +209,14 @@ const StageFlowRail = ({
                                 disabled={isDisabled || isCurrentPending}
                                 className={`min-h-[54px] rounded-2xl border px-3 py-2 text-left transition-all ${
                                     isCurrentPending
-                                        ? 'bg-amber-50 text-amber-700 border-amber-200 ring-2 ring-offset-1 ring-amber-400/25 shadow-md'
+                                        ? 'bg-teal-50 text-teal-700 border-teal-200 ring-2 ring-offset-1 ring-teal-400/25 shadow-md'
                                         : isPast
-                                          ? 'bg-amber-50 text-amber-700 border-amber-200 opacity-45'
-                                          : 'bg-amber-50 text-amber-700 border-amber-200 hover:-translate-y-0.5 hover:shadow-sm'
+                                          ? 'bg-teal-50 text-teal-700 border-teal-200 opacity-45'
+                                          : 'bg-teal-50 text-teal-700 border-teal-200 hover:-translate-y-0.5 hover:shadow-sm'
                                 } ${isDisabled ? 'opacity-40 cursor-not-allowed' : ''}`}
-                                title={`${stage.label} • Αναμονή`}
+                                title={`${stage.label} • Αναμονή Αποστολής`}
                             >
-                                <span className="text-[11px] font-black leading-tight break-words">Τεχνίτης Αναμονή</span>
+                                <span className="text-[11px] font-black leading-tight break-words">Τεχνίτης • Αναμονή Αποστολής</span>
                                 <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.12em] opacity-75">
                                     {isCurrentPending ? 'Τρέχον' : isPast ? 'ΟΚ' : ''}
                                 </span>
@@ -231,9 +231,9 @@ const StageFlowRail = ({
                                           ? 'bg-blue-50 text-blue-700 border-blue-200 opacity-45'
                                           : 'bg-blue-50 text-blue-700 border-blue-200 hover:-translate-y-0.5 hover:shadow-sm'
                                 } ${isDisabled ? 'opacity-40 cursor-not-allowed' : ''}`}
-                                title={`${stage.label} • Στον τεχνίτη`}
+                                title={`${stage.label} • Στον Τεχνίτη`}
                             >
-                                <span className="text-[11px] font-black leading-tight break-words">Τεχνίτης Στον Τεχνίτη</span>
+                                <span className="text-[11px] font-black leading-tight break-words">Τεχνίτης • Στον Τεχνίτη</span>
                                 <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.12em] opacity-75">
                                     {isCurrentDispatched ? 'Τρέχον' : isPast ? 'ΟΚ' : ''}
                                 </span>
