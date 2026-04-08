@@ -218,19 +218,15 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                     </span>
                 )}
             </div>
-            <div className="w-full flex justify-between items-center border-t border-black pt-0.5 leading-none">
-                 <span className="font-black tracking-[0.1em] text-black uppercase" style={{ fontSize: `${brandFontSize * 0.85}mm` }}>
+            <div className="w-full flex items-center justify-between gap-1 border-t border-black pt-0.5 leading-none">
+                 <span className="font-black tracking-[0.1em] text-black uppercase flex-1 text-left" style={{ fontSize: `${brandFontSize * 0.85}mm` }}>
                     ILIOS
                 </span>
-                 <span className="font-black text-black" style={{ fontSize: `${detailsFontSize * 0.9}mm` }}>925°</span>
+                <span className="font-black text-black flex-1 text-center" style={{ fontSize: `${brandFontSize * 0.85}mm`, whiteSpace: 'nowrap' }}>
+                    {wholesalePrice > 0 ? formatCurrency(wholesalePrice) : ''}
+                </span>
+                 <span className="font-black text-black flex-1 text-right" style={{ fontSize: `${brandFontSize * 0.85}mm` }}>925°</span>
             </div>
-            {wholesalePrice > 0 && (
-                <div className="w-full text-center leading-none" style={{ marginTop: '0.25mm' }}>
-                    <span className="font-black text-black block" style={{ fontSize: `${detailsFontSize * 0.95}mm`, whiteSpace: 'nowrap' }}>
-                        {formatCurrency(wholesalePrice)}
-                    </span>
-                </div>
-            )}
             {/* Size prominently displayed under the line for rings and bracelets */}
             {isSizedItem && size && (
                 <div className="w-full text-center mt-0.5">
