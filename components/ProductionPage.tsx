@@ -2614,12 +2614,46 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             // Collection order is set inside groupProductionBatchesForDisplay (chronology or el alpha).
             const collectionKeys = Object.keys(l1Batches);
 
+            const allClientBatches = Object.values(l1Batches).flat();
+            const allClientBatchIds = allClientBatches.map(b => b.id);
+            const allSelected = allClientBatchIds.length > 0 && allClientBatchIds.every(id => multiSelectIds.has(id));
+            const someSelected = allClientBatchIds.some(id => multiSelectIds.has(id)) && !allSelected;
+
             return (
                 <div key={level1Key} className="space-y-3">
                     {groupMode === 'customer' ? (
                         <div className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border bg-slate-900 text-white border-slate-900 shadow-sm flex justify-between items-center`}>
-                            <span>{level1Key}</span>
-                            <span className="opacity-60 text-[9px]">{Object.values(l1Batches).flat().length}</span>
+                            <div className="flex items-center gap-2">
+                                {/* Multi-select checkbox for client */}
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setMultiSelectIds(prev => {
+                                            const next = new Set(prev);
+                                            if (allSelected) {
+                                                allClientBatchIds.forEach(id => next.delete(id));
+                                            } else {
+                                                allClientBatchIds.forEach(id => next.add(id));
+                                            }
+                                            return next;
+                                        });
+                                    }}
+                                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                                        allSelected
+                                            ? 'bg-blue-500 border-blue-500 shadow-sm shadow-blue-200'
+                                            : someSelected
+                                                ? 'bg-blue-300 border-blue-300'
+                                                : 'bg-transparent border-white/50 hover:border-white'
+                                    }`}
+                                    title={allSelected ? 'Αποεπιλογή όλων' : 'Επιλογή όλων'}
+                                >
+                                    {(allSelected || someSelected) && (
+                                        <Check size={12} className="text-white" />
+                                    )}
+                                </button>
+                                <span>{level1Key}</span>
+                            </div>
+                            <span className="opacity-60 text-[9px]">{allClientBatches.length}</span>
                         </div>
                     ) : (
                         <div className={`text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border ${gConfig?.style} flex justify-between items-center`}>
