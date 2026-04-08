@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import QRCode from 'qrcode';
 import { Product, ProductVariant } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES, INITIAL_SETTINGS } from '../constants';
-import { transliterateForBarcode, getVariantComponents } from '../utils/pricingEngine';
+import { transliterateForBarcode, getVariantComponents, formatCurrency } from '../utils/pricingEngine';
 import { SIZED_PREFIXES } from '../utils/sizing';
 
 interface Props {
@@ -52,6 +52,8 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
         }
         return null;
     }, [product, variant, suffix]);
+
+    const wholesalePrice = variant?.selling_price ?? product?.selling_price ?? 0;
 
     useEffect(() => {
         if (finalSku) {
@@ -222,6 +224,13 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                 </span>
                  <span className="font-black text-black" style={{ fontSize: `${detailsFontSize * 0.9}mm` }}>925°</span>
             </div>
+            {wholesalePrice > 0 && (
+                <div className="w-full text-center leading-none" style={{ marginTop: '0.25mm' }}>
+                    <span className="font-black text-black block" style={{ fontSize: `${detailsFontSize * 0.95}mm`, whiteSpace: 'nowrap' }}>
+                        {formatCurrency(wholesalePrice)}
+                    </span>
+                </div>
+            )}
             {/* Size prominently displayed under the line for rings and bracelets */}
             {isSizedItem && size && (
                 <div className="w-full text-center mt-0.5">
