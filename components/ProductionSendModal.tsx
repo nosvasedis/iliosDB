@@ -14,6 +14,7 @@ import { getProductOptionColorLabel } from '../utils/xrOptions';
 import BatchHistoryModal from './BatchHistoryModal';
 import { PRODUCTION_STAGES, getProductionStageLabel, getProductionStageShortLabel } from '../utils/productionStages';
 import { getProductionTimingInfo, getProductionTimingStatusClasses } from '../utils/productionTiming';
+import { formatOrderId } from '../utils/orderUtils';
 import { buildBatchStageHistoryMap, getStageColorKey, isStageNotRequired } from '../features/production/selectors';
 import { groupProductionBatchesByStage } from '../features/production/workflowSelectors';
 import { buildOrderItemIdentityKey } from '../features/orders/printHelpers';
@@ -984,7 +985,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                         <div className="min-w-0 flex-1">
                             <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Διαχείριση Παραγωγής</h2>
                             <div className="flex flex-wrap items-center gap-2 text-sm font-bold text-slate-500 mt-0.5">
-                                <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100">#{order.id.slice(0, 8)}</span>
+                                <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100">#{formatOrderId(order.id)}</span>
                                 <span className="flex items-start gap-1 min-w-0 text-slate-600">
                                     <User size={14} className="mt-0.5 shrink-0" />
                                     <span className="break-words">{order.customer_name}</span>
