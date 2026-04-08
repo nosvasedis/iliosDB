@@ -105,16 +105,42 @@ const BulkStageActions = ({
     onMove,
     disabled
 }: {
-    onMove: (stage: ProductionStage) => void;
+    onMove: (stage: ProductionStage, options?: { pendingDispatch?: boolean }) => void;
     disabled: boolean;
 }) => (
     <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 xl:grid-cols-8">
         {STAGES.map((stage) => {
-            const stageColors = STAGE_BUTTON_COLORS[getStageColorKey(stage.id as ProductionStage)];
+            const stageId = stage.id as ProductionStage;
+            const stageColors = STAGE_BUTTON_COLORS[getStageColorKey(stageId)];
+
+            // Split Polishing into two sub-stage buttons (stacked)
+            if (stageId === ProductionStage.Polishing) {
+                return (
+                    <div key={`bulk-stage-${stage.id}`} className="flex flex-col gap-1.5">
+                        <button
+                            onClick={() => onMove(stageId, { pendingDispatch: true })}
+                            disabled={disabled}
+                            className={`min-h-[44px] rounded-xl border px-2 py-2 text-[10px] font-black leading-tight transition-all bg-amber-50 text-amber-700 border-amber-200 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed`}
+                            title={`Μετακίνηση επιλεγμένων σε ${stage.label} • Αναμονή`}
+                        >
+                            <span className="block text-center break-words leading-tight">Τεχνίτης Αναμονή</span>
+                        </button>
+                        <button
+                            onClick={() => onMove(stageId, { pendingDispatch: false })}
+                            disabled={disabled}
+                            className={`min-h-[44px] rounded-xl border px-2 py-2 text-[10px] font-black leading-tight transition-all bg-blue-50 text-blue-700 border-blue-200 hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed`}
+                            title={`Μετακίνηση επιλεγμένων σε ${stage.label} • Στον τεχνίτη`}
+                        >
+                            <span className="block text-center break-words leading-tight">Τεχνίτης Στον Τεχνίτη</span>
+                        </button>
+                    </div>
+                );
+            }
+
             return (
                 <button
                     key={`bulk-stage-${stage.id}`}
-                    onClick={() => onMove(stage.id as ProductionStage)}
+                    onClick={() => onMove(stageId)}
                     disabled={disabled}
                     className={`min-h-[44px] rounded-xl border px-2 py-2 text-[10px] font-black leading-tight transition-all ${stageColors.bg} ${stageColors.text} ${stageColors.border} hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed`}
                     title={`Μετακίνηση επιλεγμένων σε ${stage.label}`}
@@ -132,7 +158,7 @@ const StageFlowRail = ({
     disabled
 }: {
     batch: ProductionBatch;
-    onMove: (stage: ProductionStage) => void;
+    onMove: (stage: ProductionStage, options?: { pendingDispatch?: boolean }) => void;
     disabled: boolean;
 }) => {
     const currentStageIndex = STAGES.findIndex((stage) => stage.id === batch.current_stage);
@@ -167,6 +193,53 @@ const StageFlowRail = ({
                     : isUnavailableStage
                     ? `${stage.label} (δεν απαιτείται για αυτή την παρτίδα)`
                     : `Μετακίνηση σε ${stage.label}`;
+
+                // Split Polishing into two stacked sub-stage buttons
+                if (stageId === ProductionStage.Polishing) {
+                    const isDisabled = disabled || batch.on_hold || isUnavailableStage;
+                    const isCurrentPending = isCurrentStage && !!(batch as any).pending_dispatch;
+                    const isCurrentDispatched = isCurrentStage && !(batch as any).pending_dispatch;
+                    const isPast = isCompletedStage && !isCurrentStage && !isUnavailableStage;
+
+                    return (
+                        <div key={stage.id} className="flex flex-col gap-1.5">
+                            <button
+                                onClick={() => !isDisabled && onMove(stageId, { pendingDispatch: true })}
+                                disabled={isDisabled || isCurrentPending}
+                                className={`min-h-[54px] rounded-2xl border px-3 py-2 text-left transition-all ${
+                                    isCurrentPending
+                                        ? 'bg-amber-50 text-amber-700 border-amber-200 ring-2 ring-offset-1 ring-amber-400/25 shadow-md'
+                                        : isPast
+                                          ? 'bg-amber-50 text-amber-700 border-amber-200 opacity-45'
+                                          : 'bg-amber-50 text-amber-700 border-amber-200 hover:-translate-y-0.5 hover:shadow-sm'
+                                } ${isDisabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+                                title={`${stage.label} • Αναμονή`}
+                            >
+                                <span className="text-[11px] font-black leading-tight break-words">Τεχνίτης Αναμονή</span>
+                                <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.12em] opacity-75">
+                                    {isCurrentPending ? 'Τρέχον' : isPast ? 'ΟΚ' : ''}
+                                </span>
+                            </button>
+                            <button
+                                onClick={() => !isDisabled && onMove(stageId, { pendingDispatch: false })}
+                                disabled={isDisabled || isCurrentDispatched}
+                                className={`min-h-[54px] rounded-2xl border px-3 py-2 text-left transition-all ${
+                                    isCurrentDispatched
+                                        ? 'bg-blue-50 text-blue-700 border-blue-200 ring-2 ring-offset-1 ring-blue-400/25 shadow-md'
+                                        : isPast
+                                          ? 'bg-blue-50 text-blue-700 border-blue-200 opacity-45'
+                                          : 'bg-blue-50 text-blue-700 border-blue-200 hover:-translate-y-0.5 hover:shadow-sm'
+                                } ${isDisabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+                                title={`${stage.label} • Στον τεχνίτη`}
+                            >
+                                <span className="text-[11px] font-black leading-tight break-words">Τεχνίτης Στον Τεχνίτη</span>
+                                <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.12em] opacity-75">
+                                    {isCurrentDispatched ? 'Τρέχον' : isPast ? 'ΟΚ' : ''}
+                                </span>
+                            </button>
+                        </div>
+                    );
+                }
 
                 return (
                     <button
@@ -601,11 +674,15 @@ export default function ProductionSendModal({ order, products, materials, existi
 
     // --- BATCH MANAGEMENT ACTIONS ---
 
-    const handleStageMove = async (batch: ProductionBatch, newStage: ProductionStage) => {
+    const handleStageMove = async (batch: ProductionBatch, newStage: ProductionStage, options?: { pendingDispatch?: boolean }) => {
         if (isWorking) return;
         setIsWorking(true);
         try {
-            await productionRepository.updateBatchStage(batch.id, newStage);
+            const pendingDispatch =
+                newStage === ProductionStage.Polishing
+                    ? (options?.pendingDispatch ?? true)
+                    : undefined;
+            await productionRepository.updateBatchStage(batch.id, newStage, undefined, pendingDispatch);
             await Promise.all([
                 invalidateOrdersAndBatches(queryClient),
                 queryClient.invalidateQueries({ queryKey: ['products'] })
@@ -746,11 +823,15 @@ export default function ProductionSendModal({ order, products, materials, existi
         }
     };
 
-    const handleBulkStageMove = async (newStage: ProductionStage, batchIds = selectedBatchIds) => {
+    const handleBulkStageMove = async (newStage: ProductionStage, batchIds = selectedBatchIds, options?: { pendingDispatch?: boolean }) => {
         if (isWorking || batchIds.length === 0) return;
         setIsWorking(true);
         try {
-            const summary = await productionRepository.bulkUpdateBatchStages(batchIds, newStage);
+            const pendingDispatch =
+                newStage === ProductionStage.Polishing
+                    ? (options?.pendingDispatch ?? true)
+                    : undefined;
+            const summary = await productionRepository.bulkUpdateBatchStages(batchIds, newStage, undefined, pendingDispatch);
             await Promise.all([
                 invalidateOrdersAndBatches(queryClient),
                 queryClient.invalidateQueries({ queryKey: ['products'] })
@@ -1023,7 +1104,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                         </div>
                                         <BulkStageActions
                                             disabled={isWorking || selectedVisibleActiveCount === 0}
-                                            onMove={(stage) => handleBulkStageMove(stage, visibleActiveBatches.filter((batch) => selectedBatchIds.includes(batch.id)).map((batch) => batch.id))}
+                                            onMove={(stage, options) => handleBulkStageMove(stage, visibleActiveBatches.filter((batch) => selectedBatchIds.includes(batch.id)).map((batch) => batch.id), options)}
                                         />
                                     </div>
                                 </div>
@@ -1194,7 +1275,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                             <StageFlowRail
                                                                                 batch={batch}
                                                                                 disabled={isWorking}
-                                                                                onMove={(stage) => handleStageMove(batch, stage)}
+                                                                                onMove={(stage, options) => handleStageMove(batch, stage, options)}
                                                                             />
 
                                                                             {/* Batch Note */}
@@ -1671,7 +1752,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                             </div>
                                             <BulkStageActions
                                                 disabled={isWorking || selectedVisiblePopupCount === 0}
-                                                onMove={(stage) => handleBulkStageMove(stage, popupBatches.filter((batch) => selectedBatchIds.includes(batch.id)).map((batch) => batch.id))}
+                                                onMove={(stage, options) => handleBulkStageMove(stage, popupBatches.filter((batch) => selectedBatchIds.includes(batch.id)).map((batch) => batch.id), options)}
                                             />
                                         </div>
                                     </div>
@@ -1756,7 +1837,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                     <StageFlowRail
                                                         batch={batch}
                                                         disabled={isWorking}
-                                                        onMove={(stage) => handleStageMove(batch, stage)}
+                                                        onMove={(stage, options) => handleStageMove(batch, stage, options)}
                                                     />
                                                 </div>
 
