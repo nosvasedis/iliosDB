@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Order, OrderStatus, Product, ProductVariant, ProductionStage, ProductionBatch, Material, MaterialType, VatRegime, OrderShipment, OrderShipmentItem } from '../types';
-import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare, PackageCheck, FileCheck } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare, PackageCheck, FileCheck, Loader2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { retailEndClientPillClass } from '../utils/retailPresentation';
@@ -485,6 +485,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     const [showTagsManager, setShowTagsManager] = useState(false);
     const [showWorkflowActions, setShowWorkflowActions] = useState(false);
     const [showStatusActions, setShowStatusActions] = useState(false);
+    const [quickSendingOrders, setQuickSendingOrders] = useState<Set<string>>(new Set());
 
     // Group Management in Modal
     const [tagInput, setTagInput] = useState('');
@@ -671,6 +672,56 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             setManagingOrder(null);
         } else {
             showToast("Σφάλμα εύρεσης παραγγελίας", "error");
+        }
+    };
+
+    const handleQuickSendToProduction = async (order: Order) => {
+        if (quickSendingOrders.has(order.id)) return;
+
+        const existingBatchesForOrder = batchesByOrderId.get(order.id) || [];
+        const inProductionQtyByKey = new Map<string, number>();
+        existingBatchesForOrder.forEach(b => {
+            const key = [b.sku, b.variant_suffix || '', b.size_info || '', b.cord_color || '', b.enamel_color || '', b.line_id || ''].join('|');
+            inProductionQtyByKey.set(key, (inProductionQtyByKey.get(key) || 0) + b.quantity);
+        });
+
+        const itemsToSend = order.items
+            .map(item => {
+                const key = [item.sku, item.variant_suffix || '', item.size_info || '', item.cord_color || '', item.enamel_color || '', item.line_id || ''].join('|');
+                const alreadyInProduction = inProductionQtyByKey.get(key) || 0;
+                const qty = Math.max(0, item.quantity - alreadyInProduction);
+                return {
+                    sku: item.sku,
+                    variant: item.variant_suffix || null,
+                    qty,
+                    size_info: item.size_info,
+                    cord_color: item.cord_color || null,
+                    enamel_color: item.enamel_color || null,
+                    notes: item.notes,
+                    line_id: item.line_id ?? null,
+                };
+            })
+            .filter(i => i.qty > 0);
+
+        if (itemsToSend.length === 0) {
+            showToast("Όλα τα τεμάχια έχουν ήδη σταλεί στην παραγωγή.", "info");
+            return;
+        }
+
+        setQuickSendingOrders(prev => new Set([...prev, order.id]));
+        try {
+            await ordersRepository.sendPartialOrderToProduction(order.id, itemsToSend, products, materials);
+            await invalidateOrdersAndBatches(queryClient);
+            const totalQty = itemsToSend.reduce((s, i) => s + i.qty, 0);
+            showToast(`Στάλθηκαν ${totalQty} τεμάχια στην παραγωγή.`, "success");
+        } catch {
+            showToast("Σφάλμα κατά την αποστολή στην παραγωγή.", "error");
+        } finally {
+            setQuickSendingOrders(prev => {
+                const next = new Set(prev);
+                next.delete(order.id);
+                return next;
+            });
         }
     };
 
@@ -1050,6 +1101,18 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                         <div className="p-4 text-right">
                                             <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button onClick={() => setManagingOrder(order)} title="Διαχείριση" className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Settings size={16} /></button>
+                                                {order.status === OrderStatus.Pending && (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleQuickSendToProduction(order); }}
+                                                        disabled={quickSendingOrders.has(order.id)}
+                                                        title="Άμεση Αποστολή στην Παραγωγή"
+                                                        className="p-2 text-blue-400 hover:text-blue-700 hover:bg-blue-50 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    >
+                                                        {quickSendingOrders.has(order.id)
+                                                            ? <Loader2 size={16} className="animate-spin" />
+                                                            : <Factory size={16} />}
+                                                    </button>
+                                                )}
                                                 <button onClick={() => setPrintModalOrder(order)} title="Εκτύπωση Εντολών" className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Printer size={16} /></button>
                                                 {activeTab === 'active' && (
                                                     <button onClick={() => handleArchiveOrder(order, true)} title="Αρχειοθέτηση" className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Archive size={16} /></button>
