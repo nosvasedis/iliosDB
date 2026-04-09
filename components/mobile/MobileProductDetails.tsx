@@ -327,7 +327,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                 ? <><Loader2 size={16} className="animate-spin"/> <span className="text-xs font-bold">Μεταφόρτωση...</span></>
                 : <><Camera size={16}/> <span className="text-xs font-bold">{localImageUrl ? 'Αλλαγή' : 'Προσθήκη'} Φωτο</span></>
             }
-            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImageUpdate} disabled={isUploadingImage} />
+            <input type="file" accept="image/*" className="hidden" onChange={handleImageUpdate} disabled={isUploadingImage} />
         </label>
         <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-slate-900/90 via-slate-900/50 to-transparent pt-12">
             <div className="flex justify-between items-end">
