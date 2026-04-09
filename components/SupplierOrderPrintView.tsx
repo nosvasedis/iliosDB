@@ -34,164 +34,137 @@ export default function SupplierOrderPrintView({ order, products }: Props) {
         email: "ilioskosmima@gmail.com"
     };
 
+    // Pre-compute display data for all items
+    const itemDisplayData = useMemo(() => sortedItems.map((item) => {
+        let product: Product | undefined;
+        if (item.item_type === 'Product') {
+            product = products.find(p => p.sku === item.item_id);
+        }
+
+        let supplierSku = '-';
+        let mainDescription = item.item_name;
+        let detailLine = '';
+        let imageUrl: string | null = null;
+
+        if (product) {
+            supplierSku = product.supplier_sku || product.sku;
+            imageUrl = product.image_url;
+            let suffixStr = '';
+            if (item.item_name.startsWith(product.sku)) {
+                suffixStr = item.item_name.slice(product.sku.length);
+            }
+            const { finish, stone } = getVariantComponents(suffixStr, product.gender || Gender.Unisex);
+            let finishDesc = 'Λουστρέ';
+            if (finish.name) finishDesc = finish.name;
+            let stoneDesc = '';
+            if (stone.name) stoneDesc = ` • ${stone.name}`;
+            mainDescription = product.category;
+            detailLine = `${finishDesc}${stoneDesc}`;
+        } else if (item.item_type === 'Material') {
+            mainDescription = item.item_name;
+            detailLine = 'Υλικό';
+        }
+
+        return { item, supplierSku, mainDescription, detailLine, imageUrl };
+    }), [sortedItems, products]);
+
     return (
-        <div className="bg-white text-black font-sans w-[210mm] min-h-[297mm] p-8 mx-auto shadow-lg print:shadow-none print:p-8 page-break-after-always relative flex flex-col">
+        <div className="bg-white text-black font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 page-break-after-always relative flex flex-col">
             <style>{`
                 @page { size: A4; margin: 0; }
                 .break-avoid { break-inside: avoid; }
-                th, td { padding-top: 6px; padding-bottom: 6px; }
+                .item-card { break-inside: avoid; }
             `}</style>
 
-            {/* HEADER */}
-            <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4 mb-6">
-                <div>
-                    <img src={APP_LOGO} alt="ILIOS" className="h-12 object-contain mb-2" />
-                    <div className="text-[9px] text-slate-600 space-y-0.5">
-                        <p className="font-bold text-slate-900 uppercase">{company.name}</p>
+            {/* COMPACT HEADER */}
+            <div className="flex justify-between items-center border-b-2 border-slate-900 pb-2 mb-3">
+                <div className="flex items-center gap-3">
+                    <img src={APP_LOGO} alt="ILIOS" className="h-8 object-contain" />
+                    <div className="text-[8px] text-slate-500 leading-tight">
+                        <p className="font-bold text-slate-800 uppercase text-[9px]">{company.name}</p>
                         <p>{company.address}</p>
                         <p>{company.phone} • {company.email}</p>
                     </div>
                 </div>
                 <div className="text-right">
-                    <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight mb-2">ΕΝΤΟΛΗ ΑΓΟΡΑΣ</h1>
-                    <div className="text-sm font-medium space-y-1">
-                        <div className="flex items-center justify-end gap-2">
-                            <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Αρ. Εντολής</span>
-                            <span className="font-mono font-bold bg-slate-100 px-2 py-0.5 rounded">#{order.id.slice(0, 8).toUpperCase()}</span>
-                        </div>
-                        <div className="flex items-center justify-end gap-2">
-                            <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Ημερομηνία</span>
-                            <span className="font-bold">{formatDate(order.created_at)}</span>
-                        </div>
+                    <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-none">ΕΝΤΟΛΗ ΑΓΟΡΑΣ</h1>
+                    <div className="flex items-center justify-end gap-3 mt-1">
+                        <span className="text-[9px] text-slate-500 uppercase font-bold tracking-wider">Αρ. <span className="font-mono font-black text-slate-900">#{order.id.slice(0, 8).toUpperCase()}</span></span>
+                        <span className="text-[9px] text-slate-500 uppercase font-bold tracking-wider">Ημ/νία <span className="font-semibold text-slate-800 normal-case">{formatDate(order.created_at)}</span></span>
                     </div>
                 </div>
             </div>
 
-            {/* SUPPLIER INFO */}
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 mb-8 flex justify-between items-center">
-                <div>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Προμηθευτης</span>
-                    <h2 className="text-xl font-black text-slate-900">{order.supplier_name}</h2>
-                </div>
+            {/* SUPPLIER INFO — compact single line */}
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 mb-3">
+                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Προμηθευτής:</span>
+                <span className="font-black text-slate-900 text-sm">{order.supplier_name}</span>
             </div>
 
-            {/* ITEMS TABLE */}
+            {/* ITEMS — two-column grid */}
             <main className="flex-1">
-                <table className="w-full text-left border-collapse">
-                    <thead>
-                        <tr className="border-b-2 border-slate-800 text-[10px] font-black text-slate-600 uppercase tracking-wider">
-                            <th className="px-2 w-16 text-center">Εικόνα</th>
-                            <th className="px-2 w-32 bg-slate-100 text-slate-900 border-l border-r border-slate-200">Κωδ. Προμηθευτη</th>
-                            <th className="px-2">Περιγραφη & Λεπτομερειες</th>
-                            <th className="px-2 text-center w-20">Ποσοτητα</th>
-                        </tr>
-                    </thead>
-                    <tbody className="text-xs">
-                        {sortedItems.map((item, idx) => {
-                            // Resolve Product Details for rich display
-                            let product: Product | undefined;
-                            if (item.item_type === 'Product') {
-                                product = products.find(p => p.sku === item.item_id);
-                            }
+                {/* Column headers */}
+                <div className="grid grid-cols-2 gap-x-3 mb-1">
+                    {[0, 1].map(col => (
+                        <div key={col} className="grid gap-x-1 border-b-2 border-slate-800 pb-0.5" style={{ gridTemplateColumns: '28px 1fr auto' }}>
+                            <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider text-center">Εικ.</span>
+                            <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider">Κωδ. / Περιγραφή</span>
+                            <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider text-center">Ποσ.</span>
+                        </div>
+                    ))}
+                </div>
 
-                            // Determine Display Data
-                            let supplierSku = '-';
-                            let mainDescription = item.item_name; // Default to stored name (e.g. SKU+Suffix)
-                            let detailLine = '';
-                            let imageUrl = null;
+                <div className="grid grid-cols-2 gap-x-3">
+                    {itemDisplayData.map(({ item, supplierSku, mainDescription, detailLine, imageUrl }, idx) => (
+                        <div key={idx} className="item-card flex items-start gap-1.5 border-b border-slate-100 py-1.5" style={{ gridColumn: undefined }}>
+                            {/* Image */}
+                            <div className="w-7 h-7 flex-shrink-0 bg-slate-50 border border-slate-200 rounded overflow-hidden flex items-center justify-center mt-0.5">
+                                {imageUrl ? (
+                                    <img src={imageUrl} className="w-full h-full object-cover" alt="prod" />
+                                ) : (
+                                    <ImageIcon size={12} className="text-slate-300" />
+                                )}
+                            </div>
 
-                            if (product) {
-                                // Prefer Supplier's SKU if available
-                                supplierSku = product.supplier_sku || product.sku;
-                                imageUrl = product.image_url;
-                                
-                                const category = product.category;
-                                
-                                // Extract finish info from suffix using the full stored name
-                                // item.item_name should be something like "DA1102XKO"
-                                let suffixStr = '';
-                                if (item.item_name.startsWith(product.sku)) {
-                                    suffixStr = item.item_name.slice(product.sku.length);
-                                }
-                                
-                                const { finish, stone } = getVariantComponents(suffixStr, product.gender || Gender.Unisex);
-                                
-                                // Build readable description
-                                let finishDesc = 'Λουστρέ';
-                                if (finish.name) finishDesc = finish.name;
-                                
-                                let stoneDesc = '';
-                                if (stone.name) stoneDesc = ` • ${stone.name}`;
-                                
-                                mainDescription = `${category}`;
-                                detailLine = `${finishDesc}${stoneDesc}`;
-                                
-                            } else {
-                                // Fallback if product not found (e.g. Material)
-                                if (item.item_type === 'Material') {
-                                    mainDescription = item.item_name;
-                                    detailLine = 'Υλικό';
-                                }
-                            }
+                            {/* Info */}
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-baseline gap-1">
+                                    <span className="font-mono font-black text-[11px] text-slate-900 leading-tight">{supplierSku}</span>
+                                    <span className="text-[7px] text-slate-400 truncate">({item.item_name})</span>
+                                </div>
+                                <div className="text-[9px] text-slate-600 font-semibold leading-tight">
+                                    {mainDescription}
+                                    {detailLine ? <span className="text-slate-400 font-normal"> — {detailLine}</span> : null}
+                                </div>
+                                {item.size_info && (
+                                    <span className="bg-slate-900 text-white px-1 py-px rounded text-[7px] font-bold">Νο {item.size_info}</span>
+                                )}
+                                {item.customer_reference && (
+                                    <div className="text-[8px] text-slate-600 font-bold leading-tight">Πελ: {item.customer_reference}</div>
+                                )}
+                                {item.notes && (
+                                    <div className="text-[8px] text-yellow-700 italic leading-tight bg-yellow-50 px-1 rounded mt-0.5">↳ {item.notes}</div>
+                                )}
+                            </div>
 
-                            return (
-                                <tr key={idx} className="border-b border-slate-100 break-inside-avoid">
-                                    <td className="px-2 align-middle text-center">
-                                        <div className="w-12 h-12 bg-slate-50 border border-slate-200 rounded mx-auto overflow-hidden flex items-center justify-center">
-                                            {imageUrl ? (
-                                                <img src={imageUrl} className="w-full h-full object-cover" alt="prod" />
-                                            ) : (
-                                                <ImageIcon size={18} className="text-slate-300"/>
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td className="px-2 align-middle bg-slate-50 border-l border-r border-slate-100">
-                                        <span className="font-mono font-black text-sm text-slate-900 block">{supplierSku}</span>
-                                        {/* Show internal SKU as reference in small print */}
-                                        <span className="text-[9px] text-slate-400 block mt-1">Ref: {item.item_name}</span>
-                                    </td>
-                                    <td className="px-2 align-middle">
-                                        <div className="font-bold text-slate-800 text-sm">{mainDescription}</div>
-                                        <div className="text-[10px] text-slate-500 font-bold uppercase mt-1 tracking-wide">
-                                            {detailLine}
-                                            {item.size_info && (
-                                                <span className="ml-2 bg-slate-900 text-white px-1.5 py-0.5 rounded text-[9px] font-bold">
-                                                    ΝΟΥΜ: {item.size_info}
-                                                </span>
-                                            )}
-                                        </div>
-                                        {item.customer_reference && (
-                                            <div className="mt-1 text-[10px] text-slate-700 font-bold">
-                                                Πελάτης: {item.customer_reference}
-                                            </div>
-                                        )}
-                                        {item.notes && (
-                                            <div className="mt-1 bg-yellow-50 p-1.5 rounded border border-yellow-100 text-[10px] text-yellow-800 font-bold italic inline-block">
-                                                Σημείωση: {item.notes}
-                                            </div>
-                                        )}
-                                    </td>
-                                    <td className="px-2 align-middle text-center">
-                                        <div className="inline-block px-4 py-2 rounded bg-slate-900 text-white font-black text-lg shadow-sm">
-                                            {item.quantity}
-                                        </div>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+                            {/* Quantity */}
+                            <div className="flex-shrink-0 bg-slate-900 text-white px-1.5 py-0.5 rounded text-sm font-black leading-tight min-w-[22px] text-center mt-0.5">
+                                {item.quantity}
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </main>
 
             {/* FOOTER */}
-            <div className="mt-8 border-t-2 border-slate-900 pt-4">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Γενικές Σημειώσεις</p>
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm italic text-slate-600 min-h-[60px]">
+            <div className="mt-4 border-t-2 border-slate-900 pt-2">
+                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mb-1">Γενικές Σημειώσεις</p>
+                <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 text-xs italic text-slate-600 min-h-[36px]">
                     {order.notes || "Δεν υπάρχουν επιπλέον σημειώσεις."}
                 </div>
             </div>
-            
-            <div className="mt-8 text-center text-[8px] text-slate-300 uppercase tracking-widest">
+
+            <div className="mt-3 text-center text-[7px] text-slate-300 uppercase tracking-widest">
                 Ilios Kosmima ERP • Generated Purchase Order
             </div>
         </div>
