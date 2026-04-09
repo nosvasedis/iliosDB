@@ -4,7 +4,7 @@ import { SupplierOrder, Product, Gender } from '../types';
 import { APP_LOGO } from '../constants';
 import { ImageIcon } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
-import { compareSkuValues } from '../utils/skuSort';
+import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
 
 interface Props {
     order: SupplierOrder;
@@ -13,11 +13,11 @@ interface Props {
 
 export default function SupplierOrderPrintView({ order, products }: Props) {
     const sortedItems = useMemo(
-        () => [...order.items].sort((a, b) => {
-            const keyA = a.item_type === 'Product' ? a.item_id : a.item_name;
-            const keyB = b.item_type === 'Product' ? b.item_id : b.item_name;
-            return compareSkuValues(keyA, keyB);
-        }),
+        () => sortBySkuKey(order.items, (item) =>
+            item.item_type === 'Product'
+                ? buildSkuKey(item.item_id, item.item_name.slice(item.item_id.length))
+                : item.item_name
+        ),
         [order.items]
     );
 
@@ -101,56 +101,72 @@ export default function SupplierOrderPrintView({ order, products }: Props) {
                 <span className="font-black text-slate-900 text-sm">{order.supplier_name}</span>
             </div>
 
-            {/* ITEMS — two-column grid */}
+            {/* ITEMS — two-column (CSS columns, fills left first then right) */}
             <main className="flex-1">
-                {/* Column headers */}
-                <div className="grid grid-cols-2 gap-x-3 mb-1">
-                    {[0, 1].map(col => (
-                        <div key={col} className="grid gap-x-1 border-b-2 border-slate-800 pb-0.5" style={{ gridTemplateColumns: '28px 1fr auto' }}>
-                            <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider text-center">Εικ.</span>
-                            <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider">Κωδ. / Περιγραφή</span>
-                            <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider text-center">Ποσ.</span>
-                        </div>
-                    ))}
+                {/* Duplicated header for both columns */}
+                <div className="flex border-b-2 border-slate-800 pb-0.5 mb-1 text-[9px] font-black text-slate-600 uppercase tracking-wider">
+                    <div className="flex-1 flex items-center pr-3">
+                        <div className="w-5 text-center text-slate-400">#</div>
+                        <div className="w-7 text-center">Εικ.</div>
+                        <div className="flex-1 px-1">Κωδ. Προμηθ. / Περιγραφή</div>
+                        <div className="w-8 text-center">Ποσ.</div>
+                    </div>
+                    <div className="flex-1 flex items-center pl-3 border-l border-slate-300">
+                        <div className="w-5 text-center text-slate-400">#</div>
+                        <div className="w-7 text-center">Εικ.</div>
+                        <div className="flex-1 px-1">Κωδ. Προμηθ. / Περιγραφή</div>
+                        <div className="w-8 text-center">Ποσ.</div>
+                    </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-x-3">
+                {/* Items — CSS column-count fills left column first, then right */}
+                <div
+                    className="text-[11px] leading-snug"
+                    style={{ columnCount: 2, columnGap: '1.5rem', columnRuleWidth: '1px', columnRuleStyle: 'dashed', columnRuleColor: '#e2e8f0' }}
+                >
                     {itemDisplayData.map(({ item, supplierSku, mainDescription, detailLine, imageUrl }, idx) => (
-                        <div key={idx} className="item-card flex items-start gap-1.5 border-b border-slate-100 py-1.5" style={{ gridColumn: undefined }}>
+                        <div key={idx} className="flex items-center py-1.5 border-b border-slate-100 break-inside-avoid">
+                            {/* Index */}
+                            <div className="w-5 text-center text-slate-400 text-[10px] tabular-nums flex-shrink-0">{idx + 1}</div>
+
                             {/* Image */}
-                            <div className="w-7 h-7 flex-shrink-0 bg-slate-50 border border-slate-200 rounded overflow-hidden flex items-center justify-center mt-0.5">
-                                {imageUrl ? (
-                                    <img src={imageUrl} className="w-full h-full object-cover" alt="prod" />
-                                ) : (
-                                    <ImageIcon size={12} className="text-slate-300" />
-                                )}
+                            <div className="w-7 text-center flex-shrink-0">
+                                <div className="w-6 h-6 bg-slate-50 rounded overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
+                                    {imageUrl ? (
+                                        <img src={imageUrl} className="w-full h-full object-cover" alt="prod" />
+                                    ) : (
+                                        <ImageIcon size={10} className="text-slate-300" />
+                                    )}
+                                </div>
                             </div>
 
                             {/* Info */}
-                            <div className="flex-1 min-w-0">
+                            <div className="flex-1 px-1 min-w-0">
                                 <div className="flex items-baseline gap-1">
-                                    <span className="font-mono font-black text-[11px] text-slate-900 leading-tight">{supplierSku}</span>
-                                    <span className="text-[7px] text-slate-400 truncate">({item.item_name})</span>
+                                    <span className="font-mono font-black text-slate-900">{supplierSku}</span>
+                                    {supplierSku !== item.item_name && (
+                                        <span className="text-[8px] text-slate-400 truncate">({item.item_name})</span>
+                                    )}
                                 </div>
-                                <div className="text-[9px] text-slate-600 font-semibold leading-tight">
+                                <div className="text-[9px] text-slate-600 font-medium leading-tight truncate">
                                     {mainDescription}
-                                    {detailLine ? <span className="text-slate-400 font-normal"> — {detailLine}</span> : null}
+                                    {detailLine ? <span className="text-slate-400"> — {detailLine}</span> : null}
                                 </div>
-                                {item.size_info && (
-                                    <span className="bg-slate-900 text-white px-1 py-px rounded text-[7px] font-bold">Νο {item.size_info}</span>
-                                )}
-                                {item.customer_reference && (
-                                    <div className="text-[8px] text-slate-600 font-bold leading-tight">Πελ: {item.customer_reference}</div>
-                                )}
+                                <div className="flex flex-wrap gap-1 mt-0.5">
+                                    {item.size_info && (
+                                        <span className="bg-slate-800 text-white px-1 py-px rounded text-[8px] font-bold">Νο {item.size_info}</span>
+                                    )}
+                                    {item.customer_reference && (
+                                        <span className="text-[8px] text-slate-600 font-bold">Πελ: {item.customer_reference}</span>
+                                    )}
+                                </div>
                                 {item.notes && (
-                                    <div className="text-[8px] text-yellow-700 italic leading-tight bg-yellow-50 px-1 rounded mt-0.5">↳ {item.notes}</div>
+                                    <div className="text-[8px] text-yellow-700 italic leading-tight">↳ {item.notes}</div>
                                 )}
                             </div>
 
                             {/* Quantity */}
-                            <div className="flex-shrink-0 bg-slate-900 text-white px-1.5 py-0.5 rounded text-sm font-black leading-tight min-w-[22px] text-center mt-0.5">
-                                {item.quantity}
-                            </div>
+                            <div className="w-8 text-center font-black text-slate-900 text-[13px] flex-shrink-0">{item.quantity}</div>
                         </div>
                     ))}
                 </div>
