@@ -1,8 +1,10 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Product, ProductVariant, Warehouse, Gender, PlatingType, MaterialType, RecipeItem } from '../../types';
-import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy, ArrowRightLeft, PlusCircle, Settings2, ArrowRight, Save, Hammer, Box, Flame, Gem, Coins, ChevronDown, ChevronUp, Palette, Info, Package, Download, Loader2, Sparkles, Layers, Ruler } from 'lucide-react';
+import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy, ArrowRightLeft, PlusCircle, Settings2, ArrowRight, Save, Hammer, Box, Flame, Gem, Coins, ChevronDown, ChevronUp, Palette, Info, Package, Download, Loader2, Sparkles, Layers, Ruler, Camera } from 'lucide-react';
 import { formatCurrency, getVariantComponents, transliterateForBarcode } from '../../utils/pricingEngine';
-import { SYSTEM_IDS, CLOUDFLARE_WORKER_URL, recordStockMovement, supabase, api, R2_PUBLIC_URL, AUTH_KEY_SECRET } from '../../lib/supabase';
+import { SYSTEM_IDS, CLOUDFLARE_WORKER_URL, recordStockMovement, supabase, api, R2_PUBLIC_URL, AUTH_KEY_SECRET, uploadProductImage } from '../../lib/supabase';
+import { compressImage } from '../../utils/imageHelpers';
+import { productsRepository } from '../../features/products/repository';
 import BarcodeView from '../BarcodeView';
 import { useUI } from '../UIProvider';
 import QRCode from 'qrcode';
@@ -79,6 +81,9 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
   const [transferModal, setTransferModal] = useState<{ sourceId: string; targetId: string; qty: number } | null>(null);
   const [adjustModal, setAdjustModal] = useState<{ warehouseId: string; type: 'add' | 'set' | 'remove'; qty: number } | null>(null);
   
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [localImageUrl, setLocalImageUrl] = useState<string | null>(product.image_url);
+
   const cardRef = useRef<HTMLDivElement>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
@@ -168,6 +173,30 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
       const { finish } = getVariantComponents(suffix, product.gender);
       return FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-600 border-slate-200';
   }, [activeVariant, product.gender]);
+
+  const handleImageUpdate = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files[0]) {
+          const file = e.target.files[0];
+          setIsUploadingImage(true);
+          try {
+              const compressedBlob = await compressImage(file);
+              const publicUrl = await uploadProductImage(compressedBlob, product.sku);
+              if (publicUrl) {
+                  setLocalImageUrl(publicUrl);
+                  await productsRepository.saveProduct({ ...product, image_url: publicUrl });
+                  await invalidateProductsAndCatalog(queryClient);
+                  showToast("Η φωτογραφία ενημερώθηκε.", "success");
+              }
+          } catch (error) {
+              console.error(error);
+              showToast("Σφάλμα κατά την ενημέρωση φωτογραφίας.", "error");
+          } finally {
+              setIsUploadingImage(false);
+              // Reset the input so the same file can be re-selected if needed
+              e.target.value = '';
+          }
+      }
+  };
 
   const handleShare = async () => {
       if (!cardRef.current && shareTab === 'card') return;
@@ -281,8 +310,8 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
   return (
     <div className="fixed inset-0 z-[100] bg-slate-50 flex flex-col animate-in slide-in-from-bottom-full duration-300 overflow-hidden">
       <div className="relative h-72 bg-slate-200 shrink-0 group">
-        {product.image_url ? (
-            <img src={product.image_url} className="w-full h-full object-cover cursor-pointer" alt={product.sku} onClick={() => setShowFullImage(true)}/>
+        {localImageUrl ? (
+            <img src={localImageUrl} className="w-full h-full object-cover cursor-pointer" alt={product.sku} onClick={() => setShowFullImage(true)}/>
         ) : (
             <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold bg-slate-100"><ImageIcon size={48} className="opacity-20"/></div>
         )}
@@ -292,6 +321,14 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                 <button onClick={() => { setShowShareModal(true); setShareTab('card'); }} className="p-2 bg-white text-slate-900 rounded-full hover:bg-slate-100 transition-colors shadow-lg active:scale-95"><Share2 size={20}/></button>
             </div>
         </div>
+        {/* Camera / Upload button — always visible on mobile (no hover) */}
+        <label className={`absolute bottom-4 right-4 z-10 flex items-center gap-2 px-3 py-2 rounded-xl shadow-lg cursor-pointer active:scale-95 transition-transform select-none ${isUploadingImage ? 'bg-white/60 text-slate-400' : 'bg-white/90 backdrop-blur-md text-slate-800'}`}>
+            {isUploadingImage
+                ? <><Loader2 size={16} className="animate-spin"/> <span className="text-xs font-bold">Μεταφόρτωση...</span></>
+                : <><Camera size={16}/> <span className="text-xs font-bold">{localImageUrl ? 'Αλλαγή' : 'Προσθήκη'} Φωτο</span></>
+            }
+            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImageUpdate} disabled={isUploadingImage} />
+        </label>
         <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-slate-900/90 via-slate-900/50 to-transparent pt-12">
             <div className="flex justify-between items-end">
                 <div>
