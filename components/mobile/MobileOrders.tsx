@@ -1021,13 +1021,17 @@ export default function MobileOrders({
         const todayStr = now.toISOString().slice(0, 10);
         const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
         const monthAgo = new Date(now); monthAgo.setMonth(now.getMonth() - 1);
+        const normalizedSearch = (deferredSearchTerm ?? '').trim().toLowerCase();
+        const hasSearch = normalizedSearch.length > 0;
 
         return orders.filter(o => {
             const isArchived = o.is_archived === true;
             const relaxArchive =
                 filters.statuses.has(OrderStatus.Ready) ||
                 filters.statuses.has(OrderStatus.Delivered);
-            if (!relaxArchive) {
+            // When searching on "Ενεργές", include archived matches too.
+            // (Keep existing "relaxArchive" behavior for Ready/Delivered.)
+            if (!relaxArchive && !(hasSearch && activeTab === 'active')) {
                 if (activeTab === 'active' && isArchived) return false;
                 if (activeTab === 'archived' && !isArchived) return false;
             }
@@ -1072,8 +1076,8 @@ export default function MobileOrders({
                 }
             }
 
-            if (!deferredSearchTerm) return true;
-            const term = deferredSearchTerm.toLowerCase();
+            if (!hasSearch) return true;
+            const term = normalizedSearch;
             return (
                 o.id.toLowerCase().includes(term) ||
                 o.customer_name.toLowerCase().includes(term) ||

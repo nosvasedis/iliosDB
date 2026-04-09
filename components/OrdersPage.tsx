@@ -585,12 +585,20 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         const todayStr = now.toISOString().slice(0, 10);
         const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
         const monthAgo = new Date(now); monthAgo.setMonth(now.getMonth() - 1);
+        const normalizedSearch = (deferredSearchTerm ?? '').trim().toLowerCase();
+        const hasSearch = normalizedSearch.length > 0;
 
         return orders.filter(o => {
             // Tab Filter
             const isArchived = o.is_archived === true;
-            if (activeTab === 'active' && isArchived) return false;
-            if (activeTab === 'archived' && !isArchived) return false;
+            // When searching on "Ενεργές", include archived matches too.
+            // When searching on "Αρχείο", keep it archived-only.
+            if (!hasSearch) {
+                if (activeTab === 'active' && isArchived) return false;
+                if (activeTab === 'archived' && !isArchived) return false;
+            } else if (activeTab === 'archived' && !isArchived) {
+                return false;
+            }
 
             // Status filter (OR)
             if (filters.statuses.size > 0 && !filters.statuses.has(o.status as OrderStatus)) return false;
@@ -633,8 +641,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             }
 
             // Search Filter (ID, Name, Tags)
-            if (!deferredSearchTerm) return true;
-            const term = deferredSearchTerm.toLowerCase();
+            if (!hasSearch) return true;
+            const term = normalizedSearch;
             return (
                 o.id.toLowerCase().includes(term) ||
                 o.customer_name.toLowerCase().includes(term) ||
