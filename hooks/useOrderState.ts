@@ -783,6 +783,28 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         setPriceDiffs(null);
     };
 
+    const revertItemToCatalogPrice = (item: OrderItem) => {
+        if (isSpecialCreationSku(item.sku)) return;
+        const product = products.find(p => p.sku === item.sku) || item.product_details;
+        if (!product) return;
+        let catalogPrice = 0;
+        if (item.variant_suffix !== undefined && item.variant_suffix !== null) {
+            const variant = product.variants?.find(v => v.suffix === item.variant_suffix);
+            catalogPrice = variant?.selling_price || product.selling_price || 0;
+        } else {
+            catalogPrice = product.selling_price || 0;
+        }
+        if (catalogPrice <= 0) return;
+        setSelectedItems(prev => {
+            const updated = [...prev];
+            const i = prev.findIndex(r => getOrderItemMatchKey(r) === getOrderItemMatchKey(item));
+            if (i === -1) return prev;
+            updated[i] = { ...updated[i], price_at_order: catalogPrice, price_override: undefined };
+            return updated;
+        });
+        setPriceDiffs(null);
+    };
+
     const updateItemVariantAndSize = (
         item: OrderItem,
         nextVariantSuffix: string | undefined,
@@ -1032,7 +1054,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             handleSelectCustomer, handleUseRetailCustomer, handleAddTag, removeTag,
             handleSmartInput, handleSelectMaster,
             handleAddItem, executeAddItem, handleScanInOrder,
-            updateQuantity, updateItemNotes, updateItemUnitPrice, updateItemVariantAndSize, handleRemoveItem,
+            updateQuantity, updateItemNotes, updateItemUnitPrice, revertItemToCatalogPrice, updateItemVariantAndSize, handleRemoveItem,
             handleRecalculatePrices, handleSaveOrder, handleBack,
             getSkuComponents,
         },

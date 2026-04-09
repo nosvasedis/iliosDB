@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Search, X, ArrowDownAZ, Camera, Plus, Minus, Trash2, StickyNote, Box, RefreshCw, Save, Loader2, Pencil } from 'lucide-react';
+import { Search, X, ArrowDownAZ, Camera, Plus, Minus, Trash2, StickyNote, Box, RefreshCw, Save, Loader2, Pencil, Check } from 'lucide-react';
 import { FINISH_CODES } from '../../constants';
 import { OrderItem } from '../../types';
 import { formatCurrency, formatDecimal, getVariantComponents, getVariantSuffixDisplayCodes } from '../../utils/pricingEngine';
@@ -22,12 +22,26 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
         [state.selectedItems],
     );
     const [priceEditLineKey, setPriceEditLineKey] = useState<string | null>(null);
+    const [priceInputStr, setPriceInputStr] = useState<string>('');
     const [editingItem, setEditingItem] = useState<OrderItem | null>(null);
     const [editFinish, setEditFinish] = useState('');
     const [editVariantSuffix, setEditVariantSuffix] = useState('');
     const [editSizeInfo, setEditSizeInfo] = useState('');
     const [editCordColor, setEditCordColor] = useState<OrderItem['cord_color']>();
     const [editEnamelColor, setEditEnamelColor] = useState<OrderItem['enamel_color']>();
+
+    const commitPriceEdit = (item: OrderItem) => {
+        const trimmed = priceInputStr.trim();
+        if (trimmed === '' && !isSpecialCreationSku(item.sku)) {
+            actions.revertItemToCatalogPrice(item);
+        } else {
+            const val = parseFloat(trimmed.replace(',', '.'));
+            if (!isNaN(val)) {
+                actions.updateItemUnitPrice(item, val);
+            }
+        }
+        setPriceEditLineKey(null);
+    };
 
     const editProduct = editingItem?.product_details;
     const editVariants = editProduct?.variants || [];
@@ -247,23 +261,34 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                                     min={0}
                                                     step={0.01}
                                                     autoFocus
-                                                    value={item.price_at_order}
+                                                    value={priceInputStr}
                                                     onFocus={e => e.target.select()}
-                                                    onChange={e => actions.updateItemUnitPrice(item, parseFloat(e.target.value) || 0)}
-                                                    onBlur={() => setPriceEditLineKey(null)}
+                                                    onChange={e => setPriceInputStr(e.target.value)}
+                                                    onBlur={() => commitPriceEdit(item)}
                                                     onKeyDown={e => {
+                                                        if (e.key === 'Enter') { e.preventDefault(); commitPriceEdit(item); }
                                                         if (e.key === 'Escape') setPriceEditLineKey(null);
                                                     }}
                                                     className="min-w-0 flex-1 bg-white rounded border border-slate-200 px-1 py-0.5 font-mono text-sm font-bold tabular-nums text-right text-slate-900 outline-none focus:ring-1 focus:ring-emerald-500/35"
                                                 />
-                                                {item.price_override && !isSpecialCreationSku(item.sku) && (
-                                                    <span className="text-amber-700 font-black text-xs shrink-0" title="Η τιμή διαφέρει από τον κατάλογο">*</span>
-                                                )}
+                                                <button
+                                                    type="button"
+                                                    onMouseDown={e => e.preventDefault()}
+                                                    onClick={() => commitPriceEdit(item)}
+                                                    title={priceInputStr.trim() === '' && !isSpecialCreationSku(item.sku) ? 'Επαναφορά τιμής καταλόγου' : 'Επιβεβαίωση τιμής'}
+                                                    className={`shrink-0 rounded p-0.5 transition-colors ${
+                                                        priceInputStr.trim() === '' && !isSpecialCreationSku(item.sku)
+                                                            ? 'text-blue-600 hover:bg-blue-100'
+                                                            : 'text-emerald-600 hover:bg-emerald-100'
+                                                    }`}
+                                                >
+                                                    <Check size={12} />
+                                                </button>
                                             </div>
                                         ) : (
                                             <button
                                                 type="button"
-                                                onClick={() => setPriceEditLineKey(lineKey)}
+                                                onClick={() => { setPriceEditLineKey(lineKey); setPriceInputStr(item.price_at_order > 0 ? String(item.price_at_order) : ''); }}
                                                 title="Πατήστε για αλλαγή τιμής"
                                                 className={`group/price text-right rounded-lg px-1.5 py-0.5 -mr-0.5 transition-colors ${
                                                     isSpecialCreationSku(item.sku)
