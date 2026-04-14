@@ -1871,12 +1871,21 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
                                             const stonesPerStrand = isRaw ? (details as Material)?.stones_per_strand : undefined;
 
+                                            const stxImageUrl = !isRaw ? (details as Product | undefined)?.image_url : null;
+                                            const stxDescription = !isRaw ? (details as Product | undefined)?.description : null;
+
                                             return (
                                                 <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                                    <div className="p-2 bg-white rounded-lg border border-slate-100">
-                                                        {isRaw ? <Gem size={16} className="text-emerald-500" /> : <Puzzle size={16} className="text-blue-500" />}
+                                                    <div className="w-10 h-10 shrink-0 bg-white rounded-lg border border-slate-100 overflow-hidden flex items-center justify-center">
+                                                        {isRaw ? (
+                                                            <Gem size={16} className="text-emerald-500" />
+                                                        ) : stxImageUrl ? (
+                                                            <img src={stxImageUrl} alt={item.sku} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <Puzzle size={16} className="text-blue-500" />
+                                                        )}
                                                     </div>
-                                                    <div className="flex-1">
+                                                    <div className="flex-1 min-w-0">
                                                         {isRaw ? (
                                                             <select
                                                                 className="bg-transparent font-bold text-slate-800 outline-none w-full"
@@ -1886,13 +1895,18 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                 {allMaterials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                                                             </select>
                                                         ) : (
-                                                            <select
-                                                                className="bg-transparent font-bold text-slate-800 outline-none w-full"
-                                                                value={item.sku}
-                                                                onChange={(e) => updateRecipeItem(idx, 'sku', e.target.value)}
-                                                            >
-                                                                {allProducts.filter(p => p.is_component).map(p => <option key={p.sku} value={p.sku}>{p.sku} - {p.category}</option>)}
-                                                            </select>
+                                                            <>
+                                                                <select
+                                                                    className="bg-transparent font-bold text-slate-800 outline-none w-full"
+                                                                    value={item.sku}
+                                                                    onChange={(e) => updateRecipeItem(idx, 'sku', e.target.value)}
+                                                                >
+                                                                    {allProducts.filter(p => p.is_component).map(p => <option key={p.sku} value={p.sku}>{p.sku} - {p.category}</option>)}
+                                                                </select>
+                                                                {stxDescription && (
+                                                                    <div className="text-xs text-slate-500 font-medium truncate mt-0.5">{stxDescription}</div>
+                                                                )}
+                                                            </>
                                                         )}
                                                     </div>
                                                     <div className="font-mono font-bold text-slate-700 text-sm">{formatCurrency(itemCost)}</div>
