@@ -210,6 +210,45 @@ export function buildOrderProductionStageSegments(
 }
 
 /**
+ * Κατανομή ανά στάδιο μόνο για τεμάχια που βρίσκονται σε ενεργές παρτίδες (άθροισμα ποσοτήτων = 100%).
+ * Χρησιμοποιείται σε Μερική Παράδοση ώστε να μην εμφανίζονται τα παραδοθέντα ως «χωρίς παρτίδα».
+ */
+export function buildOrderPipelineProductionStageSegments(
+  orderId: string,
+  batches: ProductionBatch[] | undefined | null
+): { segments: OrderProductionStageProgressSegment[]; pipelineQty: number } | null {
+  const orderBatches = getOrderBatches(orderId, batches);
+  if (orderBatches.length === 0) return null;
+
+  const stageCounts = new Map<ProductionStage, number>();
+  let pipelineQty = 0;
+  for (const batch of orderBatches) {
+    const qty = batch.quantity || 0;
+    pipelineQty += qty;
+    stageCounts.set(batch.current_stage, (stageCounts.get(batch.current_stage) || 0) + qty);
+  }
+  if (pipelineQty <= 0) return null;
+
+  const sortedStageEntries = Array.from(stageCounts.entries())
+    .sort((a, b) => (PRODUCTION_STAGE_ORDER_INDEX[a[0]] ?? 99) - (PRODUCTION_STAGE_ORDER_INDEX[b[0]] ?? 99))
+    .filter(([, quantity]) => quantity > 0);
+
+  if (sortedStageEntries.length === 0) return null;
+
+  const qtys = sortedStageEntries.map(([, quantity]) => quantity);
+  const pcts = qtysToSegmentPcts(qtys, pipelineQty);
+
+  const segments: OrderProductionStageProgressSegment[] = sortedStageEntries.map(([stage, quantity], index) => ({
+    kind: 'stage' as const,
+    stage,
+    quantity,
+    pct: pcts[index] || 0,
+  }));
+
+  return { segments, pipelineQty };
+}
+
+/**
  * Σε Παραγωγή — compact list bar: έτοιμα | όλα τα υπόλοιπα στάδια (wip) | χωρίς παρτίδα παραγωγής.
  * Denominator is always full order quantity so lines not yet sent to production are visible.
  */
@@ -281,7 +320,17 @@ export function buildInProductionCollapsedProgressSegments(
 export function buildPartialDeliveryProgressSegments(
   order: Order,
   batches: ProductionBatch[] | undefined | null
-): { segments: OrderListProgressSegment[]; summaryTitle: string; overallCompletePercent: number } | null {
+): {
+  segments: OrderListProgressSegment[];
+  summaryTitle: string;
+  overallCompletePercent: number;
+  shippedQty: number;
+  readyQty: number;
+  wipQty: number;
+  remainderQty: number;
+  itemsTotal: number;
+  batchTotal: number;
+} | null {
   const itemsTotal = sumOrderItemsQty(order);
   if (itemsTotal <= 0) return null;
 
@@ -358,6 +407,12 @@ export function buildPartialDeliveryProgressSegments(
     segments,
     summaryTitle: summaryTitle || `Σύνολο ${itemsTotal} τεμ.`,
     overallCompletePercent,
+    shippedQty,
+    readyQty,
+    wipQty,
+    remainderQty,
+    itemsTotal,
+    batchTotal,
   };
 }
 

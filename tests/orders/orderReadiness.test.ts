@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Order, OrderStatus, ProductionStage } from '../../types';
 import {
   buildInProductionCollapsedProgressSegments,
+  buildOrderPipelineProductionStageSegments,
   buildOrderProductionStageSegments,
   buildPartialDeliveryProgressSegments,
   getOrderItemProductionStageBreakdown,
@@ -165,6 +166,48 @@ describe('buildPartialDeliveryProgressSegments', () => {
     expect(r!.segments.some((s) => s.className.includes('slate-600') && s.qty === 2)).toBe(true);
     expect(r!.segments.some((s) => s.qty === 2 && s.className.includes('emerald'))).toBe(true);
     expect(r!.segments.some((s) => s.qty === 6 && s.className.includes('amber'))).toBe(true);
+    expect(r!.itemsTotal).toBe(10);
+    expect(r!.batchTotal).toBe(8);
+    expect(r!.shippedQty).toBe(2);
+    expect(r!.readyQty).toBe(2);
+    expect(r!.wipQty).toBe(6);
+    expect(r!.remainderQty).toBe(0);
+  });
+});
+
+describe('buildOrderPipelineProductionStageSegments', () => {
+  it('distributes 100% across stages using only batch quantities (no unbatched slice)', () => {
+    const batches = [
+      {
+        id: 'b1',
+        order_id: 'o1',
+        sku: 'A',
+        quantity: 2,
+        current_stage: ProductionStage.Ready,
+        created_at: '',
+        updated_at: '',
+        priority: 'Normal',
+        requires_setting: false,
+      },
+      {
+        id: 'b2',
+        order_id: 'o1',
+        sku: 'B',
+        quantity: 6,
+        current_stage: ProductionStage.Waxing,
+        created_at: '',
+        updated_at: '',
+        priority: 'Normal',
+        requires_setting: false,
+      },
+    ];
+    const r = buildOrderPipelineProductionStageSegments('o1', batches);
+    expect(r).not.toBeNull();
+    expect(r!.pipelineQty).toBe(8);
+    expect(r!.segments.every((s) => s.kind === 'stage')).toBe(true);
+    expect(r!.segments.reduce((s, x) => s + x.pct, 0)).toBe(100);
+    expect(r!.segments.find((s) => s.stage === ProductionStage.Ready)?.quantity).toBe(2);
+    expect(r!.segments.find((s) => s.stage === ProductionStage.Waxing)?.quantity).toBe(6);
   });
 });
 
