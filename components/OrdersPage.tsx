@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Order, OrderStatus, Product, ProductVariant, ProductionStage, ProductionBatch, Material, MaterialType, VatRegime, OrderShipment, OrderShipmentItem } from '../types';
+import { Order, OrderStatus, Product, ProductVariant, ProductionBatch, Material, MaterialType, VatRegime, OrderShipment, OrderShipmentItem } from '../types';
 import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare, PackageCheck, FileCheck, Loader2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
@@ -12,7 +12,7 @@ import { formatCurrency, getVariantComponents } from '../utils/pricingEngine';
 import DesktopOrderBuilder from './DesktopOrderBuilder';
 import ProductionSendModal from './ProductionSendModal';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
-import { groupBatchesByShipment, getShipmentReadiness } from '../utils/orderReadiness';
+import { groupBatchesByShipment, getShipmentReadiness, isOrderReady } from '../utils/orderReadiness';
 import { OrderListProgressBar } from './orders/OrderListProgressBar';
 import ShipmentCreationModal from './deliveries/ShipmentCreationModal';
 import { invalidateOrdersAndBatches } from '../lib/queryInvalidation';
@@ -537,15 +537,14 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     const orderMetaById = useMemo(() => {
         const map = new Map<string, { isReady: boolean; retailClientLabel: string }>();
         orders?.forEach(order => {
-            const orderBatches = batchesByOrderId.get(order.id) || [];
             const retailClientLabel = extractRetailClientFromNotes(order.notes).retailClientLabel;
             map.set(order.id, {
-                isReady: orderBatches.length > 0 && orderBatches.every(batch => batch.current_stage === ProductionStage.Ready),
+                isReady: isOrderReady(order, enrichedBatches),
                 retailClientLabel
             });
         });
         return map;
-    }, [orders, batchesByOrderId]);
+    }, [orders, enrichedBatches]);
 
     // Derived: All unique tags across all orders (for filter panel + autocomplete)
     const allTags = useMemo(() => {

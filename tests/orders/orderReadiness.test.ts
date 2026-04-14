@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { Order, OrderStatus, ProductionStage } from '../../types';
 import {
+  buildInProductionCollapsedProgressSegments,
   buildOrderProductionStageSegments,
   buildPartialDeliveryProgressSegments,
   getOrderItemProductionStageBreakdown,
-  getOrderProductionQtyProgress,
   getShipmentReadiness,
+  isOrderReady,
   orderStatusShowsProductionProgress,
 } from '../../utils/orderReadiness';
 
@@ -15,6 +16,96 @@ describe('orderStatusShowsProductionProgress', () => {
     expect(orderStatusShowsProductionProgress(OrderStatus.PartiallyDelivered)).toBe(true);
     expect(orderStatusShowsProductionProgress(OrderStatus.Pending)).toBe(false);
     expect(orderStatusShowsProductionProgress(OrderStatus.Delivered)).toBe(false);
+  });
+});
+
+describe('isOrderReady', () => {
+  const baseBatch = {
+    created_at: '',
+    updated_at: '',
+    priority: 'Normal' as const,
+    requires_setting: false,
+  };
+
+  it('is false when there are no batches', () => {
+    const order = { id: 'o1', items: [{ sku: 'A', quantity: 2, price_at_order: 1 }] } as Order;
+    expect(isOrderReady(order, [])).toBe(false);
+  });
+
+  it('is false when all batches are Ready but batch qty is less than order lines', () => {
+    const order = {
+      id: 'o1',
+      items: [
+        { sku: 'A', quantity: 5, price_at_order: 10 },
+        { sku: 'B', quantity: 5, price_at_order: 10 },
+      ],
+    } as Order;
+    const batches = [
+      { ...baseBatch, id: 'a', order_id: 'o1', sku: 'A', quantity: 5, current_stage: ProductionStage.Ready },
+    ];
+    expect(isOrderReady(order, batches)).toBe(false);
+  });
+
+  it('is true when batch quantities match order total and every batch is Ready', () => {
+    const order = {
+      id: 'o1',
+      items: [
+        { sku: 'A', quantity: 3, price_at_order: 10 },
+        { sku: 'B', quantity: 7, price_at_order: 10 },
+      ],
+    } as Order;
+    const batches = [
+      { ...baseBatch, id: 'a', order_id: 'o1', sku: 'A', quantity: 3, current_stage: ProductionStage.Ready },
+      { ...baseBatch, id: 'b', order_id: 'o1', sku: 'B', quantity: 7, current_stage: ProductionStage.Ready },
+    ];
+    expect(isOrderReady(order, batches)).toBe(true);
+  });
+
+  it('is false when one batch is not Ready even if quantities match', () => {
+    const order = { id: 'o1', items: [{ sku: 'A', quantity: 2, price_at_order: 10 }] } as Order;
+    const batches = [
+      { ...baseBatch, id: 'a', order_id: 'o1', sku: 'A', quantity: 2, current_stage: ProductionStage.Waxing },
+    ];
+    expect(isOrderReady(order, batches)).toBe(false);
+  });
+
+  it('is false when batch total does not match items total', () => {
+    const order = { id: 'o1', items: [{ sku: 'A', quantity: 2, price_at_order: 10 }] } as Order;
+    const batches = [
+      { ...baseBatch, id: 'a', order_id: 'o1', sku: 'A', quantity: 3, current_stage: ProductionStage.Ready },
+    ];
+    expect(isOrderReady(order, batches)).toBe(false);
+  });
+});
+
+describe('buildInProductionCollapsedProgressSegments', () => {
+  const baseBatch = {
+    created_at: '',
+    updated_at: '',
+    priority: 'Normal' as const,
+    requires_setting: false,
+  };
+
+  it('uses full order qty as denominator and shows unbatched remainder', () => {
+    const order = {
+      id: 'o1',
+      items: [
+        { sku: 'A', quantity: 4, price_at_order: 10 },
+        { sku: 'B', quantity: 6, price_at_order: 10 },
+      ],
+    } as Order;
+    const batches = [
+      { ...baseBatch, id: 'b1', order_id: 'o1', sku: 'A', quantity: 3, current_stage: ProductionStage.Waxing },
+      { ...baseBatch, id: 'b2', order_id: 'o1', sku: 'B', quantity: 2, current_stage: ProductionStage.Ready },
+    ];
+    const r = buildInProductionCollapsedProgressSegments(order, batches);
+    expect(r).not.toBeNull();
+    expect(r!.itemsTotal).toBe(10);
+    expect(r!.readyPercentVsOrder).toBe(20);
+    expect(r!.segments.reduce((s, x) => s + x.pct, 0)).toBe(100);
+    expect(r!.segments.find((s) => s.className.includes('emerald'))?.qty).toBe(2);
+    expect(r!.segments.find((s) => s.className.includes('amber'))?.qty).toBe(3);
+    expect(r!.segments.find((s) => s.className.includes('slate-300'))?.qty).toBe(5);
   });
 });
 
@@ -59,55 +150,6 @@ describe('buildPartialDeliveryProgressSegments', () => {
     expect(r!.segments.some((s) => s.className.includes('slate-600') && s.qty === 2)).toBe(true);
     expect(r!.segments.some((s) => s.qty === 2 && s.className.includes('emerald'))).toBe(true);
     expect(r!.segments.some((s) => s.qty === 6 && s.className.includes('amber'))).toBe(true);
-  });
-});
-
-describe('getOrderProductionQtyProgress', () => {
-  it('returns zero when there are no batches for the order', () => {
-    expect(getOrderProductionQtyProgress('o1', [])).toEqual({ readyQty: 0, totalQty: 0, percent: 0 });
-    expect(
-      getOrderProductionQtyProgress('o1', [
-        {
-          id: '1',
-          order_id: 'o2',
-          sku: 'X',
-          quantity: 5,
-          current_stage: ProductionStage.Ready,
-          created_at: '',
-          updated_at: '',
-          priority: 'Normal',
-          requires_setting: false,
-        },
-      ])
-    ).toEqual({ readyQty: 0, totalQty: 0, percent: 0 });
-  });
-
-  it('weights by quantity and rounds percent', () => {
-    const batches = [
-      {
-        id: 'a',
-        order_id: 'o1',
-        sku: 'A',
-        quantity: 3,
-        current_stage: ProductionStage.Ready,
-        created_at: '',
-        updated_at: '',
-        priority: 'Normal',
-        requires_setting: false,
-      },
-      {
-        id: 'b',
-        order_id: 'o1',
-        sku: 'B',
-        quantity: 7,
-        current_stage: ProductionStage.Waxing,
-        created_at: '',
-        updated_at: '',
-        priority: 'Normal',
-        requires_setting: false,
-      },
-    ];
-    expect(getOrderProductionQtyProgress('o1', batches)).toEqual({ readyQty: 3, totalQty: 10, percent: 30 });
   });
 });
 

@@ -13,6 +13,10 @@ import { useUI } from '../UIProvider';
 import SkuColorizedText from '../SkuColorizedText';
 import { buildOrderProductionStageSegments, getOrderItemProductionStageBreakdown, groupBatchesByShipment, isOrderReady, orderStatusShowsProductionProgress } from '../../utils/orderReadiness';
 import { OrderListProgressBar } from '../orders/OrderListProgressBar';
+import {
+  ORDER_PRODUCTION_STAGE_BAR_CLASSNAMES,
+  UNBATCHED_PRODUCTION_STAGE_STYLES,
+} from '../orders/orderProductionBarStyles';
 import { buildItemIdentityKey } from '../../utils/itemIdentity';
 import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
 import { getTagColor } from '../../features/orders/tagColors';
@@ -33,24 +37,6 @@ const STAGE_ICON_MAP: Record<ProductionStage, LucideIcon> = {
     [ProductionStage.Assembly]: Layers,
     [ProductionStage.Labeling]: Tag,
     [ProductionStage.Ready]: CheckCircle2,
-};
-
-const STAGE_BAR_CLASSNAMES: Record<ProductionStage, string> = {
-    [ProductionStage.AwaitingDelivery]: 'bg-indigo-500',
-    [ProductionStage.Waxing]: 'bg-slate-500',
-    [ProductionStage.Casting]: 'bg-orange-500',
-    [ProductionStage.Setting]: 'bg-purple-500',
-    [ProductionStage.Polishing]: 'bg-blue-500',
-    [ProductionStage.Assembly]: 'bg-pink-500',
-    [ProductionStage.Labeling]: 'bg-yellow-400',
-    [ProductionStage.Ready]: 'bg-emerald-500',
-};
-
-const UNBATCHED_STAGE_STYLES = {
-    bg: 'bg-slate-100',
-    text: 'text-slate-600',
-    border: 'border-slate-200',
-    bar: 'bg-slate-300',
 };
 
 const POLISHING_PENDING_COLORS = { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-200' };
@@ -80,7 +66,7 @@ const StageBadge: React.FC<{
 };
 
 const UnbatchedBadge: React.FC<{ quantity: number; compact?: boolean }> = ({ quantity, compact = false }) => (
-    <div className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-bold ${compact ? 'text-[10px]' : 'text-[11px]'} ${UNBATCHED_STAGE_STYLES.bg} ${UNBATCHED_STAGE_STYLES.text} ${UNBATCHED_STAGE_STYLES.border}`}>
+    <div className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-bold ${compact ? 'text-[10px]' : 'text-[11px]'} ${UNBATCHED_PRODUCTION_STAGE_STYLES.bg} ${UNBATCHED_PRODUCTION_STAGE_STYLES.text} ${UNBATCHED_PRODUCTION_STAGE_STYLES.border}`}>
         <Clock size={compact ? 12 : 13} />
         <span>{quantity}x</span>
         <span>Χωρίς batch</span>
@@ -865,7 +851,7 @@ const OrderCard: React.FC<{
                                 {stageProgress.segments.map((segment, index) => (
                                     <div
                                         key={`${segment.kind}-${segment.kind === 'stage' ? segment.stage : 'unbatched'}-${index}`}
-                                        className={`${segment.kind === 'stage' ? STAGE_BAR_CLASSNAMES[segment.stage] : UNBATCHED_STAGE_STYLES.bar} min-w-px border-r border-white/60 last:border-r-0 transition-[width] duration-300`}
+                                        className={`${segment.kind === 'stage' ? ORDER_PRODUCTION_STAGE_BAR_CLASSNAMES[segment.stage] : UNBATCHED_PRODUCTION_STAGE_STYLES.bar} min-w-px border-r border-white/60 last:border-r-0 transition-[width] duration-300`}
                                         style={{ width: `${segment.pct}%` }}
                                         title={segment.kind === 'stage'
                                             ? `${getProductionStageLabel(segment.stage)}: ${segment.quantity} τεμ.`

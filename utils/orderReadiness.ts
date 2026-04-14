@@ -23,27 +23,15 @@ export function groupBatchesByShipment(batches: ProductionBatch[]): [string, Pro
   return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
 }
 
+/** True when every ordered piece is represented by a batch and every batch is Ready. */
 export function isOrderReady(order: Order, batches: ProductionBatch[] | undefined | null): boolean {
   const orderBatches = getOrderBatches(order.id, batches);
   if (orderBatches.length === 0) return false;
-  return orderBatches.every((batch) => batch.current_stage === ProductionStage.Ready);
-}
-
-/** Quantity-weighted progress: share of pieces already in Ready stage. */
-export function getOrderProductionQtyProgress(
-  orderId: string,
-  batches: ProductionBatch[] | undefined | null
-): { readyQty: number; totalQty: number; percent: number } {
-  const orderBatches = getOrderBatches(orderId, batches);
-  let readyQty = 0;
-  let totalQty = 0;
-  for (const b of orderBatches) {
-    const q = b.quantity || 0;
-    totalQty += q;
-    if (b.current_stage === ProductionStage.Ready) readyQty += q;
-  }
-  const percent = totalQty > 0 ? Math.round((100 * readyQty) / totalQty) : 0;
-  return { readyQty, totalQty, percent };
+  if (!orderBatches.every((batch) => batch.current_stage === ProductionStage.Ready)) return false;
+  const itemsTotal = order.items.reduce((s, i) => s + (i.quantity || 0), 0);
+  if (itemsTotal <= 0) return false;
+  const batchTotal = orderBatches.reduce((s, b) => s + (b.quantity || 0), 0);
+  return batchTotal === itemsTotal;
 }
 
 export type OrderListProgressSegment = {
@@ -205,6 +193,71 @@ export function buildOrderProductionStageSegments(
     segments,
     totalQty,
     assignedQty,
+  };
+}
+
+/**
+ * Σε Παραγωγή — compact list bar: έτοιμα | όλα τα υπόλοιπα στάδια (wip) | χωρίς batch.
+ * Denominator is always full order quantity so lines not yet sent to production are visible.
+ */
+export function buildInProductionCollapsedProgressSegments(
+  order: Order,
+  batches: ProductionBatch[] | undefined | null
+): { segments: OrderListProgressSegment[]; summaryTitle: string; readyPercentVsOrder: number; itemsTotal: number } | null {
+  const itemsTotal = sumOrderItemsQty(order);
+  if (itemsTotal <= 0) return null;
+
+  const orderBatches = getOrderBatches(order.id, batches);
+  let readyQty = 0;
+  let wipQty = 0;
+  for (const b of orderBatches) {
+    const q = b.quantity || 0;
+    if (b.current_stage === ProductionStage.Ready) readyQty += q;
+    else wipQty += q;
+  }
+  const unbatchedQty = Math.max(0, itemsTotal - readyQty - wipQty);
+
+  const qtys = [readyQty, wipQty, unbatchedQty];
+  const pcts = qtysToSegmentPcts(qtys, itemsTotal);
+
+  const rows: OrderListProgressSegment[] = [
+    {
+      qty: readyQty,
+      pct: pcts[0],
+      className: 'bg-emerald-500',
+      label: `Έτοιμα: ${readyQty} τεμ.`,
+    },
+    {
+      qty: wipQty,
+      pct: pcts[1],
+      className: 'bg-amber-500',
+      label: `Σε παραγωγή (όχι έτοιμα): ${wipQty} τεμ.`,
+    },
+    {
+      qty: unbatchedQty,
+      pct: pcts[2],
+      className: 'bg-slate-300',
+      label: unbatchedQty > 0 ? `Χωρίς ενεργή παραγωγή: ${unbatchedQty} τεμ.` : 'Χωρίς ενεργή παραγωγή',
+    },
+  ];
+
+  const segments = rows.filter((s) => s.qty > 0 || s.pct > 0);
+
+  const summaryTitle = [
+    readyQty > 0 ? `Έτοιμα ${readyQty}` : null,
+    wipQty > 0 ? `Σε παραγωγή ${wipQty}` : null,
+    unbatchedQty > 0 ? `Χωρίς batch ${unbatchedQty}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  const readyPercentVsOrder = Math.round((100 * readyQty) / itemsTotal);
+
+  return {
+    segments,
+    summaryTitle: summaryTitle || `Σύνολο ${itemsTotal} τεμ.`,
+    readyPercentVsOrder,
+    itemsTotal,
   };
 }
 
