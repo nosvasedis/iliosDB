@@ -24,6 +24,7 @@ import { useBatchStageHistoryEntries } from '../hooks/api/useProductionBatches';
 import { ordersRepository } from '../features/orders';
 import { productionRepository } from '../features/production';
 import { invalidateOrdersAndBatches, invalidateProductionBatches } from '../lib/queryInvalidation';
+import { StageOnHoldMiniStrip } from './production/StageOnHoldMiniStrip';
 
 interface Props {
     order: Order;
@@ -317,6 +318,15 @@ export default function ProductionSendModal({ order, products, materials, existi
     const stageCounts = useMemo(() => {
         const counts: Record<string, number> = {};
         existingBatches.forEach(b => {
+            counts[b.current_stage] = (counts[b.current_stage] || 0) + b.quantity;
+        });
+        return counts;
+    }, [existingBatches]);
+
+    const stageOnHoldCounts = useMemo(() => {
+        const counts: Record<string, number> = {};
+        existingBatches.forEach(b => {
+            if (!b.on_hold) return;
             counts[b.current_stage] = (counts[b.current_stage] || 0) + b.quantity;
         });
         return counts;
@@ -998,14 +1008,24 @@ export default function ProductionSendModal({ order, products, materials, existi
                                     {STAGES.map(stage => {
                                         const count = stageCounts[stage.id] || 0;
                                         if (count === 0) return null;
+                                        const onHold = stageOnHoldCounts[stage.id] || 0;
+                                        const vibrant = VIBRANT_STAGES[stage.id] || 'bg-slate-500';
+                                        const summaryTitle =
+                                            onHold > 0
+                                                ? `${stage.label}: ${count} τμχ (${onHold} σε αναμονή) — πατήστε για λεπτομέρειες`
+                                                : `${stage.label}: ${count} τμχ — πατήστε για λεπτομέρειες`;
                                         return (
                                             <button
                                                 key={stage.id}
                                                 onClick={() => setActiveStagePopup(stage.id as ProductionStage)}
-                                                className={`text-[10px] px-2 py-0.5 rounded-md border font-bold flex items-center gap-1.5 transition-transform active:scale-95 ${stage.color}`}
+                                                title={summaryTitle}
+                                                className={`text-[10px] px-2 py-1 rounded-md border font-bold flex flex-col items-stretch gap-0.5 text-left min-w-0 transition-transform active:scale-95 ${stage.color}`}
                                             >
-                                                <span>{stage.label}:</span>
-                                                <span className="bg-white/50 px-1 rounded text-xs leading-none">{count}</span>
+                                                <span className="flex items-center gap-1.5 shrink-0">
+                                                    <span>{stage.label}:</span>
+                                                    <span className="bg-white/50 px-1 rounded text-xs leading-none">{count}</span>
+                                                </span>
+                                                <StageOnHoldMiniStrip totalQty={count} onHoldQty={onHold} activeClass={vibrant} />
                                             </button>
                                         );
                                     })}

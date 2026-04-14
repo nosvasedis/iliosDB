@@ -26,6 +26,7 @@ import { buildProductionAlertGroups } from './production/productionAlerts';
 import { invalidateOrdersAndBatches, invalidateProductionBatches } from '../lib/queryInvalidation';
 import { PRODUCTION_STAGES, getProductionStageLabel, getProductionStageShortLabel } from '../utils/productionStages';
 import { getFinderSearchResultSurface } from '../utils/productionFinderSurfaces';
+import { StageOnHoldMiniStrip } from './production/StageOnHoldMiniStrip';
 import {
     formatGreekDurationFromMs,
     getProductionTimingInfo,
@@ -650,16 +651,28 @@ const QuickProductionPickerModal = ({
                                             {activeStages.map(stage => {
                                                 const config = STAGE_DISPLAY[stage];
                                                 const qty = entry.stageBreakdown[stage];
+                                                const onHoldChip = entry.onHoldByStage[stage] || 0;
                                                 const isReady = stage === ProductionStage.Ready;
-                                                
+                                                const chipTitle =
+                                                    onHoldChip > 0
+                                                        ? `${config.label}: ${qty} τμχ (${onHoldChip} σε αναμονή)`
+                                                        : config.label;
+
                                                 return (
                                                     <div
                                                         key={stage}
-                                                        className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-bold ${config.bgColor} ${config.color} ${config.borderColor} ${isReady ? 'ring-2 ring-emerald-300/50' : ''}`}
-                                                        title={config.label}
+                                                        className={`flex flex-col gap-0.5 px-2 py-1 rounded-lg border text-[10px] font-bold min-w-0 ${config.bgColor} ${config.color} ${config.borderColor} ${isReady ? 'ring-2 ring-emerald-300/50' : ''}`}
+                                                        title={chipTitle}
                                                     >
-                                                        <span className="opacity-70">{config.shortLabel}</span>
-                                                        <span>{qty}</span>
+                                                        <div className="flex items-center gap-1 shrink-0">
+                                                            <span className="opacity-70">{config.shortLabel}</span>
+                                                            <span>{qty}</span>
+                                                        </div>
+                                                        <StageOnHoldMiniStrip
+                                                            totalQty={qty}
+                                                            onHoldQty={onHoldChip}
+                                                            activeClass={STAGE_BAR_COLOR[stage]}
+                                                        />
                                                     </div>
                                                 );
                                             })}
