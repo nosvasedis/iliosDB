@@ -272,6 +272,14 @@ export default function ProductionOverviewModal({
         return result;
     }, [filteredBatches]);
 
+    const holdsByStage = useMemo(() => {
+        const result: Record<string, number> = {};
+        batches.forEach(b => {
+            if (b.on_hold) result[b.current_stage] = (result[b.current_stage] || 0) + 1;
+        });
+        return result;
+    }, [batches]);
+
     const totalQty = filteredBatches.reduce((s, b) => s + b.quantity, 0);
     const badge = FILTER_BADGE[filterType] || FILTER_BADGE.active;
 
@@ -302,6 +310,24 @@ export default function ProductionOverviewModal({
 
                 {/* Scrollable body */}
                 <div className="flex-1 overflow-y-auto bg-slate-50/60 p-5 custom-scrollbar space-y-5">
+                    {filterType === 'onHold' && filteredBatches.length > 0 && (
+                        <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-2xl">
+                            <div className="p-2 bg-amber-100 rounded-xl shrink-0">
+                                <PauseCircle size={18} className="text-amber-600 fill-current animate-pulse" />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-sm font-black text-amber-900">
+                                    {filteredBatches.length} {filteredBatches.length === 1 ? 'παρτίδα' : 'παρτίδες'} σε παύση
+                                </p>
+                                <p className="text-xs font-medium text-amber-700 mt-0.5">
+                                    Ελέγξτε λόγο αναμονής — επαναφέρετε ή μετακινήστε στάδιο
+                                </p>
+                            </div>
+                            <span className="ml-auto text-[11px] font-black text-amber-700 bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-full shrink-0">
+                                {totalQty} τεμ.
+                            </span>
+                        </div>
+                    )}
                     {filteredBatches.length === 0 && (
                         <div className="py-24 flex flex-col items-center text-slate-400">
                             <p className="text-base font-semibold">Δεν βρέθηκαν παρτίδες σε αυτή την κατηγορία.</p>
@@ -319,9 +345,17 @@ export default function ProductionOverviewModal({
                                 <div className={`sticky top-0 z-10 flex items-center gap-2.5 px-4 py-2.5 rounded-xl border mb-2 ${colors.header} ${colors.border}`}>
                                     <div className={`w-2 h-2 rounded-full shrink-0 ${colors.dot}`} />
                                     <span className={`text-[11px] font-black uppercase tracking-widest ${colors.text}`}>{stage.label}</span>
-                                    <span className={`ml-auto text-[11px] font-bold ${colors.text} opacity-70`}>
-                                        {stageBatches.length} παρτ. · {stageBatches.reduce((s, b) => s + b.quantity, 0)} τεμ.
-                                    </span>
+                                    <div className="ml-auto flex items-center gap-2">
+                                        <span className={`text-[11px] font-bold ${colors.text} opacity-70`}>
+                                            {stageBatches.length} παρτ. · {stageBatches.reduce((s, b) => s + b.quantity, 0)} τεμ.
+                                        </span>
+                                        {filterType !== 'onHold' && (holdsByStage[stage.id] || 0) > 0 && (
+                                            <span className="text-[10px] font-black bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                                                <PauseCircle size={8} className="fill-current" />
+                                                +{holdsByStage[stage.id]} αναμονή
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {/* Batch list */}
@@ -336,8 +370,8 @@ export default function ProductionOverviewModal({
                                         return (
                                             <div
                                                 key={batch.id}
-                                                className={`bg-white rounded-2xl border border-l-[3px] shadow-sm overflow-hidden ${leftBorder}
-                                                    ${batch.on_hold ? 'border-amber-200 bg-amber-50/40' : 'border-slate-200 hover:shadow-md'}
+                                                className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${leftBorder}
+                                                    ${batch.on_hold ? 'border-l-[4px] border-amber-200 bg-amber-50/40' : 'border-l-[3px] border-slate-200 hover:shadow-md'}
                                                     transition-shadow`}
                                             >
                                                 {/* Main row — clickable */}
@@ -373,7 +407,7 @@ export default function ProductionOverviewModal({
                                                                 ×{batch.quantity}
                                                             </span>
                                                             {batch.on_hold && (
-                                                                <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-black shrink-0 flex items-center gap-1">
+                                                                <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-black shrink-0 flex items-center gap-1 animate-pulse">
                                                                     <PauseCircle size={9} className="fill-current" /> ΣΕ ΑΝΑΜΟΝΗ
                                                                 </span>
                                                             )}

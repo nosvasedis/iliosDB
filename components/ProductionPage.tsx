@@ -1424,6 +1424,8 @@ const StageInspectorModal: React.FC<{
     // Polishing sub-tab counts (computed from full batches, not filtered)
     const pendingCount = isPolishing ? batches.filter(b => b.pending_dispatch).length : 0;
     const dispatchedCount = isPolishing ? batches.filter(b => !b.pending_dispatch).length : 0;
+    const pendingOnHoldCount = isPolishing ? batches.filter(b => b.pending_dispatch && b.on_hold).length : 0;
+    const dispatchedOnHoldCount = isPolishing ? batches.filter(b => !b.pending_dispatch && b.on_hold).length : 0;
 
     const groupedByClient = useMemo(() => {
         if (sortMode !== 'client') return new Map<string, { totalQty: number }>();
@@ -1440,6 +1442,9 @@ const StageInspectorModal: React.FC<{
         });
         return summary;
     }, [filtered, sortMode]);
+
+    const firstOnHoldIndex = sortMode === 'sku' ? filtered.findIndex(b => b.on_hold) : -1;
+    const filteredOnHoldCount = filtered.filter(b => b.on_hold).length;
 
     return (
         <div
@@ -1562,6 +1567,11 @@ const StageInspectorModal: React.FC<{
                                 <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${polishingTab === 'pending' ? 'bg-white/25 text-white' : 'bg-teal-100 text-teal-700'}`}>
                                     {pendingCount}
                                 </span>
+                                {pendingOnHoldCount > 0 && (
+                                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5 animate-pulse ${polishingTab === 'pending' ? 'bg-amber-300/40 text-amber-100' : 'bg-amber-100 text-amber-700'}`}>
+                                        <PauseCircle size={9} className="fill-current shrink-0" />{pendingOnHoldCount}
+                                    </span>
+                                )}
                             </button>
                             <button
                                 onClick={() => setPolishingTab('dispatched')}
@@ -1576,6 +1586,11 @@ const StageInspectorModal: React.FC<{
                                 <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${polishingTab === 'dispatched' ? 'bg-white/25 text-white' : 'bg-blue-100 text-blue-700'}`}>
                                     {dispatchedCount}
                                 </span>
+                                {dispatchedOnHoldCount > 0 && (
+                                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5 animate-pulse ${polishingTab === 'dispatched' ? 'bg-amber-300/40 text-amber-100' : 'bg-amber-100 text-amber-700'}`}>
+                                        <PauseCircle size={9} className="fill-current shrink-0" />{dispatchedOnHoldCount}
+                                    </span>
+                                )}
                             </button>
                         </div>
                         {polishingTab === 'pending' && onDispatchBatches && filtered.length > 0 && (
@@ -1628,14 +1643,27 @@ const StageInspectorModal: React.FC<{
                                         </div>
                                     )}
 
+                                    {/* On-hold section divider */}
+                                    {index === firstOnHoldIndex && firstOnHoldIndex > 0 && (
+                                        <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2 rounded-xl border border-amber-200 bg-amber-50 mt-1 mb-0.5">
+                                            <PauseCircle size={12} className="text-amber-500 fill-current animate-pulse shrink-0" />
+                                            <span className="text-[11px] font-black uppercase tracking-widest text-amber-700">
+                                                Σε Αναμονή
+                                            </span>
+                                            <span className="ml-auto text-[11px] font-bold text-amber-600">
+                                                {filteredOnHoldCount} παρτ.
+                                            </span>
+                                        </div>
+                                    )}
+
                                     {/* Batch card */}
-                                    <div className={`bg-white rounded-2xl border border-l-[3px] shadow-sm overflow-hidden transition-shadow hover:shadow-md ${leftBorder}
-                                        ${batch.on_hold ? 'border-amber-200 bg-amber-50/30' : 'border-slate-200'}`}
+                                    <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-shadow hover:shadow-md ${leftBorder}
+                                        ${batch.on_hold ? 'border-l-[4px] border-amber-200 bg-amber-50/30' : 'border-l-[3px] border-slate-200'}`}
                                     >
                                         {/* Hold bar */}
                                         {batch.on_hold && (
                                             <div className="bg-amber-50 border-b border-amber-100 px-4 py-1.5 flex items-center gap-2">
-                                                <PauseCircle size={13} className="text-amber-500 shrink-0" />
+                                                <PauseCircle size={13} className="text-amber-500 shrink-0 animate-pulse" />
                                                 <span className="text-xs font-black text-amber-800">
                                                     Σε Αναμονή{batch.on_hold_reason ? ` — ${batch.on_hold_reason}` : ''}
                                                 </span>
