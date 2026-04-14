@@ -76,6 +76,21 @@ describe('isOrderReady', () => {
     ];
     expect(isOrderReady(order, batches)).toBe(false);
   });
+
+  it('is true for PartiallyDelivered when all remaining batches are Ready even if lines sum to original order', () => {
+    const order = {
+      id: 'o1',
+      status: OrderStatus.PartiallyDelivered,
+      items: [
+        { sku: 'A', quantity: 10, price_at_order: 10 },
+        { sku: 'B', quantity: 5, price_at_order: 10 },
+      ],
+    } as Order;
+    const batches = [
+      { ...baseBatch, id: 'a', order_id: 'o1', sku: 'B', quantity: 5, current_stage: ProductionStage.Ready },
+    ];
+    expect(isOrderReady(order, batches)).toBe(true);
+  });
 });
 
 describe('buildInProductionCollapsedProgressSegments', () => {

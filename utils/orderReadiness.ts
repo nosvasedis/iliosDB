@@ -23,14 +23,27 @@ export function groupBatchesByShipment(batches: ProductionBatch[]): [string, Pro
   return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
 }
 
-/** True when every ordered piece is represented by a batch and every batch is Ready. */
+/**
+ * True when every batch for the order is Ready.
+ * - InProduction (and other non–partial-delivery flows): also requires batch quantities to cover
+ *   the full current order lines (so “all batches ready” cannot hide lines never sent to production).
+ * - PartiallyDelivered: order lines still reflect the original catalog totals after shipments, while
+ *   batches only represent the remaining pipeline (`createPartialShipment` removes/trim batches for
+ *   shipped pieces). Here we only require all remaining batches to be Ready.
+ */
 export function isOrderReady(order: Order, batches: ProductionBatch[] | undefined | null): boolean {
   const orderBatches = getOrderBatches(order.id, batches);
   if (orderBatches.length === 0) return false;
   if (!orderBatches.every((batch) => batch.current_stage === ProductionStage.Ready)) return false;
+
+  const batchTotal = orderBatches.reduce((s, b) => s + (b.quantity || 0), 0);
+
+  if (order.status === OrderStatus.PartiallyDelivered) {
+    return batchTotal > 0;
+  }
+
   const itemsTotal = order.items.reduce((s, i) => s + (i.quantity || 0), 0);
   if (itemsTotal <= 0) return false;
-  const batchTotal = orderBatches.reduce((s, b) => s + (b.quantity || 0), 0);
   return batchTotal === itemsTotal;
 }
 
