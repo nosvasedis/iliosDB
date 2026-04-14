@@ -125,6 +125,8 @@ type ProductionQuickPickEntry = {
     inProgressQty: number;
     latestUpdate: number;
     stageBreakdown: Record<string, number>; // stage -> quantity
+    /** Quantity paused (Σε Αναμονή) per stage — subset of stageBreakdown */
+    onHoldByStage: Record<string, number>;
 };
 
 type AssemblyOrderCandidate = {
@@ -673,13 +675,34 @@ const QuickProductionPickerModal = ({
                                                     const qty = entry.stageBreakdown[stage] || 0;
                                                     if (!qty) return null;
                                                     const pct = (qty / entry.totalQty) * 100;
+                                                    const onHoldQty = entry.onHoldByStage[stage] || 0;
+                                                    const activeQty = Math.max(0, qty - onHoldQty);
+                                                    const stageTitle =
+                                                        onHoldQty > 0
+                                                            ? `${STAGE_DISPLAY[stage].label}: ${qty} τμχ (${Math.round(pct)}%) — ${onHoldQty} σε αναμονή`
+                                                            : `${STAGE_DISPLAY[stage].label}: ${qty} τμχ (${Math.round(pct)}%)`;
                                                     return (
                                                         <div
                                                             key={stage}
-                                                            className={`h-full ${STAGE_BAR_COLOR[stage]} border-r border-white/40 last:border-r-0 transition-[width] duration-300`}
+                                                            className="h-full flex flex-row min-w-0 border-r border-white/40 last:border-r-0 transition-[width] duration-300"
                                                             style={{ width: `${pct}%` }}
-                                                            title={`${STAGE_DISPLAY[stage].label}: ${qty} τμχ (${Math.round(pct)}%)`}
-                                                        />
+                                                            title={stageTitle}
+                                                        >
+                                                            {activeQty > 0 && (
+                                                                <div
+                                                                    className={`h-full min-w-0 ${STAGE_BAR_COLOR[stage]}`}
+                                                                    style={{ flex: `${activeQty} 1 0%` }}
+                                                                    title={`${STAGE_DISPLAY[stage].label} (ενεργά): ${activeQty} τμχ`}
+                                                                />
+                                                            )}
+                                                            {onHoldQty > 0 && (
+                                                                <div
+                                                                    className="h-full min-w-0 bg-amber-400"
+                                                                    style={{ flex: `${onHoldQty} 1 0%` }}
+                                                                    title={`Σε Αναμονή: ${onHoldQty} τμχ @ ${STAGE_DISPLAY[stage].label}`}
+                                                                />
+                                                            )}
+                                                        </div>
                                                     );
                                                 })}
                                             </div>
@@ -1984,8 +2007,13 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
 
                 // Calculate stage breakdown
                 const stageBreakdown: Record<string, number> = {};
+                const onHoldByStage: Record<string, number> = {};
                 orderBatches.forEach(batch => {
                     stageBreakdown[batch.current_stage] = (stageBreakdown[batch.current_stage] || 0) + batch.quantity;
+                    if (batch.on_hold) {
+                        const stage = batch.current_stage;
+                        onHoldByStage[stage] = (onHoldByStage[stage] || 0) + batch.quantity;
+                    }
                 });
 
                 return {
@@ -1995,7 +2023,8 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                     readyQty,
                     inProgressQty: Math.max(0, totalQty - readyQty),
                     latestUpdate,
-                    stageBreakdown
+                    stageBreakdown,
+                    onHoldByStage
                 } as ProductionQuickPickEntry;
             })
             .filter((entry): entry is ProductionQuickPickEntry => entry !== null)
