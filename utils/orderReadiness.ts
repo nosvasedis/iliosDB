@@ -210,7 +210,7 @@ export function buildOrderProductionStageSegments(
 }
 
 /**
- * Σε Παραγωγή — compact list bar: έτοιμα | όλα τα υπόλοιπα στάδια (wip) | χωρίς batch.
+ * Σε Παραγωγή — compact list bar: έτοιμα | όλα τα υπόλοιπα στάδια (wip) | χωρίς παρτίδα παραγωγής.
  * Denominator is always full order quantity so lines not yet sent to production are visible.
  */
 export function buildInProductionCollapsedProgressSegments(
@@ -259,7 +259,7 @@ export function buildInProductionCollapsedProgressSegments(
   const summaryTitle = [
     readyQty > 0 ? `Έτοιμα ${readyQty}` : null,
     wipQty > 0 ? `Σε παραγωγή ${wipQty}` : null,
-    unbatchedQty > 0 ? `Χωρίς batch ${unbatchedQty}` : null,
+    unbatchedQty > 0 ? `Χωρίς παρτίδα παραγωγής: ${unbatchedQty} τεμ.` : null,
   ]
     .filter(Boolean)
     .join(' · ');

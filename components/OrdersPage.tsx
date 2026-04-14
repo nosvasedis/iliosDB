@@ -1083,7 +1083,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                         <div className="p-4 text-slate-500">{new Date(order.created_at).toLocaleDateString('el-GR')}</div>
                                         <div className="p-4 text-right font-bold text-slate-800">{formatCurrency(netValue)}</div>
                                         <div className="p-4 min-w-0">
-                                            <div className="flex items-center gap-2 flex-wrap">
+                                            <div className="flex flex-wrap items-start gap-2">
                                                 <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-bold border ${getOrderStatusClasses(order.status)}`}>{getOrderStatusLabel(order.status)}</span>
                                                 {!ready && <OrderListProgressBar order={order} batches={batches} ready={ready} density="desktop" />}
                                                 {ready && order.status !== OrderStatus.Delivered && (

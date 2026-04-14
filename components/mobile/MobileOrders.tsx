@@ -69,7 +69,7 @@ const UnbatchedBadge: React.FC<{ quantity: number; compact?: boolean }> = ({ qua
     <div className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-bold ${compact ? 'text-[10px]' : 'text-[11px]'} ${UNBATCHED_PRODUCTION_STAGE_STYLES.bg} ${UNBATCHED_PRODUCTION_STAGE_STYLES.text} ${UNBATCHED_PRODUCTION_STAGE_STYLES.border}`}>
         <Clock size={compact ? 12 : 13} />
         <span>{quantity}x</span>
-        <span>Χωρίς batch</span>
+        <span>Χωρίς παρτίδα παραγωγής</span>
     </div>
 );
 
@@ -318,7 +318,7 @@ const OrderPartSelectorSheet: React.FC<{
                                     <div className="min-w-0 flex-1">
                                         <div className="font-black">{label}</div>
                                         <div className="mt-1 text-xs font-medium text-slate-600">
-                                            {shipmentBatches.length} batches • {totalQuantity} τεμ.
+                                            {shipmentBatches.length} παρτίδες • {totalQuantity} τεμ.
                                         </div>
                                         <div className="mt-2 flex flex-wrap gap-1.5">
                                             {shipmentBatches.slice(0, 6).map((batch) => (
@@ -655,7 +655,7 @@ const OrderPrintSheet: React.FC<{
                                 <div>
                                     <div className="font-black">Φύλλο Τεχνίτη</div>
                                     <div className="mt-0.5 text-xs font-medium text-orange-800">
-                                        Εκτύπωση τεχνικού φύλλου για τα batches της παραγγελίας.
+                                        Εκτύπωση τεχνικού φύλλου για τις παρτίδες παραγωγής της παραγγελίας.
                                     </div>
                                 </div>
                             </div>
@@ -855,7 +855,7 @@ const OrderCard: React.FC<{
                                         style={{ width: `${segment.pct}%` }}
                                         title={segment.kind === 'stage'
                                             ? `${getProductionStageLabel(segment.stage)}: ${segment.quantity} τεμ.`
-                                            : `Χωρίς batch: ${segment.quantity} τεμ.`}
+                                            : `Χωρίς παρτίδα παραγωγής: ${segment.quantity} τεμ.`}
                                     />
                                 ))}
                             </div>
@@ -872,7 +872,7 @@ const OrderCard: React.FC<{
 
                             {stageProgress.assignedQty < stageProgress.totalQty && (
                                 <p className="mt-2 text-[10px] font-medium text-slate-400">
-                                    Τα γκρι τμήματα δείχνουν ποσότητες που δεν έχουν ακόμη μπει σε batch παραγωγής.
+                                    Τα γκρι τμήματα δείχνουν ποσότητες που δεν έχουν ακόμη μπει σε παρτίδα παραγωγής.
                                 </p>
                             )}
                         </div>
@@ -914,7 +914,7 @@ const OrderCard: React.FC<{
                                                     ))}
                                                 </div>
                                             ) : (
-                                                <div className="mt-1 text-[10px] font-medium text-slate-400">Χωρίς ενεργό batch παραγωγής ακόμη.</div>
+                                                <div className="mt-1 text-[10px] font-medium text-slate-400">Χωρίς ενεργή παρτίδα παραγωγής ακόμη.</div>
                                             )
                                         )}
                                     </div>
