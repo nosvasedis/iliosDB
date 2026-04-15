@@ -230,6 +230,24 @@ export interface Order {
   // NEW FEATURES
   tags?: string[]; // E.g. ['Exhibition A', 'Seller B']
   is_archived?: boolean;
+  price_change_log?: PriceChangeRecord[];
+}
+
+/** Tracks a single SKU price delta when order prices are synced with the catalog. */
+export interface ItemPriceDelta {
+  lineKey: string;
+  sku: string;
+  variantSuffix?: string;
+  oldPrice: number;
+  newPrice: number;
+}
+
+/** A record of a price-sync event on an order, with per-SKU and aggregate totals. */
+export interface PriceChangeRecord {
+  timestamp: string;
+  itemChanges: ItemPriceDelta[];
+  totalsBefore: { subtotal: number; net: number; vat: number; total: number };
+  totalsAfter: { subtotal: number; net: number; vat: number; total: number };
 }
 
 export type DeliveryPlanStatus = 'active' | 'completed' | 'cancelled';

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime, Collection } from '../types';
+import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime, Collection, ItemPriceDelta, PriceChangeRecord } from '../types';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { formatCurrency, splitSkuComponents, getVariantComponents, findProductByScannedCode } from '../utils/pricingEngine';
@@ -110,7 +110,10 @@ export function useOrderState({ initialOrder, products, customers, collections, 
     const [itemSearchTerm, setItemSearchTerm] = useState('');
 
     // --- Price Sync Indicators ---
-    const [priceDiffs, setPriceDiffs] = useState<{ net: number, vat: number, total: number } | null>(null);
+    const [priceDiffs, setPriceDiffs] = useState<{ net: number, vat: number, total: number, itemDeltas: ItemPriceDelta[] } | null>(null);
+
+    // --- Persistent Price Change Log ---
+    const [priceChangeLog, setPriceChangeLog] = useState<PriceChangeRecord[]>(initialOrder?.price_change_log || []);
 
     // --- Refs ---
     const inputRef = useRef<HTMLInputElement>(null);
@@ -883,6 +886,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         const oldTotal = oldNet + oldVat;
 
         let updatedCount = 0;
+        const itemDeltas: ItemPriceDelta[] = [];
         const newItems = selectedItems.map(item => {
             if (isSpecialCreationSku(item.sku)) return item;
             const product = products.find(p => p.sku === item.sku);
@@ -896,6 +900,13 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             if (currentRegistryPrice === 0) currentRegistryPrice = product.selling_price;
             const hasPriceDiff = currentRegistryPrice > 0 && Math.abs(currentRegistryPrice - item.price_at_order) > 0.01;
             if (hasPriceDiff || item.price_override) {
+                itemDeltas.push({
+                    lineKey: getOrderItemMatchKey(item),
+                    sku: item.sku,
+                    variantSuffix: item.variant_suffix,
+                    oldPrice: item.price_at_order,
+                    newPrice: currentRegistryPrice,
+                });
                 updatedCount++;
                 return { ...item, price_at_order: currentRegistryPrice, price_override: undefined };
             }
@@ -906,9 +917,16 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         const newNet = newSub * (1 - discountPercent / 100);
         const newVat = newNet * vatRate;
         const newTotal = newNet + newVat;
-        setPriceDiffs({ net: newNet - oldNet, vat: newVat - oldVat, total: newTotal - oldTotal });
+        setPriceDiffs({ net: newNet - oldNet, vat: newVat - oldVat, total: newTotal - oldTotal, itemDeltas });
 
         if (updatedCount > 0) {
+            const record: PriceChangeRecord = {
+                timestamp: new Date().toISOString(),
+                itemChanges: itemDeltas,
+                totalsBefore: { subtotal: oldSub, net: oldNet, vat: oldVat, total: oldTotal },
+                totalsAfter: { subtotal: newSub, net: newNet, vat: newVat, total: newTotal },
+            };
+            setPriceChangeLog(prev => [record, ...prev]);
             setSelectedItems(newItems);
             showToast(`Ενημερώθηκαν οι τιμές σε ${updatedCount} είδη.`, 'success');
         } else {
@@ -939,7 +957,8 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                     vat_rate: vatRate,
                     discount_percent: discountPercent,
                     notes: composedNotes,
-                    tags
+                    tags,
+                    price_change_log: priceChangeLog.length > 0 ? priceChangeLog : undefined,
                 };
 
                 let isNewPart: boolean | undefined = undefined;
@@ -981,7 +1000,8 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                     vat_rate: vatRate,
                     discount_percent: discountPercent,
                     notes: composedNotes,
-                    tags
+                    tags,
+                    price_change_log: priceChangeLog.length > 0 ? priceChangeLog : undefined,
                 };
                 await api.saveOrder(newOrder);
                 showToast('Η παραγγελία δημιουργήθηκε.', 'success');
@@ -1034,6 +1054,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             sortOrder, itemSearchTerm,
             // Price diffs
             priceDiffs,
+            priceChangeLog,
             // Computed
             filteredCustomers, displayItems,
             subtotal, discountAmount, netAfterDiscount, vatAmount, grandTotal,

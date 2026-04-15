@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { Search, X, ArrowDownAZ, Camera, Plus, Minus, Trash2, StickyNote, Box, RefreshCw, Save, Loader2, Pencil, Check } from 'lucide-react';
+import { Search, X, ArrowDownAZ, Camera, Plus, Minus, Trash2, StickyNote, Box, RefreshCw, Save, Loader2, Pencil, Check, History, ChevronDown } from 'lucide-react';
 import { FINISH_CODES } from '../../constants';
-import { OrderItem } from '../../types';
+import { OrderItem, PriceChangeRecord } from '../../types';
 import { formatCurrency, formatDecimal, getVariantComponents, getVariantSuffixDisplayCodes } from '../../utils/pricingEngine';
 import { getSizingInfo } from '../../utils/sizing';
 import { useOrderState, FINISH_COLORS, STONE_TEXT_COLORS } from '../../hooks/useOrderState';
@@ -29,6 +29,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
     const [editSizeInfo, setEditSizeInfo] = useState('');
     const [editCordColor, setEditCordColor] = useState<OrderItem['cord_color']>();
     const [editEnamelColor, setEditEnamelColor] = useState<OrderItem['enamel_color']>();
+    const [showPriceHistory, setShowPriceHistory] = useState(false);
 
     const commitPriceEdit = (item: OrderItem) => {
         const trimmed = priceInputStr.trim();
@@ -187,6 +188,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                 {state.displayItems.map((item, index) => {
                     const lineKey = getOrderItemMatchKey(item);
                     const isPriceEditing = priceEditLineKey === lineKey;
+                    const itemDelta = state.priceDiffs?.itemDeltas?.find(d => d.lineKey === lineKey);
                     return (
                     <div
                         key={item.line_id || `${item.sku}-${item.variant_suffix || ''}-${item.size_info || ''}-${item.cord_color || ''}-${item.enamel_color || ''}-${index}`}
@@ -316,6 +318,18 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                                 </div>
                                             </button>
                                         )}
+                                        {itemDelta && (
+                                            <div className="flex flex-col items-end gap-0.5 mt-0.5">
+                                                <div className="flex items-center gap-1">
+                                                    <span className="text-[10px] font-bold text-rose-400 line-through tabular-nums">{formatDecimal(itemDelta.oldPrice, 2)}€</span>
+                                                    <span className="text-[9px] text-slate-300">→</span>
+                                                    <span className="text-[10px] font-bold text-emerald-600 tabular-nums">{formatDecimal(itemDelta.newPrice, 2)}€</span>
+                                                </div>
+                                                <span className={`text-[9px] font-bold tabular-nums ${itemDelta.newPrice > itemDelta.oldPrice ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                                    ({itemDelta.newPrice > itemDelta.oldPrice ? '+' : ''}{formatDecimal(itemDelta.newPrice - itemDelta.oldPrice, 2)}€/τεμ.)
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -359,6 +373,63 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                         </div>
                     </div>
                     <p className="text-sm font-bold text-slate-600 tracking-wide">Αποθήκευση...</p>
+                </div>
+            )}
+
+            {/* Price Change History Section */}
+            {state.priceChangeLog && state.priceChangeLog.length > 0 && (
+                <div className="border-t border-slate-200 bg-white">
+                    <button
+                        type="button"
+                        onClick={() => setShowPriceHistory(prev => !prev)}
+                        className="w-full flex items-center gap-2 px-5 py-2.5 text-left hover:bg-slate-50 transition-colors"
+                    >
+                        <History size={14} className="text-slate-400 shrink-0" />
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex-1">
+                            Ιστορικό αλλαγών τιμών ({state.priceChangeLog.length})
+                        </span>
+                        <ChevronDown size={14} className={`text-slate-400 transition-transform ${showPriceHistory ? 'rotate-180' : ''}`} />
+                    </button>
+                    {showPriceHistory && (
+                        <div className="px-5 pb-4 space-y-3 max-h-64 overflow-y-auto custom-scrollbar">
+                            {state.priceChangeLog.map((record: PriceChangeRecord, idx: number) => {
+                                const totalDiff = record.totalsAfter.total - record.totalsBefore.total;
+                                return (
+                                    <div key={idx} className="bg-slate-50 rounded-lg border border-slate-100 p-3 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[10px] font-bold text-slate-400">
+                                                {new Date(record.timestamp).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                            <span className={`text-[10px] font-bold ${totalDiff > 0 ? 'text-emerald-600' : totalDiff < 0 ? 'text-rose-500' : 'text-slate-400'}`}>
+                                                Σύνολο: {totalDiff > 0 ? '+' : ''}{formatCurrency(totalDiff)}
+                                            </span>
+                                        </div>
+                                        <div className="space-y-1">
+                                            {record.itemChanges.map((delta, dIdx) => (
+                                                <div key={dIdx} className="flex items-center justify-between text-[10px] py-0.5">
+                                                    <span className="font-bold text-slate-700 truncate mr-2">
+                                                        {delta.sku}{delta.variantSuffix ? delta.variantSuffix : ''}
+                                                    </span>
+                                                    <div className="flex items-center gap-1.5 shrink-0">
+                                                        <span className="text-rose-400 line-through tabular-nums">{formatDecimal(delta.oldPrice, 2)}€</span>
+                                                        <span className="text-slate-300">→</span>
+                                                        <span className="text-emerald-600 font-bold tabular-nums">{formatDecimal(delta.newPrice, 2)}€</span>
+                                                        <span className={`font-bold tabular-nums ${delta.newPrice > delta.oldPrice ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                                            ({delta.newPrice > delta.oldPrice ? '+' : ''}{formatDecimal(delta.newPrice - delta.oldPrice, 2)}€)
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="flex gap-3 pt-1.5 border-t border-slate-200/70 text-[9px] text-slate-400">
+                                            <span>Καθαρή: {formatCurrency(record.totalsBefore.net)} → {formatCurrency(record.totalsAfter.net)}</span>
+                                            <span>ΦΠΑ: {formatCurrency(record.totalsBefore.vat)} → {formatCurrency(record.totalsAfter.vat)}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             )}
 
