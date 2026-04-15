@@ -210,16 +210,27 @@ function AppContent() {
   }, [refreshQueue, showToast]);
 
   // One-time repair: clean up phantom production batches for PartiallyDelivered orders.
-  // Safe to run multiple times (idempotent), but the localStorage flag ensures it only runs once.
+  // Runs once per device. Flag set AFTER successful completion to survive interrupted reloads.
   useEffect(() => {
     if (isLocalMode) return;
     const REPAIR_KEY = 'ILIOS_REPAIR_PARTIAL_DELIVERY_V1';
     if (localStorage.getItem(REPAIR_KEY)) return;
-    localStorage.setItem(REPAIR_KEY, new Date().toISOString());
-    import('./lib/supabase').then(({ api }) => {
-      api.repairPartiallyDeliveredBatches();
-    });
-  }, []);
+    (async () => {
+      try {
+        const { api: supaApi } = await import('./lib/supabase');
+        const repaired = await supaApi.repairPartiallyDeliveredBatches();
+        // Set flag only AFTER successful completion so interrupted runs retry on next load
+        localStorage.setItem(REPAIR_KEY, new Date().toISOString());
+        if (repaired > 0) {
+          // Invalidate caches so the UI reflects the cleanup immediately
+          await queryClient.invalidateQueries({ queryKey: ['production_batches'] });
+          await queryClient.invalidateQueries({ queryKey: ['orders'] });
+        }
+      } catch (e) {
+        console.error('[repair] One-time PartiallyDelivered repair failed, will retry on next load:', e);
+      }
+    })();
+  }, [queryClient]);
 
   const { data: settings, isLoading: loadingSettings } = useSettings();
   const { data: materials, isLoading: loadingMaterials } = useMaterials();

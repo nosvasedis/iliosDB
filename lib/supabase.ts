@@ -1781,16 +1781,31 @@ export const api = {
         try {
             const allOrders = await api.getOrders();
             const partialOrders = allOrders.filter(o => o.status === OrderStatus.PartiallyDelivered);
+            console.log(`[repair] Found ${partialOrders.length} PartiallyDelivered orders to check.`);
             let repairedCount = 0;
             for (const order of partialOrders) {
                 try {
+                    // Log before-state for debugging
+                    const batchesBefore = await fetchFullTable('production_batches');
+                    const orderBatchesBefore = (batchesBefore as ProductionBatch[]).filter(b => b.order_id === order.id);
+                    console.log(`[repair] Order ${order.id} (${order.customer_name}): ${orderBatchesBefore.length} batches before reconcile, order has ${order.items.length} item lines`);
+
                     await api.reconcileOrderBatches(order);
+
+                    const batchesAfter = await fetchFullTable('production_batches');
+                    const orderBatchesAfter = (batchesAfter as ProductionBatch[]).filter(b => b.order_id === order.id);
+                    const removed = orderBatchesBefore.length - orderBatchesAfter.length;
+                    if (removed > 0) {
+                        console.log(`[repair] Order ${order.id}: CLEANED UP ${removed} phantom batches (${orderBatchesBefore.length} → ${orderBatchesAfter.length})`);
+                    } else {
+                        console.log(`[repair] Order ${order.id}: no phantom batches found (${orderBatchesAfter.length} batches remain)`);
+                    }
                     repairedCount++;
                 } catch (e) {
                     console.warn(`[repair] Failed to reconcile order ${order.id}:`, e);
                 }
             }
-            console.log(`[repair] Reconciled ${repairedCount} PartiallyDelivered orders.`);
+            console.log(`[repair] Completed. Reconciled ${repairedCount}/${partialOrders.length} PartiallyDelivered orders.`);
             return repairedCount;
         } catch (e) {
             console.error('[repair] repairPartiallyDeliveredBatches failed:', e);
