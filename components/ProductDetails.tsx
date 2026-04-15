@@ -444,22 +444,25 @@ const AnalysisExplainerModal = React.memo(({ onClose }: { onClose: () => void })
 ));
 
 const LaborCostInput = React.memo(({ label, value, onChange, override, onToggleOverride, readOnly = false, icon = <Hammer size={14} /> }: { label: string, value: number, onChange: (v: number) => void, override?: boolean, onToggleOverride?: () => void, readOnly?: boolean, icon?: React.ReactNode }) => (
-    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
-        <span className="text-sm text-slate-600 font-medium flex items-center gap-2">{icon} {label}</span>
+    <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-100 hover:border-slate-200 hover:shadow-sm transition-all group">
+        <span className="text-sm text-slate-600 font-medium flex items-center gap-2.5">
+            <span className="text-slate-400 group-hover:text-slate-500 transition-colors">{icon}</span>
+            {label}
+        </span>
         <div className="flex items-center gap-2">
             <input
                 type="number" step="0.01"
                 value={value}
                 onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
                 readOnly={readOnly || (onToggleOverride && !override)}
-                className={`w-20 text-right bg-white border border-slate-200 rounded-lg p-1.5 font-mono text-sm outline-none focus:border-amber-500 ${readOnly || (onToggleOverride && !override) ? 'text-slate-400' : 'text-slate-800 font-bold'}`}
+                className={`w-20 text-right bg-slate-50 border border-slate-200 rounded-lg p-1.5 font-mono text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-500/10 transition-all ${readOnly || (onToggleOverride && !override) ? 'text-slate-400' : 'text-slate-800 font-bold'}`}
             />
             {onToggleOverride && (
-                <button onClick={onToggleOverride} className="text-slate-400 hover:text-amber-600 transition-colors">
+                <button onClick={onToggleOverride} className={`p-1 rounded-md transition-all ${override ? 'text-amber-500 bg-amber-50 hover:bg-amber-100' : 'text-slate-300 hover:text-amber-500 hover:bg-amber-50'}`}>
                     {override ? <Unlock size={14} /> : <Lock size={14} />}
                 </button>
             )}
-            <span className="text-xs text-slate-400">€</span>
+            <span className="text-xs text-slate-400 font-medium">€</span>
         </div>
     </div>
 ));
@@ -502,23 +505,25 @@ const BarcodeGallery = React.memo(({ product, variants, onPrint, settings }: { p
 
     return (
         <div className="flex flex-col gap-4 h-full">
-            <div className="flex flex-col sm:flex-row justify-between items-center mb-2 gap-4">
-                <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
-                    <button onClick={() => setFormat('standard')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${format === 'standard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                        <Tag size={14} /> Χονδρική
-                    </button>
-                    <button onClick={() => setFormat('retail')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${format === 'retail' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                        <ShoppingBag size={14} /> Λιανική
+            <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div className="flex gap-1.5 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+                        <button onClick={() => setFormat('standard')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${format === 'standard' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}>
+                            <Tag size={14} /> Χονδρική
+                        </button>
+                        <button onClick={() => setFormat('retail')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${format === 'retail' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}>
+                            <ShoppingBag size={14} /> Λιανική
+                        </button>
+                    </div>
+                    <button onClick={handlePrintAll} className="bg-white text-slate-600 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-50 border border-slate-200 transition-all flex items-center gap-2 shadow-sm hover:shadow-md">
+                        <Printer size={16} /> Εκτύπωση Όλων (1x)
                     </button>
                 </div>
-                <button onClick={handlePrintAll} className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors flex items-center gap-2">
-                    <Printer size={16} /> Εκτύπωση Όλων (1x)
-                </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pb-4">
                 {items.map(({ variant, key }) => (
-                    <div key={key} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center gap-4 hover:shadow-md transition-shadow">
+                    <div key={key} className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col items-center gap-4 hover:shadow-md hover:border-slate-300 transition-all">
                         {/* 
                             Barcode Preview Container
                             - overflow-x-auto: Allows scrolling if the label is wider than the card (common for retail labels)
@@ -542,10 +547,10 @@ const BarcodeGallery = React.memo(({ product, variants, onPrint, settings }: { p
                             <div className="text-xs text-slate-500">{variant ? variant.description : product.category}</div>
                         </div>
 
-                        <div className="flex items-center gap-2 w-full mt-auto pt-4 border-t border-slate-50">
+                        <div className="flex items-center gap-2 w-full mt-auto pt-3 border-t border-slate-100">
                             <button
                                 onClick={() => handlePrintItem(variant, 1)}
-                                className="flex-1 bg-slate-900 text-white py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-black transition-colors shadow-sm"
+                                className="flex-1 bg-slate-900 text-white py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-black transition-all shadow-sm active:scale-[0.98]"
                             >
                                 <Printer size={14} /> Εκτύπωση
                             </button>
@@ -1589,8 +1594,30 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                 <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
                                                                     <Palette size={11} className="text-slate-400" /> Διαθέσιμες Επιμεταλλώσεις
                                                                 </label>
-                                                                <div className="w-full p-2.5 bg-white text-slate-600 font-medium border border-slate-200 rounded-xl">
-                                                                    {displayPlating}
+                                                                <div className="w-full p-2.5 bg-white border border-slate-200 rounded-xl flex flex-wrap gap-1.5">
+                                                                    {sortedFinishCodes.map(code => {
+                                                                        const label = FINISH_CODES[code] || (code === '' ? 'Λουστρέ' : code);
+                                                                        const chipColors: Record<string, string> = {
+                                                                            '':  'bg-slate-100 text-slate-700 border-slate-200',
+                                                                            'P': 'bg-stone-100 text-stone-700 border-stone-200',
+                                                                            'X': 'bg-amber-100 text-amber-800 border-amber-200',
+                                                                            'D': 'bg-orange-100 text-orange-800 border-orange-200',
+                                                                            'H': 'bg-cyan-100 text-cyan-800 border-cyan-200',
+                                                                        };
+                                                                        const dotColors: Record<string, string> = {
+                                                                            '':  'bg-gradient-to-br from-slate-300 to-slate-500',
+                                                                            'P': 'bg-gradient-to-br from-stone-400 to-stone-600',
+                                                                            'X': 'bg-gradient-to-br from-amber-400 to-yellow-600',
+                                                                            'D': 'bg-gradient-to-br from-orange-400 to-rose-500',
+                                                                            'H': 'bg-gradient-to-br from-cyan-300 to-sky-500',
+                                                                        };
+                                                                        return (
+                                                                            <span key={code} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border ${chipColors[code] || chipColors['']}`}>
+                                                                                <span className={`w-2 h-2 rounded-full ${dotColors[code] || dotColors['']}`} />
+                                                                                {label}
+                                                                            </span>
+                                                                        );
+                                                                    })}
                                                                 </div>
                                                             </div>
                                                         ) : (
@@ -1889,115 +1916,131 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
                                 {activeTab === 'recipe' && (
                                     <div className="space-y-4 animate-in fade-in">
-                                        {/* ... (Existing Recipe code) ... */}
-                                        <div className="flex items-center gap-3 p-3 bg-slate-100 rounded-xl border border-slate-200 shadow-sm">
-                                            <div className="p-2 bg-white rounded-lg border border-slate-100 text-slate-600">
-                                                <Coins size={16} />
-                                            </div>
-                                            <div className="flex-1">
-                                                <div className="font-bold text-slate-800 text-sm">Ασήμι 925 (Βάση)</div>
-                                                <div className="text-xs text-slate-400 font-mono">
-                                                    {totalWeightForSilver > editedProduct.weight_g
-                                                        ? `${formatDecimal(totalWeightForSilver)}g (${formatDecimal(editedProduct.weight_g)}g + ${formatDecimal(editedProduct.secondary_weight_g || 0)}g)`
-                                                        : `${formatDecimal(totalWeightForSilver)}g`
-                                                    } @ {formatDecimal(settings.silver_price_gram, 3)}€/g
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="font-mono font-bold text-slate-800 text-lg">
-                                                    {formatCurrency(currentCostCalc.breakdown.silver)}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        {editedProduct.recipe.map((item, idx) => {
-                                            const isRaw = item.type === 'raw';
-                                            const details = isRaw ? allMaterials.find(m => m.id === item.id) : allProducts.find(p => p.sku === item.sku);
+                                        {/* ── Silver Base Row ── */}
+                                        <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+                                            <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-3 mb-4">
+                                                <div className="p-1.5 bg-blue-100 rounded-lg"><Box size={13} className="text-blue-600" /></div>
+                                                Συνταγή Προϊόντος
+                                            </h4>
 
-                                            let itemCost = 0;
-                                            if (isRaw) {
-                                                const mat = details as Material | undefined;
-                                                if (mat) {
-                                                    let unitCost = mat.cost_per_unit;
-                                                    if (currentViewVariant?.suffix) {
-                                                        const { stone } = getVariantComponents(currentViewVariant.suffix, editedProduct.gender);
-                                                        if (stone.code && mat.variant_prices && mat.variant_prices[stone.code] != null) {
-                                                            unitCost = mat.variant_prices[stone.code];
+                                            <div className="flex items-center gap-3 p-3.5 bg-gradient-to-r from-slate-100 to-slate-50 rounded-xl border border-slate-200 shadow-sm">
+                                                <div className="p-2.5 bg-white rounded-xl border border-slate-100 text-slate-500 shadow-sm">
+                                                    <Coins size={16} />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="font-bold text-slate-800 text-sm">Ασήμι 925 (Βάση)</div>
+                                                    <div className="text-xs text-slate-400 font-mono">
+                                                        {totalWeightForSilver > editedProduct.weight_g
+                                                            ? `${formatDecimal(totalWeightForSilver)}g (${formatDecimal(editedProduct.weight_g)}g + ${formatDecimal(editedProduct.secondary_weight_g || 0)}g)`
+                                                            : `${formatDecimal(totalWeightForSilver)}g`
+                                                        } @ {formatDecimal(settings.silver_price_gram, 3)}€/g
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="font-mono font-bold text-slate-800 text-lg">
+                                                        {formatCurrency(currentCostCalc.breakdown.silver)}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* ── Recipe Items ── */}
+                                            <div className="space-y-2 mt-3">
+                                                {editedProduct.recipe.map((item, idx) => {
+                                                    const isRaw = item.type === 'raw';
+                                                    const details = isRaw ? allMaterials.find(m => m.id === item.id) : allProducts.find(p => p.sku === item.sku);
+
+                                                    let itemCost = 0;
+                                                    if (isRaw) {
+                                                        const mat = details as Material | undefined;
+                                                        if (mat) {
+                                                            let unitCost = mat.cost_per_unit;
+                                                            if (currentViewVariant?.suffix) {
+                                                                const { stone } = getVariantComponents(currentViewVariant.suffix, editedProduct.gender);
+                                                                if (stone.code && mat.variant_prices && mat.variant_prices[stone.code] != null) {
+                                                                    unitCost = mat.variant_prices[stone.code];
+                                                                }
+                                                            }
+                                                            itemCost = unitCost * item.quantity;
+                                                        }
+                                                    } else {
+                                                        const subProduct = details as Product | undefined;
+                                                        if (subProduct) {
+                                                            itemCost = (subProduct.active_price || 0) * item.quantity;
                                                         }
                                                     }
-                                                    itemCost = unitCost * item.quantity;
-                                                }
-                                            } else {
-                                                const subProduct = details as Product | undefined;
-                                                if (subProduct) {
-                                                    itemCost = (subProduct.active_price || 0) * item.quantity;
-                                                }
-                                            }
 
-                                            const stonesPerStrand = isRaw ? (details as Material)?.stones_per_strand : undefined;
+                                                    const stonesPerStrand = isRaw ? (details as Material)?.stones_per_strand : undefined;
 
-                                            const stxImageUrl = !isRaw ? (details as Product | undefined)?.image_url : null;
-                                            const stxDescription = !isRaw ? (details as Product | undefined)?.description : null;
+                                                    const stxImageUrl = !isRaw ? (details as Product | undefined)?.image_url : null;
+                                                    const stxDescription = !isRaw ? (details as Product | undefined)?.description : null;
 
-                                            return (
-                                                <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                                    <div className="w-10 h-10 shrink-0 bg-white rounded-lg border border-slate-100 overflow-hidden flex items-center justify-center">
-                                                        {isRaw ? (
-                                                            <Gem size={16} className="text-emerald-500" />
-                                                        ) : stxImageUrl ? (
-                                                            <img src={stxImageUrl} alt={item.sku} className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <Puzzle size={16} className="text-blue-500" />
-                                                        )}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        {isRaw ? (
-                                                            <select
-                                                                className="bg-transparent font-bold text-slate-800 outline-none w-full"
-                                                                value={item.id}
-                                                                onChange={(e) => updateRecipeItem(idx, 'id', e.target.value)}
-                                                            >
-                                                                {allMaterials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                                                            </select>
-                                                        ) : (
-                                                            <>
-                                                                <select
-                                                                    className="bg-transparent font-bold text-slate-800 outline-none w-full"
-                                                                    value={item.sku}
-                                                                    onChange={(e) => updateRecipeItem(idx, 'sku', e.target.value)}
-                                                                >
-                                                                    {allProducts.filter(p => p.is_component).map(p => <option key={p.sku} value={p.sku}>{p.sku} - {p.category}</option>)}
-                                                                </select>
-                                                                {stxDescription && (
-                                                                    <div className="text-xs text-slate-500 font-medium truncate mt-0.5">{stxDescription}</div>
+                                                    return (
+                                                        <div key={idx} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100 hover:border-slate-200 hover:shadow-sm transition-all group">
+                                                            <div className="w-10 h-10 shrink-0 bg-slate-50 rounded-xl border border-slate-100 overflow-hidden flex items-center justify-center">
+                                                                {isRaw ? (
+                                                                    <Gem size={16} className="text-emerald-500" />
+                                                                ) : stxImageUrl ? (
+                                                                    <img src={stxImageUrl} alt={item.sku} className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    <Puzzle size={16} className="text-blue-500" />
                                                                 )}
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                    <div className="font-mono font-bold text-slate-700 text-sm">{formatCurrency(itemCost)}</div>
-                                                    <div className="flex items-center gap-2">
-                                                        <SmartQuantityInput
-                                                            value={item.quantity}
-                                                            onChange={(val) => updateRecipeItem(idx, 'quantity', val)}
-                                                            stonesPerStrand={stonesPerStrand}
-                                                        />
-                                                        <span className="text-xs text-slate-400 font-bold w-8">{isRaw ? (details as Material)?.unit : 'τεμ'}</span>
-                                                    </div>
-                                                    <button onClick={() => removeRecipeItem(idx)} className="text-slate-400 hover:text-red-500"><Trash2 size={18} /></button>
-                                                </div>
-                                            );
-                                        })}
-                                        <div className="flex gap-2 pt-4">
-                                            <button onClick={() => setIsRecipeModalOpen('raw')} className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-600 transition-colors flex items-center justify-center gap-2"><Plus size={14} /> Υλικό</button>
-                                            <button onClick={() => setIsRecipeModalOpen('component')} className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-600 transition-colors flex items-center justify-center gap-2"><Plus size={14} /> Εξάρτημα</button>
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                {isRaw ? (
+                                                                    <select
+                                                                        className="bg-transparent font-bold text-slate-800 outline-none w-full text-sm"
+                                                                        value={item.id}
+                                                                        onChange={(e) => updateRecipeItem(idx, 'id', e.target.value)}
+                                                                    >
+                                                                        {allMaterials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                                                    </select>
+                                                                ) : (
+                                                                    <>
+                                                                        <select
+                                                                            className="bg-transparent font-bold text-slate-800 outline-none w-full text-sm"
+                                                                            value={item.sku}
+                                                                            onChange={(e) => updateRecipeItem(idx, 'sku', e.target.value)}
+                                                                        >
+                                                                            {allProducts.filter(p => p.is_component).map(p => <option key={p.sku} value={p.sku}>{p.sku} - {p.category}</option>)}
+                                                                        </select>
+                                                                        {stxDescription && (
+                                                                            <div className="text-xs text-slate-500 font-medium truncate mt-0.5">{stxDescription}</div>
+                                                                        )}
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                            <div className="font-mono font-bold text-slate-700 text-sm">{formatCurrency(itemCost)}</div>
+                                                            <div className="flex items-center gap-2">
+                                                                <SmartQuantityInput
+                                                                    value={item.quantity}
+                                                                    onChange={(val) => updateRecipeItem(idx, 'quantity', val)}
+                                                                    stonesPerStrand={stonesPerStrand}
+                                                                />
+                                                                <span className="text-xs text-slate-400 font-bold w-8">{isRaw ? (details as Material)?.unit : 'τεμ'}</span>
+                                                            </div>
+                                                            <button onClick={() => removeRecipeItem(idx)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={16} /></button>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            {/* ── Add Buttons ── */}
+                                            <div className="flex gap-2 pt-4 border-t border-slate-100 mt-4">
+                                                <button onClick={() => setIsRecipeModalOpen('raw')} className="flex-1 py-2.5 bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 rounded-xl text-xs font-bold text-slate-600 hover:text-emerald-700 transition-all flex items-center justify-center gap-2 shadow-sm"><Plus size={14} /> Υλικό</button>
+                                                <button onClick={() => setIsRecipeModalOpen('component')} className="flex-1 py-2.5 bg-white hover:bg-blue-50 border border-slate-200 hover:border-blue-200 rounded-xl text-xs font-bold text-slate-600 hover:text-blue-700 transition-all flex items-center justify-center gap-2 shadow-sm"><Plus size={14} /> Εξάρτημα</button>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
 
                                 {activeTab === 'labor' && (
                                     <div className="space-y-6 animate-in fade-in">
-                                        {/* ... (Existing Labor code) ... */}
-                                        <div>
-                                            <h3 className="font-bold text-slate-800 mb-4">Εισαγωγή Κόστους Εργατικών</h3>
+                                        {/* ── Section: Εισαγωγή Κόστους Εργατικών ── */}
+                                        <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+                                            <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-3 mb-4">
+                                                <div className="p-1.5 bg-orange-100 rounded-lg"><Hammer size={13} className="text-orange-600" /></div>
+                                                Εισαγωγή Κόστους Εργατικών
+                                            </h4>
                                             <div className="space-y-2">
                                                 <LaborCostInput label="Χυτήριο (€)" value={editedProduct.labor.casting_cost} onChange={v => setEditedProduct({ ...editedProduct, labor: { ...editedProduct.labor, casting_cost: v } })} override={editedProduct.labor.casting_cost_manual_override} onToggleOverride={() => setEditedProduct(p => ({ ...p, labor: { ...p.labor, casting_cost_manual_override: !p.labor.casting_cost_manual_override } }))} icon={<Flame size={14} />} />
                                                 <LaborCostInput label="Καρφωτής (€)" value={editedProduct.labor.setter_cost} onChange={v => setEditedProduct({ ...editedProduct, labor: { ...editedProduct.labor, setter_cost: v } })} icon={<Gem size={14} />} />
@@ -2007,37 +2050,42 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                 <LaborCostInput label="Φασόν/Έξτρα (€)" value={editedProduct.labor.subcontract_cost} onChange={v => setEditedProduct({ ...editedProduct, labor: { ...editedProduct.labor, subcontract_cost: v } })} icon={<Users size={14} />} />
                                             </div>
                                         </div>
-                                        <div className="mt-8 pt-6 border-t border-slate-100">
-                                            <h3 className="font-bold text-slate-800 mb-4">Αναλυτική Κοστολόγηση Παραλλαγών</h3>
-                                            <div className="space-y-4">
+
+                                        {/* ── Section: Αναλυτική Κοστολόγηση Παραλλαγών ── */}
+                                        <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+                                            <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-3 mb-4">
+                                                <div className="p-1.5 bg-emerald-100 rounded-lg"><Activity size={13} className="text-emerald-600" /></div>
+                                                Αναλυτική Κοστολόγηση Παραλλαγών
+                                            </h4>
+                                            <div className="space-y-3">
                                                 {analyticalCostingItems.map(item => {
                                                     const { key, title, costResult } = item;
                                                     return (
-                                                        <div key={key} className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm">
-                                                            <div className="flex justify-between items-center pb-3 border-b border-slate-200 mb-3">
+                                                        <div key={key} className="bg-white p-4 rounded-xl border border-slate-100 hover:border-slate-200 hover:shadow-sm transition-all">
+                                                            <div className="flex justify-between items-center pb-3 border-b border-slate-100 mb-3">
                                                                 <span className="font-bold text-slate-800 text-sm">{title}</span>
-                                                                <span className="font-black text-lg text-emerald-700">{formatCurrency(costResult.total)}</span>
+                                                                <span className="font-black text-lg text-emerald-700 bg-emerald-50 px-3 py-0.5 rounded-lg">{formatCurrency(costResult.total)}</span>
                                                             </div>
-                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                                                <div className="text-center bg-white p-2 rounded-lg border border-slate-100">
-                                                                    <div className="text-[10px] font-bold text-slate-400">ΑΣΗΜΙ</div>
-                                                                    <div className="font-mono text-slate-700 font-bold">{formatCurrency(costResult.breakdown.silver)}</div>
+                                                            <div className="grid grid-cols-3 gap-2">
+                                                                <div className="text-center bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                                                                    <div className="text-[10px] font-bold text-slate-400 uppercase">Ασήμι</div>
+                                                                    <div className="font-mono text-slate-700 font-bold text-sm">{formatCurrency(costResult.breakdown.silver)}</div>
                                                                 </div>
-                                                                <div className="text-center bg-white p-2 rounded-lg border border-slate-100">
-                                                                    <div className="text-[10px] font-bold text-slate-400">ΥΛΙΚΑ</div>
-                                                                    <div className="font-mono text-slate-700 font-bold">{formatCurrency(costResult.breakdown.materials)}</div>
+                                                                <div className="text-center bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                                                                    <div className="text-[10px] font-bold text-slate-400 uppercase">Υλικά</div>
+                                                                    <div className="font-mono text-slate-700 font-bold text-sm">{formatCurrency(costResult.breakdown.materials)}</div>
                                                                 </div>
-                                                                <div className="text-center bg-white p-2 rounded-lg border border-slate-100">
-                                                                    <div className="text-[10px] font-bold text-slate-400">ΕΡΓΑΤΙΚΑ</div>
-                                                                    <div className="font-mono text-slate-700 font-bold">{formatCurrency(costResult.breakdown.labor)}</div>
+                                                                <div className="text-center bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                                                                    <div className="text-[10px] font-bold text-slate-400 uppercase">Εργατικά</div>
+                                                                    <div className="font-mono text-slate-700 font-bold text-sm">{formatCurrency(costResult.breakdown.labor)}</div>
                                                                 </div>
                                                             </div>
-                                                            <div className="mt-2 text-xs text-slate-500 font-mono bg-white rounded p-2 border border-slate-100">
-                                                                Χυτ: {formatCurrency(costResult.breakdown.details.casting_cost)} |
-                                                                Τεχν: {formatCurrency(costResult.breakdown.details.technician_cost)} |
-                                                                Καρφ: {formatCurrency(costResult.breakdown.details.setter_cost)} |
-                                                                Επιμ: {formatCurrency(costResult.breakdown.details.plating_cost)} |
-                                                                Φασόν: {formatCurrency(costResult.breakdown.details.subcontract_cost)}
+                                                            <div className="mt-2.5 text-xs text-slate-500 font-mono bg-slate-50/60 rounded-lg p-2.5 border border-slate-100 flex flex-wrap gap-x-3 gap-y-1">
+                                                                <span>Χυτ: {formatCurrency(costResult.breakdown.details.casting_cost)}</span>
+                                                                <span>Τεχν: {formatCurrency(costResult.breakdown.details.technician_cost)}</span>
+                                                                <span>Καρφ: {formatCurrency(costResult.breakdown.details.setter_cost)}</span>
+                                                                <span>Επιμ: {formatCurrency(costResult.breakdown.details.plating_cost)}</span>
+                                                                <span>Φασόν: {formatCurrency(costResult.breakdown.details.subcontract_cost)}</span>
                                                             </div>
                                                         </div>
                                                     );
@@ -2048,15 +2096,16 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                 )}
 
                                 {activeTab === 'variants' && (
-                                    <div className="space-y-6 animate-in fade-in">
-                                        {/* --- REVAMPED SMART ADD SECTION --- */}
-                                        <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 relative overflow-hidden">
-                                            <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
+                                    <div className="space-y-5 animate-in fade-in">
+                                        {/* ── Section: Έξυπνη Προσθήκη ── */}
+                                        <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden">
+                                            <div className="absolute top-0 right-0 p-10 opacity-[0.03] pointer-events-none">
                                                 <Wand2 size={120} />
                                             </div>
 
-                                            <h4 className="font-black text-slate-700 mb-4 flex items-center gap-2 uppercase tracking-wide text-xs">
-                                                <Wand2 size={16} className="text-amber-500 fill-current" /> Έξυπνη Προσθήκη
+                                            <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-3 mb-4 relative z-10">
+                                                <div className="p-1.5 bg-amber-100 rounded-lg"><Wand2 size={13} className="text-amber-600" /></div>
+                                                Έξυπνη Προσθήκη
                                             </h4>
 
                                             <div className="flex gap-2 mb-4 relative z-10">
@@ -2065,7 +2114,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                     placeholder="Εισάγετε Suffix (π.χ. P, X, BSU)..."
                                                     value={smartAddSuffix}
                                                     onChange={e => setSmartAddSuffix(e.target.value.toUpperCase())}
-                                                    className="flex-1 p-3 border border-slate-200 rounded-xl font-mono text-lg font-black uppercase bg-white shadow-sm focus:ring-4 focus:ring-amber-500/20 outline-none transition-all"
+                                                    className="flex-1 p-3 border border-slate-200 rounded-xl font-mono text-lg font-black uppercase bg-white shadow-sm focus:ring-2 focus:ring-amber-400/20 focus:border-amber-300 outline-none transition-all"
                                                 />
                                                 <button onClick={handleSmartAdd} disabled={!smartAddSuffix} className="bg-slate-900 text-white px-6 rounded-xl font-bold hover:bg-black transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:scale-100">
                                                     <Plus size={24} />
@@ -2074,7 +2123,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
                                             {/* LIVE PREVIEW CARD */}
                                             {smartPreview && (
-                                                <div className="bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm animate-in slide-in-from-top-2 fade-in relative z-10">
+                                                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm animate-in slide-in-from-top-2 fade-in relative z-10">
                                                     <div className="flex justify-between items-start mb-2">
                                                         <div>
                                                             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Πρόβλεψη Περιγραφής</div>
@@ -2086,7 +2135,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                         </div>
                                                     </div>
 
-                                                    <div className="pt-2 border-t border-slate-50 flex items-center justify-between text-xs font-mono">
+                                                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-mono">
                                                         <span className="text-slate-500">Διαφορά από Master:</span>
                                                         <span className={`font-bold ${smartPreview.diff > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
                                                             {smartPreview.diff > 0 ? '+' : ''}{formatCurrency(smartPreview.diff)}
@@ -2094,17 +2143,17 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                     </div>
 
                                                     {/* Breakdown Badges */}
-                                                    <div className="flex gap-2 mt-2 flex-wrap">
+                                                    <div className="flex gap-1.5 mt-2 flex-wrap">
                                                         {smartPreview.breakdown.details.plating_cost === 0 && (
-                                                            <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 font-bold">No Plating</span>
+                                                            <span className="text-[9px] bg-slate-50 text-slate-500 px-2 py-0.5 rounded-md border border-slate-200 font-bold">No Plating</span>
                                                         )}
                                                         {smartPreview.breakdown.details.plating_cost > 0 && (
-                                                            <span className="text-[9px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-100 font-bold">
+                                                            <span className="text-[9px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-md border border-amber-100 font-bold">
                                                                 +{formatCurrency(smartPreview.breakdown.details.plating_cost)} Plating
                                                             </span>
                                                         )}
                                                         {Math.abs(smartPreview.breakdown.details.stone_diff || 0) > 0.01 && (
-                                                            <span className="text-[9px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-100 font-bold">
+                                                            <span className="text-[9px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-100 font-bold">
                                                                 {smartPreview.breakdown.details.stone_diff > 0 ? '+' : ''}{formatCurrency(smartPreview.breakdown.details.stone_diff)} Stone Diff
                                                             </span>
                                                         )}
@@ -2113,14 +2162,15 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                             )}
                                         </div>
 
-                                        {/* MANUAL ADD SECTION */}
-                                        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-                                            <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2 uppercase tracking-wide text-xs">
-                                                <Edit size={14} className="text-slate-400" /> Χειροκίνητη Προσθήκη
+                                        {/* ── Section: Χειροκίνητη Προσθήκη ── */}
+                                        <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+                                            <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-3 mb-4">
+                                                <div className="p-1.5 bg-slate-200 rounded-lg"><Edit size={13} className="text-slate-600" /></div>
+                                                Χειροκίνητη Προσθήκη
                                             </h4>
                                             <div className="grid grid-cols-[100px_1fr_auto] gap-2 items-end">
                                                 <div>
-                                                    <label className="text-[9px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Suffix</label>
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1.5 block">Suffix</label>
                                                     <input
                                                         type="text"
                                                         value={newVariantSuffix}
@@ -2129,65 +2179,73 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                             setNewVariantSuffix(val);
                                                             setManualSuffixAnalysis(analyzeSuffix(val, editedProduct.gender, editedProduct.plating_type));
                                                         }}
-                                                        className="w-full p-2.5 border border-slate-200 rounded-xl font-mono text-sm font-bold uppercase bg-slate-50 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                                                        className="w-full p-2.5 border border-slate-200 rounded-xl font-mono text-sm font-bold uppercase bg-white focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all"
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="text-[9px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Περιγραφή</label>
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1.5 block">Περιγραφή</label>
                                                     <input
                                                         type="text"
                                                         value={newVariantDesc}
                                                         onChange={e => setNewVariantDesc(e.target.value)}
                                                         placeholder={manualSuffixAnalysis || "Περιγραφή..."}
-                                                        className="w-full p-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                                                        className="w-full p-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all"
                                                     />
                                                 </div>
-                                                <button onClick={handleManualAdd} className="bg-white border-2 border-slate-200 text-slate-600 p-2.5 rounded-xl hover:bg-slate-50 hover:text-slate-900 transition-colors">
+                                                <button onClick={handleManualAdd} className="bg-white border border-slate-200 text-slate-600 p-2.5 rounded-xl hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-all shadow-sm">
                                                     <Plus size={20} />
                                                 </button>
                                             </div>
-                                            {manualSuffixAnalysis && <div className="text-[10px] text-blue-500 mt-2 ml-1 font-medium flex items-center gap-1"><Info size={10} /> Προτεινόμενη: {manualSuffixAnalysis}</div>}
+                                            {manualSuffixAnalysis && <div className="text-[10px] text-blue-500 mt-2.5 ml-1 font-medium flex items-center gap-1"><Info size={10} /> Προτεινόμενη: {manualSuffixAnalysis}</div>}
                                         </div>
 
-                                        {/* EXISTING VARIANTS LIST */}
-                                        <div className="space-y-2">
-                                            <div className="flex justify-between items-end mb-2">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block">Υπάρχουσες Παραλλαγές ({sortedVariantsList.length})</label>
+                                        {/* ── Section: Υπάρχουσες Παραλλαγές ── */}
+                                        <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+                                            <div className="flex justify-between items-center border-b border-slate-200 pb-3 mb-4">
+                                                <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider">
+                                                    <div className="p-1.5 bg-violet-100 rounded-lg"><Layers size={13} className="text-violet-600" /></div>
+                                                    Υπάρχουσες Παραλλαγές <span className="text-slate-400 ml-1">({sortedVariantsList.length})</span>
+                                                </h4>
                                                 <button
                                                     onClick={() => handleApplyAllSuggestions('formula')}
-                                                    className="text-[10px] font-bold bg-emerald-50 text-emerald-600 px-2 py-1 rounded-lg border border-emerald-100 flex items-center gap-1 hover:bg-emerald-100 transition-colors"
+                                                    className="text-[10px] font-bold bg-emerald-50 text-emerald-600 px-2.5 py-1.5 rounded-lg border border-emerald-100 flex items-center gap-1.5 hover:bg-emerald-100 transition-colors shadow-sm"
                                                 >
                                                     <Calculator size={10} /> Αυτόματη Τιμολόγηση
                                                 </button>
                                             </div>
-                                            {sortedVariantsList.map((v, index) => (
-                                                <div key={v.suffix} className="flex items-center gap-3 p-3 bg-white rounded-2xl border border-slate-100 shadow-sm group hover:border-blue-200 transition-colors">
-                                                    <div className="font-mono font-black w-14 text-center text-lg bg-slate-50 rounded-lg py-1 text-slate-700">{v.suffix}</div>
-                                                    <input value={v.description} onChange={e => updateVariant(index, 'description', e.target.value)} className="flex-1 bg-transparent text-sm font-medium outline-none text-slate-700 placeholder-slate-300" />
-                                                    <div className="text-right">
-                                                        <div className="text-[10px] text-slate-400 font-bold uppercase">Κόστος</div>
-                                                        <div className="text-xs font-mono font-bold text-slate-600">{formatCurrency(v.active_price)}</div>
-                                                    </div>
-                                                    {!editedProduct.is_component && (
-                                                        <div className="flex items-center gap-1">
-                                                            <input
-                                                                type="number" step="0.1"
-                                                                value={v.selling_price || ''}
-                                                                onChange={e => updateVariant(index, 'selling_price', parseFloat(e.target.value))}
-                                                                className="w-16 p-1.5 bg-emerald-50 rounded-lg border border-emerald-100 text-sm font-bold text-emerald-800 outline-none text-right focus:ring-2 focus:ring-emerald-200"
-                                                            />
-                                                            <button
-                                                                onClick={() => applyFormulaToSingleVariant(index)}
-                                                                className="p-1.5 text-emerald-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                                                title="Υπολογισμός Τιμής"
-                                                            >
-                                                                <Wand2 size={14} />
-                                                            </button>
+                                            <div className="space-y-2">
+                                                {sortedVariantsList.map((v, index) => (
+                                                    <div key={v.suffix} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100 group hover:border-blue-200 hover:shadow-sm transition-all">
+                                                        <div className="font-mono font-black w-14 text-center text-lg bg-slate-50 rounded-xl py-1 text-slate-700 border border-slate-100">{v.suffix}</div>
+                                                        <input value={v.description} onChange={e => updateVariant(index, 'description', e.target.value)} className="flex-1 bg-transparent text-sm font-medium outline-none text-slate-700 placeholder-slate-300" />
+                                                        <div className="text-right">
+                                                            <div className="text-[10px] text-slate-400 font-bold uppercase">Κόστος</div>
+                                                            <div className="text-xs font-mono font-bold text-slate-600">{formatCurrency(v.active_price)}</div>
                                                         </div>
-                                                    )}
-                                                    <button onClick={() => deleteVariant(index)} className="p-2 text-slate-300 hover:text-red-500 bg-slate-50 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button>
-                                                </div>
-                                            ))}
+                                                        {!editedProduct.is_component && (
+                                                            <div className="flex items-center gap-1">
+                                                                <input
+                                                                    type="number" step="0.1"
+                                                                    value={v.selling_price || ''}
+                                                                    onChange={e => updateVariant(index, 'selling_price', parseFloat(e.target.value))}
+                                                                    className="w-16 p-1.5 bg-emerald-50 rounded-lg border border-emerald-100 text-sm font-bold text-emerald-800 outline-none text-right focus:ring-2 focus:ring-emerald-200 transition-all"
+                                                                />
+                                                                <button
+                                                                    onClick={() => applyFormulaToSingleVariant(index)}
+                                                                    className="p-1.5 text-emerald-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                                                    title="Υπολογισμός Τιμής"
+                                                                >
+                                                                    <Wand2 size={14} />
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                        <button onClick={() => deleteVariant(index)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={16} /></button>
+                                                    </div>
+                                                ))}
+                                                {sortedVariantsList.length === 0 && (
+                                                    <div className="text-center py-6 text-slate-400 text-sm italic">Δεν υπάρχουν παραλλαγές. Χρησιμοποιήστε τα εργαλεία παραπάνω για να προσθέσετε.</div>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 )}
