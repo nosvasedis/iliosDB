@@ -1578,13 +1578,31 @@ export const api = {
                 return getNaturalKey(b.sku, b.variant_suffix, b.size_info, b.cord_color, b.enamel_color);
             };
 
+            // 3.5. For PartiallyDelivered orders, fetch shipped quantities so we don't
+            // re-create batches for items that have already been shipped to the client.
+            let shippedByDemandKey: Record<string, number> = {};
+            if (order.status === OrderStatus.PartiallyDelivered) {
+                const shipmentSnapshot = await getOrderShipmentsSnapshot(order.id);
+                for (const si of shipmentSnapshot.items) {
+                    const key = demandKeyForItem(si);
+                    shippedByDemandKey[key] = (shippedByDemandKey[key] || 0) + si.quantity;
+                }
+            }
+
             // 4. Map Demand (What the order says NOW) — includes SP (ειδική δημιουργία) per line_id
+            //    For PartiallyDelivered orders, demand is reduced by already-shipped quantities.
             const demandMap: Record<string, { qty: number, item: any }> = {};
             order.items.forEach(item => {
                 const key = demandKeyForItem(item);
                 if (!demandMap[key]) demandMap[key] = { qty: 0, item };
                 demandMap[key].qty += item.quantity;
             });
+            // Subtract already-shipped quantities so reconciliation doesn't create phantom batches
+            for (const key of Object.keys(shippedByDemandKey)) {
+                if (demandMap[key]) {
+                    demandMap[key].qty = Math.max(0, demandMap[key].qty - shippedByDemandKey[key]);
+                }
+            }
 
             // 5. Map Supply (What batches currently exist)
             const supplyMap: Record<string, ProductionBatch[]> = {};

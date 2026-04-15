@@ -684,11 +684,25 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             inProductionQtyByKey.set(key, (inProductionQtyByKey.get(key) || 0) + b.quantity);
         });
 
+        // For PartiallyDelivered orders, subtract already-shipped quantities
+        // so we don't re-send items that have already been delivered to the client.
+        const shippedQtyByKey = new Map<string, number>();
+        if (order.status === OrderStatus.PartiallyDelivered) {
+            try {
+                const snapshot = await ordersRepository.getShipmentsForOrder(order.id);
+                for (const si of snapshot.items) {
+                    const key = [si.sku, si.variant_suffix || '', si.size_info || '', si.cord_color || '', si.enamel_color || '', si.line_id || ''].join('|');
+                    shippedQtyByKey.set(key, (shippedQtyByKey.get(key) || 0) + si.quantity);
+                }
+            } catch { /* proceed without shipped data */ }
+        }
+
         const itemsToSend = order.items
             .map(item => {
                 const key = [item.sku, item.variant_suffix || '', item.size_info || '', item.cord_color || '', item.enamel_color || '', item.line_id || ''].join('|');
                 const alreadyInProduction = inProductionQtyByKey.get(key) || 0;
-                const qty = Math.max(0, item.quantity - alreadyInProduction);
+                const alreadyShipped = shippedQtyByKey.get(key) || 0;
+                const qty = Math.max(0, item.quantity - alreadyShipped - alreadyInProduction);
                 return {
                     sku: item.sku,
                     variant: item.variant_suffix || null,
