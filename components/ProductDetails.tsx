@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier, MaterialType } from '../types';
 import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal, getIliosSuggestedPriceForProduct } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants';
-import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag, Edit, Check, ArrowDownRight, RefreshCcw } from 'lucide-react';
+import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag, Edit, Check, ArrowDownRight, RefreshCcw, Scale } from 'lucide-react';
 import { uploadProductImage, R2_PUBLIC_URL, AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient } from '@tanstack/react-query';
@@ -1525,7 +1525,31 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                         <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.category} onChange={e => setEditedProduct({ ...editedProduct, category: e.target.value })} />
                                                     </div>
                                                     <div>
-                                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Βάρος (g)</label>
+                                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center justify-between">
+                                                            <span>Βάρος (g)</span>
+                                                            {editedProduct.molds.length > 0 && (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const total = editedProduct.molds.reduce((sum, pm) => {
+                                                                            const mold = allMolds.find(m => m.code === pm.code);
+                                                                            return sum + ((mold?.weight_g || 0) * pm.quantity);
+                                                                        }, 0);
+                                                                        if (total > 0) {
+                                                                            const rounded = parseFloat(total.toFixed(1));
+                                                                            setEditedProduct(prev => ({ ...prev, weight_g: rounded }));
+                                                                            showToast(`Βάρος ενημερώθηκε: ${rounded}g`, 'success');
+                                                                        } else {
+                                                                            showToast('Δεν βρέθηκαν βάρη στα επιλεγμένα λάστιχα.', 'info');
+                                                                        }
+                                                                    }}
+                                                                    className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 hover:bg-amber-200 flex items-center gap-1 transition-colors"
+                                                                    title="Υπολογισμός από Λάστιχα"
+                                                                    type="button"
+                                                                >
+                                                                    <Scale size={10} /> Auto
+                                                                </button>
+                                                            )}
+                                                        </label>
                                                         <input type="number" step="0.01" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-bold font-mono" value={editedProduct.weight_g} onChange={e => setEditedProduct({ ...editedProduct, weight_g: parseFloat(e.target.value) || 0 })} />
                                                     </div>
                                                     <div>
