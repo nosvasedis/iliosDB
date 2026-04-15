@@ -209,6 +209,18 @@ function AppContent() {
     };
   }, [refreshQueue, showToast]);
 
+  // One-time repair: clean up phantom production batches for PartiallyDelivered orders.
+  // Safe to run multiple times (idempotent), but the localStorage flag ensures it only runs once.
+  useEffect(() => {
+    if (isLocalMode) return;
+    const REPAIR_KEY = 'ILIOS_REPAIR_PARTIAL_DELIVERY_V1';
+    if (localStorage.getItem(REPAIR_KEY)) return;
+    localStorage.setItem(REPAIR_KEY, new Date().toISOString());
+    import('./lib/supabase').then(({ api }) => {
+      api.repairPartiallyDeliveredBatches();
+    });
+  }, []);
+
   const { data: settings, isLoading: loadingSettings } = useSettings();
   const { data: materials, isLoading: loadingMaterials } = useMaterials();
   const { data: molds, isLoading: loadingMolds } = useMolds();

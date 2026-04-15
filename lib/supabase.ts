@@ -1772,6 +1772,32 @@ export const api = {
         }
     },
 
+    // ONE-TIME REPAIR: Fix phantom batches for PartiallyDelivered orders.
+    // After a partial shipment, shipped batches are deleted. If the order was then edited
+    // (e.g. tag change), the old reconcileOrderBatches would re-create batches for shipped
+    // items because it compared full order qty vs remaining batches. This function re-runs
+    // reconciliation (which now correctly subtracts shipped qty) to clean up any surplus.
+    repairPartiallyDeliveredBatches: async (): Promise<number> => {
+        try {
+            const allOrders = await api.getOrders();
+            const partialOrders = allOrders.filter(o => o.status === OrderStatus.PartiallyDelivered);
+            let repairedCount = 0;
+            for (const order of partialOrders) {
+                try {
+                    await api.reconcileOrderBatches(order);
+                    repairedCount++;
+                } catch (e) {
+                    console.warn(`[repair] Failed to reconcile order ${order.id}:`, e);
+                }
+            }
+            console.log(`[repair] Reconciled ${repairedCount} PartiallyDelivered orders.`);
+            return repairedCount;
+        } catch (e) {
+            console.error('[repair] repairPartiallyDeliveredBatches failed:', e);
+            return 0;
+        }
+    },
+
     sendOrderToProduction: async (orderId: string, allProducts: Product[], allMaterials: Material[]): Promise<void> => {
         let order: Order | null = null;
         try {
