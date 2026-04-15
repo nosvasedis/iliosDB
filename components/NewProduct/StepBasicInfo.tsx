@@ -101,7 +101,7 @@ export const StepBasicInfo: React.FC<Props> = ({ formState, suppliers }) => {
                                                 id="stxToggle"
                                                 className="toggle-checkbox absolute block w-4 h-4 rounded-full bg-white border-4 appearance-none cursor-pointer"
                                                 checked={state.isSTX}
-                                                onChange={(e) => setters.setIsSTX(e.target.checked)}
+                                                onChange={(e) => { setters.setIsSTX(e.target.checked); setters.setIsSTXManuallySet(true); }}
                                                 style={{ left: state.isSTX ? '1rem' : '0', borderColor: state.isSTX ? '#4f46e5' : '#ccc' }}
                                             />
                                             <label htmlFor="stxToggle" className={`toggle-label block overflow-hidden h-4 rounded-full cursor-pointer ${state.isSTX ? 'bg-indigo-600' : 'bg-slate-300'}`}></label>
@@ -110,6 +110,18 @@ export const StepBasicInfo: React.FC<Props> = ({ formState, suppliers }) => {
                                 )}
                             </div>
                         </div>
+                        {state.isSTX && (
+                            <div>
+                                <label className="block text-sm font-bold text-indigo-700 mb-1.5">Περιγραφή Εξαρτήματος</label>
+                                <input
+                                    type="text"
+                                    value={state.stxDescription}
+                                    onChange={(e) => setters.setStxDescription(e.target.value)}
+                                    className="w-full p-3 border border-indigo-200 rounded-xl bg-white focus:ring-4 focus:ring-indigo-500/20 outline-none"
+                                    placeholder="π.χ. Μοτίφ πεταλούδα, Κρίκος σύνδεσης..."
+                                />
+                            </div>
+                        )}
                         <div className="grid grid-cols-2 gap-5">
                             <div className="relative">
                                 <label className="block text-sm font-bold text-slate-700 mb-1.5 flex items-center justify-between">

@@ -1519,124 +1519,158 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                         {/* ... (Existing Overview code) ... */}
                                         {editedProduct.production_type === ProductionType.InHouse ? (
                                             <>
-                                                <div className="grid grid-cols-2 gap-6">
-                                                    <div>
-                                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Κατηγορία</label>
-                                                        <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.category} onChange={e => setEditedProduct({ ...editedProduct, category: e.target.value })} />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center justify-between">
-                                                            <span>Βάρος (g)</span>
-                                                            {editedProduct.molds.length > 0 && (
-                                                                <button
-                                                                    onClick={() => {
-                                                                        const total = editedProduct.molds.reduce((sum, pm) => {
-                                                                            const mold = allMolds.find(m => m.code === pm.code);
-                                                                            return sum + ((mold?.weight_g || 0) * pm.quantity);
-                                                                        }, 0);
-                                                                        if (total > 0) {
-                                                                            const rounded = parseFloat(total.toFixed(1));
-                                                                            setEditedProduct(prev => ({ ...prev, weight_g: rounded }));
-                                                                            showToast(`Βάρος ενημερώθηκε: ${rounded}g`, 'success');
-                                                                        } else {
-                                                                            showToast('Δεν βρέθηκαν βάρη στα επιλεγμένα λάστιχα.', 'info');
-                                                                        }
-                                                                    }}
-                                                                    className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 hover:bg-amber-200 flex items-center gap-1 transition-colors"
-                                                                    title="Υπολογισμός από Λάστιχα"
-                                                                    type="button"
-                                                                >
-                                                                    <Scale size={10} /> Auto
-                                                                </button>
-                                                            )}
-                                                        </label>
-                                                        <input type="number" step="0.01" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-bold font-mono" value={editedProduct.weight_g} onChange={e => setEditedProduct({ ...editedProduct, weight_g: parseFloat(e.target.value) || 0 })} />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">{secondaryWeightLabel}</label>
-                                                        <input type="number" step="0.01" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-bold font-mono" value={editedProduct.secondary_weight_g} onChange={e => setEditedProduct({ ...editedProduct, secondary_weight_g: parseFloat(e.target.value) || 0 })} />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Φύλο</label>
-                                                        <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.gender} onChange={e => setEditedProduct({ ...editedProduct, gender: e.target.value as Gender })}>
-                                                            <option value={Gender.Women}>Γυναικείο</option>
-                                                            <option value={Gender.Men}>Ανδρικό</option>
-                                                            <option value={Gender.Unisex}>Unisex</option>
-                                                        </select>
-                                                    </div>
-                                                    {editedProduct.is_component && (
+                                                {/* ── Section: Βασικά Στοιχεία ── */}
+                                                <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+                                                    <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-3 mb-4">
+                                                        <div className="p-1.5 bg-blue-100 rounded-lg"><Info size={13} className="text-blue-600" /></div>
+                                                        Βασικά Στοιχεία Προϊόντος
+                                                    </h4>
+                                                    <div className="grid grid-cols-2 gap-x-5 gap-y-4">
                                                         <div>
-                                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Περιγραφή STX</label>
-                                                            <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.description || ''} onChange={e => setEditedProduct({ ...editedProduct, description: e.target.value })} placeholder="π.χ. Μικρή Πεταλούδα" />
+                                                            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
+                                                                <Tag size={11} className="text-slate-400" /> Κατηγορία
+                                                            </label>
+                                                            <input className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-medium text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all" value={editedProduct.category} onChange={e => setEditedProduct({ ...editedProduct, category: e.target.value })} />
                                                         </div>
-                                                    )}
-                                                    {hasVariants ? (
                                                         <div>
-                                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Διαθέσιμες Επιμεταλλώσεις</label>
-                                                            <div className="w-full p-3 bg-slate-100 text-slate-700 font-medium border border-slate-200 rounded-xl mt-1">
-                                                                {displayPlating}
-                                                            </div>
+                                                            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center justify-between mb-1.5">
+                                                                <span className="flex items-center gap-1.5"><Weight size={11} className="text-slate-400" /> Βάρος (g)</span>
+                                                                {editedProduct.molds.length > 0 && (
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const total = editedProduct.molds.reduce((sum, pm) => {
+                                                                                const mold = allMolds.find(m => m.code === pm.code);
+                                                                                return sum + ((mold?.weight_g || 0) * pm.quantity);
+                                                                            }, 0);
+                                                                            if (total > 0) {
+                                                                                const rounded = parseFloat(total.toFixed(1));
+                                                                                setEditedProduct(prev => ({ ...prev, weight_g: rounded }));
+                                                                                showToast(`Βάρος ενημερώθηκε: ${rounded}g`, 'success');
+                                                                            } else {
+                                                                                showToast('Δεν βρέθηκαν βάρη στα επιλεγμένα λάστιχα.', 'info');
+                                                                            }
+                                                                        }}
+                                                                        className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded-md border border-amber-200 hover:bg-amber-100 flex items-center gap-1 transition-colors font-bold"
+                                                                        title="Υπολογισμός από Λάστιχα"
+                                                                        type="button"
+                                                                    >
+                                                                        <Scale size={10} /> Auto
+                                                                    </button>
+                                                                )}
+                                                            </label>
+                                                            <input type="number" step="0.01" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold font-mono text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all" value={editedProduct.weight_g} onChange={e => setEditedProduct({ ...editedProduct, weight_g: parseFloat(e.target.value) || 0 })} />
                                                         </div>
-                                                    ) : (
                                                         <div>
-                                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">Βασική Επιμετάλλωση</label>
-                                                            <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mt-1 font-medium" value={editedProduct.plating_type} onChange={e => setEditedProduct({ ...editedProduct, plating_type: e.target.value as PlatingType })}>
-                                                                <option value={PlatingType.None}>Λουστρέ</option>
-                                                                <option value={PlatingType.GoldPlated}>Επίχρυσο</option>
-                                                                <option value={PlatingType.TwoTone}>Δίχρωμο</option>
-                                                                <option value={PlatingType.Platinum}>Πλατίνα</option>
+                                                            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
+                                                                <Scale size={11} className="text-slate-400" /> {secondaryWeightLabel}
+                                                            </label>
+                                                            <input type="number" step="0.01" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold font-mono text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all" value={editedProduct.secondary_weight_g} onChange={e => setEditedProduct({ ...editedProduct, secondary_weight_g: parseFloat(e.target.value) || 0 })} />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
+                                                                <Users size={11} className="text-slate-400" /> Φύλο
+                                                            </label>
+                                                            <select className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-medium text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all" value={editedProduct.gender} onChange={e => setEditedProduct({ ...editedProduct, gender: e.target.value as Gender })}>
+                                                                <option value={Gender.Women}>Γυναικείο</option>
+                                                                <option value={Gender.Men}>Ανδρικό</option>
+                                                                <option value={Gender.Unisex}>Unisex</option>
                                                             </select>
                                                         </div>
-                                                    )}
+                                                        {editedProduct.is_component && (
+                                                            <div>
+                                                                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
+                                                                    <Edit3 size={11} className="text-slate-400" /> Περιγραφή STX
+                                                                </label>
+                                                                <input className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-medium text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all" value={editedProduct.description || ''} onChange={e => setEditedProduct({ ...editedProduct, description: e.target.value })} placeholder="π.χ. Μικρή Πεταλούδα" />
+                                                            </div>
+                                                        )}
+                                                        {hasVariants ? (
+                                                            <div>
+                                                                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
+                                                                    <Palette size={11} className="text-slate-400" /> Διαθέσιμες Επιμεταλλώσεις
+                                                                </label>
+                                                                <div className="w-full p-2.5 bg-white text-slate-600 font-medium border border-slate-200 rounded-xl">
+                                                                    {displayPlating}
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div>
+                                                                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
+                                                                    <Palette size={11} className="text-slate-400" /> Βασική Επιμετάλλωση
+                                                                </label>
+                                                                <select className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-medium text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all" value={editedProduct.plating_type} onChange={e => setEditedProduct({ ...editedProduct, plating_type: e.target.value as PlatingType })}>
+                                                                    <option value={PlatingType.None}>Λουστρέ</option>
+                                                                    <option value={PlatingType.GoldPlated}>Επίχρυσο</option>
+                                                                    <option value={PlatingType.TwoTone}>Δίχρωμο</option>
+                                                                    <option value={PlatingType.Platinum}>Πλατίνα</option>
+                                                                </select>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
 
+                                                {/* ── Section: Τιμές Πώλησης ανά Φινίρισμα (Color-Coded) ── */}
                                                 {!editedProduct.is_component && (
-                                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 transition-all">
-                                                        <div className="flex justify-between items-center mb-3">
-                                                            <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><Coins size={14} /> Τιμές Πώλησης ανά Φινίρισμα</label>
-                                                            <button onClick={() => setShowRepriceTool(!showRepriceTool)} className={`text-slate-400 hover:text-emerald-600 transition-colors ${showRepriceTool ? 'text-emerald-500 bg-emerald-100 p-1 rounded' : ''}`}><Calculator size={16} /></button>
+                                                    <div className="bg-gradient-to-br from-emerald-50/40 to-slate-50/60 p-5 rounded-2xl border border-emerald-200/60 shadow-sm">
+                                                        <div className="flex justify-between items-center border-b border-emerald-200/50 pb-3 mb-4">
+                                                            <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider">
+                                                                <div className="p-1.5 bg-emerald-100 rounded-lg"><Coins size={13} className="text-emerald-600" /></div>
+                                                                Τιμές Πώλησης ανά Φινίρισμα
+                                                            </h4>
+                                                            <button onClick={() => setShowRepriceTool(!showRepriceTool)} className={`p-2 rounded-xl transition-all ${showRepriceTool ? 'bg-emerald-100 text-emerald-600 shadow-sm ring-1 ring-emerald-200' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}`}>
+                                                                <Calculator size={16} />
+                                                            </button>
                                                         </div>
 
                                                         <div className="grid grid-cols-2 gap-3">
                                                             {/* CASE 1: NO VARIANTS (Simple Product) */}
                                                             {!hasVariants && (
-                                                                <div>
-                                                                    <label className="text-[10px] font-bold text-emerald-600 uppercase mb-1 block">
-                                                                        Λουστρέ
+                                                                <div className="bg-emerald-50/80 p-3.5 rounded-xl border border-emerald-200 transition-all hover:shadow-md group">
+                                                                    <label className="text-[10px] font-bold text-emerald-700 uppercase mb-2 flex items-center gap-1.5">
+                                                                        <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-300" /> Λουστρέ
                                                                     </label>
                                                                     <div className="relative">
                                                                         <input
                                                                             type="number" step="0.01"
-                                                                            className="w-full p-2 bg-emerald-50 border border-emerald-200 rounded-lg font-bold font-mono text-emerald-900 focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm"
+                                                                            className="w-full p-2.5 bg-white border border-emerald-200 rounded-lg font-bold font-mono text-emerald-900 focus:ring-2 focus:ring-emerald-400/30 outline-none text-sm shadow-sm"
                                                                             value={editedProduct.selling_price}
                                                                             onChange={e => setEditedProduct({ ...editedProduct, selling_price: parseFloat(e.target.value) || 0 })}
                                                                         />
-                                                                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-emerald-400 font-medium">€</span>
+                                                                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-emerald-400 font-semibold">€</span>
                                                                     </div>
                                                                     {showRepriceTool && (
-                                                                        <div className="text-[10px] font-bold text-slate-400 mt-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
+                                                                        <div className="text-[10px] font-bold text-emerald-500/70 mt-1.5 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
                                                                             <ArrowUpRight size={10} className="text-blue-400" /> {getSuggestedPriceForFinishGroup('', 'formula', targetMargin).toFixed(2)}€
                                                                         </div>
                                                                     )}
                                                                 </div>
                                                             )}
 
-                                                            {/* CASE 2: VARIANTS EXIST (Grouped by Finish) */}
+                                                            {/* CASE 2: VARIANTS EXIST (Grouped by Finish, Color-Coded) */}
                                                             {hasVariants && sortedFinishCodes.map(code => {
                                                                 const group = finishGroups[code];
                                                                 const price = group[0]?.selling_price || 0;
                                                                 const label = FINISH_CODES[code] || (code === '' ? 'Λουστρέ' : code);
                                                                 const suggested = getSuggestedPriceForFinishGroup(code, 'formula', targetMargin);
 
+                                                                const finishColors: Record<string, { bg: string, border: string, label: string, input: string, euro: string, dot: string, dotShadow: string }> = {
+                                                                    '':  { bg: 'bg-slate-50/80',  border: 'border-slate-200',  label: 'text-slate-600',  input: 'bg-white border-slate-200 text-slate-800 focus:ring-slate-400/20',  euro: 'text-slate-400',  dot: 'bg-gradient-to-br from-slate-300 to-slate-500', dotShadow: 'shadow-slate-300' },
+                                                                    'P': { bg: 'bg-stone-50/80',  border: 'border-stone-200',  label: 'text-stone-700',  input: 'bg-white border-stone-200 text-stone-800 focus:ring-stone-400/20',  euro: 'text-stone-400',  dot: 'bg-gradient-to-br from-stone-400 to-stone-600', dotShadow: 'shadow-stone-300' },
+                                                                    'X': { bg: 'bg-amber-50/80',  border: 'border-amber-200',  label: 'text-amber-700',  input: 'bg-white border-amber-200 text-amber-900 focus:ring-amber-400/20',  euro: 'text-amber-400',  dot: 'bg-gradient-to-br from-amber-400 to-yellow-600', dotShadow: 'shadow-amber-300' },
+                                                                    'D': { bg: 'bg-orange-50/80', border: 'border-orange-200', label: 'text-orange-700', input: 'bg-white border-orange-200 text-orange-900 focus:ring-orange-400/20', euro: 'text-orange-400', dot: 'bg-gradient-to-br from-orange-400 to-rose-500', dotShadow: 'shadow-orange-300' },
+                                                                    'H': { bg: 'bg-cyan-50/80',   border: 'border-cyan-200',   label: 'text-cyan-700',   input: 'bg-white border-cyan-200 text-cyan-900 focus:ring-cyan-400/20',   euro: 'text-cyan-400',   dot: 'bg-gradient-to-br from-cyan-300 to-sky-500', dotShadow: 'shadow-cyan-300' },
+                                                                };
+                                                                const fc = finishColors[code] || finishColors[''];
+
                                                                 return (
-                                                                    <div key={code}>
-                                                                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">
-                                                                            {label}
+                                                                    <div key={code} className={`${fc.bg} p-3.5 rounded-xl border ${fc.border} transition-all hover:shadow-md group`}>
+                                                                        <label className={`text-[10px] font-bold ${fc.label} uppercase mb-2 flex items-center gap-1.5`}>
+                                                                            <span className={`w-2.5 h-2.5 rounded-full ${fc.dot} shadow-sm ${fc.dotShadow}`} /> {label}
                                                                         </label>
                                                                         <div className="relative">
                                                                             <input
                                                                                 type="number" step="0.01"
-                                                                                className="w-full p-2 bg-white border border-slate-200 rounded-lg font-bold font-mono text-slate-700 focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm"
+                                                                                className={`w-full p-2.5 ${fc.input} rounded-lg font-bold font-mono focus:ring-2 outline-none text-sm shadow-sm`}
                                                                                 value={price}
                                                                                 onChange={e => {
                                                                                     const val = parseFloat(e.target.value) || 0;
@@ -1649,10 +1683,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                                     setEditedProduct({ ...editedProduct, variants: newVars });
                                                                                 }}
                                                                             />
-                                                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">€</span>
+                                                                            <span className={`absolute right-2.5 top-1/2 -translate-y-1/2 text-xs ${fc.euro} font-semibold`}>€</span>
                                                                         </div>
                                                                         {showRepriceTool && (
-                                                                            <div className="text-[10px] font-bold text-slate-400 mt-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
+                                                                            <div className={`text-[10px] font-bold ${fc.label} opacity-60 mt-1.5 flex items-center gap-1 animate-in fade-in slide-in-from-top-1`}>
                                                                                 <ArrowUpRight size={10} className="text-blue-400" /> {suggested.toFixed(2)}€
                                                                             </div>
                                                                         )}
@@ -1661,31 +1695,32 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                             })}
                                                         </div>
 
+                                                        {/* Bulk Re-pricing Tool */}
                                                         {showRepriceTool && (
-                                                            <div className="mt-4 pt-4 border-t border-slate-200 animate-in slide-in-from-top-2">
-                                                                <h4 className="font-bold text-slate-700 text-xs mb-3 flex items-center gap-2 bg-blue-50 w-fit px-2 py-1 rounded text-blue-700 border border-blue-100">
+                                                            <div className="mt-4 pt-4 border-t border-emerald-200/50 animate-in slide-in-from-top-2">
+                                                                <h4 className="font-bold text-xs mb-3 flex items-center gap-2 bg-blue-50 w-fit px-2.5 py-1.5 rounded-lg text-blue-700 border border-blue-100">
                                                                     <Wand2 size={12} /> Μαζική Ανατιμολόγηση
                                                                 </h4>
 
                                                                 <div className="flex items-center gap-4 mb-4">
                                                                     <div className="flex-1">
-                                                                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Στόχος Margin</label>
+                                                                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">Στόχος Margin</label>
                                                                         <div className="flex items-center gap-2">
                                                                             <input
                                                                                 type="range" min="10" max="90" step="5"
                                                                                 value={targetMargin}
                                                                                 onChange={e => setTargetMargin(parseInt(e.target.value))}
-                                                                                className="w-full accent-blue-500 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+                                                                                className="w-full accent-emerald-500 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer"
                                                                             />
-                                                                            <span className="text-xs font-bold text-slate-700 w-8">{targetMargin}%</span>
+                                                                            <span className="text-xs font-bold text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-sm w-14 text-center">{targetMargin}%</span>
                                                                         </div>
                                                                     </div>
-                                                                    <button onClick={() => handleApplyAllSuggestions('margin')} className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                                                                    <button onClick={() => handleApplyAllSuggestions('margin')} className="text-xs bg-white hover:bg-slate-50 text-slate-600 font-bold px-3 py-2 rounded-xl transition-colors whitespace-nowrap border border-slate-200 shadow-sm">
                                                                         Εφαρμογή Margin
                                                                     </button>
                                                                 </div>
 
-                                                                <button onClick={() => handleApplyAllSuggestions('formula')} className="w-full bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100 flex items-center justify-center gap-2">
+                                                                <button onClick={() => handleApplyAllSuggestions('formula')} className="w-full bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200/50 flex items-center justify-center gap-2 active:scale-[0.98]">
                                                                     <Calculator size={16} /> Εφαρμογή Τύπου Ilios (Smart)
                                                                 </button>
                                                                 <p className="text-[9px] text-slate-400 mt-2 text-center">Υπολογίζει ξεχωριστά για κάθε παραλλαγή βάσει υλικών & βάρους.</p>
@@ -1694,22 +1729,27 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                     </div>
                                                 )}
 
-                                                <div>
-                                                    <h4 className="font-bold text-slate-700 mb-3 flex items-center justify-between">
-                                                        <span className="flex items-center gap-2"><MapPin size={18} className="text-amber-500" /> Λάστιχα</span>
-                                                        <button onClick={() => setIsAddingMold(prev => !prev)} className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold px-3 py-1.5 rounded-lg transition-colors">
-                                                            {isAddingMold ? 'Ακύρωση' : 'Προσθήκη'}
+                                                {/* ── Section: Λάστιχα ── */}
+                                                <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+                                                    <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
+                                                        <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider">
+                                                            <div className="p-1.5 bg-amber-100 rounded-lg"><MapPin size={13} className="text-amber-600" /></div>
+                                                            Λάστιχα
+                                                        </h4>
+                                                        <button onClick={() => setIsAddingMold(prev => !prev)} className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${isAddingMold ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'}`}>
+                                                            {isAddingMold ? 'Ακύρωση' : '+ Προσθήκη'}
                                                         </button>
-                                                    </h4>
-                                                    <div className="flex flex-wrap gap-2 mb-4">
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-2 min-h-[36px]">
                                                         {editedProduct.molds.map(m => {
                                                             const moldDetails = allMolds.find(mold => mold.code === m.code);
                                                             const tooltipText = moldDetails ? `${moldDetails.description}${moldDetails.location ? ` (${moldDetails.location})` : ''}` : '';
                                                             return (
-                                                                <div key={m.code} title={tooltipText} className="bg-amber-50 border border-amber-200 text-amber-800 pl-3 pr-1 py-1 rounded-lg text-sm font-bold flex items-center gap-2">
+                                                                <div key={m.code} title={tooltipText} className="bg-amber-50 border border-amber-200 text-amber-800 pl-3 pr-1.5 py-1.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-shadow">
+                                                                    <MapPin size={12} className="text-amber-400 shrink-0" />
                                                                     <span>{m.code}</span>
-                                                                    <div className="flex items-center bg-amber-100/50 rounded border border-amber-200">
-                                                                        <button type="button" onClick={() => updateMoldQuantity(m.code, -1)} className={`p-1 hover:bg-amber-100 text-amber-600 rounded-l ${m.quantity <= 1 ? 'opacity-30' : ''}`} disabled={m.quantity <= 1}>
+                                                                    <div className="flex items-center bg-amber-100/60 rounded-lg border border-amber-200/80">
+                                                                        <button type="button" onClick={() => updateMoldQuantity(m.code, -1)} className={`p-1 hover:bg-amber-200/60 text-amber-600 rounded-l-lg transition-colors ${m.quantity <= 1 ? 'opacity-30' : ''}`} disabled={m.quantity <= 1}>
                                                                             <Minus size={12} />
                                                                         </button>
                                                                         <input
@@ -1725,37 +1765,37 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                             }}
                                                                             className="w-8 text-center bg-transparent outline-none text-xs font-bold text-amber-900"
                                                                         />
-                                                                        <button type="button" onClick={() => updateMoldQuantity(m.code, 1)} className="p-1 hover:bg-amber-100 text-amber-600 rounded-r">
+                                                                        <button type="button" onClick={() => updateMoldQuantity(m.code, 1)} className="p-1 hover:bg-amber-200/60 text-amber-600 rounded-r-lg transition-colors">
                                                                             <Plus size={12} />
                                                                         </button>
                                                                     </div>
-                                                                    <button onClick={() => removeMold(m.code)} className="p-1 text-slate-300 hover:text-red-500 ml-1 hover:bg-red-50 rounded transition-colors"><X size={14} /></button>
+                                                                    <button onClick={() => removeMold(m.code)} className="p-1 text-amber-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><X size={14} /></button>
                                                                 </div>
                                                             );
                                                         })}
-                                                        {editedProduct.molds.length === 0 && <span className="text-slate-400 text-sm italic">Κανένα λάστιχο.</span>}
+                                                        {editedProduct.molds.length === 0 && <span className="text-slate-400 text-sm italic py-1.5">Κανένα λάστιχο.</span>}
                                                     </div>
                                                     {isAddingMold && (
-                                                        <div className="border border-slate-200 rounded-xl p-2 bg-slate-50 space-y-2 animate-in fade-in">
+                                                        <div className="border border-slate-200 rounded-xl p-3 bg-white/80 space-y-2 animate-in fade-in mt-3">
                                                             <div className="relative">
                                                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                                                                 <input
                                                                     type="text"
-                                                                    placeholder="Αναζήτηση..."
+                                                                    placeholder="Αναζήτηση λάστιχου..."
                                                                     value={moldSearch}
                                                                     onChange={e => setMoldSearch(e.target.value)}
-                                                                    className="w-full pl-9 p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-amber-500"
+                                                                    className="w-full pl-9 p-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-500/10 transition-all"
                                                                     autoFocus
                                                                 />
                                                             </div>
-                                                            <div className="max-h-40 overflow-y-auto space-y-1">
+                                                            <div className="max-h-40 overflow-y-auto space-y-0.5">
                                                                 {availableMolds.map(m => (
-                                                                    <button key={m.code} onClick={() => addMold(m.code)} className="w-full text-left p-2 hover:bg-white rounded-lg flex justify-between items-center group text-sm">
-                                                                        <span className="font-bold text-slate-700">{m.code}</span>
-                                                                        <span className="text-xs text-slate-400 group-hover:text-amber-600">{m.description}</span>
+                                                                    <button key={m.code} onClick={() => addMold(m.code)} className="w-full text-left p-2.5 hover:bg-amber-50 rounded-xl flex justify-between items-center group text-sm transition-colors">
+                                                                        <span className="font-bold text-slate-700 group-hover:text-amber-800">{m.code}</span>
+                                                                        <span className="text-xs text-slate-400 group-hover:text-amber-600 transition-colors">{m.description}</span>
                                                                     </button>
                                                                 ))}
-                                                                {availableMolds.length === 0 && <div className="text-center text-xs text-slate-400 p-2">Δεν βρέθηκαν διαθέσιμα λάστιχα.</div>}
+                                                                {availableMolds.length === 0 && <div className="text-center text-xs text-slate-400 p-3">Δεν βρέθηκαν διαθέσιμα λάστιχα.</div>}
                                                             </div>
                                                         </div>
                                                     )}

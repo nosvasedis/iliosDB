@@ -84,6 +84,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
     const [isCreatingMold, setIsCreatingMold] = useState(false);
 
     const [isSTX, setIsSTX] = useState(false);
+    const [isSTXManuallySet, setIsSTXManuallySet] = useState(false);
     const [masterEstimatedCost, setMasterEstimatedCost] = useState(0);
     const [costBreakdown, setCostBreakdown] = useState<any>(null);
 
@@ -134,7 +135,12 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             const meta = parseSku(skuTrimmed);
             if (meta.category !== 'Γενικό' && !isCategoryManuallySet) setCategory(meta.category);
             if (meta.gender && !isGenderManuallySet) setGender(meta.gender as Gender);
-            setIsSTX(skuTrimmed.startsWith('STX'));
+            if (skuTrimmed.startsWith('STX')) {
+                setIsSTX(true);
+                setIsSTXManuallySet(false);
+            } else if (!isSTXManuallySet) {
+                setIsSTX(false);
+            }
 
             const analysis = analyzeSku(skuTrimmed, gender as Gender);
 
@@ -158,7 +164,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
                 setBridge(analysis.detectedBridge || '');
             }
         } else {
-            setCategory(''); setGender(''); setIsSTX(false);
+            setCategory(''); setGender(''); setIsSTX(false); setIsSTXManuallySet(false);
             setDetectedMasterSku(''); setDetectedSuffix(''); setDetectedVariantDesc('');
             setIsCategoryManuallySet(false); setIsGenderManuallySet(false); setBridge('');
         }
@@ -502,7 +508,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             setVariants(finalVariants);
             setSellingPrice(finalSellingPrice);
             if (onCancel) onCancel();
-            else { setSku(''); setWeight(0); setRecipe([]); setSellingPrice(0); setSelectedMolds([]); setSelectedImage(null); setImagePreview(''); setVariants([]); setCurrentStep(1); setSecondaryWeight(0); setSupplierCost(0); setSupplierId(''); setSupplierSku(''); setStxDescription(''); setSelectedFinishes(['']); setBridge(''); setFinishPrices({}); setIsAssembly(false); setUseIliosFormula(true); }
+            else { setSku(''); setWeight(0); setRecipe([]); setSellingPrice(0); setSelectedMolds([]); setSelectedImage(null); setImagePreview(''); setVariants([]); setCurrentStep(1); setSecondaryWeight(0); setSupplierCost(0); setSupplierId(''); setSupplierSku(''); setStxDescription(''); setSelectedFinishes(['']); setBridge(''); setFinishPrices({}); setIsAssembly(false); setUseIliosFormula(true); setIsSTXManuallySet(false); }
         } catch (error: any) { console.error("Save error:", error); showToast(`Σφάλμα: ${error?.message || error}`, "error"); } finally { setIsUploading(false); }
     };
 
@@ -616,7 +622,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             setImagePreview, setSelectedImage,
             setSupplierId, setSupplierSku, setSupplierCost,
             setWeight, setSecondaryWeight, setPlating, setFinishPrices,
-            setSellingPrice, setLabor, setStxDescription, setIsSTX,
+            setSellingPrice, setLabor, setStxDescription, setIsSTX, setIsSTXManuallySet,
             setUseIliosFormula,
             setNewVariantSuffix, setNewVariantDesc, setNewVariantPrice, setSmartAddStoneSuffix,
             setMoldSearch, setNewMoldCode, setNewMoldLoc, setNewMoldDesc,
