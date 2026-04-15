@@ -210,26 +210,28 @@ function AppContent() {
   }, [refreshQueue, showToast]);
 
   // One-time repair: clean up phantom production batches for PartiallyDelivered orders.
-  // Runs once per device. Flag set AFTER successful completion to survive interrupted reloads.
+  // Runs once per device. Delayed 5s so it doesn't compete with initial app data loading.
+  // Flag set AFTER successful completion so interrupted/failed runs retry on next load.
   useEffect(() => {
     if (isLocalMode) return;
     const REPAIR_KEY = 'ILIOS_REPAIR_PARTIAL_DELIVERY_V1';
     if (localStorage.getItem(REPAIR_KEY)) return;
-    (async () => {
+    const timer = setTimeout(async () => {
       try {
+        console.log('[repair] Starting one-time PartiallyDelivered batch cleanup...');
         const { api: supaApi } = await import('./lib/supabase');
         const repaired = await supaApi.repairPartiallyDeliveredBatches();
-        // Set flag only AFTER successful completion so interrupted runs retry on next load
         localStorage.setItem(REPAIR_KEY, new Date().toISOString());
         if (repaired > 0) {
-          // Invalidate caches so the UI reflects the cleanup immediately
           await queryClient.invalidateQueries({ queryKey: ['production_batches'] });
           await queryClient.invalidateQueries({ queryKey: ['orders'] });
+          console.log('[repair] Cache invalidated. UI should now reflect cleanup.');
         }
       } catch (e) {
-        console.error('[repair] One-time PartiallyDelivered repair failed, will retry on next load:', e);
+        console.error('[repair] One-time repair failed, will retry on next load:', e);
       }
-    })();
+    }, 5000); // 5s delay to let initial app queries finish first
+    return () => clearTimeout(timer);
   }, [queryClient]);
 
   const { data: settings, isLoading: loadingSettings } = useSettings();
