@@ -182,6 +182,8 @@ export function getAnalyticalCostingItems(
     return sortedVariantsList.map((variant) => ({
       key: variant.suffix,
       title: `${productSku}${variant.suffix} (${variant.description})`,
+      suffix: variant.suffix,
+      description: variant.description,
       costResult: estimateVariantCost(editedProduct, variant.suffix, settings, allMaterials, allProducts),
     }));
   }
@@ -189,6 +191,8 @@ export function getAnalyticalCostingItems(
   return [{
     key: 'master-lustre',
     title: `${productSku} (Λουστρέ)`,
+    suffix: '',
+    description: 'Λουστρέ',
     costResult: currentCostCalc,
   }];
 }

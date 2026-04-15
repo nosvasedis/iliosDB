@@ -1,4 +1,4 @@
-import { Order, OrderShipment, OrderShipmentItem, Product, ProductVariant, ProductionBatch, ProductionStage } from '../../types';
+import { Order, OrderShipment, OrderShipmentItem, Product, ProductVariant, ProductionBatch, ProductionStage, PriceChangeRecord } from '../../types';
 import { ItemIdentityLike, buildItemIdentityKey } from '../../utils/itemIdentity';
 import { getRemainingOrderItems } from '../../utils/shipmentUtils';
 
@@ -122,4 +122,82 @@ export function buildSyntheticAggregatedBatches(order: Order): ProductionBatch[]
     requires_setting: false,
     size_info: item.size_info,
   }));
+}
+
+/**
+ * Describes an order revision that can be printed.
+ * revisionNumber=1 is the original order (before any price sync).
+ * revisionNumber=N+1 (where N = price_change_log.length) is the current version.
+ */
+export interface OrderRevision {
+  revisionNumber: number;
+  label: string;
+  timestamp: string | null;
+  totalDiff: number | null;
+  order: Order;
+}
+
+/**
+ * Builds all printable revisions of an order from its price_change_log.
+ * Returns an array from oldest (revision 1 = original) to newest (current).
+ * The log is stored newest-first internally.
+ */
+export function buildOrderRevisions(order: Order): OrderRevision[] {
+  const log = order.price_change_log;
+  if (!log || log.length === 0) return [];
+
+  // log[0] = most recent, log[N-1] = oldest
+  const totalRevisions = log.length + 1;
+  const revisions: OrderRevision[] = [];
+
+  for (let revNum = 1; revNum <= totalRevisions; revNum++) {
+    // For revision K, revert changes from log[0] through log[totalRevisions - revNum - 1]
+    // i.e., revert the (totalRevisions - revNum) most recent changes
+    const numToRevert = totalRevisions - revNum;
+
+    // Clone items
+    const revertedItems = order.items.map(item => ({ ...item }));
+
+    // Apply reverts from newest to oldest so older overwrites correctly
+    for (let r = 0; r < numToRevert; r++) {
+      const record = log[r];
+      for (const delta of record.itemChanges) {
+        const idx = revertedItems.findIndex(
+          it => it.sku === delta.sku && (it.variant_suffix || undefined) === (delta.variantSuffix || undefined)
+        );
+        if (idx !== -1) {
+          revertedItems[idx].price_at_order = delta.oldPrice;
+        }
+      }
+    }
+
+    // Recalculate totals
+    const subtotal = revertedItems.reduce((acc, it) => acc + it.price_at_order * it.quantity, 0);
+    const discountFactor = 1 - ((order.discount_percent || 0) / 100);
+    const net = subtotal * discountFactor;
+    const vatRate = order.vat_rate !== undefined ? order.vat_rate : 0.24;
+    const grandTotal = net * (1 + vatRate);
+
+    const isOriginal = revNum === 1;
+    const isCurrent = revNum === totalRevisions;
+    const changeRecord = isOriginal ? null : log[totalRevisions - revNum]; // The change that produced this revision
+
+    revisions.push({
+      revisionNumber: revNum,
+      label: isOriginal
+        ? 'Αρχική Έκδοση'
+        : isCurrent
+          ? `Τρέχουσα Έκδοση (/${revNum})`
+          : `Αναθεώρηση /${revNum}`,
+      timestamp: changeRecord?.timestamp ?? order.created_at,
+      totalDiff: isOriginal ? null : (grandTotal - revisions[revisions.length - 1].order.total_price),
+      order: {
+        ...order,
+        items: revertedItems,
+        total_price: grandTotal,
+      },
+    });
+  }
+
+  return revisions;
 }

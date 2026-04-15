@@ -3,7 +3,7 @@ import React, { useState, useMemo, useDeferredValue } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { Order, OrderShipment, OrderShipmentItem, OrderStatus, Product, ProductVariant, ProductionBatch, ProductionStage } from '../../types';
-import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings, ShoppingBag, Image as ImageIcon, PackageCheck, Globe, Flame, Gem, Hammer, CheckCircle2, SlidersHorizontal, ShoppingCart, BookOpen, FileText, BarChart3 } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings, ShoppingBag, Image as ImageIcon, PackageCheck, Globe, Flame, Gem, Hammer, CheckCircle2, SlidersHorizontal, ShoppingCart, BookOpen, FileText, BarChart3, History } from 'lucide-react';
 import MobileScreenHeader, { MOBILE_HEADER_SURFACE } from './MobileScreenHeader';
 import type { LucideIcon } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
@@ -24,7 +24,7 @@ import { OrdersFilterPanel, OrderFilters, DEFAULT_FILTERS, countActiveFilters } 
 import { useTagColorOverrides } from '../../hooks/api/useTagColorOverrides';
 import { invalidateOrdersAndBatches } from '../../lib/queryInvalidation';
 import { PRODUCTION_STAGE_COLORS, getProductionStageLabel } from '../../utils/deliveryLabels';
-import { buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildSyntheticAggregatedBatches } from '../../features/orders';
+import { buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildSyntheticAggregatedBatches, buildOrderRevisions } from '../../features/orders';
 import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 import { StickyNote } from 'lucide-react';
 
@@ -114,7 +114,14 @@ const LegacyOrderPrintSheet: React.FC<{
         };
     }, [order, shipmentsQuery.data]);
 
+    const orderRevisions = useMemo(() => buildOrderRevisions(order), [order]);
+    const [showVersionSelector, setShowVersionSelector] = useState(false);
+
     const handlePrintOrder = () => {
+        if (orderRevisions.length > 0) {
+            setShowVersionSelector(true);
+            return;
+        }
         onPrintOrder?.(order);
         onClose();
     };
@@ -136,6 +143,7 @@ const LegacyOrderPrintSheet: React.FC<{
     };
 
     return (
+        <>
         <div className="fixed inset-0 z-[170] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end" onClick={onClose}>
             <div
                 className="bg-white rounded-t-[2rem] px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-full duration-300 max-h-[85vh] overflow-y-auto"
@@ -226,6 +234,75 @@ const LegacyOrderPrintSheet: React.FC<{
                 </div>
             </div>
         </div>
+        {showVersionSelector && orderRevisions.length > 0 && (
+            <div className="fixed inset-0 z-[175] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end" onClick={() => setShowVersionSelector(false)}>
+                <div
+                    className="bg-white rounded-t-[2rem] px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-full duration-300 max-h-[85vh] overflow-y-auto"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="flex items-start justify-between gap-4 mb-4">
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <History size={18} className="text-indigo-600" />
+                                <h3 className="text-lg font-black text-slate-900">{'\u0395\u03BA\u03B4\u03CC\u03C3\u03B5\u03B9\u03C2 \u03A0\u03B1\u03C1\u03B1\u03C3\u03C4\u03B1\u03C4\u03B9\u03BA\u03BF\u03CD'}</h3>
+                            </div>
+                            <p className="mt-1 text-xs font-medium text-slate-500">
+                                {orderRevisions.length} {'\u03B5\u03BA\u03B4\u03CC\u03C3\u03B5\u03B9\u03C2 \u03BB\u03CC\u03B3\u03C9 \u03B1\u03BB\u03BB\u03B1\u03B3\u03CE\u03BD \u03C4\u03B9\u03BC\u03CE\u03BD'}
+                            </p>
+                        </div>
+                        <button onClick={() => setShowVersionSelector(false)} className="rounded-full bg-slate-100 p-2 text-slate-500">
+                            <X size={18} />
+                        </button>
+                    </div>
+                    <div className="space-y-2.5">
+                        {orderRevisions.map((rev) => {
+                            const isCurrent = rev.revisionNumber === orderRevisions.length;
+                            const revisionSuffix = rev.revisionNumber === 1 ? '' : `/${rev.revisionNumber}`;
+                            return (
+                                <button
+                                    key={rev.revisionNumber}
+                                    onClick={() => {
+                                        const printOrder = { ...rev.order, _revisionSuffix: revisionSuffix };
+                                        onPrintOrder?.(printOrder as Order);
+                                        setShowVersionSelector(false);
+                                        onClose();
+                                    }}
+                                    className={`w-full rounded-2xl border-2 px-4 py-4 text-left ${
+                                        isCurrent ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-white'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className={`flex h-11 w-11 items-center justify-center rounded-2xl shadow-sm shrink-0 ${
+                                            isCurrent ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
+                                        }`}>
+                                            <History size={18} />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <span className={`font-black ${isCurrent ? 'text-indigo-800' : 'text-slate-800'}`}>{rev.label}</span>
+                                                {isCurrent && (
+                                                    <span className="text-[9px] font-black bg-indigo-600 text-white px-1.5 py-0.5 rounded-full uppercase">{'\u03C4\u03C1\u03AD\u03C7\u03BF\u03C5\u03C3\u03B1'}</span>
+                                                )}
+                                            </div>
+                                            <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-500">
+                                                <span>{rev.timestamp ? new Date(rev.timestamp).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''}</span>
+                                                <span className="font-mono font-bold text-slate-700">{rev.order.total_price.toFixed(2).replace('.', ',')}€</span>
+                                                {rev.totalDiff !== null && rev.totalDiff !== 0 && (
+                                                    <span className={`font-bold ${rev.totalDiff > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                                        ({rev.totalDiff > 0 ? '+' : ''}{rev.totalDiff.toFixed(2).replace('.', ',')}€)
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+        )}
+        </>
     );
 };
 
@@ -394,6 +471,7 @@ const OrderPrintSheet: React.FC<{
     onPrintPartialOrder,
 }) => {
     const [showPartSelector, setShowPartSelector] = useState(false);
+    const [showVersionSelector, setShowVersionSelector] = useState(false);
     const shipmentsQuery = useQuery({
         queryKey: ['order-shipments', order.id],
         queryFn: () => api.getShipmentsForOrder(order.id),
@@ -404,6 +482,7 @@ const OrderPrintSheet: React.FC<{
     const shipments = useMemo(() => groupBatchesByShipment(orderBatches), [orderBatches]);
     const hasMultipleShipments = shipments.length > 1;
     const latestShipmentData = useMemo(() => buildLatestShipmentPrintData(order, shipmentsQuery.data), [order, shipmentsQuery.data]);
+    const orderRevisions = useMemo(() => buildOrderRevisions(order), [order]);
 
     const handlePrintLabelsAction = () => {
         const itemsToPrint = buildOrderLabelPrintItems(order, products);
@@ -458,6 +537,85 @@ const OrderPrintSheet: React.FC<{
         );
     }
 
+    if (showVersionSelector && orderRevisions.length > 0) {
+        return (
+            <div className="fixed inset-0 z-[175] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end" onClick={() => setShowVersionSelector(false)}>
+                <div
+                    className="bg-white rounded-t-[2rem] px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-full duration-300 max-h-[85vh] overflow-y-auto"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="flex items-start justify-between gap-4 mb-4">
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <History size={18} className="text-indigo-600" />
+                                <h3 className="text-lg font-black text-slate-900">{'\u0395\u03BA\u03B4\u03CC\u03C3\u03B5\u03B9\u03C2 \u03A0\u03B1\u03C1\u03B1\u03C3\u03C4\u03B1\u03C4\u03B9\u03BA\u03BF\u03CD'}</h3>
+                            </div>
+                            <p className="mt-1 text-xs font-medium text-slate-500">
+                                {orderRevisions.length} {'\u03B5\u03BA\u03B4\u03CC\u03C3\u03B5\u03B9\u03C2 \u03BB\u03CC\u03B3\u03C9 \u03B1\u03BB\u03BB\u03B1\u03B3\u03CE\u03BD \u03C4\u03B9\u03BC\u03CE\u03BD'}
+                            </p>
+                        </div>
+                        <button onClick={() => setShowVersionSelector(false)} className="rounded-full bg-slate-100 p-2 text-slate-500">
+                            <X size={18} />
+                        </button>
+                    </div>
+
+                    <div className="space-y-2.5">
+                        {orderRevisions.map((rev) => {
+                            const isCurrent = rev.revisionNumber === orderRevisions.length;
+                            const revisionSuffix = rev.revisionNumber === 1 ? '' : `/${rev.revisionNumber}`;
+                            return (
+                                <button
+                                    key={rev.revisionNumber}
+                                    onClick={() => {
+                                        const printOrder = {
+                                            ...rev.order,
+                                            _revisionSuffix: revisionSuffix,
+                                        };
+                                        onPrintOrder?.(printOrder as Order);
+                                        setShowVersionSelector(false);
+                                        onClose();
+                                    }}
+                                    className={`w-full rounded-2xl border-2 px-4 py-4 text-left transition-colors ${
+                                        isCurrent
+                                            ? 'border-indigo-300 bg-indigo-50'
+                                            : 'border-slate-200 bg-white'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className={`flex h-11 w-11 items-center justify-center rounded-2xl shadow-sm shrink-0 ${
+                                            isCurrent ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
+                                        }`}>
+                                            <History size={18} />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <span className={`font-black ${isCurrent ? 'text-indigo-800' : 'text-slate-800'}`}>
+                                                    {rev.label}
+                                                </span>
+                                                {isCurrent && (
+                                                    <span className="text-[9px] font-black bg-indigo-600 text-white px-1.5 py-0.5 rounded-full uppercase">{'\u03C4\u03C1\u03AD\u03C7\u03BF\u03C5\u03C3\u03B1'}</span>
+                                                )}
+                                            </div>
+                                            <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-500">
+                                                <span>{rev.timestamp ? new Date(rev.timestamp).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''}</span>
+                                                <span className="font-mono font-bold text-slate-700">{rev.order.total_price.toFixed(2).replace('.', ',')}€</span>
+                                                {rev.totalDiff !== null && rev.totalDiff !== 0 && (
+                                                    <span className={`font-bold ${rev.totalDiff > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                                        ({rev.totalDiff > 0 ? '+' : ''}{rev.totalDiff.toFixed(2).replace('.', ',')}€)
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="fixed inset-0 z-[170] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end" onClick={onClose}>
             <div
@@ -497,6 +655,10 @@ const OrderPrintSheet: React.FC<{
                                     setShowPartSelector(true);
                                     return;
                                 }
+                                if (orderRevisions.length > 0) {
+                                    setShowVersionSelector(true);
+                                    return;
+                                }
                                 onPrintOrder?.(order);
                                 onClose();
                             }}
@@ -506,8 +668,13 @@ const OrderPrintSheet: React.FC<{
                                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 shadow-sm">
                                     <Printer size={18} />
                                 </div>
-                                <div>
-                                    <div className="font-black">{hasMultipleShipments ? 'Εκτύπωση Παραγγελίας / Τμημάτων' : 'Ολόκληρη Παραγγελία'}</div>
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-black">{hasMultipleShipments ? 'Εκτύπωση Παραγγελίας / Τμημάτων' : 'Ολόκληρη Παραγγελία'}</span>
+                                        {orderRevisions.length > 0 && !hasMultipleShipments && (
+                                            <span className="text-[9px] font-black bg-indigo-500 text-white px-1.5 py-0.5 rounded-full">{orderRevisions.length} εκδ.</span>
+                                        )}
+                                    </div>
                                     <div className="mt-0.5 text-xs font-medium text-slate-600">
                                         {hasMultipleShipments ? 'Επιλέξτε αν θέλετε όλη την παραγγελία ή μόνο συγκεκριμένα τμήματα.' : 'Εκτύπωση του πλήρους παραστατικού της παραγγελίας.'}
                                     </div>

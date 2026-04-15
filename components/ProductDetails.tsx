@@ -543,7 +543,7 @@ const BarcodeGallery = React.memo(({ product, variants, onPrint, settings }: { p
                         </div>
 
                         <div className="w-full text-center">
-                            <div className="font-bold text-slate-800 text-lg">{variant ? `${product.sku}${variant.suffix}` : product.sku}</div>
+                            <div className="font-bold text-lg">{variant ? <SkuColorizedText sku={product.sku} suffix={variant.suffix} gender={product.gender} /> : <SkuColorizedText sku={product.sku} suffix="" gender={product.gender} />}</div>
                             <div className="text-xs text-slate-500">{variant ? variant.description : product.category}</div>
                         </div>
 
@@ -2059,11 +2059,14 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                             </h4>
                                             <div className="space-y-3">
                                                 {analyticalCostingItems.map(item => {
-                                                    const { key, title, costResult } = item;
+                                                    const { key, suffix: itemSuffix, description: itemDesc, costResult } = item;
                                                     return (
                                                         <div key={key} className="bg-white p-4 rounded-xl border border-slate-100 hover:border-slate-200 hover:shadow-sm transition-all">
                                                             <div className="flex justify-between items-center pb-3 border-b border-slate-100 mb-3">
-                                                                <span className="font-bold text-slate-800 text-sm">{title}</span>
+                                                                <span className="font-bold text-sm flex items-center gap-2">
+                                                                    <SkuColorizedText sku={editedProduct.sku} suffix={itemSuffix} gender={editedProduct.gender} />
+                                                                    <span className="text-slate-400 font-normal text-xs">({itemDesc})</span>
+                                                                </span>
                                                                 <span className="font-black text-lg text-emerald-700 bg-emerald-50 px-3 py-0.5 rounded-lg">{formatCurrency(costResult.total)}</span>
                                                             </div>
                                                             <div className="grid grid-cols-3 gap-2">
@@ -2216,7 +2219,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                             <div className="space-y-2">
                                                 {sortedVariantsList.map((v, index) => (
                                                     <div key={v.suffix} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100 group hover:border-blue-200 hover:shadow-sm transition-all">
-                                                        <div className="font-mono font-black w-14 text-center text-lg bg-slate-50 rounded-xl py-1 text-slate-700 border border-slate-100">{v.suffix}</div>
+                                                        <div className="w-16 text-center text-base bg-slate-50 rounded-xl py-1.5 border border-slate-100 shrink-0">
+                                                            <SkuColorizedText sku={editedProduct.sku} suffix={v.suffix} gender={editedProduct.gender} className="text-base" />
+                                                        </div>
                                                         <input value={v.description} onChange={e => updateVariant(index, 'description', e.target.value)} className="flex-1 bg-transparent text-sm font-medium outline-none text-slate-700 placeholder-slate-300" />
                                                         <div className="text-right">
                                                             <div className="text-[10px] text-slate-400 font-bold uppercase">Κόστος</div>

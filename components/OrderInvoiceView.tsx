@@ -15,6 +15,7 @@ import { isSpecialCreationSku } from '../utils/specialCreationSku';
 interface Props {
     order: Order;
     title?: string;
+    revisionSuffix?: string;
 }
 
 const QRCodeImage: React.FC<{ sku: string }> = ({ sku }) => {
@@ -40,7 +41,7 @@ const QRCodeImage: React.FC<{ sku: string }> = ({ sku }) => {
 };
 
 
-export default function OrderInvoiceView({ order, title }: Props) {
+export default function OrderInvoiceView({ order, title, revisionSuffix }: Props) {
     const { data: allProducts } = useQuery<Product[]>({ queryKey: ['products'], queryFn: api.getProducts });
     const queryClient = useQueryClient();
     const allCustomers = queryClient.getQueryData<Customer[]>(['customers']);
@@ -140,7 +141,7 @@ export default function OrderInvoiceView({ order, title }: Props) {
                 <div className="text-right">
                     <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-none mb-0.5">{title || 'Παραστατικό Παραγγελίας'}</h1>
                     <div className="flex items-center justify-end gap-3 text-[10px] text-slate-700 font-medium">
-                        <span className="flex items-center gap-1"><Hash size={10}/> {formatOrderId(order.id)}</span>
+                        <span className="flex items-center gap-1"><Hash size={10}/> {formatOrderId(order.id)}{revisionSuffix || ''}</span>
                         <span className="text-slate-300">|</span>
                         <span className="flex items-center gap-1"><Calendar size={10}/> {formatDate(order.created_at)}</span>
                     </div>

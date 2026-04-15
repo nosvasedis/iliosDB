@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Order, OrderStatus, Product, ProductVariant, ProductionBatch, Material, MaterialType, VatRegime, OrderShipment, OrderShipmentItem } from '../types';
-import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare, PackageCheck, FileCheck, Loader2 } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare, PackageCheck, FileCheck, Loader2, History } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { retailEndClientPillClass } from '../utils/retailPresentation';
@@ -16,7 +16,7 @@ import { groupBatchesByShipment, getShipmentReadiness, isOrderReady } from '../u
 import { OrderListProgressBar } from './orders/OrderListProgressBar';
 import ShipmentCreationModal from './deliveries/ShipmentCreationModal';
 import { invalidateOrdersAndBatches } from '../lib/queryInvalidation';
-import { buildPartialOrderFromBatches, buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildSyntheticAggregatedBatches, getShipmentStageBreakdown, getShipmentSummary, getShipmentValue } from '../features/orders';
+import { buildPartialOrderFromBatches, buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildSyntheticAggregatedBatches, getShipmentStageBreakdown, getShipmentSummary, getShipmentValue, buildOrderRevisions } from '../features/orders';
 import { getOrderStatusClasses, getOrderStatusLabel, getOrderStatusIcon } from '../features/orders/statusPresentation';
 import { getTagColor } from '../features/orders/tagColors';
 import { OrdersFilterPanel, OrderFilters, DEFAULT_FILTERS, countActiveFilters } from './orders/OrdersFilterPanel';
@@ -235,12 +235,14 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
 }) => {
     const orderBatches = useMemo(() => allBatches?.filter(b => b.order_id === order.id) || [], [allBatches, order.id]);
     const [showShipmentPrompt, setShowShipmentPrompt] = useState(false);
+    const [showVersionSelector, setShowVersionSelector] = useState(false);
     const shipmentsQuery = useOrderShipmentsForOrder(order.id);
 
     // Check if order has multiple shipments (parts)
     const shipments = useMemo(() => groupBatchesByShipment(orderBatches), [orderBatches]);
     const hasMultipleShipments = shipments.length > 1;
     const latestShipmentData = useMemo(() => buildLatestShipmentPrintData(order, shipmentsQuery.data), [order, shipmentsQuery.data]);
+    const orderRevisions = useMemo(() => buildOrderRevisions(order), [order]);
 
     const handlePrintOrder = () => {
         if (latestShipmentData && onPrintShipment) {
@@ -250,6 +252,11 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
         // If order has multiple shipments, show the part selector
         if (hasMultipleShipments && onShowPartSelector) {
             onShowPartSelector();
+            return;
+        }
+        // If order has price change history, show version selector
+        if (orderRevisions.length > 0) {
+            setShowVersionSelector(true);
             return;
         }
         // Otherwise print the full order
@@ -289,7 +296,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
             color: "slate",
             action: handlePrintOrder,
             disabled: !onPrintOrder,
-            badge: hasMultipleShipments ? `${shipments.length} μέρη` : undefined,
+            badge: hasMultipleShipments ? `${shipments.length} μέρη` : orderRevisions.length > 0 ? `${orderRevisions.length} εκδόσεις` : undefined,
         },
         {
             label: "Εκτύπωση Ετικετών",
@@ -430,6 +437,8 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                                 setShowShipmentPrompt(false);
                                 if (hasMultipleShipments && onShowPartSelector) {
                                     onShowPartSelector();
+                                } else if (orderRevisions.length > 0) {
+                                    setShowVersionSelector(true);
                                 } else {
                                     onPrintOrder?.(order);
                                     onClose();
@@ -444,6 +453,81 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                         </button>
                         <button
                             onClick={() => setShowShipmentPrompt(false)}
+                            className="w-full py-3 rounded-2xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition-colors"
+                        >
+                            {'\u039A\u03BB\u03B5\u03AF\u03C3\u03B9\u03BC\u03BF'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+        {showVersionSelector && orderRevisions.length > 0 && (
+            <div className="fixed inset-0 z-[170] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
+                    <div className="p-6 border-b border-slate-100 bg-indigo-50">
+                        <div className="flex items-center gap-2 mb-1">
+                            <History size={18} className="text-indigo-600" />
+                            <h3 className="text-xl font-bold text-slate-900">{'\u0395\u03BA\u03B4\u03CC\u03C3\u03B5\u03B9\u03C2 \u03A0\u03B1\u03C1\u03B1\u03C3\u03C4\u03B1\u03C4\u03B9\u03BA\u03BF\u03CD'}</h3>
+                        </div>
+                        <p className="text-sm text-slate-600">
+                            {'\u0397 \u03C0\u03B1\u03C1\u03B1\u03B3\u03B3\u03B5\u03BB\u03AF\u03B1 \u03AD\u03C7\u03B5\u03B9 '}{orderRevisions.length}{' \u03B5\u03BA\u03B4\u03CC\u03C3\u03B5\u03B9\u03C2 \u03BB\u03CC\u03B3\u03C9 \u03B1\u03BB\u03BB\u03B1\u03B3\u03CE\u03BD \u03C4\u03B9\u03BC\u03CE\u03BD. \u0395\u03C0\u03B9\u03BB\u03AD\u03BE\u03C4\u03B5 \u03AD\u03BA\u03B4\u03BF\u03C3\u03B7 \u03B3\u03B9\u03B1 \u03B5\u03BA\u03C4\u03CD\u03C0\u03C9\u03C3\u03B7.'}
+                        </p>
+                    </div>
+                    <div className="p-6 space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
+                        {orderRevisions.map((rev) => {
+                            const isCurrent = rev.revisionNumber === orderRevisions.length;
+                            const revisionSuffix = rev.revisionNumber === 1 ? '' : `/${rev.revisionNumber}`;
+                            return (
+                                <button
+                                    key={rev.revisionNumber}
+                                    onClick={() => {
+                                        const printOrder = {
+                                            ...rev.order,
+                                            _revisionSuffix: revisionSuffix,
+                                        };
+                                        onPrintOrder?.(printOrder as Order);
+                                        setShowVersionSelector(false);
+                                        onClose();
+                                    }}
+                                    className={`w-full p-4 rounded-2xl border-2 text-left transition-all hover:-translate-y-0.5 ${
+                                        isCurrent
+                                            ? 'border-indigo-300 bg-indigo-50 hover:bg-indigo-100'
+                                            : 'border-slate-200 bg-white hover:bg-slate-50'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between mb-1">
+                                        <div className="flex items-center gap-2">
+                                            <span className={`font-bold ${isCurrent ? 'text-indigo-800' : 'text-slate-800'}`}>
+                                                {rev.label}
+                                            </span>
+                                            {isCurrent && (
+                                                <span className="text-[9px] font-black bg-indigo-600 text-white px-1.5 py-0.5 rounded-full uppercase">{'\u03C4\u03C1\u03AD\u03C7\u03BF\u03C5\u03C3\u03B1'}</span>
+                                            )}
+                                        </div>
+                                        {revisionSuffix && (
+                                            <span className="font-mono text-xs font-bold text-slate-500">#{order.id}{revisionSuffix}</span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-3 text-xs text-slate-500">
+                                        <span>
+                                            {rev.timestamp ? new Date(rev.timestamp).toLocaleDateString('el-GR', {
+                                                day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                                            }) : ''}
+                                        </span>
+                                        <span className="font-mono font-bold text-slate-700">{rev.order.total_price.toFixed(2).replace('.', ',')}€</span>
+                                        {rev.totalDiff !== null && rev.totalDiff !== 0 && (
+                                            <span className={`font-bold ${rev.totalDiff > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                                ({rev.totalDiff > 0 ? '+' : ''}{rev.totalDiff.toFixed(2).replace('.', ',')}€)
+                                            </span>
+                                        )}
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                    <div className="p-4 border-t border-slate-100">
+                        <button
+                            onClick={() => setShowVersionSelector(false)}
                             className="w-full py-3 rounded-2xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition-colors"
                         >
                             {'\u039A\u03BB\u03B5\u03AF\u03C3\u03B9\u03BC\u03BF'}

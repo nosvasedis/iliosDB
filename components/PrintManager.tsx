@@ -269,7 +269,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
     return (
         <>
             <div ref={printContainerRef} className="print-view" aria-hidden="true" style={{ display: 'none' }}>
-                {orderToPrint && <OrderInvoiceView order={orderToPrint} />}
+                {orderToPrint && <OrderInvoiceView order={orderToPrint} revisionSuffix={(orderToPrint as any)._revisionSuffix} />}
                 {remainingOrderToPrint && <OrderInvoiceView order={remainingOrderToPrint} title="Υπόλοιπα Είδη Παραγγελίας" />}
                 {shipmentToPrint && <ShipmentInvoiceView order={shipmentToPrint.order} shipment={shipmentToPrint.shipment} shipmentItems={shipmentToPrint.shipmentItems} products={products} />}
                 {offerToPrint && <OfferPrintView offer={offerToPrint} />}
