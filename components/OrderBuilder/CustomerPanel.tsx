@@ -4,6 +4,7 @@ import { VatRegime } from '../../types';
 import { useOrderState } from '../../hooks/useOrderState';
 import { getTagColor } from '../../features/orders/tagColors';
 import { useTagColorOverrides } from '../../hooks/api/useTagColorOverrides';
+import { SellerPicker } from './SellerPicker';
 
 interface Props {
     orderState: ReturnType<typeof useOrderState>;
@@ -106,6 +107,22 @@ export const CustomerPanel: React.FC<Props> = ({ orderState }) => {
                         })}
                     </div>
                 </div>
+
+                {/* Seller / Πλασιέ Picker (admin only) */}
+                {!state.isSeller && (
+                    <div className="pt-4 border-t border-slate-50">
+                        <SellerPicker
+                            selectedSellerId={state.selectedSellerId}
+                            selectedSellerName={state.selectedSellerName}
+                            commissionPercent={state.sellerCommissionPercent}
+                            onSellerChange={(id, name, defaultCommission) => {
+                                setters.setSelectedSellerId(id);
+                                setters.setSelectedSellerName(name);
+                            }}
+                            onCommissionChange={setters.setSellerCommissionPercent}
+                        />
+                    </div>
+                )}
 
                 {/* Discount & VAT */}
                 <div className="pt-4 border-t border-slate-50 space-y-4">

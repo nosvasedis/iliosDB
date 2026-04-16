@@ -928,6 +928,41 @@ export const api = {
     saveSupplier: async (s: Partial<Supplier>): Promise<void> => { await safeMutate('suppliers', s.id ? 'UPDATE' : 'INSERT', s, s.id ? { match: { id: s.id } } : undefined); },
     deleteSupplier: async (id: string): Promise<void> => { await safeMutate('suppliers', 'DELETE', null, { match: { id } }); },
 
+    // --- Seller / Πλασιέ Management ---
+    getSellers: async (): Promise<import('../types').UserProfile[]> => {
+        const { data, error } = await supabase.from('profiles').select('*').eq('role', 'seller').order('full_name');
+        if (error) throw error;
+        return (data || []) as import('../types').UserProfile[];
+    },
+    createSeller: async (payload: { email: string; password: string; full_name: string; commission_percent?: number }): Promise<any> => {
+        const res = await fetch(`${CLOUDFLARE_WORKER_URL}/admin/create-seller`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': AUTH_KEY_SECRET },
+            body: JSON.stringify(payload),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Σφάλμα δημιουργίας πλασιέ');
+        return json;
+    },
+    updateSeller: async (payload: { id: string; full_name?: string; commission_percent?: number; is_approved?: boolean; new_password?: string }): Promise<void> => {
+        const res = await fetch(`${CLOUDFLARE_WORKER_URL}/admin/update-seller`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': AUTH_KEY_SECRET },
+            body: JSON.stringify(payload),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Σφάλμα ενημέρωσης πλασιέ');
+    },
+    deleteSeller: async (id: string): Promise<void> => {
+        const res = await fetch(`${CLOUDFLARE_WORKER_URL}/admin/delete-seller`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': AUTH_KEY_SECRET },
+            body: JSON.stringify({ id }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Σφάλμα απενεργοποίησης πλασιέ');
+    },
+
     saveCustomer: async (c: Partial<Customer>): Promise<Customer | null> => {
         // Robust Save: Use UPSERT and ensure empty IDs are handled to allow auto-generation if needed.
         const payload = { ...c };

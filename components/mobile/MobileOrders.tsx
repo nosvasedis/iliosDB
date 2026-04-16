@@ -26,7 +26,9 @@ import { invalidateOrdersAndBatches } from '../../lib/queryInvalidation';
 import { PRODUCTION_STAGE_COLORS, getProductionStageLabel } from '../../utils/deliveryLabels';
 import { buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildSyntheticAggregatedBatches, buildOrderRevisions } from '../../features/orders';
 import { isSpecialCreationSku } from '../../utils/specialCreationSku';
-import { StickyNote } from 'lucide-react';
+import { StickyNote, UserCheck } from 'lucide-react';
+import SellerPicker from '../OrderBuilder/SellerPicker';
+import { useSellers } from '../../hooks/api/useSellers';
 
 const STAGE_ICON_MAP: Record<ProductionStage, LucideIcon> = {
     [ProductionStage.AwaitingDelivery]: Globe,
@@ -917,7 +919,7 @@ const OrderCard: React.FC<{
                                 </span>
                             </div>
                         )}
-                        {order.seller_name && <p className="text-[10px] text-slate-500 mt-0.5">Πλάσιε: {order.seller_name}</p>}
+                        {order.seller_name && <p className="text-[10px] text-slate-500 mt-0.5">Πλάσιε: {order.seller_name}{order.seller_commission_percent != null ? ` (${order.seller_commission_percent}%)` : ''}</p>}
                         {order.tags && order.tags.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1">
                                 {order.tags.map(t => {
@@ -1152,6 +1154,11 @@ export default function MobileOrders({
     const [printModalOrder, setPrintModalOrder] = useState<Order | null>(null);
     const [tagInput, setTagInput] = useState('');
     const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
+    const [sellerAssignOrder, setSellerAssignOrder] = useState<Order | null>(null);
+    const [assignSellerId, setAssignSellerId] = useState<string | null>(null);
+    const [assignSellerName, setAssignSellerName] = useState<string | null>(null);
+    const [assignCommission, setAssignCommission] = useState<number | undefined>(undefined);
+    const { data: sellers } = useSellers();
 
     const allTags = useMemo(() => {
         if (!orders) return [];
@@ -1505,6 +1512,16 @@ export default function MobileOrders({
                             </div>
 
                             <div className="grid grid-cols-1 gap-2">
+                                <button onClick={() => {
+                                    setSellerAssignOrder(managingOrder);
+                                    setAssignSellerId(managingOrder.seller_id || null);
+                                    setAssignSellerName(managingOrder.seller_name || null);
+                                    setAssignCommission(managingOrder.seller_commission_percent ?? undefined);
+                                    setManagingOrder(null);
+                                }} className="w-full flex items-center gap-3 p-4 bg-sky-50 border border-sky-200 text-sky-700 rounded-2xl font-bold">
+                                    <UserCheck size={20} /> Ανάθεση Πλασιέ
+                                </button>
+
                                 <button onClick={() => { onOpenDeliveries?.(managingOrder); setManagingOrder(null); }} className="w-full flex items-center gap-3 p-4 bg-white border border-slate-200 text-slate-700 rounded-2xl font-bold">
                                     <Settings size={20} /> Προγραμματισμός παράδοσης
                                 </button>
@@ -1525,6 +1542,52 @@ export default function MobileOrders({
                                 <button onClick={() => handleDeleteOrder(managingOrder)} className="w-full flex items-center gap-3 p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl font-bold"><Trash2 size={20} /> Οριστική Διαγραφή</button>
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* SELLER ASSIGNMENT MODAL */}
+            {sellerAssignOrder && (
+                <div className="fixed inset-0 z-[150] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end">
+                    <div className="bg-white rounded-t-[2.5rem] p-6 pb-safe animate-in slide-in-from-bottom-full duration-300">
+                        <div className="flex justify-between items-start mb-5">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-900">Ανάθεση Πλασιέ</h3>
+                                <p className="text-xs font-bold text-slate-500 mt-1">{sellerAssignOrder.customer_name} • #{sellerAssignOrder.id.slice(-6)}</p>
+                            </div>
+                            <button onClick={() => setSellerAssignOrder(null)} className="p-2 bg-slate-100 rounded-full"><X size={20} /></button>
+                        </div>
+                        <SellerPicker
+                            compact
+                            selectedSellerId={assignSellerId}
+                            commissionPercent={assignCommission}
+                            onSellerChange={(id, name, defaultCommission) => {
+                                setAssignSellerId(id);
+                                setAssignSellerName(name);
+                                setAssignCommission(defaultCommission);
+                            }}
+                            onCommissionChange={setAssignCommission}
+                        />
+                        <button
+                            onClick={async () => {
+                                try {
+                                    const seller = sellers?.find(s => s.id === assignSellerId);
+                                    await api.updateOrder(sellerAssignOrder.id, {
+                                        seller_id: assignSellerId || null,
+                                        seller_name: assignSellerName || (seller?.full_name ?? null),
+                                        seller_commission_percent: assignCommission ?? null,
+                                    } as any);
+                                    invalidateOrdersAndBatches(queryClient);
+                                    showToast('Ο πλασιέ ανατέθηκε.', 'success');
+                                    setSellerAssignOrder(null);
+                                } catch (e: any) {
+                                    showToast(e.message || 'Σφάλμα', 'error');
+                                }
+                            }}
+                            className="w-full mt-4 py-3.5 bg-sky-600 text-white rounded-xl font-bold text-sm active:scale-[0.98]"
+                        >
+                            Αποθήκευση
+                        </button>
                     </div>
                 </div>
             )}

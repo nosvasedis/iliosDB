@@ -89,6 +89,11 @@ export function useOrderState({ initialOrder, products, customers, collections, 
     const [showCustomerResults, setShowCustomerResults] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
+    // --- Seller / Πλασιέ State (admin can assign, seller auto-assigns) ---
+    const [selectedSellerId, setSelectedSellerId] = useState<string | undefined>(initialOrder?.seller_id || (isSeller ? profile?.id : undefined));
+    const [selectedSellerName, setSelectedSellerName] = useState<string | undefined>(initialOrder?.seller_name || (isSeller ? (profile?.full_name || profile?.email) : undefined));
+    const [sellerCommissionPercent, setSellerCommissionPercent] = useState<number | undefined>(initialOrder?.seller_commission_percent ?? (isSeller ? profile?.commission_percent : undefined));
+
     // --- Smart Entry State ---
     const [scanInput, setScanInput] = useState('');
     const [scanQty, setScanQty] = useState(1);
@@ -964,6 +969,9 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                     customer_id: effectiveCustomerId,
                     customer_name: effectiveCustomerName,
                     customer_phone: effectiveCustomerPhone,
+                    seller_id: selectedSellerId || undefined,
+                    seller_name: selectedSellerName || undefined,
+                    seller_commission_percent: selectedSellerId ? sellerCommissionPercent : undefined,
                     items: selectedItems,
                     total_price: grandTotal,
                     vat_rate: vatRate,
@@ -1004,7 +1012,9 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                     customer_id: effectiveCustomerId,
                     customer_name: effectiveCustomerName,
                     customer_phone: effectiveCustomerPhone,
-                    seller_id: isSeller ? profile?.id : undefined,
+                    seller_id: selectedSellerId || undefined,
+                    seller_name: selectedSellerName || undefined,
+                    seller_commission_percent: selectedSellerId ? sellerCommissionPercent : undefined,
                     created_at: new Date().toISOString(),
                     status: OrderStatus.Pending,
                     items: selectedItems,
@@ -1056,6 +1066,9 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             orderNotes, retailClientLabel, vatRate, discountPercent, tags, tagInput,
             customerSearch, showCustomerResults, isSaving,
             isRetailCustomer: selectedCustomerId === RETAIL_CUSTOMER_ID || customerName.trim() === RETAIL_CUSTOMER_NAME,
+            // Seller / Πλασιέ
+            selectedSellerId, selectedSellerName, sellerCommissionPercent,
+            isSeller,
             // Smart entry
             scanInput, scanQty, itemNotes, specialCreationUnitPriceStr,
             candidateProducts, smartSuggestions, activeMasterSetMates, collectionNameById,
@@ -1078,6 +1091,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             setCustomerName, setCustomerPhone, setSelectedCustomerId,
             setOrderNotes, setRetailClientLabel, setVatRate, setDiscountPercent, setTagInput,
             setCustomerSearch, setShowCustomerResults,
+            setSelectedSellerId, setSelectedSellerName, setSellerCommissionPercent,
             setScanInput, setScanQty, setItemNotes, setSpecialCreationUnitPriceStr,
             setActiveMaster, setFilteredVariants, setSelectedSize, setSelectedCordColor, setSelectedEnamelColor,
             setSizeMode, setCandidateProducts, setSmartSuggestions, setShowScanner,

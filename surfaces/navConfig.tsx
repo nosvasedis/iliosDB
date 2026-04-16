@@ -17,6 +17,7 @@ import {
   ScrollText,
   Settings as SettingsIcon,
   Users,
+  UserCheck,
   Warehouse,
   type LucideIcon,
   BookOpen,
@@ -48,6 +49,7 @@ export const adminNavSections: NavSection<AdminPage>[] = [
       { id: 'production', icon: FactoryIcon, label: 'Παραγωγή' },
       { id: 'customers', icon: Users, label: 'Πελάτες' },
       { id: 'suppliers', icon: Globe, label: 'Προμηθευτές' },
+      { id: 'sellers', icon: UserCheck, label: 'Πλασιέ' },
     ],
   },
   {

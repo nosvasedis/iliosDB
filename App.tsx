@@ -62,6 +62,7 @@ const OrdersPage = lazyPage(() => import('./components/OrdersPage'));
 const ProductionPage = lazyPage(() => import('./components/ProductionPage'));
 const CustomersPage = lazyPage(() => import('./components/CustomersPage'));
 const SuppliersPage = lazyPage(() => import('./components/SuppliersPage'));
+const SellersPage = lazyPage(() => import('./components/SellersPage'));
 const AiStudio = lazyPage(() => import('./components/AiStudio'));
 const PriceListPage = lazyPage(() => import('./components/PriceListPage'));
 const AnalyticsView = lazyPage(() => import('./components/AnalyticsView'));
@@ -391,6 +392,7 @@ function AppContent() {
     production: <ProductionPage products={products} materials={materials} molds={molds} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintAssembly={handlePrintAssembly} onPrintLabels={setPrintItems} onPrintStageBatches={handlePrintStageBatches} />,
     customers: <CustomersPage onPrintOrder={setOrderToPrint} />,
     suppliers: <SuppliersPage />,
+    sellers: <SellersPage />,
     'ai-studio': <AiStudio />,
     pricelist: <PriceListPage products={products} collections={collections} onPrint={(data) => setPriceListPrintData(data)} />,
     analytics: <AnalyticsView products={products} onBack={() => handleNav('dashboard')} onPrint={(data) => setAnalyticsPrintData({ ...data, title: 'Οικονομική Ανάλυση' })} />,

@@ -49,6 +49,7 @@ const MobilePriceList = lazyMobilePage(() => import('./components/mobile/MobileP
 const MobileOffers = lazyMobilePage(() => import('./components/mobile/MobileOffers'));
 const MobileDeliveries = lazyMobilePage(() => import('./components/mobile/MobileDeliveries'));
 const MobileAnalytics = lazyMobilePage(() => import('./components/mobile/MobileAnalytics'));
+const MobileSellers = lazyMobilePage(() => import('./components/mobile/MobileSellersPage'));
 
 interface MobileAppProps {
   isOnline?: boolean;
@@ -192,6 +193,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
     pricelist: <MobilePriceList onPrint={setPriceListPrintData} />,
     offers: <MobileOffers onPrintOffer={setOfferToPrint} />,
     analytics: <MobileAnalytics products={products} onPrint={(data) => setAnalyticsPrintData({ ...data, title: 'Οικονομική Ανάλυση' })} />,
+    sellers: <MobileSellers />,
   };
 
   return (

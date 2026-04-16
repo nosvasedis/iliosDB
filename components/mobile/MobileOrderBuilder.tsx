@@ -18,6 +18,7 @@ import { useUI } from '../UIProvider';
 import { useAuth } from '../AuthContext';
 import BarcodeScanner from '../BarcodeScanner';
 import MobileCustomerForm from './MobileCustomerForm';
+import { SellerPicker } from '../OrderBuilder/SellerPicker';
 import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../../utils/retailNotes';
 import { getOrderItemMatchKey } from '../../utils/orderItemMatch';
 import { getSpecialCreationProductStub, isSpecialCreationSku, SPECIAL_CREATION_SKU } from '../../utils/specialCreationSku';
@@ -209,6 +210,19 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const [isSaving, setIsSaving] = useState(false);
     const [orderNotes, setOrderNotes] = useState(initialRetailNotes.cleanNotes || '');
     const [retailClientLabel, setRetailClientLabel] = useState(initialRetailNotes.retailClientLabel || '');
+
+    // ── Seller / Πλασιέ State ──────────────────────────────────────────────
+    const isAdmin = profile?.role === 'admin';
+    const [mobSelectedSellerId, setMobSelectedSellerId] = useState<string | undefined>(
+        initialOrder?.seller_id || (isSeller ? (profile?.id ?? user?.id) : undefined)
+    );
+    const [mobSelectedSellerName, setMobSelectedSellerName] = useState<string | undefined>(
+        initialOrder?.seller_name || (isSeller ? (profile?.full_name || user?.email || undefined) : undefined)
+    );
+    const [mobSellerCommissionPercent, setMobSellerCommissionPercent] = useState<number | undefined>(
+        initialOrder?.seller_commission_percent ?? (isSeller ? profile?.commission_percent : undefined)
+    );
+
     const [showDraftBanner, setShowDraftBanner] = useState(false);
     const [cartExpanded, setCartExpanded] = useState(true);
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -522,8 +536,9 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             customer_name: effectiveCustomerName,
             customer_phone: effectiveCustomerPhone,
             customer_id: effectiveCustomerId,
-            seller_id: (attachSeller || isSeller) ? (profile?.id ?? user?.id) : undefined,
-            seller_name: (attachSeller || isSeller) ? (profile?.full_name || user?.email || undefined) : undefined,
+            seller_id: mobSelectedSellerId || ((attachSeller || isSeller) ? (profile?.id ?? user?.id) : undefined),
+            seller_name: mobSelectedSellerName || ((attachSeller || isSeller) ? (profile?.full_name || user?.email || undefined) : undefined),
+            seller_commission_percent: mobSelectedSellerId ? mobSellerCommissionPercent : undefined,
             items,
             total_price: grandTotal,
             vat_rate: vatRateVal,
@@ -560,7 +575,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         await queryClient.refetchQueries({ queryKey: ['customers'] });
         sessionStorage.removeItem(DRAFT_KEY);
         onBack();
-    }, [initialOrder, items, grandTotal, discountPercent, orderNotes, retailClientLabel, attachSeller, isSeller, profile?.id, profile?.full_name, user?.id, user?.email, queryClient, onBack, confirm]);
+    }, [initialOrder, items, grandTotal, discountPercent, orderNotes, retailClientLabel, attachSeller, isSeller, profile?.id, profile?.full_name, user?.id, user?.email, queryClient, onBack, confirm, mobSelectedSellerId, mobSelectedSellerName, mobSellerCommissionPercent]);
 
     const handleSaveOrder = async () => {
         if (items.length === 0) { showToast('Η παραγγελία είναι κενή.', 'error'); return; }
@@ -738,6 +753,23 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                         </div>
                     </div>
                 </div>
+
+                {/* ── Seller Picker (admin only on mobile) ───────────── */}
+                {isAdmin && !attachSeller && (
+                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                        <SellerPicker
+                            selectedSellerId={mobSelectedSellerId}
+                            selectedSellerName={mobSelectedSellerName}
+                            commissionPercent={mobSellerCommissionPercent}
+                            onSellerChange={(id, name) => {
+                                setMobSelectedSellerId(id);
+                                setMobSelectedSellerName(name);
+                            }}
+                            onCommissionChange={setMobSellerCommissionPercent}
+                            compact
+                        />
+                    </div>
+                )}
 
                 {/* ── Add Item Section ─────────────────────────────────── */}
                 {!activeMaster && (

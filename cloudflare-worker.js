@@ -31,12 +31,191 @@ export default {
       // Allow public GET/HEAD access to images (for CORS/Canvas).
       // Protect POST/DELETE (Mutations) and special routes like /price/silver.
       const isSilverRoute = url.pathname === '/price/silver';
+      const isAdminRoute = url.pathname.startsWith('/admin/');
       const isMutation = ['POST', 'DELETE', 'PUT'].includes(request.method);
       // HEAD is read-only, so we treat it like GET (public)
-      const isProtected = isMutation || isSilverRoute;
+      const isProtected = isMutation || isSilverRoute || isAdminRoute;
 
       if (isProtected && (!authHeader || authHeader !== env.AUTH_KEY_SECRET)) {
         return new Response('Unauthorized', { status: 403, headers: corsHeaders });
+      }
+
+      // --- ADMIN ROUTES: SELLER MANAGEMENT ---
+      if (isAdminRoute) {
+        // Requires SUPABASE_SERVICE_ROLE_KEY and SUPABASE_URL env secrets
+        if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
+          return new Response(JSON.stringify({ error: 'Missing Supabase admin configuration on worker.' }), {
+            status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        const supabaseAdmin = async (path, options = {}) => {
+          const res = await fetch(`${env.SUPABASE_URL}${path}`, {
+            ...options,
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': env.SUPABASE_SERVICE_ROLE_KEY,
+              'Authorization': `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+              ...(options.headers || {}),
+            },
+          });
+          const text = await res.text();
+          let json;
+          try { json = JSON.parse(text); } catch { json = text; }
+          return { ok: res.ok, status: res.status, data: json };
+        };
+
+        // POST /admin/create-seller  — Create a new seller auth user + profile
+        if (url.pathname === '/admin/create-seller' && request.method === 'POST') {
+          try {
+            const body = await request.json();
+            const { email, password, full_name, commission_percent } = body;
+            if (!email || !password || !full_name) {
+              return new Response(JSON.stringify({ error: 'Απαιτούνται email, password και full_name.' }), {
+                status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              });
+            }
+
+            // 1. Create auth user via Supabase Admin API
+            const authRes = await supabaseAdmin('/auth/v1/admin/users', {
+              method: 'POST',
+              body: JSON.stringify({
+                email,
+                password,
+                email_confirm: true,
+                user_metadata: { full_name },
+              }),
+            });
+
+            if (!authRes.ok) {
+              const msg = authRes.data?.msg || authRes.data?.message || JSON.stringify(authRes.data);
+              return new Response(JSON.stringify({ error: `Σφάλμα δημιουργίας χρήστη: ${msg}` }), {
+                status: authRes.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              });
+            }
+
+            const userId = authRes.data.id;
+
+            // 2. Insert / upsert profile row
+            const profileRes = await supabaseAdmin('/rest/v1/profiles', {
+              method: 'POST',
+              headers: { 'Prefer': 'resolution=merge-duplicates' },
+              body: JSON.stringify({
+                id: userId,
+                email,
+                full_name,
+                role: 'seller',
+                is_approved: true,
+                commission_percent: commission_percent ?? null,
+              }),
+            });
+
+            if (!profileRes.ok) {
+              return new Response(JSON.stringify({ error: 'Ο χρήστης δημιουργήθηκε αλλά το προφίλ απέτυχε.', details: profileRes.data }), {
+                status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              });
+            }
+
+            return new Response(JSON.stringify({ id: userId, email, full_name, commission_percent: commission_percent ?? null }), {
+              status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          } catch (e) {
+            return new Response(JSON.stringify({ error: e.message }), {
+              status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        }
+
+        // POST /admin/update-seller  — Update seller profile + optional password reset
+        if (url.pathname === '/admin/update-seller' && request.method === 'POST') {
+          try {
+            const body = await request.json();
+            const { id, full_name, commission_percent, is_approved, new_password } = body;
+            if (!id) {
+              return new Response(JSON.stringify({ error: 'Απαιτείται id.' }), {
+                status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              });
+            }
+
+            // Update profile via PostgREST
+            const profilePayload = {};
+            if (full_name !== undefined) profilePayload.full_name = full_name;
+            if (commission_percent !== undefined) profilePayload.commission_percent = commission_percent;
+            if (is_approved !== undefined) profilePayload.is_approved = is_approved;
+
+            if (Object.keys(profilePayload).length > 0) {
+              const profRes = await supabaseAdmin(`/rest/v1/profiles?id=eq.${id}`, {
+                method: 'PATCH',
+                headers: { 'Prefer': 'return=minimal' },
+                body: JSON.stringify(profilePayload),
+              });
+              if (!profRes.ok) {
+                return new Response(JSON.stringify({ error: 'Σφάλμα ενημέρωσης προφίλ.', details: profRes.data }), {
+                  status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                });
+              }
+            }
+
+            // Optional: reset password
+            if (new_password) {
+              const pwRes = await supabaseAdmin(`/auth/v1/admin/users/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ password: new_password }),
+              });
+              if (!pwRes.ok) {
+                return new Response(JSON.stringify({ error: 'Το προφίλ ενημερώθηκε αλλά η αλλαγή κωδικού απέτυχε.', details: pwRes.data }), {
+                  status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                });
+              }
+            }
+
+            return new Response(JSON.stringify({ success: true }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          } catch (e) {
+            return new Response(JSON.stringify({ error: e.message }), {
+              status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        }
+
+        // POST /admin/delete-seller  — Soft-delete (deactivate) a seller
+        if (url.pathname === '/admin/delete-seller' && request.method === 'POST') {
+          try {
+            const body = await request.json();
+            const { id } = body;
+            if (!id) {
+              return new Response(JSON.stringify({ error: 'Απαιτείται id.' }), {
+                status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              });
+            }
+
+            // Soft-delete: set is_approved = false
+            const profRes = await supabaseAdmin(`/rest/v1/profiles?id=eq.${id}`, {
+              method: 'PATCH',
+              headers: { 'Prefer': 'return=minimal' },
+              body: JSON.stringify({ is_approved: false }),
+            });
+
+            if (!profRes.ok) {
+              return new Response(JSON.stringify({ error: 'Σφάλμα απενεργοποίησης πλασιέ.', details: profRes.data }), {
+                status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              });
+            }
+
+            return new Response(JSON.stringify({ success: true }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          } catch (e) {
+            return new Response(JSON.stringify({ error: e.message }), {
+              status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        }
+
+        return new Response(JSON.stringify({ error: 'Unknown admin route' }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
 
       // --- SPECIAL ROUTE: SILVER PRICE ---

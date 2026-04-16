@@ -21,6 +21,7 @@ import {
   Factory,
   Menu,
   BarChart3,
+  UserCheck,
   type LucideIcon,
 } from 'lucide-react';
 import { APP_LOGO } from '../../constants';
@@ -174,6 +175,7 @@ export default function MobileMenu({ onNavigate, activePage }: Props) {
     { id: 'offers', label: 'Προσφορές', description: 'Προσφορές πελατών', icon: FileBadge, color: 'text-amber-600', bg: 'bg-amber-50' },
     { id: 'suppliers', label: 'Προμηθευτές', description: 'Εντολές αγοράς', icon: Globe, color: 'text-purple-600', bg: 'bg-purple-50' },
     { id: 'collections', label: 'Συλλογές', description: 'Οργάνωση καταλόγου', icon: FolderKanban, color: 'text-pink-600', bg: 'bg-pink-50' },
+    { id: 'sellers', label: 'Πλασιέ', description: 'Διαχείριση πωλητών', icon: UserCheck, color: 'text-sky-600', bg: 'bg-sky-50' },
   ];
 
   const catalogPricing: MenuItem[] = [

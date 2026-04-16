@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Order, OrderStatus, Product, ProductVariant, ProductionBatch, Material, MaterialType, VatRegime, OrderShipment, OrderShipmentItem } from '../types';
-import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare, PackageCheck, FileCheck, Loader2, History } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare, PackageCheck, FileCheck, Loader2, History, UserCheck } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { retailEndClientPillClass } from '../utils/retailPresentation';
@@ -27,6 +27,7 @@ import { useCustomers, useOrderShipmentsForOrder, useOrders } from '../hooks/api
 import { useProductionBatches } from '../hooks/api/useProductionBatches';
 import { ordersRepository } from '../features/orders';
 import DesktopPageHeader from './DesktopPageHeader';
+import { SellerPicker } from './OrderBuilder/SellerPicker';
 import { productionRepository } from '../features/production';
 import { auditRepository } from '../features/audit';
 
@@ -43,6 +44,70 @@ interface Props {
     onPrintAnalytics?: (order: Order) => void;
     onPrintPartialOrder?: (order: Order, selectedBatches: ProductionBatch[]) => void;
     onOpenDeliveries?: (order: Order) => void;
+}
+
+// ── Inline Seller Assignment Modal ──────────────────────────────────────────
+function SellerAssignmentModal({ order, onClose, onSaved }: {
+    order: Order;
+    onClose: () => void;
+    onSaved: (updatedOrder: Order) => void;
+}) {
+    const { showToast } = useUI();
+    const [sellerId, setSellerId] = React.useState<string | undefined>(order.seller_id);
+    const [sellerName, setSellerName] = React.useState<string | undefined>(order.seller_name);
+    const [commission, setCommission] = React.useState<number | undefined>(order.seller_commission_percent);
+    const [isSaving, setIsSaving] = React.useState(false);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            const updated: Order = {
+                ...order,
+                seller_id: sellerId || undefined,
+                seller_name: sellerName || undefined,
+                seller_commission_percent: sellerId ? commission : undefined,
+            };
+            await ordersRepository.updateOrder(updated);
+            showToast('Ο πλασιέ ενημερώθηκε.', 'success');
+            onSaved(updated);
+            onClose();
+        } catch (e: any) {
+            showToast(e.message || 'Σφάλμα', 'error');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[60] bg-slate-900/55 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-100 animate-in zoom-in-95">
+                <div className="p-6 border-b border-slate-100 bg-sky-50/70 flex items-center justify-between">
+                    <div>
+                        <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2"><UserCheck size={18} /> Ανάθεση Πλασιέ</h3>
+                        <p className="text-xs text-slate-500 font-mono mt-1">#{order.id}</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-white rounded-full text-slate-500"><X size={20} /></button>
+                </div>
+                <div className="p-6 space-y-4">
+                    <SellerPicker
+                        selectedSellerId={sellerId}
+                        selectedSellerName={sellerName}
+                        commissionPercent={commission}
+                        onSellerChange={(id, name) => { setSellerId(id); setSellerName(name); }}
+                        onCommissionChange={setCommission}
+                    />
+                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                        <button onClick={onClose} disabled={isSaving} className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100">
+                            Ακύρωση
+                        </button>
+                        <button onClick={handleSave} disabled={isSaving} className="px-6 py-2.5 bg-sky-600 text-white rounded-xl font-bold text-sm hover:bg-sky-700 disabled:opacity-50">
+                            {isSaving ? 'Αποθήκευση...' : 'Αποθήκευση'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
 }
 
 // Modal for selecting which parts/shipments of an order to print
@@ -569,6 +634,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     const [showTagsManager, setShowTagsManager] = useState(false);
     const [showWorkflowActions, setShowWorkflowActions] = useState(false);
     const [showStatusActions, setShowStatusActions] = useState(false);
+    const [showSellerAssignment, setShowSellerAssignment] = useState(false);
     const [quickSendingOrders, setQuickSendingOrders] = useState<Set<string>>(new Set());
 
     // Group Management in Modal
@@ -580,6 +646,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         setShowTagsManager(false);
         setShowWorkflowActions(false);
         setShowStatusActions(false);
+        setShowSellerAssignment(false);
         setTagInput('');
         setTagInputFocused(false);
     }, [managingOrder]);
@@ -1164,6 +1231,9 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                     <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-bold text-sky-700">
                                                         <span className="uppercase tracking-wide text-[9px] text-sky-600">Πλάσιε</span>
                                                         <span className="text-sky-800">{order.seller_name}</span>
+                                                        {order.seller_commission_percent != null && (
+                                                            <span className="text-emerald-600 font-black">{order.seller_commission_percent}%</span>
+                                                        )}
                                                     </span>
                                                 </div>
                                             )}
@@ -1281,6 +1351,19 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                 >
                                     <div className="p-3 bg-white rounded-xl shadow-sm"><Archive size={20} /></div>
                                     <span className="text-xs uppercase tracking-wider">Κατάσταση & Αρχείο</span>
+                                </button>
+
+                                <button
+                                    onClick={() => setShowSellerAssignment(true)}
+                                    className="p-5 rounded-2xl flex flex-col items-center justify-center gap-3 text-center font-bold border-2 bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100 transition-all hover:-translate-y-0.5 relative"
+                                >
+                                    {managingOrder.seller_name && (
+                                        <span className="absolute top-2 right-2 bg-sky-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full max-w-[80%] truncate">
+                                            {managingOrder.seller_name}
+                                        </span>
+                                    )}
+                                    <div className="p-3 bg-white rounded-xl shadow-sm"><UserCheck size={20} /></div>
+                                    <span className="text-xs uppercase tracking-wider">Ανάθεση Πλασιέ</span>
                                 </button>
                             </div>
                         </div>
@@ -1456,6 +1539,17 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                         </div>
                     </div>
                 </div>
+            )}
+
+            {managingOrder && showSellerAssignment && (
+                <SellerAssignmentModal
+                    order={managingOrder}
+                    onClose={() => setShowSellerAssignment(false)}
+                    onSaved={(updatedOrder) => {
+                        setManagingOrder(updatedOrder);
+                        queryClient.invalidateQueries({ queryKey: ['orders'] });
+                    }}
+                />
             )}
 
             {printModalOrder && (

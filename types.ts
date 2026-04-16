@@ -218,6 +218,7 @@ export interface Order {
   customer_phone?: string;
   seller_id?: string; // Track which seller created this order
   seller_name?: string; // Display name of seller (Πλάσιε) for display everywhere
+  seller_commission_percent?: number; // Ποσοστό προμήθειας πλασιέ στην παραγγελία
   created_at: string;
   status: OrderStatus;
   items: OrderItem[];
@@ -529,6 +530,7 @@ export interface UserProfile {
   full_name: string;
   is_approved: boolean;
   role: 'admin' | 'user' | 'seller'; // Added seller
+  commission_percent?: number; // Ποσοστό προμήθειας πλασιέ (0-100)
 }
 
 export interface AggregatedBatch extends ProductionBatch {
