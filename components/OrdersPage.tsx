@@ -65,7 +65,7 @@ function SellerAssignmentModal({ order, onClose, onSaved }: {
                 ...order,
                 seller_id: sellerId || undefined,
                 seller_name: sellerName || undefined,
-                seller_commission_percent: sellerId ? (commission ?? null) : null,
+                seller_commission_percent: sellerId ? commission : undefined,
             };
             await ordersRepository.updateOrder(updated);
             showToast('Ο πλασιέ ενημερώθηκε.', 'success');
@@ -1226,9 +1226,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                     { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
                                                     { bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-200' },
                                                 ];
-                                                const key = order.seller_id || order.seller_name!;
-                                                let hash = 5381;
-                                                for (let i = 0; i < key.length; i++) hash = ((hash << 5) + hash + key.charCodeAt(i)) >>> 0;
+                                                const hash = Array.from(order.seller_name!).reduce((acc, c) => acc + c.charCodeAt(0), 0);
                                                 const sc = sellerColors[hash % sellerColors.length];
                                                 return (
                                                     <div className="mt-1">
@@ -1335,51 +1333,51 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                             <div className="grid grid-cols-2 gap-2.5">
                                 <button
                                     onClick={() => { handleEditOrder(managingOrder); setManagingOrder(null); }}
-                                    className="p-4 rounded-xl flex flex-col items-center justify-center gap-2.5 text-center border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:border-slate-300 transition-all"
+                                    className="p-4 rounded-xl flex flex-col items-center justify-center gap-2.5 text-center border border-amber-200 bg-amber-50 hover:bg-amber-100 hover:border-amber-300 transition-all"
                                 >
-                                    <div className="p-2.5 bg-white rounded-lg shadow-sm border border-slate-100"><Edit size={17} className="text-slate-500" /></div>
-                                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Επεξεργασία</span>
+                                    <div className="p-2.5 bg-white rounded-lg shadow-sm border border-amber-100"><Edit size={17} className="text-amber-600" /></div>
+                                    <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Επεξεργασία</span>
                                 </button>
 
                                 <button
                                     onClick={() => setShowTagsManager(true)}
-                                    className="p-4 rounded-xl flex flex-col items-center justify-center gap-2.5 text-center border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:border-slate-300 transition-all relative"
+                                    className="p-4 rounded-xl flex flex-col items-center justify-center gap-2.5 text-center border border-violet-200 bg-violet-50 hover:bg-violet-100 hover:border-violet-300 transition-all relative"
                                 >
                                     {(managingOrder.tags?.length || 0) > 0 && (
-                                        <span className="absolute top-2 right-2 bg-slate-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+                                        <span className="absolute top-2 right-2 bg-violet-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
                                             {managingOrder.tags?.length}
                                         </span>
                                     )}
-                                    <div className="p-2.5 bg-white rounded-lg shadow-sm border border-slate-100"><Layers size={17} className="text-slate-500" /></div>
-                                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Ετικέτες</span>
+                                    <div className="p-2.5 bg-white rounded-lg shadow-sm border border-violet-100"><Layers size={17} className="text-violet-600" /></div>
+                                    <span className="text-[11px] font-semibold uppercase tracking-wider text-violet-700">Ετικέτες</span>
                                 </button>
 
                                 <button
                                     onClick={() => setShowWorkflowActions(true)}
-                                    className="p-4 rounded-xl flex flex-col items-center justify-center gap-2.5 text-center border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:border-slate-300 transition-all"
+                                    className="p-4 rounded-xl flex flex-col items-center justify-center gap-2.5 text-center border border-blue-200 bg-blue-50 hover:bg-blue-100 hover:border-blue-300 transition-all"
                                 >
-                                    <div className="p-2.5 bg-white rounded-lg shadow-sm border border-slate-100"><Factory size={17} className="text-slate-500" /></div>
-                                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Παράδοση & Παραγωγή</span>
+                                    <div className="p-2.5 bg-white rounded-lg shadow-sm border border-blue-100"><Factory size={17} className="text-blue-600" /></div>
+                                    <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-700">Παράδοση & Παραγωγή</span>
                                 </button>
 
                                 <button
                                     onClick={() => setShowStatusActions(true)}
-                                    className="p-4 rounded-xl flex flex-col items-center justify-center gap-2.5 text-center border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:border-slate-300 transition-all"
+                                    className="p-4 rounded-xl flex flex-col items-center justify-center gap-2.5 text-center border border-rose-200 bg-rose-50 hover:bg-rose-100 hover:border-rose-300 transition-all"
                                 >
-                                    <div className="p-2.5 bg-white rounded-lg shadow-sm border border-slate-100"><Archive size={17} className="text-slate-500" /></div>
-                                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Κατάσταση & Αρχείο</span>
+                                    <div className="p-2.5 bg-white rounded-lg shadow-sm border border-rose-100"><Archive size={17} className="text-rose-600" /></div>
+                                    <span className="text-[11px] font-semibold uppercase tracking-wider text-rose-700">Κατάσταση & Αρχείο</span>
                                 </button>
 
                                 <button
                                     onClick={() => setShowSellerAssignment(true)}
-                                    className="col-span-2 p-4 rounded-xl flex items-center gap-4 border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:border-slate-300 transition-all"
+                                    className="col-span-2 p-4 rounded-xl flex items-center gap-4 border border-teal-200 bg-teal-50 hover:bg-teal-100 hover:border-teal-300 transition-all"
                                 >
-                                    <div className="p-2.5 bg-white rounded-lg shadow-sm border border-slate-100 shrink-0"><UserCheck size={17} className="text-slate-500" /></div>
+                                    <div className="p-2.5 bg-white rounded-lg shadow-sm border border-teal-100 shrink-0"><UserCheck size={17} className="text-teal-600" /></div>
                                     <div className="flex-1 text-left">
-                                        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Ανάθεση Πλασιέ</span>
+                                        <span className="text-[11px] font-semibold uppercase tracking-wider text-teal-700 block">Ανάθεση Πλασιέ</span>
                                         {managingOrder.seller_name
-                                            ? <span className="text-xs text-slate-400 font-medium">{managingOrder.seller_name}</span>
-                                            : <span className="text-xs text-slate-300 italic">Χωρίς ανάθεση</span>
+                                            ? <span className="text-xs text-teal-600 font-medium">{managingOrder.seller_name}</span>
+                                            : <span className="text-xs text-teal-400 italic">Χωρίς ανάθεση</span>
                                         }
                                     </div>
                                 </button>
@@ -1392,12 +1390,12 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             {managingOrder && showTagsManager && (
                 <div className="fixed inset-0 z-[60] bg-slate-900/55 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-100 animate-in zoom-in-95">
-                        <div className="p-6 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
+                        <div className="p-6 border-b border-violet-100 bg-violet-50/60 flex items-center justify-between">
                             <div>
-                                <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Layers size={18} /> Ετικέτες / Ομαδοποίηση</h3>
+                                <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Layers size={18} className="text-violet-500" /> Ετικέτες / Ομαδοποίηση</h3>
                                 <p className="text-xs text-slate-500 font-mono mt-1">#{managingOrder.id}</p>
                             </div>
-                            <button onClick={() => setShowTagsManager(false)} className="p-2 hover:bg-slate-200 rounded-full text-slate-500"><X size={20} /></button>
+                            <button onClick={() => setShowTagsManager(false)} className="p-2 hover:bg-violet-100 rounded-full text-slate-400"><X size={20} /></button>
                         </div>
                         <div className="p-6 space-y-4">
                             <div className="flex flex-wrap gap-2 min-h-9">
@@ -1465,12 +1463,12 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             {managingOrder && showWorkflowActions && (
                 <div className="fixed inset-0 z-[60] bg-slate-900/55 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95">
-                        <div className="p-6 border-b border-slate-100 bg-blue-50/70 flex items-center justify-between">
+                        <div className="p-6 border-b border-blue-100 bg-blue-50/60 flex items-center justify-between">
                             <div>
-                                <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Factory size={18} /> Παράδοση & Παραγωγή</h3>
+                                <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Factory size={18} className="text-blue-500" /> Παράδοση & Παραγωγή</h3>
                                 <p className="text-xs text-slate-500 font-mono mt-1">#{managingOrder.id}</p>
                             </div>
-                            <button onClick={() => setShowWorkflowActions(false)} className="p-2 hover:bg-white rounded-full text-slate-500"><X size={20} /></button>
+                            <button onClick={() => setShowWorkflowActions(false)} className="p-2 hover:bg-blue-100 rounded-full text-slate-400"><X size={20} /></button>
                         </div>
                         <div className="p-6 space-y-3">
                             <button
@@ -1523,12 +1521,12 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             {managingOrder && showStatusActions && (
                 <div className="fixed inset-0 z-[60] bg-slate-900/55 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95">
-                        <div className="p-6 border-b border-slate-100 bg-violet-50/70 flex items-center justify-between">
+                        <div className="p-6 border-b border-rose-100 bg-rose-50/60 flex items-center justify-between">
                             <div>
-                                <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Archive size={18} /> Κατάσταση & Αρχείο</h3>
+                                <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Archive size={18} className="text-rose-500" /> Κατάσταση & Αρχείο</h3>
                                 <p className="text-xs text-slate-500 font-mono mt-1">#{managingOrder.id}</p>
                             </div>
-                            <button onClick={() => setShowStatusActions(false)} className="p-2 hover:bg-white rounded-full text-slate-500"><X size={20} /></button>
+                            <button onClick={() => setShowStatusActions(false)} className="p-2 hover:bg-rose-100 rounded-full text-slate-400"><X size={20} /></button>
                         </div>
                         <div className="p-6 space-y-3">
                             <button
