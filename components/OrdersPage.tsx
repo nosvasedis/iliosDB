@@ -1226,7 +1226,9 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                     { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
                                                     { bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-200' },
                                                 ];
-                                                const hash = Array.from(order.seller_name!).reduce((acc, c) => acc + c.charCodeAt(0), 0);
+                                                const key = order.seller_id || order.seller_name!;
+                                                let hash = 5381;
+                                                for (let i = 0; i < key.length; i++) hash = ((hash << 5) + hash + key.charCodeAt(i)) >>> 0;
                                                 const sc = sellerColors[hash % sellerColors.length];
                                                 return (
                                                     <div className="mt-1">

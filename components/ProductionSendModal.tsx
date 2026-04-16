@@ -216,9 +216,11 @@ export default function ProductionSendModal({ order, products, materials, existi
                 const term = searchTerm.toLowerCase();
                 const product = products.find(p => p.sku === row.sku);
                 const stub = isSpecialCreationSku(row.sku) ? getSpecialCreationProductStub() : null;
+                const combined = (row.sku + (row.variant_suffix || '')).toLowerCase();
                 if (
                     !row.sku.toLowerCase().includes(term) &&
                     !(row.variant_suffix || '').toLowerCase().includes(term) &&
+                    !combined.includes(term) &&
                     !product?.category?.toLowerCase().includes(term) &&
                     !stub?.description?.toLowerCase().includes(term) &&
                     !(row.notes || '').toLowerCase().includes(term)
@@ -236,6 +238,11 @@ export default function ProductionSendModal({ order, products, materials, existi
     const visiblePopupBatchIds = useMemo(
         () => new Set(popupBatches.map(b => b.id)),
         [popupBatches]
+    );
+
+    const totalSelectedCount = useMemo(
+        () => selectedBatchIds.size,
+        [selectedBatchIds]
     );
 
     const selectedVisibleActiveCount = useMemo(
@@ -753,12 +760,15 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                 Καθαρ.
                                             </button>
                                             <span className="text-[11px] font-black text-slate-500">
-                                                Επιλ: <span className="text-slate-900">{selectedVisibleActiveCount}</span>
+                                                Επιλ: <span className="text-slate-900">{totalSelectedCount}</span>
+                                                {searchTerm && selectedVisibleActiveCount !== totalSelectedCount && (
+                                                    <span className="text-slate-400 ml-1">({selectedVisibleActiveCount} ορατές)</span>
+                                                )}
                                             </span>
                                         </div>
                                         <BulkStageActions
-                                            disabled={isWorking || selectedVisibleActiveCount === 0}
-                                            onMove={(stage, options) => handleBulkStageMove(stage, visibleActiveBatches.filter(b => selectedBatchIds.has(b.id)).map(b => b.id), options)}
+                                            disabled={isWorking || totalSelectedCount === 0}
+                                            onMove={(stage, options) => handleBulkStageMove(stage, Array.from(selectedBatchIds), options)}
                                         />
                                     </div>
                                 </div>
