@@ -1310,13 +1310,13 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             </div>
 
             {managingOrder && (
-                <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl animate-in zoom-in-95 border border-slate-100 flex flex-col max-h-[90vh]">
-                        <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0 bg-slate-50/50">
+                <div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-md rounded-2xl shadow-xl animate-in zoom-in-95 border border-slate-200 flex flex-col max-h-[90vh]">
+                        <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center shrink-0">
                             <div>
-                                <h3 className="text-xl font-bold text-slate-800">Διαχείριση #{managingOrder.id}</h3>
-                                <p className="text-sm font-bold text-slate-500">
-                                    {managingOrder.customer_name}
+                                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest mb-0.5">Διαχείριση Παραγγελίας</p>
+                                <h3 className="text-base font-bold text-slate-800 leading-tight">
+                                    #{managingOrder.id} &mdash; {managingOrder.customer_name}
                                     {(managingOrder.customer_id === RETAIL_CUSTOMER_ID || managingOrder.customer_name === RETAIL_CUSTOMER_NAME) && (orderMetaById.get(managingOrder.id)?.retailClientLabel || '') && (
                                         <span
                                             className={`ml-2 align-middle ${retailEndClientPillClass}`}
@@ -1325,60 +1325,61 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                             {orderMetaById.get(managingOrder.id)?.retailClientLabel}
                                         </span>
                                     )}
-                                </p>
+                                </h3>
                             </div>
-                            <button onClick={() => setManagingOrder(null)} className="p-2 hover:bg-slate-100 rounded-full"><X size={20} /></button>
+                            <button onClick={() => setManagingOrder(null)} className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"><X size={18} /></button>
                         </div>
-                        <div className="p-6 overflow-y-auto">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="p-4 overflow-y-auto">
+                            <div className="grid grid-cols-2 gap-2.5">
                                 <button
                                     onClick={() => { handleEditOrder(managingOrder); setManagingOrder(null); }}
-                                    className="p-5 rounded-2xl flex flex-col items-center justify-center gap-3 text-center font-bold border-2 bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200 transition-all hover:-translate-y-0.5"
+                                    className="p-4 rounded-xl flex flex-col items-center justify-center gap-2.5 text-center border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:border-slate-300 transition-all"
                                 >
-                                    <div className="p-3 bg-white rounded-xl shadow-sm"><Edit size={20} /></div>
-                                    <span className="text-xs uppercase tracking-wider">Επεξεργασία</span>
+                                    <div className="p-2.5 bg-white rounded-lg shadow-sm border border-slate-100"><Edit size={17} className="text-slate-500" /></div>
+                                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Επεξεργασία</span>
                                 </button>
 
                                 <button
                                     onClick={() => setShowTagsManager(true)}
-                                    className="p-5 rounded-2xl flex flex-col items-center justify-center gap-3 text-center font-bold border-2 bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 transition-all hover:-translate-y-0.5 relative"
+                                    className="p-4 rounded-xl flex flex-col items-center justify-center gap-2.5 text-center border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:border-slate-300 transition-all relative"
                                 >
                                     {(managingOrder.tags?.length || 0) > 0 && (
-                                        <span className="absolute top-2 right-2 bg-indigo-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">
+                                        <span className="absolute top-2 right-2 bg-slate-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
                                             {managingOrder.tags?.length}
                                         </span>
                                     )}
-                                    <div className="p-3 bg-white rounded-xl shadow-sm"><Layers size={20} /></div>
-                                    <span className="text-xs uppercase tracking-wider">Ετικέτες / Ομαδοποίηση</span>
+                                    <div className="p-2.5 bg-white rounded-lg shadow-sm border border-slate-100"><Layers size={17} className="text-slate-500" /></div>
+                                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Ετικέτες</span>
                                 </button>
 
                                 <button
                                     onClick={() => setShowWorkflowActions(true)}
-                                    className="p-5 rounded-2xl flex flex-col items-center justify-center gap-3 text-center font-bold border-2 bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 transition-all hover:-translate-y-0.5"
+                                    className="p-4 rounded-xl flex flex-col items-center justify-center gap-2.5 text-center border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:border-slate-300 transition-all"
                                 >
-                                    <div className="p-3 bg-white rounded-xl shadow-sm"><Factory size={20} /></div>
-                                    <span className="text-xs uppercase tracking-wider">Παράδοση & Παραγωγή</span>
+                                    <div className="p-2.5 bg-white rounded-lg shadow-sm border border-slate-100"><Factory size={17} className="text-slate-500" /></div>
+                                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Παράδοση & Παραγωγή</span>
                                 </button>
 
                                 <button
                                     onClick={() => setShowStatusActions(true)}
-                                    className="p-5 rounded-2xl flex flex-col items-center justify-center gap-3 text-center font-bold border-2 bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100 transition-all hover:-translate-y-0.5"
+                                    className="p-4 rounded-xl flex flex-col items-center justify-center gap-2.5 text-center border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:border-slate-300 transition-all"
                                 >
-                                    <div className="p-3 bg-white rounded-xl shadow-sm"><Archive size={20} /></div>
-                                    <span className="text-xs uppercase tracking-wider">Κατάσταση & Αρχείο</span>
+                                    <div className="p-2.5 bg-white rounded-lg shadow-sm border border-slate-100"><Archive size={17} className="text-slate-500" /></div>
+                                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Κατάσταση & Αρχείο</span>
                                 </button>
 
                                 <button
                                     onClick={() => setShowSellerAssignment(true)}
-                                    className="p-5 rounded-2xl flex flex-col items-center justify-center gap-3 text-center font-bold border-2 bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100 transition-all hover:-translate-y-0.5 relative"
+                                    className="col-span-2 p-4 rounded-xl flex items-center gap-4 border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:border-slate-300 transition-all"
                                 >
-                                    {managingOrder.seller_name && (
-                                        <span className="absolute top-2 right-2 bg-sky-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full max-w-[80%] truncate">
-                                            {managingOrder.seller_name}
-                                        </span>
-                                    )}
-                                    <div className="p-3 bg-white rounded-xl shadow-sm"><UserCheck size={20} /></div>
-                                    <span className="text-xs uppercase tracking-wider">Ανάθεση Πλασιέ</span>
+                                    <div className="p-2.5 bg-white rounded-lg shadow-sm border border-slate-100 shrink-0"><UserCheck size={17} className="text-slate-500" /></div>
+                                    <div className="flex-1 text-left">
+                                        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Ανάθεση Πλασιέ</span>
+                                        {managingOrder.seller_name
+                                            ? <span className="text-xs text-slate-400 font-medium">{managingOrder.seller_name}</span>
+                                            : <span className="text-xs text-slate-300 italic">Χωρίς ανάθεση</span>
+                                        }
+                                    </div>
                                 </button>
                             </div>
                         </div>
