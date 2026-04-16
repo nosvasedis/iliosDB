@@ -2271,8 +2271,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                             <div className="space-y-2">
                                                 {sortedVariantsList.map((v, index) => (
                                                     <div key={v.suffix} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100 group hover:border-blue-200 hover:shadow-sm transition-all">
-                                                        <div className="w-16 text-center text-base bg-slate-50 rounded-xl py-1.5 border border-slate-100 shrink-0">
-                                                            <SkuColorizedText sku={editedProduct.sku} suffix={v.suffix} gender={editedProduct.gender} className="text-base" />
+                                                        <div className="bg-slate-50 rounded-xl px-3 py-1.5 border border-slate-100 shrink-0">
+                                                            <SkuColorizedText sku={editedProduct.sku} suffix={v.suffix} gender={editedProduct.gender} className="text-sm" />
                                                         </div>
                                                         <input value={v.description} onChange={e => updateVariant(index, 'description', e.target.value)} className="flex-1 bg-transparent text-sm font-medium outline-none text-slate-700 placeholder-slate-300" />
                                                         <div className="text-right">
