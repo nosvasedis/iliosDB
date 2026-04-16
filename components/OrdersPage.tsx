@@ -1213,7 +1213,14 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                         className="grid grid-cols-[minmax(0,1fr)_2fr_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.45fr)_minmax(0,1fr)] gap-0 border-b border-slate-50 hover:bg-slate-50/80 transition-colors group absolute left-0 w-full text-sm"
                                         style={{ transform: `translateY(${virtualRow.start}px)` }}
                                     >
-                                        <div className="p-4 pl-6 font-mono font-bold text-slate-800">{order.id}</div>
+                                        <div className="p-4 pl-6">
+                                            <div className="font-mono font-bold text-slate-800">{order.id}</div>
+                                            {order.seller_name && (
+                                                <div className="text-[10px] text-slate-400 mt-0.5 truncate" title={`Πλασιέ: ${order.seller_name}${order.seller_commission_percent != null ? ` (${order.seller_commission_percent}%)` : ''}`}>
+                                                    {order.seller_name}{order.seller_commission_percent != null ? <span className="text-emerald-500 ml-1">{order.seller_commission_percent}%</span> : ''}
+                                                </div>
+                                            )}
+                                        </div>
                                         <div className="p-4">
                                             <div className="font-bold text-slate-800">
                                                 {order.customer_name}
@@ -1226,17 +1233,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                     </span>
                                                 )}
                                             </div>
-                                            {order.seller_name && (
-                                                <div className="mt-1.5">
-                                                    <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-bold text-sky-700">
-                                                        <span className="uppercase tracking-wide text-[9px] text-sky-600">Πλάσιε</span>
-                                                        <span className="text-sky-800">{order.seller_name}</span>
-                                                        {order.seller_commission_percent != null && (
-                                                            <span className="text-emerald-600 font-black">{order.seller_commission_percent}%</span>
-                                                        )}
-                                                    </span>
-                                                </div>
-                                            )}
                                             {order.tags && order.tags.length > 0 && (
                                                 <div className="flex gap-1.5 mt-2 flex-wrap">
                                                     {order.tags.map(t => {

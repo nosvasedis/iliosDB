@@ -1511,36 +1511,36 @@ export default function MobileOrders({
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 gap-2">
+                            <div className="grid grid-cols-2 gap-2">
                                 <button onClick={() => {
                                     setSellerAssignOrder(managingOrder);
                                     setAssignSellerId(managingOrder.seller_id || null);
                                     setAssignSellerName(managingOrder.seller_name || null);
                                     setAssignCommission(managingOrder.seller_commission_percent ?? undefined);
                                     setManagingOrder(null);
-                                }} className="w-full flex items-center gap-3 p-4 bg-sky-50 border border-sky-200 text-sky-700 rounded-2xl font-bold">
-                                    <UserCheck size={20} /> Ανάθεση Πλασιέ
+                                }} className="flex items-center gap-2 p-3.5 bg-white border border-slate-200 text-slate-600 rounded-2xl text-sm font-bold">
+                                    <UserCheck size={18} className="text-slate-400" /> Πλασιέ
                                 </button>
 
-                                <button onClick={() => { onOpenDeliveries?.(managingOrder); setManagingOrder(null); }} className="w-full flex items-center gap-3 p-4 bg-white border border-slate-200 text-slate-700 rounded-2xl font-bold">
-                                    <Settings size={20} /> Προγραμματισμός παράδοσης
+                                <button onClick={() => { onOpenDeliveries?.(managingOrder); setManagingOrder(null); }} className="flex items-center gap-2 p-3.5 bg-white border border-slate-200 text-slate-600 rounded-2xl text-sm font-bold">
+                                    <Settings size={18} className="text-slate-400" /> Παράδοση
                                 </button>
 
-                                {isOrderReady(managingOrder, batches) && managingOrder.status !== OrderStatus.Delivered && (
-                                    <button onClick={() => handleCompleteOrder(managingOrder)} className="w-full flex items-center gap-3 p-4 bg-emerald-600 text-white rounded-2xl font-bold shadow-lg"><CheckSquare size={20} /> Ολοκλήρωση & Παράδοση</button>
-                                )}
-
-                                <button onClick={() => handleArchiveOrder(managingOrder, !managingOrder.is_archived)} className="w-full flex items-center gap-3 p-4 bg-white border border-slate-200 text-slate-700 rounded-2xl font-bold">
-                                    {managingOrder.is_archived ? <ArchiveRestore size={20} /> : <Archive size={20} />}
-                                    {managingOrder.is_archived ? 'Ανάκτηση από Αρχείο' : 'Αρχειοθέτηση'}
+                                <button onClick={() => handleArchiveOrder(managingOrder, !managingOrder.is_archived)} className="flex items-center gap-2 p-3.5 bg-white border border-slate-200 text-slate-600 rounded-2xl text-sm font-bold">
+                                    {managingOrder.is_archived ? <ArchiveRestore size={18} className="text-slate-400" /> : <Archive size={18} className="text-slate-400" />}
+                                    {managingOrder.is_archived ? 'Ανάκτηση' : 'Αρχείο'}
                                 </button>
 
                                 {managingOrder.status !== OrderStatus.Cancelled && managingOrder.status !== OrderStatus.Delivered && (
-                                    <button onClick={() => handleCancelOrder(managingOrder)} className="w-full flex items-center gap-3 p-4 bg-orange-50 border border-orange-200 text-orange-700 rounded-2xl font-bold"><Ban size={20} /> Ακύρωση</button>
+                                    <button onClick={() => handleCancelOrder(managingOrder)} className="flex items-center gap-2 p-3.5 bg-white border border-slate-200 text-orange-600 rounded-2xl text-sm font-bold"><Ban size={18} className="text-orange-400" /> Ακύρωση</button>
                                 )}
-
-                                <button onClick={() => handleDeleteOrder(managingOrder)} className="w-full flex items-center gap-3 p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl font-bold"><Trash2 size={20} /> Οριστική Διαγραφή</button>
                             </div>
+
+                            {isOrderReady(managingOrder, batches) && managingOrder.status !== OrderStatus.Delivered && (
+                                <button onClick={() => handleCompleteOrder(managingOrder)} className="w-full flex items-center justify-center gap-2 p-3.5 bg-emerald-600 text-white rounded-2xl font-bold text-sm shadow-sm"><CheckSquare size={18} /> Ολοκλήρωση & Παράδοση</button>
+                            )}
+
+                            <button onClick={() => handleDeleteOrder(managingOrder)} className="w-full flex items-center justify-center gap-2 p-3 text-red-400 text-xs font-bold"><Trash2 size={14} /> Οριστική Διαγραφή</button>
                         </div>
                     </div>
                 </div>
