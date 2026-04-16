@@ -27,7 +27,7 @@ import { PRODUCTION_STAGE_COLORS, getProductionStageLabel } from '../../utils/de
 import { buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildSyntheticAggregatedBatches, buildOrderRevisions } from '../../features/orders';
 import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 import { StickyNote, UserCheck } from 'lucide-react';
-import SellerPicker from '../OrderBuilder/SellerPicker';
+import { SellerPicker } from '../OrderBuilder/SellerPicker';
 import { useSellers } from '../../hooks/api/useSellers';
 
 const STAGE_ICON_MAP: Record<ProductionStage, LucideIcon> = {
