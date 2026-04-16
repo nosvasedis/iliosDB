@@ -944,7 +944,7 @@ export const api = {
         if (!res.ok) throw new Error(json.error || 'Σφάλμα δημιουργίας πλασιέ');
         return json;
     },
-    updateSeller: async (payload: { id: string; full_name?: string; commission_percent?: number; is_approved?: boolean; new_password?: string }): Promise<void> => {
+    updateSeller: async (payload: { id: string; full_name?: string; commission_percent?: number | null; is_approved?: boolean; new_password?: string }): Promise<void> => {
         const res = await fetch(`${CLOUDFLARE_WORKER_URL}/admin/update-seller`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': AUTH_KEY_SECRET },

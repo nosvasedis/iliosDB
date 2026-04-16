@@ -146,7 +146,7 @@ export default function MobileSellersPage() {
     if (!editingSeller || !form.full_name.trim()) { showToast('Το όνομα είναι υποχρεωτικό.', 'error'); return; }
     setIsSaving(true);
     try {
-      await api.updateSeller({ id: editingSeller.id, full_name: form.full_name.trim(), commission_percent: form.commission_percent !== '' ? Number(form.commission_percent) : 0, ...(resetPassword ? { new_password: resetPassword } : {}) });
+      await api.updateSeller({ id: editingSeller.id, full_name: form.full_name.trim(), commission_percent: form.commission_percent !== '' ? Number(form.commission_percent) : null, ...(resetPassword ? { new_password: resetPassword } : {}) });
       queryClient.invalidateQueries({ queryKey: sellerKeys.all });
       setShowForm(false); setEditingSeller(null); showToast('Ο πλασιέ ενημερώθηκε.', 'success');
     } catch (e: any) { showToast(e.message || 'Σφάλμα', 'error'); } finally { setIsSaving(false); }
