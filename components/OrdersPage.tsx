@@ -65,7 +65,7 @@ function SellerAssignmentModal({ order, onClose, onSaved }: {
                 ...order,
                 seller_id: sellerId || undefined,
                 seller_name: sellerName || undefined,
-                seller_commission_percent: sellerId ? commission : undefined,
+                seller_commission_percent: sellerId ? (commission ?? null) : null,
             };
             await ordersRepository.updateOrder(updated);
             showToast('Ο πλασιέ ενημερώθηκε.', 'success');
