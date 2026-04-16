@@ -592,12 +592,24 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                     if (activeMaster.variants && activeMaster.variants.length > 0 && tail) {
                         for (const v of activeMaster.variants) {
                             const variantSuffix = v.suffix.toUpperCase();
-                            if (tail.startsWith(variantSuffix)) {
+                            if (variantSuffix.length > 0 && tail.startsWith(variantSuffix)) {
                                 chosenVariant = v;
                                 tail = tail.slice(variantSuffix.length);
                                 break;
                             }
                         }
+                    }
+
+                    // If the product has non-blank variants but the typed suffix didn't match any of them, reject.
+                    const hasNonBlankVariants = activeMaster.variants && activeMaster.variants.length > 0
+                        && activeMaster.variants.some(v => v.suffix !== '');
+                    if (hasNonBlankVariants && chosenVariant === null && tail) {
+                        const available = activeMaster.variants!
+                            .filter(v => v.suffix !== '')
+                            .map(v => activeMaster.sku + v.suffix)
+                            .join(', ');
+                        showToast(`Ο κωδικός "${skuCode}" δεν αντιστοιχεί σε έγκυρη παραλλαγή. Διαθέσιμες: ${available}`, 'error');
+                        return;
                     }
 
                     const sizing = getSizingInfo(activeMaster);
