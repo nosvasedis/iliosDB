@@ -1215,11 +1215,30 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                     >
                                         <div className="p-4 pl-6">
                                             <div className="font-mono font-bold text-slate-800">{order.id}</div>
-                                            {order.seller_name && (
-                                                <div className="text-[10px] text-slate-400 mt-0.5 truncate" title={`Πλασιέ: ${order.seller_name}${order.seller_commission_percent != null ? ` (${order.seller_commission_percent}%)` : ''}`}>
-                                                    {order.seller_name}{order.seller_commission_percent != null ? <span className="text-emerald-500 ml-1">{order.seller_commission_percent}%</span> : ''}
-                                                </div>
-                                            )}
+                                            {order.seller_name && (() => {
+                                                const sellerColors = [
+                                                    { bg: 'bg-sky-50', text: 'text-sky-700', border: 'border-sky-200' },
+                                                    { bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200' },
+                                                    { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
+                                                    { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' },
+                                                    { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-200' },
+                                                    { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
+                                                    { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
+                                                    { bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-200' },
+                                                ];
+                                                const hash = Array.from(order.seller_name!).reduce((acc, c) => acc + c.charCodeAt(0), 0);
+                                                const sc = sellerColors[hash % sellerColors.length];
+                                                return (
+                                                    <div className="mt-1">
+                                                        <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] font-bold leading-none ${sc.bg} ${sc.text} ${sc.border}`}>
+                                                            {order.seller_name}
+                                                            {order.seller_commission_percent != null && (
+                                                                <span className="opacity-60">{order.seller_commission_percent}%</span>
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                         <div className="p-4">
                                             <div className="font-bold text-slate-800">
