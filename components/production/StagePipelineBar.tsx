@@ -1,7 +1,6 @@
 import React from 'react';
 import { ProductionStage } from '../../types';
 import { STAGES, VIBRANT_STAGES } from './stageConstants';
-import { StageOnHoldMiniStrip } from './StageOnHoldMiniStrip';
 
 interface StagePipelineBarProps {
     stageCounts: Record<string, number>;
@@ -21,8 +20,7 @@ export const StagePipelineBar = React.memo(function StagePipelineBar({
     const activeStages = STAGES.filter(s => (stageCounts[s.id] || 0) > 0);
 
     return (
-        <div className="mt-3 space-y-1.5">
-            {/* Pipeline bar */}
+        <div className="mt-3">
             <div className="flex h-7 rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
                 {activeStages.map((stage, i) => {
                     const count = stageCounts[stage.id] || 0;
@@ -44,27 +42,6 @@ export const StagePipelineBar = React.memo(function StagePipelineBar({
                             {onHold > 0 && (
                                 <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 rounded-full border border-white shadow-sm" />
                             )}
-                        </button>
-                    );
-                })}
-            </div>
-            {/* Legend pills below */}
-            <div className="flex flex-wrap gap-1.5">
-                {activeStages.map(stage => {
-                    const count = stageCounts[stage.id] || 0;
-                    const onHold = stageOnHoldCounts[stage.id] || 0;
-                    const vibrant = VIBRANT_STAGES[stage.id] || 'bg-slate-500';
-                    return (
-                        <button
-                            key={stage.id}
-                            onClick={() => onStageClick(stage.id as ProductionStage)}
-                            className={`text-[9px] px-1.5 py-0.5 rounded border font-bold flex flex-col items-stretch gap-0.5 text-left transition-transform active:scale-95 ${stage.color}`}
-                        >
-                            <span className="flex items-center gap-1 shrink-0">
-                                <span>{stage.label}:</span>
-                                <span className="bg-white/50 px-0.5 rounded text-[10px] leading-none font-black">{count}</span>
-                            </span>
-                            <StageOnHoldMiniStrip totalQty={count} onHoldQty={onHold} activeClass={vibrant} />
                         </button>
                     );
                 })}
