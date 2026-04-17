@@ -3492,6 +3492,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                     onEditNote={(b) => setEditingNoteBatch(b)}
                     onToggleHold={handleToggleHold}
                     onViewHistory={handleViewHistory}
+                    isMovingBatch={movingBatchIds.has(viewBuildBatch.id)}
                 />
             )}
 
@@ -3551,6 +3552,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                     onDelete={(b: ProductionBatch) => handleDeleteBatch(b)}
                     onClick={(b: ProductionBatch) => setViewBuildBatch(b)}
                     onViewHistory={handleViewHistory}
+                    movingBatchIds={movingBatchIds}
                 />
             )}
 

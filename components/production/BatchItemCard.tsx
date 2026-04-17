@@ -33,6 +33,7 @@ interface BatchItemCardProps {
     currentSend: number;
     discountFactor: number;
     isWorking: boolean;
+    movingBatchIds?: Set<string>;
     selectedBatchIds: Set<string>;
     expandedBatches: Set<string>;
     getBatchTiming: (batch: ProductionBatch) => { timingLabel: string; timingStatus: ProductionTimingStatus; stageEnteredAt: string };
@@ -57,6 +58,7 @@ export const BatchItemCard = React.memo(function BatchItemCard({
     currentSend,
     discountFactor,
     isWorking,
+    movingBatchIds,
     selectedBatchIds,
     expandedBatches,
     getBatchTiming,
@@ -229,6 +231,8 @@ export const BatchItemCard = React.memo(function BatchItemCard({
                                                 const isExpanded = expandedBatches.has(batch.id);
                                                 const timeInfo = getBatchTiming(batch);
 
+                                                const isMoving = movingBatchIds?.has(batch.id) ?? false;
+
                                                 return (
                                                     <BatchRow
                                                         key={batch.id}
@@ -238,6 +242,7 @@ export const BatchItemCard = React.memo(function BatchItemCard({
                                                         batchValue={batchVal}
                                                         timeInfo={timeInfo}
                                                         isWorking={isWorking}
+                                                        isMoving={isMoving}
                                                         onToggleSelect={onToggleBatchSelect}
                                                         onToggleExpand={() => onToggleBatchExpand(batch.id)}
                                                         onStageMove={onStageMove}

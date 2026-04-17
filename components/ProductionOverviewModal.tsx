@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { ProductionBatch, ProductionStage, Collection } from '../types';
-import { X, ImageIcon, PauseCircle, PlayCircle, StickyNote, Clock, AlertTriangle } from 'lucide-react';
+import { X, ImageIcon, PauseCircle, PlayCircle, StickyNote, Clock, AlertTriangle, Loader2 } from 'lucide-react';
 import { PRODUCTION_STAGES, getProductionStageLabel } from '../utils/productionStages';
 import SkuColorizedText from './SkuColorizedText';
 import { getBatchAgeInfo } from '../features/production/selectors';
@@ -31,6 +31,10 @@ interface Props {
     onDelete: (batch: ProductionBatch) => void;
     onClick: (batch: ProductionBatch) => void;
     onViewHistory?: (batch: ProductionBatch) => void;
+    /** Set of batches currently mid-move (server round-trip in flight).
+     *  Rows for these batches display the syncing overlay and their move
+     *  controls are disabled, matching the main Παραγωγή tab behavior. */
+    movingBatchIds?: Set<string>;
 }
 
 const STAGES = PRODUCTION_STAGES.map((stage) => ({
@@ -76,10 +80,11 @@ const STAGE_MOVE_COLORS: Record<string, { bg: string; text: string; border: stri
 };
 
 // Inline compact stage mover — uses a portal so the dropdown escapes modal overflow clipping
-function InlineStageMover({ batch, onMoveToStage, onToggleHold }: {
+function InlineStageMover({ batch, onMoveToStage, onToggleHold, isMoving = false }: {
     batch: ProductionBatch & { requires_setting?: boolean; requires_assembly?: boolean };
     onMoveToStage: (batch: ProductionBatch, s: ProductionStage, options?: { pendingDispatch?: boolean }) => void;
     onToggleHold: (batch: ProductionBatch) => void;
+    isMoving?: boolean;
 }) {
     const [open, setOpen] = useState(false);
     const [popupPos, setPopupPos] = useState({ top: 0, left: 0, width: 180 });
@@ -109,9 +114,16 @@ function InlineStageMover({ batch, onMoveToStage, onToggleHold }: {
 
     const handleToggle = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
+        if (isMoving) return;
         if (!open) updatePos();
         setOpen(v => !v);
-    }, [open, updatePos]);
+    }, [open, updatePos, isMoving]);
+
+    // Auto-close the picker when this batch enters the moving state so the
+    // user cannot queue another transition on top of the in-flight one.
+    useEffect(() => {
+        if (isMoving) setOpen(false);
+    }, [isMoving]);
 
     // Close on outside click
     useEffect(() => {
@@ -139,16 +151,19 @@ function InlineStageMover({ batch, onMoveToStage, onToggleHold }: {
         <div className="flex items-center gap-1.5">
             {/* Hold toggle */}
             <button
-                onClick={(e) => { e.stopPropagation(); onToggleHold(batch); }}
-                className={`flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition-colors border
+                onClick={(e) => { e.stopPropagation(); if (!isMoving) onToggleHold(batch); }}
+                disabled={isMoving}
+                className={`flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition-colors border disabled:opacity-50 disabled:cursor-not-allowed
                     ${batch.on_hold
                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
                         : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
                     }`}
             >
-                {batch.on_hold
-                    ? <><PlayCircle size={12} className="fill-current" /> Συνέχεια</>
-                    : <><PauseCircle size={12} /> Αναμονή</>
+                {isMoving
+                    ? <><Loader2 size={12} className="animate-spin" /> {batch.on_hold ? 'Συνέχεια' : 'Αναμονή'}</>
+                    : batch.on_hold
+                        ? <><PlayCircle size={12} className="fill-current" /> Συνέχεια</>
+                        : <><PauseCircle size={12} /> Αναμονή</>
                 }
             </button>
 
@@ -158,9 +173,10 @@ function InlineStageMover({ batch, onMoveToStage, onToggleHold }: {
                     <button
                         ref={btnRef}
                         onClick={handleToggle}
-                        className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 transition-colors"
+                        disabled={isMoving}
+                        className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        Μετακίνηση ▾
+                        {isMoving ? <><Loader2 size={11} className="animate-spin" /> Μετακινείται…</> : <>Μετακίνηση ▾</>}
                     </button>
                     {open && ReactDOM.createPortal(
                         <div
@@ -242,6 +258,7 @@ function InlineStageMover({ batch, onMoveToStage, onToggleHold }: {
 export default function ProductionOverviewModal({
     isOpen, onClose, title, filterType, batches,
     onMoveToStage, onEditNote, onToggleHold, onClick,
+    movingBatchIds,
 }: Props) {
 
     const filteredBatches = useMemo(() => {
@@ -366,14 +383,23 @@ export default function ProductionOverviewModal({
                                         const leftBorder = batch.on_hold
                                             ? 'border-l-amber-400'
                                             : (TIMING_LEFT_BORDER[timingStatus] || 'border-l-emerald-400');
+                                        const isRowMoving = movingBatchIds?.has(batch.id) ?? false;
 
                                         return (
                                             <div
                                                 key={batch.id}
-                                                className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${leftBorder}
-                                                    ${batch.on_hold ? 'border-l-[4px] border-amber-200 bg-amber-50/40' : 'border-l-[3px] border-slate-200 hover:shadow-md'}
+                                                className={`bg-white rounded-2xl border shadow-sm overflow-hidden relative ${leftBorder}
+                                                    ${isRowMoving ? 'border-emerald-300 ring-2 ring-emerald-400/60 ring-offset-1 shadow-lg animate-pulse' : batch.on_hold ? 'border-l-[4px] border-amber-200 bg-amber-50/40' : 'border-l-[3px] border-slate-200 hover:shadow-md'}
                                                     transition-shadow`}
                                             >
+                                                {isRowMoving && (
+                                                    <div className="absolute inset-0 z-20 rounded-2xl bg-white/55 backdrop-blur-[1.5px] flex items-start justify-center pt-2 pointer-events-auto cursor-wait">
+                                                        <div className="flex items-center gap-1.5 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg ring-2 ring-white">
+                                                            <Loader2 size={11} className="animate-spin" />
+                                                            <span>Μετακινείται…</span>
+                                                        </div>
+                                                    </div>
+                                                )}
                                                 {/* Main row — clickable */}
                                                 <div
                                                     className="flex items-center gap-3 px-4 py-3 cursor-pointer"
@@ -483,6 +509,7 @@ export default function ProductionOverviewModal({
                                                             batch={batch}
                                                             onMoveToStage={onMoveToStage}
                                                             onToggleHold={onToggleHold}
+                                                            isMoving={isRowMoving}
                                                         />
                                                     )}
                                                 </div>

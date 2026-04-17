@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { ProductionBatch, Product, Material, Mold, ProductionType, ProductionStage } from '../types';
-import { X, Box, MapPin, Info, Image as ImageIcon, Scale, Calculator, StickyNote, MoveRight, Check, PauseCircle, PlayCircle, AlertTriangle, User, Edit, ChevronUp, ChevronDown, History } from 'lucide-react';
+import { X, Box, MapPin, Info, Image as ImageIcon, Scale, Calculator, StickyNote, MoveRight, Check, PauseCircle, PlayCircle, AlertTriangle, User, Edit, ChevronUp, ChevronDown, History, Loader2 } from 'lucide-react';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import SkuColorizedText from './SkuColorizedText';
 import { buildBatchBuildData } from '../utils/batchBuildData';
@@ -18,6 +18,10 @@ interface Props {
     onEditNote?: (batch: ProductionBatch) => void;
     onToggleHold?: (batch: ProductionBatch) => void;
     onViewHistory?: (batch: ProductionBatch) => void;
+    /** Whether this batch is currently mid-move in the parent. When true the
+     *  modal displays a syncing overlay and disables all move controls so the
+     *  user can't queue conflicting transitions. */
+    isMovingBatch?: boolean;
 }
 
 const STAGES = PRODUCTION_STAGES.map((stage) => ({
@@ -38,9 +42,13 @@ const STAGE_BUTTON_COLORS: Record<string, { bg: string, text: string, border: st
 };
 
 
-export default function BatchBuildModal({ batch, allMaterials, allMolds, allProducts, onClose, onMove, onEditNote, onToggleHold, onViewHistory }: Props) {
+export default function BatchBuildModal({ batch, allMaterials, allMolds, allProducts, onClose, onMove, onEditNote, onToggleHold, onViewHistory, isMovingBatch = false }: Props) {
     const product = batch.product_details;
-    const [isMoving, setIsMoving] = useState(false);
+    // `isMovingBatch` (from parent) is the source of truth while a server move
+    // is in flight. The modal normally closes immediately after invoking
+    // onMove, so this overlay is mainly insurance against re-opening the
+    // detail view while the previous move is still settling.
+    const isMoving = isMovingBatch;
     const [isImageZoomed, setIsImageZoomed] = useState(false);
     
     // Stage selector state
@@ -113,6 +121,12 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
         }
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [stageSelectorOpen]);
+
+    // Auto-close the stage selector if the batch enters the moving state so
+    // the user cannot fire another transition on top of the one in flight.
+    useEffect(() => {
+        if (isMoving) setStageSelectorOpen(false);
+    }, [isMoving]);
     
     // Update position on scroll/resize
     useEffect(() => {
@@ -127,21 +141,20 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
         }
     }, [stageSelectorOpen, updatePosition]);
     
-    // Handle stage selection
+    // Handle stage selection — close immediately after invoking onMove so the
+    // user returns to the main view where the source card already reflects
+    // the optimistic stage change (emerald ring + "Μετακινείται…" overlay).
     const handleStageSelect = (targetStage: ProductionStage, opts?: { pendingDispatch?: boolean }) => {
         if (isStageDisabled(targetStage)) return;
+        if (isMoving) return;
         // For Polishing, allow same-stage move when switching substage
         const isSameStage = targetStage === batch.current_stage;
         const isSameSubstage = isSameStage && targetStage === ProductionStage.Polishing && opts?.pendingDispatch === batch.pending_dispatch;
         if (isSameStage && (targetStage !== ProductionStage.Polishing || isSameSubstage)) return;
         setStageSelectorOpen(false);
         if (onMove) {
-            setIsMoving(true);
             onMove(batch, targetStage, opts);
-            setTimeout(() => {
-                setIsMoving(false);
-                onClose();
-            }, 500);
+            onClose();
         }
     };
 
@@ -166,8 +179,17 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
 
     return (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
-            <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-                
+            <div className={`bg-white w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 relative transition-all ${isMoving ? 'ring-2 ring-emerald-400/70 ring-offset-2' : ''}`} onClick={e => e.stopPropagation()}>
+
+                {isMoving && (
+                    <div className="absolute inset-0 z-[60] bg-white/55 backdrop-blur-[1.5px] flex items-start justify-center pt-6 pointer-events-auto cursor-wait">
+                        <div className="flex items-center gap-2 bg-emerald-600 text-white text-xs font-black uppercase tracking-wider px-4 py-2 rounded-full shadow-xl ring-2 ring-white">
+                            <Loader2 size={14} className="animate-spin" />
+                            <span>Μετακινείται…</span>
+                        </div>
+                    </div>
+                )}
+
                 {/* Header */}
                 <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50/50">
                     <div className="flex items-center gap-4">

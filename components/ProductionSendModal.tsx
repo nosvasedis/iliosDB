@@ -22,7 +22,7 @@ import { getSpecialCreationProductStub, isSpecialCreationSku } from '../utils/sp
 import { useOrderShipmentsForOrder } from '../hooks/api/useOrders';
 import { useBatchStageHistoryEntries } from '../hooks/api/useProductionBatches';
 import { ordersRepository } from '../features/orders';
-import { productionRepository } from '../features/production';
+import { productionRepository, productionKeys } from '../features/production';
 import { invalidateOrdersAndBatches, invalidateProductionBatches } from '../lib/queryInvalidation';
 
 import { STAGES, STAGE_BUTTON_COLORS, VIBRANT_STAGES, getStageColorKey } from './production/stageConstants';
@@ -55,6 +55,20 @@ export default function ProductionSendModal({ order, products, materials, existi
     const { data: batchStageHistoryEntries = [] } = useBatchStageHistoryEntries();
     const [isSending, setIsSending] = useState(false);
     const [isWorking, setIsWorking] = useState(false);
+    // Per-batch in-flight tracking so individual rows show a syncing overlay
+    // without blocking unrelated batches. Mirrors the ProductionPage pattern.
+    const [movingBatchIds, setMovingBatchIds] = useState<Set<string>>(new Set());
+    const markMoving = useCallback((ids: string[], isMoving: boolean) => {
+        if (ids.length === 0) return;
+        setMovingBatchIds(prev => {
+            const next = new Set(prev);
+            for (const id of ids) {
+                if (isMoving) next.add(id);
+                else next.delete(id);
+            }
+            return next;
+        });
+    }, []);
     const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
     const [zoomImageAlt, setZoomImageAlt] = useState<string>('');
 
@@ -255,6 +269,22 @@ export default function ProductionSendModal({ order, products, materials, existi
         [selectedBatchIds, popupBatches]
     );
 
+    // Derived "something in this order is currently syncing" flag — used to
+    // disable order-wide controls (merge-all-parts) without reverting to the
+    // global lock.
+    const anyOrderBatchMoving = useMemo(
+        () => existingBatches.some(b => movingBatchIds.has(b.id)),
+        [existingBatches, movingBatchIds]
+    );
+    const isAnySelectedMoving = useMemo(
+        () => Array.from(selectedBatchIds).some(id => movingBatchIds.has(id)),
+        [selectedBatchIds, movingBatchIds]
+    );
+    const isAnyPopupSelectedMoving = useMemo(
+        () => popupBatches.some(b => selectedBatchIds.has(b.id) && movingBatchIds.has(b.id)),
+        [popupBatches, selectedBatchIds, movingBatchIds]
+    );
+
     // ─── Auto-expand batches (≤2 per item = expanded, ≥3 = collapsed) ───────
     useEffect(() => {
         const next = new Set<string>();
@@ -398,34 +428,118 @@ export default function ProductionSendModal({ order, products, materials, existi
         );
     }, [stockDecision, executeSend]);
 
+    // ─── Optimistic cache helpers (mirrors ProductionPage) ──────────────────
+    // Instantly jumps a batch to its target stage in the cache, so its row in
+    // this modal (and any other consumer of productionKeys.batches()) updates
+    // without waiting for the network round-trip. Returns a snapshot used to
+    // roll back on error.
+    const applyOptimisticStage = useCallback((
+        batchId: string,
+        targetStage: ProductionStage,
+        pendingDispatch?: boolean,
+    ): ProductionBatch[] | undefined => {
+        const key = productionKeys.batches();
+        const prev = queryClient.getQueryData<ProductionBatch[]>(key);
+        const nowIso = new Date().toISOString();
+        queryClient.setQueryData<ProductionBatch[]>(key, (cur) => {
+            if (!cur) return cur;
+            return cur.map(b => {
+                if (b.id !== batchId) return b;
+                const wasPolishing = b.current_stage === ProductionStage.Polishing;
+                const willBePolishing = targetStage === ProductionStage.Polishing;
+                return {
+                    ...b,
+                    current_stage: targetStage,
+                    pending_dispatch: willBePolishing
+                        ? (pendingDispatch ?? true)
+                        : (wasPolishing ? false : b.pending_dispatch),
+                    updated_at: nowIso,
+                };
+            });
+        });
+        return prev;
+    }, [queryClient]);
+
+    const applyOptimisticBulkStage = useCallback((
+        batchIds: string[],
+        targetStage: ProductionStage,
+        pendingDispatch?: boolean,
+    ): ProductionBatch[] | undefined => {
+        const key = productionKeys.batches();
+        const prev = queryClient.getQueryData<ProductionBatch[]>(key);
+        const idSet = new Set(batchIds);
+        const nowIso = new Date().toISOString();
+        queryClient.setQueryData<ProductionBatch[]>(key, (cur) => {
+            if (!cur) return cur;
+            return cur.map(b => {
+                if (!idSet.has(b.id)) return b;
+                const wasPolishing = b.current_stage === ProductionStage.Polishing;
+                const willBePolishing = targetStage === ProductionStage.Polishing;
+                return {
+                    ...b,
+                    current_stage: targetStage,
+                    pending_dispatch: willBePolishing
+                        ? (pendingDispatch ?? true)
+                        : (wasPolishing ? false : b.pending_dispatch),
+                    updated_at: nowIso,
+                };
+            });
+        });
+        return prev;
+    }, [queryClient]);
+
+    const rollbackBatchesCache = useCallback((snapshot: ProductionBatch[] | undefined) => {
+        if (!snapshot) return;
+        queryClient.setQueryData<ProductionBatch[]>(productionKeys.batches(), snapshot);
+    }, [queryClient]);
+
     // ─── BATCH MANAGEMENT ACTIONS ───────────────────────────────────────────
 
     const handleStageMove = useCallback(async (batch: ProductionBatch, newStage: ProductionStage, options?: { pendingDispatch?: boolean }) => {
-        if (isWorking) return;
-        setIsWorking(true);
+        if (movingBatchIds.has(batch.id)) return;
+        if (batch.on_hold) {
+            showToast("Η παρτίδα είναι σε αναμονή. Ξεμπλοκάρετε την πρώτα.", "error");
+            return;
+        }
+        const pendingDispatch = newStage === ProductionStage.Polishing ? (options?.pendingDispatch ?? true) : undefined;
+
+        // Intra-Polishing sub-stage toggle (dispatch / recall) — same stage,
+        // only flips pending_dispatch. Skip if not changing anything.
+        if (batch.current_stage === ProductionStage.Polishing && newStage === ProductionStage.Polishing) {
+            if (pendingDispatch === batch.pending_dispatch) return;
+        } else if (batch.current_stage === newStage) {
+            return;
+        }
+
+        markMoving([batch.id], true);
+        await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
+        const snapshot = applyOptimisticStage(batch.id, newStage, pendingDispatch);
         try {
-            const pendingDispatch = newStage === ProductionStage.Polishing ? (options?.pendingDispatch ?? true) : undefined;
             await productionRepository.updateBatchStage(batch.id, newStage, undefined, pendingDispatch);
             await Promise.all([invalidateOrdersAndBatches(queryClient), queryClient.invalidateQueries({ queryKey: ['products'] })]);
             showToast("Η παρτίδα μετακινήθηκε.", "success");
-        } catch (e) { showToast("Σφάλμα ενημέρωσης.", "error"); }
-        finally { setIsWorking(false); }
-    }, [isWorking, queryClient, showToast]);
+        } catch (e) {
+            rollbackBatchesCache(snapshot);
+            showToast("Σφάλμα ενημέρωσης.", "error");
+        } finally {
+            markMoving([batch.id], false);
+        }
+    }, [movingBatchIds, markMoving, queryClient, applyOptimisticStage, rollbackBatchesCache, showToast]);
 
     const handleDeleteBatch = useCallback(async (batch: ProductionBatch) => {
-        if (isWorking) return;
+        if (movingBatchIds.has(batch.id)) return;
         if (!await confirm({ title: 'Διαγραφή', message: `Διαγραφή παρτίδας (${batch.quantity} τεμ);`, isDestructive: true })) return;
-        setIsWorking(true);
+        markMoving([batch.id], true);
         try {
             await productionRepository.deleteProductionBatch(batch.id);
             await Promise.all([invalidateOrdersAndBatches(queryClient), queryClient.invalidateQueries({ queryKey: ['products'] })]);
             showToast("Η παρτίδα διαγράφηκε.", "info");
         } catch (e) { showToast("Σφάλμα διαγραφής.", "error"); }
-        finally { setIsWorking(false); }
-    }, [isWorking, queryClient, showToast, confirm]);
+        finally { markMoving([batch.id], false); }
+    }, [movingBatchIds, markMoving, queryClient, showToast, confirm]);
 
     const handleRevertBatch = useCallback(async (batch: ProductionBatch) => {
-        if (isWorking) return;
+        if (movingBatchIds.has(batch.id)) return;
         const batchLabel = [
             `${batch.sku}${batch.variant_suffix || ''}`, batch.size_info,
             batch.cord_color ? `Κορδόνι: ${getProductOptionColorLabel(batch.cord_color)}` : null,
@@ -437,14 +551,14 @@ export default function ProductionSendModal({ order, products, materials, existi
             message: `Η παρτίδα ${batchLabel} (${batch.quantity} τεμ.) θα αφαιρεθεί από την παραγωγή.${stockHint}`,
             isDestructive: true, confirmText: 'Επαναφορά'
         })) return;
-        setIsWorking(true);
+        markMoving([batch.id], true);
         try {
             await productionRepository.revertProductionBatch(batch.id);
             await Promise.all([invalidateOrdersAndBatches(queryClient), queryClient.invalidateQueries({ queryKey: ['products'] })]);
             showToast("Η παρτίδα επανήλθε επιτυχώς.", "success");
         } catch (e) { showToast("Σφάλμα κατά την επαναφορά.", "error"); }
-        finally { setIsWorking(false); }
-    }, [isWorking, queryClient, showToast, confirm]);
+        finally { markMoving([batch.id], false); }
+    }, [movingBatchIds, markMoving, queryClient, showToast, confirm]);
 
     const handleMergeAllParts = useCallback(async () => {
         if (isWorking || shipmentHistory.length < 2) return;
@@ -458,72 +572,87 @@ export default function ProductionSendModal({ order, products, materials, existi
         const earliestMinute = earliestGroup[0];
         const batchIdsToMove = shipmentHistory.filter(([k]) => k !== earliestMinute).flatMap(([, bs]) => bs.map(b => b.id));
         if (batchIdsToMove.length === 0) return;
-        setIsWorking(true);
+        // Lock every impacted batch so each row shows the syncing indicator.
+        markMoving(batchIdsToMove, true);
         try {
             await productionRepository.mergeBatchParts(batchIdsToMove, earliestCreatedAt);
             await invalidateProductionBatches(queryClient);
             showToast('Τα τμήματα συγχωνεύτηκαν επιτυχώς.', 'success');
         } catch (e) { showToast('Σφάλμα συγχώνευσης.', 'error'); }
-        finally { setIsWorking(false); }
-    }, [isWorking, shipmentHistory, queryClient, showToast, confirm]);
+        finally { markMoving(batchIdsToMove, false); }
+    }, [isWorking, shipmentHistory, markMoving, queryClient, showToast, confirm]);
 
     const handleToggleHold = useCallback(async (batch: ProductionBatch) => {
-        if (isWorking) return;
+        if (movingBatchIds.has(batch.id)) return;
         if (batch.on_hold) {
-            setIsWorking(true);
+            markMoving([batch.id], true);
             try {
                 await productionRepository.toggleBatchHold(batch.id, false);
                 await invalidateProductionBatches(queryClient);
                 showToast('Η παρτίδα συνεχίζει.', 'success');
             } catch (e) { showToast('Σφάλμα.', 'error'); }
-            finally { setIsWorking(false); }
+            finally { markMoving([batch.id], false); }
             return;
         }
         setHoldingBatch(batch);
         setHoldReason(batch.on_hold_reason || '');
-    }, [isWorking, queryClient, showToast]);
+    }, [movingBatchIds, markMoving, queryClient, showToast]);
 
     const confirmHold = useCallback(async () => {
         if (!holdingBatch || !holdReason.trim()) return;
-        setIsWorking(true);
+        const targetId = holdingBatch.id;
+        markMoving([targetId], true);
         try {
-            await productionRepository.toggleBatchHold(holdingBatch.id, true, holdReason.trim());
+            await productionRepository.toggleBatchHold(targetId, true, holdReason.trim());
             await invalidateProductionBatches(queryClient);
             showToast('Σε αναμονή.', 'warning');
             setHoldingBatch(null); setHoldReason('');
         } catch (e) { showToast('Σφάλμα.', 'error'); }
-        finally { setIsWorking(false); }
-    }, [holdingBatch, holdReason, queryClient, showToast]);
+        finally { markMoving([targetId], false); }
+    }, [holdingBatch, holdReason, markMoving, queryClient, showToast]);
 
     const handleBulkStageMove = useCallback(async (newStage: ProductionStage, batchIds: string[], options?: { pendingDispatch?: boolean }) => {
-        if (isWorking || batchIds.length === 0) return;
-        setIsWorking(true);
+        if (batchIds.length === 0) return;
+        // Skip any batches that are already mid-move to avoid conflicting
+        // transitions; other selections continue normally.
+        const targetIds = batchIds.filter(id => !movingBatchIds.has(id));
+        if (targetIds.length === 0) return;
+        const pendingDispatch = newStage === ProductionStage.Polishing ? (options?.pendingDispatch ?? true) : undefined;
+
+        markMoving(targetIds, true);
+        await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
+        const snapshot = applyOptimisticBulkStage(targetIds, newStage, pendingDispatch);
         try {
-            const pendingDispatch = newStage === ProductionStage.Polishing ? (options?.pendingDispatch ?? true) : undefined;
-            const summary = await productionRepository.bulkUpdateBatchStages(batchIds, newStage, undefined, pendingDispatch);
+            const summary = await productionRepository.bulkUpdateBatchStages(targetIds, newStage, undefined, pendingDispatch);
             await Promise.all([invalidateOrdersAndBatches(queryClient), queryClient.invalidateQueries({ queryKey: ['products'] })]);
-            clearBatchSelection(batchIds);
+            clearBatchSelection(targetIds);
             showToast(`${summary.movedCount} μετακινήθηκαν${summary.skippedCount > 0 ? `, ${summary.skippedCount} παραλείφθηκαν` : ''}.`, summary.movedCount > 0 ? "success" : "info");
-        } catch (e) { showToast("Σφάλμα μαζικής μετακίνησης.", "error"); }
-        finally { setIsWorking(false); }
-    }, [isWorking, queryClient, showToast, clearBatchSelection]);
+        } catch (e) {
+            rollbackBatchesCache(snapshot);
+            showToast("Σφάλμα μαζικής μετακίνησης.", "error");
+        } finally {
+            markMoving(targetIds, false);
+        }
+    }, [movingBatchIds, markMoving, queryClient, applyOptimisticBulkStage, rollbackBatchesCache, clearBatchSelection, showToast]);
 
     const handleMergeBatches = useCallback(async (stage: ProductionStage, batchesToMerge: ProductionBatch[]) => {
-        if (isWorking || batchesToMerge.length < 2) return;
+        if (batchesToMerge.length < 2) return;
+        const ids = batchesToMerge.map(b => b.id);
+        if (ids.some(id => movingBatchIds.has(id))) return;
         const totalQty = batchesToMerge.reduce((sum, b) => sum + b.quantity, 0);
         if (!await confirm({
             title: 'Συγχώνευση Παρτίδων',
             message: `${batchesToMerge.length} παρτίδες → 1 × ${totalQty} τεμ.`,
             confirmText: 'Συγχώνευση'
         })) return;
-        setIsWorking(true);
+        markMoving(ids, true);
         try {
             await productionRepository.mergeBatches(batchesToMerge[0].id, batchesToMerge.slice(1).map(b => b.id), totalQty);
             await invalidateProductionBatches(queryClient);
             showToast("Επιτυχής συγχώνευση.", "success");
         } catch (e) { showToast("Σφάλμα συγχώνευσης.", "error"); }
-        finally { setIsWorking(false); }
-    }, [isWorking, queryClient, showToast, confirm]);
+        finally { markMoving(ids, false); }
+    }, [movingBatchIds, markMoving, queryClient, showToast, confirm]);
 
     const handleSaveNote = useCallback(async () => {
         if (!editingNoteBatch) return;
@@ -560,12 +689,15 @@ export default function ProductionSendModal({ order, products, materials, existi
     const handleSplit = useCallback(async () => {
         if (!splitTarget) return;
         if (splitQty >= splitTarget.maxQty) {
+            // Whole-batch path: delegate to handleStageMove so we get the same
+            // optimistic jump + rollback behavior as a normal move.
             await handleStageMove(splitTarget.batch, splitStage);
             setSplitTarget(null); return;
         }
-        setIsWorking(true);
+        const batch = splitTarget.batch;
+        if (movingBatchIds.has(batch.id)) return;
+        markMoving([batch.id], true);
         try {
-            const batch = splitTarget.batch;
             const newBatchData = {
                 id: crypto.randomUUID(), order_id: batch.order_id, sku: batch.sku,
                 variant_suffix: batch.variant_suffix, quantity: splitQty, current_stage: splitStage,
@@ -580,8 +712,8 @@ export default function ProductionSendModal({ order, products, materials, existi
             showToast(`Διαχωρισμός ${splitQty} τεμ. επιτυχής.`, "success");
             setSplitTarget(null);
         } catch (e) { showToast("Σφάλμα.", "error"); }
-        finally { setIsWorking(false); }
-    }, [splitTarget, splitQty, splitStage, handleStageMove, queryClient, showToast]);
+        finally { markMoving([batch.id], false); }
+    }, [splitTarget, splitQty, splitStage, handleStageMove, movingBatchIds, markMoving, queryClient, showToast]);
 
     const handleZoomImage = useCallback((url: string, alt: string) => {
         setZoomImageUrl(url); setZoomImageAlt(alt);
@@ -767,7 +899,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                             </span>
                                         </div>
                                         <BulkStageActions
-                                            disabled={isWorking || totalSelectedCount === 0}
+                                            disabled={isAnySelectedMoving || totalSelectedCount === 0}
                                             onMove={(stage, options) => handleBulkStageMove(stage, Array.from(selectedBatchIds), options)}
                                         />
                                     </div>
@@ -800,6 +932,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                         currentSend={currentSend}
                                                         discountFactor={discountFactor}
                                                         isWorking={isWorking}
+                                                        movingBatchIds={movingBatchIds}
                                                         selectedBatchIds={selectedBatchIds}
                                                         expandedBatches={expandedBatches}
                                                         getBatchTiming={getBatchTiming}
@@ -927,9 +1060,10 @@ export default function ProductionSendModal({ order, products, materials, existi
                                         <History size={13} /> Εκκινήσεις Παραγωγής
                                     </h3>
                                     {shipmentHistory.length > 1 && (
-                                        <button onClick={handleMergeAllParts} disabled={isWorking}
+                                        <button onClick={handleMergeAllParts} disabled={isWorking || anyOrderBatchMoving}
                                             className="flex items-center gap-1 px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-[10px] font-bold transition-colors disabled:opacity-50">
-                                            <Merge size={10} /> Συγχ. Τμημάτων
+                                            {anyOrderBatchMoving ? <Loader2 size={10} className="animate-spin" /> : <Merge size={10} />}
+                                            Συγχ. Τμημάτων
                                         </button>
                                     )}
                                 </div>
@@ -1047,10 +1181,15 @@ export default function ProductionSendModal({ order, products, materials, existi
                         <textarea value={holdReason} onChange={(e) => setHoldReason(e.target.value)}
                             className="w-full p-3 bg-white border-2 border-amber-100 rounded-xl outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-500/10 h-28 resize-none text-sm font-bold text-slate-800"
                             placeholder="π.χ. Έλλειψη εξαρτήματος..." autoFocus />
-                        <button onClick={confirmHold} disabled={isWorking || !holdReason.trim()}
-                            className="w-full py-2.5 bg-amber-500 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 disabled:opacity-50 text-sm">
-                            {isWorking ? <Loader2 size={16} className="animate-spin" /> : <PauseCircle size={16} />} Σε Αναμονή
-                        </button>
+                        {(() => {
+                            const holdingMoving = holdingBatch ? movingBatchIds.has(holdingBatch.id) : false;
+                            return (
+                                <button onClick={confirmHold} disabled={holdingMoving || !holdReason.trim()}
+                                    className="w-full py-2.5 bg-amber-500 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 disabled:opacity-50 text-sm">
+                                    {holdingMoving ? <Loader2 size={16} className="animate-spin" /> : <PauseCircle size={16} />} Σε Αναμονή
+                                </button>
+                            );
+                        })()}
                     </div>
                 </div>
             )}
@@ -1107,7 +1246,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                 <span className="text-[11px] font-black text-slate-500">Επιλ: <span className="text-slate-900">{selectedVisiblePopupCount}</span></span>
                                             </div>
                                             <BulkStageActions
-                                                disabled={isWorking || selectedVisiblePopupCount === 0}
+                                                disabled={isAnyPopupSelectedMoving || selectedVisiblePopupCount === 0}
                                                 onMove={(stage, options) => handleBulkStageMove(stage, popupBatches.filter(b => selectedBatchIds.has(b.id)).map(b => b.id), options)}
                                             />
                                         </div>
@@ -1120,6 +1259,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                             const product = products.find(p => p.sku === batch.sku);
                                             const isSelected = selectedBatchIds.has(batch.id);
                                             const timeInfo = getBatchTiming(batch);
+                                            const isRowMoving = movingBatchIds.has(batch.id);
 
                                             return (
                                                 <div
@@ -1132,7 +1272,15 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                     }}
                                                 >
                                                     <div className="pb-2.5">
-                                                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                                        <div className={`bg-white rounded-xl border shadow-sm overflow-hidden relative transition-all ${isRowMoving ? 'border-emerald-300 ring-2 ring-emerald-400/60 ring-offset-1 shadow-lg animate-pulse' : 'border-slate-200'}`}>
+                                                            {isRowMoving && (
+                                                                <div className="absolute inset-0 z-20 rounded-xl bg-white/55 backdrop-blur-[1.5px] flex items-start justify-center pt-2 pointer-events-auto cursor-wait">
+                                                                    <div className="flex items-center gap-1.5 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg ring-2 ring-white">
+                                                                        <Loader2 size={11} className="animate-spin" />
+                                                                        <span>Μετακινείται…</span>
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                             {/* Card Header */}
                                                             <div className="p-2.5 flex gap-2.5 border-b border-slate-50">
                                                                 <button type="button" onClick={() => toggleBatchSelection(batch.id)}
@@ -1172,7 +1320,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                 <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
                                                                     <RefreshCw size={9} /> Μετακίνηση σε Στάδιο
                                                                 </div>
-                                                                <StageFlowRail batch={batch} disabled={isWorking} onMove={(stage, options) => handleStageMove(batch, stage, options)} />
+                                                                <StageFlowRail batch={batch} disabled={isWorking || isRowMoving} onMove={(stage, options) => handleStageMove(batch, stage, options)} />
                                                             </div>
 
                                                             {/* Notes/Hold */}
@@ -1193,13 +1341,13 @@ export default function ProductionSendModal({ order, products, materials, existi
 
                                                             {/* Actions */}
                                                             <div className="px-2.5 pb-2.5 flex flex-wrap gap-1">
-                                                                <button onClick={() => handleToggleHold(batch)}
-                                                                    className={`px-2 py-1 rounded-lg border text-[10px] font-black transition-colors flex items-center gap-1 ${batch.on_hold ? 'text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100' : 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100'}`}>
-                                                                    {batch.on_hold ? <PlayCircle size={11} /> : <PauseCircle size={11} />}
+                                                                <button onClick={() => handleToggleHold(batch)} disabled={isRowMoving}
+                                                                    className={`px-2 py-1 rounded-lg border text-[10px] font-black transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed ${batch.on_hold ? 'text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100' : 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100'}`}>
+                                                                    {isRowMoving ? <Loader2 size={11} className="animate-spin" /> : (batch.on_hold ? <PlayCircle size={11} /> : <PauseCircle size={11} />)}
                                                                     {batch.on_hold ? 'Συνέχιση' : 'Αναμονή'}
                                                                 </button>
-                                                                <button onClick={() => handleViewHistory(batch)}
-                                                                    className="px-2 py-1 rounded-lg border text-[10px] font-black transition-colors flex items-center gap-1 text-slate-700 bg-white border-slate-200 hover:bg-slate-50">
+                                                                <button onClick={() => handleViewHistory(batch)} disabled={isRowMoving}
+                                                                    className="px-2 py-1 rounded-lg border text-[10px] font-black transition-colors flex items-center gap-1 text-slate-700 bg-white border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed">
                                                                     <History size={11} /> Ιστορικό
                                                                 </button>
                                                             </div>

@@ -3,7 +3,7 @@ import { ProductionBatch, ProductionStage, ProductionTimingStatus } from '../../
 import {
     CheckSquare, Square, Clock, PauseCircle, PlayCircle,
     StickyNote, History, RefreshCcw, Split, Trash2,
-    ChevronDown, MoreHorizontal
+    ChevronDown, MoreHorizontal, Loader2
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { getProductionTimingStatusClasses } from '../../utils/productionTiming';
@@ -18,6 +18,7 @@ interface BatchRowProps {
     batchValue: number;
     timeInfo: { timingLabel: string; timingStatus: ProductionTimingStatus; stageEnteredAt: string };
     isWorking: boolean;
+    isMoving?: boolean;
     onToggleSelect: (batchId: string) => void;
     onToggleExpand: () => void;
     onStageMove: (batch: ProductionBatch, stage: ProductionStage, options?: { pendingDispatch?: boolean }) => void;
@@ -36,6 +37,7 @@ export const BatchRow = React.memo(function BatchRow({
     batchValue,
     timeInfo,
     isWorking,
+    isMoving = false,
     onToggleSelect,
     onToggleExpand,
     onStageMove,
@@ -58,11 +60,25 @@ export const BatchRow = React.memo(function BatchRow({
         return () => document.removeEventListener('mousedown', handler);
     }, [menuOpen]);
 
+    // Close the kebab menu automatically when the row enters the moving state,
+    // otherwise it would linger over the syncing overlay.
+    useEffect(() => {
+        if (isMoving && menuOpen) setMenuOpen(false);
+    }, [isMoving, menuOpen]);
+
     const stageConf = STAGES.find(s => s.id === batch.current_stage);
     const stageColors = STAGE_BUTTON_COLORS[getStageColorKey(batch.current_stage)];
 
     return (
-        <div className={`rounded-xl border text-xs transition-all ${isSelected ? 'border-blue-300 bg-blue-50/30' : 'border-slate-200 bg-slate-50/50'}`}>
+        <div className={`rounded-xl border text-xs transition-all relative ${isMoving ? 'border-emerald-300 ring-2 ring-emerald-400/60 ring-offset-1 shadow-lg animate-pulse' : isSelected ? 'border-blue-300 bg-blue-50/30' : 'border-slate-200 bg-slate-50/50'}`}>
+            {isMoving && (
+                <div className="absolute inset-0 z-20 rounded-xl bg-white/55 backdrop-blur-[1.5px] flex items-start justify-center pt-1.5 pointer-events-auto cursor-wait">
+                    <div className="flex items-center gap-1.5 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg ring-2 ring-white">
+                        <Loader2 size={11} className="animate-spin" />
+                        <span>Μετακινείται…</span>
+                    </div>
+                </div>
+            )}
             {/* Compact row — always visible */}
             <div
                 className="flex items-center gap-2 px-2.5 py-2 cursor-pointer select-none"
@@ -124,17 +140,19 @@ export const BatchRow = React.memo(function BatchRow({
                 {/* Hold toggle - always visible as primary */}
                 <button
                     onClick={(e) => { e.stopPropagation(); onToggleHold(batch); }}
-                    className={`p-1.5 rounded-lg border transition-colors shrink-0 ${batch.on_hold ? 'text-emerald-600 bg-emerald-50 border-emerald-200 hover:bg-emerald-100' : 'text-amber-600 bg-amber-50 border-amber-200 hover:bg-amber-100'}`}
+                    disabled={isMoving}
+                    className={`p-1.5 rounded-lg border transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${batch.on_hold ? 'text-emerald-600 bg-emerald-50 border-emerald-200 hover:bg-emerald-100' : 'text-amber-600 bg-amber-50 border-amber-200 hover:bg-amber-100'}`}
                     title={batch.on_hold ? 'Συνέχιση παραγωγής' : 'Θέση σε αναμονή'}
                 >
-                    {batch.on_hold ? <PlayCircle size={14} /> : <PauseCircle size={14} />}
+                    {isMoving ? <Loader2 size={14} className="animate-spin" /> : (batch.on_hold ? <PlayCircle size={14} /> : <PauseCircle size={14} />)}
                 </button>
 
                 {/* More actions dropdown */}
                 <div className="relative" ref={menuRef}>
                     <button
                         onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
-                        className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors shrink-0"
+                        disabled={isMoving}
+                        className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Περισσότερα"
                     >
                         <MoreHorizontal size={14} />
@@ -213,7 +231,7 @@ export const BatchRow = React.memo(function BatchRow({
                         {/* Stage flow rail */}
                         <StageFlowRail
                             batch={batch}
-                            disabled={isWorking}
+                            disabled={isWorking || isMoving}
                             onMove={(stage, options) => onStageMove(batch, stage, options)}
                         />
                     </div>
