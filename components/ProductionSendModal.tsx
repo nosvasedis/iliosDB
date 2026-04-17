@@ -106,6 +106,19 @@ export default function ProductionSendModal({ order, products, materials, existi
 
     // Stage Popup State
     const [activeStagePopup, setActiveStagePopup] = useState<ProductionStage | null>(null);
+    // Which sub-tab to show when the Polishing (Τεχνίτης) stage popup is open.
+    // 'pending'    → Αναμονή Αποστολής (teal)
+    // 'dispatched' → Στον Τεχνίτη (blue)
+    const [polishingPopupTab, setPolishingPopupTab] = useState<'pending' | 'dispatched'>('pending');
+    const handleStagePipelineClick = useCallback(
+        (stage: ProductionStage, polishingSubStage?: 'pending' | 'dispatched') => {
+            if (stage === ProductionStage.Polishing) {
+                setPolishingPopupTab(polishingSubStage ?? 'pending');
+            }
+            setActiveStagePopup(stage);
+        },
+        [],
+    );
 
     // ─── OPTIMIZED: Selection as Set<string> ─────────────────────────────────
     const [selectedBatchIds, setSelectedBatchIds] = useState<Set<string>>(new Set());
@@ -139,6 +152,23 @@ export default function ProductionSendModal({ order, products, materials, existi
         return counts;
     }, [existingBatches]);
 
+    // Split of the Polishing (Τεχνίτης) stage into its two sub-stages so the
+    // pipeline bar can render two discreet segments with the proper colors.
+    const polishingSplit = useMemo(() => {
+        let pendingCount = 0, dispatchedCount = 0, pendingOnHold = 0, dispatchedOnHold = 0;
+        for (const b of existingBatches) {
+            if (b.current_stage !== ProductionStage.Polishing) continue;
+            if (b.pending_dispatch) {
+                pendingCount += b.quantity;
+                if (b.on_hold) pendingOnHold += b.quantity;
+            } else {
+                dispatchedCount += b.quantity;
+                if (b.on_hold) dispatchedOnHold += b.quantity;
+            }
+        }
+        return { pendingCount, dispatchedCount, pendingOnHold, dispatchedOnHold };
+    }, [existingBatches]);
+
     const totalInProduction = useMemo(() => existingBatches.reduce((sum, b) => sum + b.quantity, 0), [existingBatches]);
     const readyCount = useMemo(() => existingBatches.filter(b => b.current_stage === ProductionStage.Ready).reduce((sum, b) => sum + b.quantity, 0), [existingBatches]);
     const canPartialShip = readyCount > 0 && order.status !== OrderStatus.Delivered && order.status !== OrderStatus.Cancelled && !!onPartialShipment;
@@ -147,7 +177,13 @@ export default function ProductionSendModal({ order, products, materials, existi
     const popupBatches = useMemo(() => {
         if (!activeStagePopup) return [];
         return existingBatches
-            .filter(b => b.current_stage === activeStagePopup)
+            .filter(b => {
+                if (b.current_stage !== activeStagePopup) return false;
+                if (activeStagePopup === ProductionStage.Polishing) {
+                    return polishingPopupTab === 'pending' ? !!b.pending_dispatch : !b.pending_dispatch;
+                }
+                return true;
+            })
             .sort((a, b) => {
                 const skuCompare = a.sku.localeCompare(b.sku);
                 if (skuCompare !== 0) return skuCompare;
@@ -155,7 +191,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                 if (variantCompare !== 0) return variantCompare;
                 return (a.size_info || '').localeCompare(b.size_info || '');
             });
-    }, [activeStagePopup, existingBatches]);
+    }, [activeStagePopup, existingBatches, polishingPopupTab]);
 
     const shippedQuantities = useMemo(
         () => getShippedQuantities(shipmentSnapshot?.items || []),
@@ -802,7 +838,8 @@ export default function ProductionSendModal({ order, products, materials, existi
                                 stageCounts={stageCounts}
                                 stageOnHoldCounts={stageOnHoldCounts}
                                 totalInProduction={totalInProduction}
-                                onStageClick={setActiveStagePopup}
+                                onStageClick={handleStagePipelineClick}
+                                polishingSplit={polishingSplit}
                             />
                         </div>
                     </div>
@@ -1195,15 +1232,26 @@ export default function ProductionSendModal({ order, products, materials, existi
             )}
 
             {/* Stage Popup */}
-            {activeStagePopup && (
+            {activeStagePopup && (() => {
+                const isPolishingPopup = activeStagePopup === ProductionStage.Polishing;
+                const headerBg = isPolishingPopup
+                    ? (polishingPopupTab === 'pending' ? 'bg-teal-500' : 'bg-blue-500')
+                    : (VIBRANT_STAGES[activeStagePopup as string] || 'bg-slate-600');
+                const subLabel = isPolishingPopup
+                    ? (polishingPopupTab === 'pending' ? 'Αναμονή Αποστολής' : 'Στον Τεχνίτη')
+                    : null;
+                return (
                 <div className="fixed inset-0 z-[260] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveStagePopup(null)}>
                     <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl animate-in zoom-in-95 overflow-hidden flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
                         {/* Stage popup header */}
-                        <div className={`p-4 sm:p-5 flex justify-between items-center ${VIBRANT_STAGES[activeStagePopup as string] || 'bg-slate-600'} text-white`}>
+                        <div className={`p-4 sm:p-5 flex justify-between items-center ${headerBg} text-white transition-colors`}>
                             <div className="flex items-center gap-3">
                                 <div className="p-2 bg-white/20 rounded-xl"><Factory size={22} className="text-white" /></div>
                                 <div>
-                                    <h3 className="font-black text-xl uppercase tracking-tight">{STAGES.find(s => s.id === activeStagePopup)?.label}</h3>
+                                    <h3 className="font-black text-xl uppercase tracking-tight">
+                                        {STAGES.find(s => s.id === activeStagePopup)?.label}
+                                        {subLabel && <span className="ml-2 text-white/80 text-sm font-bold tracking-normal normal-case">• {subLabel}</span>}
+                                    </h3>
                                     <p className="text-white/80 text-xs font-bold uppercase tracking-widest">{popupBatches.reduce((a, b) => a + b.quantity, 0)} τεμάχια</p>
                                 </div>
                             </div>
@@ -1212,8 +1260,11 @@ export default function ProductionSendModal({ order, products, materials, existi
                                     <button
                                         onClick={() => {
                                             const stageConf = STAGES.find(s => s.id === activeStagePopup);
+                                            const stageName = isPolishingPopup
+                                                ? `${stageConf?.label ?? activeStagePopup} • ${subLabel}`
+                                                : (stageConf?.label ?? activeStagePopup);
                                             onPrintStageBatches({
-                                                stageName: stageConf?.label ?? activeStagePopup, stageId: activeStagePopup,
+                                                stageName, stageId: activeStagePopup,
                                                 customerName: order.customer_name, orderId: order.id,
                                                 batches: popupBatches, generatedAt: new Date().toISOString(),
                                             });
@@ -1226,6 +1277,50 @@ export default function ProductionSendModal({ order, products, materials, existi
                                 <button onClick={() => setActiveStagePopup(null)} className="p-2 rounded-full hover:bg-white/20 transition-colors text-white"><X size={24} /></button>
                             </div>
                         </div>
+
+                        {/* Polishing sub-stage tabs */}
+                        {isPolishingPopup && (
+                            <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center gap-1">
+                                <button
+                                    onClick={() => setPolishingPopupTab('pending')}
+                                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-black transition-all ${
+                                        polishingPopupTab === 'pending'
+                                            ? 'bg-teal-600 text-white shadow-sm'
+                                            : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                                    }`}
+                                >
+                                    <Package size={13} />
+                                    Αναμονή Αποστολής
+                                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${polishingPopupTab === 'pending' ? 'bg-white/25 text-white' : 'bg-teal-100 text-teal-700'}`}>
+                                        {polishingSplit.pendingCount}
+                                    </span>
+                                    {polishingSplit.pendingOnHold > 0 && (
+                                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5 ${polishingPopupTab === 'pending' ? 'bg-amber-300/40 text-amber-100' : 'bg-amber-100 text-amber-700'}`}>
+                                            <PauseCircle size={9} className="fill-current shrink-0" />{polishingSplit.pendingOnHold}
+                                        </span>
+                                    )}
+                                </button>
+                                <button
+                                    onClick={() => setPolishingPopupTab('dispatched')}
+                                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-black transition-all ${
+                                        polishingPopupTab === 'dispatched'
+                                            ? 'bg-blue-600 text-white shadow-sm'
+                                            : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                                    }`}
+                                >
+                                    <Factory size={13} />
+                                    Στον Τεχνίτη
+                                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${polishingPopupTab === 'dispatched' ? 'bg-white/25 text-white' : 'bg-blue-100 text-blue-700'}`}>
+                                        {polishingSplit.dispatchedCount}
+                                    </span>
+                                    {polishingSplit.dispatchedOnHold > 0 && (
+                                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-0.5 ${polishingPopupTab === 'dispatched' ? 'bg-amber-300/40 text-amber-100' : 'bg-amber-100 text-amber-700'}`}>
+                                            <PauseCircle size={9} className="fill-current shrink-0" />{polishingSplit.dispatchedOnHold}
+                                        </span>
+                                    )}
+                                </button>
+                            </div>
+                        )}
 
                         {/* Stage popup body */}
                         <div ref={popupListParentRef} className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50/50">
@@ -1367,7 +1462,8 @@ export default function ProductionSendModal({ order, products, materials, existi
                         </div>
                     </div>
                 </div>
-            )}
+                );
+            })()}
 
             {/* Stock Decision */}
             {stockDecision && (
