@@ -399,9 +399,35 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                       <div>
                           <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Box size={12}/> Συνταγή / Υλικά</h4>
                           {product.recipe.length > 0 ? (
-                              <div className="space-y-1">
+                              <div className="space-y-1.5">
                                   {product.recipe.map((r, idx) => {
-                                      const name = r.type === 'raw' ? materials?.find(m => m.id === r.id)?.name : allProducts?.find(p => p.sku === r.sku)?.category || r.sku;
+                                      if (r.type === 'component') {
+                                          const comp = allProducts?.find(p => p.sku === r.sku);
+                                          const compDescription = comp?.description || comp?.category || '';
+                                          const compImage = comp?.image_url || null;
+                                          return (
+                                              <div key={idx} className="flex items-center gap-2.5 p-2 bg-purple-50 rounded-xl border border-purple-100">
+                                                  <div className="w-10 h-10 shrink-0 rounded-lg overflow-hidden border border-purple-200 bg-white flex items-center justify-center">
+                                                      {compImage ? (
+                                                          <img src={compImage} alt={r.sku} className="w-full h-full object-cover" />
+                                                      ) : (
+                                                          <div className="w-full h-full bg-purple-100 flex flex-col items-center justify-center gap-0.5">
+                                                              <span className="text-[7px] font-black text-purple-500 tracking-widest leading-none">STX</span>
+                                                              <Box size={11} className="text-purple-400" />
+                                                          </div>
+                                                      )}
+                                                  </div>
+                                                  <div className="min-w-0 flex-1">
+                                                      <div className="font-black text-purple-800 text-xs leading-tight">{r.sku}</div>
+                                                      {compDescription ? (
+                                                          <div className="text-[11px] text-purple-600 font-medium mt-0.5 leading-snug line-clamp-2">{compDescription}</div>
+                                                      ) : null}
+                                                  </div>
+                                                  <span className="font-mono font-black text-purple-700 text-xs shrink-0">×{r.quantity}</span>
+                                              </div>
+                                          );
+                                      }
+                                      const name = materials?.find(m => m.id === r.id)?.name || r.id;
                                       return (
                                           <div key={idx} className="flex justify-between items-center text-sm p-2 bg-slate-50 rounded-lg"><span className="font-bold text-slate-700">{name}</span><span className="font-mono font-bold text-slate-500">x{r.quantity}</span></div>
                                       );
