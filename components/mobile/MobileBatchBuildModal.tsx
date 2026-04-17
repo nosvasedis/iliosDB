@@ -129,6 +129,11 @@ export default function MobileBatchBuildModal({
                                 <button type="button" className="w-full h-full" onClick={() => setIsImageZoomed(true)}>
                                     <img src={product.image_url} className="w-full h-full object-cover" alt={product.sku} />
                                 </button>
+                            ) : product.is_component ? (
+                                <div className="w-full h-full bg-purple-50 flex flex-col items-center justify-center gap-0.5">
+                                    <span className="text-[8px] font-black text-purple-500 tracking-widest leading-none">STX</span>
+                                    <Box size={14} className="text-purple-400" />
+                                </div>
                             ) : (
                                 <ImageIcon size={20} className="text-slate-300" />
                             )}
@@ -141,6 +146,11 @@ export default function MobileBatchBuildModal({
                                     ×{batch.quantity}
                                 </span>
                             </div>
+                            {(product.description || product.category) && (
+                                <p className="text-[11px] text-slate-500 font-medium mt-0.5 leading-snug line-clamp-2">
+                                    {product.description || product.category}
+                                </p>
+                            )}
                             {product.production_type === ProductionType.Imported && product.supplier_sku && (
                                 <div className="mt-0.5">
                                     <span className="text-[10px] font-mono text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
