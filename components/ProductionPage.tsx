@@ -41,7 +41,7 @@ import {
 import { useCollections } from '../hooks/api/useCollections';
 import { useOrders } from '../hooks/api/useOrders';
 import { useProductionBatches, useBatchStageHistoryEntries } from '../hooks/api/useProductionBatches';
-import { productionRepository } from '../features/production';
+import { productionKeys, productionRepository } from '../features/production';
 import { auditRepository } from '../features/audit';
 import {
     buildLabelPrintQueue,
@@ -1014,14 +1014,22 @@ const FinderBatchStageSelector = ({
     onToggleHold,
     onEditNote,
     hideNotes = false,
+    isMoving = false,
 }: { 
     batch: ProductionBatch & { customer_name?: string }, 
     onMoveToStage: (batch: ProductionBatch, targetStage: ProductionStage, options?: { pendingDispatch?: boolean }) => void,
     onToggleHold: (batch: ProductionBatch) => void,
     onEditNote?: (batch: ProductionBatch) => void,
     hideNotes?: boolean,
+    isMoving?: boolean,
 }) => {
     const [isOpen, setIsOpen] = useState(false);
+
+    // If the finder row becomes "moving" while its stage popup is open, close
+    // it so the user never sees dead options floating over a syncing row.
+    useEffect(() => {
+        if (isMoving && isOpen) setIsOpen(false);
+    }, [isMoving, isOpen]);
     const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0 });
     const buttonRef = useRef<HTMLButtonElement>(null);
     const popupRef = useRef<HTMLDivElement>(null);
@@ -1060,11 +1068,12 @@ const FinderBatchStageSelector = ({
     // Open/close handler
     const handleToggle = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
+        if (isMoving) return;
         if (!isOpen) {
             updatePosition();
         }
         setIsOpen(!isOpen);
-    }, [isOpen, updatePosition]);
+    }, [isOpen, updatePosition, isMoving]);
     
     // Close selector when clicking outside
     useEffect(() => {
@@ -1144,9 +1153,15 @@ const FinderBatchStageSelector = ({
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
+                            if (isMoving) return;
                             onToggleHold(batch);
                         }}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 ${batch.on_hold ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700' : 'bg-amber-100 hover:bg-amber-200 text-amber-700'}`}
+                        disabled={isMoving}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 ${
+                            isMoving
+                                ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                                : (batch.on_hold ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700' : 'bg-amber-100 hover:bg-amber-200 text-amber-700')
+                        }`}
                     >
                         {batch.on_hold ? <PlayCircle size={12} className="fill-current" /> : <PauseCircle size={12} />}
                         {batch.on_hold ? 'Συνέχεια' : 'Αναμονή'}
@@ -1154,11 +1169,16 @@ const FinderBatchStageSelector = ({
                     <button
                         ref={buttonRef}
                         onClick={handleToggle}
-                        className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
+                        disabled={isMoving}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 ${
+                            isMoving
+                                ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                        }`}
                     >
-                        <MoveRight size={12} />
-                        Στάδιο
-                        {isOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                        {isMoving ? <Loader2 size={12} className="animate-spin" /> : <MoveRight size={12} />}
+                        {isMoving ? 'Μετακινείται…' : 'Στάδιο'}
+                        {!isMoving && (isOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
                     </button>
                 </div>
             </div>
@@ -1399,7 +1419,8 @@ const StageInspectorModal: React.FC<{
     onDispatchBatches?: (batchIds: string[]) => void;
     onRecallBatches?: (batchIds: string[]) => void;
     initialPolishingTab?: 'pending' | 'dispatched';
-}> = ({ stage, batches, onClose, onMoveBatch, onToggleHold, onEditNote, onOpenPdfBatchPicker, onDispatchBatches, onRecallBatches, initialPolishingTab }) => {
+    movingBatchIds?: Set<string>;
+}> = ({ stage, batches, onClose, onMoveBatch, onToggleHold, onEditNote, onOpenPdfBatchPicker, onDispatchBatches, onRecallBatches, initialPolishingTab, movingBatchIds }) => {
     const [sortMode, setSortMode] = useState<'sku' | 'client' | 'oldest' | 'newest'>('sku');
     const [clientFilter, setClientFilter] = useState('');
     const [polishingTab, setPolishingTab] = useState<'pending' | 'dispatched'>(initialPolishingTab ?? 'pending');
@@ -1693,8 +1714,13 @@ const StageInspectorModal: React.FC<{
                                     )}
 
                                     {/* Batch card */}
-                                    <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-shadow hover:shadow-md ${leftBorder}
-                                        ${batch.on_hold ? 'border-l-[4px] border-amber-200 bg-amber-50/30' : 'border-l-[3px] border-slate-200'}`}
+                                    {(() => {
+                                        const rowMoving = movingBatchIds?.has(batch.id) ?? false;
+                                        return (
+                                    <div className={`relative bg-white rounded-2xl border shadow-sm overflow-hidden transition-shadow hover:shadow-md ${leftBorder}
+                                        ${batch.on_hold ? 'border-l-[4px] border-amber-200 bg-amber-50/30' : 'border-l-[3px] border-slate-200'}
+                                        ${rowMoving ? 'ring-2 ring-emerald-400/70 ring-offset-1 shadow-lg animate-pulse' : ''}`}
+                                        aria-busy={rowMoving || undefined}
                                     >
                                         {/* Hold bar */}
                                         {batch.on_hold && (
@@ -1801,9 +1827,24 @@ const StageInspectorModal: React.FC<{
                                                 onMoveToStage={onMoveBatch}
                                                 onToggleHold={onToggleHold}
                                                 hideNotes
+                                                isMoving={rowMoving}
                                             />
                                         </div>
+                                        {rowMoving && (
+                                            <div
+                                                className="absolute inset-0 rounded-2xl bg-white/55 backdrop-blur-[1.5px] z-20 flex items-start justify-center pt-3 pointer-events-auto cursor-wait"
+                                                onClick={(e) => { e.stopPropagation(); }}
+                                                aria-hidden="true"
+                                            >
+                                                <div className="flex items-center gap-1.5 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg ring-2 ring-white">
+                                                    <Loader2 size={11} className="animate-spin" />
+                                                    <span>Μετακινείται…</span>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
+                                        );
+                                    })()}
                                 </React.Fragment>
                             );
                         })
@@ -1829,6 +1870,20 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     const [polishingDropTarget, setPolishingDropTarget] = useState<'pending' | 'dispatched' | null>(null);
     const [polishingFocus, setPolishingFocus] = useState<'equal' | 'pending' | 'dispatched'>('equal');
     const [isProcessingSplit, setIsProcessingSplit] = useState(false);
+
+    // Per-batch "in-flight" tracking so the UI can show syncing overlays and
+    // block duplicate/conflicting moves without a single global lock.
+    const [movingBatchIds, setMovingBatchIds] = useState<Set<string>>(new Set());
+    const markMoving = useCallback((ids: string[], isMoving: boolean) => {
+        setMovingBatchIds(prev => {
+            const next = new Set(prev);
+            for (const id of ids) {
+                if (isMoving) next.add(id);
+                else next.delete(id);
+            }
+            return next;
+        });
+    }, []);
 
     // Note Editing
     const [editingNoteBatch, setEditingNoteBatch] = useState<ProductionBatch | null>(null);
@@ -2140,7 +2195,67 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             .sort((a, b) => new Date(b.order.created_at).getTime() - new Date(a.order.created_at).getTime());
     }, [orders, enhancedBatches]);
 
+    // ── Optimistic cache helpers ────────────────────────────────────────────
+    // Update the batches cache in-place so cards jump to their new stage
+    // immediately. Returns a snapshot for rollback on error.
+    const applyOptimisticStage = useCallback((
+        batchId: string,
+        targetStage: ProductionStage,
+        pendingDispatch?: boolean,
+    ): ProductionBatch[] | undefined => {
+        const key = productionKeys.batches();
+        const prev = queryClient.getQueryData<ProductionBatch[]>(key);
+        const nowIso = new Date().toISOString();
+        queryClient.setQueryData<ProductionBatch[]>(key, (cur) => {
+            if (!cur) return cur;
+            return cur.map(b => {
+                if (b.id !== batchId) return b;
+                const wasPolishing = b.current_stage === ProductionStage.Polishing;
+                const willBePolishing = targetStage === ProductionStage.Polishing;
+                return {
+                    ...b,
+                    current_stage: targetStage,
+                    pending_dispatch: willBePolishing
+                        ? (pendingDispatch ?? true)
+                        : (wasPolishing ? false : b.pending_dispatch),
+                    updated_at: nowIso,
+                };
+            });
+        });
+        return prev;
+    }, [queryClient]);
+
+    // Optimistically flip pending_dispatch for a set of Polishing batches
+    // (used by the dispatch/recall flows that do NOT change the stage).
+    const applyOptimisticPendingDispatch = useCallback((
+        batchIds: string[],
+        nextValue: boolean,
+    ): ProductionBatch[] | undefined => {
+        const key = productionKeys.batches();
+        const prev = queryClient.getQueryData<ProductionBatch[]>(key);
+        const idSet = new Set(batchIds);
+        const nowIso = new Date().toISOString();
+        queryClient.setQueryData<ProductionBatch[]>(key, (cur) => {
+            if (!cur) return cur;
+            return cur.map(b => idSet.has(b.id)
+                ? { ...b, pending_dispatch: nextValue, updated_at: nowIso }
+                : b);
+        });
+        return prev;
+    }, [queryClient]);
+
+    const rollbackBatchesCache = useCallback((snapshot: ProductionBatch[] | undefined) => {
+        if (!snapshot) return;
+        queryClient.setQueryData<ProductionBatch[]>(productionKeys.batches(), snapshot);
+    }, [queryClient]);
+
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>, batchId: string) => {
+        if (movingBatchIds.has(batchId)) {
+            // Block drag-and-drop while the batch is already mid-move so the
+            // user cannot queue duplicate transitions.
+            e.preventDefault();
+            return;
+        }
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', batchId);
         setDraggedBatchId(batchId);
@@ -2157,6 +2272,10 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             showToast("Η παρτίδα είναι σε αναμονή. Ξεμπλοκάρετε την πρώτα.", "error");
             return;
         }
+
+        // Per-batch lock: ignore duplicate clicks while a move is already
+        // in flight for this batch. Other batches remain freely movable.
+        if (movingBatchIds.has(batch.id)) return;
 
         // Handle intra-Polishing sub-stage changes (dispatch / recall)
         if (batch.current_stage === ProductionStage.Polishing && targetStage === ProductionStage.Polishing) {
@@ -2190,7 +2309,11 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     };
 
     const handleDirectMove = async (batch: ProductionBatch, targetStage: ProductionStage, pendingDispatch?: boolean) => {
-        setIsProcessingSplit(true);
+        // Lock this batch, cancel in-flight refetches, apply optimistic jump so
+        // the card appears in the target column instantly. Rollback on error.
+        markMoving([batch.id], true);
+        await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
+        const snapshot = applyOptimisticStage(batch.id, targetStage, pendingDispatch);
         try {
             await productionRepository.updateBatchStage(batch.id, targetStage, profile?.full_name, pendingDispatch);
             await auditRepository.logAction(profile?.full_name || 'System', 'Μετακίνηση Παρτίδας', { sku: batch.sku, target_stage: targetStage });
@@ -2198,9 +2321,10 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             showToast('Η παρτίδα μετακινήθηκε.', 'success');
         } catch (e: any) {
             console.error("Move failure:", e);
+            rollbackBatchesCache(snapshot);
             showToast(`Σφάλμα: ${e.message}`, 'error');
         } finally {
-            setIsProcessingSplit(false);
+            markMoving([batch.id], false);
         }
     };
 
@@ -2208,6 +2332,8 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         if (!draggedBatchId) return;
         const batch = enhancedBatches.find(b => b.id === draggedBatchId);
         if (!batch) return;
+        // Guard: ignore drops for batches already mid-move.
+        if (movingBatchIds.has(batch.id)) return;
         attemptMove(batch, targetStage, false, pendingDispatch ?? (targetStage === ProductionStage.Polishing ? true : undefined));
     };
 
@@ -2227,16 +2353,20 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             return;
         }
 
-        setIsProcessingSplit(true);
+        // Whole-batch receive: optimistic jump + per-batch lock + rollback on error.
+        markMoving([batch.id], true);
+        await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
+        const snapshot = applyOptimisticStage(batch.id, targetStage, pendingDispatch);
         try {
             await productionRepository.updateBatchStage(batch.id, targetStage, profile?.full_name, pendingDispatch);
             await auditRepository.logAction(profile?.full_name || 'System', 'Παραλαβή Εισαγόμενου', { sku: batch.sku, quantity: batch.quantity, target_stage: targetStage });
             await invalidateOrdersAndBatches(queryClient);
             showToast('Η παρτίδα παραλήφθηκε και μετακινήθηκε.', 'success');
         } catch (e: any) {
+            rollbackBatchesCache(snapshot);
             showToast(`Σφάλμα: ${e.message}`, 'error');
         } finally {
-            setIsProcessingSplit(false);
+            markMoving([batch.id], false);
         }
     };
 
@@ -2246,10 +2376,24 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         const { batch, isReceive } = splitModalState;
         const targetStage = finalTargetStage;
 
+        const isWholeMove = quantityToMove >= batch.quantity;
+
+        // Lock the source batch for the duration so the card shows the syncing
+        // overlay and cannot be moved again until this resolves.
+        markMoving([batch.id], true);
         setIsProcessingSplit(true);
 
+        // Whole-batch path gets an optimistic column jump; the split path keeps
+        // the source visible until server reconciliation (we can't easily
+        // synthesize the new split row locally with all derived fields).
+        let snapshot: ProductionBatch[] | undefined;
+        if (isWholeMove) {
+            await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
+            snapshot = applyOptimisticStage(batch.id, targetStage, splitModalState?.pendingDispatch);
+        }
+
         try {
-            if (quantityToMove >= batch.quantity) {
+            if (isWholeMove) {
                 // Move the whole batch
                 await productionRepository.updateBatchStage(batch.id, targetStage, profile?.full_name, splitModalState?.pendingDispatch);
                 await auditRepository.logAction(profile?.full_name || 'System', isReceive ? 'Παραλαβή Εισαγόμενου' : 'Μετακίνηση Παρτίδας', { sku: batch.sku, target_stage: targetStage });
@@ -2290,8 +2434,10 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
 
         } catch (e: any) {
             console.error("Split failure:", e);
+            if (isWholeMove) rollbackBatchesCache(snapshot);
             showToast(`Σφάλμα: ${e.message}`, 'error');
         } finally {
+            markMoving([batch.id], false);
             setIsProcessingSplit(false);
         }
     };
@@ -2362,31 +2508,41 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
 
     // ── Dispatch to Technician (pending_dispatch) ────────────────────────────
     const handleDispatchBatches = async (batchIds: string[]) => {
-        if (batchIds.length === 0) return;
-        setIsProcessingSplit(true);
+        // Filter out ids that are already mid-move so concurrent clicks don't
+        // stack duplicate requests for the same batch.
+        const targetIds = batchIds.filter(id => !movingBatchIds.has(id));
+        if (targetIds.length === 0) return;
+        markMoving(targetIds, true);
+        await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
+        const snapshot = applyOptimisticPendingDispatch(targetIds, false);
         try {
-            const count = await productionRepository.markBatchesDispatched(batchIds, profile?.full_name);
+            const count = await productionRepository.markBatchesDispatched(targetIds, profile?.full_name);
             await invalidateProductionBatches(queryClient);
             showToast(`${count} παρτίδ${count === 1 ? 'α' : 'ες'} στάλθηκ${count === 1 ? 'ε' : 'αν'} στον Τεχνίτη.`, 'success');
         } catch (e: any) {
+            rollbackBatchesCache(snapshot);
             showToast(`Σφάλμα: ${e.message}`, 'error');
         } finally {
-            setIsProcessingSplit(false);
+            markMoving(targetIds, false);
         }
     };
 
     // ── Recall batches back to pending dispatch ──────────────────────────────
     const handleRecallDispatchBatches = async (batchIds: string[]) => {
-        if (batchIds.length === 0) return;
-        setIsProcessingSplit(true);
+        const targetIds = batchIds.filter(id => !movingBatchIds.has(id));
+        if (targetIds.length === 0) return;
+        markMoving(targetIds, true);
+        await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
+        const snapshot = applyOptimisticPendingDispatch(targetIds, true);
         try {
-            const count = await productionRepository.markBatchesPendingDispatch(batchIds, profile?.full_name);
+            const count = await productionRepository.markBatchesPendingDispatch(targetIds, profile?.full_name);
             await invalidateProductionBatches(queryClient);
             showToast(`${count} παρτίδ${count === 1 ? 'α' : 'ες'} επέστρεψ${count === 1 ? 'ε' : 'αν'} σε Αναμονή.`, 'success');
         } catch (e: any) {
+            rollbackBatchesCache(snapshot);
             showToast(`Σφάλμα: ${e.message}`, 'error');
         } finally {
-            setIsProcessingSplit(false);
+            markMoving(targetIds, false);
         }
     };
 
@@ -2407,6 +2563,8 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         if (!bulkMoveTarget || multiSelectIds.size === 0) return;
         const batchesToMove = enhancedBatches.filter(b => {
             if (!multiSelectIds.has(b.id) || b.on_hold) return false;
+            // Skip any that are already mid-move to avoid duplicate requests.
+            if (movingBatchIds.has(b.id)) return false;
             if (b.current_stage !== bulkMoveTarget) return true;
             // Same stage is only valid for Polishing sub-stage switching
             if (bulkMoveTarget === ProductionStage.Polishing && bulkMovePendingDispatch !== undefined) {
@@ -2418,15 +2576,35 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             showToast('Δεν υπάρχουν παρτίδες για μετακίνηση.', 'info');
             return;
         }
-        setIsBulkMoving(true);
-        try {
-            // Batches that need an actual stage change
-            const stageChangeBatches = batchesToMove.filter(b => b.current_stage !== bulkMoveTarget);
-            // Batches already at Polishing that only need their pending_dispatch toggled
-            const pendingDispatchToggleBatches = batchesToMove.filter(
-                b => b.current_stage === ProductionStage.Polishing && bulkMoveTarget === ProductionStage.Polishing
-            );
 
+        const allIds = batchesToMove.map(b => b.id);
+
+        // Batches that need an actual stage change
+        const stageChangeBatches = batchesToMove.filter(b => b.current_stage !== bulkMoveTarget);
+        // Batches already at Polishing that only need their pending_dispatch toggled
+        const pendingDispatchToggleBatches = batchesToMove.filter(
+            b => b.current_stage === ProductionStage.Polishing && bulkMoveTarget === ProductionStage.Polishing
+        );
+
+        markMoving(allIds, true);
+        setIsBulkMoving(true);
+        await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
+
+        // Capture one snapshot of the cache for rollback, then apply all
+        // optimistic updates sequentially against the cache. We only need the
+        // first snapshot because setQueryData writes replace the whole array.
+        const snapshot = queryClient.getQueryData<ProductionBatch[]>(productionKeys.batches());
+        stageChangeBatches.forEach(b => {
+            applyOptimisticStage(b.id, bulkMoveTarget!, bulkMovePendingDispatch);
+        });
+        if (pendingDispatchToggleBatches.length > 0) {
+            applyOptimisticPendingDispatch(
+                pendingDispatchToggleBatches.map(b => b.id),
+                bulkMovePendingDispatch === false ? false : true,
+            );
+        }
+
+        try {
             await Promise.all([
                 ...stageChangeBatches.map(b =>
                     productionRepository.updateBatchStage(b.id, bulkMoveTarget!, profile?.full_name, bulkMovePendingDispatch)
@@ -2445,8 +2623,10 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             setBulkMoveTarget(null);
             setBulkMovePendingDispatch(undefined);
         } catch (e: any) {
+            rollbackBatchesCache(snapshot);
             showToast(`Σφάλμα: ${e.message}`, 'error');
         } finally {
+            markMoving(allIds, false);
             setIsBulkMoving(false);
         }
     };
@@ -2537,22 +2717,32 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     };
 
     const handleCompleteAllLabeling = async () => {
-        if (labelingBatches.length === 0) {
+        const targetBatches = labelingBatches.filter(b => !movingBatchIds.has(b.id));
+        if (targetBatches.length === 0) {
             showToast("Δεν υπάρχουν παρτίδες για ολοκλήρωση.", "info");
             return;
         }
+        const allIds = targetBatches.map(b => b.id);
+        markMoving(allIds, true);
         setIsProcessingSplit(true);
+        await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
+        const snapshot = queryClient.getQueryData<ProductionBatch[]>(productionKeys.batches());
+        targetBatches.forEach(b => {
+            applyOptimisticStage(b.id, ProductionStage.Ready);
+        });
         try {
-            await Promise.all(labelingBatches.map(async (batch) => {
+            await Promise.all(targetBatches.map(async (batch) => {
                 await productionRepository.updateBatchStage(batch.id, ProductionStage.Ready, profile?.full_name);
                 await auditRepository.logAction(profile?.full_name || 'System', 'Μετακίνηση Παρτίδας', { sku: batch.sku, target_stage: ProductionStage.Ready });
             }));
             await invalidateOrdersAndBatches(queryClient);
-            showToast(`${labelingBatches.length} παρτίδες ολοκληρώθηκαν.`, 'success');
+            showToast(`${targetBatches.length} παρτίδες ολοκληρώθηκαν.`, 'success');
         } catch (e: any) {
             console.error("Complete all failure:", e);
+            rollbackBatchesCache(snapshot);
             showToast(`Σφάλμα: ${e.message}`, 'error');
         } finally {
+            markMoving(allIds, false);
             setIsProcessingSplit(false);
         }
     };
@@ -2757,6 +2947,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                         onToggleSelect={(e) => { e.stopPropagation(); toggleBatchSelect(batch.id); }}
                                         onDispatch={batch.current_stage === ProductionStage.Polishing && batch.pending_dispatch ? () => handleDispatchBatches([batch.id]) : undefined}
                                         onRecallDispatch={options?.onRecallDispatch && batch.current_stage === ProductionStage.Polishing && !batch.pending_dispatch ? () => options.onRecallDispatch!(batch.id) : undefined}
+                                        isMoving={movingBatchIds.has(batch.id)}
                                     />
                                 </React.Fragment>
                             ))}
@@ -2882,12 +3073,14 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                         ? 'bg-teal-50/25 border border-teal-100/80 border-l-4 border-l-teal-400/45 hover:bg-teal-50/40'
                                         : getFinderSearchResultSurface(stageConf?.color);
                                     const isSelected = multiSelectIds.has(b.id);
+                                    const rowMoving = movingBatchIds.has(b.id);
 
                                     return (
                                         <div
                                             key={b.id}
                                             onClick={() => setViewBuildBatch(b)}
-                                            className={`rounded-xl p-3 transition-all group cursor-pointer ${finderRowSurface} ${isSpecialBatch ? 'ring-1 ring-violet-200/65' : ''} ${isSelected ? '!ring-2 !ring-blue-400 ring-offset-0 !border-blue-300/80 !bg-blue-50/35' : ''} ${index > 0 ? 'mt-1 border-t border-t-slate-200/60 pt-3' : ''}`}
+                                            aria-busy={rowMoving || undefined}
+                                            className={`relative rounded-xl p-3 transition-all group cursor-pointer ${finderRowSurface} ${isSpecialBatch ? 'ring-1 ring-violet-200/65' : ''} ${isSelected ? '!ring-2 !ring-blue-400 ring-offset-0 !border-blue-300/80 !bg-blue-50/35' : ''} ${index > 0 ? 'mt-1 border-t border-t-slate-200/60 pt-3' : ''} ${rowMoving ? 'ring-2 ring-emerald-400/70 ring-offset-1 shadow-lg animate-pulse' : ''}`}
                                         >
                                             <div className="flex justify-between items-start">
                                                 <div className="flex items-start gap-2">
@@ -2950,7 +3143,20 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                                 onMoveToStage={(batch, stage, opts) => attemptMove(batch, stage, true, opts?.pendingDispatch)}
                                                 onToggleHold={handleToggleHold}
                                                 onEditNote={(b) => setEditingNoteBatch(b)}
+                                                isMoving={rowMoving}
                                             />
+                                            {rowMoving && (
+                                                <div
+                                                    className="absolute inset-0 rounded-xl bg-white/55 backdrop-blur-[1.5px] z-20 flex items-start justify-center pt-2 pointer-events-auto cursor-wait"
+                                                    onClick={(e) => { e.stopPropagation(); }}
+                                                    aria-hidden="true"
+                                                >
+                                                    <div className="flex items-center gap-1.5 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg ring-2 ring-white">
+                                                        <Loader2 size={11} className="animate-spin" />
+                                                        <span>Μετακινείται…</span>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )
                                 })}
@@ -3046,17 +3252,20 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                {!pendingCollapsed && polishingPendingBatches.length > 0 && (
+                                                {!pendingCollapsed && polishingPendingBatches.length > 0 && (() => {
+                                                    const anyDispatching = polishingPendingBatches.some(b => movingBatchIds.has(b.id));
+                                                    return (
                                                     <button
                                                         onClick={() => handleDispatchBatches(polishingPendingBatches.map(b => b.id))}
-                                                        disabled={isProcessingSplit}
+                                                        disabled={anyDispatching}
                                                         className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-600 text-white text-[10px] font-bold hover:bg-teal-700 transition-colors shadow-sm disabled:opacity-50"
                                                         title="Αποστολή όλων στον Τεχνίτη"
                                                     >
-                                                        {isProcessingSplit ? <Loader2 size={10} className="animate-spin" /> : <Truck size={10} />}
+                                                        {anyDispatching ? <Loader2 size={10} className="animate-spin" /> : <Truck size={10} />}
                                                         <span className="hidden xl:inline">Αποστολή Όλων</span>
                                                     </button>
-                                                )}
+                                                    );
+                                                })()}
                                                 <span className="px-2 py-0.5 rounded-full text-xs font-black bg-white shadow-sm text-teal-700">{polishingPendingBatches.length}</span>
                                                 <button
                                                     onClick={() => setPolishingFocus(polishingFocus === 'pending' ? 'equal' : 'pending')}
@@ -3381,19 +3590,31 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         onDispatchBatches={stageInspectorStage === ProductionStage.Polishing ? handleDispatchBatches : undefined}
                         onRecallBatches={stageInspectorStage === ProductionStage.Polishing ? handleRecallDispatchBatches : undefined}
                         initialPolishingTab={stageInspectorStage === ProductionStage.Polishing ? stageInspectorInitialPolishingTab : undefined}
+                        movingBatchIds={movingBatchIds}
                     />
                 );
             })()}
 
             {/* BULK MOVE FLOATING BAR */}
-            {multiSelectIds.size > 0 && ReactDOM.createPortal(
+            {(multiSelectIds.size > 0 || isBulkMoving) && ReactDOM.createPortal(
+                (() => {
+                    // Count of batches from the current selection that are
+                    // still mid-move — used so the bar stays visible until
+                    // every optimistic bulk operation has reconciled with
+                    // the server.
+                    const inFlightSelectedCount = Array.from(multiSelectIds).filter(id => movingBatchIds.has(id)).length;
+                    return (
                 <div className="fixed bottom-6 inset-x-0 flex justify-center z-[300] pointer-events-none px-4">
                     <div className="bg-slate-900/95 backdrop-blur-md text-white rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-3 pointer-events-auto animate-in slide-in-from-bottom-4 duration-200 border border-white/10 max-w-2xl w-full">
                         <div className="flex items-center gap-2 shrink-0">
                             <div className="w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center text-xs font-black shadow-lg shadow-blue-500/40">
                                 {multiSelectIds.size}
                             </div>
-                            <span className="text-sm font-bold text-white/70 whitespace-nowrap">επιλεγμένες παρτίδες</span>
+                            <span className="text-sm font-bold text-white/70 whitespace-nowrap">
+                                {isBulkMoving && inFlightSelectedCount > 0
+                                    ? `Μετακινείται ${inFlightSelectedCount}…`
+                                    : 'επιλεγμένες παρτίδες'}
+                            </span>
                         </div>
                         <div className="w-px h-6 bg-white/20 shrink-0" />
                         <div className="flex-1 min-w-0">
@@ -3457,13 +3678,16 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         </button>
                         <button
                             onClick={() => { setMultiSelectIds(new Set()); setBulkMoveTarget(null); setBulkMovePendingDispatch(undefined); }}
-                            className="shrink-0 p-1.5 hover:bg-white/10 rounded-lg text-white/50 hover:text-white transition-colors"
+                            disabled={isBulkMoving}
+                            className="shrink-0 p-1.5 hover:bg-white/10 rounded-lg text-white/50 hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                             title="Αποεπιλογή όλων"
                         >
                             <X size={16} />
                         </button>
                     </div>
-                </div>,
+                </div>
+                    );
+                })(),
                 document.body
             )}
         </div>

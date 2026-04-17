@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { ProductionBatch, ProductionStage } from '../types';
 import { isSpecialCreationSku } from '../utils/specialCreationSku';
-import { Clock, PauseCircle, StickyNote, Trash2, Printer, MoveRight, ImageIcon, AlertTriangle, PlayCircle, RefreshCcw, ChevronUp, ChevronDown, History, X, Check, Truck, Package, Hammer } from 'lucide-react';
+import { Clock, PauseCircle, StickyNote, Trash2, Printer, MoveRight, ImageIcon, AlertTriangle, PlayCircle, RefreshCcw, ChevronUp, ChevronDown, History, X, Check, Truck, Package, Hammer, Loader2 } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { formatOrderId } from '../utils/orderUtils';
 import { formatGreekDurationFromMs, getProductionTimingStatusClasses, getProductionTimingStatusLabel } from '../utils/productionTiming';
@@ -91,6 +91,9 @@ interface BatchCardProps {
     onDispatch?: () => void;
     // Recall from technician back to pending dispatch
     onRecallDispatch?: () => void;
+    // Mid-move indicator — when true the card shows a syncing overlay and
+    // all move/dispatch actions are disabled until the server confirms.
+    isMoving?: boolean;
 }
 
 export const ProductionBatchCard: React.FC<BatchCardProps> = ({
@@ -109,6 +112,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
     onToggleSelect,
     onDispatch,
     onRecallDispatch,
+    isMoving = false,
 }) => {
     const isRefurbish = batch.type === 'Φρεσκάρισμα';
     const isAwaiting = batch.current_stage === ProductionStage.AwaitingDelivery;
@@ -156,6 +160,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
     // Open/close handler
     const handleToggle = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
+        if (isMoving) return;
         if (!stageSelectorOpen) {
             updatePosition();
         }
@@ -164,7 +169,16 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
         } else if (onNextStage) {
             onNextStage(batch);
         }
-    }, [stageSelectorOpen, updatePosition, onMoveToStage, onNextStage, batch]);
+    }, [stageSelectorOpen, updatePosition, onMoveToStage, onNextStage, batch, isMoving]);
+
+    // If the batch becomes "moving" while its popup is open, close it — the
+    // options are disabled anyway and this prevents a stale popup hanging
+    // over the card while the syncing overlay is visible.
+    useEffect(() => {
+        if (isMoving && stageSelectorOpen) {
+            setStageSelectorOpen(false);
+        }
+    }, [isMoving, stageSelectorOpen]);
     
     // Close selector when clicking outside
     useEffect(() => {
@@ -245,9 +259,10 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
 
     return (
         <div
-            draggable={!!onDragStart}
+            draggable={!!onDragStart && !isMoving}
             onDragStart={onDragStart ? (e) => onDragStart(e, batch.id) : undefined}
             onClick={() => onClick(batch)}
+            aria-busy={isMoving || undefined}
             className={`p-3 sm:p-4 rounded-2xl border transition-all relative flex flex-col justify-between group touch-manipulation cursor-pointer
                     ${isSpecialCreation ? 'bg-violet-50/40 border-violet-200 ring-1 ring-violet-100/80' : metalContainerClass}
                     ${isSelected
@@ -256,8 +271,23 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                     ? 'border-amber-400 bg-amber-50/30' // Visual indication of HOLD
                     : (isRefurbish ? 'border-blue-300 ring-1 ring-blue-50' : (!isSpecialCreation ? 'border-slate-200 hover:border-emerald-400 hover:shadow-md' : 'hover:border-violet-400 hover:shadow-md')))}
                     ${isReady ? 'opacity-90 hover:opacity-100' : ''}
+                    ${isMoving ? 'ring-2 ring-emerald-400/70 ring-offset-1 shadow-lg animate-pulse' : ''}
         `}
         >
+            {/* Syncing overlay shown while a move is in flight. Keeps the card
+                visually "in transit" and blocks accidental double-clicks. */}
+            {isMoving && (
+                <div
+                    className="absolute inset-0 rounded-2xl bg-white/55 backdrop-blur-[1.5px] z-20 flex items-start justify-center pt-3 pointer-events-auto cursor-wait"
+                    onClick={(e) => { e.stopPropagation(); }}
+                    aria-hidden="true"
+                >
+                    <div className="flex items-center gap-1.5 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg ring-2 ring-white">
+                        <Loader2 size={11} className="animate-spin" />
+                        <span>Μετακινείται…</span>
+                    </div>
+                </div>
+            )}
             {/* Header Badges */}
             <div className="flex justify-between items-start mb-3">
                 <div className="flex flex-wrap gap-2 items-center">
@@ -425,30 +455,45 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                         <div className="flex items-center gap-1.5">
                             {onDispatch && (
                                 <button
-                                    onClick={(e) => { e.stopPropagation(); onDispatch(); }}
-                                    className="flex items-center gap-1 bg-teal-100 hover:bg-teal-200 text-teal-700 p-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
+                                    onClick={(e) => { e.stopPropagation(); if (!isMoving) onDispatch(); }}
+                                    disabled={isMoving}
+                                    className={`flex items-center gap-1 p-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 ${
+                                        isMoving
+                                            ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                                            : 'bg-teal-100 hover:bg-teal-200 text-teal-700'
+                                    }`}
                                     title="Αποστολή στον Τεχνίτη"
                                 >
-                                    <Truck size={12} />
+                                    {isMoving ? <Loader2 size={12} className="animate-spin" /> : <Truck size={12} />}
                                 </button>
                             )}
                             {onRecallDispatch && (
                                 <button
-                                    onClick={(e) => { e.stopPropagation(); onRecallDispatch(); }}
-                                    className="flex items-center gap-1 bg-blue-100 hover:bg-blue-200 text-blue-700 p-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
+                                    onClick={(e) => { e.stopPropagation(); if (!isMoving) onRecallDispatch(); }}
+                                    disabled={isMoving}
+                                    className={`flex items-center gap-1 p-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 ${
+                                        isMoving
+                                            ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                                            : 'bg-blue-100 hover:bg-blue-200 text-blue-700'
+                                    }`}
                                     title="Επιστροφή σε Αναμονή Αποστολής"
                                 >
-                                    <Package size={12} />
+                                    {isMoving ? <Loader2 size={12} className="animate-spin" /> : <Package size={12} />}
                                 </button>
                             )}
                             <button
                                 ref={buttonRef}
                                 onClick={handleToggle}
-                                className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
+                                disabled={isMoving}
+                                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 ${
+                                    isMoving
+                                        ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                                        : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                                }`}
                             >
-                                <MoveRight size={12} />
-                                {isAwaiting ? 'Παραλαβή' : 'Μετακίνηση'}
-                                {onMoveToStage && (stageSelectorOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
+                                {isMoving ? <Loader2 size={12} className="animate-spin" /> : <MoveRight size={12} />}
+                                {isMoving ? 'Μετακινείται…' : (isAwaiting ? 'Παραλαβή' : 'Μετακίνηση')}
+                                {!isMoving && onMoveToStage && (stageSelectorOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
                             </button>
                         </div>
                     )}
