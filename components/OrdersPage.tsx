@@ -1552,7 +1552,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                     onClick={() => handleSendToProduction(managingOrder.id)}
                                     className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors"
                                 >
-                                    <Factory size={18} /> Αποστολή στην Παραγωγή
+                                    <Factory size={18} /> Διαχείριση Παραγωγής
                                 </button>
                             )}
 
