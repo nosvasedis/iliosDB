@@ -156,9 +156,7 @@ export default function SupplierOrderPrintView({ order, products }: Props) {
                                     {item.size_info && (
                                         <span className="bg-slate-800 text-white px-1 py-px rounded text-[8px] font-bold">Νο {item.size_info}</span>
                                     )}
-                                    {item.customer_reference && (
-                                        <span className="text-[8px] text-slate-600 font-bold">Πελ: {item.customer_reference}</span>
-                                    )}
+                                    {/* customer_reference hidden from supplier PDF */}
                                 </div>
                                 {item.notes && (
                                     <div className="text-[8px] text-yellow-700 italic leading-tight">↳ {item.notes}</div>
