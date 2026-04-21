@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useDeferredValue } from 'react';
-import { X, Search, ShoppingCart, Calendar, Tag, Package, User, Hash } from 'lucide-react';
+import { X, Search, ShoppingCart, Calendar, Tag, Package, User, Hash, Image as ImageIcon } from 'lucide-react';
 import { Order, OrderItem, Product } from '../../types';
 import SkuColorizedText from '../SkuColorizedText';
 import { splitSkuComponents } from '../../utils/pricingEngine';
@@ -414,6 +414,14 @@ function OrderResultCard({ order, matchedItems, totalMatchedQty, productsMap, mo
                         const product = productsMap.get(item.sku);
                         return (
                             <div key={`${item.sku}-${item.variant_suffix ?? ''}-${idx}`} className="px-4 py-2.5 flex items-center gap-3">
+                                {/* Product image */}
+                                <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                                    {product?.image_url ? (
+                                        <img src={product.image_url} alt={item.sku} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <ImageIcon size={16} className="text-slate-300" />
+                                    )}
+                                </div>
                                 <div className="flex-1 min-w-0">
                                     <SkuColorizedText
                                         sku={item.sku}
