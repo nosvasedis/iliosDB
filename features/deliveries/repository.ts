@@ -25,6 +25,8 @@ export const deliveriesRepository = {
   getOrderShipments: () => api.getOrderShipments(),
   getOrderShipmentItems: (shipmentId: string) => api.getOrderShipmentItems(shipmentId),
   getShipmentsForOrder: (orderId: string) => api.getShipmentsForOrder(orderId),
+  revertPartialShipment: (params: { shipmentId: string; orderId: string; revertedBy: string }) =>
+    api.revertPartialShipment(params),
   getOrthodoxCalendarEvents: (year: number) => api.getOrthodoxCalendarEvents(year),
   updateOrderStatus: (orderId: string, status: Order['status']) => api.updateOrderStatus(orderId, status),
 };

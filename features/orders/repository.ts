@@ -34,4 +34,6 @@ export const ordersRepository = {
   getShipments: (): Promise<OrderShipment[]> => api.getOrderShipments(),
   getShipmentItems: (shipmentId: string): Promise<OrderShipmentItem[]> => api.getOrderShipmentItems(shipmentId),
   getShipmentsForOrder: (orderId: string) => api.getShipmentsForOrder(orderId),
+  revertPartialShipment: (params: { shipmentId: string; orderId: string; revertedBy: string }) =>
+    api.revertPartialShipment(params),
 };

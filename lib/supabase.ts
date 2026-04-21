@@ -1270,6 +1270,104 @@ export const api = {
         return shipment;
     },
 
+    revertPartialShipment: async (params: {
+        shipmentId: string;
+        orderId: string;
+        revertedBy: string;
+    }): Promise<void> => {
+        const now = new Date().toISOString();
+
+        // 1. Fetch all shipments + items for this order
+        const snapshot = await getOrderShipmentsSnapshot(params.orderId);
+        const allOrderShipments = snapshot.shipments.sort((a, b) => b.shipment_number - a.shipment_number);
+        const targetShipment = allOrderShipments.find((s) => s.id === params.shipmentId);
+        if (!targetShipment) throw new Error('Η αποστολή δεν βρέθηκε.');
+
+        // 2. Safety guard: only the latest shipment can be reverted
+        const latestShipment = allOrderShipments[0];
+        if (latestShipment.id !== params.shipmentId) {
+            throw new Error('Μπορείτε να αναιρέσετε μόνο την τελευταία αποστολή.');
+        }
+
+        // 3. Fetch the items belonging to this specific shipment
+        const shipmentItems = snapshot.items.filter((i) => i.shipment_id === params.shipmentId);
+
+        // 4. Restore production batches for each shipped item (back to Ready stage)
+        for (const item of shipmentItems) {
+            if (item.quantity <= 0) continue;
+            const restoredBatch: ProductionBatch = {
+                id: crypto.randomUUID(),
+                order_id: params.orderId,
+                sku: item.sku,
+                variant_suffix: item.variant_suffix || undefined,
+                size_info: item.size_info || undefined,
+                cord_color: (item.cord_color || undefined) as ProductionBatch['cord_color'],
+                enamel_color: (item.enamel_color || undefined) as ProductionBatch['enamel_color'],
+                line_id: item.line_id || null,
+                quantity: item.quantity,
+                current_stage: ProductionStage.Ready,
+                priority: 'Normal',
+                requires_setting: false,
+                requires_assembly: false,
+                on_hold: false,
+                pending_dispatch: false,
+                created_at: now,
+                updated_at: now,
+            };
+            await safeMutate('production_batches', 'INSERT', restoredBatch, { noSelect: true });
+        }
+
+        // 5. Delete shipment items and the shipment record
+        await safeMutate('order_shipment_items', 'DELETE', null, { match: { shipment_id: params.shipmentId } });
+        await safeMutate('order_shipments', 'DELETE', null, { match: { id: params.shipmentId } });
+
+        // 6. Determine new order status
+        const remainingShipments = allOrderShipments.filter((s) => s.id !== params.shipmentId);
+        const newStatus = remainingShipments.length > 0 ? OrderStatus.PartiallyDelivered : OrderStatus.InProduction;
+        await safeMutate('orders', 'UPDATE', { status: newStatus }, { match: { id: params.orderId }, noSelect: true });
+
+        // 7. Delivery plan handling
+        // 7a. Cancel the auto-created "next plan" that was created by this shipment
+        const allPlans = (await fetchFullTable('order_delivery_plans') as OrderDeliveryPlan[])
+            .filter((p) => p.order_id === params.orderId);
+        const autoCreatedPlan = allPlans.find(
+            (p) =>
+                p.plan_status === 'active' &&
+                p.internal_notes?.includes(`Αυτόματο πλάνο για υπόλοιπο παραγγελίας μετά από αποστολή #${targetShipment.shipment_number}`)
+        );
+        if (autoCreatedPlan) {
+            await safeMutate('order_delivery_plans', 'UPDATE', {
+                plan_status: 'cancelled',
+                cancelled_at: now,
+                updated_at: now,
+            }, { match: { id: autoCreatedPlan.id }, noSelect: true });
+        }
+
+        // 7b. Re-activate the original delivery plan that was completed by this shipment
+        if (targetShipment.delivery_plan_id) {
+            await safeMutate('order_delivery_plans', 'UPDATE', {
+                plan_status: 'active',
+                completed_at: null,
+                updated_at: now,
+            }, { match: { id: targetShipment.delivery_plan_id }, noSelect: true });
+            // Re-open the reminders that were auto-completed by the shipment
+            await safeMutate('order_delivery_reminders', 'UPDATE', {
+                completed_at: null,
+                completion_note: null,
+                completed_by: null,
+                updated_at: now,
+            }, { match: { plan_id: targetShipment.delivery_plan_id } });
+        }
+
+        // 8. Audit log
+        await api.logAction(params.revertedBy, 'Αναίρεση Μερικής Αποστολής', {
+            orderId: params.orderId,
+            shipmentId: params.shipmentId,
+            shipmentNumber: targetShipment.shipment_number,
+            itemCount: shipmentItems.reduce((sum, i) => sum + i.quantity, 0),
+        });
+    },
+
     // NEW: Modified updateOrder to check for production batch sync
     updateOrder: async (o: Order, isNewPart?: boolean): Promise<void> => {
         await safeMutate('orders', 'UPDATE', o, { match: { id: o.id }, noSelect: true });

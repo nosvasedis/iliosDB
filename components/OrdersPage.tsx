@@ -728,6 +728,13 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         return getShipmentReadiness(managingOrder.id, batchesByOrderId.get(managingOrder.id) || []);
     }, [managingOrder, batchesByOrderId]);
 
+    const managingOrderShipmentsQuery = useOrderShipmentsForOrder(managingOrder?.id || '');
+    const managingOrderLatestShipment = useMemo(() => {
+        const shipments = managingOrderShipmentsQuery.data?.shipments;
+        if (!shipments || shipments.length === 0) return null;
+        return shipments.reduce((latest, s) => s.shipment_number > latest.shipment_number ? s : latest);
+    }, [managingOrderShipmentsQuery.data]);
+
     // Derived: Filter orders based on Tab, Search, and all panel Filters
     const filteredOrders = useMemo(() => {
         if (!orders) return [];
@@ -1004,6 +1011,32 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             setShipmentModalOrder(null);
         } catch (e) {
             showToast('Σφάλμα κατά την αποστολή.', 'error');
+        }
+    };
+
+    const handleRevertLatestShipmentFromOrders = async () => {
+        if (!managingOrder || !managingOrderLatestShipment) return;
+        const shipment = managingOrderLatestShipment;
+        const order = managingOrder;
+        const confirmed = await confirm({
+            title: `Αναίρεση Αποστολής #${shipment.shipment_number}`,
+            message: `Θέλετε σίγουρα να αναιρέσετε την αποστολή #${shipment.shipment_number} της παραγγελίας "${order.customer_name || order.id.slice(-6)}"; Τα τεμάχια θα επιστραφούν στην παραγωγή ως Έτοιμα.`,
+            confirmText: 'Ναι, αναίρεση αποστολής',
+            isDestructive: true,
+        });
+        if (!confirmed) return;
+        try {
+            await ordersRepository.revertPartialShipment({
+                shipmentId: shipment.id,
+                orderId: order.id,
+                revertedBy: profile?.full_name || 'Σύστημα',
+            });
+            void invalidateOrdersAndBatches(queryClient);
+            queryClient.invalidateQueries({ queryKey: ['order_shipments'] });
+            showToast(`Η αποστολή #${shipment.shipment_number} αναιρέθηκε επιτυχώς.`, 'success');
+            setManagingOrder(null);
+        } catch (e: any) {
+            showToast(e?.message || 'Σφάλμα κατά την αναίρεση αποστολής.', 'error');
         }
     };
 
@@ -1493,6 +1526,15 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                     className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors"
                                 >
                                     <Truck size={18} /> Μερική Αποστολή ({managingShipmentReadiness.ready_qty}/{managingShipmentReadiness.total_qty} τεμ. έτοιμα)
+                                </button>
+                            )}
+
+                            {managingOrderLatestShipment && (managingOrder.status === OrderStatus.PartiallyDelivered || managingOrder.status === OrderStatus.InProduction) && (
+                                <button
+                                    onClick={handleRevertLatestShipmentFromOrders}
+                                    className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition-colors"
+                                >
+                                    <RotateCcw size={18} /> Αναίρεση Αποστολής #{managingOrderLatestShipment.shipment_number}
                                 </button>
                             )}
 

@@ -6,7 +6,7 @@ import { useOrthodoxCalendarEvents } from '../hooks/api/useOrthodoxCalendarEvent
 import { useOrderDeliveryPlans } from '../hooks/api/useOrderDeliveryPlans';
 import { useDeliveryAlerts } from '../hooks/useDeliveryAlerts';
 import { api } from '../lib/supabase';
-import { EnrichedDeliveryItem, Order, OrderDeliveryPlan, OrderDeliveryReminder, OrderStatus } from '../types';
+import { EnrichedDeliveryItem, Order, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderStatus } from '../types';
 import { endOfDay, startOfDay } from '../utils/deliveryScheduling';
 import { getOrderDisplayName } from '../utils/deliveryLabels';
 import { getCalendarDayEvents } from '../utils/namedays';
@@ -180,6 +180,27 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
     setShipmentItem(item);
   };
 
+  const handleRevertShipment = async (shipment: OrderShipment, item: EnrichedDeliveryItem) => {
+    const confirmed = await confirm({
+      title: `Αναίρεση Αποστολής #${shipment.shipment_number}`,
+      message: `Θέλετε σίγουρα να αναιρέσετε την αποστολή #${shipment.shipment_number} της παραγγελίας "${item.order.customer_name || item.order.id.slice(-6)}"; Τα τεμάχια θα επιστραφούν στην παραγωγή ως Έτοιμα.`,
+      confirmText: 'Ναι, αναίρεση αποστολής',
+      isDestructive: true,
+    });
+    if (!confirmed) return;
+    try {
+      await api.revertPartialShipment({
+        shipmentId: shipment.id,
+        orderId: item.order.id,
+        revertedBy: profile?.full_name || 'Σύστημα',
+      });
+      showToast(`Η αποστολή #${shipment.shipment_number} αναιρέθηκε επιτυχώς.`, 'success');
+      handleRefresh();
+    } catch (e: any) {
+      showToast(e?.message || 'Σφάλμα κατά την αναίρεση αποστολής.', 'error');
+    }
+  };
+
   const handleConfirmShipment = async (
     items: Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: Order['items'][number]['cord_color']; enamel_color?: Order['items'][number]['enamel_color']; quantity: number; price_at_order: number; line_id?: string | null }>,
     notes: string | null
@@ -266,6 +287,7 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
             onCompleteReminder={(reminder) => handleReminderAction(reminder, 'complete')}
             onSnoozeReminder={(reminder) => handleReminderAction(reminder, 'snooze')}
             onShipReady={handleShipReady}
+            onRevertShipment={handleRevertShipment}
             loadingReminders={loadingReminders}
           />
         </div>
