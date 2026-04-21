@@ -22,6 +22,7 @@ import { getTagColor } from '../features/orders/tagColors';
 import { OrdersFilterPanel, OrderFilters, DEFAULT_FILTERS, countActiveFilters } from './orders/OrdersFilterPanel';
 import { useTagColorOverrides } from '../hooks/api/useTagColorOverrides';
 import { getSpecialCreationProductStub, isSpecialCreationSku } from '../utils/specialCreationSku';
+import SkuOrderSearchModal from './orders/SkuOrderSearchModal';
 import { useCollections } from '../hooks/api/useCollections';
 import { useCustomers, useOrderShipmentsForOrder, useOrders } from '../hooks/api/useOrders';
 import { useProductionBatches } from '../hooks/api/useProductionBatches';
@@ -636,6 +637,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     const [showStatusActions, setShowStatusActions] = useState(false);
     const [showSellerAssignment, setShowSellerAssignment] = useState(false);
     const [quickSendingOrders, setQuickSendingOrders] = useState<Set<string>>(new Set());
+    const [skuSearchOpen, setSkuSearchOpen] = useState(false);
 
     // Group Management in Modal
     const [tagInput, setTagInput] = useState('');
@@ -1138,6 +1140,13 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                 <Archive size={16} /> Αρχείο
                             </button>
                         </div>
+                        <button
+                            type="button"
+                            onClick={() => setSkuSearchOpen(true)}
+                            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300"
+                        >
+                            <Search size={16} className="text-emerald-600" /> Αναζήτηση SKU
+                        </button>
                         <button
                             type="button"
                             onClick={() => { setEditingOrder(null); setIsCreating(true); }}
@@ -1680,6 +1689,15 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                     userName={profile?.full_name || 'System'}
                     onConfirm={handleConfirmShipmentFromOrders}
                     onClose={() => setShipmentModalOrder(null)}
+                />
+            )}
+
+            {skuSearchOpen && (
+                <SkuOrderSearchModal
+                    onClose={() => setSkuSearchOpen(false)}
+                    orders={orders || []}
+                    products={products}
+                    mobile={false}
                 />
             )}
         </div>

@@ -3,7 +3,7 @@ import React, { useState, useMemo, useDeferredValue } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { Order, OrderShipment, OrderShipmentItem, OrderStatus, Product, ProductVariant, ProductionBatch, ProductionStage } from '../../types';
-import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings, ShoppingBag, Image as ImageIcon, PackageCheck, Globe, Flame, Gem, Hammer, CheckCircle2, SlidersHorizontal, ShoppingCart, BookOpen, FileText, BarChart3, History } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings, ShoppingBag, Image as ImageIcon, PackageCheck, Globe, Flame, Gem, Hammer, CheckCircle2, SlidersHorizontal, ShoppingCart, BookOpen, FileText, BarChart3, History, Hash } from 'lucide-react';
 import MobileScreenHeader, { MOBILE_HEADER_SURFACE } from './MobileScreenHeader';
 import type { LucideIcon } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
@@ -29,6 +29,7 @@ import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 import { StickyNote, UserCheck } from 'lucide-react';
 import { SellerPicker } from '../OrderBuilder/SellerPicker';
 import { useSellers } from '../../hooks/api/useSellers';
+import SkuOrderSearchModal from '../orders/SkuOrderSearchModal';
 
 const STAGE_ICON_MAP: Record<ProductionStage, LucideIcon> = {
     [ProductionStage.AwaitingDelivery]: Globe,
@@ -1154,6 +1155,7 @@ export default function MobileOrders({
     const [printModalOrder, setPrintModalOrder] = useState<Order | null>(null);
     const [tagInput, setTagInput] = useState('');
     const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
+    const [skuSearchOpen, setSkuSearchOpen] = useState(false);
     const [sellerAssignOrder, setSellerAssignOrder] = useState<Order | null>(null);
     const [assignSellerId, setAssignSellerId] = useState<string | null>(null);
     const [assignSellerName, setAssignSellerName] = useState<string | null>(null);
@@ -1365,11 +1367,21 @@ export default function MobileOrders({
                         <button onClick={() => setActiveTab('active')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'active' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Ενεργές</button>
                         <button onClick={() => setActiveTab('archived')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'archived' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Αρχείο</button>
                     </div>
-                    {onCreate && (
-                        <button onClick={onCreate} className="bg-[#060b00] text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg active:scale-95 transition-transform">
-                            <Plus size={18} /> Νέα
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setSkuSearchOpen(true)}
+                            className="flex items-center justify-center w-9 h-9 rounded-xl border border-slate-200 bg-white shadow-sm text-emerald-600 active:scale-95 transition-transform"
+                            aria-label="Αναζήτηση SKU"
+                        >
+                            <Hash size={17} strokeWidth={2.5} />
                         </button>
-                    )}
+                        {onCreate && (
+                            <button onClick={onCreate} className="bg-[#060b00] text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg active:scale-95 transition-transform">
+                                <Plus size={18} /> Νέα
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 <div className="flex gap-2">
@@ -1654,6 +1666,15 @@ export default function MobileOrders({
                         </div>
                     </div>
                 </div>
+            )}
+
+            {skuSearchOpen && (
+                <SkuOrderSearchModal
+                    onClose={() => setSkuSearchOpen(false)}
+                    orders={orders || []}
+                    products={products}
+                    mobile={true}
+                />
             )}
         </div>
     );
