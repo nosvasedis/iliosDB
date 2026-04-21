@@ -1,17 +1,8 @@
 import React from 'react';
-import { ProductionBatch, Product, Gender } from '../types';
+import { ProductionBatch, Product, Gender, ProductionStage, StageBatchPrintData } from '../types';
 import { APP_LOGO } from '../constants';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { formatOrderId } from '../utils/orderUtils';
-
-export interface StageBatchPrintData {
-    stageName: string;
-    stageId: string;
-    customerName: string;
-    orderId: string;
-    batches: ProductionBatch[];
-    generatedAt: string;
-}
 
 // Inline print-safe hex colors per stage
 const STAGE_PRINT_COLORS: Record<string, { headerBg: string; lightBg: string; lightBorder: string; accentText: string }> = {
@@ -61,8 +52,172 @@ interface Props {
     allProducts: Product[];
 }
 
+/** Polishing (Τεχνίτης) substage accents — aligned with Production kanban panels */
+const POLISHING_PENDING_PRINT = {
+    headerBg: '#0d9488',
+    lightBg: '#ccfbf1',
+    lightBorder: '#99f6e4',
+    accentText: '#115e59',
+    tabLabel: 'Τεχνίτης Σε Αναμονή',
+} as const;
+
+const POLISHING_DISPATCHED_PRINT = {
+    headerBg: '#2563eb',
+    lightBg: '#dbeafe',
+    lightBorder: '#bfdbfe',
+    accentText: '#1e40af',
+    tabLabel: 'Τεχνίτης Στον Τεχνίτη',
+} as const;
+
+function sortBatchesForPrint(batches: ProductionBatch[]): ProductionBatch[] {
+    return [...batches].sort((a, b) => {
+        const holdCmp = (a.on_hold ? 1 : 0) - (b.on_hold ? 1 : 0);
+        if (holdCmp !== 0) return holdCmp;
+        const custA = (a.customer_name || '').trim().toLocaleLowerCase('el');
+        const custB = (b.customer_name || '').trim().toLocaleLowerCase('el');
+        const custCmp = custA.localeCompare(custB, 'el', { sensitivity: 'base' });
+        if (custCmp !== 0) return custCmp;
+        return `${a.sku}${a.variant_suffix || ''}`.localeCompare(
+            `${b.sku}${b.variant_suffix || ''}`,
+            undefined, { numeric: true, sensitivity: 'base' }
+        );
+    });
+}
+
+type TableAccent = { headerBg: string; lightBg: string; lightBorder: string; accentText: string };
+
+function BatchPrintTable({
+    batches,
+    accent,
+    allProducts,
+    rowIndexOffset,
+}: {
+    batches: ProductionBatch[];
+    accent: TableAccent;
+    allProducts: Product[];
+    rowIndexOffset: number;
+}) {
+    return (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', marginBottom: '14px' }}>
+            <thead>
+                <tr style={{ background: accent.lightBg, borderBottom: `2px solid ${accent.lightBorder}` }}>
+                    <th style={{ ...thStyleBase, width: '28px', textAlign: 'center' }}>
+                        <span style={{ color: '#94a3b8', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em' }}>#</span>
+                    </th>
+                    <th style={{ ...thStyleBase, width: '46px' }} />
+                    <th style={{ ...thStyleBase, textAlign: 'left', paddingLeft: '8px' }}>
+                        <span style={{ color: '#64748b', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Κωδικός</span>
+                    </th>
+                    <th style={{ ...thStyleBase, width: '70px', textAlign: 'center' }}>
+                        <span style={{ color: '#64748b', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Νούμερο</span>
+                    </th>
+                    <th style={{ ...thStyleBase, width: '55px', textAlign: 'center' }}>
+                        <span style={{ color: '#64748b', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Ποσ.</span>
+                    </th>
+                    <th style={{ ...thStyleBase, textAlign: 'left', paddingLeft: '8px' }}>
+                        <span style={{ color: '#64748b', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Σημειώσεις</span>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                {batches.length === 0 ? (
+                    <tr>
+                        <td colSpan={6} style={{ padding: '16px', textAlign: 'center', color: '#94a3b8', fontSize: '12px', fontWeight: 700, background: '#f8fafc' }}>
+                            Δεν υπάρχουν παρτίδες σε αυτό το υποστάδιο.
+                        </td>
+                    </tr>
+                ) : (
+                    batches.map((batch, index) => {
+                        const isOnHold = !!batch.on_hold;
+                        const rowBg = isOnHold ? '#fffbeb' : (index % 2 === 0 ? '#ffffff' : '#f8fafc');
+                        const product = allProducts.find(p => p.sku === batch.sku);
+                        const displayIndex = rowIndexOffset + index + 1;
+
+                        return (
+                            <tr
+                                key={batch.id}
+                                style={{
+                                    background: rowBg,
+                                    borderBottom: '1px solid #f1f5f9',
+                                    borderLeft: isOnHold ? '3px solid #fbbf24' : '3px solid transparent',
+                                    // @ts-ignore print
+                                    breakInside: 'avoid',
+                                    pageBreakInside: 'avoid',
+                                }}
+                            >
+                                <td style={{ padding: '7px 4px', textAlign: 'center', color: '#94a3b8', fontSize: '11px', fontWeight: 700, width: '28px' }}>
+                                    {displayIndex}
+                                </td>
+                                <td style={{ padding: '5px 4px', width: '46px' }}>
+                                    {product?.image_url ? (
+                                        <img
+                                            src={product.image_url}
+                                            alt={batch.sku}
+                                            style={{ width: '42px', height: '42px', objectFit: 'cover', borderRadius: '5px', border: '1px solid #e2e8f0', display: 'block' }}
+                                        />
+                                    ) : (
+                                        <div style={{ width: '42px', height: '42px', background: '#f1f5f9', borderRadius: '5px', border: '1px solid #e2e8f0' }} />
+                                    )}
+                                </td>
+                                <td style={{ padding: '7px 8px', verticalAlign: 'middle' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                                        <SkuColoredPrint sku={batch.sku} suffix={batch.variant_suffix} gender={product?.gender} />
+                                        {batch.customer_name?.trim() && (
+                                            <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', whiteSpace: 'nowrap' }}>
+                                                · {batch.customer_name.trim()}
+                                            </span>
+                                        )}
+                                        {isOnHold && (
+                                            <span style={{
+                                                background: '#fef3c7', border: '1px solid #fcd34d',
+                                                color: '#92400e', padding: '1px 5px',
+                                                borderRadius: '3px', fontSize: '9px', fontWeight: 900,
+                                                whiteSpace: 'nowrap',
+                                            }}>
+                                                ⏸ ΑΝΑΜΟΝΗ{batch.on_hold_reason ? ` · ${batch.on_hold_reason}` : ''}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {product?.category && (
+                                        <div style={{ color: '#94a3b8', fontSize: '10px', marginTop: '2px' }}>{product.category}</div>
+                                    )}
+                                </td>
+                                <td style={{ padding: '7px 8px', textAlign: 'center', color: '#475569', fontSize: '12px', fontWeight: 700, width: '70px' }}>
+                                    {batch.size_info || <span style={{ color: '#cbd5e1' }}>—</span>}
+                                </td>
+                                <td style={{ padding: '7px 8px', textAlign: 'center', width: '55px' }}>
+                                    <span style={{
+                                        background: accent.headerBg, color: '#fff',
+                                        padding: '3px 12px', borderRadius: '12px',
+                                        fontWeight: 900, fontSize: '14px',
+                                        letterSpacing: '-0.02em',
+                                        display: 'inline-block',
+                                    }}>
+                                        {batch.quantity}
+                                    </span>
+                                </td>
+                                <td style={{ padding: '7px 8px', color: '#92400e', fontSize: '11px', fontStyle: 'italic', lineHeight: 1.35 }}>
+                                    {batch.notes || ''}
+                                </td>
+                            </tr>
+                        );
+                    })
+                )}
+            </tbody>
+        </table>
+    );
+}
+
 export default function StageBatchPrintView({ data, allProducts }: Props) {
     const colors = STAGE_PRINT_COLORS[data.stageId] ?? STAGE_PRINT_COLORS['Casting'];
+    const isPolishing = data.stageId === ProductionStage.Polishing;
+
+    const pendingPolishing = isPolishing
+        ? sortBatchesForPrint(data.batches.filter(b => !!b.pending_dispatch))
+        : [];
+    const dispatchedPolishing = isPolishing
+        ? sortBatchesForPrint(data.batches.filter(b => !b.pending_dispatch))
+        : [];
 
     const totalQty = data.batches.reduce((s, b) => s + b.quantity, 0);
     const onHoldCount = data.batches.filter(b => b.on_hold).length;
@@ -72,15 +227,7 @@ export default function StageBatchPrintView({ data, allProducts }: Props) {
         hour: '2-digit', minute: '2-digit',
     });
 
-    // Sort: active first, held last; within each group sort by SKU
-    const sorted = [...data.batches].sort((a, b) => {
-        const holdCmp = (a.on_hold ? 1 : 0) - (b.on_hold ? 1 : 0);
-        if (holdCmp !== 0) return holdCmp;
-        return `${a.sku}${a.variant_suffix || ''}`.localeCompare(
-            `${b.sku}${b.variant_suffix || ''}`,
-            undefined, { numeric: true, sensitivity: 'base' }
-        );
-    });
+    const sorted = sortBatchesForPrint(data.batches);
 
     return (
         <div style={{
@@ -179,116 +326,92 @@ export default function StageBatchPrintView({ data, allProducts }: Props) {
                 </div>
             </div>
 
-            {/* ── Batch table ── */}
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                <thead>
-                    <tr style={{ background: colors.lightBg, borderBottom: `2px solid ${colors.lightBorder}` }}>
-                        <th style={{ ...thStyleBase, width: '28px', textAlign: 'center' }}>
-                            <span style={{ color: '#94a3b8', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em' }}>#</span>
-                        </th>
-                        <th style={{ ...thStyleBase, width: '46px' }} />
-                        <th style={{...thStyleBase, textAlign: 'left', paddingLeft: '8px' }}>
-                            <span style={{ color: '#64748b', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Κωδικός</span>
-                        </th>
-                        <th style={{ ...thStyleBase, width: '70px', textAlign: 'center' }}>
-                            <span style={{ color: '#64748b', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Νούμερο</span>
-                        </th>
-                        <th style={{ ...thStyleBase, width: '55px', textAlign: 'center' }}>
-                            <span style={{ color: '#64748b', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Ποσ.</span>
-                        </th>
-                        <th style={{ ...thStyleBase, textAlign: 'left', paddingLeft: '8px' }}>
-                            <span style={{ color: '#64748b', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Σημειώσεις</span>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {sorted.map((batch, index) => {
-                        const isOnHold = !!batch.on_hold;
-                        const rowBg = isOnHold ? '#fffbeb' : (index % 2 === 0 ? '#ffffff' : '#f8fafc');
-                        const product = allProducts.find(p => p.sku === batch.sku);
+            {/* ── Τεχνίτης (Polishing): two substage “tabs” + separate batch lists ── */}
+            {isPolishing ? (
+                <>
+                    <div style={{
+                        display: 'flex',
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                        border: `2px solid ${colors.lightBorder}`,
+                        marginBottom: '12px',
+                    }}>
+                        <div style={{
+                            flex: 1,
+                            background: POLISHING_PENDING_PRINT.headerBg,
+                            color: '#fff',
+                            padding: '10px 12px',
+                            textAlign: 'center',
+                            borderRight: `1px solid ${colors.lightBorder}`,
+                        }}>
+                            <div style={{ fontSize: '12px', fontWeight: 900, letterSpacing: '0.04em' }}>
+                                {POLISHING_PENDING_PRINT.tabLabel}
+                            </div>
+                            <div style={{ fontSize: '10px', fontWeight: 700, opacity: 0.9, marginTop: '3px' }}>
+                                {pendingPolishing.length} παρτίδες · {pendingPolishing.reduce((s, b) => s + b.quantity, 0)} τεμ.
+                            </div>
+                        </div>
+                        <div style={{
+                            flex: 1,
+                            background: POLISHING_DISPATCHED_PRINT.headerBg,
+                            color: '#fff',
+                            padding: '10px 12px',
+                            textAlign: 'center',
+                        }}>
+                            <div style={{ fontSize: '12px', fontWeight: 900, letterSpacing: '0.04em' }}>
+                                {POLISHING_DISPATCHED_PRINT.tabLabel}
+                            </div>
+                            <div style={{ fontSize: '10px', fontWeight: 700, opacity: 0.9, marginTop: '3px' }}>
+                                {dispatchedPolishing.length} παρτίδες · {dispatchedPolishing.reduce((s, b) => s + b.quantity, 0)} τεμ.
+                            </div>
+                        </div>
+                    </div>
 
-                        return (
-                            <tr
-                                key={batch.id}
-                                style={{
-                                    background: rowBg,
-                                    borderBottom: '1px solid #f1f5f9',
-                                    borderLeft: isOnHold ? '3px solid #fbbf24' : '3px solid transparent',
-                                    // @ts-ignore - print-specific CSS
-                                    breakInside: 'avoid',
-                                    pageBreakInside: 'avoid',
-                                }}
-                            >
-                                {/* Index */}
-                                <td style={{ padding: '7px 4px', textAlign: 'center', color: '#94a3b8', fontSize: '11px', fontWeight: 700, width: '28px' }}>
-                                    {index + 1}
-                                </td>
+                    <div style={{
+                        marginBottom: '8px',
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        background: POLISHING_PENDING_PRINT.lightBg,
+                        border: `1px solid ${POLISHING_PENDING_PRINT.lightBorder}`,
+                    }}>
+                        <span style={{ fontSize: '11px', fontWeight: 900, color: POLISHING_PENDING_PRINT.accentText }}>
+                            {POLISHING_PENDING_PRINT.tabLabel}
+                        </span>
+                    </div>
+                    <BatchPrintTable
+                        batches={pendingPolishing}
+                        accent={POLISHING_PENDING_PRINT}
+                        allProducts={allProducts}
+                        rowIndexOffset={0}
+                    />
 
-                                {/* Thumbnail */}
-                                <td style={{ padding: '5px 4px', width: '46px' }}>
-                                    {product?.image_url ? (
-                                        <img
-                                            src={product.image_url}
-                                            alt={batch.sku}
-                                            style={{ width: '42px', height: '42px', objectFit: 'cover', borderRadius: '5px', border: '1px solid #e2e8f0', display: 'block' }}
-                                        />
-                                    ) : (
-                                        <div style={{ width: '42px', height: '42px', background: '#f1f5f9', borderRadius: '5px', border: '1px solid #e2e8f0' }} />
-                                    )}
-                                </td>
-
-                                {/* SKU + client + on-hold tag */}
-                                <td style={{ padding: '7px 8px', verticalAlign: 'middle' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
-                                        <SkuColoredPrint sku={batch.sku} suffix={batch.variant_suffix} gender={product?.gender} />
-                                        {batch.customer_name?.trim() && (
-                                            <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', whiteSpace: 'nowrap' }}>
-                                                · {batch.customer_name.trim()}
-                                            </span>
-                                        )}
-                                        {isOnHold && (
-                                            <span style={{
-                                                background: '#fef3c7', border: '1px solid #fcd34d',
-                                                color: '#92400e', padding: '1px 5px',
-                                                borderRadius: '3px', fontSize: '9px', fontWeight: 900,
-                                                whiteSpace: 'nowrap',
-                                            }}>
-                                                ⏸ ΑΝΑΜΟΝΗ{batch.on_hold_reason ? ` · ${batch.on_hold_reason}` : ''}
-                                            </span>
-                                        )}
-                                    </div>
-                                    {product?.category && (
-                                        <div style={{ color: '#94a3b8', fontSize: '10px', marginTop: '2px' }}>{product.category}</div>
-                                    )}
-                                </td>
-
-                                {/* Size */}
-                                <td style={{ padding: '7px 8px', textAlign: 'center', color: '#475569', fontSize: '12px', fontWeight: 700, width: '70px' }}>
-                                    {batch.size_info || <span style={{ color: '#cbd5e1' }}>—</span>}
-                                </td>
-
-                                {/* Quantity badge */}
-                                <td style={{ padding: '7px 8px', textAlign: 'center', width: '55px' }}>
-                                    <span style={{
-                                        background: colors.headerBg, color: '#fff',
-                                        padding: '3px 12px', borderRadius: '12px',
-                                        fontWeight: 900, fontSize: '14px',
-                                        letterSpacing: '-0.02em',
-                                        display: 'inline-block',
-                                    }}>
-                                        {batch.quantity}
-                                    </span>
-                                </td>
-
-                                {/* Notes */}
-                                <td style={{ padding: '7px 8px', color: '#92400e', fontSize: '11px', fontStyle: 'italic', lineHeight: 1.35 }}>
-                                    {batch.notes || ''}
-                                </td>
-                            </tr>
-                        );
-                    })}
-                </tbody>
-            </table>
+                    <div style={{
+                        marginBottom: '8px',
+                        marginTop: '4px',
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        background: POLISHING_DISPATCHED_PRINT.lightBg,
+                        border: `1px solid ${POLISHING_DISPATCHED_PRINT.lightBorder}`,
+                    }}>
+                        <span style={{ fontSize: '11px', fontWeight: 900, color: POLISHING_DISPATCHED_PRINT.accentText }}>
+                            {POLISHING_DISPATCHED_PRINT.tabLabel}
+                        </span>
+                    </div>
+                    <BatchPrintTable
+                        batches={dispatchedPolishing}
+                        accent={POLISHING_DISPATCHED_PRINT}
+                        allProducts={allProducts}
+                        rowIndexOffset={pendingPolishing.length}
+                    />
+                </>
+            ) : (
+                <BatchPrintTable
+                    batches={sorted}
+                    accent={colors}
+                    allProducts={allProducts}
+                    rowIndexOffset={0}
+                />
+            )}
 
             {/* ── Footer totals ── */}
             <div style={{
