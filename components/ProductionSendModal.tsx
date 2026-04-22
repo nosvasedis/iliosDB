@@ -1445,6 +1445,10 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                                     className="px-2 py-1 rounded-lg border text-[10px] font-black transition-colors flex items-center gap-1 text-slate-700 bg-white border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed">
                                                                     <History size={11} /> Ιστορικό
                                                                 </button>
+                                                                <button onClick={() => handleEditNote(batch)} disabled={isRowMoving}
+                                                                    className={`px-2 py-1 rounded-lg border text-[10px] font-black transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed ${batch.notes ? 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100' : 'text-slate-600 bg-white border-slate-200 hover:bg-slate-50'}`}>
+                                                                    <StickyNote size={11} /> Σημειώσεις
+                                                                </button>
                                                             </div>
                                                         </div>
                                                     </div>

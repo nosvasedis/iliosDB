@@ -1673,6 +1673,7 @@ export default function MobileOrders({
                     onClose={() => setSkuSearchOpen(false)}
                     orders={orders || []}
                     products={products}
+                    batches={batches || []}
                     mobile={true}
                 />
             )}

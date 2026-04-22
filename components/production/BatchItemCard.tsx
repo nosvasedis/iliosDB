@@ -146,11 +146,15 @@ export const BatchItemCard = React.memo(function BatchItemCard({
 
                         {/* Unit price */}
                         <div className="text-[10px] font-mono text-slate-400 mt-0.5">
-                            {formatCurrency(row.price)}
-                            {discountFactor < 1 && (
-                                <span className="text-emerald-600 ml-1">
-                                    → {formatCurrency(row.price * discountFactor)}
+                            {discountFactor < 1 ? (
+                                <span className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="line-through opacity-60">{formatCurrency(row.price)}</span>
+                                    <span className="text-emerald-700 font-black bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded text-[9px]">
+                                        {formatCurrency(row.price * discountFactor)} μετά έκπτωση
+                                    </span>
                                 </span>
+                            ) : (
+                                formatCurrency(row.price)
                             )}
                         </div>
 

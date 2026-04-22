@@ -1697,6 +1697,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                     onClose={() => setSkuSearchOpen(false)}
                     orders={orders || []}
                     products={products}
+                    batches={batches || []}
                     mobile={false}
                 />
             )}

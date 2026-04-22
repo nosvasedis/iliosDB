@@ -1,15 +1,17 @@
 import React, { useState, useMemo, useRef, useEffect, useDeferredValue } from 'react';
-import { X, Search, ShoppingCart, Calendar, Tag, Package, User, Hash, Image as ImageIcon } from 'lucide-react';
-import { Order, OrderItem, Product } from '../../types';
+import { X, Search, ShoppingCart, Calendar, Tag, Package, User, Hash, Image as ImageIcon, Factory } from 'lucide-react';
+import { Order, OrderItem, Product, ProductionBatch, ProductionStage } from '../../types';
 import SkuColorizedText from '../SkuColorizedText';
 import { splitSkuComponents } from '../../utils/pricingEngine';
 import { getOrderStatusClasses, getOrderStatusLabel, getOrderStatusIcon } from '../../features/orders/statusPresentation';
 import { formatCurrency } from '../../utils/pricingEngine';
+import { getProductionStageLabel } from '../../utils/productionStages';
 
 interface SkuOrderSearchModalProps {
     onClose: () => void;
     orders: Order[];
     products: Product[];
+    batches?: ProductionBatch[];
     /** If true, renders a mobile-optimised bottom-sheet layout */
     mobile?: boolean;
 }
@@ -57,6 +59,7 @@ export default function SkuOrderSearchModal({
     onClose,
     orders,
     products,
+    batches,
     mobile = false,
 }: SkuOrderSearchModalProps) {
     const [rawQuery, setRawQuery] = useState('');
@@ -220,6 +223,7 @@ export default function SkuOrderSearchModal({
                             matchedItems={matchedItems}
                             totalMatchedQty={totalMatchedQty}
                             productsMap={productsMap}
+                            allBatches={batches}
                             mobile={mobile}
                         />
                     ))}
@@ -333,10 +337,11 @@ interface OrderResultCardProps {
     matchedItems: { item: OrderItem; totalQty: number }[];
     totalMatchedQty: number;
     productsMap: Map<string, Product>;
+    allBatches?: ProductionBatch[];
     mobile: boolean;
 }
 
-function OrderResultCard({ order, matchedItems, totalMatchedQty, productsMap, mobile }: OrderResultCardProps) {
+function OrderResultCard({ order, matchedItems, totalMatchedQty, productsMap, allBatches, mobile }: OrderResultCardProps) {
     const [expanded, setExpanded] = useState(true);
 
     const dateStr = new Date(order.created_at).toLocaleDateString('el-GR', {
@@ -412,6 +417,17 @@ function OrderResultCard({ order, matchedItems, totalMatchedQty, productsMap, mo
                 <div className="border-t border-slate-100 divide-y divide-slate-50 bg-slate-50/50">
                     {matchedItems.map(({ item }, idx) => {
                         const product = productsMap.get(item.sku);
+                        // Find active production batches for this order+item
+                        const itemBatches = allBatches?.filter(b =>
+                            b.order_id === order.id &&
+                            b.sku === item.sku &&
+                            (b.variant_suffix || '') === (item.variant_suffix || '')
+                        ) || [];
+                        // Collect unique stages
+                        const stageCounts = new Map<ProductionStage, number>();
+                        itemBatches.forEach(b => {
+                            stageCounts.set(b.current_stage, (stageCounts.get(b.current_stage) || 0) + b.quantity);
+                        });
                         return (
                             <div key={`${item.sku}-${item.variant_suffix ?? ''}-${idx}`} className="px-4 py-2.5 flex items-center gap-3">
                                 {/* Product image */}
@@ -435,6 +451,16 @@ function OrderResultCard({ order, matchedItems, totalMatchedQty, productsMap, mo
                                     )}
                                     {item.size_info && (
                                         <p className="text-[11px] text-slate-400">Μέγεθος: {item.size_info}</p>
+                                    )}
+                                    {stageCounts.size > 0 && (
+                                        <div className="flex flex-wrap gap-1 mt-1">
+                                            {Array.from(stageCounts.entries()).map(([stage, qty]) => (
+                                                <span key={stage} className="inline-flex items-center gap-1 text-[9px] font-black px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                                                    <Factory size={8} />
+                                                    {getProductionStageLabel(stage)} ×{qty}
+                                                </span>
+                                            ))}
+                                        </div>
                                     )}
                                 </div>
                                 <div className="shrink-0 text-right">
