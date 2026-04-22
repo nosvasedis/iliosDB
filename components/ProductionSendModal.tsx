@@ -1191,7 +1191,7 @@ export default function ProductionSendModal({ order, products, materials, existi
 
             {/* Note */}
             {editingNoteBatch && (
-                <div className="fixed inset-0 z-[260] bg-black/60 flex items-center justify-center p-4 animate-in fade-in">
+                <div className="fixed inset-0 z-[270] bg-black/60 flex items-center justify-center p-4 animate-in fade-in">
                     <div className="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl animate-in zoom-in-95 space-y-4">
                         <div className="flex justify-between items-center pb-2 border-b border-slate-100">
                             <h3 className="font-black text-base text-slate-800 flex items-center gap-2"><StickyNote className="text-amber-500" /> Σημείωση</h3>
