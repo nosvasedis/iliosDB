@@ -5,7 +5,7 @@ import SkuColorizedText from '../SkuColorizedText';
 import { splitSkuComponents } from '../../utils/pricingEngine';
 import { getOrderStatusClasses, getOrderStatusLabel, getOrderStatusIcon } from '../../features/orders/statusPresentation';
 import { formatCurrency } from '../../utils/pricingEngine';
-import { getProductionStageLabel } from '../../utils/productionStages';
+import { getProductionStageLabel, PRODUCTION_STAGE_ORDER_INDEX } from '../../utils/productionStages';
 
 interface SkuOrderSearchModalProps {
     onClose: () => void;
@@ -20,6 +20,13 @@ interface MatchedOrder {
     order: Order;
     matchedItems: { item: OrderItem; totalQty: number }[];
     totalMatchedQty: number;
+}
+
+interface StageBadgeAggregate {
+    label: string;
+    qty: number;
+    className: string;
+    order: number;
 }
 
 /**
@@ -53,6 +60,43 @@ function itemMatchesQuery(item: OrderItem, query: string): boolean {
     if (q === masterSku) return true;
 
     return false;
+}
+
+function getStageBadgeMeta(batch: ProductionBatch): { key: string; label: string; className: string; order: number } {
+    if (batch.current_stage === ProductionStage.Polishing) {
+        if (batch.pending_dispatch) {
+            return {
+                key: 'polishing_pending_dispatch',
+                label: 'Τεχν. • Αναμονή',
+                className: 'bg-teal-50 text-teal-700 border-teal-200',
+                order: (PRODUCTION_STAGE_ORDER_INDEX[ProductionStage.Polishing] ?? 999) - 0.1,
+            };
+        }
+
+        return {
+            key: 'polishing_dispatched',
+            label: 'Τεχν. • Στον Τεχν.',
+            className: 'bg-blue-50 text-blue-700 border-blue-200',
+            order: (PRODUCTION_STAGE_ORDER_INDEX[ProductionStage.Polishing] ?? 999) + 0.1,
+        };
+    }
+
+    const stageClassMap: Partial<Record<ProductionStage, string>> = {
+        [ProductionStage.AwaitingDelivery]: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+        [ProductionStage.Waxing]: 'bg-slate-50 text-slate-700 border-slate-200',
+        [ProductionStage.Casting]: 'bg-orange-50 text-orange-700 border-orange-200',
+        [ProductionStage.Setting]: 'bg-purple-50 text-purple-700 border-purple-200',
+        [ProductionStage.Assembly]: 'bg-pink-50 text-pink-700 border-pink-200',
+        [ProductionStage.Labeling]: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+        [ProductionStage.Ready]: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    };
+
+    return {
+        key: String(batch.current_stage),
+        label: getProductionStageLabel(batch.current_stage),
+        className: stageClassMap[batch.current_stage] ?? 'bg-slate-50 text-slate-700 border-slate-200',
+        order: PRODUCTION_STAGE_ORDER_INDEX[batch.current_stage] ?? 999,
+    };
 }
 
 export default function SkuOrderSearchModal({
@@ -421,12 +465,25 @@ function OrderResultCard({ order, matchedItems, totalMatchedQty, productsMap, al
                         const itemBatches = allBatches?.filter(b =>
                             b.order_id === order.id &&
                             b.sku === item.sku &&
-                            (b.variant_suffix || '') === (item.variant_suffix || '')
+                            (b.variant_suffix || '') === (item.variant_suffix || '') &&
+                            // When both sides carry line_id, use it for exact line-level matching.
+                            (!item.line_id || !b.line_id || b.line_id === item.line_id)
                         ) || [];
-                        // Collect unique stages
-                        const stageCounts = new Map<ProductionStage, number>();
+                        // Collect unique stages (with explicit Τεχνίτης substages)
+                        const stageCounts = new Map<string, StageBadgeAggregate>();
                         itemBatches.forEach(b => {
-                            stageCounts.set(b.current_stage, (stageCounts.get(b.current_stage) || 0) + b.quantity);
+                            const meta = getStageBadgeMeta(b);
+                            const existing = stageCounts.get(meta.key);
+                            if (existing) {
+                                existing.qty += b.quantity;
+                            } else {
+                                stageCounts.set(meta.key, {
+                                    label: meta.label,
+                                    qty: b.quantity,
+                                    className: meta.className,
+                                    order: meta.order,
+                                });
+                            }
                         });
                         return (
                             <div key={`${item.sku}-${item.variant_suffix ?? ''}-${idx}`} className="px-4 py-2.5 flex items-center gap-3">
@@ -462,10 +519,12 @@ function OrderResultCard({ order, matchedItems, totalMatchedQty, productsMap, al
                                     )}
                                     {stageCounts.size > 0 && (
                                         <div className="flex flex-wrap gap-1 mt-1">
-                                            {Array.from(stageCounts.entries()).map(([stage, qty]) => (
-                                                <span key={stage} className="inline-flex items-center gap-1 text-[9px] font-black px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                                            {Array.from(stageCounts.entries())
+                                                .sort((a, b) => a[1].order - b[1].order)
+                                                .map(([stageKey, aggregate]) => (
+                                                <span key={stageKey} className={`inline-flex items-center gap-1 text-[9px] font-black px-1.5 py-0.5 rounded-full border ${aggregate.className}`}>
                                                     <Factory size={8} />
-                                                    {getProductionStageLabel(stage)} ×{qty}
+                                                    {aggregate.label} ×{aggregate.qty}
                                                 </span>
                                             ))}
                                         </div>
