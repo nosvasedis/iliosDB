@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useDeferredValue } from 'react';
-import { X, Search, ShoppingCart, Calendar, Tag, Package, User, Hash, Image as ImageIcon, Factory } from 'lucide-react';
+import { X, Search, ShoppingCart, Calendar, Tag, Package, User, Hash, Image as ImageIcon, Factory, StickyNote } from 'lucide-react';
 import { Order, OrderItem, Product, ProductionBatch, ProductionStage } from '../../types';
 import SkuColorizedText from '../SkuColorizedText';
 import { splitSkuComponents } from '../../utils/pricingEngine';
@@ -439,13 +439,21 @@ function OrderResultCard({ order, matchedItems, totalMatchedQty, productsMap, al
                                     )}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <SkuColorizedText
-                                        sku={item.sku}
-                                        suffix={item.variant_suffix ?? ''}
-                                        gender={product?.gender}
-                                        className="text-sm font-black"
-                                        masterClassName="text-slate-900"
-                                    />
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <SkuColorizedText
+                                            sku={item.sku}
+                                            suffix={item.variant_suffix ?? ''}
+                                            gender={product?.gender}
+                                            className="text-sm font-black"
+                                            masterClassName="text-slate-900"
+                                        />
+                                        {item.notes && item.notes.trim() && (
+                                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 max-w-full">
+                                                <StickyNote size={10} className="shrink-0" />
+                                                <span className="truncate">{item.notes}</span>
+                                            </span>
+                                        )}
+                                    </div>
                                     {product?.category && (
                                         <p className="text-[11px] text-slate-400 mt-0.5 truncate">{product.category}</p>
                                     )}
