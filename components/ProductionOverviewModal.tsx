@@ -80,10 +80,11 @@ const STAGE_MOVE_COLORS: Record<string, { bg: string; text: string; border: stri
 };
 
 // Inline compact stage mover — uses a portal so the dropdown escapes modal overflow clipping
-function InlineStageMover({ batch, onMoveToStage, onToggleHold, isMoving = false }: {
+function InlineStageMover({ batch, onMoveToStage, onToggleHold, onEditNote, isMoving = false }: {
     batch: ProductionBatch & { requires_setting?: boolean; requires_assembly?: boolean };
     onMoveToStage: (batch: ProductionBatch, s: ProductionStage, options?: { pendingDispatch?: boolean }) => void;
     onToggleHold: (batch: ProductionBatch) => void;
+    onEditNote: (batch: ProductionBatch) => void;
     isMoving?: boolean;
 }) {
     const [open, setOpen] = useState(false);
@@ -165,6 +166,19 @@ function InlineStageMover({ batch, onMoveToStage, onToggleHold, isMoving = false
                         ? <><PlayCircle size={12} className="fill-current" /> Συνέχεια</>
                         : <><PauseCircle size={12} /> Αναμονή</>
                 }
+            </button>
+
+            {/* Note button — beside Αναμονή */}
+            <button
+                onClick={(e) => { e.stopPropagation(); onEditNote(batch); }}
+                className={`flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition-colors border
+                    ${batch.notes
+                        ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                        : 'bg-white text-slate-500 border-slate-200 hover:text-amber-600 hover:bg-amber-50 hover:border-amber-200'
+                    }`}
+            >
+                <StickyNote size={12} />
+                Σημείωση
             </button>
 
             {/* Stage picker — portal-rendered to escape overflow clipping */}
@@ -487,28 +501,15 @@ export default function ProductionOverviewModal({
 
                                                 {/* Actions footer */}
                                                 <div
-                                                    className={`flex items-center justify-between gap-2 px-4 py-2 border-t ${batch.on_hold ? 'border-amber-100 bg-amber-50/60' : 'border-slate-100 bg-slate-50/50'}`}
+                                                    className={`flex items-center justify-end gap-2 px-4 py-2 border-t ${batch.on_hold ? 'border-amber-100 bg-amber-50/60' : 'border-slate-100 bg-slate-50/50'}`}
                                                     onClick={e => e.stopPropagation()}
                                                 >
-                                                    <div className="flex items-center gap-1">
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); onEditNote(batch); }}
-                                                            className={`flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition-colors border
-                                                                ${batch.notes
-                                                                    ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
-                                                                    : 'bg-white text-slate-500 border-slate-200 hover:text-amber-600 hover:bg-amber-50 hover:border-amber-200'
-                                                                }`}
-                                                        >
-                                                            <StickyNote size={12} />
-                                                            Σημείωση
-                                                        </button>
-                                                    </div>
-
                                                     {onMoveToStage && (
                                                         <InlineStageMover
                                                             batch={batch}
                                                             onMoveToStage={onMoveToStage}
                                                             onToggleHold={onToggleHold}
+                                                            onEditNote={onEditNote}
                                                             isMoving={isRowMoving}
                                                         />
                                                     )}

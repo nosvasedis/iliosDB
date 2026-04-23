@@ -2717,33 +2717,57 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     };
 
     const handleCompleteAllLabeling = async () => {
+        // Skip any batches already mid-move to avoid conflicting transitions.
         const targetBatches = labelingBatches.filter(b => !movingBatchIds.has(b.id));
         if (targetBatches.length === 0) {
             showToast("Δεν υπάρχουν παρτίδες για ολοκλήρωση.", "info");
             return;
         }
         const allIds = targetBatches.map(b => b.id);
+
+        // Lock all target batches, cancel in-flight refetches, apply optimistic
+        // column jumps immediately so cards appear in Έτοιμα without waiting for
+        // the server. Rollback the entire cache on any error.
         markMoving(allIds, true);
-        setIsProcessingSplit(true);
+        setIsBulkMoving(true);
         await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
         const snapshot = queryClient.getQueryData<ProductionBatch[]>(productionKeys.batches());
         targetBatches.forEach(b => {
             applyOptimisticStage(b.id, ProductionStage.Ready);
         });
+
         try {
-            await Promise.all(targetBatches.map(async (batch) => {
-                await productionRepository.updateBatchStage(batch.id, ProductionStage.Ready, profile?.full_name);
-                await auditRepository.logAction(profile?.full_name || 'System', 'Μετακίνηση Παρτίδας', { sku: batch.sku, target_stage: ProductionStage.Ready });
-            }));
+            // bulkUpdateBatchStages is the safe, authoritative path:
+            // • Fetches fresh batch state once from the DB (no N individual fetches)
+            // • Runs N UPDATE mutations in parallel
+            // • Writes all stage-history rows in a single INSERT
+            // • Calls syncOrderStatus once per UNIQUE order_id (deduplication)
+            const result = await productionRepository.bulkUpdateBatchStages(
+                allIds,
+                ProductionStage.Ready,
+                profile?.full_name
+            );
+            await auditRepository.logAction(
+                profile?.full_name || 'System',
+                'Μαζική Ολοκλήρωση Ετικετών',
+                { moved: result.movedCount, skipped: result.skippedCount, target_stage: ProductionStage.Ready }
+            );
             await invalidateOrdersAndBatches(queryClient);
-            showToast(`${targetBatches.length} παρτίδες ολοκληρώθηκαν.`, 'success');
+            showToast(
+                result.movedCount > 0
+                    ? `${result.movedCount} παρτίδες ολοκληρώθηκαν.${
+                          result.skippedCount > 0 ? ` (${result.skippedCount} παραλείφθηκαν)` : ''
+                      }`
+                    : 'Δεν υπήρξαν παρτίδες που μπόρεσαν να μετακινηθούν.',
+                result.movedCount > 0 ? 'success' : 'info'
+            );
         } catch (e: any) {
-            console.error("Complete all failure:", e);
+            console.error("Complete all labeling failure:", e);
             rollbackBatchesCache(snapshot);
             showToast(`Σφάλμα: ${e.message}`, 'error');
         } finally {
             markMoving(allIds, false);
-            setIsProcessingSplit(false);
+            setIsBulkMoving(false);
         }
     };
 
@@ -3383,9 +3407,9 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                                     onClick={(e) => { e.stopPropagation(); handleCompleteAllLabeling(); }}
                                                     className="p-1.5 bg-white rounded-lg hover:bg-emerald-100 text-emerald-500 hover:text-emerald-700 transition-colors shadow-sm"
                                                     title="Ολοκλήρωση Όλων"
-                                                    disabled={isProcessingSplit}
+                                                    disabled={isBulkMoving || isProcessingSplit}
                                                 >
-                                                    {isProcessingSplit ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                                                    {isBulkMoving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
                                                 </button>
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); handlePrintStageLabels(stage.id); }}

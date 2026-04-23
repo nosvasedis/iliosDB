@@ -1309,7 +1309,17 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                         <div className="p-4 text-right font-bold text-slate-800">{formatCurrency(netValue)}</div>
                                         <div className="p-4 min-w-0">
                                             <div className="flex flex-wrap items-start gap-2">
-                                                <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-bold border ${getOrderStatusClasses(order.status)}`}>{getOrderStatusLabel(order.status)}</span>
+                                                {(order.status === OrderStatus.InProduction || order.status === OrderStatus.Pending) ? (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleSendToProduction(order.id); }}
+                                                        title="Διαχείριση Παραγωγής"
+                                                        className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-bold border transition-opacity hover:opacity-75 ${getOrderStatusClasses(order.status)}`}
+                                                    >
+                                                        {getOrderStatusLabel(order.status)}
+                                                    </button>
+                                                ) : (
+                                                    <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-bold border ${getOrderStatusClasses(order.status)}`}>{getOrderStatusLabel(order.status)}</span>
+                                                )}
                                                 {!ready && <OrderListProgressBar order={order} batches={batches} ready={ready} density="desktop" />}
                                                 {ready && order.status !== OrderStatus.Delivered && (
                                                     <button
