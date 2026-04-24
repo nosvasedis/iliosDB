@@ -22,6 +22,7 @@ import {
     type SmartSuggestionResult,
     type SuggestionRankContext,
 } from '../features/orders/smartSkuSuggestions';
+import { dispatchLiveActivity } from './useLiveActivity';
 
 const DRAFT_ORDER_KEY = 'ilios_desktop_draft_order';
 
@@ -1005,6 +1006,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
 
                 await api.updateOrder(updatedOrder, isNewPart);
                 showToast('Η παραγγελία ενημερώθηκε.', 'success');
+                dispatchLiveActivity({ type: 'order_updated', userName: profile?.full_name || 'Κάποιος', customerName: effectiveCustomerName });
             } else {
                 const newOrderId = generateOrderId();
                 const newOrder: Order = {
@@ -1027,6 +1029,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                 };
                 await api.saveOrder(newOrder);
                 showToast('Η παραγγελία δημιουργήθηκε.', 'success');
+                dispatchLiveActivity({ type: 'order_created', userName: profile?.full_name || 'Κάποιος', customerName: effectiveCustomerName, itemCount: selectedItems.length });
             }
             queryClient.invalidateQueries({ queryKey: ['orders'] });
             clearDraft();

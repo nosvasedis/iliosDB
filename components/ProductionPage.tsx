@@ -52,6 +52,7 @@ import {
     sortProductionDisplayLevel1Keys,
     type LabelPrintSortMode,
 } from '../features/production/workflowSelectors';
+import { dispatchLiveActivity } from '../hooks/useLiveActivity';
 
 function compareBatchesBySkuAscending(a: ProductionBatch, b: ProductionBatch): number {
     return `${a.sku}${a.variant_suffix || ''}`.localeCompare(
@@ -2319,6 +2320,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             await auditRepository.logAction(profile?.full_name || 'System', 'Μετακίνηση Παρτίδας', { sku: batch.sku, target_stage: targetStage });
             await invalidateOrdersAndBatches(queryClient);
             showToast('Η παρτίδα μετακινήθηκε.', 'success');
+            dispatchLiveActivity({ type: 'batch_moved', userName: profile?.full_name || 'Κάποιος', sku: batch.sku, qty: batch.quantity, fromStage: batch.current_stage, toStage: targetStage });
         } catch (e: any) {
             console.error("Move failure:", e);
             rollbackBatchesCache(snapshot);
@@ -2362,6 +2364,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             await auditRepository.logAction(profile?.full_name || 'System', 'Παραλαβή Εισαγόμενου', { sku: batch.sku, quantity: batch.quantity, target_stage: targetStage });
             await invalidateOrdersAndBatches(queryClient);
             showToast('Η παρτίδα παραλήφθηκε και μετακινήθηκε.', 'success');
+            dispatchLiveActivity({ type: 'batch_moved', userName: profile?.full_name || 'Κάποιος', sku: batch.sku, qty: batch.quantity, fromStage: batch.current_stage, toStage: targetStage });
         } catch (e: any) {
             rollbackBatchesCache(snapshot);
             showToast(`Σφάλμα: ${e.message}`, 'error');
@@ -2430,6 +2433,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
 
             await invalidateOrdersAndBatches(queryClient);
             showToast(isReceive ? `Παραλήφθηκαν ${quantityToMove} τμχ. Τα υπόλοιπα παραμένουν στην Αναμονή.` : 'Η παρτίδα μετακινήθηκε.', 'success');
+            dispatchLiveActivity({ type: isWholeMove ? 'batch_moved' : 'batch_split', userName: profile?.full_name || 'Κάποιος', sku: batch.sku, qty: quantityToMove, fromStage: batch.current_stage, toStage: targetStage });
             setSplitModalState(null);
 
         } catch (e: any) {
@@ -2485,6 +2489,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             await productionRepository.toggleBatchHold(batch.id, false);
             await invalidateProductionBatches(queryClient);
             showToast("Η παρτίδα συνεχίζει την παραγωγή.", "success");
+            dispatchLiveActivity({ type: 'batch_hold_off', userName: profile?.full_name || 'Κάποιος', sku: batch.sku });
         } else {
             // Open Modal
             setHoldingBatch(batch);
@@ -2498,6 +2503,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             await productionRepository.toggleBatchHold(holdingBatch.id, true, reason);
             await invalidateProductionBatches(queryClient);
             showToast("Η παρτίδα τέθηκε σε αναμονή.", "warning");
+            dispatchLiveActivity({ type: 'batch_hold_on', userName: profile?.full_name || 'Κάποιος', sku: holdingBatch.sku, reason });
             setHoldingBatch(null);
         } catch (e) {
             showToast("Σφάλμα.", "error");
@@ -2519,6 +2525,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             const count = await productionRepository.markBatchesDispatched(targetIds, profile?.full_name);
             await invalidateProductionBatches(queryClient);
             showToast(`${count} παρτίδ${count === 1 ? 'α' : 'ες'} στάλθηκ${count === 1 ? 'ε' : 'αν'} στον Τεχνίτη.`, 'success');
+            dispatchLiveActivity({ type: 'batch_dispatched', userName: profile?.full_name || 'Κάποιος', count });
         } catch (e: any) {
             rollbackBatchesCache(snapshot);
             showToast(`Σφάλμα: ${e.message}`, 'error');
@@ -2538,6 +2545,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             const count = await productionRepository.markBatchesPendingDispatch(targetIds, profile?.full_name);
             await invalidateProductionBatches(queryClient);
             showToast(`${count} παρτίδ${count === 1 ? 'α' : 'ες'} επέστρεψ${count === 1 ? 'ε' : 'αν'} σε Αναμονή.`, 'success');
+            dispatchLiveActivity({ type: 'batch_recalled', userName: profile?.full_name || 'Κάποιος', count });
         } catch (e: any) {
             rollbackBatchesCache(snapshot);
             showToast(`Σφάλμα: ${e.message}`, 'error');
@@ -2619,6 +2627,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             await auditRepository.logAction(profile?.full_name || 'System', 'Μαζική Μετακίνηση Παρτίδων', { count: batchesToMove.length, target_stage: bulkMoveTarget });
             await invalidateOrdersAndBatches(queryClient);
             showToast(`${batchesToMove.length} παρτίδες μετακινήθηκαν.`, 'success');
+            dispatchLiveActivity({ type: 'batch_bulk_moved', userName: profile?.full_name || 'Κάποιος', count: batchesToMove.length, toStage: bulkMoveTarget ?? undefined });
             setMultiSelectIds(new Set());
             setBulkMoveTarget(null);
             setBulkMovePendingDispatch(undefined);
@@ -2761,6 +2770,9 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                     : 'Δεν υπήρξαν παρτίδες που μπόρεσαν να μετακινηθούν.',
                 result.movedCount > 0 ? 'success' : 'info'
             );
+            if (result.movedCount > 0) {
+                dispatchLiveActivity({ type: 'batch_labeling_complete', userName: profile?.full_name || 'Κάποιος', count: result.movedCount, toStage: ProductionStage.Ready });
+            }
         } catch (e: any) {
             console.error("Complete all labeling failure:", e);
             rollbackBatchesCache(snapshot);

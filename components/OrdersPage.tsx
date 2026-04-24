@@ -31,6 +31,7 @@ import DesktopPageHeader from './DesktopPageHeader';
 import { SellerPicker } from './OrderBuilder/SellerPicker';
 import { productionRepository } from '../features/production';
 import { auditRepository } from '../features/audit';
+import { dispatchLiveActivity } from '../hooks/useLiveActivity';
 
 interface Props {
     products: Product[];
@@ -887,6 +888,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             await invalidateOrdersAndBatches(queryClient);
             const totalQty = itemsToSend.reduce((s, i) => s + i.qty, 0);
             showToast(`Στάλθηκαν ${totalQty} τεμάχια στην παραγωγή.`, "success");
+            dispatchLiveActivity({ type: 'order_sent_to_production', userName: profile?.full_name || 'Κάποιος', customerName: order.customer_name, itemCount: totalQty });
         } catch {
             showToast("Σφάλμα κατά την αποστολή στην παραγωγή.", "error");
         } finally {
@@ -924,6 +926,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                 void invalidateOrdersAndBatches(queryClient);
                 setManagingOrder(null);
                 showToast('Η παραγγελία επαναφέρθηκε επιτυχώς.', 'success');
+                const revertedOrder = orders?.find(o => o.id === orderId);
+                dispatchLiveActivity({ type: 'order_reverted', userName: profile?.full_name || 'Κάποιος', customerName: revertedOrder?.customer_name });
             } catch (err: any) {
                 showToast(`Σφάλμα: ${err.message}`, 'error');
             }

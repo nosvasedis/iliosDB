@@ -32,6 +32,8 @@ import { calculateBusinessStats } from './utils/businessAnalytics';
 import { useIsMobile } from './hooks/useIsMobile';
 import { PrintManager } from './components/PrintManager';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
+import { LiveActivityFeed } from './components/LiveActivityFeed';
+import { useLiveActivity } from './hooks/useLiveActivity';
 import { lazyWithChunkRecovery } from './lib/chunkLoadRecovery';
 
 import SetupScreen from './components/SetupScreen';
@@ -160,6 +162,7 @@ function AppContent() {
   const { showToast } = useUI();
   const { signOut, profile } = useAuth();
   const { badgeCount: deliveryBadgeCount } = useDeliveryNavBadge();
+  const { notifications: liveNotifications, dismiss: dismissLiveNotification } = useLiveActivity();
 
   const {
     setPrintItems, setOrderToPrint, setRemainingOrderToPrint, setShipmentToPrint, setOfferToPrint,
@@ -403,6 +406,7 @@ function AppContent() {
   return (
     <>
       <SyncStatusIndicator pendingItems={pendingItems} isOnline={isOnline} isSyncing={isSyncing} />
+      <LiveActivityFeed notifications={liveNotifications} onDismiss={dismissLiveNotification} />
 
       <PrintManager
         settings={settings}
