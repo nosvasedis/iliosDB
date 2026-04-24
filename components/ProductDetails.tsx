@@ -1293,7 +1293,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         }
     };
 
-    const portal = (
+    const mainPortal = createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 print:hidden">
             {isRecipeModalOpen && (
                 <RecipeItemSelectorModal
@@ -1963,28 +1963,30 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                         </div>
                                                     )}
                                                 </div>
-
-                                                {/* ── Section: Μετατροπή σε Ιδιοπαραγωγή ── */}
-                                                <div className="bg-gradient-to-br from-orange-50/60 to-amber-50/40 p-5 rounded-2xl border border-orange-200/60 shadow-sm">
-                                                    <div className="flex items-start justify-between gap-4">
-                                                        <div className="flex-1">
-                                                            <h4 className="font-bold text-orange-800 flex items-center gap-2 text-sm">
-                                                                <Flame size={15} className="text-orange-600" />
-                                                                Μετατροπή σε Ιδιοπαραγωγή
-                                                            </h4>
-                                                            <p className="text-xs text-slate-500 mt-1 leading-relaxed">Μετατρέψτε αυτό τον κωδικό από Εισαγόμενο σε Ιδιοπαραγωγής. Τα εργατικά υπολογίζονται αυτόματα βάσει βάρους. Δείτε αναλυτική προεπισκόπηση όλων των αλλαγών πριν επιβεβαιώσετε.</p>
-                                                        </div>
-                                                        <button
-                                                            onClick={() => setShowConvertModal(true)}
-                                                            className="flex items-center gap-2 px-4 py-2.5 bg-orange-600 text-white rounded-xl font-bold text-sm hover:bg-orange-700 active:bg-orange-800 transition-all shadow-sm whitespace-nowrap flex-shrink-0"
-                                                        >
-                                                            <Flame size={14} />
-                                                            Μετατροπή
-                                                        </button>
-                                                    </div>
-                                                </div>
                                             </div>
                                         )}
+
+                                        {/* ── Section: Μετατροπή σε Ιδιοπαραγωγή ── */}
+                                        <div className="bg-gradient-to-br from-orange-50/60 to-amber-50/40 p-5 rounded-2xl border border-orange-200/60 shadow-sm">
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="flex-1">
+                                                    <h4 className="font-bold text-orange-800 flex items-center gap-2 text-sm">
+                                                        <Flame size={15} className="text-orange-600" />
+                                                        Μετατροπή σε Ιδιοπαραγωγή
+                                                    </h4>
+                                                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">Μετατρέψτε αυτό τον κωδικό από Εισαγόμενο σε Ιδιοπαραγωγής. Τα εργατικά υπολογίζονται αυτόματα βάσει βάρους. Δείτε αναλυτική προεπισκόπηση όλων των αλλαγών πριν επιβεβαιώσετε.</p>
+                                                </div>
+                                                <button
+                                                    onClick={() => setShowConvertModal(true)}
+                                                    className="flex items-center gap-2 px-4 py-2.5 bg-orange-600 text-white rounded-xl font-bold text-sm hover:bg-orange-700 active:bg-orange-800 transition-all shadow-sm whitespace-nowrap flex-shrink-0"
+                                                >
+                                                    <Flame size={14} />
+                                                    Μετατροπή
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {activeTab === 'recipe' && (
                                     <div className="space-y-4 animate-in fade-in">
@@ -2346,6 +2348,13 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     </button>
                 </div>
             </div>
+        </div>,
+        document.body
+    );
+
+    return (
+        <>
+            {mainPortal}
             {showConvertModal && editedProduct.production_type === ProductionType.Imported && (
                 <ConvertToInhouseModal
                     product={editedProduct}
@@ -2360,8 +2369,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     onClose={() => setShowConvertModal(false)}
                 />
             )}
-        </div>
+        </>
     );
-
-    return createPortal(portal, document.body);
 }
