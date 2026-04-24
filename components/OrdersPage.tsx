@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Order, OrderStatus, Product, ProductVariant, ProductionBatch, Material, MaterialType, VatRegime, OrderShipment, OrderShipmentItem, Customer } from '../types';
-import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare, PackageCheck, FileCheck, Loader2, History, UserCheck, ArrowRightLeft } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare, PackageCheck, FileCheck, Loader2, History, UserCheck, ArrowRightLeft, CircleHelp } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { retailEndClientPillClass } from '../utils/retailPresentation';
@@ -305,6 +305,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
     const orderBatches = useMemo(() => allBatches?.filter(b => b.order_id === order.id) || [], [allBatches, order.id]);
     const [showShipmentPrompt, setShowShipmentPrompt] = useState(false);
     const [showVersionSelector, setShowVersionSelector] = useState(false);
+    const [showCurrentRevisionDiff, setShowCurrentRevisionDiff] = useState(false);
     const shipmentsQuery = useOrderShipmentsForOrder(order.id);
 
     // Check if order has multiple shipments (parts)
@@ -312,6 +313,91 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
     const hasMultipleShipments = shipments.length > 1;
     const latestShipmentData = useMemo(() => buildLatestShipmentPrintData(order, shipmentsQuery.data), [order, shipmentsQuery.data]);
     const orderRevisions = useMemo(() => buildOrderRevisions(order), [order]);
+    const productsBySku = useMemo(() => new Map(products.map((product) => [product.sku, product])), [products]);
+
+    const formatOptionColor = (value?: string | { label?: string; name?: string; code?: string } | null) => {
+        if (!value) return '';
+        if (typeof value === 'string') return value;
+        return value.label || value.name || value.code || '';
+    };
+
+    const buildRevisionItemKey = (item: Order['items'][number]) => {
+        return [
+            item.sku,
+            item.variant_suffix || '',
+            item.size_info || '',
+            formatOptionColor(item.cord_color),
+            formatOptionColor(item.enamel_color),
+            item.line_id || '',
+        ].join('::');
+    };
+
+    const currentRevisionDiff = useMemo(() => {
+        if (orderRevisions.length < 2) return null;
+
+        const previous = orderRevisions[orderRevisions.length - 2];
+        const current = orderRevisions[orderRevisions.length - 1];
+        const previousMap = new Map(previous.order.items.map((item) => [buildRevisionItemKey(item), item]));
+        const currentMap = new Map(current.order.items.map((item) => [buildRevisionItemKey(item), item]));
+
+        const changedItems = current.order.items
+            .map((item) => {
+                const key = buildRevisionItemKey(item);
+                const oldItem = previousMap.get(key);
+                const product = item.product_details || productsBySku.get(item.sku);
+                const oldPrice = oldItem?.price_at_order ?? null;
+                const newPrice = item.price_at_order;
+                const oldQuantity = oldItem?.quantity ?? null;
+                const newQuantity = item.quantity;
+
+                if (oldItem && oldPrice === newPrice && oldQuantity === newQuantity) {
+                    return null;
+                }
+
+                return {
+                    key,
+                    sku: item.sku,
+                    variantSuffix: item.variant_suffix,
+                    sizeInfo: item.size_info,
+                    imageUrl: product?.image_url || null,
+                    productLabel: product?.description || 'Χωρίς περιγραφή',
+                    oldPrice,
+                    newPrice,
+                    oldQuantity,
+                    newQuantity,
+                    isAdded: !oldItem,
+                    isRemoved: false,
+                };
+            })
+            .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+
+        for (const [key, oldItem] of previousMap.entries()) {
+            if (currentMap.has(key)) continue;
+            const product = oldItem.product_details || productsBySku.get(oldItem.sku);
+            changedItems.push({
+                key,
+                sku: oldItem.sku,
+                variantSuffix: oldItem.variant_suffix,
+                sizeInfo: oldItem.size_info,
+                imageUrl: product?.image_url || null,
+                productLabel: product?.description || 'Χωρίς περιγραφή',
+                oldPrice: oldItem.price_at_order,
+                newPrice: null,
+                oldQuantity: oldItem.quantity,
+                newQuantity: null,
+                isAdded: false,
+                isRemoved: true,
+            });
+        }
+
+        return {
+            previous,
+            current,
+            changedItems,
+            totalBefore: previous.order.total_price,
+            totalAfter: current.order.total_price,
+        };
+    }, [orderRevisions, productsBySku]);
 
     const handlePrintOrder = () => {
         if (latestShipmentData && onPrintShipment) {
@@ -572,6 +658,19 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                                             {isCurrent && (
                                                 <span className="text-[9px] font-black bg-indigo-600 text-white px-1.5 py-0.5 rounded-full uppercase">{'\u03C4\u03C1\u03AD\u03C7\u03BF\u03C5\u03C3\u03B1'}</span>
                                             )}
+                                            {isCurrent && currentRevisionDiff && (
+                                                <button
+                                                    type="button"
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        setShowCurrentRevisionDiff(true);
+                                                    }}
+                                                    className="p-1 rounded-full text-indigo-600 hover:bg-indigo-200/60 transition-colors"
+                                                    title="Τι άλλαξε στην τρέχουσα έκδοση"
+                                                >
+                                                    <CircleHelp size={14} />
+                                                </button>
+                                            )}
                                         </div>
                                         {revisionSuffix && (
                                             <span className="font-mono text-xs font-bold text-slate-500">#{order.id}{revisionSuffix}</span>
@@ -603,6 +702,144 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                         </button>
                     </div>
                 </div>
+                {showCurrentRevisionDiff && currentRevisionDiff && (
+                    <div className="fixed inset-0 z-[180] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+                        <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95">
+                            <div className="p-6 border-b border-slate-100 bg-gradient-to-r from-sky-50 to-indigo-50 flex items-start justify-between gap-4">
+                                <div>
+                                    <h4 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                                        <CircleHelp size={18} className="text-indigo-600" />
+                                        Τι άλλαξε στην Τρέχουσα Έκδοση
+                                    </h4>
+                                    <p className="text-sm text-slate-600 mt-1">
+                                        Αναλυτική σύγκριση μεταξύ {currentRevisionDiff.previous.label} και {currentRevisionDiff.current.label}.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCurrentRevisionDiff(false)}
+                                    className="p-2 rounded-full text-slate-500 hover:bg-white"
+                                    aria-label="Κλείσιμο"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+
+                            <div className="p-5 border-b border-slate-100 bg-slate-50/80">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <div className="p-3 rounded-xl border border-slate-200 bg-white">
+                                        <div className="text-[11px] uppercase font-bold text-slate-500 tracking-wide">Σύνολο Πριν</div>
+                                        <div className="text-lg font-black text-slate-800 mt-1">
+                                            {currentRevisionDiff.totalBefore.toFixed(2).replace('.', ',')}€
+                                        </div>
+                                    </div>
+                                    <div className="p-3 rounded-xl border border-slate-200 bg-white">
+                                        <div className="text-[11px] uppercase font-bold text-slate-500 tracking-wide">Σύνολο Μετά</div>
+                                        <div className="text-lg font-black text-slate-800 mt-1">
+                                            {currentRevisionDiff.totalAfter.toFixed(2).replace('.', ',')}€
+                                        </div>
+                                    </div>
+                                    <div className="p-3 rounded-xl border border-slate-200 bg-white">
+                                        <div className="text-[11px] uppercase font-bold text-slate-500 tracking-wide">Διαφορά</div>
+                                        <div className={`text-lg font-black mt-1 ${currentRevisionDiff.totalAfter - currentRevisionDiff.totalBefore >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                            {currentRevisionDiff.totalAfter - currentRevisionDiff.totalBefore >= 0 ? '+' : ''}
+                                            {(currentRevisionDiff.totalAfter - currentRevisionDiff.totalBefore).toFixed(2).replace('.', ',')}€
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="p-5 max-h-[55vh] overflow-y-auto space-y-3 custom-scrollbar">
+                                {currentRevisionDiff.changedItems.length === 0 && (
+                                    <div className="p-5 rounded-2xl border border-slate-200 bg-slate-50 text-slate-600 text-sm">
+                                        Δεν βρέθηκαν αλλαγές σε SKU/τιμές/ποσότητες μεταξύ των δύο εκδόσεων.
+                                    </div>
+                                )}
+
+                                {currentRevisionDiff.changedItems.map((item) => {
+                                    const priceDelta = item.oldPrice !== null && item.newPrice !== null ? item.newPrice - item.oldPrice : null;
+                                    const quantityDelta = item.oldQuantity !== null && item.newQuantity !== null ? item.newQuantity - item.oldQuantity : null;
+                                    const cardTone = item.isRemoved
+                                        ? 'border-rose-200 bg-rose-50'
+                                        : item.isAdded
+                                            ? 'border-emerald-200 bg-emerald-50'
+                                            : 'border-indigo-200 bg-indigo-50';
+
+                                    return (
+                                        <div key={item.key} className={`p-4 rounded-2xl border ${cardTone}`}>
+                                            <div className="flex items-start gap-3">
+                                                <div className="w-14 h-14 rounded-xl overflow-hidden bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                                                    {item.imageUrl ? (
+                                                        <img src={item.imageUrl} alt={item.sku} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <Package size={18} className="text-slate-400" />
+                                                    )}
+                                                </div>
+
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center flex-wrap gap-2">
+                                                        <span className="font-black text-slate-900">{item.sku}</span>
+                                                        {item.variantSuffix && (
+                                                            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-white border border-slate-300 text-slate-700">{item.variantSuffix}</span>
+                                                        )}
+                                                        {item.isAdded && (
+                                                            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-600 text-white">Νέο SKU</span>
+                                                        )}
+                                                        {item.isRemoved && (
+                                                            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-600 text-white">Αφαιρέθηκε</span>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-sm text-slate-700 mt-0.5 truncate">{item.productLabel}</div>
+                                                    {item.sizeInfo && <div className="text-xs text-slate-500 mt-0.5">Μέγεθος: {item.sizeInfo}</div>}
+
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 text-xs">
+                                                        <div className="p-2 rounded-lg bg-white/90 border border-slate-200">
+                                                            <div className="font-bold text-slate-500">Τιμή</div>
+                                                            <div className="mt-1 text-slate-700">
+                                                                <span className="font-bold">{item.oldPrice !== null ? `${item.oldPrice.toFixed(2).replace('.', ',')}€` : '-'}</span>
+                                                                <span className="mx-1">→</span>
+                                                                <span className="font-black">{item.newPrice !== null ? `${item.newPrice.toFixed(2).replace('.', ',')}€` : '-'}</span>
+                                                            </div>
+                                                            {priceDelta !== null && priceDelta !== 0 && (
+                                                                <div className={`font-bold mt-1 ${priceDelta > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                                                    {priceDelta > 0 ? '+' : ''}{priceDelta.toFixed(2).replace('.', ',')}€
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="p-2 rounded-lg bg-white/90 border border-slate-200">
+                                                            <div className="font-bold text-slate-500">Ποσότητα</div>
+                                                            <div className="mt-1 text-slate-700">
+                                                                <span className="font-bold">{item.oldQuantity !== null ? item.oldQuantity : '-'}</span>
+                                                                <span className="mx-1">→</span>
+                                                                <span className="font-black">{item.newQuantity !== null ? item.newQuantity : '-'}</span>
+                                                            </div>
+                                                            {quantityDelta !== null && quantityDelta !== 0 && (
+                                                                <div className={`font-bold mt-1 ${quantityDelta > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                                                    {quantityDelta > 0 ? '+' : ''}{quantityDelta}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="p-4 border-t border-slate-100 bg-white">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCurrentRevisionDiff(false)}
+                                    className="w-full py-3 rounded-2xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition-colors"
+                                >
+                                    Κλείσιμο
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         )}
         </>
