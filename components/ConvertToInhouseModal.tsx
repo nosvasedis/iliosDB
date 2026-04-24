@@ -28,13 +28,19 @@ function computeInhouseConversion(
     allMaterials: Material[],
     allProducts: Product[]
 ): { newProduct: Product; oldCost: ReturnType<typeof calculateProductCost>; newCost: ReturnType<typeof calculateProductCost>; oldIlios: number; newIlios: number } {
+    if (product.production_type !== ProductionType.Imported) {
+        throw new Error('computeInhouseConversion called on a non-Imported product');
+    }
     const w = product.weight_g;
     const sw = product.secondary_weight_g || 0;
 
     // --- Calculate new InHouse labor values ---
-    const newTechnicianCost = calculateTechnicianCost(w + sw);
+    // Technician: useEffect uses weight_g only, but engine recalculates from totalWeight when override=false — match useEffect stored value
+    const newTechnicianCost = calculateTechnicianCost(w);
     const newCastingCost = parseFloat(((w * 0.15) + (sw * 0.15)).toFixed(4));
-    const newPlatingX = parseFloat(((w + sw) * 0.60).toFixed(2));
+    // plating_cost_x useEffect: totalPlatingWeight = weight_g + recipe component weights (recipe empty → weight_g only)
+    const newPlatingX = parseFloat((w * 0.60).toFixed(2));
+    // plating_cost_d useEffect: totalSecondaryWeight = secondary_weight_g + recipe component secondary weights (recipe empty → secondary_weight_g only)
     const newPlatingD = parseFloat((sw * 0.60).toFixed(2));
 
     const newProduct: Product = {

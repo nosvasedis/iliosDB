@@ -1963,8 +1963,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                         </div>
                                                     )}
                                                 </div>
-                                            </div>
-                                        )}
 
                                                 {/* ── Section: Μετατροπή σε Ιδιοπαραγωγή ── */}
                                                 <div className="bg-gradient-to-br from-orange-50/60 to-amber-50/40 p-5 rounded-2xl border border-orange-200/60 shadow-sm">
@@ -1985,8 +1983,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                         </button>
                                                     </div>
                                                 </div>
-                                    </div>
-                                )}
+                                            </div>
+                                        )}
 
                                 {activeTab === 'recipe' && (
                                     <div className="space-y-4 animate-in fade-in">
@@ -2356,7 +2354,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     return (
         <>
             {mainPortal}
-            {showConvertModal && (
+            {showConvertModal && editedProduct.production_type === ProductionType.Imported && (
                 <ConvertToInhouseModal
                     product={editedProduct}
                     settings={settings}
