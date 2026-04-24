@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, BatchStageHistoryEntry, SyncOfflineResult } from '../types';
+import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, OrderItem, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, BatchStageHistoryEntry, SyncOfflineResult } from '../types';
 import { INITIAL_SETTINGS, MOCK_MATERIALS, requiresAssemblyStage } from '../constants';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { offlineDb } from './offlineDb';
@@ -2513,5 +2513,156 @@ export const api = {
         } catch (e) {
             console.warn("Failed to log action:", e);
         }
-    }
+    },
+
+    // ─── TRANSFER REMAINING ITEMS ────────────────────────────────────────────────────
+    /**
+     * Transfers all remaining (unshipped) items of Order A to Order B.
+     *
+     * Execution sequence (strictly ordered, with rollback on early steps):
+     *   1. Re-point all batchesToRepoint from order_id=A → order_id=B  (rollback if any fail)
+     *   2. Update Order B (add transferred items, new total, append note) → triggers reconcileOrderBatches
+     *      (which sees supply=demand → no-op)                            (rollback step 1 if fails)
+     *   3. Close Order A (status→Delivered, total→shipped-only, append note)
+     *   4. Cancel all active delivery plans on Order A
+     *   5. Audit log (fire-and-forget)
+     *
+     * Steps 3–5 are best-effort: if they fail the transfer has still succeeded
+     * (batches + Order B updated) and the caller receives a partial-failure signal.
+     */
+    transferRemainingItemsToOrder: async (params: {
+        orderA: Order;
+        orderB: Order;
+        batchesToRepoint: ProductionBatch[];
+        newOrderBItems: OrderItem[];
+        newOrderBTotal: number;
+        recalculatedOrderATotal: number;
+        /**
+         * Order A's items[] trimmed to ONLY the shipped items.
+         * MUST be written to the DB so analytics (Dashboard, businessAnalytics) that
+         * iterate order.items[] on Delivered orders do not double-count the transferred
+         * items alongside Order B.
+         */
+        shippedOnlyOrderAItems: OrderItem[];
+        activeDeliveryPlanIdsA: string[];
+        userName: string;
+    }): Promise<{
+        success: boolean;
+        rolledBack: boolean;
+        partialFailureStep?: 'close_order_a' | 'cancel_plans';
+        error?: string;
+    }> => {
+        const now = new Date().toISOString();
+        const dateLabel = new Date().toLocaleDateString('el-GR');
+        const transferredCount = params.batchesToRepoint.reduce((s, b) => s + b.quantity, 0);
+        const noteA = `\n\n[ΜΕΤΑΦΟΡΑ ${dateLabel}] Υπόλοιπο ${transferredCount} τεμ. μεταφέρθηκε → παρ. #${params.orderB.id.slice(-6)} | ${params.userName}`;
+        const noteB = `\n\n[ΜΕΤΑΦΟΡΑ ${dateLabel}] Ελήφθησαν ${transferredCount} τεμ. από παρ. #${params.orderA.id.slice(-6)} | ${params.userName}`;
+
+        // ── STEP 1: Re-point batches ──────────────────────────────────────────────────
+        const repointedIds: string[] = [];
+        try {
+            for (const batch of params.batchesToRepoint) {
+                await safeMutate(
+                    'production_batches',
+                    'UPDATE',
+                    { order_id: params.orderB.id, updated_at: now },
+                    { match: { id: batch.id }, noSelect: true },
+                );
+                repointedIds.push(batch.id);
+            }
+        } catch (err) {
+            // Rollback: re-point already-moved batches back to Order A.
+            for (const batchId of repointedIds) {
+                try {
+                    await safeMutate(
+                        'production_batches',
+                        'UPDATE',
+                        { order_id: params.orderA.id, updated_at: now },
+                        { match: { id: batchId }, noSelect: true },
+                    );
+                } catch {
+                    // Best-effort rollback — log but continue.
+                    console.error(`[transferRemainingItemsToOrder] Rollback failed for batch ${batchId}`);
+                }
+            }
+            return { success: false, rolledBack: true, error: String(err) };
+        }
+
+        // ── STEP 2: Update Order B ────────────────────────────────────────────────────
+        try {
+            const updatedOrderB: Order = {
+                ...params.orderB,
+                items: params.newOrderBItems,
+                total_price: params.newOrderBTotal,
+                notes: ((params.orderB.notes ?? '') + noteB).trimStart(),
+            };
+            // updateOrder triggers reconcileOrderBatches internally.
+            // Because we re-pointed the batches first, reconcile sees supply=demand → no new batches created.
+            await api.updateOrder(updatedOrderB);
+        } catch (err) {
+            // Rollback: re-point all batches back to Order A.
+            for (const batchId of repointedIds) {
+                try {
+                    await safeMutate(
+                        'production_batches',
+                        'UPDATE',
+                        { order_id: params.orderA.id, updated_at: now },
+                        { match: { id: batchId }, noSelect: true },
+                    );
+                } catch {
+                    console.error(`[transferRemainingItemsToOrder] Rollback failed for batch ${batchId}`);
+                }
+            }
+            return { success: false, rolledBack: true, error: String(err) };
+        }
+
+        // ── STEP 3: Close Order A (best-effort) ────────────────────────────────────────
+        // Also replaces Order A's items[] with the shipped-only subset.
+        // This is ESSENTIAL: analytics code (Dashboard, businessAnalytics) iterates
+        // order.items[] on Delivered orders. Without this replacement, the transferred
+        // items would be counted in both Order A (Delivered) and Order B, causing
+        // double-counting of revenue, silver weight, and items-sold statistics.
+        try {
+            await safeMutate(
+                'orders',
+                'UPDATE',
+                {
+                    status: OrderStatus.Delivered,
+                    items: params.shippedOnlyOrderAItems,
+                    total_price: params.recalculatedOrderATotal,
+                    notes: ((params.orderA.notes ?? '') + noteA).trimStart(),
+                },
+                { match: { id: params.orderA.id }, noSelect: true },
+            );
+        } catch (err) {
+            console.error('[transferRemainingItemsToOrder] Failed to close Order A:', err);
+            // Transfer succeeded — Order B updated, batches re-pointed — but A not closed.
+            return { success: true, rolledBack: false, partialFailureStep: 'close_order_a' };
+        }
+
+        // ── STEP 4: Cancel active delivery plans on Order A (best-effort) ────────────────
+        let planCancelFailed = false;
+        for (const planId of params.activeDeliveryPlanIdsA) {
+            try {
+                await api.cancelOrderDeliveryPlan(planId);
+            } catch (err) {
+                console.error(`[transferRemainingItemsToOrder] Failed to cancel plan ${planId}:`, err);
+                planCancelFailed = true;
+            }
+        }
+        if (planCancelFailed) {
+            return { success: true, rolledBack: false, partialFailureStep: 'cancel_plans' };
+        }
+
+        // ── STEP 5: Audit log (fire-and-forget) ──────────────────────────────────────────
+        void api.logAction(params.userName, 'ΜΕΤΑΦΟΡΑ ΥΠΟΛΟΙΠΟΥ ΠΑΡΑΓΓΕΛΙΑΣ', {
+            from_order_id: params.orderA.id,
+            to_order_id: params.orderB.id,
+            transferred_item_count: params.newOrderBItems.length - params.orderB.items.length + params.batchesToRepoint.length,
+            batch_count: params.batchesToRepoint.length,
+            transferred_qty: transferredCount,
+        });
+
+        return { success: true, rolledBack: false };
+    },
 };

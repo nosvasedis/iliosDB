@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Order, OrderStatus, Product, ProductVariant, ProductionBatch, Material, MaterialType, VatRegime, OrderShipment, OrderShipmentItem } from '../types';
-import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare, PackageCheck, FileCheck, Loader2, History, UserCheck } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare, PackageCheck, FileCheck, Loader2, History, UserCheck, ArrowRightLeft } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { retailEndClientPillClass } from '../utils/retailPresentation';
@@ -23,6 +23,7 @@ import { OrdersFilterPanel, OrderFilters, DEFAULT_FILTERS, countActiveFilters } 
 import { useTagColorOverrides } from '../hooks/api/useTagColorOverrides';
 import { getSpecialCreationProductStub, isSpecialCreationSku } from '../utils/specialCreationSku';
 import SkuOrderSearchModal from './orders/SkuOrderSearchModal';
+import TransferRemainingItemsModal from './TransferRemainingItemsModal';
 import { useCollections } from '../hooks/api/useCollections';
 import { useCustomers, useOrderShipmentsForOrder, useOrders } from '../hooks/api/useOrders';
 import { useProductionBatches } from '../hooks/api/useProductionBatches';
@@ -637,6 +638,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     const [showWorkflowActions, setShowWorkflowActions] = useState(false);
     const [showStatusActions, setShowStatusActions] = useState(false);
     const [showSellerAssignment, setShowSellerAssignment] = useState(false);
+    const [showTransferModal, setShowTransferModal] = useState(false);
     const [quickSendingOrders, setQuickSendingOrders] = useState<Set<string>>(new Set());
     const [skuSearchOpen, setSkuSearchOpen] = useState(false);
 
@@ -650,6 +652,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         setShowWorkflowActions(false);
         setShowStatusActions(false);
         setShowSellerAssignment(false);
+        setShowTransferModal(false);
         setTagInput('');
         setTagInputFocused(false);
     }, [managingOrder]);
@@ -1561,6 +1564,15 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                 </button>
                             )}
 
+                            {managingOrder.status === OrderStatus.PartiallyDelivered && (
+                                <button
+                                    onClick={() => { setShowWorkflowActions(false); setShowTransferModal(true); }}
+                                    className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-violet-50 border border-violet-200 text-violet-700 hover:bg-violet-100 transition-colors"
+                                >
+                                    <ArrowRightLeft size={18} /> Μεταφορά Υπολοίπου σε Άλλη Παραγγελία
+                                </button>
+                            )}
+
                             {(managingOrder.status === OrderStatus.Pending || managingOrder.status === OrderStatus.InProduction || managingOrder.status === OrderStatus.PartiallyDelivered) && (
                                 <button
                                     onClick={() => handleSendToProduction(managingOrder.id)}
@@ -1629,6 +1641,21 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                     onSaved={(updatedOrder) => {
                         setManagingOrder(updatedOrder);
                         queryClient.invalidateQueries({ queryKey: ['orders'] });
+                    }}
+                />
+            )}
+
+            {managingOrder && showTransferModal && (
+                <TransferRemainingItemsModal
+                    orderA={managingOrder}
+                    onClose={() => {
+                        setShowTransferModal(false);
+                    }}
+                    onSuccess={(updatedOrderB) => {
+                        setShowTransferModal(false);
+                        setManagingOrder(null);
+                        // Trigger print for Order B if the parent supports it
+                        if (onPrintOrder) onPrintOrder(updatedOrderB);
                     }}
                 />
             )}
