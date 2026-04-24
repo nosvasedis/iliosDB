@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Order, OrderStatus, Product, ProductVariant, ProductionBatch, Material, MaterialType, VatRegime, OrderShipment, OrderShipmentItem } from '../types';
+import { Order, OrderStatus, Product, ProductVariant, ProductionBatch, Material, MaterialType, VatRegime, OrderShipment, OrderShipmentItem, Customer } from '../types';
 import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare, PackageCheck, FileCheck, Loader2, History, UserCheck, ArrowRightLeft } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
@@ -10,6 +10,7 @@ import { useUI } from './UIProvider';
 import { useAuth } from './AuthContext';
 import { formatCurrency, getVariantComponents } from '../utils/pricingEngine';
 import DesktopOrderBuilder from './DesktopOrderBuilder';
+import CustomerDetailsModal from './CustomerDetailsModal';
 import ProductionSendModal from './ProductionSendModal';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
 import { groupBatchesByShipment, getShipmentReadiness, isOrderReady } from '../utils/orderReadiness';
@@ -640,6 +641,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     const [showSellerAssignment, setShowSellerAssignment] = useState(false);
     const [showTransferModal, setShowTransferModal] = useState(false);
     const [quickSendingOrders, setQuickSendingOrders] = useState<Set<string>>(new Set());
+    const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
     const [skuSearchOpen, setSkuSearchOpen] = useState(false);
 
     // Group Management in Modal
@@ -1291,7 +1293,18 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                         </div>
                                         <div className="p-4">
                                             <div className="font-bold text-slate-800">
-                                                {order.customer_name}
+                                                {(() => {
+                                                    const cust = !isRetailOrder && order.customer_id ? customers?.find(c => c.id === order.customer_id) : undefined;
+                                                    return cust ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => { e.stopPropagation(); setViewingCustomer(cust); }}
+                                                            className="font-bold text-slate-800 hover:text-blue-600 hover:underline transition-colors text-left"
+                                                        >
+                                                            {order.customer_name}
+                                                        </button>
+                                                    ) : order.customer_name;
+                                                })()}
                                                 {isRetailOrder && retailClientLabel && (
                                                     <span
                                                         className={`ml-2 align-middle ${retailEndClientPillClass}`}
@@ -1740,6 +1753,28 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                     products={products}
                     batches={batches || []}
                     mobile={false}
+                />
+            )}
+
+            {viewingCustomer && orders && (
+                <CustomerDetailsModal
+                    customer={viewingCustomer}
+                    orders={orders.filter(o => o.customer_id === viewingCustomer.id)}
+                    onClose={() => setViewingCustomer(null)}
+                    onUpdate={async (c) => {
+                        await ordersRepository.updateCustomer(c.id, c);
+                        queryClient.invalidateQueries({ queryKey: ['customers'] });
+                        setViewingCustomer(c);
+                    }}
+                    onDelete={async (id) => {
+                        const yes = await confirm({ title: 'Διαγραφή', message: 'Θέλετε να διαγράψετε οριστικά αυτόν τον πελάτη;', isDestructive: true });
+                        if (yes) {
+                            await ordersRepository.deleteCustomer(id);
+                            queryClient.invalidateQueries({ queryKey: ['customers'] });
+                            setViewingCustomer(null);
+                        }
+                    }}
+                    onPrintOrder={onPrintOrder}
                 />
             )}
         </div>
