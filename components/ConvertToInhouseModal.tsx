@@ -6,6 +6,7 @@ import {
     calculateTechnicianCost,
     estimateVariantCost,
     getIliosSuggestedPriceForProduct,
+    getVariantComponents,
     calculateSuggestedWholesalePrice,
     formatCurrency,
     formatDecimal,
@@ -154,6 +155,11 @@ export default function ConvertToInhouseModal({ product, settings, allMaterials,
 
     const oldPlating = od.plating_cost ?? od.plating_cost_x ?? 0;
     const newPlating = nd.plating_cost ?? 0;
+    const totalWeight = product.weight_g + (product.secondary_weight_g || 0);
+    const oldXHPlating = parseFloat((totalWeight * (product.labor.plating_cost_x || 0)).toFixed(2));
+    const newXHPlating = newProduct.labor.plating_cost_x || 0;
+    const oldDPlating = product.labor.plating_cost_d || 0;
+    const newDPlating = newProduct.labor.plating_cost_d || 0;
 
     const oldStone = od.stone_setting_cost ?? 0;
 
@@ -165,6 +171,40 @@ export default function ConvertToInhouseModal({ product, settings, allMaterials,
 
     const oldSubcontract = product.labor.subcontract_cost || 0;
     const newSubcontract = newProduct.labor.subcontract_cost || 0;
+
+    const variantPreviews = useMemo(() => (
+        (product.variants || []).map(v => {
+            const { finish } = getVariantComponents(v.suffix, product.gender);
+            const oldEstimate = estimateVariantCost(product, v.suffix, settings, allMaterials, allProducts);
+            const newEstimate = estimateVariantCost(newProduct, v.suffix, settings, allMaterials, allProducts);
+            return {
+                ...v,
+                finishCode: finish.code || 'L',
+                finishName: finish.code ? finish.name : 'Λουστρέ',
+                oldVariantCost: v.active_price ?? oldEstimate.total,
+                newVariantCost: newEstimate.total,
+                oldPlatingCost: oldEstimate.breakdown?.details?.plating_cost ?? 0,
+                newPlatingCost: newEstimate.breakdown?.details?.plating_cost ?? 0,
+            };
+        })
+    ), [allMaterials, allProducts, newProduct, product, settings]);
+
+    const hasXHPreview = useMemo(
+        () => variantPreviews.some(v => ['X', 'H'].includes(v.finishCode))
+            || product.plating_type === PlatingType.GoldPlated
+            || product.plating_type === PlatingType.Platinum
+            || oldXHPlating > 0
+            || newXHPlating > 0,
+        [newXHPlating, oldXHPlating, product.plating_type, variantPreviews]
+    );
+
+    const hasDPreview = useMemo(
+        () => variantPreviews.some(v => v.finishCode === 'D')
+            || product.plating_type === PlatingType.TwoTone
+            || oldDPlating > 0
+            || newDPlating > 0,
+        [newDPlating, oldDPlating, product.plating_type, variantPreviews]
+    );
 
     const handleConfirm = () => {
         onConfirm(newProduct);
@@ -233,7 +273,7 @@ export default function ConvertToInhouseModal({ product, settings, allMaterials,
                             <CostRow label="Τεχνίτης" oldVal={oldTech} newVal={newTech} sub={`Κλιμακωτή χρέωση`} />
                             <CostRow label="Καρφωτικά" oldVal={oldStone} newVal={0} sub="→ 0 (Ιδιοπαραγωγή)" />
                             <CostRow label="Τεχνίτης Καρφ." oldVal={oldSetter} newVal={newSetter} sub="Προσθήκη από καρτέλα Εργατικά" />
-                            <CostRow label="Επιμετάλλωση X/H" oldVal={oldPlating} newVal={newPlating} sub={`${formatDecimal(product.weight_g + (product.secondary_weight_g || 0))}g × 0,60`} />
+                            <CostRow label="Επιμετάλλωση (master SKU)" oldVal={oldPlating} newVal={newPlating} sub="Αφορά μόνο το ίδιο το master και όχι τις finish-specific παραλλαγές" />
                             {(oldSubcontract > 0 || newSubcontract > 0) && (
                                 <CostRow label="Υπεργολαβία" oldVal={oldSubcontract} newVal={newSubcontract} />
                             )}
@@ -243,6 +283,36 @@ export default function ConvertToInhouseModal({ product, settings, allMaterials,
                             <CostRow label="Τιμή Ilios (Προτεινόμενη)" oldVal={oldIlios} newVal={newIlios} isIlios />
                         </div>
                     </div>
+
+                    {(hasXHPreview || hasDPreview) && (
+                        <div className="bg-slate-50/50 rounded-2xl border border-slate-200/80 p-4">
+                            <h3 className="font-bold text-slate-700 text-xs uppercase tracking-wider flex items-center gap-2 mb-3">
+                                <div className="p-1.5 bg-amber-100 rounded-lg"><Coins size={12} className="text-amber-600" /></div>
+                                Επιμετάλλωση Ανά Finish
+                            </h3>
+                            <div className="space-y-1.5">
+                                {hasXHPreview && (
+                                    <CostRow
+                                        label="X / H παραλλαγές"
+                                        oldVal={oldXHPlating}
+                                        newVal={newXHPlating}
+                                        sub={`Εισαγωγή: ${formatDecimal(totalWeight)}g × ${formatDecimal(product.labor.plating_cost_x || 0)} • Ιδιοπαραγωγή: ${formatDecimal(product.weight_g)}g × 0,60`}
+                                    />
+                                )}
+                                {hasDPreview && (
+                                    <CostRow
+                                        label="D παραλλαγές"
+                                        oldVal={oldDPlating}
+                                        newVal={newDPlating}
+                                        sub={`Εισαγωγή: αποθηκευμένο συνολικό κόστος • Ιδιοπαραγωγή: ${formatDecimal(product.secondary_weight_g || 0)}g × 0,60`}
+                                    />
+                                )}
+                            </div>
+                            <p className="text-xs text-slate-500 mt-3">
+                                Το row του master πιο πάνω δείχνει μόνο την επιμετάλλωση του ίδιου του master SKU. Οι παραλλαγές X/H/D συνεχίζουν να χρησιμοποιούν την υπάρχουσα finish-specific λογική της εφαρμογής.
+                            </p>
+                        </div>
+                    )}
 
                     {/* ── Variant changes ── */}
                     {hasVariants && (
@@ -258,15 +328,20 @@ export default function ConvertToInhouseModal({ product, settings, allMaterials,
                                 <span className="min-w-[88px] text-right">Νέο</span>
                             </div>
                             <div className="space-y-1.5">
-                                {(product.variants || []).map((v, i) => {
-                                    const oldVariantCost = v.active_price ?? 0;
-                                    const newVariantCost = (newProduct.variants || [])[i]?.active_price ?? 0;
+                                {variantPreviews.map((v) => {
+                                    const oldVariantCost = v.oldVariantCost;
+                                    const newVariantCost = v.newVariantCost;
                                     const diff = newVariantCost - oldVariantCost;
                                     const hasDiff = Math.abs(diff) > 0.005;
                                     return (
                                         <div key={v.suffix} className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 py-2 px-3 rounded-xl bg-slate-50/60">
                                             <span className="font-mono font-bold text-slate-700 text-sm bg-slate-200/60 px-2 py-0.5 rounded-lg min-w-[36px] text-center">{v.suffix || 'Lustre'}</span>
-                                            <span className="text-xs text-slate-500 truncate">{v.description}</span>
+                                            <div className="min-w-0">
+                                                <div className="text-xs text-slate-500 truncate">{v.description}</div>
+                                                <div className="text-[11px] text-slate-400 truncate">
+                                                    {v.finishName} · Επιμετάλλωση {formatCurrency(v.oldPlatingCost)} → {formatCurrency(v.newPlatingCost)}
+                                                </div>
+                                            </div>
                                             <span className="font-mono text-sm text-slate-500 line-through decoration-slate-400 min-w-[72px] text-right">{formatCurrency(oldVariantCost)}</span>
                                             <div className="min-w-[88px] text-right flex items-center justify-end gap-1">
                                                 <span className="font-mono font-bold text-sm text-slate-800">{formatCurrency(newVariantCost)}</span>
