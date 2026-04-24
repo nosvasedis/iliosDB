@@ -2,8 +2,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Order, OrderStatus, Product, ProductVariant, ProductionBatch, Material, MaterialType, VatRegime, OrderShipment, OrderShipmentItem, Customer } from '../types';
-import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare, PackageCheck, FileCheck, Loader2, History, UserCheck, ArrowRightLeft, CircleHelp } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare, PackageCheck, FileCheck, Loader2, History, UserCheck, ArrowRightLeft, HelpCircle } from 'lucide-react';
+import * as ReactQuery from '@tanstack/react-query';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { retailEndClientPillClass } from '../utils/retailPresentation';
 import { useUI } from './UIProvider';
@@ -668,7 +668,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                                                     className="p-1 rounded-full text-indigo-600 hover:bg-indigo-200/60 transition-colors"
                                                     title="Τι άλλαξε στην τρέχουσα έκδοση"
                                                 >
-                                                    <CircleHelp size={14} />
+                                                    <HelpCircle size={14} />
                                                 </button>
                                             )}
                                         </div>
@@ -708,7 +708,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                             <div className="p-6 border-b border-slate-100 bg-gradient-to-r from-sky-50 to-indigo-50 flex items-start justify-between gap-4">
                                 <div>
                                     <h4 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                                        <CircleHelp size={18} className="text-indigo-600" />
+                                        <HelpCircle size={18} className="text-indigo-600" />
                                         Τι άλλαξε στην Τρέχουσα Έκδοση
                                     </h4>
                                     <p className="text-sm text-slate-600 mt-1">
@@ -847,7 +847,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
 };
 
 export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrder, onPrintShipment, onPrintLabels, materials, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintAnalytics, onPrintPartialOrder, onOpenDeliveries }: Props) {
-    const queryClient = useQueryClient();
+    const queryClient = ReactQuery.useQueryClient();
     const { showToast, confirm } = useUI();
     const { profile } = useAuth();
     const { data: orders, isLoading: loadingOrders, isError: ordersError, error: ordersErr, refetch: refetchOrders } = useOrders();
