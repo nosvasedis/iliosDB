@@ -1293,7 +1293,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         }
     };
 
-    return createPortal(
+    const portal = (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 print:hidden">
             {isRecipeModalOpen && (
                 <RecipeItemSelectorModal
@@ -2360,7 +2360,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     onClose={() => setShowConvertModal(false)}
                 />
             )}
-        </div>,
-        document.body
+        </div>
     );
+
+    return createPortal(portal, document.body);
 }
