@@ -1293,7 +1293,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         }
     };
 
-    const mainPortal = createPortal(
+    return createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 print:hidden">
             {isRecipeModalOpen && (
                 <RecipeItemSelectorModal
@@ -2346,14 +2346,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     </button>
                 </div>
             </div>
-        </div>,
-        document.body
-    );
-
-    // ── Convert to InHouse Modal ── (rendered via portal, outside main portal)
-    return (
-        <>
-            {mainPortal}
             {showConvertModal && editedProduct.production_type === ProductionType.Imported && (
                 <ConvertToInhouseModal
                     product={editedProduct}
@@ -2368,6 +2360,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     onClose={() => setShowConvertModal(false)}
                 />
             )}
-        </>
+        </div>,
+        document.body
     );
 }
