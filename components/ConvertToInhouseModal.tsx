@@ -106,21 +106,23 @@ interface CostRowProps {
     sub?: string;
     highlight?: boolean;
     isIlios?: boolean;
+    details?: React.ReactNode;
 }
 
-const CostRow = ({ label, oldVal, newVal, sub, highlight, isIlios }: CostRowProps) => {
+const CostRow = ({ label, oldVal, newVal, sub, highlight, isIlios, details }: CostRowProps) => {
     const diff = newVal - oldVal;
     const hasDiff = Math.abs(diff) > 0.005;
     return (
-        <div className={`grid grid-cols-[1fr_auto_auto] items-center gap-3 py-2 px-3 rounded-xl ${highlight ? 'bg-emerald-50 border border-emerald-200/70' : isIlios ? 'bg-blue-50 border border-blue-200/70' : 'bg-slate-50/60'}`}>
-            <div>
+        <div className={`grid grid-cols-[1fr_auto_auto] gap-3 py-2 px-3 rounded-xl ${highlight ? 'bg-emerald-50 border border-emerald-200/70' : isIlios ? 'bg-blue-50 border border-blue-200/70' : 'bg-slate-50/60'}`}>
+            <div className="min-w-0">
                 <span className={`text-sm font-semibold ${highlight || isIlios ? 'text-slate-800' : 'text-slate-600'}`}>{label}</span>
                 {sub && <span className="text-xs text-slate-400 ml-1.5">{sub}</span>}
+                {details && <div className="mt-2">{details}</div>}
             </div>
-            <div className="text-right min-w-[72px]">
+            <div className="text-right min-w-[72px] pt-0.5">
                 <span className="font-mono text-sm text-slate-500 line-through decoration-slate-400">{formatCurrency(oldVal)}</span>
             </div>
-            <div className="text-right min-w-[88px] flex items-center justify-end gap-1">
+            <div className="text-right min-w-[88px] flex items-start justify-end gap-1 pt-0.5">
                 <span className={`font-mono font-bold text-sm ${highlight ? 'text-emerald-700' : isIlios ? 'text-blue-700' : 'text-slate-800'}`}>{formatCurrency(newVal)}</span>
                 {hasDiff && (
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${diff > 0 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
@@ -273,7 +275,46 @@ export default function ConvertToInhouseModal({ product, settings, allMaterials,
                             <CostRow label="Τεχνίτης" oldVal={oldTech} newVal={newTech} sub={`Κλιμακωτή χρέωση`} />
                             <CostRow label="Καρφωτικά" oldVal={oldStone} newVal={0} sub="→ 0 (Ιδιοπαραγωγή)" />
                             <CostRow label="Τεχνίτης Καρφ." oldVal={oldSetter} newVal={newSetter} sub="Προσθήκη από καρτέλα Εργατικά" />
-                            <CostRow label="Επιμετάλλωση (master SKU)" oldVal={oldPlating} newVal={newPlating} sub="Αφορά μόνο το ίδιο το master και όχι τις finish-specific παραλλαγές" />
+                            <CostRow
+                                label="Επιμετάλλωση (λουστρέ/P)"
+                                oldVal={oldPlating}
+                                newVal={newPlating}
+                                sub="Ίδιο το master SKU"
+                                details={
+                                    (hasXHPreview || hasDPreview) ? (
+                                        <div className="space-y-1.5">
+                                            {hasXHPreview && (
+                                                <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-200/70 bg-amber-50/70 px-2.5 py-2">
+                                                    <div className="min-w-0">
+                                                        <div className="text-xs font-bold text-amber-800">Επιμετάλλωση Χ/Η</div>
+                                                        <div className="text-[11px] text-amber-700/80">
+                                                            Εισαγωγή: {formatDecimal(totalWeight)}g × {formatDecimal(product.labor.plating_cost_x || 0)} • Ιδιοπαραγωγή: {formatDecimal(product.weight_g)}g × 0,60
+                                                        </div>
+                                                    </div>
+                                                    <div className="shrink-0 text-right">
+                                                        <div className="font-mono text-[11px] text-slate-500 line-through decoration-slate-400">{formatCurrency(oldXHPlating)}</div>
+                                                        <div className="font-mono font-bold text-xs text-amber-800">{formatCurrency(newXHPlating)}</div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {hasDPreview && (
+                                                <div className="flex items-center justify-between gap-3 rounded-lg border border-purple-200/70 bg-purple-50/70 px-2.5 py-2">
+                                                    <div className="min-w-0">
+                                                        <div className="text-xs font-bold text-purple-800">Επιμετάλλωση D</div>
+                                                        <div className="text-[11px] text-purple-700/80">
+                                                            Εισαγωγή: αποθηκευμένο συνολικό κόστος • Ιδιοπαραγωγή: {formatDecimal(product.secondary_weight_g || 0)}g × 0,60
+                                                        </div>
+                                                    </div>
+                                                    <div className="shrink-0 text-right">
+                                                        <div className="font-mono text-[11px] text-slate-500 line-through decoration-slate-400">{formatCurrency(oldDPlating)}</div>
+                                                        <div className="font-mono font-bold text-xs text-purple-800">{formatCurrency(newDPlating)}</div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : undefined
+                                }
+                            />
                             {(oldSubcontract > 0 || newSubcontract > 0) && (
                                 <CostRow label="Υπεργολαβία" oldVal={oldSubcontract} newVal={newSubcontract} />
                             )}
@@ -283,36 +324,6 @@ export default function ConvertToInhouseModal({ product, settings, allMaterials,
                             <CostRow label="Τιμή Ilios (Προτεινόμενη)" oldVal={oldIlios} newVal={newIlios} isIlios />
                         </div>
                     </div>
-
-                    {(hasXHPreview || hasDPreview) && (
-                        <div className="bg-slate-50/50 rounded-2xl border border-slate-200/80 p-4">
-                            <h3 className="font-bold text-slate-700 text-xs uppercase tracking-wider flex items-center gap-2 mb-3">
-                                <div className="p-1.5 bg-amber-100 rounded-lg"><Coins size={12} className="text-amber-600" /></div>
-                                Επιμετάλλωση Ανά Finish
-                            </h3>
-                            <div className="space-y-1.5">
-                                {hasXHPreview && (
-                                    <CostRow
-                                        label="X / H παραλλαγές"
-                                        oldVal={oldXHPlating}
-                                        newVal={newXHPlating}
-                                        sub={`Εισαγωγή: ${formatDecimal(totalWeight)}g × ${formatDecimal(product.labor.plating_cost_x || 0)} • Ιδιοπαραγωγή: ${formatDecimal(product.weight_g)}g × 0,60`}
-                                    />
-                                )}
-                                {hasDPreview && (
-                                    <CostRow
-                                        label="D παραλλαγές"
-                                        oldVal={oldDPlating}
-                                        newVal={newDPlating}
-                                        sub={`Εισαγωγή: αποθηκευμένο συνολικό κόστος • Ιδιοπαραγωγή: ${formatDecimal(product.secondary_weight_g || 0)}g × 0,60`}
-                                    />
-                                )}
-                            </div>
-                            <p className="text-xs text-slate-500 mt-3">
-                                Το row του master πιο πάνω δείχνει μόνο την επιμετάλλωση του ίδιου του master SKU. Οι παραλλαγές X/H/D συνεχίζουν να χρησιμοποιούν την υπάρχουσα finish-specific λογική της εφαρμογής.
-                            </p>
-                        </div>
-                    )}
 
                     {/* ── Variant changes ── */}
                     {hasVariants && (
