@@ -1,4 +1,5 @@
 import { BatchStageHistoryEntry, Order, ProductionBatch, ProductionStage } from '../../types';
+import { requiresSettingStage } from '../../constants';
 
 export function getBatchSnapshotById(batches: ProductionBatch[], batchId: string): ProductionBatch | null {
   return batches.find((batch) => batch.id === batchId) || null;
@@ -11,7 +12,7 @@ export function getOrderSnapshotById(orders: Order[], orderId: string): Order | 
 export function canMoveBatchToStage(batch: ProductionBatch, stage: ProductionStage): boolean {
   if (batch.on_hold) return false;
   if (batch.current_stage === stage) return false;
-  if (stage === ProductionStage.Setting && !batch.requires_setting) return false;
+  if (stage === ProductionStage.Setting && !batch.requires_setting && !requiresSettingStage(batch.sku)) return false;
   if (stage === ProductionStage.Assembly && !batch.requires_assembly) return false;
   return true;
 }
