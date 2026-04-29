@@ -93,7 +93,7 @@ export default function AssemblyPrintView({ rows, allProducts, allMaterials }: P
         <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-4 mx-auto shadow-lg print:shadow-none print:p-4 print:w-full">
             <div className="flex justify-between items-center border-b-2 border-slate-900 pb-3 mb-4">
                 <div className="flex items-center gap-4">
-                    <div className="w-16">
+                    <div className="w-24">
                         <img src={APP_LOGO} alt="ILIOS" className="w-full h-auto object-contain block" />
                     </div>
                     <div>
