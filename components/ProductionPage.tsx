@@ -19,7 +19,7 @@ import { ProductionBatchCard } from './ProductionBatchCard';
 import ProductionOverviewModal from './ProductionOverviewModal';
 import { EnhancedProductionBatch } from '../types';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
-import { requiresAssemblyStage } from '../constants';
+import { requiresAssemblyStage, requiresSettingStage } from '../constants';
 import { getSpecialCreationProductStub, isSpecialCreationSku } from '../utils/specialCreationSku';
 import ProductionMoldRequirementsModal from './ProductionMoldRequirementsModal';
 import { buildProductionAlertGroups } from './production/productionAlerts';
@@ -1968,7 +1968,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                     const material = materialsMap.get(r.id);
                     return material?.type === MaterialType.Stone && ZIRCON_CODES.some((code) => material.name.includes(code));
                 });
-            const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe;
+            const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe || requiresSettingStage(b.sku);
 
             // Check if assembly stage is required based on SKU
             const requires_assembly = isSpecialCreationSku(b.sku) ? false : requiresAssemblyStage(b.sku);

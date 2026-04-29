@@ -11,7 +11,7 @@ import MobileBatchBuildModal from './MobileBatchBuildModal';
 import BatchHistoryModal from '../BatchHistoryModal';
 import { formatOrderId } from '../../utils/orderUtils';
 import { formatCurrency, formatDecimal, getVariantComponents } from '../../utils/pricingEngine';
-import { requiresAssemblyStage } from '../../constants';
+import { requiresAssemblyStage, requiresSettingStage } from '../../constants';
 import { getSpecialCreationProductStub, isSpecialCreationSku } from '../../utils/specialCreationSku';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import FinderBatchStageSelector from '../production/FinderBatchStageSelector';
@@ -968,7 +968,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                     const material = materials.find((m) => m.id === r.id);
                     return material?.type === MaterialType.Stone && ZIRCON_CODES.some((code) => material.name.includes(code));
                 });
-            const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe;
+            const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe || requiresSettingStage(b.sku);
 
             const order = orders.find(o => o.id === b.order_id);
             const timingInfo = getProductionTimingInfo(b, batchHistoryLookup.get(b.id), timingNow);

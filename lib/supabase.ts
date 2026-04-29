@@ -1,7 +1,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, OrderItem, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, BatchStageHistoryEntry, SyncOfflineResult } from '../types';
-import { INITIAL_SETTINGS, MOCK_MATERIALS, requiresAssemblyStage } from '../constants';
+import { INITIAL_SETTINGS, MOCK_MATERIALS, requiresAssemblyStage, requiresSettingStage } from '../constants';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { offlineDb } from './offlineDb';
 import { BACKUP_TABLE_REGISTRY, BACKUP_VERSION, BACKUP_FORMAT_MARKER, CONFIG_KEYS, BackupEnvelope, BackupMeta, ProgressCallback, RestoreOptions, RestoreResult } from './backupConfig';
@@ -1803,7 +1803,7 @@ export const api = {
                             const material = allMaterials.find(m => m.id === r.id);
                             return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
                         });
-                        const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe;
+                        const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe || requiresSettingStage(item.sku);
 
                         const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
                         const nowUpdated = new Date().toISOString();
@@ -2006,7 +2006,7 @@ export const api = {
                 const material = allMaterials.find(m => m.id === r.id);
                 return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
             });
-            const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe;
+            const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe || requiresSettingStage(item.sku);
 
             const normalStage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
             const requires_assembly = requiresAssemblyStage(item.sku);
