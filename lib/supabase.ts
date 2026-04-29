@@ -1694,7 +1694,7 @@ export const api = {
                         line_id: item.line_id ?? null
                     });
                 }
-                return getNaturalKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color);
+                return getNaturalKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color) + '::' + (item.notes || '');
             };
 
             const supplyKeyForBatch = (b: any) => {
@@ -1708,7 +1708,7 @@ export const api = {
                         line_id: b.line_id ?? null
                     });
                 }
-                return getNaturalKey(b.sku, b.variant_suffix, b.size_info, b.cord_color, b.enamel_color);
+                return getNaturalKey(b.sku, b.variant_suffix, b.size_info, b.cord_color, b.enamel_color) + '::' + (b.notes || '');
             };
 
             // 3.5. For PartiallyDelivered orders, fetch shipped quantities so we don't
