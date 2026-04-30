@@ -552,7 +552,17 @@ export default function ProductionSendModal({ order, products, materials, existi
         await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
         const snapshot = applyOptimisticStage(batch.id, newStage, pendingDispatch);
         try {
-            await productionRepository.updateBatchStage(batch.id, newStage, undefined, pendingDispatch);
+            if (batch.current_stage === ProductionStage.Polishing && newStage === ProductionStage.Polishing) {
+                // updateBatchStage rejects same-stage moves via canMoveBatchToStage,
+                // so use the dedicated dispatch/recall helpers for intra-Polishing moves.
+                if (pendingDispatch === false) {
+                    await productionRepository.markBatchesDispatched([batch.id]);
+                } else {
+                    await productionRepository.markBatchesPendingDispatch([batch.id]);
+                }
+            } else {
+                await productionRepository.updateBatchStage(batch.id, newStage, undefined, pendingDispatch);
+            }
             await Promise.all([invalidateOrdersAndBatches(queryClient), queryClient.invalidateQueries({ queryKey: ['products'] })]);
             showToast("Η παρτίδα μετακινήθηκε.", "success");
         } catch (e) {
@@ -660,10 +670,35 @@ export default function ProductionSendModal({ order, products, materials, existi
         await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
         const snapshot = applyOptimisticBulkStage(targetIds, newStage, pendingDispatch);
         try {
-            const summary = await productionRepository.bulkUpdateBatchStages(targetIds, newStage, undefined, pendingDispatch);
+            // Split target batches: those already in Polishing need the dedicated
+            // dispatch/recall helpers because bulkUpdateBatchStages gates on
+            // canMoveBatchToStage which rejects same-stage transitions.
+            const intraPolishingIds = newStage === ProductionStage.Polishing
+                ? targetIds.filter(id => (snapshot || []).find(b => b.id === id)?.current_stage === ProductionStage.Polishing)
+                : [];
+            const regularIds = targetIds.filter(id => !intraPolishingIds.includes(id));
+
+            let movedCount = 0;
+            let skippedCount = 0;
+
+            const ops: Promise<any>[] = [];
+            if (intraPolishingIds.length > 0 && pendingDispatch !== undefined) {
+                ops.push(
+                    pendingDispatch === false
+                        ? productionRepository.markBatchesDispatched(intraPolishingIds).then(n => { movedCount += n; })
+                        : productionRepository.markBatchesPendingDispatch(intraPolishingIds).then(n => { movedCount += n; })
+                );
+            }
+            if (regularIds.length > 0) {
+                ops.push(
+                    productionRepository.bulkUpdateBatchStages(regularIds, newStage, undefined, pendingDispatch)
+                        .then(summary => { movedCount += summary.movedCount; skippedCount += summary.skippedCount; })
+                );
+            }
+            await Promise.all(ops);
             await Promise.all([invalidateOrdersAndBatches(queryClient), queryClient.invalidateQueries({ queryKey: ['products'] })]);
             clearBatchSelection(targetIds);
-            showToast(`${summary.movedCount} μετακινήθηκαν${summary.skippedCount > 0 ? `, ${summary.skippedCount} παραλείφθηκαν` : ''}.`, summary.movedCount > 0 ? "success" : "info");
+            showToast(`${movedCount} μετακινήθηκαν${skippedCount > 0 ? `, ${skippedCount} παραλείφθηκαν` : ''}.`, movedCount > 0 ? "success" : "info");
         } catch (e) {
             rollbackBatchesCache(snapshot);
             showToast("Σφάλμα μαζικής μετακίνησης.", "error");
