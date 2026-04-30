@@ -1683,6 +1683,16 @@ export const api = {
                 enamel_color: ((enamelColor || '').toLowerCase() || null) as any
             });
 
+            // Pre-scan: count how many demand entries share each natural key.
+            // When count > 1 the entries differ only by notes, so notes must be
+            // part of the reconciliation key to keep them separate.
+            const naturalKeyDemandCount: Record<string, number> = {};
+            order.items.forEach((item: any) => {
+                if (isSpecialCreationSku(item.sku)) return;
+                const nk = getNaturalKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color);
+                naturalKeyDemandCount[nk] = (naturalKeyDemandCount[nk] || 0) + 1;
+            });
+
             const demandKeyForItem = (item: any) => {
                 if (isSpecialCreationSku(item.sku)) {
                     return buildItemIdentityKey({
@@ -1694,7 +1704,10 @@ export const api = {
                         line_id: item.line_id ?? null
                     });
                 }
-                return getNaturalKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color) + '::' + (item.notes || '');
+                const nk = getNaturalKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color);
+                // Only include notes in the key when there are multiple demand entries
+                // for this natural key (i.e., same SKU+variant+size but different notes).
+                return naturalKeyDemandCount[nk] > 1 ? nk + '::' + (item.notes || '') : nk;
             };
 
             const supplyKeyForBatch = (b: any) => {
@@ -1708,7 +1721,9 @@ export const api = {
                         line_id: b.line_id ?? null
                     });
                 }
-                return getNaturalKey(b.sku, b.variant_suffix, b.size_info, b.cord_color, b.enamel_color) + '::' + (b.notes || '');
+                const nk = getNaturalKey(b.sku, b.variant_suffix, b.size_info, b.cord_color, b.enamel_color);
+                // Mirror the demand key logic: include notes only for collision natural keys.
+                return naturalKeyDemandCount[nk] > 1 ? nk + '::' + (b.notes || '') : nk;
             };
 
             // 3.5. For PartiallyDelivered orders, fetch shipped quantities so we don't

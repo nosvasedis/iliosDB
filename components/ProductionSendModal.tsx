@@ -204,8 +204,7 @@ export default function ProductionSendModal({ order, products, materials, existi
             const key = itemKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color, item.line_id);
             const shippedQty = shippedQuantities.get(key) || 0;
             const relevantBatches = existingBatches.filter(b =>
-                buildOrderItemIdentityKey(b) === buildOrderItemIdentityKey(item) &&
-                (b.notes || null) === (item.notes || null)
+                buildOrderItemIdentityKey(b) === buildOrderItemIdentityKey(item)
             ).sort((a, b) => {
                 const stages = Object.values(ProductionStage);
                 return stages.indexOf(a.current_stage) - stages.indexOf(b.current_stage);
