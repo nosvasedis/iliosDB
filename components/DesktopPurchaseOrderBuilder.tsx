@@ -19,6 +19,7 @@ import {
 } from '../utils/supplierOrderCustomerFilter';
 import PurchaseNeedRow from './PurchaseNeedRow';
 import PurchaseOrderCustomerFilterBar from './PurchaseOrderCustomerFilterBar';
+import { getSizingInfo, SIZE_TYPE_NUMBER } from '../utils/sizing';
 
 interface Props {
     supplier: Supplier;
@@ -46,6 +47,26 @@ const STONE_TEXT_COLORS: Record<string, string> = {
     'MP': 'text-blue-500', 'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500',
     'MV': 'text-purple-400', 'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
 };
+
+const isRingPurchaseLine = (product: Product | undefined, item?: SupplierOrderItem): boolean => {
+    const sizing = product ? getSizingInfo(product) : null;
+    const values = [
+        product?.prefix,
+        product?.sku,
+        product?.supplier_sku,
+        product?.category,
+        item?.item_id,
+        item?.item_name,
+    ].map(v => (v || '').toUpperCase());
+
+    return (
+        sizing?.type === SIZE_TYPE_NUMBER ||
+        values.some(v => v.startsWith('DM') || v.includes('ΔΑΧ') || v.includes('ΔΑΚΤΥΛ') || v.includes('RING'))
+    );
+};
+
+const shouldShowSizeInput = (product: Product | undefined, item: SupplierOrderItem): boolean =>
+    item.item_type === 'Product' && (isRingPurchaseLine(product, item) || !!item.size_info);
 
 export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initialOrder = null }: Props) {
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
@@ -256,12 +277,13 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
         showToast(`Προστέθηκε: ${product.sku}${suffix}`, 'success');
     };
 
-    const updateItem = (index: number, field: 'qty' | 'notes', val: any) => {
+    const updateItem = (index: number, field: 'qty' | 'notes' | 'size', val: any) => {
         setItems(prev => {
             const updated = [...prev];
             const item = { ...updated[index] };
             if (field === 'qty') item.quantity = Number(val);
             else if (field === 'notes') item.notes = val;
+            else if (field === 'size') item.size_info = String(val).trim() || undefined;
             
             item.total_cost = 0;
             updated[index] = item;
@@ -551,6 +573,7 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                                     imgUrl = product?.image_url;
                                     supplierRef = product?.supplier_sku;
                                 }
+                                const showSizeInput = shouldShowSizeInput(product, item);
 
                                 // Robust Suffix Extraction
                                 let suffixStr = '';
@@ -600,6 +623,19 @@ export default function DesktopPurchaseOrderBuilder({ supplier, onClose, initial
                                                         <span className="text-slate-400 font-black uppercase text-[9px] mr-1">Πελάτης:</span>
                                                         {item.customer_reference}
                                                     </div>
+                                                )}
+                                                {showSizeInput && (
+                                                    <label className="mt-2 flex w-40 items-center gap-1.5 rounded-lg border border-blue-100 bg-blue-50/60 px-2 py-1 text-[10px] font-black uppercase text-blue-700">
+                                                        <Hash size={10} className="shrink-0" />
+                                                        <span className="shrink-0">Μέγεθος</span>
+                                                        <input
+                                                            value={item.size_info || ''}
+                                                            onChange={e => updateItem(idx, 'size', e.target.value)}
+                                                            placeholder="π.χ. 54"
+                                                            aria-label={`Μέγεθος για ${item.item_name}`}
+                                                            className="min-w-0 flex-1 bg-transparent text-right font-mono text-[11px] font-black text-blue-900 outline-none placeholder:text-blue-300"
+                                                        />
+                                                    </label>
                                                 )}
 
                                                 <input 

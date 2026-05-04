@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Product, GlobalSettings, Order, OrderStatus, ProductionStage, Gender } from '../types';
+import { Product, GlobalSettings, Order, OrderStatus, ProductionStage, Gender, ProductionType } from '../types';
 import { 
   TrendingUp, 
   Package, 
@@ -60,10 +60,19 @@ const STAGE_LABELS: Record<string, string> = {
 
 const COLORS = ['#059669', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1', '#ec4899', '#14b8a6'];
 
+type SilverOrderScope = 'active' | 'delivered' | 'all_non_cancelled';
+
+const SILVER_SCOPE_LABELS: Record<SilverOrderScope, string> = {
+    active: 'Ενεργές παραγγελίες',
+    delivered: 'Παραδομένες',
+    all_non_cancelled: 'Όλες εκτός ακυρωμένων',
+};
+
 export default function Dashboard({ products, settings, onNavigate }: Props) {
   const [activeTab, setActiveTab] = useState<'overview' | 'financials' | 'production' | 'inventory'>('overview');
   const [categoryGenderFilter, setCategoryGenderFilter] = useState<'All' | Gender>('All');
   const [showPendingRevenue, setShowPendingRevenue] = useState(false);
+  const [silverOrderScope, setSilverOrderScope] = useState<SilverOrderScope>('active');
 
   const { data: orders, isError: ordersError, error: ordersErr, refetch: refetchOrders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
   const { data: batches, isError: batchesError, error: batchesErr, refetch: refetchBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
@@ -90,6 +99,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
     let totalCostValue = 0; 
     let totalPotentialRevenue = 0; 
     let totalSilverWeight = 0;
+    const productBySku = new Map(products.map(p => [p.sku, p]));
 
     products.forEach(p => {
         totalCostValue += (p.active_price * p.stock_qty);
@@ -109,7 +119,20 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
 
     const activeOrders = orders?.filter(o => o.status === OrderStatus.Pending || o.status === OrderStatus.InProduction || o.status === OrderStatus.Ready || o.status === OrderStatus.PartiallyDelivered) || [];
     const completedOrders = orders?.filter(o => o.status === OrderStatus.Delivered) || [];
+    const allNonCancelledOrders = orders?.filter(o => o.status !== OrderStatus.Cancelled) || [];
     const activeBatches = batches?.filter(b => b.current_stage !== ProductionStage.Ready) || [];
+
+    const calculateInHouseSilverGrams = (orderList: Order[]) =>
+        orderList.reduce((orderAcc, order) => {
+            return orderAcc + order.items.reduce((itemAcc, item) => {
+                const product = productBySku.get(item.sku);
+                if (!product || product.production_type === ProductionType.Imported || product.is_component) {
+                    return itemAcc;
+                }
+
+                return itemAcc + ((product.weight_g || 0) + (product.secondary_weight_g || 0)) * item.quantity;
+            }, 0);
+        }, 0);
     
     let silverSold = 0;
     let stonesSold = 0;
@@ -195,6 +218,11 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
         potentialMargin,
         marginPercent,
         activeOrdersCount: activeOrders.length,
+        inHouseSilverUsed: {
+            active: calculateInHouseSilverGrams(activeOrders),
+            delivered: calculateInHouseSilverGrams(completedOrders),
+            all_non_cancelled: calculateInHouseSilverGrams(allNonCancelledOrders),
+        },
         // Use LIVE calculation for Pending to reflect price hikes
         pendingRevenue: calculateLiveNetRevenue(activeOrders), 
         // Use Historical calculation for Delivered to reflect actual invoices
@@ -400,6 +428,38 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                   <KPICard title="Συνολικά Έσοδα" value={formatCurrency(stats.totalRevenue)} icon={<DollarSign/>} colorClass="text-emerald-600" hint="Ο συνολικός τζίρος από όλες τις ολοκληρωμένες παραγγελίες." />
                   <KPICard title="Εκτιμώμενο Κέρδος" value={formatCurrency(stats.potentialMargin)} subValue={`${stats.marginPercent.toFixed(1)}% Περιθώριο`} icon={<TrendingUp/>} colorClass="text-blue-600" hint="Το μεικτό κέρδος μετά την αφαίρεση του κόστους παραγωγής (Μέταλλο + Εργατικά + Υλικά)." />
                   <KPICard title="Αξία Αποθέματος (Retail)" value={formatCurrency(stats.totalPotentialRevenue * 3)} icon={<Target/>} colorClass="text-purple-600" hint="Η συνολική αξία του αποθέματος σε τιμές λιανικής (εκτίμηση x3)." />
+              </div>
+
+              <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 flex flex-col md:flex-row md:items-center justify-between gap-5">
+                  <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-slate-100 text-slate-600 rounded-2xl flex items-center justify-center">
+                          <Coins size={24}/>
+                      </div>
+                      <div>
+                          <div className="font-black text-slate-800 uppercase text-[10px] tracking-widest">Ασήμι για Παραγωγή</div>
+                          <div className="text-slate-500 text-xs mt-0.5">Μόνο in-house είδη, χωρίς εισαγόμενα και STX.</div>
+                          <div className="mt-3">
+                              <select
+                                  value={silverOrderScope}
+                                  onChange={e => setSilverOrderScope(e.target.value as SilverOrderScope)}
+                                  className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-black rounded-xl py-2 px-3 outline-none cursor-pointer hover:border-slate-300 focus:ring-2 focus:ring-slate-200"
+                                  aria-label="Εύρος παραγγελιών για ασήμι παραγωγής"
+                              >
+                                  {(Object.keys(SILVER_SCOPE_LABELS) as SilverOrderScope[]).map(scope => (
+                                      <option key={scope} value={scope}>{SILVER_SCOPE_LABELS[scope]}</option>
+                                  ))}
+                              </select>
+                          </div>
+                      </div>
+                  </div>
+                  <div className="text-right">
+                      <div className="font-black text-slate-900 text-3xl">
+                          {formatDecimal(stats.inHouseSilverUsed[silverOrderScope] / 1000, 3)} <span className="text-base text-slate-400 font-bold">kg</span>
+                      </div>
+                      <div className="text-[11px] font-bold text-slate-400 mt-1">
+                          {formatDecimal(stats.inHouseSilverUsed[silverOrderScope], 1)} g
+                      </div>
+                  </div>
               </div>
 
               <div className="bg-indigo-50 border border-indigo-100 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-4">

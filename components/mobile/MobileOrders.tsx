@@ -1571,11 +1571,12 @@ export default function MobileOrders({
                         </div>
                         <SellerPicker
                             compact
-                            selectedSellerId={assignSellerId}
+                            selectedSellerId={assignSellerId || undefined}
+                            selectedSellerName={assignSellerName || undefined}
                             commissionPercent={assignCommission}
                             onSellerChange={(id, name, defaultCommission) => {
-                                setAssignSellerId(id);
-                                setAssignSellerName(name);
+                                setAssignSellerId(id || null);
+                                setAssignSellerName(name || null);
                                 setAssignCommission(defaultCommission);
                             }}
                             onCommissionChange={setAssignCommission}
@@ -1584,11 +1585,12 @@ export default function MobileOrders({
                             onClick={async () => {
                                 try {
                                     const seller = sellers?.find(s => s.id === assignSellerId);
-                                    await api.updateOrder(sellerAssignOrder.id, {
-                                        seller_id: assignSellerId || null,
-                                        seller_name: assignSellerName || (seller?.full_name ?? null),
+                                    await api.updateOrder({
+                                        ...sellerAssignOrder,
+                                        seller_id: assignSellerId || undefined,
+                                        seller_name: assignSellerName || seller?.full_name || undefined,
                                         seller_commission_percent: assignCommission ?? null,
-                                    } as any);
+                                    });
                                     invalidateOrdersAndBatches(queryClient);
                                     showToast('Ο πλασιέ ανατέθηκε.', 'success');
                                     setSellerAssignOrder(null);
