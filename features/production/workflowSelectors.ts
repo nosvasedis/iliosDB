@@ -5,7 +5,7 @@ import { getVariantComponents } from '../../utils/pricingEngine';
 import { getBatchStageChronologyTimestamp } from './selectors';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
-import { requiresAssemblyStage } from '../../constants';
+import { requiresAssemblyStage, requiresSettingStage } from '../../constants';
 import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 
 export type ProductionDisplayGroupMode = 'gender' | 'customer';
@@ -135,7 +135,7 @@ export function getNextProductionStage(currentStage: ProductionStage, batch: Pro
   }
 
   let nextIndex = currentIndex + 1;
-  if (stages[nextIndex] === ProductionStage.Setting && !batch.requires_setting) {
+  if (stages[nextIndex] === ProductionStage.Setting && !batch.requires_setting && !requiresSettingStage(batch.sku)) {
     nextIndex++;
   }
   if (stages[nextIndex] === ProductionStage.Assembly && !batch.requires_assembly) {

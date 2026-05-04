@@ -227,6 +227,19 @@ export const ASSEMBLY_SKU_PATTERNS = {
   BR_SPECIFIC: [297, 310],
 };
 
+// SKUs that explicitly require the Setting stage (Καρφωτής) regardless of stone/zircon detection
+export const SETTING_STAGE_SKUS: ReadonlySet<string> = new Set([
+  'RN102', 'RN104', 'RN106', 'RN108', 'RN110', 'RN112', 'RN114', 'RN116',
+]);
+
+/**
+ * Check if a SKU explicitly requires the Setting stage (Καρφωτής).
+ * Use this alongside zircon detection — either condition is sufficient.
+ */
+export function requiresSettingStage(sku: string): boolean {
+  return SETTING_STAGE_SKUS.has((sku || '').toUpperCase());
+}
+
 /**
  * Check if a SKU requires the Assembly stage (Τελική Συναρμολόγηση)
  * Products in these ranges need to go through assembly after the external technician
