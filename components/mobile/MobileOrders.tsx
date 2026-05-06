@@ -87,7 +87,8 @@ const LegacyOrderPrintSheet: React.FC<{
     onPrintOrder?: (order: Order) => void;
     onPrintRemainingOrder?: (order: Order) => void;
     onPrintShipment?: (payload: { order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] }) => void;
-}> = ({ order, onClose, onPrintOrder, onPrintRemainingOrder, onPrintShipment }) => {
+    onPrintShipments?: (payloads: Array<{ order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] }>) => void;
+}> = ({ order, onClose, onPrintOrder, onPrintRemainingOrder, onPrintShipment, onPrintShipments }) => {
     const shipmentsQuery = useQuery({
         queryKey: ['order-shipments', order.id],
         queryFn: () => api.getShipmentsForOrder(order.id),
@@ -255,6 +256,11 @@ const LegacyOrderPrintSheet: React.FC<{
                     setShowShipmentSelector(false);
                     onClose();
                 }}
+                onSelectMultiple={onPrintShipments ? (payloads) => {
+                    onPrintShipments(payloads);
+                    setShowShipmentSelector(false);
+                    onClose();
+                } : undefined}
             />
         )}
         {showVersionSelector && orderRevisions.length > 0 && (
@@ -477,6 +483,7 @@ const OrderPrintSheet: React.FC<{
     onPrintTechnician?: (batches: ProductionBatch[]) => void;
     onPrintAnalytics?: (order: Order) => void;
     onPrintPartialOrder?: (order: Order, selectedBatches: ProductionBatch[]) => void;
+    onPrintShipments?: (payloads: Array<{ order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] }>) => void;
 }> = ({
     order,
     products,
@@ -492,9 +499,11 @@ const OrderPrintSheet: React.FC<{
     onPrintTechnician,
     onPrintAnalytics,
     onPrintPartialOrder,
+    onPrintShipments,
 }) => {
     const [showPartSelector, setShowPartSelector] = useState(false);
     const [showVersionSelector, setShowVersionSelector] = useState(false);
+    const [showShipmentSelector, setShowShipmentSelector] = useState(false);
     const shipmentsQuery = useQuery({
         queryKey: ['order-shipments', order.id],
         queryFn: () => api.getShipmentsForOrder(order.id),
@@ -506,6 +515,7 @@ const OrderPrintSheet: React.FC<{
     const hasMultipleShipments = shipments.length > 1;
     const latestShipmentData = useMemo(() => buildLatestShipmentPrintData(order, shipmentsQuery.data), [order, shipmentsQuery.data]);
     const orderRevisions = useMemo(() => buildOrderRevisions(order), [order]);
+    const hasMultiShipments = (shipmentsQuery.data?.shipments?.length ?? 0) > 1;
 
     const handlePrintLabelsAction = () => {
         const itemsToPrint = buildOrderLabelPrintItems(order, products);
@@ -640,6 +650,7 @@ const OrderPrintSheet: React.FC<{
     }
 
     return (
+        <>
         <div className="fixed inset-0 z-[170] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end" onClick={onClose}>
             <div
                 className="bg-white rounded-t-[2rem] px-5 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] animate-in slide-in-from-bottom-full duration-300 max-h-[88vh] overflow-y-auto"
@@ -708,6 +719,10 @@ const OrderPrintSheet: React.FC<{
                         {latestShipmentData && (
                             <button
                                 onClick={() => {
+                                    if (hasMultiShipments) {
+                                        setShowShipmentSelector(true);
+                                        return;
+                                    }
                                     onPrintShipment?.({
                                         order,
                                         shipment: latestShipmentData.shipment,
@@ -722,9 +737,13 @@ const OrderPrintSheet: React.FC<{
                                         <Truck size={18} />
                                     </div>
                                     <div>
-                                        <div className="font-black">Μερική Αποστολή</div>
+                                        <div className="font-black">
+                                            {hasMultiShipments ? 'Επιλογή Μερικής Αποστολής' : 'Μερική Αποστολή'}
+                                        </div>
                                         <div className="mt-0.5 text-xs font-medium text-amber-800">
-                                            Μόνο τα είδη της αποστολής #{latestShipmentData.shipment.shipment_number}.
+                                            {hasMultiShipments
+                                                ? `${shipmentsQuery.data!.shipments.length} αποστολές — επιλέξτε ποια να εκτυπώσετε.`
+                                                : `Μόνο τα είδη της αποστολής #${latestShipmentData.shipment.shipment_number}.`}
                                         </div>
                                     </div>
                                 </div>
@@ -1127,6 +1146,25 @@ const OrderCard: React.FC<{
                 </div>
             )}
         </div>
+        {showShipmentSelector && shipmentsQuery.data?.shipments && shipmentsQuery.data.shipments.length > 0 && (
+            <ShipmentSelectorModal
+                order={order}
+                shipments={shipmentsQuery.data.shipments}
+                shipmentItems={shipmentsQuery.data.items || []}
+                onClose={() => setShowShipmentSelector(false)}
+                onSelect={(payload) => {
+                    onPrintShipment?.(payload);
+                    setShowShipmentSelector(false);
+                    onClose();
+                }}
+                onSelectMultiple={onPrintShipments ? (payloads) => {
+                    onPrintShipments(payloads);
+                    setShowShipmentSelector(false);
+                    onClose();
+                } : undefined}
+            />
+        )}
+        </>
     );
 };
 
@@ -1136,6 +1174,7 @@ interface MobileOrdersProps {
     onPrint?: (order: Order) => void;
     onPrintRemainingOrder?: (order: Order) => void;
     onPrintShipment?: (payload: { order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] }) => void;
+    onPrintShipments?: (payloads: Array<{ order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] }>) => void;
     onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
     onPrintAggregated?: (batches: ProductionBatch[], orderDetails?: { orderId: string; customerName: string }) => void;
     onPrintPreparation?: (batches: ProductionBatch[]) => void;
@@ -1152,6 +1191,7 @@ export default function MobileOrders({
     onPrint,
     onPrintRemainingOrder,
     onPrintShipment,
+    onPrintShipments,
     onPrintLabels,
     onPrintAggregated,
     onPrintPreparation,
@@ -1636,6 +1676,7 @@ export default function MobileOrders({
                     onPrintOrder={onPrint}
                     onPrintRemainingOrder={onPrintRemainingOrder}
                     onPrintShipment={onPrintShipment}
+                    onPrintShipments={onPrintShipments}
                     onPrintLabels={onPrintLabels}
                     onPrintAggregated={onPrintAggregated}
                     onPrintPreparation={onPrintPreparation}

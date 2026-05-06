@@ -152,6 +152,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         onPrint={setOrderToPrint}
         onPrintRemainingOrder={setRemainingOrderToPrint}
         onPrintShipment={setShipmentToPrint}
+        onPrintShipments={setShipmentsToPrint}
         onPrintLabels={setPrintItems}
         onPrintAggregated={handlePrintAggregated}
         onPrintPreparation={handlePrintPreparation}

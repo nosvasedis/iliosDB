@@ -134,7 +134,7 @@ export default function ShipmentSelectorModal({ order, shipments, shipmentItems,
               Δεν υπάρχουν καταχωρημένες αποστολές για αυτήν την παραγγελία.
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-1">
               {sorted.map((s) => {
                 const rows = itemsByShipmentId.get(s.id) || [];
                 const totalQty = rows.reduce((sum, r) => sum + (r.quantity || 0), 0);
