@@ -2087,6 +2087,11 @@ export const api = {
 
     // NEW: REVERT FROM PRODUCTION
     revertOrderFromProduction: async (orderId: string): Promise<void> => {
+        const shipmentSnapshot = await getOrderShipmentsSnapshot(orderId);
+        if (shipmentSnapshot.shipments.length > 0) {
+            throw new Error('Δεν μπορεί να γίνει πλήρης επαναφορά παραγωγής σε παραγγελία με καταχωρημένες αποστολές.');
+        }
+
         const orderBatches = (await fetchFullTable('production_batches') as ProductionBatch[]).filter((batch) => batch.order_id === orderId);
         for (const batch of orderBatches) {
             await restoreStockForBatch(batch);

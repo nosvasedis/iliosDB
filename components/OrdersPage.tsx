@@ -1184,10 +1184,21 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     };
 
     const handleRevertFromProduction = async (orderId: string) => {
-        // Block revert if order has shipments
+        // Block full production revert if the order has any persisted shipment history.
         const order = orders?.find(o => o.id === orderId);
-        if (order && order.status === OrderStatus.PartiallyDelivered) {
-            showToast('Δεν μπορεί να γίνει επαναφορά σε παραγγελία με ήδη πραγματοποιημένες αποστολές.', 'error');
+        if (order && (order.status === OrderStatus.PartiallyDelivered || order.status === OrderStatus.Delivered)) {
+            showToast('Δεν μπορεί να γίνει πλήρης επαναφορά παραγωγής σε παραγγελία με καταχωρημένες αποστολές.', 'error');
+            return;
+        }
+
+        try {
+            const shipmentSnapshot = await ordersRepository.getShipmentsForOrder(orderId);
+            if (shipmentSnapshot.shipments.length > 0) {
+                showToast('Δεν μπορεί να γίνει πλήρης επαναφορά παραγωγής σε παραγγελία με καταχωρημένες αποστολές.', 'error');
+                return;
+            }
+        } catch (err: any) {
+            showToast(`Δεν επιβεβαιώθηκε με ασφάλεια το ιστορικό αποστολών: ${err.message || 'άγνωστο σφάλμα'}`, 'error');
             return;
         }
 
