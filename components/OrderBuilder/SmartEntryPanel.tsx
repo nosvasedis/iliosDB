@@ -223,6 +223,19 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                 className="w-full p-3 bg-white border border-violet-200 rounded-xl font-mono font-bold text-slate-900 outline-none focus:ring-4 focus:ring-violet-500/15"
                             />
                         </div>
+                        <div>
+                            <label className="text-[10px] text-violet-600 font-black uppercase mb-1 ml-0.5 block flex items-center gap-1">
+                                <StickyNote size={10} /> Σημειώσεις
+                            </label>
+                            <input
+                                type="text"
+                                value={state.itemNotes}
+                                onChange={(e) => setters.setItemNotes(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && actions.executeAddItem()}
+                                placeholder="Προαιρετικές σημειώσεις για αυτή τη γραμμή SP…"
+                                className="w-full p-3 bg-white border border-violet-200 rounded-xl outline-none focus:ring-4 focus:ring-violet-500/15 text-sm text-slate-900"
+                            />
+                        </div>
                     </div>
                 )}
 

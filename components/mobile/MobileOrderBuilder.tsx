@@ -822,6 +822,16 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                             placeholder="Τιμή μονάδας €"
                                             className="w-full p-2.5 rounded-lg border border-violet-200 bg-white font-mono font-bold text-sm"
                                         />
+                                        <label className="text-[10px] font-black text-violet-600 uppercase flex items-center gap-1">
+                                            <StickyNote size={10} /> Σημειώσεις
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={itemNotes}
+                                            onChange={e => setItemNotes(e.target.value)}
+                                            placeholder="Προαιρετικές σημειώσεις για αυτή τη γραμμή…"
+                                            className="w-full p-2.5 rounded-lg border border-violet-200 bg-white text-sm"
+                                        />
                                         <button
                                             type="button"
                                             onClick={handleAddSpecialCreation}
