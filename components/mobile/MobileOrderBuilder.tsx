@@ -20,7 +20,7 @@ import BarcodeScanner from '../BarcodeScanner';
 import MobileCustomerForm from './MobileCustomerForm';
 import { SellerPicker } from '../OrderBuilder/SellerPicker';
 import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../../utils/retailNotes';
-import { getOrderItemMatchKey } from '../../utils/orderItemMatch';
+import { assignMissingOrderLineIds, getOrderItemMatchKey } from '../../utils/orderItemMatch';
 import { getSpecialCreationProductStub, isSpecialCreationSku, SPECIAL_CREATION_SKU } from '../../utils/specialCreationSku';
 import { PRODUCT_OPTION_COLORS, PRODUCT_OPTION_COLOR_LABELS, getProductOptionColorLabel, isXrCordEnamelSku } from '../../utils/xrOptions';
 import { useCollections } from '../../hooks/api/useCollections';
@@ -539,7 +539,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             seller_id: mobSelectedSellerId || ((attachSeller || isSeller) ? (profile?.id ?? user?.id) : undefined),
             seller_name: mobSelectedSellerName || ((attachSeller || isSeller) ? (profile?.full_name || user?.email || undefined) : undefined),
             seller_commission_percent: mobSelectedSellerId ? mobSellerCommissionPercent : undefined,
-            items,
+            items: assignMissingOrderLineIds(items),
             total_price: grandTotal,
             vat_rate: vatRateVal,
             discount_percent: discountPercent,

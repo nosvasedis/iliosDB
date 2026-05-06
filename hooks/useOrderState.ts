@@ -9,7 +9,7 @@ import { getSizingInfo, ProductSizingInfo, SIZE_TYPE_LENGTH, SIZE_TYPE_NUMBER } 
 import { useUI } from '../components/UIProvider';
 import { useAuth } from '../components/AuthContext';
 import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../utils/retailNotes';
-import { assignMissingSpecialCreationLineIds, getOrderItemMatchKey } from '../utils/orderItemMatch';
+import { assignMissingOrderLineIds, getOrderItemMatchKey } from '../utils/orderItemMatch';
 import { getSpecialCreationProductStub, isSpecialCreationSku, SPECIAL_CREATION_SKU } from '../utils/specialCreationSku';
 import { isXrCordEnamelSku } from '../utils/xrOptions';
 import {
@@ -72,7 +72,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
     const [vatRate, setVatRate] = useState<number>(initialOrder?.vat_rate !== undefined ? initialOrder.vat_rate : VatRegime.Standard);
     const [discountPercent, setDiscountPercent] = useState<number>(initialOrder?.discount_percent || 0);
     const [selectedItems, setSelectedItems] = useState<OrderItem[]>(() => {
-        const items = assignMissingSpecialCreationLineIds(initialOrder?.items || []);
+        const items = assignMissingOrderLineIds(initialOrder?.items || []);
         return items.map(item => {
             if (isSpecialCreationSku(item.sku)) {
                 return { ...item, product_details: getSpecialCreationProductStub() };
@@ -182,7 +182,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                         setRetailClientLabel(draft.retailClientLabel !== undefined ? draft.retailClientLabel : parsedDraftNotes.retailClientLabel);
                         setVatRate(draft.vatRate !== undefined ? draft.vatRate : VatRegime.Standard);
                         setDiscountPercent(draft.discountPercent || 0);
-                        const syncedItems = assignMissingSpecialCreationLineIds((draft.selectedItems || []).map((item: any) => {
+                        const syncedItems = assignMissingOrderLineIds((draft.selectedItems || []).map((item: any) => {
                             if (isSpecialCreationSku(item.sku)) {
                                 return { ...item, product_details: getSpecialCreationProductStub() };
                             }
@@ -973,7 +973,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                     seller_id: selectedSellerId || undefined,
                     seller_name: selectedSellerName || undefined,
                     seller_commission_percent: selectedSellerId ? (sellerCommissionPercent ?? null) : null,
-                    items: selectedItems,
+                    items: assignMissingOrderLineIds(selectedItems),
                     total_price: grandTotal,
                     vat_rate: vatRate,
                     discount_percent: discountPercent,
@@ -1019,7 +1019,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                     seller_commission_percent: selectedSellerId ? sellerCommissionPercent : undefined,
                     created_at: new Date().toISOString(),
                     status: OrderStatus.Pending,
-                    items: selectedItems,
+                    items: assignMissingOrderLineIds(selectedItems),
                     total_price: grandTotal,
                     vat_rate: vatRate,
                     discount_percent: discountPercent,

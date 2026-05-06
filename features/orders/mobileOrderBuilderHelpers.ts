@@ -2,7 +2,7 @@ import { Customer, Order, OrderItem, Product, ProductVariant, VatRegime } from '
 import { normalizedIncludes } from '../../utils/greekSearch';
 import { getVariantComponents } from '../../utils/pricingEngine';
 import { getSizingInfo, ProductSizingInfo } from '../../utils/sizing';
-import { assignMissingSpecialCreationLineIds, getOrderItemMatchKey } from '../../utils/orderItemMatch';
+import { assignMissingOrderLineIds, getOrderItemMatchKey } from '../../utils/orderItemMatch';
 import { getSpecialCreationProductStub, isSpecialCreationSku } from '../../utils/specialCreationSku';
 
 export interface MobileOrderBuilderDraftState {
@@ -28,7 +28,7 @@ export function buildMobileOrderBuilderItems(
   items: OrderItem[],
   products: Product[],
 ): OrderItem[] {
-  return assignMissingSpecialCreationLineIds(items).map((item) => {
+  return assignMissingOrderLineIds(items).map((item) => {
     if (isSpecialCreationSku(item.sku)) {
       return { ...item, product_details: getSpecialCreationProductStub() };
     }

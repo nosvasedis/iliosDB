@@ -1020,7 +1020,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                         const currentSend = toSendQuantities[row.originalIndex] || 0;
                                         return (
                                             <div
-                                                key={buildOrderItemIdentityKey(row)}
+                                                key={`${buildOrderItemIdentityKey(row)}::idx:${row.originalIndex}`}
                                                 data-index={virtualRow.index}
                                                 ref={rowVirtualizer.measureElement}
                                                 style={{

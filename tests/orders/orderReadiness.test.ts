@@ -258,6 +258,49 @@ describe('getOrderItemProductionStageBreakdown', () => {
       { kind: 'unbatched', quantity: 3 },
     ]);
   });
+
+  it('does not mix production stages for same SKU note variants with different line ids', () => {
+    const notedItem = {
+      sku: 'BDA001',
+      quantity: 1,
+      variant_suffix: 'XPR',
+      line_id: 'note-line',
+    } as Order['items'][number];
+
+    const batches = [
+      {
+        id: 'noted-batch',
+        order_id: 'o1',
+        sku: 'BDA001',
+        variant_suffix: 'XPR',
+        quantity: 1,
+        current_stage: ProductionStage.Ready,
+        created_at: '',
+        updated_at: '',
+        priority: 'Normal',
+        requires_setting: false,
+        notes: 'KO-PR-KO',
+        line_id: 'note-line',
+      },
+      {
+        id: 'normal-batch',
+        order_id: 'o1',
+        sku: 'BDA001',
+        variant_suffix: 'XPR',
+        quantity: 1,
+        current_stage: ProductionStage.Waxing,
+        created_at: '',
+        updated_at: '',
+        priority: 'Normal',
+        requires_setting: false,
+        line_id: 'normal-line',
+      },
+    ];
+
+    expect(getOrderItemProductionStageBreakdown(notedItem, batches)).toEqual([
+      { kind: 'stage', stage: ProductionStage.Ready, quantity: 1 },
+    ]);
+  });
 });
 
 describe('getShipmentReadiness', () => {

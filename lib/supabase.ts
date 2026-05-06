@@ -10,6 +10,7 @@ import { getOrthodoxCelebrationsForYear } from '../utils/orthodoxHoliday';
 import { buildItemIdentityKey } from '../utils/itemIdentity';
 import { formatShipmentIssueLine, hasBlockingShipmentIssues, validateReadyMatchesRemainingForTransfer, validateShipmentRequest } from '../utils/shipmentSafety';
 import { isSpecialCreationSku } from '../utils/specialCreationSku';
+import { assignMissingOrderLineIds } from '../utils/orderItemMatch';
 import { buildOrderShipmentItemKey, buildStockDeductionEntries, checkStockForOrderItems as checkStockForOrderItemsHelper, getOrderShipmentsSnapshotFromTables, getOrderSnapshotById as getOrderSnapshotByIdHelper } from '../features/orders/supabaseHelpers';
 import { buildTransferPlan } from '../features/orders/transferHelpers';
 import { buildInitialBatchHistoryEntry, canMoveBatchToStage as canMoveBatchToStageHelper, getBatchSnapshotById } from '../features/production/supabaseHelpers';
@@ -1051,8 +1052,9 @@ export const api = {
         await safeMutate('customers', 'DELETE', null, { match: { id } });
     },
     saveOrder: async (o: Order): Promise<void> => {
+        const normalizedOrder = { ...o, items: assignMissingOrderLineIds(o.items) };
         // noSelect: orders RLS allows INSERT but blocks read-back → causes PGRST204 with .select()
-        await safeMutate('orders', 'INSERT', o, { noSelect: true });
+        await safeMutate('orders', 'INSERT', normalizedOrder, { noSelect: true });
     },
 
     saveOrderDeliveryPlan: async (plan: OrderDeliveryPlan, reminders: OrderDeliveryReminder[]): Promise<void> => {
@@ -1427,11 +1429,12 @@ export const api = {
 
     // NEW: Modified updateOrder to check for production batch sync
     updateOrder: async (o: Order, isNewPart?: boolean): Promise<void> => {
-        await safeMutate('orders', 'UPDATE', o, { match: { id: o.id }, noSelect: true });
+        const normalizedOrder = { ...o, items: assignMissingOrderLineIds(o.items) };
+        await safeMutate('orders', 'UPDATE', normalizedOrder, { match: { id: normalizedOrder.id }, noSelect: true });
 
         // Smart Reconciliation: If order is in production, sync items to batches
         // We ALWAYS reconcile now if batches exist to avoid the "4 items instead of 2" issue
-        await api.reconcileOrderBatches(o, isNewPart);
+        await api.reconcileOrderBatches(normalizedOrder, isNewPart);
     },
 
     deleteOrder: async (id: string): Promise<void> => {
@@ -1751,7 +1754,7 @@ export const api = {
             });
 
             const demandKeyForItem = (item: any) => {
-                if (isSpecialCreationSku(item.sku)) {
+                if (item.line_id || isSpecialCreationSku(item.sku)) {
                     return buildItemIdentityKey({
                         sku: (item.sku || '').toUpperCase(),
                         variant_suffix: (item.variant_suffix || '').toUpperCase(),
@@ -1768,7 +1771,7 @@ export const api = {
             };
 
             const supplyKeyForBatch = (b: any) => {
-                if (isSpecialCreationSku(b.sku)) {
+                if (b.line_id || isSpecialCreationSku(b.sku)) {
                     return buildItemIdentityKey({
                         sku: (b.sku || '').toUpperCase(),
                         variant_suffix: (b.variant_suffix || '').toUpperCase(),
@@ -1830,8 +1833,8 @@ export const api = {
             const allKeys = new Set([...Object.keys(demandMap), ...Object.keys(supplyMap)]);
             const batchesToInsert: any[] = [];
             const batchIdsToDelete: string[] = [];
-            const batchUpdates: { id: string; quantity: number; updated_at: string; notes?: string | null; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null }[] = [];
-            const batchMetadataUpdates: { id: string; notes: string | null; size_info: string | null; cord_color: string | null; enamel_color: string | null; updated_at: string }[] = [];
+            const batchUpdates: { id: string; quantity: number; updated_at: string; notes?: string | null; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null; line_id?: string | null }[] = [];
+            const batchMetadataUpdates: { id: string; notes: string | null; size_info: string | null; cord_color: string | null; enamel_color: string | null; line_id: string | null; updated_at: string }[] = [];
 
             for (const key of allKeys) {
                 const targetQty = demandMap[key]?.qty || 0;
@@ -1890,6 +1893,7 @@ export const api = {
                             cord_color: item.cord_color || null,
                             enamel_color: item.enamel_color || null,
                             notes: item.notes || null,
+                            line_id: item.line_id ?? null,
                             priority: 'Normal',
                             type: 'Νέα',
                             requires_setting: hasZircons,
@@ -1921,7 +1925,8 @@ export const api = {
                                 notes: demandItem ? (demandItem.notes != null ? demandItem.notes : (batch.notes ?? null)) : undefined,
                                 size_info: demandItem ? (demandItem.size_info ?? null) : undefined,
                                 cord_color: demandItem ? (demandItem.cord_color ?? null) : undefined,
-                                enamel_color: demandItem ? (demandItem.enamel_color ?? null) : undefined
+                                enamel_color: demandItem ? (demandItem.enamel_color ?? null) : undefined,
+                                line_id: demandItem ? (demandItem.line_id ?? null) : undefined
                             });
                             surplus = 0;
                         }
@@ -1935,9 +1940,10 @@ export const api = {
                     const size_info = demandItem.size_info ?? null;
                     const cord_color = demandItem.cord_color ?? null;
                     const enamel_color = demandItem.enamel_color ?? null;
+                    const line_id = demandItem.line_id ?? null;
                     for (const b of existingList) {
                         const notes = demandItem.notes != null ? demandItem.notes : (b.notes ?? null);
-                        batchMetadataUpdates.push({ id: b.id, notes, size_info, cord_color, enamel_color, updated_at: now });
+                        batchMetadataUpdates.push({ id: b.id, notes, size_info, cord_color, enamel_color, line_id, updated_at: now });
                     }
                 }
             }
@@ -1963,13 +1969,14 @@ export const api = {
                     if (u.size_info !== undefined) payload.size_info = u.size_info;
                     if (u.cord_color !== undefined) payload.cord_color = u.cord_color;
                     if (u.enamel_color !== undefined) payload.enamel_color = u.enamel_color;
+                    if (u.line_id !== undefined) payload.line_id = u.line_id;
                     return safeMutate('production_batches', 'UPDATE', payload, { match: { id: u.id } });
                 }));
             }
             // Sync notes/size_info when qty matches so order re-edits (notes, size) are reflected
             if (batchMetadataUpdates.length > 0) {
                 await Promise.all(batchMetadataUpdates.map(u =>
-                    safeMutate('production_batches', 'UPDATE', { notes: u.notes, size_info: u.size_info, cord_color: u.cord_color, enamel_color: u.enamel_color, updated_at: u.updated_at }, { match: { id: u.id } })
+                    safeMutate('production_batches', 'UPDATE', { notes: u.notes, size_info: u.size_info, cord_color: u.cord_color, enamel_color: u.enamel_color, line_id: u.line_id, updated_at: u.updated_at }, { match: { id: u.id } })
                 ));
             }
         } catch (err) {
@@ -2096,6 +2103,7 @@ export const api = {
                     cord_color: item.cord_color || null,
                     enamel_color: item.enamel_color || null,
                     notes: item.notes || null,
+                    line_id: item.line_id ?? null,
                     priority: 'Normal',
                     type: 'Από Stock' as BatchType,
                     requires_setting: hasZircons,
@@ -2118,6 +2126,7 @@ export const api = {
                     cord_color: item.cord_color || null,
                     enamel_color: item.enamel_color || null,
                     notes: item.notes || null,
+                    line_id: item.line_id ?? null,
                     priority: 'Normal',
                     type: 'Νέα',
                     requires_setting: hasZircons,

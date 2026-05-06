@@ -123,4 +123,25 @@ describe('orders print helpers', () => {
     });
     expect(batchKey).toBe(itemKey);
   });
+
+  it('keeps same SKU note variants separate when line_id is present', () => {
+    const notedKey = buildOrderItemIdentityKey({
+      sku: 'BDA001',
+      variant_suffix: 'XPR',
+      size_info: null,
+      cord_color: null,
+      enamel_color: null,
+      line_id: 'note-line',
+    });
+    const normalKey = buildOrderItemIdentityKey({
+      sku: 'BDA001',
+      variant_suffix: 'XPR',
+      size_info: null,
+      cord_color: null,
+      enamel_color: null,
+      line_id: 'normal-line',
+    });
+
+    expect(notedKey).not.toBe(normalKey);
+  });
 });
