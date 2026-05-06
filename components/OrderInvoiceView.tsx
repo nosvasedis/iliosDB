@@ -246,9 +246,6 @@ export default function OrderInvoiceView({ order, title, revisionSuffix }: Props
                     </div>
                 </div>
             </footer>
-             <div className="mt-4 text-center text-[8px] text-slate-400 uppercase tracking-widest font-bold">
-                System Generated • Ilios Kosmima ERP • {new Date().toLocaleTimeString()}
-            </div>
             {hasOverriddenPrices && (
                 <div className="mt-1 text-center text-[8px] text-amber-700 font-bold">
                     * Τιμή ανά τεμάχιο με εξαίρεση για τη συγκεκριμένη παραγγελία.

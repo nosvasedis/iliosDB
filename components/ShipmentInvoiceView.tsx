@@ -110,7 +110,7 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                 </div>
 
                 <div className="text-right">
-                    <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-none mb-0.5">Δελτίο Αποστολής</h1>
+                    <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-none mb-0.5">ΠΡΟΣΦΟΡΑ ILIOS</h1>
                     <div className="flex items-center justify-end gap-3 text-[10px] text-slate-700 font-medium">
                         <span className="flex items-center gap-1"><Truck size={10}/> Αποστολή #{shipment.shipment_number}</span>
                         <span className="text-slate-300">|</span>

@@ -215,9 +215,6 @@ export default function AnalyticsPrintReport({ stats, title }: Props) {
             </div>
             )}
 
-            <div className="absolute bottom-6 left-0 right-0 text-center">
-                 <p className="text-[7px] text-slate-300 uppercase tracking-widest">System Generated Report • {new Date().toLocaleTimeString()}</p>
-            </div>
         </div>
     );
 }
