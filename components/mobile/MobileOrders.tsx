@@ -873,6 +873,25 @@ const OrderPrintSheet: React.FC<{
                 </div>
             </div>
         </div>
+        {showShipmentSelector && shipmentsQuery.data?.shipments && shipmentsQuery.data.shipments.length > 0 && (
+            <ShipmentSelectorModal
+                order={order}
+                shipments={shipmentsQuery.data.shipments}
+                shipmentItems={shipmentsQuery.data.items || []}
+                onClose={() => setShowShipmentSelector(false)}
+                onSelect={(payload) => {
+                    onPrintShipment?.(payload);
+                    setShowShipmentSelector(false);
+                    onClose();
+                }}
+                onSelectMultiple={onPrintShipments ? (payloads) => {
+                    onPrintShipments(payloads);
+                    setShowShipmentSelector(false);
+                    onClose();
+                } : undefined}
+            />
+        )}
+        </>
     );
 };
 
@@ -1146,25 +1165,6 @@ const OrderCard: React.FC<{
                 </div>
             )}
         </div>
-        {showShipmentSelector && shipmentsQuery.data?.shipments && shipmentsQuery.data.shipments.length > 0 && (
-            <ShipmentSelectorModal
-                order={order}
-                shipments={shipmentsQuery.data.shipments}
-                shipmentItems={shipmentsQuery.data.items || []}
-                onClose={() => setShowShipmentSelector(false)}
-                onSelect={(payload) => {
-                    onPrintShipment?.(payload);
-                    setShowShipmentSelector(false);
-                    onClose();
-                }}
-                onSelectMultiple={onPrintShipments ? (payloads) => {
-                    onPrintShipments(payloads);
-                    setShowShipmentSelector(false);
-                    onClose();
-                } : undefined}
-            />
-        )}
-        </>
     );
 };
 
