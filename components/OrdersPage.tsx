@@ -1637,7 +1637,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                         <div className="p-4 text-right font-bold text-slate-800">{formatCurrency(netValue)}</div>
                                         <div className="p-4 min-w-0">
                                             <div className="flex flex-wrap items-start gap-2">
-                                                {(order.status === OrderStatus.InProduction || order.status === OrderStatus.Pending) ? (
+                                                {(order.status === OrderStatus.InProduction || order.status === OrderStatus.Pending || order.status === OrderStatus.PartiallyDelivered) ? (
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handleSendToProduction(order.id); }}
                                                         title="Διαχείριση Παραγωγής"
