@@ -16,7 +16,8 @@ import { extractRetailClientFromNotes } from '../utils/retailNotes';
 import { groupBatchesByShipment, getShipmentReadiness, isOrderReady } from '../utils/orderReadiness';
 import { OrderListProgressBar } from './orders/OrderListProgressBar';
 import ShipmentCreationModal from './deliveries/ShipmentCreationModal';
-import { invalidateOrdersAndBatches } from '../lib/queryInvalidation';
+import ShipmentUndoConfirmationModal from './deliveries/ShipmentUndoConfirmationModal';
+import { invalidateOrdersAndBatches, invalidateShipmentUndoQueries } from '../lib/queryInvalidation';
 import { buildPartialOrderFromBatches, buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildSyntheticAggregatedBatches, getShipmentStageBreakdown, getShipmentSummary, getShipmentValue, buildOrderRevisions } from '../features/orders';
 import { getOrderStatusClasses, getOrderStatusLabel, getOrderStatusIcon } from '../features/orders/statusPresentation';
 import { getTagColor } from '../features/orders/tagColors';
@@ -908,6 +909,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     const [productionModalOrder, setProductionModalOrder] = useState<Order | null>(null);
     const [showPartSelector, setShowPartSelector] = useState(false);
     const [shipmentModalOrder, setShipmentModalOrder] = useState<Order | null>(null);
+    const [shipmentUndoRequest, setShipmentUndoRequest] = useState<{ order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] } | null>(null);
+    const [isUndoingShipment, setIsUndoingShipment] = useState(false);
     const [showTagsManager, setShowTagsManager] = useState(false);
     const [showWorkflowActions, setShowWorkflowActions] = useState(false);
     const [showStatusActions, setShowStatusActions] = useState(false);
@@ -1015,6 +1018,12 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         if (!shipments || shipments.length === 0) return null;
         return shipments.reduce((latest, s) => s.shipment_number > latest.shipment_number ? s : latest);
     }, [managingOrderShipmentsQuery.data]);
+    const canOpenManagingOrderProduction = !!managingOrder && (
+        managingOrder.status === OrderStatus.Pending ||
+        managingOrder.status === OrderStatus.InProduction ||
+        managingOrder.status === OrderStatus.PartiallyDelivered ||
+        (managingOrder.status === OrderStatus.Delivered && !!managingOrderLatestShipment)
+    );
 
     // Derived: Filter orders based on Tab, Search, and all panel Filters
     const filteredOrders = useMemo(() => {
@@ -1309,29 +1318,32 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         }
     };
 
-    const handleRevertLatestShipmentFromOrders = async () => {
+    const openShipmentUndoFromOrders = () => {
         if (!managingOrder || !managingOrderLatestShipment) return;
         const shipment = managingOrderLatestShipment;
         const order = managingOrder;
-        const confirmed = await confirm({
-            title: `Αναίρεση Αποστολής #${shipment.shipment_number}`,
-            message: `Θέλετε σίγουρα να αναιρέσετε την αποστολή #${shipment.shipment_number} της παραγγελίας "${order.customer_name || order.id.slice(-6)}"; Τα τεμάχια θα επιστραφούν στην παραγωγή ως Έτοιμα.`,
-            confirmText: 'Ναι, αναίρεση αποστολής',
-            isDestructive: true,
-        });
-        if (!confirmed) return;
+        const shipmentItems = managingOrderShipmentsQuery.data?.items.filter((item) => item.shipment_id === shipment.id) || [];
+        setShipmentUndoRequest({ order, shipment, shipmentItems });
+    };
+
+    const handleConfirmShipmentUndoFromOrders = async () => {
+        if (!shipmentUndoRequest) return;
+        const { order, shipment } = shipmentUndoRequest;
+        setIsUndoingShipment(true);
         try {
             await ordersRepository.revertPartialShipment({
                 shipmentId: shipment.id,
                 orderId: order.id,
                 revertedBy: profile?.full_name || 'Σύστημα',
             });
-            void invalidateOrdersAndBatches(queryClient);
-            queryClient.invalidateQueries({ queryKey: ['order_shipments'] });
+            await invalidateShipmentUndoQueries(queryClient, order.id);
             showToast(`Η αποστολή #${shipment.shipment_number} αναιρέθηκε επιτυχώς.`, 'success');
+            setShipmentUndoRequest(null);
             setManagingOrder(null);
         } catch (e: any) {
             showToast(e?.message || 'Σφάλμα κατά την αναίρεση αποστολής.', 'error');
+        } finally {
+            setIsUndoingShipment(false);
         }
     };
 
@@ -1852,9 +1864,9 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                 </button>
                             )}
 
-                            {managingOrderLatestShipment && (managingOrder.status === OrderStatus.PartiallyDelivered || managingOrder.status === OrderStatus.InProduction) && (
+                            {managingOrderLatestShipment && managingOrder.status !== OrderStatus.Cancelled && (
                                 <button
-                                    onClick={handleRevertLatestShipmentFromOrders}
+                                    onClick={openShipmentUndoFromOrders}
                                     className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition-colors"
                                 >
                                     <RotateCcw size={18} /> Αναίρεση Αποστολής #{managingOrderLatestShipment.shipment_number}
@@ -1870,7 +1882,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                 </button>
                             )}
 
-                            {(managingOrder.status === OrderStatus.Pending || managingOrder.status === OrderStatus.InProduction || managingOrder.status === OrderStatus.PartiallyDelivered) && (
+                            {canOpenManagingOrderProduction && (
                                 <button
                                     onClick={() => handleSendToProduction(managingOrder.id)}
                                     className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors"
@@ -2009,6 +2021,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                     onClose={() => setProductionModalOrder(null)}
                     onSuccess={onProductionSuccess}
                     collections={collections}
+                    userName={profile?.full_name || 'Σύστημα'}
                     onPrintAggregated={onPrintAggregated}
                     onPrintShipment={onPrintShipment}
                     onPartialShipment={() => {
@@ -2027,6 +2040,19 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                     userName={profile?.full_name || 'System'}
                     onConfirm={handleConfirmShipmentFromOrders}
                     onClose={() => setShipmentModalOrder(null)}
+                />
+            )}
+
+            {shipmentUndoRequest && (
+                <ShipmentUndoConfirmationModal
+                    order={shipmentUndoRequest.order}
+                    shipment={shipmentUndoRequest.shipment}
+                    shipmentItems={shipmentUndoRequest.shipmentItems}
+                    isSubmitting={isUndoingShipment}
+                    onCancel={() => {
+                        if (!isUndoingShipment) setShipmentUndoRequest(null);
+                    }}
+                    onConfirm={handleConfirmShipmentUndoFromOrders}
                 />
             )}
 

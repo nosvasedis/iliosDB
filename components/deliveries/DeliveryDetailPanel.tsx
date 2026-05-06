@@ -232,19 +232,33 @@ export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onM
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-bold text-slate-500">{formatGreekDateTime(shipment.shipped_at)}</span>
-                    {onRevertShipment && shipment.shipment_number === maxShipmentNumber && (
-                      <button
-                        onClick={() => onRevertShipment(shipment, item)}
-                        title="Αναίρεση αυτής της αποστολής"
-                        className="p-1.5 rounded-lg bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 transition-colors"
-                      >
-                        <RotateCcw size={12} />
-                      </button>
+                    {onRevertShipment && (
+                      shipment.shipment_number === maxShipmentNumber ? (
+                        <button
+                          onClick={() => onRevertShipment(shipment, item)}
+                          title="Αναίρεση αυτής της αποστολής"
+                          className="p-1.5 rounded-lg bg-red-50 border border-red-100 text-red-600 hover:bg-red-100 transition-colors"
+                        >
+                          <RotateCcw size={12} />
+                        </button>
+                      ) : (
+                        <span
+                          title="Πρώτα πρέπει να αναιρεθούν οι νεότερες αποστολές."
+                          className="p-1.5 rounded-lg bg-slate-50 border border-slate-100 text-slate-300"
+                        >
+                          <RotateCcw size={12} />
+                        </span>
+                      )
                     )}
                   </div>
                 </div>
                 {shipment.notes && <p className="mt-1.5 text-xs text-slate-500 font-medium">{shipment.notes}</p>}
                 <div className="mt-1.5 text-[10px] text-slate-400 font-medium">Από: {shipment.shipped_by}</div>
+                {onRevertShipment && shipment.shipment_number !== maxShipmentNumber && (
+                  <div className="mt-2 text-[10px] font-bold text-slate-400">
+                    Πρώτα πρέπει να αναιρεθούν οι νεότερες αποστολές.
+                  </div>
+                )}
               </div>
             ))}
           </div>

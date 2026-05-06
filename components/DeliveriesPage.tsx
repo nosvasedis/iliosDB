@@ -6,7 +6,7 @@ import { useOrthodoxCalendarEvents } from '../hooks/api/useOrthodoxCalendarEvent
 import { useOrderDeliveryPlans } from '../hooks/api/useOrderDeliveryPlans';
 import { useDeliveryAlerts } from '../hooks/useDeliveryAlerts';
 import { api } from '../lib/supabase';
-import { EnrichedDeliveryItem, Order, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderStatus } from '../types';
+import { EnrichedDeliveryItem, Order, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, OrderStatus } from '../types';
 import { endOfDay, startOfDay } from '../utils/deliveryScheduling';
 import { getOrderDisplayName } from '../utils/deliveryLabels';
 import { getCalendarDayEvents } from '../utils/namedays';
@@ -20,7 +20,8 @@ import DeliveryFilters, { DeliveryFilterKey } from './deliveries/DeliveryFilters
 import DeliveryPlannerModal from './deliveries/DeliveryPlannerModal';
 import DeliverySummaryCards from './deliveries/DeliverySummaryCards';
 import ShipmentCreationModal from './deliveries/ShipmentCreationModal';
-import { invalidateOrdersAndBatches } from '../lib/queryInvalidation';
+import ShipmentUndoConfirmationModal from './deliveries/ShipmentUndoConfirmationModal';
+import { invalidateOrdersAndBatches, invalidateShipmentUndoQueries } from '../lib/queryInvalidation';
 
 interface Props {
   pendingOrderId?: string | null;
@@ -65,6 +66,8 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
   const [isPlannerOpen, setIsPlannerOpen] = useState(false);
   const [plannerOrder, setPlannerOrder] = useState<Order | null>(null);
   const [shipmentItem, setShipmentItem] = useState<EnrichedDeliveryItem | null>(null);
+  const [shipmentUndoRequest, setShipmentUndoRequest] = useState<{ item: EnrichedDeliveryItem; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] } | null>(null);
+  const [isUndoingShipment, setIsUndoingShipment] = useState(false);
   const [loadingReminders, setLoadingReminders] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -181,13 +184,18 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
   };
 
   const handleRevertShipment = async (shipment: OrderShipment, item: EnrichedDeliveryItem) => {
-    const confirmed = await confirm({
-      title: `Αναίρεση Αποστολής #${shipment.shipment_number}`,
-      message: `Θέλετε σίγουρα να αναιρέσετε την αποστολή #${shipment.shipment_number} της παραγγελίας "${item.order.customer_name || item.order.id.slice(-6)}"; Τα τεμάχια θα επιστραφούν στην παραγωγή ως Έτοιμα.`,
-      confirmText: 'Ναι, αναίρεση αποστολής',
-      isDestructive: true,
-    });
-    if (!confirmed) return;
+    try {
+      const shipmentItems = await api.getOrderShipmentItems(shipment.id);
+      setShipmentUndoRequest({ item, shipment, shipmentItems });
+    } catch (e: any) {
+      showToast(e?.message || 'Δεν φορτώθηκαν με ασφάλεια τα τεμάχια της αποστολής.', 'error');
+    }
+  };
+
+  const handleConfirmShipmentUndo = async () => {
+    if (!shipmentUndoRequest) return;
+    const { shipment, item } = shipmentUndoRequest;
+    setIsUndoingShipment(true);
     try {
       await api.revertPartialShipment({
         shipmentId: shipment.id,
@@ -195,9 +203,13 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
         revertedBy: profile?.full_name || 'Σύστημα',
       });
       showToast(`Η αποστολή #${shipment.shipment_number} αναιρέθηκε επιτυχώς.`, 'success');
-      handleRefresh();
+      await invalidateShipmentUndoQueries(queryClient, item.order.id);
+      setShipmentUndoRequest(null);
+      setSelectedItem(null);
     } catch (e: any) {
       showToast(e?.message || 'Σφάλμα κατά την αναίρεση αποστολής.', 'error');
+    } finally {
+      setIsUndoingShipment(false);
     }
   };
 
@@ -313,6 +325,19 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
           userName={profile?.full_name || 'Σύστημα'}
           onConfirm={handleConfirmShipment}
           onClose={() => setShipmentItem(null)}
+        />
+      )}
+
+      {shipmentUndoRequest && (
+        <ShipmentUndoConfirmationModal
+          order={shipmentUndoRequest.item.order}
+          shipment={shipmentUndoRequest.shipment}
+          shipmentItems={shipmentUndoRequest.shipmentItems}
+          isSubmitting={isUndoingShipment}
+          onCancel={() => {
+            if (!isUndoingShipment) setShipmentUndoRequest(null);
+          }}
+          onConfirm={handleConfirmShipmentUndo}
         />
       )}
 

@@ -1,7 +1,7 @@
 import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType, BatchStageHistoryEntry, StageBatchPrintData, OrderStatus, OrderShipment, OrderShipmentItem } from '../types';
-import { X, Factory, CheckCircle, Loader2, ArrowLeft, Clock, StickyNote, History, Package, PauseCircle, PlayCircle, User, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Hash, Search, Printer, Scissors, Trash2, Split, Merge, FileText, AlertCircle, Save, Truck, Send, MoreHorizontal } from 'lucide-react';
+import { X, Factory, CheckCircle, Loader2, ArrowLeft, Clock, StickyNote, History, Package, PauseCircle, PlayCircle, User, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Hash, Search, Printer, Scissors, Trash2, Split, Merge, FileText, AlertCircle, Save, Truck, Send, MoreHorizontal, RotateCcw } from 'lucide-react';
 import { checkStockForOrderItems, deductStockForOrder } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency } from '../utils/pricingEngine';
@@ -23,7 +23,8 @@ import { useOrderShipmentsForOrder } from '../hooks/api/useOrders';
 import { useBatchStageHistoryEntries } from '../hooks/api/useProductionBatches';
 import { ordersRepository } from '../features/orders';
 import { productionRepository, productionKeys } from '../features/production';
-import { invalidateOrdersAndBatches, invalidateProductionBatches } from '../lib/queryInvalidation';
+import { invalidateOrdersAndBatches, invalidateProductionBatches, invalidateShipmentUndoQueries } from '../lib/queryInvalidation';
+import ShipmentUndoConfirmationModal, { getLatestShipmentNumber } from './deliveries/ShipmentUndoConfirmationModal';
 
 import { STAGES, STAGE_BUTTON_COLORS, VIBRANT_STAGES, getStageColorKey } from './production/stageConstants';
 import { StagePipelineBar } from './production/StagePipelineBar';
@@ -44,11 +45,12 @@ interface Props {
     onBack?: () => void;
     onPartialShipment?: () => void;
     onPrintShipment?: (payload: { order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] }) => void;
+    userName?: string;
 }
 
 // ─── MAIN COMPONENT ─────────────────────────────────────────────────────────
 
-export default function ProductionSendModal({ order, products, materials, existingBatches, collections, onClose, onSuccess, onPrintAggregated, onPrintStageBatches, onBack, onPartialShipment, onPrintShipment }: Props) {
+export default function ProductionSendModal({ order, products, materials, existingBatches, collections, onClose, onSuccess, onPrintAggregated, onPrintStageBatches, onBack, onPartialShipment, onPrintShipment, userName = 'Σύστημα' }: Props) {
     const { showToast, confirm } = useUI();
     const queryClient = useQueryClient();
     const { data: shipmentSnapshot, isLoading: isLoadingShipments } = useOrderShipmentsForOrder(order.id);
@@ -103,6 +105,8 @@ export default function ProductionSendModal({ order, products, materials, existi
     const [holdReason, setHoldReason] = useState('');
     const [historyModalBatch, setHistoryModalBatch] = useState<ProductionBatch | null>(null);
     const [batchHistory, setBatchHistory] = useState<BatchStageHistoryEntry[]>([]);
+    const [shipmentUndoRequest, setShipmentUndoRequest] = useState<{ shipment: OrderShipment; shipmentItems: OrderShipmentItem[] } | null>(null);
+    const [isUndoingShipment, setIsUndoingShipment] = useState(false);
 
     // Stage Popup State
     const [activeStagePopup, setActiveStagePopup] = useState<ProductionStage | null>(null);
@@ -826,6 +830,36 @@ export default function ProductionSendModal({ order, products, materials, existi
             });
     }, [shipmentSnapshot, discountFactor, vatRate]);
 
+    const latestShipmentNumber = useMemo(
+        () => getLatestShipmentNumber(shipmentSnapshot?.shipments),
+        [shipmentSnapshot?.shipments]
+    );
+
+    const openShipmentUndo = useCallback((shipment: OrderShipment, shipmentItems: OrderShipmentItem[]) => {
+        if (latestShipmentNumber !== shipment.shipment_number) return;
+        setShipmentUndoRequest({ shipment, shipmentItems });
+    }, [latestShipmentNumber]);
+
+    const handleConfirmShipmentUndo = useCallback(async () => {
+        if (!shipmentUndoRequest) return;
+        const { shipment } = shipmentUndoRequest;
+        setIsUndoingShipment(true);
+        try {
+            await ordersRepository.revertPartialShipment({
+                shipmentId: shipment.id,
+                orderId: order.id,
+                revertedBy: userName,
+            });
+            await invalidateShipmentUndoQueries(queryClient, order.id);
+            showToast(`Η αποστολή #${shipment.shipment_number} αναιρέθηκε επιτυχώς.`, 'success');
+            setShipmentUndoRequest(null);
+        } catch (e: any) {
+            showToast(e?.message || 'Σφάλμα κατά την αναίρεση αποστολής.', 'error');
+        } finally {
+            setIsUndoingShipment(false);
+        }
+    }, [order.id, queryClient, shipmentUndoRequest, showToast, userName]);
+
     const memoizedProductionWaves = useMemo(() => {
         return shipmentHistory.map(([dateKey, batches]) => {
             const totalItems = batches.reduce((acc, b) => acc + b.quantity, 0);
@@ -1091,6 +1125,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                     <div className="space-y-2">
                                         {memoizedShipmentFinancials.map(({ shipment, shipItems, totalQty, net, vat, total }) => {
                                             const prettyDate = new Date(shipment.shipped_at).toLocaleDateString('el-GR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                                            const isLatestShipment = latestShipmentNumber === shipment.shipment_number;
                                             return (
                                                 <div key={shipment.id} className="bg-white p-2.5 rounded-xl border border-emerald-200 shadow-sm">
                                                     <div className="flex items-center justify-between mb-1">
@@ -1115,6 +1150,21 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                         >
                                                             <FileText size={11} /> Δελτίο Αποστολής
                                                         </button>
+                                                    )}
+                                                    {isLatestShipment ? (
+                                                        <button
+                                                            onClick={() => openShipmentUndo(shipment, shipItems)}
+                                                            disabled={isUndoingShipment}
+                                                            className="w-full py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-100 rounded-lg text-[10px] font-black flex items-center justify-center gap-1.5 transition-colors mt-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        >
+                                                            {isUndoingShipment ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
+                                                            Αναίρεση Αποστολής #{shipment.shipment_number}
+                                                        </button>
+                                                    ) : (
+                                                        <div className="mt-1.5 rounded-lg bg-slate-50 border border-slate-100 px-2 py-1.5 text-[9px] font-bold text-slate-400 flex items-start gap-1.5">
+                                                            <RotateCcw size={10} className="shrink-0 mt-0.5" />
+                                                            Πρώτα πρέπει να αναιρεθούν οι νεότερες αποστολές.
+                                                        </div>
                                                     )}
                                                 </div>
                                             );
@@ -1565,6 +1615,19 @@ export default function ProductionSendModal({ order, products, materials, existi
                         </div>
                     </div>
                 </div>
+            )}
+
+            {shipmentUndoRequest && (
+                <ShipmentUndoConfirmationModal
+                    order={order}
+                    shipment={shipmentUndoRequest.shipment}
+                    shipmentItems={shipmentUndoRequest.shipmentItems}
+                    isSubmitting={isUndoingShipment}
+                    onCancel={() => {
+                        if (!isUndoingShipment) setShipmentUndoRequest(null);
+                    }}
+                    onConfirm={handleConfirmShipmentUndo}
+                />
             )}
 
             {/* Batch History Modal */}

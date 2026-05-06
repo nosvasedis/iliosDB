@@ -3511,6 +3511,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         void invalidateOrdersAndBatches(queryClient);
                     }}
                     collections={collections}
+                    userName={profile?.full_name || 'Σύστημα'}
                     onPrintAggregated={onPrintAggregated}
                     onPrintStageBatches={onPrintStageBatches}
                     onBack={() => setQuickManageOrder(null)}
