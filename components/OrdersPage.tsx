@@ -25,6 +25,7 @@ import { useTagColorOverrides } from '../hooks/api/useTagColorOverrides';
 import { getSpecialCreationProductStub, isSpecialCreationSku } from '../utils/specialCreationSku';
 import SkuOrderSearchModal from './orders/SkuOrderSearchModal';
 import TransferRemainingItemsModal from './TransferRemainingItemsModal';
+import ShipmentSelectorModal from './ShipmentSelectorModal';
 import { useCollections } from '../hooks/api/useCollections';
 import { useCustomers, useOrderShipmentsForOrder, useOrders } from '../hooks/api/useOrders';
 import { useProductionBatches } from '../hooks/api/useProductionBatches';
@@ -34,6 +35,7 @@ import { SellerPicker } from './OrderBuilder/SellerPicker';
 import { productionRepository } from '../features/production';
 import { auditRepository } from '../features/audit';
 import { dispatchLiveActivity } from '../hooks/useLiveActivity';
+import { usePrint } from './PrintContext';
 
 interface Props {
     products: Product[];
@@ -302,8 +304,10 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
     showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
     onShowPartSelector?: () => void;
 }) => {
+    const { setShipmentsToPrint, setShipmentToPrint } = usePrint();
     const orderBatches = useMemo(() => allBatches?.filter(b => b.order_id === order.id) || [], [allBatches, order.id]);
     const [showShipmentPrompt, setShowShipmentPrompt] = useState(false);
+    const [showShipmentSelector, setShowShipmentSelector] = useState(false);
     const [showVersionSelector, setShowVersionSelector] = useState(false);
     const [showCurrentRevisionDiff, setShowCurrentRevisionDiff] = useState(false);
     const shipmentsQuery = useOrderShipmentsForOrder(order.id);
@@ -314,6 +318,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
     const latestShipmentData = useMemo(() => buildLatestShipmentPrintData(order, shipmentsQuery.data), [order, shipmentsQuery.data]);
     const orderRevisions = useMemo(() => buildOrderRevisions(order), [order]);
     const productsBySku = useMemo(() => new Map(products.map((product) => [product.sku, product])), [products]);
+    const hasMultipleOrderShipments = (shipmentsQuery.data?.shipments?.length || 0) > 1;
 
     const formatOptionColor = (value?: string | { label?: string; name?: string; code?: string } | null) => {
         if (!value) return '';
@@ -563,15 +568,26 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                     <div className="p-6 space-y-3">
                         <button
                             onClick={() => {
+                                if (hasMultipleOrderShipments) {
+                                    setShowShipmentPrompt(false);
+                                    setShowShipmentSelector(true);
+                                    return;
+                                }
                                 onPrintShipment?.({ order, shipment: latestShipmentData.shipment, shipmentItems: latestShipmentData.shipmentItems });
                                 setShowShipmentPrompt(false);
                                 onClose();
                             }}
                             className="w-full p-4 rounded-2xl border-2 border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors text-left"
                         >
-                            <div className="font-bold">{'\u0395\u03BA\u03C4\u03CD\u03C0\u03C9\u03C3\u03B7 \u039C\u03B5\u03C1\u03B9\u03BA\u03AE\u03C2 \u0391\u03C0\u03BF\u03C3\u03C4\u03BF\u03BB\u03AE\u03C2'}</div>
+                            <div className="font-bold">
+                                {hasMultipleOrderShipments
+                                    ? 'Επιλογή Μερικής Αποστολής'
+                                    : '\u0395\u03BA\u03C4\u03CD\u03C0\u03C9\u03C3\u03B7 \u039C\u03B5\u03C1\u03B9\u03BA\u03AE\u03C2 \u0391\u03C0\u03BF\u03C3\u03C4\u03BF\u03BB\u03AE\u03C2'}
+                            </div>
                             <div className="text-xs mt-1 opacity-80">
-                                {`\u039C\u03CC\u03BD\u03BF \u03C4\u03B1 \u03C0\u03C1\u03BF\u03CA\u03CC\u03BD\u03C4\u03B1 \u03C0\u03BF\u03C5 \u03C3\u03C4\u03AC\u03BB\u03B8\u03B7\u03BA\u03B1\u03BD \u03C3\u03C4\u03B7 \u03BC\u03B5\u03C1\u03B9\u03BA\u03AE \u03B1\u03C0\u03BF\u03C3\u03C4\u03BF\u03BB\u03AE #${latestShipmentData.shipment.shipment_number}.`}
+                                {hasMultipleOrderShipments
+                                    ? 'Επιλέξτε ποια αποστολή θέλετε να εκτυπώσετε.'
+                                    : `\u039C\u03CC\u03BD\u03BF \u03C4\u03B1 \u03C0\u03C1\u03BF\u03CA\u03CC\u03BD\u03C4\u03B1 \u03C0\u03BF\u03C5 \u03C3\u03C4\u03AC\u03BB\u03B8\u03B7\u03BA\u03B1\u03BD \u03C3\u03C4\u03B7 \u03BC\u03B5\u03C1\u03B9\u03BA\u03AE \u03B1\u03C0\u03BF\u03C3\u03C4\u03BF\u03BB\u03AE #${latestShipmentData.shipment.shipment_number}.`}
                             </div>
                         </button>
                         <button
@@ -615,6 +631,26 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                     </div>
                 </div>
             </div>
+        )}
+        {showShipmentSelector && shipmentsQuery.data?.shipments && shipmentsQuery.data.shipments.length > 0 && (
+            <ShipmentSelectorModal
+                order={order}
+                shipments={shipmentsQuery.data.shipments}
+                shipmentItems={shipmentsQuery.data.items || []}
+                onClose={() => setShowShipmentSelector(false)}
+                onSelect={(payload) => {
+                    onPrintShipment?.(payload);
+                    setShowShipmentSelector(false);
+                    onClose();
+                }}
+                onSelectMultiple={(payloads) => {
+                    // Ensure we use the multi-print channel.
+                    setShipmentToPrint(null);
+                    setShipmentsToPrint(payloads);
+                    setShowShipmentSelector(false);
+                    onClose();
+                }}
+            />
         )}
         {showVersionSelector && orderRevisions.length > 0 && (
             <div className="fixed inset-0 z-[170] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">

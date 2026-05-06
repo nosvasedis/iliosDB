@@ -19,6 +19,8 @@ interface PrintContextType {
     setRemainingOrderToPrint: (order: Order | null) => void;
     shipmentToPrint: { order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] } | null;
     setShipmentToPrint: (shipment: { order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] } | null) => void;
+    shipmentsToPrint: Array<{ order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] }> | null;
+    setShipmentsToPrint: (shipments: Array<{ order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] }> | null) => void;
     offerToPrint: Offer | null;
     setOfferToPrint: (offer: Offer | null) => void;
     supplierOrderToPrint: SupplierOrder | null;
@@ -56,6 +58,7 @@ export const PrintProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
     const [remainingOrderToPrint, setRemainingOrderToPrint] = useState<Order | null>(null);
     const [shipmentToPrint, setShipmentToPrint] = useState<{ order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] } | null>(null);
+    const [shipmentsToPrint, setShipmentsToPrint] = useState<Array<{ order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] }> | null>(null);
     const [offerToPrint, setOfferToPrint] = useState<Offer | null>(null);
     const [supplierOrderToPrint, setSupplierOrderToPrint] = useState<SupplierOrder | null>(null);
     const [aggregatedPrintData, setAggregatedPrintData] = useState<AggregatedData | null>(null);
@@ -74,6 +77,7 @@ export const PrintProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 orderToPrint, setOrderToPrint,
                 remainingOrderToPrint, setRemainingOrderToPrint,
                 shipmentToPrint, setShipmentToPrint,
+                shipmentsToPrint, setShipmentsToPrint,
                 offerToPrint, setOfferToPrint,
                 supplierOrderToPrint, setSupplierOrderToPrint,
                 aggregatedPrintData, setAggregatedPrintData,

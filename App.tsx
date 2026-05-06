@@ -165,11 +165,11 @@ function AppContent() {
   const { notifications: liveNotifications, dismiss: dismissLiveNotification } = useLiveActivity();
 
   const {
-    setPrintItems, setOrderToPrint, setRemainingOrderToPrint, setShipmentToPrint, setOfferToPrint,
+    setPrintItems, setOrderToPrint, setRemainingOrderToPrint, setShipmentToPrint, setShipmentsToPrint, setOfferToPrint,
     setAggregatedPrintData, setPreparationPrintData,
     setTechnicianPrintData, setAssemblyPrintData, setPriceListPrintData, setAnalyticsPrintData,
     setOrderAnalyticsData, setSupplierOrderToPrint, setStageBatchPrintData,
-    printItems, orderToPrint, remainingOrderToPrint, shipmentToPrint, offerToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData, orderAnalyticsData, supplierOrderToPrint, stageBatchPrintData
+    printItems, orderToPrint, remainingOrderToPrint, shipmentToPrint, shipmentsToPrint, offerToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData, orderAnalyticsData, supplierOrderToPrint, stageBatchPrintData
   } = usePrint() || {}; // Handled gracefully if error
 
   const {
@@ -241,6 +241,7 @@ function AppContent() {
             orderToPrint={orderToPrint}
             remainingOrderToPrint={remainingOrderToPrint}
             shipmentToPrint={shipmentToPrint}
+            shipmentsToPrint={shipmentsToPrint}
             offerToPrint={offerToPrint}
             supplierOrderToPrint={supplierOrderToPrint}
             aggregatedPrintData={aggregatedPrintData}
@@ -256,6 +257,7 @@ function AppContent() {
             setOrderToPrint={setOrderToPrint}
             setRemainingOrderToPrint={setRemainingOrderToPrint}
             setShipmentToPrint={setShipmentToPrint}
+            setShipmentsToPrint={setShipmentsToPrint}
             setOfferToPrint={setOfferToPrint}
             setSupplierOrderToPrint={setSupplierOrderToPrint}
             setAggregatedPrintData={setAggregatedPrintData}
@@ -417,6 +419,7 @@ function AppContent() {
         orderToPrint={orderToPrint}
         remainingOrderToPrint={remainingOrderToPrint}
         shipmentToPrint={shipmentToPrint}
+        shipmentsToPrint={shipmentsToPrint}
         offerToPrint={offerToPrint}
         supplierOrderToPrint={supplierOrderToPrint}
         aggregatedPrintData={aggregatedPrintData}
@@ -432,6 +435,7 @@ function AppContent() {
         setOrderToPrint={setOrderToPrint}
         setRemainingOrderToPrint={setRemainingOrderToPrint}
         setShipmentToPrint={setShipmentToPrint}
+        setShipmentsToPrint={setShipmentsToPrint}
         setOfferToPrint={setOfferToPrint}
         setSupplierOrderToPrint={setSupplierOrderToPrint}
         setAggregatedPrintData={setAggregatedPrintData}

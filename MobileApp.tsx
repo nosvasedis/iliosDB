@@ -74,6 +74,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
   const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
   const [remainingOrderToPrint, setRemainingOrderToPrint] = useState<Order | null>(null);
   const [shipmentToPrint, setShipmentToPrint] = useState<{ order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] } | null>(null);
+  const [shipmentsToPrint, setShipmentsToPrint] = useState<Array<{ order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] }> | null>(null);
   const [offerToPrint, setOfferToPrint] = useState<Offer | null>(null);
   const [aggregatedPrintData, setAggregatedPrintData] = useState<AggregatedData | null>(null);
   const [preparationPrintData, setPreparationPrintData] = useState<{ batches: ProductionBatch[] } | null>(null);
@@ -207,6 +208,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         orderToPrint={orderToPrint}
         remainingOrderToPrint={remainingOrderToPrint}
         shipmentToPrint={shipmentToPrint}
+        shipmentsToPrint={shipmentsToPrint}
         offerToPrint={offerToPrint}
         supplierOrderToPrint={supplierOrderToPrint}
         aggregatedPrintData={aggregatedPrintData}
@@ -222,6 +224,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         setOrderToPrint={setOrderToPrint}
         setRemainingOrderToPrint={setRemainingOrderToPrint}
         setShipmentToPrint={setShipmentToPrint}
+        setShipmentsToPrint={setShipmentsToPrint}
         setOfferToPrint={setOfferToPrint}
         setSupplierOrderToPrint={setSupplierOrderToPrint}
         setAggregatedPrintData={setAggregatedPrintData}

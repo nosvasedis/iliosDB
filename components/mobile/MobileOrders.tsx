@@ -30,6 +30,7 @@ import { StickyNote, UserCheck } from 'lucide-react';
 import { SellerPicker } from '../OrderBuilder/SellerPicker';
 import { useSellers } from '../../hooks/api/useSellers';
 import SkuOrderSearchModal from '../orders/SkuOrderSearchModal';
+import ShipmentSelectorModal from '../ShipmentSelectorModal';
 
 const STAGE_ICON_MAP: Record<ProductionStage, LucideIcon> = {
     [ProductionStage.AwaitingDelivery]: Globe,
@@ -92,6 +93,7 @@ const LegacyOrderPrintSheet: React.FC<{
         queryFn: () => api.getShipmentsForOrder(order.id),
         enabled: !!order.id,
     });
+    const [showShipmentSelector, setShowShipmentSelector] = useState(false);
 
     const latestShipmentData = useMemo(() => {
         const shipmentData = shipmentsQuery.data;
@@ -131,6 +133,11 @@ const LegacyOrderPrintSheet: React.FC<{
 
     const handlePrintShipment = () => {
         if (!latestShipmentData) return;
+        const allShipments = shipmentsQuery.data?.shipments || [];
+        if (allShipments.length > 1) {
+            setShowShipmentSelector(true);
+            return;
+        }
         onPrintShipment?.({
             order,
             shipment: latestShipmentData.shipment,
@@ -237,6 +244,19 @@ const LegacyOrderPrintSheet: React.FC<{
                 </div>
             </div>
         </div>
+        {showShipmentSelector && shipmentsQuery.data?.shipments && shipmentsQuery.data.shipments.length > 0 && (
+            <ShipmentSelectorModal
+                order={order}
+                shipments={shipmentsQuery.data.shipments}
+                shipmentItems={shipmentsQuery.data.items || []}
+                onClose={() => setShowShipmentSelector(false)}
+                onSelect={(payload) => {
+                    onPrintShipment?.(payload);
+                    setShowShipmentSelector(false);
+                    onClose();
+                }}
+            />
+        )}
         {showVersionSelector && orderRevisions.length > 0 && (
             <div className="fixed inset-0 z-[175] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end" onClick={() => setShowVersionSelector(false)}>
                 <div
