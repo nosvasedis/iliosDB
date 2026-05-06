@@ -17,9 +17,10 @@
  *   - No DB is touched here — only analysis/planning.
  */
 
-import { Order, OrderItem, OrderShipmentItem, ProductionBatch, ProductionStage } from '../../types';
+import { Order, OrderItem, ProductionBatch, ProductionStage } from '../../types';
 import { OrderShipmentSnapshot } from './printHelpers';
 import { getRemainingOrderItems, getShippedQuantities } from '../../utils/shipmentUtils';
+import { ShipmentSafetyIssue, validateReadyMatchesRemainingForTransfer } from '../../utils/shipmentSafety';
 import { buildItemIdentityKey } from '../../utils/itemIdentity';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -58,7 +59,9 @@ export interface TransferPlan {
   batchesToRepoint: ProductionBatch[];
   /** Non-Ready batches for remaining items — blocks transfer when non-empty. */
   blockedBatches: BlockedBatch[];
-  /** True only when blockedBatches is empty (all remaining batches are Ready). */
+  /** Quantity mismatches between remaining order lines and Ready batches — blocks transfer when non-empty. */
+  quantityIssues: ShipmentSafetyIssue[];
+  /** True only when every remaining line has exactly matching Ready batches and no blocked batches. */
   isValid: boolean;
   /** Order B's full items array after the transfer (existing items + transferred items). */
   newOrderBItems: OrderItem[];
@@ -173,7 +176,8 @@ export function buildTransferPlan(
     }
   }
 
-  const isValid = blockedBatches.length === 0 && remaining.length > 0;
+  const quantityIssues = validateReadyMatchesRemainingForTransfer(orderA, snapshotA.items, allBatches);
+  const isValid = blockedBatches.length === 0 && quantityIssues.length === 0 && remaining.length > 0;
 
   // 4. Build the transfer items from the remaining item list (pull notes from the original order item).
   const transferItems: TransferItem[] = remaining.map((r) => {
@@ -265,6 +269,7 @@ export function buildTransferPlan(
     transferItems,
     batchesToRepoint,
     blockedBatches,
+    quantityIssues,
     isValid,
     newOrderBItems,
     shippedOnlyOrderAItems,

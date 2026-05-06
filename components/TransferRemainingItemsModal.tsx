@@ -40,6 +40,7 @@ import { deliveryKeys } from '../features/deliveries/keys';
 import { invalidateOrdersAndBatches } from '../lib/queryInvalidation';
 import { formatCurrency } from '../utils/pricingEngine';
 import { formatOrderId } from '../utils/orderUtils';
+import { formatShipmentIssueLine } from '../utils/shipmentSafety';
 import { getOrderStatusLabel } from '../features/orders/statusPresentation';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -342,7 +343,7 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
             <div className="space-y-4">
 
               {/* BLOCK: non-Ready batches */}
-              {!plan.isValid && (
+              {plan.blockedBatches.length > 0 && (
                 <div className="bg-red-50 border border-red-300 rounded-2xl p-4 space-y-2">
                   <div className="flex items-center gap-2 text-red-700 font-bold text-sm">
                     <XCircle size={16} />
@@ -362,6 +363,28 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
                         {b.variant_suffix && <span className="text-red-600">{b.variant_suffix}</span>}
                         {b.size_info && <span className="text-red-500">{b.size_info}</span>}
                         <span className="ml-auto text-red-600">{b.quantity} τεμ. · {stageLabel(b.current_stage)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {plan.quantityIssues.length > 0 && (
+                <div className="bg-red-50 border border-red-300 rounded-2xl p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-red-700 font-bold text-sm">
+                    <XCircle size={16} />
+                    Η μεταφορά μπλοκαρίστηκε για ασφάλεια
+                  </div>
+                  <p className="text-xs text-red-600">
+                    Το υπόλοιπο της Παρ. A πρέπει να ταιριάζει ακριβώς με τις παρτίδες στο στάδιο <strong>Έτοιμα</strong>.
+                    Αλλιώς μπορεί να μεταφερθεί λάθος ποσότητα.
+                  </p>
+                  <div className="space-y-1 mt-2">
+                    {plan.quantityIssues.map((issue) => (
+                      <div key={`${issue.key}-${issue.title}`} className="text-xs bg-red-100 rounded-xl px-3 py-2">
+                        <div className="font-bold text-red-700">{issue.title}</div>
+                        <div className="font-mono text-red-700 mt-0.5">{formatShipmentIssueLine(issue)}</div>
+                        <div className="text-red-600 mt-1">{issue.message}</div>
                       </div>
                     ))}
                   </div>

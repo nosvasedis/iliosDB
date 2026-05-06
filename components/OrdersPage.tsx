@@ -37,6 +37,7 @@ import { productionRepository } from '../features/production';
 import { auditRepository } from '../features/audit';
 import { dispatchLiveActivity } from '../hooks/useLiveActivity';
 import { usePrint } from './PrintContext';
+import { getOrderTransferIndicators } from '../utils/transferIndicators';
 
 interface Props {
     products: Product[];
@@ -1313,8 +1314,9 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             void invalidateOrdersAndBatches(queryClient);
             showToast(`Αποστολή ${items.reduce((s, i) => s + i.quantity, 0)} τεμαχίων καταχωρήθηκε.`, 'success');
             setShipmentModalOrder(null);
-        } catch (e) {
-            showToast('Σφάλμα κατά την αποστολή.', 'error');
+        } catch (e: any) {
+            showToast(e?.message || 'Σφάλμα κατά την αποστολή.', 'error');
+            throw e;
         }
     };
 
@@ -1552,6 +1554,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                 const ready = orderMeta?.isReady || false;
                                 const isRetailOrder = order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME;
                                 const retailClientLabel = orderMeta?.retailClientLabel || '';
+                                const transferIndicators = getOrderTransferIndicators(order.notes);
                                 return (
                                     <div
                                         key={order.id}
@@ -1610,6 +1613,15 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                     </span>
                                                 )}
                                             </div>
+                                            {transferIndicators.length > 0 && (
+                                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                                    {transferIndicators.map((indicator) => (
+                                                        <span key={indicator.detail} title={indicator.detail} className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-md border font-bold uppercase tracking-wide bg-violet-50 text-violet-700 border-violet-100">
+                                                            <ArrowRightLeft size={11} /> {indicator.label}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
                                             {order.tags && order.tags.length > 0 && (
                                                 <div className="flex gap-1.5 mt-2 flex-wrap">
                                                     {order.tags.map(t => {
@@ -1694,6 +1706,11 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                         </span>
                                     )}
                                 </h3>
+                                {getOrderTransferIndicators(managingOrder.notes).map((indicator) => (
+                                    <div key={indicator.detail} title={indicator.detail} className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-violet-50 border border-violet-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-violet-700">
+                                        <ArrowRightLeft size={12} /> {indicator.label}
+                                    </div>
+                                ))}
                             </div>
                             <button onClick={() => setManagingOrder(null)} className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"><X size={18} /></button>
                         </div>

@@ -1,7 +1,8 @@
 import React from 'react';
-import { CalendarRange, CheckCircle2, Gift, PhoneCall } from 'lucide-react';
+import { ArrowRightLeft, CalendarRange, CheckCircle2, Gift, PhoneCall } from 'lucide-react';
 import { EnrichedDeliveryItem } from '../../../types';
 import { DELIVERY_URGENCY_LABELS, formatDeliveryWindow, formatGreekDate, formatGreekDateTime, getOrderDisplayName } from '../../../utils/deliveryLabels';
+import { getOrderTransferIndicators } from '../../../utils/transferIndicators';
 
 interface Props {
   item: EnrichedDeliveryItem;
@@ -9,6 +10,8 @@ interface Props {
 }
 
 export default function MobileDeliveryCard({ item, onClick }: Props) {
+  const transferIndicators = getOrderTransferIndicators(item.order.notes);
+
   return (
     <button onClick={onClick} className="w-full text-left rounded-3xl border border-slate-100 bg-white shadow-sm p-4 active:scale-[0.99] transition-all">
       <div className="flex justify-between gap-3">
@@ -43,6 +46,13 @@ export default function MobileDeliveryCard({ item, onClick }: Props) {
           <span className="truncate">
             {item.next_nameday.is_today ? 'Γιορτάζει σήμερα' : `Γιορτή ${formatGreekDate(item.next_nameday.date)}`}
           </span>
+        </div>
+      )}
+
+      {transferIndicators[0] && (
+        <div className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-full bg-violet-50 border border-violet-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-violet-700">
+          <ArrowRightLeft size={12} />
+          <span className="truncate">{transferIndicators[0].label}</span>
         </div>
       )}
 

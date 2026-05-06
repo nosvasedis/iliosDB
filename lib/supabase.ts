@@ -8,10 +8,13 @@ import { BACKUP_TABLE_REGISTRY, BACKUP_VERSION, BACKUP_FORMAT_MARKER, CONFIG_KEY
 import { buildDefaultReminderDrafts, syncPlanStatusWithOrder } from '../utils/deliveryScheduling';
 import { getOrthodoxCelebrationsForYear } from '../utils/orthodoxHoliday';
 import { buildItemIdentityKey } from '../utils/itemIdentity';
+import { formatShipmentIssueLine, hasBlockingShipmentIssues, validateReadyMatchesRemainingForTransfer, validateShipmentRequest } from '../utils/shipmentSafety';
 import { isSpecialCreationSku } from '../utils/specialCreationSku';
 import { buildOrderShipmentItemKey, buildStockDeductionEntries, checkStockForOrderItems as checkStockForOrderItemsHelper, getOrderShipmentsSnapshotFromTables, getOrderSnapshotById as getOrderSnapshotByIdHelper } from '../features/orders/supabaseHelpers';
+import { buildTransferPlan } from '../features/orders/transferHelpers';
 import { buildInitialBatchHistoryEntry, canMoveBatchToStage as canMoveBatchToStageHelper, getBatchSnapshotById } from '../features/production/supabaseHelpers';
 import { mapCatalogProductsWithRelations, mapProductsWithRelations, resolveProductImageUrl } from '../features/products/mappers';
+import { addReceivedSizeQuantity, resolveSupplierOrderProductReceiptTarget } from '../features/suppliers/receiptHelpers';
 
 // Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
 export const R2_PUBLIC_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
@@ -664,35 +667,72 @@ export const api = {
         const receivedOrder = { ...order, status: 'Received', received_at: new Date().toISOString() };
         await safeMutate('supplier_orders', 'UPDATE', receivedOrder, { match: { id: order.id } });
 
-        // 2. Batch-fetch current stock for all products and materials in this order
+        // 2. Batch-fetch current stock for all products, variants and materials in this order
         const productSkus = [...new Set(order.items.filter(i => i.item_type === 'Product').map(i => i.item_id))];
         const materialIds = [...new Set(order.items.filter(i => i.item_type === 'Material').map(i => i.item_id))];
 
-        let productRows: { sku: string; stock_qty: number }[] = [];
+        let productRows: { sku: string; stock_qty: number; stock_by_size?: Record<string, number> | null }[] = [];
+        let variantRows: { product_sku: string; suffix: string; stock_qty: number; stock_by_size?: Record<string, number> | null }[] = [];
         let materialRows: { id: string; stock_qty: number }[] = [];
 
         if (productSkus.length > 0) {
-            const { data } = await supabase.from('products').select('sku, stock_qty').in('sku', productSkus);
+            const [{ data }, { data: variants }] = await Promise.all([
+                supabase.from('products').select('sku, stock_qty, stock_by_size').in('sku', productSkus),
+                supabase.from('product_variants').select('product_sku, suffix, stock_qty, stock_by_size').in('product_sku', productSkus),
+            ]);
             productRows = data || [];
+            variantRows = variants || [];
         }
         if (materialIds.length > 0) {
             const { data } = await supabase.from('materials').select('id, stock_qty').in('id', materialIds);
             materialRows = data || [];
         }
 
-        const productMap = new Map(productRows.map(p => [p.sku, p.stock_qty ?? 0]));
+        const productMap = new Map(productRows.map(p => [p.sku, { stock_qty: p.stock_qty ?? 0, stock_by_size: p.stock_by_size || {} }]));
+        const variantsBySku = new Map<string, typeof variantRows>();
+        const variantMap = new Map(variantRows.map(v => [`${v.product_sku}::${v.suffix}`, { stock_qty: v.stock_qty ?? 0, stock_by_size: v.stock_by_size || {} }]));
+        variantRows.forEach(v => {
+            const list = variantsBySku.get(v.product_sku) || [];
+            list.push(v);
+            variantsBySku.set(v.product_sku, list);
+        });
         const materialMap = new Map(materialRows.map(m => [m.id, m.stock_qty ?? 0]));
 
         // 3. Apply stock updates in parallel (same logic as before, one update per item)
         const updatePromises: Promise<any>[] = [];
         for (const item of order.items) {
             if (item.item_type === 'Product') {
-                const current = productMap.get(item.item_id);
-                if (current !== undefined) {
+                const target = resolveSupplierOrderProductReceiptTarget(item, variantsBySku.get(item.item_id));
+                const variantKey = target.variantSuffix ? `${target.sku}::${target.variantSuffix}` : null;
+                const variantCurrent = variantKey ? variantMap.get(variantKey) : undefined;
+
+                if (variantKey && variantCurrent && target.variantSuffix) {
+                    const variantSuffix = target.variantSuffix;
+                    const nextStockQty = variantCurrent.stock_qty + item.quantity;
+                    const nextSizeMap = addReceivedSizeQuantity(variantCurrent.stock_by_size, item.size_info, item.quantity);
+                    const updateData: Record<string, any> = { stock_qty: nextStockQty };
+                    if (nextSizeMap) updateData.stock_by_size = nextSizeMap;
+
                     updatePromises.push(
-                        safeMutate('products', 'UPDATE', { stock_qty: current + item.quantity }, { match: { sku: item.item_id } })
+                        safeMutate('product_variants', 'UPDATE', updateData, { match: { product_sku: target.sku, suffix: variantSuffix } })
                     );
-                    updatePromises.push(recordStockMovement(item.item_id, item.quantity, `Supplier Order #${order.id.slice(0, 6)}`));
+                    updatePromises.push(recordStockMovement(target.sku, item.quantity, `Supplier Order #${order.id.slice(0, 6)}`, variantSuffix));
+                    variantMap.set(variantKey, { stock_qty: nextStockQty, stock_by_size: nextSizeMap || variantCurrent.stock_by_size });
+                    continue;
+                }
+
+                const current = productMap.get(target.sku);
+                if (current !== undefined) {
+                    const nextStockQty = current.stock_qty + item.quantity;
+                    const nextSizeMap = addReceivedSizeQuantity(current.stock_by_size, item.size_info, item.quantity);
+                    const updateData: Record<string, any> = { stock_qty: nextStockQty };
+                    if (nextSizeMap) updateData.stock_by_size = nextSizeMap;
+
+                    updatePromises.push(
+                        safeMutate('products', 'UPDATE', updateData, { match: { sku: target.sku } })
+                    );
+                    updatePromises.push(recordStockMovement(target.sku, item.quantity, `Supplier Order #${order.id.slice(0, 6)}`));
+                    productMap.set(target.sku, { stock_qty: nextStockQty, stock_by_size: nextSizeMap || current.stock_by_size });
                 }
             } else if (item.item_type === 'Material') {
                 const current = materialMap.get(item.item_id);
@@ -1138,6 +1178,22 @@ export const api = {
             line_id: item.line_id || null
         }));
 
+        const orderSnapshot = await getOrderSnapshot(params.orderId);
+        if (!orderSnapshot) throw new Error('Η παραγγελία δεν βρέθηκε. Δεν έγινε αποστολή.');
+        const shipmentIssues = validateShipmentRequest(
+            orderSnapshot,
+            existingShipmentSnapshot.items,
+            params.allBatches,
+            params.items,
+        );
+        if (hasBlockingShipmentIssues(shipmentIssues)) {
+            throw new Error([
+                'Δεν μπορεί να γίνει αποστολή ακόμα, γιατί τα Έτοιμα/υπόλοιπα δεν ταιριάζουν με ασφάλεια.',
+                ...shipmentIssues.map((issue) => `- ${issue.title}: ${formatShipmentIssueLine(issue)}`),
+                'Διορθώστε την ποσότητα ή ελέγξτε το ιστορικό πριν συνεχίσετε.'
+            ].join('\n'));
+        }
+
         const orderBatches = params.allBatches.filter(b => b.order_id === params.orderId);
         const batchMutations: Array<{ method: 'UPDATE' | 'DELETE'; data: any; match: Record<string, any> }> = [];
         for (const item of params.items) {
@@ -1149,6 +1205,7 @@ export const api = {
                     (b.size_info || null) === (item.size_info || null) &&
                     (b.cord_color || null) === (item.cord_color || null) &&
                     (b.enamel_color || null) === (item.enamel_color || null) &&
+                    (b.line_id || null) === (item.line_id || null) &&
                     b.current_stage === ProductionStage.Ready
                 )
                 .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()); // FIFO
@@ -2572,20 +2629,43 @@ export const api = {
         partialFailureStep?: 'close_order_a' | 'cancel_plans';
         error?: string;
     }> => {
+        const freshOrderA = await getOrderSnapshot(params.orderA.id);
+        const freshOrderB = await getOrderSnapshot(params.orderB.id);
+        if (!freshOrderA || !freshOrderB) {
+            return { success: false, rolledBack: true, error: 'Η μεταφορά μπλοκαρίστηκε: δεν βρέθηκε μία από τις δύο παραγγελίες.' };
+        }
+        const freshSnapshotA = await getOrderShipmentsSnapshot(params.orderA.id);
+        const freshBatches = await fetchFullTable('production_batches') as ProductionBatch[];
+        const transferIssues = validateReadyMatchesRemainingForTransfer(freshOrderA, freshSnapshotA.items, freshBatches);
+        if (hasBlockingShipmentIssues(transferIssues)) {
+            return {
+                success: false,
+                rolledBack: true,
+                error: [
+                    'Η μεταφορά μπλοκαρίστηκε για ασφάλεια: το υπόλοιπο δεν ταιριάζει ακριβώς με τις Έτοιμες παρτίδες.',
+                    ...transferIssues.map((issue) => `- ${issue.title}: ${formatShipmentIssueLine(issue)}`),
+                ].join('\n'),
+            };
+        }
+        const safePlan = buildTransferPlan(freshOrderA, freshOrderB, freshSnapshotA, freshBatches);
+        if (!safePlan.isValid) {
+            return { success: false, rolledBack: true, error: 'Η μεταφορά μπλοκαρίστηκε: το πλάνο άλλαξε και δεν είναι πλέον ασφαλές.' };
+        }
+
         const now = new Date().toISOString();
         const dateLabel = new Date().toLocaleDateString('el-GR');
-        const transferredCount = params.batchesToRepoint.reduce((s, b) => s + b.quantity, 0);
-        const noteA = `\n\n[ΜΕΤΑΦΟΡΑ ${dateLabel}] Υπόλοιπο ${transferredCount} τεμ. μεταφέρθηκε → παρ. #${params.orderB.id.slice(-6)} | ${params.userName}`;
-        const noteB = `\n\n[ΜΕΤΑΦΟΡΑ ${dateLabel}] Ελήφθησαν ${transferredCount} τεμ. από παρ. #${params.orderA.id.slice(-6)} | ${params.userName}`;
+        const transferredCount = safePlan.batchesToRepoint.reduce((s, b) => s + b.quantity, 0);
+        const noteA = `\n\n[ΜΕΤΑΦΟΡΑ ${dateLabel}] Υπόλοιπο ${transferredCount} τεμ. μεταφέρθηκε → παρ. #${freshOrderB.id.slice(-6)} | ${params.userName}`;
+        const noteB = `\n\n[ΜΕΤΑΦΟΡΑ ${dateLabel}] Ελήφθησαν ${transferredCount} τεμ. από παρ. #${freshOrderA.id.slice(-6)} | ${params.userName}`;
 
         // ── STEP 1: Re-point batches ──────────────────────────────────────────────────
         const repointedIds: string[] = [];
         try {
-            for (const batch of params.batchesToRepoint) {
+            for (const batch of safePlan.batchesToRepoint) {
                 await safeMutate(
                     'production_batches',
                     'UPDATE',
-                    { order_id: params.orderB.id, updated_at: now },
+                    { order_id: freshOrderB.id, updated_at: now },
                     { match: { id: batch.id }, noSelect: true },
                 );
                 repointedIds.push(batch.id);
@@ -2597,7 +2677,7 @@ export const api = {
                     await safeMutate(
                         'production_batches',
                         'UPDATE',
-                        { order_id: params.orderA.id, updated_at: now },
+                        { order_id: freshOrderA.id, updated_at: now },
                         { match: { id: batchId }, noSelect: true },
                     );
                 } catch {
@@ -2611,10 +2691,10 @@ export const api = {
         // ── STEP 2: Update Order B ────────────────────────────────────────────────────
         try {
             const updatedOrderB: Order = {
-                ...params.orderB,
-                items: params.newOrderBItems,
-                total_price: params.newOrderBTotal,
-                notes: ((params.orderB.notes ?? '') + noteB).trimStart(),
+                ...freshOrderB,
+                items: safePlan.newOrderBItems,
+                total_price: safePlan.newOrderBTotal,
+                notes: ((freshOrderB.notes ?? '') + noteB).trimStart(),
             };
             // updateOrder triggers reconcileOrderBatches internally.
             // Because we re-pointed the batches first, reconcile sees supply=demand → no new batches created.
@@ -2626,7 +2706,7 @@ export const api = {
                     await safeMutate(
                         'production_batches',
                         'UPDATE',
-                        { order_id: params.orderA.id, updated_at: now },
+                        { order_id: freshOrderA.id, updated_at: now },
                         { match: { id: batchId }, noSelect: true },
                     );
                 } catch {
@@ -2648,11 +2728,11 @@ export const api = {
                 'UPDATE',
                 {
                     status: OrderStatus.Delivered,
-                    items: params.shippedOnlyOrderAItems,
-                    total_price: params.recalculatedOrderATotal,
-                    notes: ((params.orderA.notes ?? '') + noteA).trimStart(),
+                    items: safePlan.shippedOnlyOrderAItems,
+                    total_price: safePlan.recalculatedOrderATotal,
+                    notes: ((freshOrderA.notes ?? '') + noteA).trimStart(),
                 },
-                { match: { id: params.orderA.id }, noSelect: true },
+                { match: { id: freshOrderA.id }, noSelect: true },
             );
         } catch (err) {
             console.error('[transferRemainingItemsToOrder] Failed to close Order A:', err);
@@ -2678,8 +2758,8 @@ export const api = {
         void api.logAction(params.userName, 'ΜΕΤΑΦΟΡΑ ΥΠΟΛΟΙΠΟΥ ΠΑΡΑΓΓΕΛΙΑΣ', {
             from_order_id: params.orderA.id,
             to_order_id: params.orderB.id,
-            transferred_item_count: params.newOrderBItems.length - params.orderB.items.length + params.batchesToRepoint.length,
-            batch_count: params.batchesToRepoint.length,
+            transferred_item_count: safePlan.newOrderBItems.length - freshOrderB.items.length + safePlan.batchesToRepoint.length,
+            batch_count: safePlan.batchesToRepoint.length,
             transferred_qty: transferredCount,
         });
 

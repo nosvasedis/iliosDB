@@ -1,5 +1,5 @@
 import React from 'react';
-import { BellRing, CalendarRange, CheckCircle2, ClipboardList, ExternalLink, Flame, Gem, Gift, Globe, Hammer, ImageIcon, Layers, Loader2, Package, PackageCheck, Phone, PhoneCall, RotateCcw, Send, Tag, Trash2, Truck, History } from 'lucide-react';
+import { ArrowRightLeft, BellRing, CalendarRange, CheckCircle2, ClipboardList, ExternalLink, Flame, Gem, Gift, Globe, Hammer, ImageIcon, Layers, Loader2, Package, Phone, PhoneCall, RotateCcw, Send, Tag, Trash2, Truck, History } from 'lucide-react';
 import { EnrichedDeliveryItem, OrderDeliveryReminder, OrderShipment, OrderStatus, ProductionStage, ShipmentGroup } from '../../types';
 import { getVariantComponents } from '../../utils/pricingEngine';
 import {
@@ -19,6 +19,7 @@ import {
   PRODUCTION_STAGE_COLORS
 } from '../../utils/deliveryLabels';
 import { getProductOptionColorLabel } from '../../utils/xrOptions';
+import { getOrderTransferIndicators } from '../../utils/transferIndicators';
 
 const STAGE_ICONS: Record<ProductionStage, React.ReactNode> = {
   [ProductionStage.AwaitingDelivery]: <Globe size={14} />,
@@ -91,6 +92,8 @@ export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onM
     );
   }
 
+  const transferIndicators = getOrderTransferIndicators(item.order.notes);
+
   return (
     <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-5">
       <div className="flex items-start justify-between gap-3">
@@ -107,6 +110,11 @@ export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onM
             <span className="text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
               {DELIVERY_URGENCY_LABELS[item.urgency]}
             </span>
+            {transferIndicators.map((indicator) => (
+              <span key={indicator.detail} title={indicator.detail} className="text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full bg-violet-50 text-violet-700 border border-violet-100 inline-flex items-center gap-1">
+                <ArrowRightLeft size={11} /> {indicator.label}
+              </span>
+            ))}
           </div>
         </div>
         {item.phone && (
@@ -126,6 +134,18 @@ export default function DeliveryDetailPanel({ item, onEditPlan, onOpenOrder, onM
           <div className="mt-2 font-bold text-slate-800">{item.phone || 'Δεν υπάρχει διαθέσιμο τηλέφωνο'}</div>
         </div>
       </div>
+
+      {transferIndicators.length > 0 && (
+        <div className="rounded-2xl bg-violet-50 border border-violet-100 p-4 space-y-2">
+          <div className="text-[11px] font-black uppercase tracking-wide text-violet-700 flex items-center gap-2"><ArrowRightLeft size={14} /> Μεταφορά μεταξύ παραγγελιών</div>
+          {transferIndicators.map((indicator) => (
+            <div key={indicator.detail} className="rounded-xl bg-white border border-violet-100 px-3 py-2">
+              <div className="text-sm font-black text-violet-800">{indicator.label}</div>
+              <div className="text-xs font-medium text-slate-600 mt-0.5">{indicator.detail}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {item.next_nameday && (
         <div className="rounded-2xl bg-sky-50 border border-sky-100 p-4">

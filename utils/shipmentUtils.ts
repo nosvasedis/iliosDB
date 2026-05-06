@@ -68,7 +68,7 @@ export function getReadyToShipItems(
   const groupMap = new Map<string, { sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null; quantity: number; batchIds: string[]; line_id?: string | null }>();
 
   for (const batch of orderBatches) {
-    const key = itemKey(batch.sku, batch.variant_suffix, batch.size_info, batch.cord_color, batch.enamel_color);
+    const key = itemKey(batch.sku, batch.variant_suffix, batch.size_info, batch.cord_color, batch.enamel_color, batch.line_id);
     const existing = groupMap.get(key);
     if (existing) {
       existing.quantity += batch.quantity;
@@ -82,7 +82,7 @@ export function getReadyToShipItems(
         enamel_color: batch.enamel_color,
         quantity: batch.quantity,
         batchIds: [batch.id],
-        line_id: null
+        line_id: batch.line_id || null
       });
     }
   }

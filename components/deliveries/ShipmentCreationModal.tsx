@@ -1,12 +1,14 @@
 
 import React, { useState, useMemo } from 'react';
-import { X, Truck, Package, Minus, Plus, ImageIcon, StickyNote, CheckCircle2 } from 'lucide-react';
-import { Order, ProductionBatch, ProductionStage, Product, OrderShipmentItem } from '../../types';
+import { X, Truck, Package, Minus, Plus, ImageIcon, StickyNote, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Order, ProductionBatch, Product, OrderShipmentItem } from '../../types';
 import { getReadyToShipItems, computeShipmentValue } from '../../utils/shipmentUtils';
+import { formatShipmentIssueLine, hasBlockingShipmentIssues, ShipmentSafetyIssue, validateShipmentRequest } from '../../utils/shipmentSafety';
 import { getVariantComponents, formatCurrency } from '../../utils/pricingEngine';
 import { formatOrderId } from '../../utils/orderUtils';
 import { buildItemIdentityKey } from '../../utils/itemIdentity';
 import { getProductOptionColorLabel } from '../../utils/xrOptions';
+import { api } from '../../lib/supabase';
 
 interface Props {
   order: Order;
@@ -41,6 +43,8 @@ export default function ShipmentCreationModal({ order, batches, products, delive
   });
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
+  const [safetyIssues, setSafetyIssues] = useState<ShipmentSafetyIssue[]>([]);
+  const [safetyError, setSafetyError] = useState<string | null>(null);
 
   const adjustQty = (key: string, delta: number) => {
     setShipQtys(prev => {
@@ -108,11 +112,21 @@ export default function ShipmentCreationModal({ order, batches, products, delive
   const handleConfirm = async () => {
     if (totalShippingQty === 0) return;
     setLoading(true);
+    setSafetyIssues([]);
+    setSafetyError(null);
     try {
+      const snapshot = await api.getShipmentsForOrder(order.id);
+      const issues = validateShipmentRequest(order, snapshot.items, batches, shipmentItems);
+      if (hasBlockingShipmentIssues(issues)) {
+        setSafetyIssues(issues);
+        return;
+      }
       await onConfirm(
         shipmentItems.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color, quantity: i.quantity, price_at_order: i.price_at_order, line_id: i.line_id || null })),
         notes.trim() || null
       );
+    } catch (e: any) {
+      setSafetyError(e?.message || 'Δεν μπορεί να γίνει αποστολή ακόμα. Ελέγξτε τα Έτοιμα και το ιστορικό αποστολών.');
     } finally {
       setLoading(false);
     }
@@ -154,6 +168,29 @@ export default function ShipmentCreationModal({ order, batches, products, delive
 
         {/* Items */}
         <div className="flex-1 overflow-y-auto p-6 space-y-3">
+          {(safetyIssues.length > 0 || safetyError) && (
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+              <div className="flex items-center gap-2 font-black">
+                <AlertTriangle size={16} />
+                Δεν μπορεί να γίνει αποστολή ακόμα
+              </div>
+              <p className="mt-1 text-xs font-medium text-red-700">
+                Η εφαρμογή βρήκε διαφορά ανάμεσα στο υπόλοιπο, στα ήδη απεσταλμένα και στις Έτοιμες παρτίδες. Δεν θα στείλει τίποτα μέχρι να διορθωθεί.
+              </p>
+              {safetyError && <p className="mt-2 whitespace-pre-wrap text-xs font-bold">{safetyError}</p>}
+              {safetyIssues.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {safetyIssues.map((issue) => (
+                    <div key={`${issue.key}-${issue.title}`} className="rounded-xl bg-white/80 border border-red-100 px-3 py-2">
+                      <div className="font-bold">{issue.title}</div>
+                      <div className="text-xs font-medium mt-0.5">{formatShipmentIssueLine(issue)}</div>
+                      <div className="text-xs mt-1">{issue.message}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {readyItems.map(item => {
             const key = getItemIdentityKey(item);
             const qty = shipQtys[key] || 0;
