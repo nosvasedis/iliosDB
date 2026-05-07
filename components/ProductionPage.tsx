@@ -851,7 +851,11 @@ const AssemblyOrderSelectorModal = ({
     isOpen: boolean;
     onClose: () => void;
     candidates: AssemblyOrderCandidate[];
-    onConfirm: (selectedOrderIds: string[], stageFilter: ProductionStage[] | null) => void;
+    onConfirm: (
+        selectedOrderIds: string[],
+        stageFilter: ProductionStage[] | null,
+        opts: { includeInProduction: boolean; includeNotInProduction: boolean }
+    ) => void;
 }) => {
     const ASSEMBLY_STAGE_CFG: Array<{
         id: ProductionStage;
@@ -877,12 +881,16 @@ const AssemblyOrderSelectorModal = ({
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set(candidates.map(c => c.order.id)));
     const [activeStageFilter, setActiveStageFilter] = useState<Set<ProductionStage>>(new Set());
+    const [includeInProduction, setIncludeInProduction] = useState(true);
+    const [includeNotInProduction, setIncludeNotInProduction] = useState(true);
 
     useEffect(() => {
         if (!isOpen) return;
         setSearchTerm('');
         setActiveStageFilter(new Set());
         setSelectedOrderIds(new Set(candidates.map(c => c.order.id)));
+        setIncludeInProduction(true);
+        setIncludeNotInProduction(true);
     }, [isOpen, candidates]);
 
     // Stage counts across all candidates (for the filter bar pills).
@@ -1052,7 +1060,41 @@ const AssemblyOrderSelectorModal = ({
                 </div>
 
                 {/* ── Search + Select all ── */}
-                <div className="p-4 border-b border-slate-100 bg-white flex items-center gap-3">
+                <div className="p-4 border-b border-slate-100 bg-white space-y-3">
+                    {/* ── Content filter (in production vs not yet in production) ── */}
+                    <div className="flex flex-wrap gap-2 items-center justify-between">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            Περιεχόμενο Εκτύπωσης
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setIncludeInProduction(v => !v)}
+                                className={`px-3 py-1 rounded-full text-xs font-black border transition-all ${
+                                    includeInProduction
+                                        ? 'bg-blue-600 text-white border-transparent shadow-sm'
+                                        : 'bg-white text-slate-500 border-slate-300 hover:border-slate-500'
+                                }`}
+                                title="Περιλαμβάνει ποσότητες που έχουν ήδη παρτίδες (σε στάδια εκτός Έτοιμων)"
+                            >
+                                Σε παραγωγή
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIncludeNotInProduction(v => !v)}
+                                className={`px-3 py-1 rounded-full text-xs font-black border transition-all ${
+                                    includeNotInProduction
+                                        ? 'bg-purple-600 text-white border-transparent shadow-sm'
+                                        : 'bg-white text-slate-500 border-slate-300 hover:border-slate-500'
+                                }`}
+                                title="Περιλαμβάνει ποσότητες που υπάρχουν στην εντολή αλλά δεν έχουν ακόμη παρτίδες σε παραγωγή"
+                            >
+                                Εκτός παραγωγής
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
                     <div className="relative flex-1">
                         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input
@@ -1069,6 +1111,7 @@ const AssemblyOrderSelectorModal = ({
                     >
                         {allVisibleSelected ? <><Square size={14} /> Αποεπιλογή</> : <><CheckSquare size={14} /> Επιλογή Όλων</>}
                     </button>
+                    </div>
                 </div>
 
                 {/* ── Candidate list ── */}
@@ -1180,10 +1223,14 @@ const AssemblyOrderSelectorModal = ({
                         </button>
                         <button
                             onClick={() => {
-                                onConfirm(Array.from(selectedOrderIds), stageFilterArray);
+                                onConfirm(
+                                    Array.from(selectedOrderIds),
+                                    stageFilterArray,
+                                    { includeInProduction, includeNotInProduction }
+                                );
                                 onClose();
                             }}
-                            disabled={selectedCount === 0}
+                            disabled={selectedCount === 0 || (!includeInProduction && !includeNotInProduction)}
                             className="px-6 py-2.5 rounded-xl bg-pink-600 text-white font-bold hover:bg-pink-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
                             <Printer size={18} />
@@ -3221,53 +3268,85 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         });
     };
 
-    const handleAssemblyOrderPrintConfirm = (selectedOrderIds: string[], stageFilter: ProductionStage[] | null) => {
+    const handleAssemblyOrderPrintConfirm = (
+        selectedOrderIds: string[],
+        stageFilter: ProductionStage[] | null,
+        opts: { includeInProduction: boolean; includeNotInProduction: boolean }
+    ) => {
         if (!onPrintAssembly) return;
 
-        let rows: AssemblyPrintRow[];
-
-        if (!stageFilter || stageFilter.length === 0) {
-            // Original behavior: rows derived from order items (total ordered - ready)
-            const selectedCandidates = assemblyOrderCandidates.filter((candidate) => selectedOrderIds.includes(candidate.order.id));
-            rows = selectedCandidates.flatMap((candidate) => candidate.rows);
-        } else {
-            // Stage-filtered: rows derived from actual batches currently in the selected stages.
-            // Only assembly-eligible SKUs are valid for this sheet.
-            const stageSet = new Set(stageFilter);
-            const filteredBatches = enhancedBatches.filter(b =>
-                b.order_id &&
-                selectedOrderIds.includes(b.order_id) &&
-                stageSet.has(b.current_stage) &&
-                !b.on_hold &&
-                requiresAssemblyStage(b.sku) &&
-                !isSpecialCreationSku(b.sku)
-            );
-            const rowsByKey = new Map<string, AssemblyPrintRow>();
-            filteredBatches.forEach((batch, idx) => {
-                const key = [batch.order_id, batch.sku, batch.variant_suffix || '', batch.size_info || ''].join('::');
-                const customerName = (batch as any).customer_name || '';
-                const existing = rowsByKey.get(key);
-                if (existing) {
-                    existing.quantity += batch.quantity;
-                } else {
-                    rowsByKey.set(key, {
-                        id: `batch-row-${batch.id}-${idx}`,
-                        order_id: batch.order_id!,
-                        customer_name: customerName,
-                        sku: batch.sku,
-                        variant_suffix: batch.variant_suffix,
-                        size_info: batch.size_info,
-                        quantity: batch.quantity,
-                    });
-                }
-            });
-            rows = Array.from(rowsByKey.values());
+        const includeInProduction = !!opts?.includeInProduction;
+        const includeNotInProduction = !!opts?.includeNotInProduction;
+        if (!includeInProduction && !includeNotInProduction) {
+            showToast("Επιλέξτε τουλάχιστον μία επιλογή: «Σε παραγωγή» ή «Εκτός παραγωγής».", "info");
+            return;
         }
+
+        // Base rows are always derived from order items (ordered - ready).
+        // Then we can optionally keep only the part that is already in production,
+        // and/or the part that exists in the order but is not yet in production.
+        const selectedCandidates = assemblyOrderCandidates.filter((candidate) => selectedOrderIds.includes(candidate.order.id));
+        const baseRows = selectedCandidates.flatMap((candidate) => candidate.rows);
+
+        // Qty currently in production (any non-Ready stage) per order+sku+variant+size
+        const inProductionQtyByKey = new Map<string, number>();
+        enhancedBatches.forEach((b) => {
+            if (!b.order_id) return;
+            if (!selectedOrderIds.includes(b.order_id)) return;
+            if (!requiresAssemblyStage(b.sku) || isSpecialCreationSku(b.sku)) return;
+            if (b.current_stage === ProductionStage.Ready) return;
+            const key = [b.order_id, b.sku, b.variant_suffix || '', b.size_info || ''].join('::');
+            inProductionQtyByKey.set(key, (inProductionQtyByKey.get(key) || 0) + (b.quantity || 0));
+        });
+
+        // If stage filter is used, "in production" is constrained to those stages.
+        const stageFilteredQtyByKey = new Map<string, number>();
+        if (stageFilter && stageFilter.length > 0) {
+            const stageSet = new Set(stageFilter);
+            enhancedBatches.forEach((b) => {
+                if (!b.order_id) return;
+                if (!selectedOrderIds.includes(b.order_id)) return;
+                if (!requiresAssemblyStage(b.sku) || isSpecialCreationSku(b.sku)) return;
+                if (!stageSet.has(b.current_stage)) return;
+                if (b.on_hold) return; // keep existing behavior for stage-filtered print
+                const key = [b.order_id, b.sku, b.variant_suffix || '', b.size_info || ''].join('::');
+                stageFilteredQtyByKey.set(key, (stageFilteredQtyByKey.get(key) || 0) + (b.quantity || 0));
+            });
+        }
+
+        const rows: AssemblyPrintRow[] = [];
+        baseRows.forEach((r) => {
+            const key = [r.order_id, r.sku, r.variant_suffix || '', r.size_info || ''].join('::');
+            const remainingQty = r.quantity || 0;
+            if (remainingQty <= 0) return;
+
+            const totalInProd = inProductionQtyByKey.get(key) || 0;
+            const cappedInProd = Math.min(remainingQty, Math.max(0, totalInProd));
+
+            const inProdQtyToPrint =
+                stageFilter && stageFilter.length > 0
+                    ? Math.min(remainingQty, Math.max(0, stageFilteredQtyByKey.get(key) || 0))
+                    : cappedInProd;
+
+            const notInProdQtyToPrint = Math.max(0, remainingQty - cappedInProd);
+
+            const finalQty =
+                (includeInProduction ? inProdQtyToPrint : 0) +
+                (includeNotInProduction ? notInProdQtyToPrint : 0);
+
+            if (finalQty <= 0) return;
+
+            rows.push({
+                ...r,
+                id: `${r.id}::filtered`,
+                quantity: finalQty,
+            });
+        });
 
         if (rows.length === 0) {
             showToast(
                 stageFilter && stageFilter.length > 0
-                    ? "Δεν βρέθηκαν παρτίδες στα επιλεγμένα στάδια."
+                    ? "Δεν βρέθηκαν ποσότητες για εκτύπωση με τα επιλεγμένα φίλτρα."
                     : "Δεν βρέθηκαν assembly είδη για τις επιλεγμένες εντολές.",
                 "info"
             );
