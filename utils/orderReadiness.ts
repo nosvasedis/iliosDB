@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { Order, OrderStatus, ProductionBatch, ProductionStage, ShipmentReadinessSummary } from '../types';
 import { buildItemIdentityKey } from './itemIdentity';
 import { PRODUCTION_STAGE_ORDER_INDEX } from './productionStages';
@@ -52,6 +53,12 @@ export type OrderListProgressSegment = {
   pct: number;
   className: string;
   label: string;
+  style?: CSSProperties;
+};
+
+/** Diagonal stripe used on the "not yet in production" segment of progress bars. */
+export const UNBATCHED_STRIPE_STYLE: CSSProperties = {
+  backgroundImage: 'repeating-linear-gradient(45deg, #94a3b8 0px, #94a3b8 3px, #e2e8f0 3px, #e2e8f0 10px)',
 };
 
 export type OrderProductionStageBreakdownEntry =
@@ -290,6 +297,7 @@ export function buildInProductionCollapsedProgressSegments(
       pct: pcts[2],
       className: 'bg-slate-300',
       label: unbatchedQty > 0 ? `Χωρίς ενεργή παραγωγή: ${unbatchedQty} τεμ.` : 'Χωρίς ενεργή παραγωγή',
+      style: unbatchedQty > 0 ? UNBATCHED_STRIPE_STYLE : undefined,
     },
   ];
 
@@ -387,6 +395,7 @@ export function buildPartialDeliveryProgressSegments(
         remainderQty > 0
           ? `Χωρίς ενεργή παραγωγή: ${remainderQty} τεμ.`
           : 'Χωρίς ενεργή παραγωγή',
+      style: remainderQty > 0 ? UNBATCHED_STRIPE_STYLE : undefined,
     },
   ];
 

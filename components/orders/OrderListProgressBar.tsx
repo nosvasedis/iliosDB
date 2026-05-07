@@ -69,7 +69,10 @@ function StageStripAndPills(props: {
                 ? ORDER_PRODUCTION_STAGE_BAR_CLASSNAMES[segment.stage]
                 : UNBATCHED_PRODUCTION_STAGE_STYLES.bar
             } min-w-px border-r border-white/60 last:border-r-0 transition-[width] duration-300`}
-            style={{ width: `${segment.pct}%` }}
+            style={{
+              width: `${segment.pct}%`,
+              ...(segment.kind === 'unbatched' ? UNBATCHED_PRODUCTION_STAGE_STYLES.barStyle : undefined),
+            }}
             title={
               segment.kind === 'stage' && segment.stage !== undefined
                 ? `${getProductionStageLabel(segment.stage)}: ${segment.quantity} τεμ.`
@@ -90,6 +93,7 @@ function StageStripAndPills(props: {
                   ? ORDER_PRODUCTION_STAGE_BAR_CLASSNAMES[segment.stage]
                   : UNBATCHED_PRODUCTION_STAGE_STYLES.bar
               }`}
+              style={segment.kind === 'unbatched' ? UNBATCHED_PRODUCTION_STAGE_STYLES.barStyle : undefined}
             />
             {segment.kind === 'stage' && segment.stage !== undefined
               ? `${getProductionStageLabel(segment.stage)} · ${segment.quantity}`
@@ -144,7 +148,7 @@ export function OrderListProgressBar({ order, batches, ready, density = 'desktop
           <div
             key={idx}
             className={`${s.className} min-w-px border-r border-white/50 last:border-r-0 shrink-0 transition-[width] duration-300`}
-            style={{ width: `${s.pct}%` }}
+            style={{ width: `${s.pct}%`, ...s.style }}
             title={s.label}
           />
         ))}
@@ -237,7 +241,7 @@ export function OrderListProgressBar({ order, batches, ready, density = 'desktop
           <div
             key={idx}
             className={`${s.className} min-w-px border-r border-white/50 last:border-r-0 shrink-0 transition-[width] duration-300`}
-            style={{ width: `${s.pct}%` }}
+            style={{ width: `${s.pct}%`, ...s.style }}
             title={s.label}
           />
         ))}

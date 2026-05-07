@@ -610,6 +610,26 @@ export default function ProductionSendModal({ order, products, materials, existi
         finally { markMoving([batch.id], false); }
     }, [movingBatchIds, markMoving, queryClient, showToast, confirm]);
 
+    const handleBulkRevert = useCallback(async () => {
+        const batchIds = Array.from(selectedBatchIds).filter(id => !movingBatchIds.has(id));
+        if (batchIds.length === 0) return;
+        if (!await confirm({
+            title: 'Μαζική Επαναφορά από Παραγωγή',
+            message: `${batchIds.length} ${batchIds.length === 1 ? 'παρτίδα' : 'παρτίδες'} θα αφαιρεθούν από την παραγωγή. Τυχόν ποσότητες από Stock θα επιστραφούν στο απόθεμα.`,
+            isDestructive: true, confirmText: 'Επαναφορά',
+        })) return;
+        markMoving(batchIds, true);
+        try {
+            for (const id of batchIds) {
+                await productionRepository.revertProductionBatch(id);
+            }
+            await Promise.all([invalidateOrdersAndBatches(queryClient), queryClient.invalidateQueries({ queryKey: ['products'] })]);
+            clearBatchSelection(batchIds);
+            showToast(`${batchIds.length} ${batchIds.length === 1 ? 'παρτίδα επανήλθε' : 'παρτίδες επανήλθαν'} επιτυχώς.`, "success");
+        } catch (e) { showToast("Σφάλμα κατά τη μαζική επαναφορά.", "error"); }
+        finally { markMoving(batchIds, false); }
+    }, [selectedBatchIds, movingBatchIds, markMoving, clearBatchSelection, queryClient, showToast, confirm]);
+
     const handleMergeAllParts = useCallback(async () => {
         if (isWorking || shipmentHistory.length < 2) return;
         if (!await confirm({
@@ -1003,6 +1023,15 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                     <span className="text-slate-400 ml-1">({selectedVisibleActiveCount} ορατές)</span>
                                                 )}
                                             </span>
+                                            <button
+                                                onClick={handleBulkRevert}
+                                                disabled={isAnySelectedMoving || totalSelectedCount === 0}
+                                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-black bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                                title="Επαναφορά επιλεγμένων παρτίδων από παραγωγή"
+                                            >
+                                                <RotateCcw size={12} strokeWidth={2.5} />
+                                                Επαναφορά ({totalSelectedCount})
+                                            </button>
                                         </div>
                                         <BulkStageActions
                                             disabled={isAnySelectedMoving || totalSelectedCount === 0}

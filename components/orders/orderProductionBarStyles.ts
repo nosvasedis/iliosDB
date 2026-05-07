@@ -1,4 +1,5 @@
 import { ProductionStage } from '../../types';
+import { UNBATCHED_STRIPE_STYLE } from '../../utils/orderReadiness';
 
 /** Solid bar strip colors per stage (list + mobile expanded bar). */
 export const ORDER_PRODUCTION_STAGE_BAR_CLASSNAMES: Record<ProductionStage, string> = {
@@ -18,4 +19,5 @@ export const UNBATCHED_PRODUCTION_STAGE_STYLES = {
   text: 'text-slate-600',
   border: 'border-slate-200',
   bar: 'bg-slate-300',
+  barStyle: UNBATCHED_STRIPE_STYLE,
 } as const;
