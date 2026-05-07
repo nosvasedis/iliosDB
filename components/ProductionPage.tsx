@@ -343,12 +343,14 @@ const DesktopSettingStoneModal: React.FC<{
     );
 };
 
-const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelSortMode, onLabelSortModeChange, showPolishingSubstages }: {
+const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, stageMeta, labelSortMode, onLabelSortModeChange, showPolishingSubstages }: {
     isOpen: boolean,
     onClose: () => void,
     onConfirm: (selected: ProductionBatch[]) => void,
     batches: (ProductionBatch & { customer_name?: string })[],
     title: string,
+    type?: PrintSelectorType | '',
+    stageMeta?: { stageId: ProductionStage; stageName: string },
     labelSortMode?: LabelPrintSortMode,
     onLabelSortModeChange?: (mode: LabelPrintSortMode) => void,
     showPolishingSubstages?: boolean,
@@ -443,17 +445,150 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelS
 
     if (!isOpen) return null;
 
+    const theme = (() => {
+        const base = {
+            headerGradient: 'from-slate-50 to-white',
+            iconText: 'text-slate-700',
+            ring: 'ring-slate-100',
+            focusRing: 'focus:ring-slate-500/20 focus:border-slate-300',
+            groupSelectedBorder: 'border-slate-300 ring-1 ring-slate-100',
+            groupHoverBorder: 'hover:border-slate-300',
+            itemSelectedBg: 'bg-slate-50 hover:bg-slate-100',
+            itemHoverBg: 'hover:bg-slate-50',
+            checkboxSelected: 'bg-slate-700 border-slate-700',
+            checkboxSelectedItem: 'bg-slate-600 border-slate-600',
+            primaryBtn: 'bg-slate-900 hover:bg-slate-950',
+            metaText: 'text-slate-500',
+        };
+
+        if (type === 'labels') {
+            return {
+                ...base,
+                headerGradient: 'from-emerald-50 to-white',
+                iconText: 'text-emerald-700',
+                ring: 'ring-emerald-100',
+                focusRing: 'focus:ring-emerald-500/20 focus:border-emerald-300',
+                groupSelectedBorder: 'border-emerald-300 ring-1 ring-emerald-100',
+                groupHoverBorder: 'hover:border-emerald-200',
+                itemSelectedBg: 'bg-emerald-50 hover:bg-emerald-100',
+                checkboxSelected: 'bg-emerald-600 border-emerald-600',
+                checkboxSelectedItem: 'bg-emerald-600 border-emerald-600',
+                primaryBtn: 'bg-emerald-600 hover:bg-emerald-700',
+                metaText: 'text-emerald-700',
+            };
+        }
+        if (type === 'preparation') {
+            return {
+                ...base,
+                headerGradient: 'from-amber-50 to-white',
+                iconText: 'text-amber-700',
+                ring: 'ring-amber-100',
+                focusRing: 'focus:ring-amber-500/20 focus:border-amber-300',
+                groupSelectedBorder: 'border-amber-300 ring-1 ring-amber-100',
+                groupHoverBorder: 'hover:border-amber-200',
+                itemSelectedBg: 'bg-amber-50 hover:bg-amber-100',
+                checkboxSelected: 'bg-amber-600 border-amber-600',
+                checkboxSelectedItem: 'bg-amber-600 border-amber-600',
+                primaryBtn: 'bg-amber-600 hover:bg-amber-700',
+                metaText: 'text-amber-700',
+            };
+        }
+        if (type === 'technician') {
+            return {
+                ...base,
+                headerGradient: 'from-blue-50 to-white',
+                iconText: 'text-blue-700',
+                ring: 'ring-blue-100',
+                focusRing: 'focus:ring-blue-500/20 focus:border-blue-300',
+                groupSelectedBorder: 'border-blue-300 ring-1 ring-blue-100',
+                groupHoverBorder: 'hover:border-blue-200',
+                itemSelectedBg: 'bg-blue-50 hover:bg-blue-100',
+                checkboxSelected: 'bg-blue-600 border-blue-600',
+                checkboxSelectedItem: 'bg-blue-500 border-blue-500',
+                primaryBtn: 'bg-blue-600 hover:bg-blue-700',
+                metaText: 'text-blue-600',
+            };
+        }
+        if (type === 'aggregated') {
+            return {
+                ...base,
+                headerGradient: 'from-indigo-50 to-white',
+                iconText: 'text-indigo-700',
+                ring: 'ring-indigo-100',
+                focusRing: 'focus:ring-indigo-500/20 focus:border-indigo-300',
+                groupSelectedBorder: 'border-indigo-300 ring-1 ring-indigo-100',
+                groupHoverBorder: 'hover:border-indigo-200',
+                itemSelectedBg: 'bg-indigo-50 hover:bg-indigo-100',
+                checkboxSelected: 'bg-indigo-600 border-indigo-600',
+                checkboxSelectedItem: 'bg-indigo-500 border-indigo-500',
+                primaryBtn: 'bg-indigo-600 hover:bg-indigo-700',
+                metaText: 'text-indigo-700',
+            };
+        }
+        if (type === 'stagePdf') {
+            // Make stage PDFs follow the stage's general color family.
+            switch (stageMeta?.stageId) {
+                case ProductionStage.AwaitingDelivery:
+                    return { ...base, headerGradient: 'from-indigo-50 to-white', iconText: 'text-indigo-700', ring: 'ring-indigo-100', focusRing: 'focus:ring-indigo-500/20 focus:border-indigo-300', groupSelectedBorder: 'border-indigo-300 ring-1 ring-indigo-100', groupHoverBorder: 'hover:border-indigo-200', itemSelectedBg: 'bg-indigo-50 hover:bg-indigo-100', checkboxSelected: 'bg-indigo-600 border-indigo-600', checkboxSelectedItem: 'bg-indigo-500 border-indigo-500', primaryBtn: 'bg-indigo-600 hover:bg-indigo-700', metaText: 'text-indigo-700' };
+                case ProductionStage.Casting:
+                    return { ...base, headerGradient: 'from-orange-50 to-white', iconText: 'text-orange-700', ring: 'ring-orange-100', focusRing: 'focus:ring-orange-500/20 focus:border-orange-300', groupSelectedBorder: 'border-orange-300 ring-1 ring-orange-100', groupHoverBorder: 'hover:border-orange-200', itemSelectedBg: 'bg-orange-50 hover:bg-orange-100', checkboxSelected: 'bg-orange-600 border-orange-600', checkboxSelectedItem: 'bg-orange-500 border-orange-500', primaryBtn: 'bg-orange-600 hover:bg-orange-700', metaText: 'text-orange-700' };
+                case ProductionStage.Setting:
+                    return { ...base, headerGradient: 'from-purple-50 to-white', iconText: 'text-purple-700', ring: 'ring-purple-100', focusRing: 'focus:ring-purple-500/20 focus:border-purple-300', groupSelectedBorder: 'border-purple-300 ring-1 ring-purple-100', groupHoverBorder: 'hover:border-purple-200', itemSelectedBg: 'bg-purple-50 hover:bg-purple-100', checkboxSelected: 'bg-purple-600 border-purple-600', checkboxSelectedItem: 'bg-purple-500 border-purple-500', primaryBtn: 'bg-purple-600 hover:bg-purple-700', metaText: 'text-purple-700' };
+                case ProductionStage.Assembly:
+                    return { ...base, headerGradient: 'from-pink-50 to-white', iconText: 'text-pink-700', ring: 'ring-pink-100', focusRing: 'focus:ring-pink-500/20 focus:border-pink-300', groupSelectedBorder: 'border-pink-300 ring-1 ring-pink-100', groupHoverBorder: 'hover:border-pink-200', itemSelectedBg: 'bg-pink-50 hover:bg-pink-100', checkboxSelected: 'bg-pink-600 border-pink-600', checkboxSelectedItem: 'bg-pink-500 border-pink-500', primaryBtn: 'bg-pink-600 hover:bg-pink-700', metaText: 'text-pink-700' };
+                case ProductionStage.Labeling:
+                    return { ...base, headerGradient: 'from-yellow-50 to-white', iconText: 'text-yellow-700', ring: 'ring-yellow-100', focusRing: 'focus:ring-yellow-500/20 focus:border-yellow-300', groupSelectedBorder: 'border-yellow-300 ring-1 ring-yellow-100', groupHoverBorder: 'hover:border-yellow-200', itemSelectedBg: 'bg-yellow-50 hover:bg-yellow-100', checkboxSelected: 'bg-yellow-600 border-yellow-600', checkboxSelectedItem: 'bg-yellow-500 border-yellow-500', primaryBtn: 'bg-yellow-600 hover:bg-yellow-700', metaText: 'text-yellow-700' };
+                case ProductionStage.Ready:
+                    return { ...base, headerGradient: 'from-emerald-50 to-white', iconText: 'text-emerald-700', ring: 'ring-emerald-100', focusRing: 'focus:ring-emerald-500/20 focus:border-emerald-300', groupSelectedBorder: 'border-emerald-300 ring-1 ring-emerald-100', groupHoverBorder: 'hover:border-emerald-200', itemSelectedBg: 'bg-emerald-50 hover:bg-emerald-100', checkboxSelected: 'bg-emerald-600 border-emerald-600', checkboxSelectedItem: 'bg-emerald-600 border-emerald-600', primaryBtn: 'bg-emerald-600 hover:bg-emerald-700', metaText: 'text-emerald-700' };
+                default:
+                    return {
+                        ...base,
+                        headerGradient: 'from-slate-50 to-white',
+                        iconText: 'text-slate-700',
+                        ring: 'ring-slate-100',
+                        focusRing: 'focus:ring-slate-500/20 focus:border-slate-300',
+                        groupSelectedBorder: 'border-slate-300 ring-1 ring-slate-100',
+                        groupHoverBorder: 'hover:border-slate-300',
+                        itemSelectedBg: 'bg-slate-50 hover:bg-slate-100',
+                        checkboxSelected: 'bg-slate-800 border-slate-800',
+                        checkboxSelectedItem: 'bg-slate-700 border-slate-700',
+                        primaryBtn: 'bg-slate-900 hover:bg-slate-950',
+                        metaText: 'text-slate-600',
+                    };
+            }
+        }
+
+        // Default remains "blue-ish" for legacy cases
+        return {
+            ...base,
+            headerGradient: 'from-blue-50 to-white',
+            iconText: 'text-blue-700',
+            ring: 'ring-blue-100',
+            focusRing: 'focus:ring-blue-500/20 focus:border-blue-300',
+            groupSelectedBorder: 'border-blue-300 ring-1 ring-blue-100',
+            groupHoverBorder: 'hover:border-blue-200',
+            itemSelectedBg: 'bg-blue-50 hover:bg-blue-100',
+            checkboxSelected: 'bg-blue-600 border-blue-600',
+            checkboxSelectedItem: 'bg-blue-500 border-blue-500',
+            primaryBtn: 'bg-blue-600 hover:bg-blue-700',
+            metaText: 'text-blue-600',
+        };
+    })();
+
     return (
         <div className="fixed inset-0 z-[230] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
             <div className="bg-white w-full max-w-2xl max-h-[92vh] rounded-3xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden animate-in zoom-in-95">
 
                 {/* ── Header ── */}
-                <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-blue-50 to-white">
+                <div className={`p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r ${theme.headerGradient}`}>
                     <div>
                         <h3 className="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
-                            <Printer size={18} className="text-blue-600" /> {title}
+                            <Printer size={18} className={theme.iconText} /> {title}
                         </h3>
-                        <p className="text-xs text-slate-500 mt-1">Επιλέξτε παρτίδες για εκτύπωση</p>
+                        <p className="text-xs text-slate-500 mt-1">
+                            Επιλέξτε παρτίδες για εκτύπωση
+                            <span className={`ml-2 font-black ${theme.metaText}`}>· {selectedIds.size}/{visibleBatches.length}</span>
+                        </p>
                     </div>
                     <button onClick={onClose} className="p-2 rounded-full text-slate-400 hover:bg-slate-200 transition-colors"><X size={20} /></button>
                 </div>
@@ -497,7 +632,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelS
                             placeholder="Αναζήτηση εντολής, πελάτη ή SKU..."
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 text-sm font-medium"
+                            className={`w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 text-sm font-medium ${theme.focusRing}`}
                         />
                     </div>
                     <button
@@ -542,16 +677,22 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelS
                         return (
                             <div
                                 key={key}
-                                className={`bg-white rounded-2xl border transition-all shadow-sm ${allSelected ? 'border-blue-300 ring-1 ring-blue-100' : 'border-slate-200 hover:border-blue-200'}`}
+                                className={`bg-white rounded-2xl border transition-all shadow-sm ${allSelected ? theme.groupSelectedBorder : `border-slate-200 ${theme.groupHoverBorder}`}`}
                             >
                                 {/* Group header */}
                                 <div
                                     className="px-4 py-3 border-b border-slate-100 flex items-center gap-3 cursor-pointer hover:bg-slate-50 rounded-t-2xl transition-colors"
                                     onClick={() => toggleGroup(group.items.map(b => b.id))}
                                 >
-                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors shrink-0 ${allSelected ? 'bg-blue-600 border-blue-600' : someSelected ? 'bg-blue-100 border-blue-300' : 'bg-white border-slate-300'}`}>
+                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors shrink-0 ${
+                                        allSelected
+                                            ? theme.checkboxSelected
+                                            : someSelected
+                                                ? 'bg-slate-100 border-slate-300'
+                                                : 'bg-white border-slate-300'
+                                    }`}>
                                         {allSelected && <Check size={13} className="text-white" />}
-                                        {someSelected && !allSelected && <div className="w-2 h-2 bg-blue-500 rounded-sm" />}
+                                        {someSelected && !allSelected && <div className={`w-2 h-2 rounded-sm ${type === 'labels' ? 'bg-emerald-500' : type === 'preparation' ? 'bg-amber-500' : type === 'aggregated' ? 'bg-indigo-500' : type === 'stagePdf' ? 'bg-slate-500' : 'bg-blue-500'}`} />}
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="font-black text-slate-900 text-sm truncate">{group.name}</div>
@@ -564,9 +705,9 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelS
                                         <div
                                             key={item.id}
                                             onClick={() => toggleBatch(item.id)}
-                                            className={`flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-colors ${selectedIds.has(item.id) ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-slate-50'}`}
+                                            className={`flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-colors ${selectedIds.has(item.id) ? theme.itemSelectedBg : theme.itemHoverBg}`}
                                         >
-                                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0 ${selectedIds.has(item.id) ? 'bg-blue-500 border-blue-500' : 'bg-white border-slate-300'}`}>
+                                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0 ${selectedIds.has(item.id) ? theme.checkboxSelectedItem : 'bg-white border-slate-300'}`}>
                                                 {selectedIds.has(item.id) && <Check size={11} className="text-white" />}
                                             </div>
                                             <div className="flex-1 flex justify-between items-center min-w-0">
@@ -611,7 +752,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelS
                         <button
                             onClick={handleConfirm}
                             disabled={selectedIds.size === 0}
-                            className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            className={`px-6 py-2.5 rounded-xl text-white font-bold transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ${theme.primaryBtn}`}
                         >
                             <Printer size={18} /> Εκτύπωση ({selectedIds.size})
                         </button>
@@ -4092,6 +4233,8 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                     onClose={() => setPrintSelectorState({ isOpen: false, type: '', batches: [] })}
                     onConfirm={executePrint}
                     batches={printSelectorState.batches}
+                    type={printSelectorState.type}
+                    stageMeta={printSelectorState.stageMeta}
                     title={
                         printSelectorState.type === 'technician' ? 'Εκτύπωση Τεχνίτη' :
                             printSelectorState.type === 'preparation' ? 'Εκτύπωση Προετοιμασίας' :
