@@ -1,5 +1,6 @@
 import React from 'react';
 import { ProductionStage } from '../../types';
+import { UNBATCHED_STRIPE_STYLE } from '../../utils/orderReadiness';
 import { STAGES, VIBRANT_STAGES } from './stageConstants';
 
 export type PolishingSubStage = 'pending' | 'dispatched';
@@ -18,6 +19,8 @@ interface StagePipelineBarProps {
         pendingOnHold: number;
         dispatchedOnHold: number;
     };
+    /** Items that exist in the order but are NOT yet in any production batch. Renders a striped segment at the end. */
+    unbatchedQty?: number;
 }
 
 export const StagePipelineBar = React.memo(function StagePipelineBar({
@@ -26,8 +29,11 @@ export const StagePipelineBar = React.memo(function StagePipelineBar({
     totalInProduction,
     onStageClick,
     polishingSplit,
+    unbatchedQty = 0,
 }: StagePipelineBarProps) {
-    if (totalInProduction <= 0) return null;
+    const unbatched = Math.max(0, unbatchedQty);
+    const grandTotal = totalInProduction + unbatched;
+    if (grandTotal <= 0) return null;
 
     const activeStages = STAGES.filter(s => (stageCounts[s.id] || 0) > 0);
 
@@ -42,8 +48,8 @@ export const StagePipelineBar = React.memo(function StagePipelineBar({
                     // ── Split Polishing (Τεχνίτης) into two sub-segments ──
                     if (stage.id === ProductionStage.Polishing && polishingSplit && count > 0) {
                         const { pendingCount, dispatchedCount, pendingOnHold, dispatchedOnHold } = polishingSplit;
-                        const pendingPct = (pendingCount / totalInProduction) * 100;
-                        const dispatchedPct = (dispatchedCount / totalInProduction) * 100;
+                        const pendingPct = (pendingCount / grandTotal) * 100;
+                        const dispatchedPct = (dispatchedCount / grandTotal) * 100;
 
                         return (
                             <React.Fragment key={stage.id}>
@@ -81,7 +87,7 @@ export const StagePipelineBar = React.memo(function StagePipelineBar({
                         );
                     }
 
-                    const pct = (count / totalInProduction) * 100;
+                    const pct = (count / grandTotal) * 100;
                     const vibrant = VIBRANT_STAGES[stage.id] || 'bg-slate-500';
 
                     return (
@@ -101,6 +107,17 @@ export const StagePipelineBar = React.memo(function StagePipelineBar({
                         </button>
                     );
                 })}
+                {unbatched > 0 && (
+                    <div
+                        className="flex items-center justify-center border-l border-white/20"
+                        style={{ width: `${(unbatched / grandTotal) * 100}%`, ...UNBATCHED_STRIPE_STYLE }}
+                        title={`Δεν έχουν μπει ακόμη σε παρτίδα παραγωγής: ${unbatched} τεμ.`}
+                    >
+                        <span className="text-slate-600 text-[10px] font-black truncate px-1 drop-shadow-sm">
+                            {((unbatched / grandTotal) * 100) >= 12 ? `Χωρίς παρτίδα ` : ''}{unbatched}
+                        </span>
+                    </div>
+                )}
             </div>
         </div>
     );

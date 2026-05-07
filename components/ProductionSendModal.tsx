@@ -929,6 +929,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                 totalInProduction={totalInProduction}
                                 onStageClick={handleStagePipelineClick}
                                 polishingSplit={polishingSplit}
+                                unbatchedQty={totalRemaining}
                             />
                         </div>
                     </div>
