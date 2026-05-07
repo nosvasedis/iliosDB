@@ -1020,7 +1020,7 @@ const AssemblyOrderSelectorModal = ({
                                     <span className="text-slate-300 text-sm select-none">|</span>
                                     <button
                                         onClick={() => toggleStageFilter(ProductionStage.Ready)}
-                                        title="Τα Έτοιμα δεν περιλαμβάνονται στο \"Όλα\" — επιλέξτε ρητά αν θέλετε να εκτυπωθούν"
+                                        title={'Τα Έτοιμα δεν περιλαμβάνονται στο "Όλα" — επιλέξτε ρητά αν θέλετε να εκτυπωθούν'}
                                         className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border transition-all ${
                                             active
                                                 ? `${READY_STAGE_CFG.activeBg} ${READY_STAGE_CFG.activeText} border-transparent shadow-sm`
