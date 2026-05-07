@@ -933,6 +933,45 @@ const EditBatchNoteModal = ({ batch, onClose, onSave, isProcessing }: { batch: P
     );
 };
 
+const BulkNoteModal = ({ count, onClose, onSave, isProcessing }: { count: number, onClose: () => void, onSave: (notes: string) => void, isProcessing: boolean }) => {
+    const [note, setNote] = useState('');
+
+    return (
+        <div className="fixed inset-0 z-[350] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-amber-50/50">
+                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <StickyNote size={18} className="text-amber-500" /> Μαζική Σημείωση
+                    </h3>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400"><X size={20} /></button>
+                </div>
+                <div className="p-6">
+                    <div className="mb-4 text-xs text-slate-500">
+                        Η σημείωση θα εφαρμοστεί σε <strong>{count} επιλεγμένες παρτίδες</strong>. Τυχόν υπάρχουσες σημειώσεις θα αντικατασταθούν.
+                    </div>
+                    <textarea
+                        value={note}
+                        onChange={(e) => setNote(e.target.value)}
+                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500/20 h-32 resize-none text-sm font-medium"
+                        placeholder="Γράψτε εδώ..."
+                        autoFocus
+                    />
+                </div>
+                <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
+                    <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-slate-500 font-bold hover:bg-slate-200 transition-colors">Άκυρο</button>
+                    <button
+                        onClick={() => onSave(note)}
+                        disabled={isProcessing}
+                        className="px-6 py-2.5 rounded-xl bg-slate-900 text-white font-bold hover:bg-black transition-colors flex items-center gap-2 shadow-lg"
+                    >
+                        {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Αποθήκευση
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const HoldBatchModal = ({ batch, onClose, onConfirm, isProcessing }: { batch: ProductionBatch, onClose: () => void, onConfirm: (reason: string) => void, isProcessing: boolean }) => {
     const [reason, setReason] = useState('');
 
@@ -1890,6 +1929,10 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     const [editingNoteBatch, setEditingNoteBatch] = useState<ProductionBatch | null>(null);
     const [isSavingNote, setIsSavingNote] = useState(false);
 
+    // Bulk Note
+    const [bulkNoteOpen, setBulkNoteOpen] = useState(false);
+    const [isSavingBulkNote, setIsSavingBulkNote] = useState(false);
+
     // Hold Batch
     const [holdingBatch, setHoldingBatch] = useState<ProductionBatch | null>(null);
 
@@ -2480,6 +2523,25 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             showToast("Σφάλμα αποθήκευσης σημειώσεις.", "error");
         } finally {
             setIsSavingNote(false);
+        }
+    };
+
+    const handleBulkSaveNote = async (newNote: string) => {
+        if (multiSelectIds.size === 0) return;
+        setIsSavingBulkNote(true);
+        try {
+            await Promise.all(
+                Array.from(multiSelectIds).map(id =>
+                    productionRepository.updateBatchNotes(id, newNote || null)
+                )
+            );
+            await invalidateProductionBatches(queryClient);
+            showToast(`Η σημείωση αποθηκεύτηκε σε ${multiSelectIds.size} παρτίδες.`, 'success');
+            setBulkNoteOpen(false);
+        } catch (e) {
+            showToast('Σφάλμα αποθήκευσης σημειώσεων.', 'error');
+        } finally {
+            setIsSavingBulkNote(false);
         }
     };
 
@@ -3484,6 +3546,15 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                 />
             )}
 
+            {bulkNoteOpen && (
+                <BulkNoteModal
+                    count={multiSelectIds.size}
+                    onClose={() => setBulkNoteOpen(false)}
+                    onSave={handleBulkSaveNote}
+                    isProcessing={isSavingBulkNote}
+                />
+            )}
+
             {holdingBatch && (
                 <HoldBatchModal
                     batch={holdingBatch}
@@ -3714,6 +3785,14 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         >
                             {isBulkMoving ? <Loader2 size={14} className="animate-spin" /> : <MoveRight size={14} />}
                             Μετακίνηση
+                        </button>
+                        <button
+                            onClick={() => setBulkNoteOpen(true)}
+                            disabled={isBulkMoving}
+                            className="shrink-0 p-1.5 hover:bg-amber-500/20 rounded-lg text-amber-400 hover:text-amber-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            title="Σημείωση σε όλες τις επιλεγμένες"
+                        >
+                            <StickyNote size={16} />
                         </button>
                         <button
                             onClick={() => { setMultiSelectIds(new Set()); setBulkMoveTarget(null); setBulkMovePendingDispatch(undefined); }}
