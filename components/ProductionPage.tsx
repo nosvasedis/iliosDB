@@ -2215,6 +2215,17 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                 ? `${RETAIL_CUSTOMER_NAME} • ${retailClientLabel}`
                 : (order?.customer_name || '');
 
+            // Resolve the per-order price override for label printing
+            const matchingOrderItem = order?.items.find(item => {
+                if (item.sku !== b.sku) return false;
+                if ((item.variant_suffix || '') !== (b.variant_suffix || '')) return false;
+                if (b.line_id && item.line_id) return item.line_id === b.line_id;
+                return true;
+            });
+            const overridden_price = (matchingOrderItem && (matchingOrderItem.price_override === true || isSpecialCreationSku(b.sku)))
+                ? matchingOrderItem.price_at_order
+                : undefined;
+
             return {
                 ...b,
                 product_details: prod,
@@ -2228,7 +2239,8 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                 reminderKey: timingInfo.reminderKey,
                 requires_setting: hasZircons,
                 requires_assembly,
-                customer_name: customerName
+                customer_name: customerName,
+                overridden_price,
             };
         }) || [];
         return results as EnhancedProductionBatch[];

@@ -976,6 +976,17 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             // Check if assembly stage is required based on SKU
             const requires_assembly = isSpecialCreationSku(b.sku) ? false : requiresAssemblyStage(b.sku);
 
+            // Resolve the per-order price override for label printing
+            const matchingOrderItem = order?.items.find(item => {
+                if (item.sku !== b.sku) return false;
+                if ((item.variant_suffix || '') !== (b.variant_suffix || '')) return false;
+                if (b.line_id && item.line_id) return item.line_id === b.line_id;
+                return true;
+            });
+            const overridden_price = (matchingOrderItem && (matchingOrderItem.price_override === true || isSpecialCreationSku(b.sku)))
+                ? matchingOrderItem.price_at_order
+                : undefined;
+
             return {
                 ...b,
                 requires_setting: hasZircons,
@@ -1001,6 +1012,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                 timingStatus: timingInfo.timingStatus,
                 timingLabel: timingInfo.timingLabel,
                 reminderKey: timingInfo.reminderKey,
+                overridden_price,
             };
         });
     }, [batches, allProducts, materials, orders, batchHistoryLookup, timingNow]);

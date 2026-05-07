@@ -1,6 +1,7 @@
 import { Order, OrderShipment, OrderShipmentItem, Product, ProductVariant, ProductionBatch, ProductionStage, PriceChangeRecord } from '../../types';
 import { ItemIdentityLike, buildItemIdentityKey } from '../../utils/itemIdentity';
 import { getRemainingOrderItems } from '../../utils/shipmentUtils';
+import { getSpecialCreationProductStub, isSpecialCreationSku } from '../../utils/specialCreationSku';
 
 export interface OrderShipmentSnapshot {
   shipments: OrderShipment[];
@@ -90,18 +91,29 @@ export function buildOrderLabelPrintItems(
   products: Product[],
 ): OrderLabelPrintItem[] {
   return order.items.flatMap((item) => {
-    const product = products.find((p) => p.sku === item.sku);
+    const product = products.find((p) => p.sku === item.sku)
+      ?? (isSpecialCreationSku(item.sku) ? getSpecialCreationProductStub() : undefined);
     if (!product) return [];
 
+    // Apply the order price for SP items and manually-overridden prices
+    const useOrderPrice = isSpecialCreationSku(item.sku) || item.price_override === true;
+    const effectiveProduct = useOrderPrice
+      ? { ...product, selling_price: item.price_at_order }
+      : product;
+
+    const variant = product.variants?.find((v) => v.suffix === item.variant_suffix);
+    const effectiveVariant = (variant && useOrderPrice)
+      ? { ...variant, selling_price: item.price_at_order }
+      : variant;
+
     const labelItem: OrderLabelPrintItem = {
-      product,
+      product: effectiveProduct,
       quantity: item.quantity,
       size: item.size_info,
       format: 'standard',
     };
 
-    const variant = product.variants?.find((v) => v.suffix === item.variant_suffix);
-    if (variant) labelItem.variant = variant;
+    if (effectiveVariant) labelItem.variant = effectiveVariant;
 
     return [labelItem];
   });

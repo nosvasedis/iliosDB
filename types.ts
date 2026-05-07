@@ -513,6 +513,8 @@ export interface EnhancedProductionBatch extends ProductionBatch {
   timingStatus?: ProductionTimingStatus;
   timingLabel?: string;
   reminderKey?: string;
+  /** Price from the originating order item when it was manually overridden (or for SP items). Used to print the correct price on χονδρική labels. */
+  overridden_price?: number;
 }
 
 export interface ChatMessage {

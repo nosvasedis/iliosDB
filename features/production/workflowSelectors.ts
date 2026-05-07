@@ -6,7 +6,7 @@ import { getBatchStageChronologyTimestamp } from './selectors';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import { requiresAssemblyStage, requiresSettingStage } from '../../constants';
-import { isSpecialCreationSku } from '../../utils/specialCreationSku';
+import { isSpecialCreationSku, getSpecialCreationProductStub } from '../../utils/specialCreationSku';
 
 export type ProductionDisplayGroupMode = 'gender' | 'customer';
 export type ProductionDisplaySortOrder = 'alpha' | 'newest' | 'oldest';
@@ -249,18 +249,29 @@ export function buildLabelPrintQueue(
       return `${a.sku}${a.variant_suffix || ''}`.localeCompare(`${b.sku}${b.variant_suffix || ''}`, undefined, { numeric: true, sensitivity: 'base' });
     })
     .flatMap((batch) => {
-      const product = productsMap.get(batch.sku);
+      const product = productsMap.get(batch.sku)
+        ?? (isSpecialCreationSku(batch.sku) ? getSpecialCreationProductStub() : undefined);
       if (!product) return [];
 
+      // Apply per-order price override when present (manually set prices, SP items)
+      const priceOverride = (batch as { overridden_price?: number }).overridden_price;
+      const effectiveProduct = (priceOverride != null && priceOverride > 0)
+        ? { ...product, selling_price: priceOverride }
+        : product;
+
+      const variant = product.variants?.find((candidate) => (candidate.suffix || '') === (batch.variant_suffix || ''));
+      const effectiveVariant = (variant && priceOverride != null && priceOverride > 0)
+        ? { ...variant, selling_price: priceOverride }
+        : variant;
+
       const printItem: ProductionLabelPrintItem = {
-        product,
+        product: effectiveProduct,
         quantity: batch.quantity,
         size: batch.size_info || undefined,
         format: 'standard',
       };
 
-      const variant = product.variants?.find((candidate) => (candidate.suffix || '') === (batch.variant_suffix || ''));
-      if (variant) printItem.variant = variant;
+      if (effectiveVariant) printItem.variant = effectiveVariant;
 
       return [printItem];
     });
