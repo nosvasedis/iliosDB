@@ -18,6 +18,6 @@ export const UNBATCHED_PRODUCTION_STAGE_STYLES = {
   bg: 'bg-slate-100',
   text: 'text-slate-600',
   border: 'border-slate-200',
-  bar: 'bg-slate-300',
+  bar: 'bg-slate-400',
   barStyle: UNBATCHED_STRIPE_STYLE,
 } as const;

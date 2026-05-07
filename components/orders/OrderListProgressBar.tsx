@@ -33,7 +33,7 @@ function useDesktopExpandedBreakdown(
 ): DesktopExpandedBreakdown | null {
   return useMemo(() => {
     if (density !== 'desktop') return null;
-    if (order.status === OrderStatus.InProduction) {
+    if (order.status === OrderStatus.InProduction || order.status === OrderStatus.Pending) {
       const stageBreakdown = buildOrderProductionStageSegments(order, batches);
       if (!stageBreakdown?.segments.length) return null;
       return { mode: 'inProduction', stageBreakdown };
@@ -119,7 +119,9 @@ export function OrderListProgressBar({ order, batches, ready, density = 'desktop
   const partial =
     order.status === OrderStatus.PartiallyDelivered ? buildPartialDeliveryProgressSegments(order, batches) : null;
   const inProd =
-    order.status === OrderStatus.InProduction ? buildInProductionCollapsedProgressSegments(order, batches) : null;
+    (order.status === OrderStatus.InProduction || order.status === OrderStatus.Pending)
+      ? buildInProductionCollapsedProgressSegments(order, batches)
+      : null;
 
   const outerMobile = 'flex items-center gap-2 w-full max-w-full min-w-0';
 

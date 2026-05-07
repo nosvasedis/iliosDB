@@ -3,9 +3,13 @@ import { Order, OrderStatus, ProductionBatch, ProductionStage, ShipmentReadiness
 import { buildItemIdentityKey } from './itemIdentity';
 import { PRODUCTION_STAGE_ORDER_INDEX } from './productionStages';
 
-/** Orders still tied to production pipeline (incl. after a partial shipment). */
+/** Orders where the production progress bar should be shown (incl. pending = "nothing sent yet"). */
 export function orderStatusShowsProductionProgress(status: OrderStatus): boolean {
-  return status === OrderStatus.InProduction || status === OrderStatus.PartiallyDelivered;
+  return (
+    status === OrderStatus.InProduction ||
+    status === OrderStatus.PartiallyDelivered ||
+    status === OrderStatus.Pending
+  );
 }
 
 export function getOrderBatches(orderId: string, batches: ProductionBatch[] | undefined | null): ProductionBatch[] {
@@ -58,7 +62,7 @@ export type OrderListProgressSegment = {
 
 /** Diagonal stripe used on the "not yet in production" segment of progress bars. */
 export const UNBATCHED_STRIPE_STYLE: CSSProperties = {
-  backgroundImage: 'repeating-linear-gradient(45deg, #94a3b8 0px, #94a3b8 3px, #e2e8f0 3px, #e2e8f0 10px)',
+  backgroundImage: 'repeating-linear-gradient(45deg, #94a3b8 0px, #94a3b8 4px, #f1f5f9 4px, #f1f5f9 11px)',
 };
 
 export type OrderProductionStageBreakdownEntry =
@@ -295,7 +299,7 @@ export function buildInProductionCollapsedProgressSegments(
     {
       qty: unbatchedQty,
       pct: pcts[2],
-      className: 'bg-slate-300',
+      className: 'bg-slate-400',
       label: unbatchedQty > 0 ? `Χωρίς ενεργή παραγωγή: ${unbatchedQty} τεμ.` : 'Χωρίς ενεργή παραγωγή',
       style: unbatchedQty > 0 ? UNBATCHED_STRIPE_STYLE : undefined,
     },
@@ -390,7 +394,7 @@ export function buildPartialDeliveryProgressSegments(
     {
       qty: remainderQty,
       pct: pcts[3],
-      className: 'bg-slate-300',
+      className: 'bg-slate-400',
       label:
         remainderQty > 0
           ? `Χωρίς ενεργή παραγωγή: ${remainderQty} τεμ.`
