@@ -595,31 +595,73 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
 
                 {/* ── Polishing sub-stage filter (Τεχνίτης only) ── */}
                 {showPolishingSubstages && (
-                    <div className="px-4 pt-3 pb-3 border-b border-slate-100 bg-slate-50/60">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Υπο-στάδιο Τεχνίτη</p>
-                        <div className="flex gap-2">
+                    <div className="px-4 pt-3 pb-2 border-b border-slate-100 bg-slate-50/60">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Φίλτρο Υπο-σταδίου</p>
+                        <div className="flex flex-wrap gap-1.5 items-center">
+                            {/* "Όλα" */}
                             <button
+                                type="button"
                                 onClick={() => applySubstageFilter('all')}
-                                className={`flex-1 py-2 rounded-xl text-xs font-black border transition-all flex items-center justify-center gap-1.5 ${substageFilter === 'all' ? 'bg-blue-600 text-white border-transparent shadow' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'}`}
+                                className={`px-3 py-1 rounded-full text-xs font-black border transition-all ${
+                                    substageFilter === 'all'
+                                        ? 'bg-slate-900 text-white border-slate-900 shadow'
+                                        : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'
+                                }`}
+                                title="Εμφάνιση και επιλογή όλων των παρτίδων Τεχνίτη"
                             >
-                                <CheckSquare size={13} /> Όλα
-                                <span className="font-mono opacity-70">({batches.length})</span>
+                                Όλα <span className="font-mono text-[10px] opacity-70">({batches.length})</span>
                             </button>
-                            <button
-                                onClick={() => applySubstageFilter('pending')}
-                                className={`flex-1 py-2 rounded-xl text-xs font-black border transition-all flex items-center justify-center gap-1.5 ${substageFilter === 'pending' ? 'bg-amber-500 text-white border-transparent shadow' : 'bg-amber-50 text-amber-700 border-amber-200 hover:border-amber-400'}`}
-                            >
-                                <Clock size={13} /> Εκκρεμεί Αποστολή
-                                <span className="font-mono opacity-70">({pendingCount})</span>
-                            </button>
-                            <button
-                                onClick={() => applySubstageFilter('active')}
-                                className={`flex-1 py-2 rounded-xl text-xs font-black border transition-all flex items-center justify-center gap-1.5 ${substageFilter === 'active' ? 'bg-blue-600 text-white border-transparent shadow' : 'bg-blue-50 text-blue-700 border-blue-200 hover:border-blue-400'}`}
-                            >
-                                <Hammer size={13} /> Στον Τεχνίτη
-                                <span className="font-mono opacity-70">({activeCount})</span>
-                            </button>
+
+                            {/* Pending dispatch */}
+                            {pendingCount > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => applySubstageFilter('pending')}
+                                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border transition-all ${
+                                        substageFilter === 'pending'
+                                            ? 'bg-amber-500 text-white border-transparent shadow-sm'
+                                            : 'bg-amber-50 text-amber-700 border-amber-200 hover:border-amber-400'
+                                    }`}
+                                    title="Μόνο παρτίδες που εκκρεμεί αποστολή"
+                                >
+                                    <span className={`w-2 h-2 rounded-full ${substageFilter === 'pending' ? 'bg-white/70' : 'bg-amber-400'}`} />
+                                    Εκκρεμεί
+                                    <span className={`font-mono text-[10px] ${substageFilter === 'pending' ? 'opacity-80' : 'opacity-60'}`}>({pendingCount})</span>
+                                </button>
+                            )}
+
+                            {/* Active with technician */}
+                            {activeCount > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => applySubstageFilter('active')}
+                                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border transition-all ${
+                                        substageFilter === 'active'
+                                            ? 'bg-blue-600 text-white border-transparent shadow-sm'
+                                            : 'bg-blue-50 text-blue-700 border-blue-200 hover:border-blue-400'
+                                    }`}
+                                    title="Μόνο παρτίδες που είναι ενεργά στον Τεχνίτη"
+                                >
+                                    <span className={`w-2 h-2 rounded-full ${substageFilter === 'active' ? 'bg-white/70' : 'bg-blue-400'}`} />
+                                    Στον Τεχνίτη
+                                    <span className={`font-mono text-[10px] ${substageFilter === 'active' ? 'opacity-80' : 'opacity-60'}`}>({activeCount})</span>
+                                </button>
+                            )}
                         </div>
+
+                        {/* Helper line */}
+                        {substageFilter !== 'all' ? (
+                            <p className="text-[10px] text-slate-400 mt-1.5 font-medium">
+                                Εμφάνιση μόνο παρτίδων στο επιλεγμένο υπο-στάδιο ·{' '}
+                                <button onClick={() => applySubstageFilter('all')} className="text-blue-600 hover:underline font-bold">
+                                    Εκκαθάριση φίλτρου
+                                </button>
+                            </p>
+                        ) : (
+                            <p className="text-[10px] text-slate-400 mt-1.5 font-medium">
+                                Εμφάνιση όλων των παρτίδων Τεχνίτη (εκκρεμείς + ενεργές)
+                            </p>
+                        )}
                     </div>
                 )}
 

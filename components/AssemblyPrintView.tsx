@@ -244,10 +244,19 @@ export default function AssemblyPrintView({ rows, allProducts, allMaterials, all
                                                                 </span>
                                                                 {product.molds.map((pm, i) => {
                                                                     const details = allMolds.find(m => m.code === pm.code);
+                                                                    const perPieceQty = pm.quantity || 1;
+                                                                    const totalQty = perPieceQty * (row.quantity || 0);
                                                                     return (
                                                                         <span key={i} className="text-[7px] font-bold bg-orange-50 text-orange-800 border border-orange-200 px-1 py-0.5 rounded leading-tight flex items-baseline gap-0.5 min-w-0">
                                                                             <span className="font-black shrink-0">{pm.code}</span>
-                                                                            {pm.quantity > 1 && <span className="font-black shrink-0">×{pm.quantity}</span>}
+                                                                            {totalQty > 1 && (
+                                                                                <span
+                                                                                    className="font-black shrink-0"
+                                                                                    title={row.quantity > 1 && perPieceQty > 1 ? `${perPieceQty} ανά τεμάχιο × ${row.quantity} τεμ.` : undefined}
+                                                                                >
+                                                                                    ×{totalQty}
+                                                                                </span>
+                                                                            )}
                                                                             {details?.description && (
                                                                                 <span className="font-medium text-orange-600 italic break-words min-w-0 flex-1"> {details.description}</span>
                                                                             )}
