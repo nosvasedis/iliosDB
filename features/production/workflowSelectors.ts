@@ -457,7 +457,8 @@ export function buildAssemblyOrderCandidates(
   return orders
     .filter((order) =>
       !order.is_archived &&
-      (order.status === OrderStatus.Pending || order.status === OrderStatus.InProduction) &&
+      order.status !== OrderStatus.Delivered &&
+      order.status !== OrderStatus.Cancelled &&
       order.items.some((item) => requiresAssemblyStage(item.sku) && !isSpecialCreationSku(item.sku)),
     )
     .map((order) => {
