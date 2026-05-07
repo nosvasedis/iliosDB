@@ -136,7 +136,13 @@ type AssemblyOrderCandidate = {
     rows: AssemblyPrintRow[];
     assemblySkuCount: number;
     totalAssemblyQty: number;
+    stageBreakdown: Partial<Record<ProductionStage, number>>;
+    polishingPendingQty: number;
+    polishingActiveQty: number;
 };
+
+// Alias used before the enrichment fields were added, kept for compatibility
+type EnrichedAssemblyCandidate = AssemblyOrderCandidate;
 
 // ── DesktopSettingStoneModal ─────────────────────────────────────────────────
 const DesktopSettingStoneModal: React.FC<{
@@ -759,25 +765,68 @@ const AssemblyOrderSelectorModal = ({
     isOpen: boolean;
     onClose: () => void;
     candidates: AssemblyOrderCandidate[];
-    onConfirm: (selectedOrderIds: string[]) => void;
+    onConfirm: (selectedOrderIds: string[], stageFilter: ProductionStage[] | null) => void;
 }) => {
+    const ASSEMBLY_STAGE_CFG: Array<{
+        id: ProductionStage;
+        label: string;
+        shortLabel: string;
+        textColor: string;
+        bgColor: string;
+        borderColor: string;
+        activeBg: string;
+        activeText: string;
+        dotColor: string;
+    }> = [
+        { id: ProductionStage.AwaitingDelivery, label: 'Αναμονή Παραλαβής', shortLabel: 'Αναμονή', textColor: 'text-indigo-700', bgColor: 'bg-indigo-50', borderColor: 'border-indigo-200', activeBg: 'bg-indigo-600', activeText: 'text-white', dotColor: 'bg-indigo-400' },
+        { id: ProductionStage.Waxing,           label: 'Διαλογή',           shortLabel: 'Διαλογή',  textColor: 'text-slate-600',  bgColor: 'bg-slate-100', borderColor: 'border-slate-200', activeBg: 'bg-slate-600',  activeText: 'text-white', dotColor: 'bg-slate-400' },
+        { id: ProductionStage.Casting,          label: 'Χυτήριο',           shortLabel: 'Χυτήριο',  textColor: 'text-orange-700', bgColor: 'bg-orange-50', borderColor: 'border-orange-200', activeBg: 'bg-orange-500', activeText: 'text-white', dotColor: 'bg-orange-400' },
+        { id: ProductionStage.Setting,          label: 'Καρφωτής',          shortLabel: 'Καρφωτής', textColor: 'text-purple-700', bgColor: 'bg-purple-50', borderColor: 'border-purple-200', activeBg: 'bg-purple-600', activeText: 'text-white', dotColor: 'bg-purple-400' },
+        { id: ProductionStage.Polishing,        label: 'Τεχνίτης',          shortLabel: 'Τεχνίτης', textColor: 'text-blue-700',   bgColor: 'bg-blue-50',   borderColor: 'border-blue-200',   activeBg: 'bg-blue-600',   activeText: 'text-white', dotColor: 'bg-blue-400' },
+        { id: ProductionStage.Assembly,         label: 'Συναρμολόγηση',     shortLabel: 'Συναρμ.',  textColor: 'text-pink-700',   bgColor: 'bg-pink-50',   borderColor: 'border-pink-200',   activeBg: 'bg-pink-600',   activeText: 'text-white', dotColor: 'bg-pink-400' },
+        { id: ProductionStage.Labeling,         label: 'Καρτελάκια',        shortLabel: 'Καρτελ.',  textColor: 'text-yellow-700', bgColor: 'bg-yellow-50', borderColor: 'border-yellow-200', activeBg: 'bg-yellow-500', activeText: 'text-white', dotColor: 'bg-yellow-400' },
+        { id: ProductionStage.Ready,            label: 'Έτοιμα',            shortLabel: 'Έτοιμα',   textColor: 'text-emerald-700',bgColor: 'bg-emerald-50',borderColor: 'border-emerald-200',activeBg: 'bg-emerald-600',activeText: 'text-white', dotColor: 'bg-emerald-500' },
+    ];
+
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set(candidates.map(c => c.order.id)));
+    const [activeStageFilter, setActiveStageFilter] = useState<Set<ProductionStage>>(new Set());
 
     useEffect(() => {
         if (!isOpen) return;
         setSearchTerm('');
+        setActiveStageFilter(new Set());
         setSelectedOrderIds(new Set(candidates.map(c => c.order.id)));
     }, [isOpen, candidates]);
 
+    // Stage counts across all candidates (for the filter bar pills)
+    const stageTotals = useMemo(() => {
+        const totals: Partial<Record<ProductionStage, number>> = {};
+        candidates.forEach(c => {
+            ASSEMBLY_STAGE_CFG.forEach(cfg => {
+                const qty = c.stageBreakdown[cfg.id] || 0;
+                if (qty > 0) totals[cfg.id] = (totals[cfg.id] || 0) + qty;
+            });
+        });
+        return totals;
+    }, [candidates]);
+
     const filteredCandidates = useMemo(() => {
+        let result = candidates;
+        if (activeStageFilter.size > 0) {
+            result = result.filter(c =>
+                Array.from(activeStageFilter).some(stage => (c.stageBreakdown[stage] || 0) > 0)
+            );
+        }
         const term = searchTerm.trim().toLowerCase();
-        if (!term) return candidates;
-        return candidates.filter((candidate) =>
-            candidate.order.customer_name.toLowerCase().includes(term) ||
-            candidate.order.id.toLowerCase().includes(term)
-        );
-    }, [candidates, searchTerm]);
+        if (term) {
+            result = result.filter(c =>
+                c.order.customer_name.toLowerCase().includes(term) ||
+                c.order.id.toLowerCase().includes(term)
+            );
+        }
+        return result;
+    }, [candidates, activeStageFilter, searchTerm]);
 
     const visibleIds = filteredCandidates.map(c => c.order.id);
     const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedOrderIds.has(id));
@@ -799,25 +848,87 @@ const AssemblyOrderSelectorModal = ({
         setSelectedOrderIds(next);
     };
 
+    const toggleStageFilter = (stageId: ProductionStage) => {
+        const next = new Set(activeStageFilter);
+        if (next.has(stageId)) next.delete(stageId);
+        else next.add(stageId);
+        setActiveStageFilter(next);
+    };
+
     const selectedCount = selectedOrderIds.size;
+    const stageFilterArray = activeStageFilter.size > 0 ? Array.from(activeStageFilter) : null;
 
     if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 z-[230] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-            <div className="bg-white w-full max-w-3xl max-h-[88vh] rounded-3xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden animate-in zoom-in-95">
-                <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+            <div className="bg-white w-full max-w-3xl max-h-[92vh] rounded-3xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden animate-in zoom-in-95">
+
+                {/* ── Header ── */}
+                <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-pink-50 to-white">
                     <div>
                         <h3 className="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
                             <Layers size={18} className="text-pink-600" /> Εκτύπωση Συναρμολόγησης
                         </h3>
-                        <p className="text-xs text-slate-500 mt-1">Επιλέξτε εντολές (Εκκρεμείς / Σε Παραγωγή) για τον υπεύθυνο συναρμολόγησης.</p>
+                        <p className="text-xs text-slate-500 mt-1">Επιλέξτε εντολές · φιλτράρετε ανά στάδιο παραγωγής</p>
                     </div>
                     <button onClick={onClose} className="p-2 rounded-full text-slate-400 hover:bg-slate-200 transition-colors">
                         <X size={20} />
                     </button>
                 </div>
 
+                {/* ── Stage filter bar ── */}
+                <div className="px-4 pt-3 pb-2 border-b border-slate-100 bg-slate-50/60">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Φίλτρο Σταδίου</p>
+                    <div className="flex flex-wrap gap-1.5">
+                        {/* "All" toggle */}
+                        <button
+                            onClick={() => setActiveStageFilter(new Set())}
+                            className={`px-3 py-1 rounded-full text-xs font-black border transition-all ${
+                                activeStageFilter.size === 0
+                                    ? 'bg-slate-900 text-white border-slate-900 shadow'
+                                    : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'
+                            }`}
+                        >
+                            Όλα
+                        </button>
+                        {ASSEMBLY_STAGE_CFG.map(cfg => {
+                            const total = stageTotals[cfg.id] || 0;
+                            if (total === 0) return null;
+                            const active = activeStageFilter.has(cfg.id);
+                            return (
+                                <button
+                                    key={cfg.id}
+                                    onClick={() => toggleStageFilter(cfg.id)}
+                                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border transition-all ${
+                                        active
+                                            ? `${cfg.activeBg} ${cfg.activeText} border-transparent shadow-sm`
+                                            : `${cfg.bgColor} ${cfg.textColor} ${cfg.borderColor} hover:opacity-80`
+                                    }`}
+                                >
+                                    <span className={`w-2 h-2 rounded-full ${active ? 'bg-white/70' : cfg.dotColor}`} />
+                                    {cfg.shortLabel}
+                                    <span className={`font-mono text-[10px] ${active ? 'opacity-80' : 'opacity-60'}`}>{total}</span>
+                                    {cfg.id === ProductionStage.Polishing && (
+                                        <span className={`text-[9px] ml-0.5 ${active ? 'opacity-70' : 'opacity-50'}`}>
+                                            (εκκρ. / ενεργό)
+                                        </span>
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    {activeStageFilter.size > 0 && (
+                        <p className="text-[10px] text-slate-400 mt-1.5 font-medium">
+                            Εκτύπωση μόνο παρτίδων στα επιλεγμένα στάδια ·{' '}
+                            <button onClick={() => setActiveStageFilter(new Set())} className="text-pink-600 hover:underline font-bold">
+                                Εκκαθάριση φίλτρου
+                            </button>
+                        </p>
+                    )}
+                </div>
+
+                {/* ── Search + Select all ── */}
                 <div className="p-4 border-b border-slate-100 bg-white flex items-center gap-3">
                     <div className="relative flex-1">
                         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -831,63 +942,124 @@ const AssemblyOrderSelectorModal = ({
                     </div>
                     <button
                         onClick={toggleAllVisible}
-                        className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 flex items-center gap-2"
+                        className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 flex items-center gap-2 shrink-0"
                     >
                         {allVisibleSelected ? <><Square size={14} /> Αποεπιλογή</> : <><CheckSquare size={14} /> Επιλογή Όλων</>}
                     </button>
                 </div>
 
+                {/* ── Candidate list ── */}
                 <div className="flex-1 overflow-y-auto p-4 bg-slate-50/30 custom-scrollbar space-y-2">
                     {filteredCandidates.length > 0 ? (
                         filteredCandidates.map((candidate) => {
                             const selected = selectedOrderIds.has(candidate.order.id);
+                            const activeStages = ASSEMBLY_STAGE_CFG.filter(cfg => (candidate.stageBreakdown[cfg.id] || 0) > 0);
                             return (
                                 <button
                                     key={candidate.order.id}
                                     onClick={() => toggleOrder(candidate.order.id)}
-                                    className={`w-full text-left p-4 rounded-2xl border transition-all ${selected ? 'bg-pink-50 border-pink-300 ring-1 ring-pink-100' : 'bg-white border-slate-200 hover:border-pink-200'}`}
+                                    className={`w-full text-left p-4 rounded-2xl border transition-all ${
+                                        selected
+                                            ? 'bg-pink-50 border-pink-300 ring-1 ring-pink-100 shadow-sm'
+                                            : 'bg-white border-slate-200 hover:border-pink-200 hover:shadow-sm'
+                                    }`}
                                 >
+                                    {/* Row 1: customer / order ID / checkbox */}
                                     <div className="flex items-start justify-between gap-3">
-                                        <div className="min-w-0">
-                                            <div className="text-sm font-black text-slate-900 break-words">{candidate.order.customer_name}</div>
-                                            <div className="text-xs text-slate-500 font-mono mt-0.5">#{formatOrderId(candidate.order.id)}</div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="text-sm font-black text-slate-900 break-words leading-snug">{candidate.order.customer_name}</div>
+                                            <div className="text-[11px] text-slate-400 font-mono mt-0.5">#{formatOrderId(candidate.order.id)}</div>
                                         </div>
-                                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors shrink-0 ${selected ? 'bg-pink-600 border-pink-600' : 'bg-white border-slate-300'}`}>
+                                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors shrink-0 mt-0.5 ${selected ? 'bg-pink-600 border-pink-600' : 'bg-white border-slate-300'}`}>
                                             {selected && <Check size={13} className="text-white" />}
                                         </div>
                                     </div>
-                                    <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] font-bold uppercase">
-                                        <div className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-600">
-                                            Κωδικοί Συναρμολόγησης: {candidate.assemblySkuCount}
+
+                                    {/* Row 2: stage breakdown pills */}
+                                    {activeStages.length > 0 && (
+                                        <div className="mt-3 flex flex-wrap gap-1.5">
+                                            {activeStages.map(cfg => {
+                                                const qty = candidate.stageBreakdown[cfg.id] || 0;
+                                                const isFilteredStage = activeStageFilter.size > 0 && activeStageFilter.has(cfg.id);
+                                                return (
+                                                    <span
+                                                        key={cfg.id}
+                                                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black border transition-all ${
+                                                            isFilteredStage
+                                                                ? `${cfg.activeBg} ${cfg.activeText} border-transparent shadow-sm ring-2 ring-offset-1 ring-${cfg.dotColor.replace('bg-', '')}`
+                                                                : `${cfg.bgColor} ${cfg.textColor} ${cfg.borderColor}`
+                                                        }`}
+                                                    >
+                                                        <span className={`w-1.5 h-1.5 rounded-full ${isFilteredStage ? 'bg-white/70' : cfg.dotColor}`} />
+                                                        {cfg.shortLabel}
+                                                        <span className="font-mono ml-0.5">{qty} τμχ</span>
+                                                        {/* Polishing sub-stages */}
+                                                        {cfg.id === ProductionStage.Polishing && (candidate.polishingPendingQty > 0 || candidate.polishingActiveQty > 0) && (
+                                                            <span className="ml-1 opacity-70 font-normal">
+                                                                (εκκρ.: {candidate.polishingPendingQty} / ενεργό: {candidate.polishingActiveQty})
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                );
+                                            })}
                                         </div>
-                                        <div className="bg-pink-50 border border-pink-200 rounded-lg px-2 py-1 text-pink-700">
-                                            Τεμάχια: {candidate.totalAssemblyQty}
-                                        </div>
+                                    )}
+
+                                    {/* Row 3: assembly summary */}
+                                    <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+                                        <span className="bg-slate-100 border border-slate-200 rounded-lg px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                                            {candidate.assemblySkuCount} κωδ. συναρμ.
+                                        </span>
+                                        <span className="bg-pink-50 border border-pink-200 rounded-lg px-2 py-0.5 text-[10px] font-bold text-pink-700">
+                                            {candidate.totalAssemblyQty} τεμ. (εκκρεμεί)
+                                        </span>
+                                        {activeStageFilter.size > 0 && (() => {
+                                            const filteredQty = Array.from(activeStageFilter).reduce((sum, s) => sum + (candidate.stageBreakdown[s] || 0), 0);
+                                            return filteredQty > 0 ? (
+                                                <span className="bg-indigo-50 border border-indigo-200 rounded-lg px-2 py-0.5 text-[10px] font-bold text-indigo-700">
+                                                    ↳ {filteredQty} τμχ στα επιλεγμένα στάδια
+                                                </span>
+                                            ) : null;
+                                        })()}
                                     </div>
                                 </button>
                             );
                         })
                     ) : (
                         <div className="text-center py-12 text-slate-400 italic text-sm">
-                            Δεν βρέθηκαν επιλέξιμες εντολές.
+                            {activeStageFilter.size > 0
+                                ? 'Καμία εντολή με παρτίδες στα επιλεγμένα στάδια.'
+                                : 'Δεν βρέθηκαν επιλέξιμες εντολές.'}
                         </div>
                     )}
                 </div>
 
-                <div className="p-4 border-t border-slate-100 bg-white flex justify-end gap-3">
-                    <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-slate-600 font-bold hover:bg-slate-100 transition-colors">
-                        Ακύρωση
-                    </button>
-                    <button
-                        onClick={() => {
-                            onConfirm(Array.from(selectedOrderIds));
-                            onClose();
-                        }}
-                        disabled={selectedCount === 0}
-                        className="px-6 py-2.5 rounded-xl bg-pink-600 text-white font-bold hover:bg-pink-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                        <Printer size={18} /> Εκτύπωση ({selectedCount})
-                    </button>
+                {/* ── Footer ── */}
+                <div className="p-4 border-t border-slate-100 bg-white flex items-center justify-between gap-3">
+                    <div className="text-xs text-slate-400 font-medium">
+                        {selectedCount} επιλεγμένες εντολές
+                        {activeStageFilter.size > 0 && (
+                            <span className="ml-1.5 text-pink-600 font-bold">
+                                · φίλτρο: {Array.from(activeStageFilter).map(s => ASSEMBLY_STAGE_CFG.find(c => c.id === s)?.shortLabel).join(', ')}
+                            </span>
+                        )}
+                    </div>
+                    <div className="flex gap-3">
+                        <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-slate-600 font-bold hover:bg-slate-100 transition-colors">
+                            Ακύρωση
+                        </button>
+                        <button
+                            onClick={() => {
+                                onConfirm(Array.from(selectedOrderIds), stageFilterArray);
+                                onClose();
+                            }}
+                            disabled={selectedCount === 0}
+                            className="px-6 py-2.5 rounded-xl bg-pink-600 text-white font-bold hover:bg-pink-700 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                            <Printer size={18} />
+                            {activeStageFilter.size > 0 ? 'Εκτύπωση επιλεγμένων σταδίων' : 'Εκτύπωση'} ({selectedCount})
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2144,7 +2316,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     }, [orders, enhancedBatches]);
 
     const assemblyOrderCandidates = useMemo(() => {
-        if (!orders || orders.length === 0) return [] as AssemblyOrderCandidate[];
+        if (!orders || orders.length === 0) return [] as EnrichedAssemblyCandidate[];
 
         // Build a quick lookup of READY quantities per order+sku+variant+size,
         // so Assembly sheets won't show items already marked Ready.
@@ -2159,6 +2331,14 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                 b.size_info || ''
             ].join('::');
             readyQtyByKey.set(key, (readyQtyByKey.get(key) || 0) + (b.quantity || 0));
+        });
+
+        // Build per-order batch lookup for stage breakdown
+        const batchesByOrderId = new Map<string, typeof enhancedBatches[0][]>();
+        enhancedBatches.forEach((b) => {
+            if (!b.order_id) return;
+            if (!batchesByOrderId.has(b.order_id)) batchesByOrderId.set(b.order_id, []);
+            batchesByOrderId.get(b.order_id)!.push(b);
         });
 
         return orders
@@ -2228,12 +2408,29 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                     return (a.size_info || '').localeCompare(b.size_info || '');
                 });
 
+                // Compute stage breakdown from actual batches for this order
+                const orderBatches = batchesByOrderId.get(order.id) || [];
+                const stageBreakdown: Partial<Record<ProductionStage, number>> = {};
+                let polishingPendingQty = 0;
+                let polishingActiveQty = 0;
+                orderBatches.forEach((b) => {
+                    const qty = b.quantity || 0;
+                    stageBreakdown[b.current_stage] = (stageBreakdown[b.current_stage] || 0) + qty;
+                    if (b.current_stage === ProductionStage.Polishing) {
+                        if (b.pending_dispatch) polishingPendingQty += qty;
+                        else polishingActiveQty += qty;
+                    }
+                });
+
                 return {
                     order,
                     rows,
                     assemblySkuCount: rows.length,
-                    totalAssemblyQty: rows.reduce((sum, row) => sum + row.quantity, 0)
-                } as AssemblyOrderCandidate;
+                    totalAssemblyQty: rows.reduce((sum, row) => sum + row.quantity, 0),
+                    stageBreakdown,
+                    polishingPendingQty,
+                    polishingActiveQty,
+                } as EnrichedAssemblyCandidate;
             })
             .filter((candidate) => candidate.rows.length > 0)
             .sort((a, b) => new Date(b.order.created_at).getTime() - new Date(a.order.created_at).getTime());
@@ -2878,14 +3075,53 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         });
     };
 
-    const handleAssemblyOrderPrintConfirm = (selectedOrderIds: string[]) => {
+    const handleAssemblyOrderPrintConfirm = (selectedOrderIds: string[], stageFilter: ProductionStage[] | null) => {
         if (!onPrintAssembly) return;
 
-        const selectedCandidates = assemblyOrderCandidates.filter((candidate) => selectedOrderIds.includes(candidate.order.id));
-        const rows = selectedCandidates.flatMap((candidate) => candidate.rows);
+        let rows: AssemblyPrintRow[];
+
+        if (!stageFilter || stageFilter.length === 0) {
+            // Original behavior: rows derived from order items (total ordered - ready)
+            const selectedCandidates = assemblyOrderCandidates.filter((candidate) => selectedOrderIds.includes(candidate.order.id));
+            rows = selectedCandidates.flatMap((candidate) => candidate.rows);
+        } else {
+            // Stage-filtered: rows derived from actual batches currently in the selected stages
+            const stageSet = new Set(stageFilter);
+            const filteredBatches = enhancedBatches.filter(b =>
+                b.order_id &&
+                selectedOrderIds.includes(b.order_id) &&
+                stageSet.has(b.current_stage) &&
+                !b.on_hold
+            );
+            const rowsByKey = new Map<string, AssemblyPrintRow>();
+            filteredBatches.forEach((batch, idx) => {
+                const key = [batch.order_id, batch.sku, batch.variant_suffix || '', batch.size_info || ''].join('::');
+                const customerName = (batch as any).customer_name || '';
+                const existing = rowsByKey.get(key);
+                if (existing) {
+                    existing.quantity += batch.quantity;
+                } else {
+                    rowsByKey.set(key, {
+                        id: `batch-row-${batch.id}-${idx}`,
+                        order_id: batch.order_id!,
+                        customer_name: customerName,
+                        sku: batch.sku,
+                        variant_suffix: batch.variant_suffix,
+                        size_info: batch.size_info,
+                        quantity: batch.quantity,
+                    });
+                }
+            });
+            rows = Array.from(rowsByKey.values());
+        }
 
         if (rows.length === 0) {
-            showToast("Δεν βρέθηκαν assembly είδη για τις επιλεγμένες εντολές.", "info");
+            showToast(
+                stageFilter && stageFilter.length > 0
+                    ? "Δεν βρέθηκαν παρτίδες στα επιλεγμένα στάδια."
+                    : "Δεν βρέθηκαν assembly είδη για τις επιλεγμένες εντολές.",
+                "info"
+            );
             return;
         }
 
