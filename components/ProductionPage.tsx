@@ -358,11 +358,13 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(batches.map(b => b.id)));
     const [searchTerm, setSearchTerm] = useState('');
     const [substageFilter, setSubstageFilter] = useState<'all' | 'pending' | 'active'>('all');
+    const [orderScopeFilter, setOrderScopeFilter] = useState<'all' | 'withOrder' | 'noOrder'>('all');
 
     useEffect(() => {
         if (isOpen) {
             setSelectedIds(new Set(batches.map(b => b.id)));
             setSubstageFilter('all');
+            setOrderScopeFilter('all');
         }
     }, [isOpen, batches]);
 
@@ -382,11 +384,39 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
     const pendingCount = showPolishingSubstages ? batches.filter(b => b.pending_dispatch).length : 0;
     const activeCount  = showPolishingSubstages ? batches.filter(b => !b.pending_dispatch).length : 0;
 
+    const showOrderScopeFilters = type === 'aggregated' || type === 'preparation';
+    const withOrderCount = showOrderScopeFilters ? batches.filter(b => !!b.order_id).length : 0;
+    const noOrderCount = showOrderScopeFilters ? batches.filter(b => !b.order_id).length : 0;
+
+    const applyOrderScopeFilter = (filter: 'all' | 'withOrder' | 'noOrder') => {
+        setOrderScopeFilter(filter);
+        if (filter === 'all') {
+            setSelectedIds(new Set(batches.map(b => b.id)));
+            return;
+        }
+        const wantWithOrder = filter === 'withOrder';
+        setSelectedIds(new Set(
+            batches
+                .filter(b => (!!b.order_id) === wantWithOrder)
+                .map(b => b.id)
+        ));
+    };
+
     const visibleBatches = useMemo(() => {
-        if (!showPolishingSubstages || substageFilter === 'all') return batches;
-        const isPending = substageFilter === 'pending';
-        return batches.filter(b => !!b.pending_dispatch === isPending);
-    }, [batches, showPolishingSubstages, substageFilter]);
+        let list = batches;
+
+        if (showPolishingSubstages && substageFilter !== 'all') {
+            const isPending = substageFilter === 'pending';
+            list = list.filter(b => !!b.pending_dispatch === isPending);
+        }
+
+        if (showOrderScopeFilters && orderScopeFilter !== 'all') {
+            const wantWithOrder = orderScopeFilter === 'withOrder';
+            list = list.filter(b => (!!b.order_id) === wantWithOrder);
+        }
+
+        return list;
+    }, [batches, showPolishingSubstages, substageFilter, showOrderScopeFilters, orderScopeFilter]);
 
     const groupedBatches = useMemo(() => {
         const groups: Record<string, { name: string, items: typeof batches }> = {};
@@ -660,6 +690,74 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
                         ) : (
                             <p className="text-[10px] text-slate-400 mt-1.5 font-medium">
                                 Εμφάνιση όλων των παρτίδων Τεχνίτη (εκκρεμείς + ενεργές)
+                            </p>
+                        )}
+                    </div>
+                )}
+
+                {/* ── Order scope filter (Συγκεντρωτική / Προετοιμασία) ── */}
+                {showOrderScopeFilters && (
+                    <div className="px-4 pt-3 pb-2 border-b border-slate-100 bg-slate-50/60">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Φίλτρο Εντολής</p>
+                        <div className="flex flex-wrap gap-1.5 items-center">
+                            <button
+                                type="button"
+                                onClick={() => applyOrderScopeFilter('all')}
+                                className={`px-3 py-1 rounded-full text-xs font-black border transition-all ${
+                                    orderScopeFilter === 'all'
+                                        ? 'bg-slate-900 text-white border-slate-900 shadow'
+                                        : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'
+                                }`}
+                                title="Εμφάνιση και επιλογή όλων των παρτίδων"
+                            >
+                                Όλες <span className="font-mono text-[10px] opacity-70">({batches.length})</span>
+                            </button>
+
+                            {withOrderCount > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => applyOrderScopeFilter('withOrder')}
+                                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border transition-all ${
+                                        orderScopeFilter === 'withOrder'
+                                            ? 'bg-indigo-600 text-white border-transparent shadow-sm'
+                                            : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:border-indigo-400'
+                                    }`}
+                                    title="Μόνο παρτίδες που ανήκουν σε εντολή"
+                                >
+                                    <span className={`w-2 h-2 rounded-full ${orderScopeFilter === 'withOrder' ? 'bg-white/70' : 'bg-indigo-400'}`} />
+                                    Με εντολή
+                                    <span className={`font-mono text-[10px] ${orderScopeFilter === 'withOrder' ? 'opacity-80' : 'opacity-60'}`}>({withOrderCount})</span>
+                                </button>
+                            )}
+
+                            {noOrderCount > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => applyOrderScopeFilter('noOrder')}
+                                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border transition-all ${
+                                        orderScopeFilter === 'noOrder'
+                                            ? 'bg-slate-700 text-white border-transparent shadow-sm'
+                                            : 'bg-slate-100 text-slate-700 border-slate-200 hover:border-slate-400'
+                                    }`}
+                                    title="Μόνο παρτίδες χωρίς εντολή"
+                                >
+                                    <span className={`w-2 h-2 rounded-full ${orderScopeFilter === 'noOrder' ? 'bg-white/70' : 'bg-slate-400'}`} />
+                                    Χωρίς εντολή
+                                    <span className={`font-mono text-[10px] ${orderScopeFilter === 'noOrder' ? 'opacity-80' : 'opacity-60'}`}>({noOrderCount})</span>
+                                </button>
+                            )}
+                        </div>
+
+                        {orderScopeFilter !== 'all' ? (
+                            <p className="text-[10px] text-slate-400 mt-1.5 font-medium">
+                                Εμφάνιση μόνο παρτίδων: {orderScopeFilter === 'withOrder' ? 'με εντολή' : 'χωρίς εντολή'} ·{' '}
+                                <button onClick={() => applyOrderScopeFilter('all')} className="text-indigo-700 hover:underline font-bold">
+                                    Εκκαθάριση φίλτρου
+                                </button>
+                            </p>
+                        ) : (
+                            <p className="text-[10px] text-slate-400 mt-1.5 font-medium">
+                                Εμφάνιση όλων των παρτίδων (με/χωρίς εντολή)
                             </p>
                         )}
                     </div>
