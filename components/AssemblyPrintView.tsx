@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
-import { AssemblyPrintRow, Product, Material, MaterialType } from '../types';
+import { AssemblyPrintRow, Product, Material, MaterialType, Mold } from '../types';
 import { APP_LOGO } from '../constants';
-import { Layers, User, Hash } from 'lucide-react';
+import { Layers, User, Hash, MapPin } from 'lucide-react';
 import { formatOrderId } from '../utils/orderUtils';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { buildSkuKey, compareSkuValues } from '../utils/skuSort';
@@ -12,6 +12,7 @@ interface Props {
     rows: AssemblyPrintRow[];
     allProducts: Product[];
     allMaterials: Material[];
+    allMolds: Mold[];
 }
 
 interface AssemblyItem {
@@ -37,7 +38,7 @@ const TEXT_FINISH_COLORS: Record<string, string> = {
     '': 'text-slate-400'
 };
 
-export default function AssemblyPrintView({ rows, allProducts, allMaterials }: Props) {
+export default function AssemblyPrintView({ rows, allProducts, allMaterials, allMolds }: Props) {
     const customerGroups = useMemo(() => {
         const customerMap = new Map<string, Map<string, AssemblyItem[]>>();
 
@@ -233,6 +234,27 @@ export default function AssemblyPrintView({ rows, allProducts, allMaterials }: P
                                                             <span className="text-[8px] font-medium text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-200 line-clamp-2 leading-tight">
                                                                 {row.notes}
                                                             </span>
+                                                        )}
+
+                                                        {/* Molds (Λάστιχα) — shown when product has molds */}
+                                                        {product?.molds && product.molds.length > 0 && (
+                                                            <div className="flex flex-col gap-0.5 mt-0.5">
+                                                                <span className="text-[7px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-0.5">
+                                                                    <MapPin size={7} /> Λάστιχα
+                                                                </span>
+                                                                {product.molds.map((pm, i) => {
+                                                                    const details = allMolds.find(m => m.code === pm.code);
+                                                                    return (
+                                                                        <span key={i} className="text-[7px] font-bold bg-orange-50 text-orange-800 border border-orange-200 px-1 py-0.5 rounded leading-tight flex items-baseline gap-0.5 min-w-0">
+                                                                            <span className="font-black shrink-0">{pm.code}</span>
+                                                                            {pm.quantity > 1 && <span className="font-black shrink-0">×{pm.quantity}</span>}
+                                                                            {details?.description && (
+                                                                                <span className="font-medium text-orange-600 italic break-words min-w-0 flex-1"> {details.description}</span>
+                                                                            )}
+                                                                        </span>
+                                                                    );
+                                                                })}
+                                                            </div>
                                                         )}
 
                                                         {/* Stone requirements from recipe */}

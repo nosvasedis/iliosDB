@@ -343,26 +343,53 @@ const DesktopSettingStoneModal: React.FC<{
     );
 };
 
-const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelSortMode, onLabelSortModeChange }: {
+const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelSortMode, onLabelSortModeChange, showPolishingSubstages }: {
     isOpen: boolean,
     onClose: () => void,
     onConfirm: (selected: ProductionBatch[]) => void,
     batches: (ProductionBatch & { customer_name?: string })[],
     title: string,
     labelSortMode?: LabelPrintSortMode,
-    onLabelSortModeChange?: (mode: LabelPrintSortMode) => void
+    onLabelSortModeChange?: (mode: LabelPrintSortMode) => void,
+    showPolishingSubstages?: boolean,
 }) => {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(batches.map(b => b.id)));
     const [searchTerm, setSearchTerm] = useState('');
+    const [substageFilter, setSubstageFilter] = useState<'all' | 'pending' | 'active'>('all');
 
     useEffect(() => {
-        if (isOpen) setSelectedIds(new Set(batches.map(b => b.id)));
+        if (isOpen) {
+            setSelectedIds(new Set(batches.map(b => b.id)));
+            setSubstageFilter('all');
+        }
     }, [isOpen, batches]);
+
+    // When sub-stage filter changes, auto-select only batches in that sub-stage
+    const applySubstageFilter = (filter: 'all' | 'pending' | 'active') => {
+        setSubstageFilter(filter);
+        if (filter === 'all') {
+            setSelectedIds(new Set(batches.map(b => b.id)));
+        } else {
+            const isPending = filter === 'pending';
+            setSelectedIds(new Set(
+                batches.filter(b => !!b.pending_dispatch === isPending).map(b => b.id)
+            ));
+        }
+    };
+
+    const pendingCount = showPolishingSubstages ? batches.filter(b => b.pending_dispatch).length : 0;
+    const activeCount  = showPolishingSubstages ? batches.filter(b => !b.pending_dispatch).length : 0;
+
+    const visibleBatches = useMemo(() => {
+        if (!showPolishingSubstages || substageFilter === 'all') return batches;
+        const isPending = substageFilter === 'pending';
+        return batches.filter(b => !!b.pending_dispatch === isPending);
+    }, [batches, showPolishingSubstages, substageFilter]);
 
     const groupedBatches = useMemo(() => {
         const groups: Record<string, { name: string, items: typeof batches }> = {};
 
-        batches.forEach(b => {
+        visibleBatches.forEach(b => {
             const key = b.order_id || 'no_order';
             if (!groups[key]) {
                 groups[key] = {
@@ -380,7 +407,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelS
         return Object.entries(groups)
             .sort((a, b) => b[1].items.length - a[1].items.length)
             .filter(([_, group]) => group.name.toLowerCase().includes(searchTerm.toLowerCase()) || group.items.some(i => i.sku.toLowerCase().includes(searchTerm.toLowerCase())));
-    }, [batches, searchTerm]);
+    }, [visibleBatches, searchTerm]);
 
     const toggleBatch = (id: string) => {
         const next = new Set(selectedIds);
@@ -401,10 +428,10 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelS
     };
 
     const toggleAll = () => {
-        if (selectedIds.size === batches.length) {
+        if (selectedIds.size === visibleBatches.length) {
             setSelectedIds(new Set());
         } else {
-            setSelectedIds(new Set(batches.map(b => b.id)));
+            setSelectedIds(new Set(visibleBatches.map(b => b.id)));
         }
     };
 
@@ -431,6 +458,36 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelS
                     <button onClick={onClose} className="p-2 rounded-full text-slate-400 hover:bg-slate-200 transition-colors"><X size={20} /></button>
                 </div>
 
+                {/* ── Polishing sub-stage filter (Τεχνίτης only) ── */}
+                {showPolishingSubstages && (
+                    <div className="px-4 pt-3 pb-3 border-b border-slate-100 bg-slate-50/60">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Υπο-στάδιο Τεχνίτη</p>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => applySubstageFilter('all')}
+                                className={`flex-1 py-2 rounded-xl text-xs font-black border transition-all flex items-center justify-center gap-1.5 ${substageFilter === 'all' ? 'bg-blue-600 text-white border-transparent shadow' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'}`}
+                            >
+                                <CheckSquare size={13} /> Όλα
+                                <span className="font-mono opacity-70">({batches.length})</span>
+                            </button>
+                            <button
+                                onClick={() => applySubstageFilter('pending')}
+                                className={`flex-1 py-2 rounded-xl text-xs font-black border transition-all flex items-center justify-center gap-1.5 ${substageFilter === 'pending' ? 'bg-amber-500 text-white border-transparent shadow' : 'bg-amber-50 text-amber-700 border-amber-200 hover:border-amber-400'}`}
+                            >
+                                <Clock size={13} /> Εκκρεμεί Αποστολή
+                                <span className="font-mono opacity-70">({pendingCount})</span>
+                            </button>
+                            <button
+                                onClick={() => applySubstageFilter('active')}
+                                className={`flex-1 py-2 rounded-xl text-xs font-black border transition-all flex items-center justify-center gap-1.5 ${substageFilter === 'active' ? 'bg-blue-600 text-white border-transparent shadow' : 'bg-blue-50 text-blue-700 border-blue-200 hover:border-blue-400'}`}
+                            >
+                                <Hammer size={13} /> Στον Τεχνίτη
+                                <span className="font-mono opacity-70">({activeCount})</span>
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* ── Search + Select all ── */}
                 <div className="p-4 border-b border-slate-100 bg-white flex items-center gap-3">
                     <div className="relative flex-1">
@@ -447,7 +504,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelS
                         onClick={toggleAll}
                         className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 flex items-center gap-2 shrink-0"
                     >
-                        {selectedIds.size === batches.length ? (
+                        {selectedIds.size === visibleBatches.length && visibleBatches.length > 0 ? (
                             <><Square size={14} /> Αποεπιλογή</>
                         ) : (
                             <><CheckSquare size={14} /> Επιλογή Όλων</>
@@ -516,6 +573,11 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelS
                                                 <div className="flex items-center gap-1.5 min-w-0">
                                                     <span className="font-mono font-black text-sm text-slate-800">{item.sku}{item.variant_suffix}</span>
                                                     {item.size_info && <span className="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-bold text-slate-500 shrink-0">{item.size_info}</span>}
+                                                    {showPolishingSubstages && (
+                                                        item.pending_dispatch
+                                                            ? <span className="text-[9px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full font-black shrink-0">Εκκρεμεί</span>
+                                                            : <span className="text-[9px] bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded-full font-black shrink-0">Στον Τεχνίτη</span>
+                                                    )}
                                                 </div>
                                                 <span className="text-xs font-black bg-slate-100 text-slate-600 px-2 py-0.5 rounded-lg shrink-0">
                                                     ×{item.quantity}
@@ -535,7 +597,12 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, labelS
                 {/* ── Footer ── */}
                 <div className="p-4 border-t border-slate-100 bg-white flex items-center justify-between gap-3">
                     <div className="text-xs text-slate-400 font-medium">
-                        {selectedIds.size} / {batches.length} παρτίδες επιλεγμένες
+                        {selectedIds.size} / {visibleBatches.length} παρτίδες επιλεγμένες
+                        {showPolishingSubstages && substageFilter !== 'all' && (
+                            <span className="ml-1.5 text-[10px] font-black uppercase tracking-wide text-blue-500">
+                                · {substageFilter === 'pending' ? 'Εκκρεμεί Αποστολή' : 'Στον Τεχνίτη'}
+                            </span>
+                        )}
                     </div>
                     <div className="flex gap-3">
                         <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-slate-600 font-bold hover:bg-slate-100 transition-colors">
@@ -818,7 +885,8 @@ const AssemblyOrderSelectorModal = ({
         setSelectedOrderIds(new Set(candidates.map(c => c.order.id)));
     }, [isOpen, candidates]);
 
-    // Stage counts across all candidates (for the filter bar pills)
+    // Stage counts across all candidates (for the filter bar pills).
+    // Ready is counted separately — it's opt-in only and not part of "Όλα".
     const stageTotals = useMemo(() => {
         const totals: Partial<Record<ProductionStage, number>> = {};
         candidates.forEach(c => {
@@ -829,6 +897,10 @@ const AssemblyOrderSelectorModal = ({
         });
         return totals;
     }, [candidates]);
+
+    // Non-ready stages vs the special Ready opt-in pill
+    const MAIN_STAGE_CFG = ASSEMBLY_STAGE_CFG.filter(c => c.id !== ProductionStage.Ready);
+    const READY_STAGE_CFG = ASSEMBLY_STAGE_CFG.find(c => c.id === ProductionStage.Ready)!
 
     const filteredCandidates = useMemo(() => {
         let result = candidates;
@@ -899,8 +971,8 @@ const AssemblyOrderSelectorModal = ({
                 {/* ── Stage filter bar ── */}
                 <div className="px-4 pt-3 pb-2 border-b border-slate-100 bg-slate-50/60">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Φίλτρο Σταδίου</p>
-                    <div className="flex flex-wrap gap-1.5">
-                        {/* "All" toggle */}
+                    <div className="flex flex-wrap gap-1.5 items-center">
+                        {/* "Όλα" = all non-ready stages (ready is always opt-in) */}
                         <button
                             onClick={() => setActiveStageFilter(new Set())}
                             className={`px-3 py-1 rounded-full text-xs font-black border transition-all ${
@@ -909,9 +981,11 @@ const AssemblyOrderSelectorModal = ({
                                     : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'
                             }`}
                         >
-                            Όλα
+                            Όλα <span className="font-normal opacity-60 text-[10px]">(εκτός Έτοιμων)</span>
                         </button>
-                        {ASSEMBLY_STAGE_CFG.map(cfg => {
+
+                        {/* Non-ready stage pills */}
+                        {MAIN_STAGE_CFG.map(cfg => {
                             const total = stageTotals[cfg.id] || 0;
                             if (total === 0) return null;
                             const active = activeStageFilter.has(cfg.id);
@@ -930,12 +1004,37 @@ const AssemblyOrderSelectorModal = ({
                                     <span className={`font-mono text-[10px] ${active ? 'opacity-80' : 'opacity-60'}`}>{total}</span>
                                     {cfg.id === ProductionStage.Polishing && (
                                         <span className={`text-[9px] ml-0.5 ${active ? 'opacity-70' : 'opacity-50'}`}>
-                                            (εκκρ. / ενεργό)
+                                            (εκκρ./ενεργό)
                                         </span>
                                     )}
                                 </button>
                             );
                         })}
+
+                        {/* Separator + Έτοιμα opt-in pill */}
+                        {(stageTotals[ProductionStage.Ready] || 0) > 0 && (() => {
+                            const total = stageTotals[ProductionStage.Ready]!;
+                            const active = activeStageFilter.has(ProductionStage.Ready);
+                            return (
+                                <>
+                                    <span className="text-slate-300 text-sm select-none">|</span>
+                                    <button
+                                        onClick={() => toggleStageFilter(ProductionStage.Ready)}
+                                        title="Τα Έτοιμα δεν περιλαμβάνονται στο \"Όλα\" — επιλέξτε ρητά αν θέλετε να εκτυπωθούν"
+                                        className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border transition-all ${
+                                            active
+                                                ? `${READY_STAGE_CFG.activeBg} ${READY_STAGE_CFG.activeText} border-transparent shadow-sm`
+                                                : `bg-white text-emerald-700 border-dashed border-emerald-300 hover:border-emerald-500`
+                                        }`}
+                                    >
+                                        <span className={`w-2 h-2 rounded-full ${active ? 'bg-white/70' : 'bg-emerald-400'}`} />
+                                        Έτοιμα
+                                        <span className={`font-mono text-[10px] ${active ? 'opacity-80' : 'opacity-60'}`}>{total}</span>
+                                        {!active && <span className="text-[9px] opacity-50 ml-0.5">(opt-in)</span>}
+                                    </button>
+                                </>
+                            );
+                        })()}
                     </div>
                     {activeStageFilter.size > 0 && (
                         <p className="text-[10px] text-slate-400 mt-1.5 font-medium">
@@ -943,6 +1042,11 @@ const AssemblyOrderSelectorModal = ({
                             <button onClick={() => setActiveStageFilter(new Set())} className="text-pink-600 hover:underline font-bold">
                                 Εκκαθάριση φίλτρου
                             </button>
+                        </p>
+                    )}
+                    {activeStageFilter.size === 0 && (
+                        <p className="text-[10px] text-slate-400 mt-1.5 font-medium">
+                            Εκτύπωση: σύνολο παραγγελίας (μείον έτοιμα) · τα Έτοιμα εξαιρούνται από το «Όλα»
                         </p>
                     )}
                 </div>
@@ -1000,18 +1104,25 @@ const AssemblyOrderSelectorModal = ({
                                             {activeStages.map(cfg => {
                                                 const qty = candidate.stageBreakdown[cfg.id] || 0;
                                                 const isFilteredStage = activeStageFilter.size > 0 && activeStageFilter.has(cfg.id);
+                                                const isReady = cfg.id === ProductionStage.Ready;
+                                                // Ready pills are always shown as opt-in (dimmed when not explicitly selected)
                                                 return (
                                                     <span
                                                         key={cfg.id}
-                                                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black border transition-all ${
+                                                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black transition-all ${
                                                             isFilteredStage
-                                                                ? `${cfg.activeBg} ${cfg.activeText} border-transparent shadow-sm ring-2 ring-offset-1 ring-${cfg.dotColor.replace('bg-', '')}`
-                                                                : `${cfg.bgColor} ${cfg.textColor} ${cfg.borderColor}`
+                                                                ? `${cfg.activeBg} ${cfg.activeText} border border-transparent shadow-sm`
+                                                                : isReady
+                                                                    ? 'bg-white text-emerald-600 border border-dashed border-emerald-300 opacity-60'
+                                                                    : `${cfg.bgColor} ${cfg.textColor} border ${cfg.borderColor}`
                                                         }`}
                                                     >
                                                         <span className={`w-1.5 h-1.5 rounded-full ${isFilteredStage ? 'bg-white/70' : cfg.dotColor}`} />
                                                         {cfg.shortLabel}
                                                         <span className="font-mono ml-0.5">{qty} τμχ</span>
+                                                        {isReady && !isFilteredStage && (
+                                                            <span className="ml-1 text-[9px] opacity-70">(δεν εκτυπώνεται)</span>
+                                                        )}
                                                         {/* Polishing sub-stages */}
                                                         {cfg.id === ProductionStage.Polishing && (candidate.polishingPendingQty > 0 || candidate.polishingActiveQty > 0) && (
                                                             <span className="ml-1 opacity-70 font-normal">
@@ -2441,7 +2552,10 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                 });
 
                 // Compute stage breakdown from actual batches for this order
-                const orderBatches = batchesByOrderId.get(order.id) || [];
+                // Only count assembly-eligible SKUs (the sheet is for assembly only).
+                const orderBatches = (batchesByOrderId.get(order.id) || []).filter(
+                    b => requiresAssemblyStage(b.sku) && !isSpecialCreationSku(b.sku)
+                );
                 const stageBreakdown: Partial<Record<ProductionStage, number>> = {};
                 let polishingPendingQty = 0;
                 let polishingActiveQty = 0;
@@ -3117,13 +3231,16 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             const selectedCandidates = assemblyOrderCandidates.filter((candidate) => selectedOrderIds.includes(candidate.order.id));
             rows = selectedCandidates.flatMap((candidate) => candidate.rows);
         } else {
-            // Stage-filtered: rows derived from actual batches currently in the selected stages
+            // Stage-filtered: rows derived from actual batches currently in the selected stages.
+            // Only assembly-eligible SKUs are valid for this sheet.
             const stageSet = new Set(stageFilter);
             const filteredBatches = enhancedBatches.filter(b =>
                 b.order_id &&
                 selectedOrderIds.includes(b.order_id) &&
                 stageSet.has(b.current_stage) &&
-                !b.on_hold
+                !b.on_hold &&
+                requiresAssemblyStage(b.sku) &&
+                !isSpecialCreationSku(b.sku)
             );
             const rowsByKey = new Map<string, AssemblyPrintRow>();
             filteredBatches.forEach((batch, idx) => {
@@ -3907,6 +4024,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                     }
                     labelSortMode={printSelectorState.type === 'labels' ? labelPrintSortMode : undefined}
                     onLabelSortModeChange={printSelectorState.type === 'labels' ? setLabelPrintSortMode : undefined}
+                    showPolishingSubstages={printSelectorState.type === 'technician'}
                 />
             )}
 

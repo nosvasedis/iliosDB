@@ -298,7 +298,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                 {aggregatedPrintData && <AggregatedProductionView data={aggregatedPrintData} settings={settings} />}
                 {preparationPrintData && <PreparationView batches={preparationPrintData.batches} allMaterials={materials} allProducts={products} allMolds={molds} />}
                 {technicianPrintData && <TechnicianView batches={technicianPrintData.batches} />}
-                {assemblyPrintData && <AssemblyPrintView rows={assemblyPrintData.rows} allProducts={products} allMaterials={materials} />}
+                {assemblyPrintData && <AssemblyPrintView rows={assemblyPrintData.rows} allProducts={products} allMaterials={materials} allMolds={molds} />}
                 {priceListPrintData && <PriceListPrintView data={priceListPrintData} />}
                 {analyticsPrintData && <AnalyticsPrintReport stats={analyticsPrintData} title={analyticsPrintData.title} />}
                 {orderAnalyticsData && (
