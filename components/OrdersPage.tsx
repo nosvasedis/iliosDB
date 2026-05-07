@@ -28,7 +28,7 @@ import SkuOrderSearchModal from './orders/SkuOrderSearchModal';
 import TransferRemainingItemsModal from './TransferRemainingItemsModal';
 import ShipmentSelectorModal from './ShipmentSelectorModal';
 import { useCollections } from '../hooks/api/useCollections';
-import { useCustomers, useOrderShipmentsForOrder, useOrders } from '../hooks/api/useOrders';
+import { useAllShipmentItems, useAllShipments, useCustomers, useOrderShipmentsForOrder, useOrders } from '../hooks/api/useOrders';
 import { useProductionBatches } from '../hooks/api/useProductionBatches';
 import { ordersRepository } from '../features/orders';
 import DesktopPageHeader from './DesktopPageHeader';
@@ -892,6 +892,20 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     const { data: customers } = useCustomers();
     const { data: batches, isLoading: loadingBatches, isError: batchesError, error: batchesErr, refetch: refetchBatches } = useProductionBatches();
     const { data: collections } = useCollections();
+    const { data: allShipments } = useAllShipments();
+    const { data: allShipmentItems } = useAllShipmentItems();
+
+    // Precompute total shipped qty per order (for PartiallyDelivered progress bar stripe)
+    const shippedQtyByOrderId = useMemo(() => {
+        const map = new Map<string, number>();
+        if (!allShipments || !allShipmentItems) return map;
+        const shipmentToOrder = new Map(allShipments.map(s => [s.id, s.order_id]));
+        for (const item of allShipmentItems) {
+            const orderId = shipmentToOrder.get(item.shipment_id);
+            if (orderId) map.set(orderId, (map.get(orderId) || 0) + item.quantity);
+        }
+        return map;
+    }, [allShipments, allShipmentItems]);
 
     // View State
     const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
@@ -1648,7 +1662,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                 ) : (
                                                     <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-bold border ${getOrderStatusClasses(order.status)}`}>{getOrderStatusLabel(order.status)}</span>
                                                 )}
-                                                {!ready && <OrderListProgressBar order={order} batches={batches} ready={ready} density="desktop" />}
+                                                {!ready && <OrderListProgressBar order={order} batches={batches} ready={ready} density="desktop" shippedQty={shippedQtyByOrderId.get(order.id)} />}
                                                 {ready && order.status !== OrderStatus.Delivered && (
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handleCompleteOrder(order); }}

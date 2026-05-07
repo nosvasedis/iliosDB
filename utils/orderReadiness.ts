@@ -331,7 +331,8 @@ export function buildInProductionCollapsedProgressSegments(
  */
 export function buildPartialDeliveryProgressSegments(
   order: Order,
-  batches: ProductionBatch[] | undefined | null
+  batches: ProductionBatch[] | undefined | null,
+  knownShippedQty?: number
 ): {
   segments: OrderListProgressSegment[];
   summaryTitle: string;
@@ -356,8 +357,10 @@ export function buildPartialDeliveryProgressSegments(
   }
   let wipQty = Math.max(0, batchTotal - readyQty);
 
-  let shippedQty = itemsTotal - batchTotal;
-  shippedQty = Math.max(0, Math.min(itemsTotal, shippedQty));
+  // Use real shipment data when provided; fall back to heuristic only when absent
+  let shippedQty = knownShippedQty !== undefined
+    ? Math.max(0, Math.min(itemsTotal, knownShippedQty))
+    : Math.max(0, Math.min(itemsTotal, itemsTotal - batchTotal));
 
   const pipelineCap = Math.max(0, itemsTotal - shippedQty);
   const pipeline = readyQty + wipQty;

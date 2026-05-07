@@ -20,6 +20,8 @@ type Props = {
   ready: boolean;
   /** desktop: h-2; mobile: h-1.5 */
   density?: 'desktop' | 'mobile';
+  /** Real shipped quantity from DB; used to correctly show unbatched stripe on PartiallyDelivered orders */
+  shippedQty?: number;
 };
 
 type DesktopExpandedBreakdown =
@@ -109,7 +111,7 @@ function StageStripAndPills(props: {
  * Παραγγελίες list: progress next to status.
  * Σε Παραγωγή / Μερική Παράδοση: συμπαγής μπάρα — σε desktop με ανάπτυγμα (ανά στάδιο, με σωστή σημασιολογία για μερική παράδοση).
  */
-export function OrderListProgressBar({ order, batches, ready, density = 'desktop' }: Props) {
+export function OrderListProgressBar({ order, batches, ready, density = 'desktop', shippedQty }: Props) {
   const [stagesExpanded, setStagesExpanded] = useState(false);
   const expandedBreakdown = useDesktopExpandedBreakdown(order, batches, density);
 
@@ -117,7 +119,7 @@ export function OrderListProgressBar({ order, batches, ready, density = 'desktop
 
   const h = density === 'desktop' ? 'h-2' : 'h-1.5';
   const partial =
-    order.status === OrderStatus.PartiallyDelivered ? buildPartialDeliveryProgressSegments(order, batches) : null;
+    order.status === OrderStatus.PartiallyDelivered ? buildPartialDeliveryProgressSegments(order, batches, shippedQty) : null;
   const inProd =
     (order.status === OrderStatus.InProduction || order.status === OrderStatus.Pending)
       ? buildInProductionCollapsedProgressSegments(order, batches)

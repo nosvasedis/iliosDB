@@ -31,6 +31,7 @@ import { SellerPicker } from '../OrderBuilder/SellerPicker';
 import { useSellers } from '../../hooks/api/useSellers';
 import SkuOrderSearchModal from '../orders/SkuOrderSearchModal';
 import ShipmentSelectorModal from '../ShipmentSelectorModal';
+import { useAllShipmentItems, useAllShipments } from '../../hooks/api/useOrders';
 
 const STAGE_ICON_MAP: Record<ProductionStage, LucideIcon> = {
     [ProductionStage.AwaitingDelivery]: Globe,
@@ -908,7 +909,8 @@ const OrderCard: React.FC<{
     onPrint?: (o: Order) => void,
     onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
     tagColorOverrides?: Record<string, number>;
-}> = ({ order, products, batches, onEdit, onDelete, onCancel, onManage, isReady, onComplete, onPrint, onPrintLabels, tagColorOverrides = {} }) => {
+    shippedQty?: number;
+}> = ({ order, products, batches, onEdit, onDelete, onCancel, onManage, isReady, onComplete, onPrint, onPrintLabels, tagColorOverrides = {}, shippedQty }) => {
     const isRetailOrder = order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME;
     const { retailClientLabel } = extractRetailClientFromNotes(order.notes);
     const [expanded, setExpanded] = useState(false);
@@ -997,7 +999,7 @@ const OrderCard: React.FC<{
                         </div>
                         {!isReady && orderStatusShowsProductionProgress(order.status) && (
                             <div className="w-full flex justify-end">
-                                <OrderListProgressBar order={order} batches={batches} ready={isReady} density="mobile" />
+                                <OrderListProgressBar order={order} batches={batches} ready={isReady} density="mobile" shippedQty={shippedQty} />
                             </div>
                         )}
                         {isReady && !isDelivered && !isCancelled && (
@@ -1205,7 +1207,21 @@ export default function MobileOrders({
     const { showToast, confirm } = useUI();
     const { data: orders, isLoading } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
     const { data: batches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
+    const { data: allShipments } = useAllShipments();
+    const { data: allShipmentItems } = useAllShipmentItems();
     const { overrides: tagColorOverrides, changeTagColor: handleChangeTagColor } = useTagColorOverrides();
+
+    // Precompute total shipped qty per order (for PartiallyDelivered progress bar stripe)
+    const shippedQtyByOrderId = useMemo(() => {
+        const map = new Map<string, number>();
+        if (!allShipments || !allShipmentItems) return map;
+        const shipmentToOrder = new Map(allShipments.map(s => [s.id, s.order_id]));
+        for (const item of allShipmentItems) {
+            const orderId = shipmentToOrder.get(item.shipment_id);
+            if (orderId) map.set(orderId, (map.get(orderId) || 0) + item.quantity);
+        }
+        return map;
+    }, [allShipments, allShipmentItems]);
 
     const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
     const [filters, setFilters] = useState<OrderFilters>(DEFAULT_FILTERS);
@@ -1533,6 +1549,7 @@ export default function MobileOrders({
                         onPrint={setPrintModalOrder}
                         onPrintLabels={onPrintLabels}
                         tagColorOverrides={tagColorOverrides}
+                        shippedQty={shippedQtyByOrderId.get(order.id)}
                     />
                 ))}
                 {filteredOrders.length === 0 && (

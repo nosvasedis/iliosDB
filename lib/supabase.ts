@@ -1137,6 +1137,10 @@ export const api = {
         return (items as OrderShipmentItem[]).filter((item) => item.shipment_id === shipmentId);
     },
 
+    getAllOrderShipmentItems: async (): Promise<OrderShipmentItem[]> => {
+        return fetchFullTable('order_shipment_items');
+    },
+
     getShipmentsForOrder: async (orderId: string): Promise<{ shipments: OrderShipment[]; items: OrderShipmentItem[] }> => {
         return getOrderShipmentsSnapshot(orderId);
     },

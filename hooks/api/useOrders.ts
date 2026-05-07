@@ -23,3 +23,17 @@ export const useOrderShipmentsForOrder = (orderId: string) => {
     enabled: !!orderId,
   });
 };
+
+export const useAllShipments = () => {
+  return useQuery<OrderShipment[]>({
+    queryKey: orderKeys.shipments(),
+    queryFn: ordersRepository.getShipments,
+  });
+};
+
+export const useAllShipmentItems = () => {
+  return useQuery<OrderShipmentItem[]>({
+    queryKey: orderKeys.shipmentItems(),
+    queryFn: ordersRepository.getAllShipmentItems,
+  });
+};
