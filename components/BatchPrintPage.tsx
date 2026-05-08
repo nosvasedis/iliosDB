@@ -749,7 +749,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                             >
                                                 <div className="w-10 h-10 bg-white rounded-lg overflow-hidden shrink-0 border border-slate-200">
                                                     {p.image_url ? (
-                                                        <img src={p.image_url} className="w-full h-full object-cover" alt={p.sku} />
+                                                        <img src={p.image_url} className="w-full h-full object-cover" alt={p.sku} loading="lazy" decoding="async" />
                                                     ) : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={16} /></div>}
                                                 </div>
                                                 <div>

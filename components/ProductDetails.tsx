@@ -6,7 +6,7 @@ import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffi
 import { FINISH_CODES } from '../constants';
 import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag, Edit, Check, ArrowDownRight, RefreshCcw, Scale } from 'lucide-react';
 import { uploadProductImage, R2_PUBLIC_URL, AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL } from '../lib/supabase';
-import { compressImage } from '../utils/imageHelpers';
+import { ACCEPTED_IMAGE_INPUT_TYPES, compressImage } from '../utils/imageHelpers';
 import { useQueryClient } from '@tanstack/react-query';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 import { useUI } from './UIProvider';
@@ -1464,7 +1464,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                         <div className="bg-white/20 backdrop-blur-md text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 border border-white/30">
                                             <Camera size={18} /> {isUploadingImage ? 'Μεταφόρτωση...' : 'Αλλαγή'}
                                         </div>
-                                        <input type="file" className="hidden" accept="image/*" onChange={handleImageUpdate} disabled={isUploadingImage} />
+                                        <input type="file" className="hidden" accept={ACCEPTED_IMAGE_INPUT_TYPES} onChange={handleImageUpdate} disabled={isUploadingImage} />
                                     </label>
                                     
                                     {editedProduct.image_url && (

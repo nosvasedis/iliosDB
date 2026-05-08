@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { GlobalSettings, Product } from '../types';
-import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Info, Shield, Key, Download, FileJson, FileText, Database, ShieldAlert, RefreshCw, Trash2, HardDrive, Upload, Tag, Activity, AlertTriangle, Clock } from 'lucide-react';
+import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Info, Shield, Key, Download, FileJson, FileText, Database, ShieldAlert, RefreshCw, Trash2, HardDrive, Upload, Tag, Activity, AlertTriangle, Clock, Image as ImageIcon } from 'lucide-react';
 import { supabase, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, GEMINI_API_KEY, api } from '../lib/supabase';
 import { offlineDb } from '../lib/offlineDb';
 import AuditLogsModal from './AuditLogsModal';
@@ -12,6 +12,7 @@ import { formatDecimal } from '../utils/pricingEngine';
 import { convertToCSV, downloadFile, downloadBlob, flattenForCSV } from '../utils/exportUtils';
 import { BACKUP_TABLE_REGISTRY, BackupProgress, validateBackup } from '../lib/backupConfig';
 import DesktopPageHeader from './DesktopPageHeader';
+import { compressImage } from '../utils/imageHelpers';
 
 export default function SettingsPage() {
     const queryClient = useQueryClient();
@@ -287,6 +288,114 @@ export default function SettingsPage() {
         }
     };
 
+    const deleteCloudImageBestEffort = async (imageUrl: string | null | undefined) => {
+        if (!imageUrl || imageUrl.startsWith('data:')) return;
+        try {
+            const url = new URL(imageUrl);
+            const fileName = decodeURIComponent(url.pathname.slice(1));
+            if (!fileName) return;
+            await fetch(`${CLOUDFLARE_WORKER_URL}/${encodeURIComponent(fileName)}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': AUTH_KEY_SECRET },
+            });
+        } catch (error) {
+            console.warn('Old image cleanup skipped:', error);
+        }
+    };
+
+    const uploadOptimizedCloudImage = async (blob: Blob, sku: string): Promise<string> => {
+        if (!navigator.onLine) throw new Error('Image optimization requires internet.');
+
+        const safeSku = sku
+            .replace(/[^a-zA-Z0-9-\u0370-\u03FF]/g, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '');
+        const fileName = `${safeSku.toUpperCase()}_${Date.now()}_OPT.jpg`;
+        const uploadUrl = `${CLOUDFLARE_WORKER_URL}/${encodeURIComponent(fileName)}`;
+        const response = await fetch(uploadUrl, {
+            method: 'POST',
+            mode: 'cors',
+            headers: { 'Content-Type': 'image/jpeg', 'Authorization': AUTH_KEY_SECRET },
+            body: blob,
+        });
+
+        if (!response.ok) throw new Error(`Image upload failed: ${response.status}`);
+        return uploadUrl;
+    };
+
+    const handleOptimizeDmKnSkImages = async () => {
+        const prefixes = ['DM', 'KN', 'SK'];
+        const yes = await confirm({
+            title: 'Optimize DM / KN / SK images',
+            message: 'This will recompress uploaded DM, KN and SK product images, save new smaller image URLs, and leave products unchanged otherwise. It can take a few minutes.',
+            confirmText: 'Optimize Images'
+        });
+        if (!yes) return;
+
+        setIsMaintenanceAction(true);
+        let optimized = 0;
+        let skipped = 0;
+        let failed = 0;
+        let savedBytes = 0;
+
+        try {
+            const products = await api.getProducts();
+            const targets = products.filter((product: Product) => {
+                const sku = product.sku.toUpperCase();
+                return Boolean(product.image_url)
+                    && !product.image_url?.startsWith('data:')
+                    && prefixes.some(prefix => sku.startsWith(prefix));
+            });
+
+            if (targets.length === 0) {
+                showToast('No DM / KN / SK cloud images found.', 'info');
+                return;
+            }
+
+            showToast(`Optimizing ${targets.length} images...`, 'info');
+
+            for (const product of targets) {
+                try {
+                    const response = await fetch(product.image_url!);
+                    if (!response.ok) throw new Error(`Image fetch failed: ${response.status}`);
+
+                    const originalBlob = await response.blob();
+                    const sourceFile = new File([originalBlob], `${product.sku}.jpg`, {
+                        type: originalBlob.type || 'image/jpeg',
+                    });
+                    const compressedBlob = await compressImage(sourceFile);
+
+                    if (compressedBlob.size >= originalBlob.size * 0.92) {
+                        skipped += 1;
+                        continue;
+                    }
+
+                    const oldUrl = product.image_url;
+                    const newUrl = await uploadOptimizedCloudImage(compressedBlob, product.sku);
+
+                    const result = await api.saveProduct({ ...product, image_url: newUrl });
+                    if (result?.error) throw result.error;
+
+                    optimized += 1;
+                    savedBytes += Math.max(0, originalBlob.size - compressedBlob.size);
+                    await deleteCloudImageBestEffort(oldUrl);
+                } catch (error) {
+                    failed += 1;
+                    console.warn(`Image optimization failed for ${product.sku}:`, error);
+                }
+            }
+
+            await queryClient.invalidateQueries({ queryKey: ['products'] });
+            const savedMb = (savedBytes / 1024 / 1024).toFixed(1);
+            showToast(`Optimized ${optimized}, skipped ${skipped}, failed ${failed}. Saved about ${savedMb} MB.`, failed ? 'info' : 'success');
+        } catch (error) {
+            console.error(error);
+            showToast('Image optimization failed.', 'error');
+        } finally {
+            setIsMaintenanceAction(false);
+        }
+    };
+
     return (
         <div className="max-w-4xl mx-auto space-y-8 pb-20">
             <DesktopPageHeader
@@ -410,6 +519,10 @@ export default function SettingsPage() {
 
                         <button onClick={handleForceSync} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors font-bold text-slate-700 text-sm mt-4">
                             <RefreshCw size={16} className={isMaintenanceAction ? 'animate-spin' : ''} /> Συγχρονισμός Εκκρεμοτήτων
+                        </button>
+
+                        <button onClick={handleOptimizeDmKnSkImages} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-100 rounded-xl hover:bg-emerald-100 transition-colors font-bold text-emerald-700 text-sm">
+                            <ImageIcon size={16} /> Optimize DM / KN / SK Images
                         </button>
 
                         <button onClick={handleClearSyncQueue} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 transition-colors font-bold text-amber-700 text-sm">

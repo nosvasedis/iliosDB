@@ -4,6 +4,7 @@ import { ProductionType, Gender, PlatingType } from '../../types';
 import { useNewProductState } from '../../hooks/useNewProductState';
 import { MoldsSection } from './MoldsSection';
 import { FINISH_CODES } from '../../constants';
+import { ACCEPTED_IMAGE_INPUT_TYPES } from '../../utils/imageHelpers';
 
 interface Props {
     formState: ReturnType<typeof useNewProductState>;
@@ -27,7 +28,7 @@ export const StepBasicInfo: React.FC<Props> = ({ formState, suppliers }) => {
                     <label className="block text-sm font-bold text-slate-700 mb-2">Φωτογραφία</label>
                     <div className="relative group w-full aspect-square bg-slate-50 border-2 border-dashed border-slate-300 rounded-2xl overflow-hidden hover:border-amber-400 transition-all cursor-pointer shadow-inner">
                         {state.imagePreview ? <img src={state.imagePreview} className="w-full h-full object-cover" /> : <div className="flex flex-col items-center justify-center h-full text-slate-400 pointer-events-none"><ImageIcon size={32} className="opacity-50 mb-2" /><span className="text-xs font-bold">Επιλογή</span></div>}
-                        <input type="file" accept="image/*" onChange={actions.handleImageSelect} className="absolute inset-0 opacity-0 cursor-pointer z-50" />
+                        <input type="file" accept={ACCEPTED_IMAGE_INPUT_TYPES} onChange={actions.handleImageSelect} className="absolute inset-0 opacity-0 cursor-pointer z-50" />
                     </div>
                 </div>
                 <div className="flex-1 space-y-6">

@@ -201,6 +201,8 @@ const ProductCard: React.FC<{
                     <img
                         src={product.image_url}
                         alt={product.sku}
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700 ease-out"
                     />
                 ) : (

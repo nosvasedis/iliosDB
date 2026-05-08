@@ -5,7 +5,7 @@ import { Sparkles, Send, Search, Loader2, Copy, TrendingUp, Feather, User, Camer
 import { useUI } from './UIProvider';
 import { api, R2_PUBLIC_URL, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, GEMINI_API_KEY } from '../lib/supabase';
 import { useQuery } from '@tanstack/react-query';
-import { compressImage } from '../utils/imageHelpers';
+import { ACCEPTED_IMAGE_INPUT_TYPES, compressImage } from '../utils/imageHelpers';
 import ProductDetails from './ProductDetails';
 
 type Mode = 'copywriting' | 'virtual-model' | 'trends' | 'lookup';
@@ -450,7 +450,7 @@ export default function AiStudio() {
                                 <label className="aspect-square rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 hover:border-emerald-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all gap-2 cursor-pointer">
                                     <Camera size={24}/>
                                     <span className="text-xs font-bold">Μεταφόρτωση</span>
-                                    <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
+                                    <input type="file" className="hidden" accept={ACCEPTED_IMAGE_INPUT_TYPES} onChange={handleFileUpload} />
                                 </label>
                             </div>
                         )}
@@ -576,7 +576,7 @@ export default function AiStudio() {
                                 <div key={p.sku} onClick={() => handleProductSelect(p)} className="cursor-pointer group">
                                     <div className="aspect-square bg-slate-100 rounded-xl overflow-hidden mb-2 relative border border-slate-200 group-hover:border-emerald-500 transition-colors">
                                         {p.image_url ? (
-                                            <img src={p.image_url} className="w-full h-full object-cover" />
+                                            <img src={p.image_url} className="w-full h-full object-cover" loading="lazy" decoding="async" />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={24}/></div>
                                         )}

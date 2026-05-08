@@ -4,7 +4,7 @@ import { Sparkles, Send, Camera, Image as ImageIcon, Loader2 } from 'lucide-reac
 import { ChatMessage } from '../../types';
 import MobileScreenHeader from './MobileScreenHeader';
 import { generateMarketingCopy, generateTrendAnalysis, identifyProductFromImage } from '../../lib/gemini';
-import { compressImage } from '../../utils/imageHelpers';
+import { ACCEPTED_IMAGE_INPUT_TYPES, compressImage } from '../../utils/imageHelpers';
 import { useUI } from '../UIProvider';
 import { api, R2_PUBLIC_URL, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET } from '../../lib/supabase';
 
@@ -179,7 +179,7 @@ export default function MobileAiStudio() {
                     
                     <input 
                         type="file" 
-                        accept="image/*" 
+                        accept={ACCEPTED_IMAGE_INPUT_TYPES}
                         className="hidden" 
                         ref={fileInputRef} 
                         onChange={handleImageUpload} 

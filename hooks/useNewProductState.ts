@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, ProductVariant, ProductionType, Mold, ProductMold } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, estimateVariantCost } from '../utils/pricingEngine';
-import { compressImage } from '../utils/imageHelpers';
+import { compressImage, createImagePreviewUrl } from '../utils/imageHelpers';
 import { getSteps } from '../components/ProductRegistry/constants';
 import { useQueryClient } from '@tanstack/react-query';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
@@ -257,12 +257,20 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
         }, 0);
     }, [recipe, materials, products]);
 
-    const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             setSelectedImage(file);
-            const previewUrl = URL.createObjectURL(file);
-            setImagePreview(previewUrl);
+            try {
+                const previewUrl = await createImagePreviewUrl(file);
+                setImagePreview(prev => {
+                    if (prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+                    return previewUrl;
+                });
+            } catch (error) {
+                console.error(error);
+                showToast("Δεν ήταν δυνατή η προεπισκόπηση της εικόνας.", "error");
+            }
         }
     };
 

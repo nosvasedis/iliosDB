@@ -111,7 +111,7 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
                                 className="group relative rounded-2xl overflow-hidden border border-slate-100 h-32 bg-slate-100 shadow-sm active:scale-[0.97] transition-transform text-left"
                             >
                                 {previewProduct?.image_url && (
-                                    <img src={previewProduct.image_url} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="" />
+                                    <img src={previewProduct.image_url} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="" loading="lazy" decoding="async" />
                                 )}
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                                 <div className="absolute bottom-0 inset-x-0 p-3">
@@ -160,7 +160,7 @@ const CatalogBrowser: React.FC<CatalogBrowserProps> = ({ products, collections, 
                     >
                         <div className="aspect-square bg-slate-50 relative overflow-hidden">
                             {p.image_url
-                                ? <img src={p.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt={p.sku} />
+                                ? <img src={p.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt={p.sku} loading="lazy" decoding="async" />
                                 : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={expanded ? 28 : 20} /></div>
                             }
                         </div>
@@ -847,7 +847,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                             <button key={p.sku} onClick={() => handleSelectMaster(p)} className="w-full text-left p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between active:scale-[0.99] transition-transform">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-10 h-10 bg-white rounded-lg overflow-hidden border border-slate-200 flex items-center justify-center shrink-0">
-                                                        {p.image_url ? <img src={p.image_url} className="w-full h-full object-cover" /> : <ImageIcon size={16} className="text-slate-300" />}
+                                                        {p.image_url ? <img src={p.image_url} className="w-full h-full object-cover" loading="lazy" decoding="async" /> : <ImageIcon size={16} className="text-slate-300" />}
                                                     </div>
                                                     <div>
                                                         <SkuColorizedText sku={p.sku} suffix="" gender={p.gender} className="font-black" masterClassName="text-slate-900" />

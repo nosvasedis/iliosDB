@@ -147,7 +147,7 @@ const RegistryCard: React.FC<{ product: Product; onClick: () => void }> = ({ pro
         >
             <div className="aspect-square bg-slate-50 rounded-xl overflow-hidden mb-2 relative group shrink-0">
                 {product.image_url ? (
-                    <img src={product.image_url} className="w-full h-full object-cover" alt={displaySku} />
+                    <img src={product.image_url} className="w-full h-full object-cover" alt={displaySku} loading="lazy" decoding="async" />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={24}/></div>
                 )}

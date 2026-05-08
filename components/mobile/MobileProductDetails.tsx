@@ -3,7 +3,7 @@ import { Product, ProductVariant, Warehouse, Gender, PlatingType, MaterialType, 
 import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy, ArrowRightLeft, PlusCircle, Settings2, ArrowRight, Save, Hammer, Box, Flame, Gem, Coins, ChevronDown, ChevronUp, Palette, Info, Package, Download, Loader2, Sparkles, Layers, Ruler, Camera } from 'lucide-react';
 import { formatCurrency, getVariantComponents, transliterateForBarcode } from '../../utils/pricingEngine';
 import { SYSTEM_IDS, CLOUDFLARE_WORKER_URL, recordStockMovement, supabase, api, R2_PUBLIC_URL, AUTH_KEY_SECRET, uploadProductImage } from '../../lib/supabase';
-import { compressImage } from '../../utils/imageHelpers';
+import { ACCEPTED_IMAGE_INPUT_TYPES, compressImage } from '../../utils/imageHelpers';
 import { productsRepository } from '../../features/products/repository';
 import BarcodeView from '../BarcodeView';
 import { useUI } from '../UIProvider';
@@ -327,7 +327,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                 ? <><Loader2 size={16} className="animate-spin"/> <span className="text-xs font-bold">Μεταφόρτωση...</span></>
                 : <><Camera size={16}/> <span className="text-xs font-bold">{localImageUrl ? 'Αλλαγή' : 'Προσθήκη'} Φωτο</span></>
             }
-            <input type="file" accept="image/*" className="hidden" onChange={handleImageUpdate} disabled={isUploadingImage} />
+            <input type="file" accept={ACCEPTED_IMAGE_INPUT_TYPES} className="hidden" onChange={handleImageUpdate} disabled={isUploadingImage} />
         </label>
         <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-slate-900/90 via-slate-900/50 to-transparent pt-12">
             <div className="flex justify-between items-end">
