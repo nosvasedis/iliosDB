@@ -18,6 +18,7 @@ const IMAGE_OPTIMIZATION_BATCH_SIZE = 100;
 const IMAGE_OPTIMIZATION_SKIPPED_KEY = 'ilios:image-optimization-skipped:v1';
 const IMAGE_OPTIMIZATION_MIN_BYTES = 450 * 1024;
 const IMAGE_OPTIMIZATION_MAX_EDGE = 1100;
+const waitForBrowserIdle = () => new Promise(resolve => window.setTimeout(resolve, 150));
 
 export default function SettingsPage() {
     const queryClient = useQueryClient();
@@ -381,7 +382,7 @@ export default function SettingsPage() {
     const handleOptimizeProductImages = async () => {
         const yes = await confirm({
             title: 'Βελτιστοποίηση εικόνων προϊόντων',
-            message: `Θα ελεγχθούν έως ${IMAGE_OPTIMIZATION_BATCH_SIZE} εικόνες προϊόντων από την απομακρυσμένη αποθήκευση. Θα αλλαχθούν μόνο όσες είναι πραγματικά βαριές ή πολύ μεγάλες σε διαστάσεις. Μπορείτε να το ξανατρέξετε όσες φορές χρειάζεται μέχρι να ολοκληρωθεί όλη η βιβλιοθήκη.`,
+            message: `Θα ελεγχθεί όλη η βιβλιοθήκη εικόνων προϊόντων σε παρτίδες των ${IMAGE_OPTIMIZATION_BATCH_SIZE}, χωρίς να χρειάζεται να πατήσετε ξανά το κουμπί. Θα αλλαχθούν μόνο όσες είναι πραγματικά βαριές ή πολύ μεγάλες σε διαστάσεις. Κρατήστε αυτή τη σελίδα ανοιχτή μέχρι να ολοκληρωθεί.`,
             confirmText: 'Βελτιστοποίηση'
         });
         if (!yes) return;
@@ -403,18 +404,17 @@ export default function SettingsPage() {
                     && !decodeURIComponent(imageUrl).includes('_OPT.')
                     && !skippedUrls.has(imageUrl);
             });
-            const targets = allTargets.slice(0, IMAGE_OPTIMIZATION_BATCH_SIZE);
-            const remainingAfterBatch = Math.max(0, allTargets.length - targets.length);
             const minKb = Math.round(IMAGE_OPTIMIZATION_MIN_BYTES / 1024);
 
-            if (targets.length === 0) {
+            if (allTargets.length === 0) {
                 showToast('Δεν βρέθηκαν εικόνες προϊόντων στην απομακρυσμένη αποθήκευση για βελτιστοποίηση.', 'info');
                 return;
             }
 
-            showToast(`Έλεγχος ${targets.length} από ${allTargets.length} εικόνες. Θα αλλαχθούν μόνο όσες είναι πάνω από ${minKb}KB ή ${IMAGE_OPTIMIZATION_MAX_EDGE}px.`, 'info');
+            showToast(`Ξεκίνησε ο έλεγχος ${allTargets.length} εικόνων. Θα αλλαχθούν μόνο όσες είναι πάνω από ${minKb}KB ή ${IMAGE_OPTIMIZATION_MAX_EDGE}px.`, 'info');
 
-            for (const product of targets) {
+            for (let index = 0; index < allTargets.length; index += 1) {
+                const product = allTargets[index];
                 try {
                     const response = await fetch(product.image_url!);
                     if (!response.ok) throw new Error(`Η λήψη εικόνας απέτυχε: ${response.status}`);
@@ -451,13 +451,19 @@ export default function SettingsPage() {
                     failed += 1;
                     console.warn(`Η βελτιστοποίηση εικόνας απέτυχε για ${product.sku}:`, error);
                 }
+
+                const processed = index + 1;
+                if (processed % IMAGE_OPTIMIZATION_BATCH_SIZE === 0 && processed < allTargets.length) {
+                    saveSkippedOptimizationUrls(skippedUrls);
+                    showToast(`Πρόοδος: ${processed}/${allTargets.length}. Βελτιστοποιήθηκαν ${optimized}, παραλείφθηκαν ${skipped}, απέτυχαν ${failed}.`, 'info');
+                    await waitForBrowserIdle();
+                }
             }
 
             saveSkippedOptimizationUrls(skippedUrls);
             await queryClient.invalidateQueries({ queryKey: ['products'] });
             const savedMb = (savedBytes / 1024 / 1024).toFixed(1);
-            const remainingText = remainingAfterBatch > 0 ? ` Απομένουν περίπου ${remainingAfterBatch}.` : '';
-            showToast(`Βελτιστοποιήθηκαν ${optimized}, παραλείφθηκαν ${skipped}, απέτυχαν ${failed}. Εξοικονομήθηκαν περίπου ${savedMb} MB.${remainingText}`, failed ? 'info' : 'success');
+            showToast(`Ολοκληρώθηκε. Βελτιστοποιήθηκαν ${optimized}, παραλείφθηκαν ${skipped}, απέτυχαν ${failed}. Εξοικονομήθηκαν περίπου ${savedMb} MB.`, failed ? 'info' : 'success');
         } catch (error) {
             console.error(error);
             showToast('Η βελτιστοποίηση εικόνων απέτυχε.', 'error');
