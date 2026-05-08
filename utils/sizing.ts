@@ -3,6 +3,7 @@ import { isXrExtendedSizingSku } from './xrOptions';
 export const SIZED_PREFIXES = {
     RINGS_MEN: 'RN',
     RINGS_WOMEN: 'DA',
+    RINGS_DM: 'DM',
     BRACELETS_WOMEN: 'BR',
     BRACELETS_MEN: 'XR',
     RINGS_SPECIAL_1: 'BDA',
@@ -22,11 +23,18 @@ export type ProductSizingInfo = {
     sizes: string[];
 };
 
-export function isSizable(product: { prefix: string, category?: string, sku?: string }): boolean {
+type SizingProduct = { prefix: string, category?: string, sku?: string, gender?: string };
+
+function isRingCategory(category?: string): boolean {
+    const normalized = (category || '').trim().toUpperCase();
+    return normalized.includes('ΔΑΧΤΥΛ') || normalized.includes('ΔΑΚΤΥΛ') || normalized.includes('RING');
+}
+
+export function isSizable(product: SizingProduct): boolean {
     return getSizingInfo(product) !== null;
 }
 
-export function getSizingInfo(product: { prefix: string, category?: string, sku?: string }): ProductSizingInfo | null {
+export function getSizingInfo(product: SizingProduct): ProductSizingInfo | null {
     const prefix = product.prefix.toUpperCase();
 
     if (prefix === SIZED_PREFIXES.RINGS_MEN) {
@@ -35,6 +43,13 @@ export function getSizingInfo(product: { prefix: string, category?: string, sku?
 
     if (prefix === SIZED_PREFIXES.RINGS_WOMEN || prefix === 'BDA' || prefix === 'ΒΔΑ') {
         return { type: SIZE_TYPE_NUMBER, sizes: RING_SIZES_WOMEN };
+    }
+
+    if (prefix === SIZED_PREFIXES.RINGS_DM && isRingCategory(product.category)) {
+        return {
+            type: SIZE_TYPE_NUMBER,
+            sizes: product.gender === 'Men' ? RING_SIZES_MEN : RING_SIZES_WOMEN
+        };
     }
 
     if (prefix === SIZED_PREFIXES.BRACELETS_MEN) {
