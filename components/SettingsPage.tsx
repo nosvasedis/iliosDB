@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { GlobalSettings, Product } from '../types';
-import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Info, Shield, Key, Download, FileJson, FileText, Database, ShieldAlert, RefreshCw, Trash2, HardDrive, Upload, Tag, Activity, AlertTriangle, Clock, Image as ImageIcon } from 'lucide-react';
+import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Info, Shield, Key, Download, FileJson, FileText, Database, ShieldAlert, RefreshCw, Trash2, HardDrive, Upload, Tag, Activity, AlertTriangle, Clock, Image as ImageIcon, X, Search, Play, CheckSquare } from 'lucide-react';
 import { supabase, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, GEMINI_API_KEY, api } from '../lib/supabase';
 import { offlineDb } from '../lib/offlineDb';
 import AuditLogsModal from './AuditLogsModal';
@@ -16,9 +16,21 @@ import { compressImage } from '../utils/imageHelpers';
 
 const IMAGE_OPTIMIZATION_BATCH_SIZE = 100;
 const IMAGE_OPTIMIZATION_SKIPPED_KEY = 'ilios:image-optimization-skipped:v1';
+const IMAGE_OPTIMIZATION_HISTORY_KEY = 'ilios:image-optimization-history:v1';
 const IMAGE_OPTIMIZATION_MIN_BYTES = 450 * 1024;
 const IMAGE_OPTIMIZATION_MAX_EDGE = 1100;
 const waitForBrowserIdle = () => new Promise(resolve => window.setTimeout(resolve, 150));
+
+type ImageOptimizationHistoryEntry = {
+    id: string;
+    date: string;
+    mode: string;
+    checked: number;
+    optimized: number;
+    skipped: number;
+    failed: number;
+    savedMb: string;
+};
 
 export default function SettingsPage() {
     const queryClient = useQueryClient();
@@ -34,6 +46,20 @@ export default function SettingsPage() {
     const [isExporting, setIsExporting] = useState(false);
     const [isMaintenanceAction, setIsMaintenanceAction] = useState(false);
     const [isAuditLogsOpen, setIsAuditLogsOpen] = useState(false);
+    const [isImageOptimizationOpen, setIsImageOptimizationOpen] = useState(false);
+    const [imageOptimizationFilter, setImageOptimizationFilter] = useState('');
+    const [imageOptimizationPreview, setImageOptimizationPreview] = useState<Product[]>([]);
+    const [selectedImageUrls, setSelectedImageUrls] = useState<Set<string>>(new Set());
+    const [forceSelectedOptimization, setForceSelectedOptimization] = useState(false);
+    const [imageOptimizationHistory, setImageOptimizationHistory] = useState<ImageOptimizationHistoryEntry[]>(() => {
+        try {
+            const stored = localStorage.getItem(IMAGE_OPTIMIZATION_HISTORY_KEY);
+            const parsed = stored ? JSON.parse(stored) : [];
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    });
 
     // Backup progress modal state
     const [backupProgress, setBackupProgress] = useState<BackupProgress | null>(null);
@@ -379,10 +405,68 @@ export default function SettingsPage() {
         }
     };
 
-    const handleOptimizeProductImages = async () => {
+    const saveImageOptimizationHistory = (entry: ImageOptimizationHistoryEntry) => {
+        const next = [entry, ...imageOptimizationHistory].slice(0, 20);
+        setImageOptimizationHistory(next);
+        try {
+            localStorage.setItem(IMAGE_OPTIMIZATION_HISTORY_KEY, JSON.stringify(next));
+        } catch (error) {
+            console.warn('Δεν αποθηκεύτηκε το ιστορικό βελτιστοποίησης εικόνων:', error);
+        }
+    };
+
+    const getRemoteProductImages = (products: Product[], skippedUrls: Set<string>, includeSkipped = false) => {
+        const filter = imageOptimizationFilter.trim().toUpperCase();
+        return products.filter((product: Product) => {
+            const imageUrl = product.image_url || '';
+            return Boolean(imageUrl)
+                && (!filter || product.sku.toUpperCase().includes(filter))
+                && !imageUrl.startsWith('data:')
+                && imageUrl.startsWith(CLOUDFLARE_WORKER_URL)
+                && !decodeURIComponent(imageUrl).includes('_OPT.')
+                && (includeSkipped || !skippedUrls.has(imageUrl));
+        });
+    };
+
+    const loadImageOptimizationPreview = async () => {
+        setIsMaintenanceAction(true);
+        try {
+            const products = await api.getProducts();
+            const skippedUrls = getSkippedOptimizationUrls();
+            const candidates = getRemoteProductImages(products, skippedUrls, true).slice(0, 200);
+            setImageOptimizationPreview(candidates);
+            setSelectedImageUrls(new Set());
+            showToast(`Φορτώθηκαν ${candidates.length} εικόνες για επιλογή.`, 'success');
+        } catch (error) {
+            console.error(error);
+            showToast('Δεν φορτώθηκε η λίστα εικόνων.', 'error');
+        } finally {
+            setIsMaintenanceAction(false);
+        }
+    };
+
+    const toggleSelectedImageUrl = (imageUrl: string) => {
+        setSelectedImageUrls(prev => {
+            const next = new Set(prev);
+            if (next.has(imageUrl)) next.delete(imageUrl);
+            else next.add(imageUrl);
+            return next;
+        });
+    };
+
+    const handleOptimizeProductImages = async (scope: 'smart' | 'selected' = 'smart') => {
+        const selectedUrls = new Set(selectedImageUrls);
+        const isSelectedScope = scope === 'selected';
+        if (isSelectedScope && selectedUrls.size === 0) {
+            showToast('Επιλέξτε πρώτα εικόνες από τη λίστα.', 'info');
+            return;
+        }
+
         const yes = await confirm({
             title: 'Βελτιστοποίηση εικόνων προϊόντων',
-            message: `Θα ελεγχθεί όλη η βιβλιοθήκη εικόνων προϊόντων σε παρτίδες των ${IMAGE_OPTIMIZATION_BATCH_SIZE}, χωρίς να χρειάζεται να πατήσετε ξανά το κουμπί. Θα αλλαχθούν μόνο όσες είναι πραγματικά βαριές ή πολύ μεγάλες σε διαστάσεις. Κρατήστε αυτή τη σελίδα ανοιχτή μέχρι να ολοκληρωθεί.`,
+            message: isSelectedScope
+                ? `Θα βελτιστοποιηθούν οι ${selectedUrls.size} επιλεγμένες εικόνες${forceSelectedOptimization ? ', ακόμη κι αν δεν ξεπερνούν τα αυτόματα όρια' : ' με βάση τα αυτόματα όρια'}. Κρατήστε αυτό το παράθυρο ανοιχτό μέχρι να ολοκληρωθεί.`
+                : `Θα ελεγχθεί όλη η βιβλιοθήκη εικόνων προϊόντων σε παρτίδες των ${IMAGE_OPTIMIZATION_BATCH_SIZE}, χωρίς να χρειάζεται να πατήσετε ξανά το κουμπί. Θα αλλαχθούν μόνο όσες είναι πραγματικά βαριές ή πολύ μεγάλες σε διαστάσεις. Κρατήστε αυτό το παράθυρο ανοιχτό μέχρι να ολοκληρωθεί.`,
             confirmText: 'Βελτιστοποίηση'
         });
         if (!yes) return;
@@ -396,14 +480,9 @@ export default function SettingsPage() {
         try {
             const skippedUrls = getSkippedOptimizationUrls();
             const products = await api.getProducts();
-            const allTargets = products.filter((product: Product) => {
-                const imageUrl = product.image_url || '';
-                return Boolean(product.image_url)
-                    && !imageUrl.startsWith('data:')
-                    && imageUrl.startsWith(CLOUDFLARE_WORKER_URL)
-                    && !decodeURIComponent(imageUrl).includes('_OPT.')
-                    && !skippedUrls.has(imageUrl);
-            });
+            const allTargets = isSelectedScope
+                ? products.filter((product: Product) => product.image_url && selectedUrls.has(product.image_url))
+                : getRemoteProductImages(products, skippedUrls);
             const minKb = Math.round(IMAGE_OPTIMIZATION_MIN_BYTES / 1024);
 
             if (allTargets.length === 0) {
@@ -420,7 +499,7 @@ export default function SettingsPage() {
                     if (!response.ok) throw new Error(`Η λήψη εικόνας απέτυχε: ${response.status}`);
 
                     const originalBlob = await response.blob();
-                    const needsOptimization = await imageNeedsOptimization(originalBlob);
+                    const needsOptimization = forceSelectedOptimization && isSelectedScope ? true : await imageNeedsOptimization(originalBlob);
                     if (!needsOptimization) {
                         skipped += 1;
                         skippedUrls.add(product.image_url!);
@@ -463,6 +542,18 @@ export default function SettingsPage() {
             saveSkippedOptimizationUrls(skippedUrls);
             await queryClient.invalidateQueries({ queryKey: ['products'] });
             const savedMb = (savedBytes / 1024 / 1024).toFixed(1);
+            saveImageOptimizationHistory({
+                id: `${Date.now()}`,
+                date: new Date().toISOString(),
+                mode: isSelectedScope ? (forceSelectedOptimization ? 'Επιλεγμένες - αναγκαστικά' : 'Επιλεγμένες - έξυπνα') : 'Αυτόματος έλεγχος',
+                checked: allTargets.length,
+                optimized,
+                skipped,
+                failed,
+                savedMb,
+            });
+            setSelectedImageUrls(new Set());
+            setImageOptimizationPreview(prev => prev.filter(product => !product.image_url || !selectedUrls.has(product.image_url)));
             showToast(`Ολοκληρώθηκε. Βελτιστοποιήθηκαν ${optimized}, παραλείφθηκαν ${skipped}, απέτυχαν ${failed}. Εξοικονομήθηκαν περίπου ${savedMb} MB.`, failed ? 'info' : 'success');
         } catch (error) {
             console.error(error);
@@ -597,7 +688,7 @@ export default function SettingsPage() {
                             <RefreshCw size={16} className={isMaintenanceAction ? 'animate-spin' : ''} /> Συγχρονισμός Εκκρεμοτήτων
                         </button>
 
-                        <button onClick={handleOptimizeProductImages} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-100 rounded-xl hover:bg-emerald-100 transition-colors font-bold text-emerald-700 text-sm">
+                        <button onClick={() => setIsImageOptimizationOpen(true)} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-100 rounded-xl hover:bg-emerald-100 transition-colors font-bold text-emerald-700 text-sm">
                             <ImageIcon size={16} /> Βελτιστοποίηση Εικόνων Προϊόντων
                         </button>
 
@@ -629,6 +720,126 @@ export default function SettingsPage() {
                     </button>
                 </div>
             </div>
+
+            {isImageOptimizationOpen && (
+                <div className="fixed inset-0 z-[220] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+                    <div className="bg-white w-full max-w-5xl max-h-[88vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+                        <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center justify-between gap-4 shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
+                                    <ImageIcon size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold text-slate-800">Βελτιστοποίηση Εικόνων Προϊόντων</h3>
+                                    <p className="text-sm text-slate-500">Έλεγχος, επιλογή και συμπίεση εικόνων χωρίς να αλλάζουν τα προϊόντα.</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setIsImageOptimizationOpen(false)} disabled={isMaintenanceAction} className="p-2 hover:bg-slate-200 rounded-full text-slate-400 transition-colors">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="p-6 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 overflow-hidden">
+                            <div className="min-h-0 flex flex-col gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <button onClick={() => handleOptimizeProductImages('smart')} disabled={isMaintenanceAction} className="flex items-center justify-center gap-2 p-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 disabled:opacity-50">
+                                        {isMaintenanceAction ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />} Αυτόματος έλεγχος
+                                    </button>
+                                    <button onClick={loadImageOptimizationPreview} disabled={isMaintenanceAction} className="flex items-center justify-center gap-2 p-3 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 disabled:opacity-50">
+                                        <Search size={16} /> Φόρτωση λίστας
+                                    </button>
+                                    <button onClick={() => handleOptimizeProductImages('selected')} disabled={isMaintenanceAction || selectedImageUrls.size === 0} className="flex items-center justify-center gap-2 p-3 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 disabled:opacity-50">
+                                        <CheckSquare size={16} /> Επιλεγμένες ({selectedImageUrls.size})
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-center">
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                        <input
+                                            type="text"
+                                            value={imageOptimizationFilter}
+                                            onChange={(e) => setImageOptimizationFilter(e.target.value)}
+                                            placeholder="Φίλτρο SKU, π.χ. DM, KN, SK..."
+                                            className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-emerald-500/20 text-sm font-medium"
+                                        />
+                                    </div>
+                                    <label className="flex items-center gap-2 text-sm font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3 py-3">
+                                        <input
+                                            type="checkbox"
+                                            checked={forceSelectedOptimization}
+                                            onChange={(e) => setForceSelectedOptimization(e.target.checked)}
+                                            className="w-4 h-4 accent-emerald-500"
+                                        />
+                                        Αναγκαστικά για επιλεγμένες
+                                    </label>
+                                </div>
+
+                                <div className="border border-slate-100 rounded-2xl overflow-hidden min-h-[320px] bg-slate-50">
+                                    <div className="max-h-[42vh] overflow-y-auto p-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                                        {imageOptimizationPreview.length === 0 ? (
+                                            <div className="col-span-full h-64 flex flex-col items-center justify-center text-slate-400 gap-2">
+                                                <ImageIcon size={36} className="text-slate-300" />
+                                                <p className="font-bold">Φορτώστε λίστα για χειροκίνητη επιλογή.</p>
+                                                <p className="text-xs text-slate-500">Η λίστα δείχνει έως 200 εικόνες ανά φίλτρο SKU.</p>
+                                            </div>
+                                        ) : imageOptimizationPreview.map(product => {
+                                            const imageUrl = product.image_url || '';
+                                            const selected = selectedImageUrls.has(imageUrl);
+                                            return (
+                                                <button
+                                                    key={`${product.sku}-${imageUrl}`}
+                                                    onClick={() => toggleSelectedImageUrl(imageUrl)}
+                                                    className={`text-left bg-white rounded-xl border overflow-hidden shadow-sm transition-all ${selected ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-100 hover:border-slate-300'}`}
+                                                >
+                                                    <div className="aspect-square bg-slate-100 overflow-hidden">
+                                                        <img src={imageUrl} alt={product.sku} className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                                                    </div>
+                                                    <div className="p-2 flex items-center justify-between gap-2">
+                                                        <span className="text-xs font-black text-slate-800 truncate">{product.sku}</span>
+                                                        <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${selected ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300'}`}>
+                                                            {selected && <CheckSquare size={12} className="text-white" />}
+                                                        </span>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="min-h-0 flex flex-col gap-4">
+                                <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-sm text-emerald-900">
+                                    <div className="font-black mb-2">Κριτήρια αυτόματου ελέγχου</div>
+                                    <p>Αλλάζει μόνο εικόνες πάνω από {Math.round(IMAGE_OPTIMIZATION_MIN_BYTES / 1024)}KB ή με πλευρά πάνω από {IMAGE_OPTIMIZATION_MAX_EDGE}px. Οι επιλεγμένες μπορούν να γίνουν αναγκαστικά.</p>
+                                </div>
+
+                                <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden flex-1 min-h-0">
+                                    <div className="p-4 border-b border-slate-100 font-black text-slate-800 flex items-center gap-2">
+                                        <Clock size={16} /> Ιστορικό Βελτιστοποιήσεων
+                                    </div>
+                                    <div className="max-h-[44vh] overflow-y-auto p-3 space-y-2 bg-slate-50">
+                                        {imageOptimizationHistory.length === 0 ? (
+                                            <div className="text-sm text-slate-400 font-bold text-center py-10">Δεν υπάρχει ιστορικό ακόμα.</div>
+                                        ) : imageOptimizationHistory.map(entry => (
+                                            <div key={entry.id} className="bg-white border border-slate-100 rounded-xl p-3 text-xs">
+                                                <div className="font-black text-slate-800">{entry.mode}</div>
+                                                <div className="text-slate-500 mt-1">{new Date(entry.date).toLocaleString('el-GR')}</div>
+                                                <div className="grid grid-cols-2 gap-2 mt-2 text-slate-600 font-bold">
+                                                    <span>Έλεγχος: {entry.checked}</span>
+                                                    <span>Κέρδος: {entry.savedMb} MB</span>
+                                                    <span>ΟΚ: {entry.optimized}</span>
+                                                    <span>Skip/Fail: {entry.skipped}/{entry.failed}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {isAuditLogsOpen && <AuditLogsModal onClose={() => setIsAuditLogsOpen(false)} />}
 
