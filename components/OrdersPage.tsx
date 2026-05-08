@@ -1568,58 +1568,50 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                 )}
             />
 
-            {/* SEARCH BAR */}
-            <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                <input
-                    type="text"
-                    placeholder="Αναζήτηση παραγγελίας, πελάτη ή ετικέτας..."
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 p-3 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-emerald-500/20 text-slate-700 font-medium transition-all"
-                />
-            </div>
-
-            {/* FILTER PANEL */}
-            <OrdersFilterPanel
-                allTags={allTags}
-                allSellers={allSellers}
-                filters={filters}
-                onChange={setFilters}
-                tagColorOverrides={tagColorOverrides}
-                onChangeTagColor={handleChangeTagColor}
-            />
-
-            {/* SORT CONTROLS */}
+            {/* SEARCH / FILTERS / SORT */}
             <div className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="flex items-center gap-2 text-slate-600">
-                        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+                <div className="grid gap-3 lg:grid-cols-[minmax(18rem,1fr)_minmax(16rem,22rem)] lg:items-center">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <input
+                            type="text"
+                            placeholder="Αναζήτηση παραγγελίας, πελάτη ή ετικέτας..."
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm font-medium text-slate-700 outline-none transition-all hover:border-slate-300 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+                        />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 sm:flex">
                             <ActiveSortIcon size={16} />
                         </span>
-                        <div>
-                            <div className="text-xs font-black uppercase tracking-widest text-slate-400">Ταξινόμηση</div>
-                            <div className="text-sm font-bold text-slate-800">
-                                {activeSortOption.label}
-                                <span className="ml-2 text-xs font-semibold text-slate-400">{activeSortOption.helper}</span>
-                            </div>
+                        <div className="relative min-w-0 flex-1">
+                            <select
+                                value={sortMode}
+                                onChange={event => setSortMode(event.target.value as OrderSortMode)}
+                                className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-sm font-bold text-slate-700 outline-none transition-all hover:border-slate-300 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+                                aria-label="Ταξινόμηση παραγγελιών"
+                            >
+                                {ORDER_SORT_OPTIONS.map(option => (
+                                    <option key={option.id} value={option.id}>
+                                        {option.label} · {option.helper}
+                                    </option>
+                                ))}
+                            </select>
+                            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                         </div>
                     </div>
-                    <div className="relative min-w-[260px]">
-                        <select
-                            value={sortMode}
-                            onChange={event => setSortMode(event.target.value as OrderSortMode)}
-                            className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-sm font-bold text-slate-700 outline-none transition-all hover:border-slate-300 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
-                            aria-label="Ταξινόμηση παραγγελιών"
-                        >
-                            {ORDER_SORT_OPTIONS.map(option => (
-                                <option key={option.id} value={option.id}>
-                                    {option.label} · {option.helper}
-                                </option>
-                            ))}
-                        </select>
-                        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                    </div>
+                </div>
+
+                <div className="mt-3">
+                    <OrdersFilterPanel
+                        allTags={allTags}
+                        allSellers={allSellers}
+                        filters={filters}
+                        onChange={setFilters}
+                        tagColorOverrides={tagColorOverrides}
+                        onChangeTagColor={handleChangeTagColor}
+                    />
                 </div>
             </div>
 
@@ -1669,23 +1661,12 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
 
             <div ref={ordersScrollRef} className="flex-1 overflow-auto min-h-0">
                 <div className="rounded-3xl border border-slate-100 bg-slate-50/70 p-2 shadow-sm">
-                    <div className="sticky top-0 z-10 mb-2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white/95 px-4 py-3 shadow-sm backdrop-blur">
-                        <div>
+                    <div className="sticky top-0 z-10 mb-2 rounded-2xl border border-slate-100 bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
+                        <div className="flex items-center justify-between gap-3">
                             <div className="text-xs font-black uppercase tracking-widest text-slate-400">Λίστα Παραγγελιών</div>
-                            <div className="text-sm font-bold text-slate-700">
+                            <div className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-600">
                                 {filteredOrders.length} {filteredOrders.length === 1 ? 'παραγγελία' : 'παραγγελίες'}
                             </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-500">
-                            <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200">
-                                <Calendar size={12} /> Ημερομηνία
-                            </span>
-                            <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200">
-                                <Tag size={12} /> Tags
-                            </span>
-                            <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200">
-                                <CheckCircle size={12} /> Ετοιμότητα
-                            </span>
                         </div>
                     </div>
                     {filteredOrders.length === 0 ? (
