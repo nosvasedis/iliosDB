@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { getSizingInfo } from '../../utils/sizing';
 
 describe('getSizingInfo', () => {
-  it('treats DM products categorized as rings as normal sized rings', () => {
+  it('treats DM products categorized as rings as women sized rings', () => {
     expect(getSizingInfo({
       prefix: 'DM',
       sku: 'DM123',
@@ -10,12 +10,15 @@ describe('getSizingInfo', () => {
       gender: 'Women',
     })?.sizes).toContain('52');
 
-    expect(getSizingInfo({
+    const menTaggedDmRingSizing = getSizingInfo({
       prefix: 'DM',
       sku: 'DM456',
       category: 'Δαχτυλίδι',
       gender: 'Men',
-    })?.sizes).toContain('67');
+    });
+
+    expect(menTaggedDmRingSizing?.sizes).toContain('52');
+    expect(menTaggedDmRingSizing?.sizes).not.toContain('67');
   });
 
   it('does not make non-ring DM products sizable', () => {

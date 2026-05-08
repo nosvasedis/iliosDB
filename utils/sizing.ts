@@ -46,10 +46,7 @@ export function getSizingInfo(product: SizingProduct): ProductSizingInfo | null 
     }
 
     if (prefix === SIZED_PREFIXES.RINGS_DM && isRingCategory(product.category)) {
-        return {
-            type: SIZE_TYPE_NUMBER,
-            sizes: product.gender === 'Men' ? RING_SIZES_MEN : RING_SIZES_WOMEN
-        };
+        return { type: SIZE_TYPE_NUMBER, sizes: RING_SIZES_WOMEN };
     }
 
     if (prefix === SIZED_PREFIXES.BRACELETS_MEN) {
