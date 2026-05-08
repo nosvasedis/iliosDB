@@ -13,7 +13,7 @@ import DesktopOrderBuilder from './DesktopOrderBuilder';
 import CustomerDetailsModal from './CustomerDetailsModal';
 import ProductionSendModal from './ProductionSendModal';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
-import { groupBatchesByShipment, getShipmentReadiness, isOrderReady } from '../utils/orderReadiness';
+import { buildInProductionCollapsedProgressSegments, buildPartialDeliveryProgressSegments, groupBatchesByShipment, getShipmentReadiness, isOrderReady } from '../utils/orderReadiness';
 import { OrderListProgressBar } from './orders/OrderListProgressBar';
 import ShipmentCreationModal from './deliveries/ShipmentCreationModal';
 import ShipmentUndoConfirmationModal from './deliveries/ShipmentUndoConfirmationModal';
@@ -52,6 +52,46 @@ interface Props {
     onPrintAnalytics?: (order: Order) => void;
     onPrintPartialOrder?: (order: Order, selectedBatches: ProductionBatch[]) => void;
     onOpenDeliveries?: (order: Order) => void;
+}
+
+type OrderSortMode =
+    | 'date_newest'
+    | 'date_oldest'
+    | 'tag_az'
+    | 'tag_za'
+    | 'readiness_most'
+    | 'readiness_less'
+    | 'customer_az'
+    | 'amount_high'
+    | 'amount_low';
+
+const ORDER_SORT_OPTIONS: Array<{ id: OrderSortMode; label: string; helper: string; icon: React.ElementType }> = [
+    { id: 'date_newest', label: 'Νεότερες', helper: 'Ημερομηνία', icon: Calendar },
+    { id: 'date_oldest', label: 'Παλιότερες', helper: 'Ημερομηνία', icon: Calendar },
+    { id: 'tag_az', label: 'Ετικέτα A-Z', helper: 'Πρώτη ετικέτα', icon: Tag },
+    { id: 'tag_za', label: 'Ετικέτα Z-A', helper: 'Πρώτη ετικέτα', icon: Tag },
+    { id: 'readiness_most', label: 'Πιο έτοιμες', helper: 'Ποσοστό ετοιμότητας', icon: CheckCircle },
+    { id: 'readiness_less', label: 'Λιγότερο έτοιμες', helper: 'Ποσοστό ετοιμότητας', icon: Clock },
+    { id: 'customer_az', label: 'Πελάτης A-Z', helper: 'Όνομα πελάτη', icon: UserCheck },
+    { id: 'amount_high', label: 'Μεγαλύτερο ποσό', helper: 'Καθαρή αξία', icon: BarChart3 },
+    { id: 'amount_low', label: 'Μικρότερο ποσό', helper: 'Καθαρή αξία', icon: BarChart3 },
+];
+
+function getOrderPrimaryTag(order: Order): string {
+    return (order.tags || []).map(t => t.trim()).filter(Boolean).sort((a, b) => a.localeCompare(b, 'el'))[0] || '';
+}
+
+function getOrderReadinessPercent(order: Order, batches: ProductionBatch[] | undefined | null, shippedQty?: number): number {
+    if (order.status === OrderStatus.Delivered || order.status === OrderStatus.Ready) return 100;
+    if (order.status === OrderStatus.Cancelled) return -1;
+    if (isOrderReady(order, batches)) return 100;
+    if (order.status === OrderStatus.PartiallyDelivered) {
+        return buildPartialDeliveryProgressSegments(order, batches, shippedQty)?.overallCompletePercent ?? 0;
+    }
+    if (order.status === OrderStatus.InProduction || order.status === OrderStatus.Pending) {
+        return buildInProductionCollapsedProgressSegments(order, batches)?.readyPercentVsOrder ?? 0;
+    }
+    return 0;
 }
 
 // ── Inline Seller Assignment Modal ──────────────────────────────────────────
@@ -917,6 +957,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
     const [searchTerm, setSearchTerm] = useState('');
     const [filters, setFilters] = useState<OrderFilters>(DEFAULT_FILTERS);
+    const [sortMode, setSortMode] = useState<OrderSortMode>('date_newest');
     const deferredSearchTerm = React.useDeferredValue(searchTerm);
 
     // Tag color overrides — synced via Supabase, shared across all devices
@@ -991,16 +1032,19 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     }, [enrichedBatches]);
 
     const orderMetaById = useMemo(() => {
-        const map = new Map<string, { isReady: boolean; retailClientLabel: string }>();
+        const map = new Map<string, { isReady: boolean; retailClientLabel: string; readinessPercent: number }>();
         orders?.forEach(order => {
             const retailClientLabel = extractRetailClientFromNotes(order.notes).retailClientLabel;
+            const orderBatches = batchesByOrderId.get(order.id) || [];
+            const readinessPercent = getOrderReadinessPercent(order, orderBatches, shippedQtyByOrderId.get(order.id));
             map.set(order.id, {
-                isReady: isOrderReady(order, enrichedBatches),
-                retailClientLabel
+                isReady: readinessPercent >= 100 || isOrderReady(order, orderBatches),
+                retailClientLabel,
+                readinessPercent
             });
         });
         return map;
-    }, [orders, enrichedBatches]);
+    }, [orders, batchesByOrderId, shippedQtyByOrderId]);
 
     // Derived: All unique tags across all orders (for filter panel + autocomplete)
     const allTags = useMemo(() => {
@@ -1057,7 +1101,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         const normalizedSearch = (deferredSearchTerm ?? '').trim().toLowerCase();
         const hasSearch = normalizedSearch.length > 0;
 
-        return orders.filter(o => {
+        const filtered = orders.filter(o => {
             // Tab Filter
             const isArchived = o.is_archived === true;
             // When searching on "Ενεργές", include archived matches too.
@@ -1118,13 +1162,49 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                 (o.tags && o.tags.some(t => t.toLowerCase().includes(term)))
             );
         });
-    }, [orders, activeTab, deferredSearchTerm, filters]);
+
+        const sorted = [...filtered].sort((a, b) => {
+            const dateA = new Date(a.created_at).getTime();
+            const dateB = new Date(b.created_at).getTime();
+            const netA = a.total_price / (1 + (a.vat_rate !== undefined ? a.vat_rate : 0.24));
+            const netB = b.total_price / (1 + (b.vat_rate !== undefined ? b.vat_rate : 0.24));
+            const readinessA = orderMetaById.get(a.id)?.readinessPercent ?? 0;
+            const readinessB = orderMetaById.get(b.id)?.readinessPercent ?? 0;
+            const tagA = getOrderPrimaryTag(a);
+            const tagB = getOrderPrimaryTag(b);
+            const fallback = dateB - dateA;
+
+            switch (sortMode) {
+                case 'date_oldest':
+                    return dateA - dateB;
+                case 'tag_az':
+                    return (tagA || 'Ω').localeCompare(tagB || 'Ω', 'el') || fallback;
+                case 'tag_za':
+                    return (tagB || '').localeCompare(tagA || '', 'el') || fallback;
+                case 'readiness_most':
+                    return readinessB - readinessA || fallback;
+                case 'readiness_less':
+                    return readinessA - readinessB || fallback;
+                case 'customer_az':
+                    return a.customer_name.localeCompare(b.customer_name, 'el') || fallback;
+                case 'amount_high':
+                    return netB - netA || fallback;
+                case 'amount_low':
+                    return netA - netB || fallback;
+                case 'date_newest':
+                default:
+                    return fallback;
+            }
+        });
+
+        return sorted;
+    }, [orders, activeTab, deferredSearchTerm, filters, orderMetaById, sortMode]);
 
     const ordersScrollRef = useRef<HTMLDivElement>(null);
     const ordersRowVirtualizer = useVirtualizer({
         count: filteredOrders.length,
         getScrollElement: () => ordersScrollRef.current,
-        estimateSize: () => 96,
+        estimateSize: () => 136,
         overscan: 8
     });
 
@@ -1443,6 +1523,9 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         );
     }
 
+    const activeSortOption = ORDER_SORT_OPTIONS.find(option => option.id === sortMode) || ORDER_SORT_OPTIONS[0];
+    const ActiveSortIcon = activeSortOption.icon;
+
     return (
         <div className="space-y-6 flex flex-col">
             <DesktopPageHeader
@@ -1507,6 +1590,39 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                 onChangeTagColor={handleChangeTagColor}
             />
 
+            {/* SORT CONTROLS */}
+            <div className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex items-center gap-2 text-slate-600">
+                        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+                            <ActiveSortIcon size={16} />
+                        </span>
+                        <div>
+                            <div className="text-xs font-black uppercase tracking-widest text-slate-400">Ταξινόμηση</div>
+                            <div className="text-sm font-bold text-slate-800">
+                                {activeSortOption.label}
+                                <span className="ml-2 text-xs font-semibold text-slate-400">{activeSortOption.helper}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="relative min-w-[260px]">
+                        <select
+                            value={sortMode}
+                            onChange={event => setSortMode(event.target.value as OrderSortMode)}
+                            className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-sm font-bold text-slate-700 outline-none transition-all hover:border-slate-300 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+                            aria-label="Ταξινόμηση παραγγελιών"
+                        >
+                            {ORDER_SORT_OPTIONS.map(option => (
+                                <option key={option.id} value={option.id}>
+                                    {option.label} · {option.helper}
+                                </option>
+                            ))}
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    </div>
+                </div>
+            </div>
+
             {/* ACTIVE FILTERS SUMMARY BAR */}
             {countActiveFilters(filters) > 0 && (
                 <div className="flex flex-wrap items-center gap-2 px-1">
@@ -1552,15 +1668,25 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             )}
 
             <div ref={ordersScrollRef} className="flex-1 overflow-auto min-h-0">
-                <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-                    {/* Table header - sticky */}
-                    <div className="grid grid-cols-[minmax(0,1fr)_2fr_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.45fr)_minmax(0,1fr)] gap-0 bg-slate-50 text-slate-500 font-bold uppercase text-xs sticky top-0 z-10 border-b border-slate-100">
-                        <div className="p-4 pl-6">ID</div>
-                        <div className="p-4">Πελάτης / Ετικέτες</div>
-                        <div className="p-4">Ημερομηνία</div>
-                        <div className="p-4 text-right">Ποσό</div>
-                        <div className="p-4">Κατάσταση</div>
-                        <div className="p-4" />
+                <div className="rounded-3xl border border-slate-100 bg-slate-50/70 p-2 shadow-sm">
+                    <div className="sticky top-0 z-10 mb-2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white/95 px-4 py-3 shadow-sm backdrop-blur">
+                        <div>
+                            <div className="text-xs font-black uppercase tracking-widest text-slate-400">Λίστα Παραγγελιών</div>
+                            <div className="text-sm font-bold text-slate-700">
+                                {filteredOrders.length} {filteredOrders.length === 1 ? 'παραγγελία' : 'παραγγελίες'}
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-500">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200">
+                                <Calendar size={12} /> Ημερομηνία
+                            </span>
+                            <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200">
+                                <Tag size={12} /> Tags
+                            </span>
+                            <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200">
+                                <CheckCircle size={12} /> Ετοιμότητα
+                            </span>
+                        </div>
                     </div>
                     {filteredOrders.length === 0 ? (
                         <div className="p-8 text-center text-slate-400 italic text-sm">Δεν βρέθηκαν παραγγελίες.</div>
@@ -1580,11 +1706,16 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                         key={order.id}
                                         data-index={virtualRow.index}
                                         ref={ordersRowVirtualizer.measureElement}
-                                        className="grid grid-cols-[minmax(0,1fr)_2fr_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.45fr)_minmax(0,1fr)] gap-0 border-b border-slate-50 hover:bg-slate-50/80 transition-colors group absolute left-0 w-full text-sm"
+                                        className="group absolute left-0 my-1 w-full grid grid-cols-[minmax(9rem,1fr)_minmax(14rem,2fr)_minmax(8rem,0.8fr)_minmax(7rem,0.8fr)_minmax(13rem,1.4fr)_minmax(8rem,0.7fr)] gap-0 rounded-2xl border border-slate-200/80 bg-white text-sm shadow-sm ring-1 ring-transparent transition-all hover:border-emerald-200 hover:shadow-md hover:ring-emerald-100"
                                         style={{ transform: `translateY(${virtualRow.start}px)` }}
                                     >
-                                        <div className="p-4 pl-6">
-                                            <div className="font-mono font-bold text-slate-800">{order.id}</div>
+                                        <div className="p-4 pl-5">
+                                            <div className="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 font-mono text-xs font-black text-slate-800 ring-1 ring-slate-200">
+                                                #{order.id}
+                                            </div>
+                                            <div className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-slate-400">
+                                                <Package size={12} /> {order.items.reduce((sum, item) => sum + (item.quantity || 0), 0)} τεμ.
+                                            </div>
                                             {order.seller_name && (() => {
                                                 const sellerColors = [
                                                     { bg: 'bg-sky-50', text: 'text-sky-700', border: 'border-sky-200' },
@@ -1599,7 +1730,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                 const hash = Array.from(order.seller_name!).reduce((acc, c) => acc + c.charCodeAt(0), 0);
                                                 const sc = sellerColors[hash % sellerColors.length];
                                                 return (
-                                                    <div className="mt-1">
+                                                    <div className="mt-2">
                                                         <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] font-bold leading-none ${sc.bg} ${sc.text} ${sc.border}`}>
                                                             {order.seller_name}
                                                             {order.seller_commission_percent != null && (
@@ -1611,14 +1742,14 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                             })()}
                                         </div>
                                         <div className="p-4">
-                                            <div className="font-bold text-slate-800">
+                                            <div className="text-base font-black leading-tight text-slate-900">
                                                 {(() => {
                                                     const cust = !isRetailOrder && order.customer_id ? customers?.find(c => c.id === order.customer_id) : undefined;
                                                     return cust ? (
                                                         <button
                                                             type="button"
                                                             onClick={(e) => { e.stopPropagation(); setViewingCustomer(cust); }}
-                                                            className="font-bold text-slate-800 hover:text-blue-600 hover:underline transition-colors text-left"
+                                                            className="text-left font-black text-slate-900 transition-colors hover:text-blue-600 hover:underline"
                                                         >
                                                             {order.customer_name}
                                                         </button>
@@ -1653,9 +1784,21 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                 </div>
                                             )}
                                         </div>
-                                        <div className="p-4 text-slate-500">{new Date(order.created_at).toLocaleDateString('el-GR')}</div>
-                                        <div className="p-4 text-right font-bold text-slate-800">{formatCurrency(netValue)}</div>
+                                        <div className="p-4 text-slate-600">
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ημερομηνία</div>
+                                            <div className="mt-1 font-bold text-slate-800">{new Date(order.created_at).toLocaleDateString('el-GR')}</div>
+                                        </div>
+                                        <div className="p-4 text-right">
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Καθαρή αξία</div>
+                                            <div className="mt-1 text-base font-black text-slate-900">{formatCurrency(netValue)}</div>
+                                        </div>
                                         <div className="p-4 min-w-0">
+                                            <div className="mb-2 flex items-center justify-between gap-2">
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Κατάσταση</div>
+                                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-500">
+                                                    {Math.max(0, orderMeta?.readinessPercent ?? 0)}%
+                                                </span>
+                                            </div>
                                             <div className="flex flex-wrap items-start gap-2">
                                                 {(order.status === OrderStatus.InProduction || order.status === OrderStatus.Pending || order.status === OrderStatus.PartiallyDelivered) ? (
                                                     <button
@@ -1681,7 +1824,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                             </div>
                                         </div>
                                         <div className="p-4 text-right">
-                                            <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="flex gap-1 justify-end opacity-70 transition-opacity group-hover:opacity-100">
                                                 <button onClick={() => setManagingOrder(order)} title="Διαχείριση" className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg"><Settings size={16} /></button>
                                                 {order.status === OrderStatus.Pending && (
                                                     <button
