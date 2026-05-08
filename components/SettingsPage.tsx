@@ -14,6 +14,11 @@ import { BACKUP_TABLE_REGISTRY, BackupProgress, validateBackup } from '../lib/ba
 import DesktopPageHeader from './DesktopPageHeader';
 import { compressImage } from '../utils/imageHelpers';
 
+const IMAGE_OPTIMIZATION_BATCH_SIZE = 100;
+const IMAGE_OPTIMIZATION_SKIPPED_KEY = 'ilios:image-optimization-skipped:v1';
+const IMAGE_OPTIMIZATION_MIN_BYTES = 450 * 1024;
+const IMAGE_OPTIMIZATION_MAX_EDGE = 1100;
+
 export default function SettingsPage() {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
@@ -323,10 +328,60 @@ export default function SettingsPage() {
         return uploadUrl;
     };
 
+    const getImageDimensions = (blob: Blob): Promise<{ width: number; height: number }> => {
+        return new Promise((resolve, reject) => {
+            const objectUrl = URL.createObjectURL(blob);
+            const img = new Image();
+
+            img.onload = () => {
+                URL.revokeObjectURL(objectUrl);
+                resolve({
+                    width: img.naturalWidth || img.width,
+                    height: img.naturalHeight || img.height,
+                });
+            };
+
+            img.onerror = () => {
+                URL.revokeObjectURL(objectUrl);
+                reject(new Error('Δεν ήταν δυνατή η ανάγνωση των διαστάσεων της εικόνας.'));
+            };
+
+            img.src = objectUrl;
+        });
+    };
+
+    const imageNeedsOptimization = async (blob: Blob): Promise<boolean> => {
+        if (blob.size >= IMAGE_OPTIMIZATION_MIN_BYTES) return true;
+
+        const dimensions = await getImageDimensions(blob);
+        return Math.max(dimensions.width, dimensions.height) > IMAGE_OPTIMIZATION_MAX_EDGE;
+    };
+
+    const getSkippedOptimizationUrls = (): Set<string> => {
+        try {
+            const stored = localStorage.getItem(IMAGE_OPTIMIZATION_SKIPPED_KEY);
+            const urls = stored ? JSON.parse(stored) : [];
+            return new Set(Array.isArray(urls) ? urls : []);
+        } catch {
+            return new Set();
+        }
+    };
+
+    const saveSkippedOptimizationUrls = (urls: Set<string>) => {
+        try {
+            localStorage.setItem(
+                IMAGE_OPTIMIZATION_SKIPPED_KEY,
+                JSON.stringify(Array.from(urls).slice(-5000))
+            );
+        } catch (error) {
+            console.warn('Δεν αποθηκεύτηκε η λίστα εικόνων που παραλείφθηκαν:', error);
+        }
+    };
+
     const handleOptimizeProductImages = async () => {
         const yes = await confirm({
             title: 'Βελτιστοποίηση εικόνων προϊόντων',
-            message: 'Θα συμπιεστούν ξανά οι εικόνες προϊόντων που είναι αποθηκευμένες στην απομακρυσμένη αποθήκευση, θα αποθηκευτούν νέοι μικρότεροι σύνδεσμοι και τα προϊόντα δεν θα αλλάξουν σε τίποτα άλλο. Οι εικόνες που δεν μικραίνουν αρκετά θα παραλειφθούν. Η διαδικασία μπορεί να πάρει λίγα λεπτά.',
+            message: `Θα ελεγχθούν έως ${IMAGE_OPTIMIZATION_BATCH_SIZE} εικόνες προϊόντων από την απομακρυσμένη αποθήκευση. Θα αλλαχθούν μόνο όσες είναι πραγματικά βαριές ή πολύ μεγάλες σε διαστάσεις. Μπορείτε να το ξανατρέξετε όσες φορές χρειάζεται μέχρι να ολοκληρωθεί όλη η βιβλιοθήκη.`,
             confirmText: 'Βελτιστοποίηση'
         });
         if (!yes) return;
@@ -338,19 +393,26 @@ export default function SettingsPage() {
         let savedBytes = 0;
 
         try {
+            const skippedUrls = getSkippedOptimizationUrls();
             const products = await api.getProducts();
-            const targets = products.filter((product: Product) => {
+            const allTargets = products.filter((product: Product) => {
+                const imageUrl = product.image_url || '';
                 return Boolean(product.image_url)
-                    && !product.image_url?.startsWith('data:')
-                    && product.image_url?.startsWith(CLOUDFLARE_WORKER_URL);
+                    && !imageUrl.startsWith('data:')
+                    && imageUrl.startsWith(CLOUDFLARE_WORKER_URL)
+                    && !decodeURIComponent(imageUrl).includes('_OPT.')
+                    && !skippedUrls.has(imageUrl);
             });
+            const targets = allTargets.slice(0, IMAGE_OPTIMIZATION_BATCH_SIZE);
+            const remainingAfterBatch = Math.max(0, allTargets.length - targets.length);
+            const minKb = Math.round(IMAGE_OPTIMIZATION_MIN_BYTES / 1024);
 
             if (targets.length === 0) {
                 showToast('Δεν βρέθηκαν εικόνες προϊόντων στην απομακρυσμένη αποθήκευση για βελτιστοποίηση.', 'info');
                 return;
             }
 
-            showToast(`Ξεκίνησε η βελτιστοποίηση ${targets.length} εικόνων...`, 'info');
+            showToast(`Έλεγχος ${targets.length} από ${allTargets.length} εικόνες. Θα αλλαχθούν μόνο όσες είναι πάνω από ${minKb}KB ή ${IMAGE_OPTIMIZATION_MAX_EDGE}px.`, 'info');
 
             for (const product of targets) {
                 try {
@@ -358,6 +420,13 @@ export default function SettingsPage() {
                     if (!response.ok) throw new Error(`Η λήψη εικόνας απέτυχε: ${response.status}`);
 
                     const originalBlob = await response.blob();
+                    const needsOptimization = await imageNeedsOptimization(originalBlob);
+                    if (!needsOptimization) {
+                        skipped += 1;
+                        skippedUrls.add(product.image_url!);
+                        continue;
+                    }
+
                     const sourceFile = new File([originalBlob], `${product.sku}.jpg`, {
                         type: originalBlob.type || 'image/jpeg',
                     });
@@ -365,6 +434,7 @@ export default function SettingsPage() {
 
                     if (compressedBlob.size >= originalBlob.size * 0.92) {
                         skipped += 1;
+                        skippedUrls.add(product.image_url!);
                         continue;
                     }
 
@@ -383,9 +453,11 @@ export default function SettingsPage() {
                 }
             }
 
+            saveSkippedOptimizationUrls(skippedUrls);
             await queryClient.invalidateQueries({ queryKey: ['products'] });
             const savedMb = (savedBytes / 1024 / 1024).toFixed(1);
-            showToast(`Βελτιστοποιήθηκαν ${optimized}, παραλείφθηκαν ${skipped}, απέτυχαν ${failed}. Εξοικονομήθηκαν περίπου ${savedMb} MB.`, failed ? 'info' : 'success');
+            const remainingText = remainingAfterBatch > 0 ? ` Απομένουν περίπου ${remainingAfterBatch}.` : '';
+            showToast(`Βελτιστοποιήθηκαν ${optimized}, παραλείφθηκαν ${skipped}, απέτυχαν ${failed}. Εξοικονομήθηκαν περίπου ${savedMb} MB.${remainingText}`, failed ? 'info' : 'success');
         } catch (error) {
             console.error(error);
             showToast('Η βελτιστοποίηση εικόνων απέτυχε.', 'error');
