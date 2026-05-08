@@ -4,6 +4,7 @@ import {
   buildLatestShipmentPrintData,
   buildOrderLabelPrintItems,
   buildOrderItemIdentityKey,
+  buildShipmentPrintPayloads,
   buildSyntheticAggregatedBatches,
 } from '../../features/orders/printHelpers';
 
@@ -43,6 +44,37 @@ describe('orders print helpers', () => {
       { sku: 'PN2', quantity: 1, variant_suffix: 'X', price_at_order: 20 },
     ]);
     expect(result?.remainingOrder.total_price).toBeCloseTo(55.8, 5);
+  });
+
+  it('builds shipment print payloads even when an order has no remaining items', () => {
+    const order = {
+      id: 'ord-shipped',
+      customer_name: 'Dana',
+      created_at: '2024-01-01T00:00:00.000Z',
+      status: OrderStatus.Delivered,
+      items: [
+        { sku: 'PN1', quantity: 1, variant_suffix: '', price_at_order: 10 },
+        { sku: 'PN2', quantity: 1, variant_suffix: '', price_at_order: 20 },
+      ],
+      total_price: 30,
+    } as any;
+
+    const shipmentSnapshot = {
+      shipments: [
+        { id: 'ship-1', order_id: 'ord-shipped', shipment_number: 1, shipped_at: '2024-01-01T10:00:00.000Z', shipped_by: 'tester', created_at: '2024-01-01T10:00:00.000Z' },
+        { id: 'ship-2', order_id: 'ord-shipped', shipment_number: 2, shipped_at: '2024-01-02T10:00:00.000Z', shipped_by: 'tester', created_at: '2024-01-02T10:00:00.000Z' },
+      ],
+      items: [
+        { id: 'item-1', shipment_id: 'ship-1', sku: 'PN1', variant_suffix: '', size_info: null, cord_color: null, enamel_color: null, quantity: 1, price_at_order: 10 },
+        { id: 'item-2', shipment_id: 'ship-2', sku: 'PN2', variant_suffix: '', size_info: null, cord_color: null, enamel_color: null, quantity: 1, price_at_order: 20 },
+      ],
+    };
+
+    expect(buildLatestShipmentPrintData(order, shipmentSnapshot as any)).toBeNull();
+
+    const payloads = buildShipmentPrintPayloads(order, shipmentSnapshot as any);
+    expect(payloads.map((p) => p.shipment.id)).toEqual(['ship-2', 'ship-1']);
+    expect(payloads.map((p) => p.shipmentItems)).toHaveLength(2);
   });
 
   it('builds label print items and synthetic aggregated batches', () => {

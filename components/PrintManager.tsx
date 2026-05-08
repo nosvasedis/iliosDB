@@ -2,7 +2,6 @@ import React, { useEffect, useRef } from 'react';
 import { Product, ProductVariant, Order, ProductionBatch, AggregatedData, Offer, SupplierOrder, GlobalSettings, AssemblyPrintData, StageBatchPrintData, AssemblyPrintRow, OrderShipment, OrderShipmentItem } from '../types';
 import OrderInvoiceView from './OrderInvoiceView';
 import ShipmentInvoiceView from './ShipmentInvoiceView';
-import MergedShipmentInvoiceView from './MergedShipmentInvoiceView';
 import OfferPrintView from './OfferPrintView';
 import SupplierOrderPrintView from './SupplierOrderPrintView';
 import AggregatedProductionView from './AggregatedProductionView';
@@ -281,16 +280,17 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                 {orderToPrint && <OrderInvoiceView order={orderToPrint} revisionSuffix={(orderToPrint as any)._revisionSuffix} />}
                 {remainingOrderToPrint && <OrderInvoiceView order={remainingOrderToPrint} title="Υπόλοιπα Είδη Παραγγελίας" />}
                 {shipmentsToPrint && shipmentsToPrint.length > 0 && (
-                    shipmentsToPrint.length === 1 ? (
+                    <>
+                    {shipmentsToPrint.map((payload) => (
                         <ShipmentInvoiceView
-                            order={shipmentsToPrint[0].order}
-                            shipment={shipmentsToPrint[0].shipment}
-                            shipmentItems={shipmentsToPrint[0].shipmentItems}
+                            key={payload.shipment.id}
+                            order={payload.order}
+                            shipment={payload.shipment}
+                            shipmentItems={payload.shipmentItems}
                             products={products}
                         />
-                    ) : (
-                        <MergedShipmentInvoiceView payloads={shipmentsToPrint} products={products} />
-                    )
+                    ))}
+                    </>
                 )}
                 {shipmentToPrint && <ShipmentInvoiceView order={shipmentToPrint.order} shipment={shipmentToPrint.shipment} shipmentItems={shipmentToPrint.shipmentItems} products={products} />}
                 {offerToPrint && <OfferPrintView offer={offerToPrint} />}

@@ -24,7 +24,7 @@ import { OrdersFilterPanel, OrderFilters, DEFAULT_FILTERS, countActiveFilters } 
 import { useTagColorOverrides } from '../../hooks/api/useTagColorOverrides';
 import { invalidateOrdersAndBatches } from '../../lib/queryInvalidation';
 import { PRODUCTION_STAGE_COLORS, getProductionStageLabel } from '../../utils/deliveryLabels';
-import { buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildSyntheticAggregatedBatches, buildOrderRevisions } from '../../features/orders';
+import { buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildShipmentPrintPayloads, buildSyntheticAggregatedBatches, buildOrderRevisions } from '../../features/orders';
 import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 import { StickyNote, UserCheck } from 'lucide-react';
 import { SellerPicker } from '../OrderBuilder/SellerPicker';
@@ -120,6 +120,7 @@ const LegacyOrderPrintSheet: React.FC<{
             remainingOrder
         };
     }, [order, shipmentsQuery.data]);
+    const shipmentPrintPayloads = useMemo(() => buildShipmentPrintPayloads(order, shipmentsQuery.data), [order, shipmentsQuery.data]);
 
     const orderRevisions = useMemo(() => buildOrderRevisions(order), [order]);
     const [showVersionSelector, setShowVersionSelector] = useState(false);
@@ -134,17 +135,12 @@ const LegacyOrderPrintSheet: React.FC<{
     };
 
     const handlePrintShipment = () => {
-        if (!latestShipmentData) return;
-        const allShipments = shipmentsQuery.data?.shipments || [];
-        if (allShipments.length > 1) {
+        if (shipmentPrintPayloads.length === 0) return;
+        if (shipmentPrintPayloads.length > 1) {
             setShowShipmentSelector(true);
             return;
         }
-        onPrintShipment?.({
-            order,
-            shipment: latestShipmentData.shipment,
-            shipmentItems: latestShipmentData.shipmentItems
-        });
+        onPrintShipment?.(shipmentPrintPayloads[0]);
         onClose();
     };
 
@@ -179,17 +175,19 @@ const LegacyOrderPrintSheet: React.FC<{
                     </div>
                 )}
 
-                {latestShipmentData && (
+                {shipmentPrintPayloads.length > 0 && (
                     <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
                         <div className="text-sm font-black text-amber-900">Υπάρχει μερική αποστολή</div>
                         <div className="mt-1 text-xs font-medium text-amber-800">
-                            Η παραγγελία έχει ήδη αποστολή #{latestShipmentData.shipment.shipment_number}. Μπορείτε να εκτυπώσετε μόνο τα σταλμένα είδη, μόνο τα υπόλοιπα ή ολόκληρη την παραγγελία.
+                            {shipmentPrintPayloads.length > 1
+                                ? `Η παραγγελία έχει ${shipmentPrintPayloads.length} αποστολές. Μπορείτε να επιλέξετε μία, όλες ή καμία.`
+                                : `Η παραγγελία έχει ήδη αποστολή #${shipmentPrintPayloads[0].shipment.shipment_number}. Μπορείτε να εκτυπώσετε το παραστατικό της, τα υπόλοιπα ή ολόκληρη την παραγγελία.`}
                         </div>
                     </div>
                 )}
 
                 <div className="space-y-3">
-                    {latestShipmentData && (
+                    {shipmentPrintPayloads.length > 0 && (
                         <button
                             onClick={handlePrintShipment}
                             className="w-full rounded-2xl border-2 border-amber-200 bg-amber-50 px-4 py-4 text-left text-amber-900"
@@ -201,7 +199,9 @@ const LegacyOrderPrintSheet: React.FC<{
                                 <div>
                                     <div className="font-black">Μερικά Σταλμένα Είδη</div>
                                     <div className="mt-0.5 text-xs font-medium text-amber-800">
-                                        Μόνο τα είδη της αποστολής #{latestShipmentData.shipment.shipment_number}.
+                                        {shipmentPrintPayloads.length > 1
+                                            ? 'Επιλέξτε μία, όλες ή καμία αποστολή.'
+                                            : `Μόνο τα είδη της αποστολής #${shipmentPrintPayloads[0].shipment.shipment_number}.`}
                                     </div>
                                 </div>
                             </div>
@@ -515,8 +515,9 @@ const OrderPrintSheet: React.FC<{
     const shipments = useMemo(() => groupBatchesByShipment(orderBatches), [orderBatches]);
     const hasMultipleShipments = shipments.length > 1;
     const latestShipmentData = useMemo(() => buildLatestShipmentPrintData(order, shipmentsQuery.data), [order, shipmentsQuery.data]);
+    const shipmentPrintPayloads = useMemo(() => buildShipmentPrintPayloads(order, shipmentsQuery.data), [order, shipmentsQuery.data]);
     const orderRevisions = useMemo(() => buildOrderRevisions(order), [order]);
-    const hasMultiShipments = (shipmentsQuery.data?.shipments?.length ?? 0) > 1;
+    const hasMultiShipments = shipmentPrintPayloads.length > 1;
 
     const handlePrintLabelsAction = () => {
         const itemsToPrint = buildOrderLabelPrintItems(order, products);
@@ -675,9 +676,11 @@ const OrderPrintSheet: React.FC<{
                     </div>
                 )}
 
-                {latestShipmentData && (
+                {shipmentPrintPayloads.length > 0 && (
                     <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900">
-                        Η παραγγελία έχει ήδη μερική αποστολή #{latestShipmentData.shipment.shipment_number}. Μπορείτε να εκτυπώσετε μόνο τα σταλμένα είδη ή μόνο τα υπόλοιπα.
+                        {shipmentPrintPayloads.length > 1
+                            ? `Η παραγγελία έχει ${shipmentPrintPayloads.length} αποστολές. Μπορείτε να επιλέξετε μία, όλες ή καμία.`
+                            : `Η παραγγελία έχει ήδη αποστολή #${shipmentPrintPayloads[0].shipment.shipment_number}. Μπορείτε να εκτυπώσετε το παραστατικό της ή μόνο τα υπόλοιπα.`}
                     </div>
                 )}
 
@@ -717,18 +720,14 @@ const OrderPrintSheet: React.FC<{
                             </div>
                         </button>
 
-                        {latestShipmentData && (
+                        {shipmentPrintPayloads.length > 0 && (
                             <button
                                 onClick={() => {
                                     if (hasMultiShipments) {
                                         setShowShipmentSelector(true);
                                         return;
                                     }
-                                    onPrintShipment?.({
-                                        order,
-                                        shipment: latestShipmentData.shipment,
-                                        shipmentItems: latestShipmentData.shipmentItems,
-                                    });
+                                    onPrintShipment?.(shipmentPrintPayloads[0]);
                                     onClose();
                                 }}
                                 className="w-full rounded-2xl border-2 border-amber-200 bg-amber-50 px-4 py-4 text-left text-amber-900"
@@ -744,7 +743,7 @@ const OrderPrintSheet: React.FC<{
                                         <div className="mt-0.5 text-xs font-medium text-amber-800">
                                             {hasMultiShipments
                                                 ? `${shipmentsQuery.data!.shipments.length} αποστολές — επιλέξτε ποια να εκτυπώσετε.`
-                                                : `Μόνο τα είδη της αποστολής #${latestShipmentData.shipment.shipment_number}.`}
+                                                : `Μόνο τα είδη της αποστολής #${shipmentPrintPayloads[0].shipment.shipment_number}.`}
                                         </div>
                                     </div>
                                 </div>

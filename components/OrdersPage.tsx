@@ -18,7 +18,7 @@ import { OrderListProgressBar } from './orders/OrderListProgressBar';
 import ShipmentCreationModal from './deliveries/ShipmentCreationModal';
 import ShipmentUndoConfirmationModal from './deliveries/ShipmentUndoConfirmationModal';
 import { invalidateOrdersAndBatches, invalidateShipmentUndoQueries } from '../lib/queryInvalidation';
-import { buildPartialOrderFromBatches, buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildSyntheticAggregatedBatches, getShipmentStageBreakdown, getShipmentSummary, getShipmentValue, buildOrderRevisions } from '../features/orders';
+import { buildPartialOrderFromBatches, buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildShipmentPrintPayloads, buildSyntheticAggregatedBatches, getShipmentStageBreakdown, getShipmentSummary, getShipmentValue, buildOrderRevisions } from '../features/orders';
 import { getOrderStatusClasses, getOrderStatusLabel, getOrderStatusIcon } from '../features/orders/statusPresentation';
 import { getTagColor } from '../features/orders/tagColors';
 import { OrdersFilterPanel, OrderFilters, DEFAULT_FILTERS, countActiveFilters } from './orders/OrdersFilterPanel';
@@ -318,9 +318,11 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
     const shipments = useMemo(() => groupBatchesByShipment(orderBatches), [orderBatches]);
     const hasMultipleShipments = shipments.length > 1;
     const latestShipmentData = useMemo(() => buildLatestShipmentPrintData(order, shipmentsQuery.data), [order, shipmentsQuery.data]);
+    const shipmentPrintPayloads = useMemo(() => buildShipmentPrintPayloads(order, shipmentsQuery.data), [order, shipmentsQuery.data]);
     const orderRevisions = useMemo(() => buildOrderRevisions(order), [order]);
     const productsBySku = useMemo(() => new Map(products.map((product) => [product.sku, product])), [products]);
-    const hasMultipleOrderShipments = (shipmentsQuery.data?.shipments?.length || 0) > 1;
+    const hasPrintableShipmentDocs = shipmentPrintPayloads.length > 0;
+    const hasMultipleOrderShipments = shipmentPrintPayloads.length > 1;
 
     const formatOptionColor = (value?: string | { label?: string; name?: string; code?: string } | null) => {
         if (!value) return '';
@@ -407,7 +409,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
     }, [orderRevisions, productsBySku]);
 
     const handlePrintOrder = () => {
-        if (latestShipmentData && onPrintShipment) {
+        if (hasPrintableShipmentDocs && onPrintShipment) {
             setShowShipmentPrompt(true);
             return;
         }
@@ -558,13 +560,15 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                 </div>
             </div>
         </div>
-        {showShipmentPrompt && latestShipmentData && (
+        {showShipmentPrompt && hasPrintableShipmentDocs && (
             <div className="fixed inset-0 z-[170] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
                 <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
                     <div className="p-6 border-b border-slate-100 bg-amber-50">
                         <h3 className="text-xl font-bold text-slate-900">{'\u03A5\u03C0\u03AC\u03C1\u03C7\u03B5\u03B9 \u039C\u03B5\u03C1\u03B9\u03BA\u03AE \u0391\u03C0\u03BF\u03C3\u03C4\u03BF\u03BB\u03AE'}</h3>
                         <p className="text-sm text-slate-600 mt-1">
-                            {`\u0397 \u03C0\u03B1\u03C1\u03B1\u03B3\u03B3\u03B5\u03BB\u03AF\u03B1 \u03AD\u03C7\u03B5\u03B9 \u03BA\u03B1\u03C4\u03B1\u03C7\u03C9\u03C1\u03B7\u03BC\u03AD\u03BD\u03B7 \u03BC\u03B5\u03C1\u03B9\u03BA\u03AE \u03B1\u03C0\u03BF\u03C3\u03C4\u03BF\u03BB\u03AE #${latestShipmentData.shipment.shipment_number}. \u03A4\u03B9 \u03B8\u03AD\u03BB\u03B5\u03C4\u03B5 \u03BD\u03B1 \u03B5\u03BA\u03C4\u03C5\u03C0\u03CE\u03C3\u03B5\u03C4\u03B5;`}
+                            {hasMultipleOrderShipments
+                                ? `\u0397 \u03C0\u03B1\u03C1\u03B1\u03B3\u03B3\u03B5\u03BB\u03AF\u03B1 \u03AD\u03C7\u03B5\u03B9 ${shipmentPrintPayloads.length} \u03BA\u03B1\u03C4\u03B1\u03C7\u03C9\u03C1\u03B7\u03BC\u03AD\u03BD\u03B5\u03C2 \u03B1\u03C0\u03BF\u03C3\u03C4\u03BF\u03BB\u03AD\u03C2. \u0395\u03C0\u03B9\u03BB\u03AD\u03BE\u03C4\u03B5 \u03C0\u03BF\u03B9\u03B1 \u03C0\u03B1\u03C1\u03B1\u03C3\u03C4\u03B1\u03C4\u03B9\u03BA\u03AC \u03B8\u03AD\u03BB\u03B5\u03C4\u03B5 \u03BD\u03B1 \u03B5\u03BA\u03C4\u03C5\u03C0\u03C9\u03B8\u03BF\u03CD\u03BD.`
+                                : `\u0397 \u03C0\u03B1\u03C1\u03B1\u03B3\u03B3\u03B5\u03BB\u03AF\u03B1 \u03AD\u03C7\u03B5\u03B9 \u03BA\u03B1\u03C4\u03B1\u03C7\u03C9\u03C1\u03B7\u03BC\u03AD\u03BD\u03B7 \u03B1\u03C0\u03BF\u03C3\u03C4\u03BF\u03BB\u03AE #${shipmentPrintPayloads[0].shipment.shipment_number}. \u03A4\u03B9 \u03B8\u03AD\u03BB\u03B5\u03C4\u03B5 \u03BD\u03B1 \u03B5\u03BA\u03C4\u03C5\u03C0\u03CE\u03C3\u03B5\u03C4\u03B5;`}
                         </p>
                     </div>
                     <div className="p-6 space-y-3">
@@ -575,7 +579,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                                     setShowShipmentSelector(true);
                                     return;
                                 }
-                                onPrintShipment?.({ order, shipment: latestShipmentData.shipment, shipmentItems: latestShipmentData.shipmentItems });
+                                onPrintShipment?.(shipmentPrintPayloads[0]);
                                 setShowShipmentPrompt(false);
                                 onClose();
                             }}
@@ -588,10 +592,11 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                             </div>
                             <div className="text-xs mt-1 opacity-80">
                                 {hasMultipleOrderShipments
-                                    ? 'Επιλέξτε ποια αποστολή θέλετε να εκτυπώσετε.'
-                                    : `\u039C\u03CC\u03BD\u03BF \u03C4\u03B1 \u03C0\u03C1\u03BF\u03CA\u03CC\u03BD\u03C4\u03B1 \u03C0\u03BF\u03C5 \u03C3\u03C4\u03AC\u03BB\u03B8\u03B7\u03BA\u03B1\u03BD \u03C3\u03C4\u03B7 \u03BC\u03B5\u03C1\u03B9\u03BA\u03AE \u03B1\u03C0\u03BF\u03C3\u03C4\u03BF\u03BB\u03AE #${latestShipmentData.shipment.shipment_number}.`}
+                                    ? 'Επιλέξτε μία, όλες ή καμία αποστολή από τη λίστα.'
+                                    : `\u039C\u03CC\u03BD\u03BF \u03C4\u03B1 \u03C0\u03C1\u03BF\u03CA\u03CC\u03BD\u03C4\u03B1 \u03C0\u03BF\u03C5 \u03C3\u03C4\u03AC\u03BB\u03B8\u03B7\u03BA\u03B1\u03BD \u03C3\u03C4\u03B7 \u03BC\u03B5\u03C1\u03B9\u03BA\u03AE \u03B1\u03C0\u03BF\u03C3\u03C4\u03BF\u03BB\u03AE #${shipmentPrintPayloads[0].shipment.shipment_number}.`}
                             </div>
                         </button>
+                        {latestShipmentData && (
                         <button
                             onClick={() => {
                                 onPrintRemainingOrder?.(latestShipmentData.remainingOrder);
@@ -605,6 +610,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                                 {'\u039C\u03CC\u03BD\u03BF \u03C4\u03B1 \u03C5\u03C0\u03CC\u03BB\u03BF\u03B9\u03C0\u03B1 \u03B5\u03AF\u03B4\u03B7 \u03C0\u03BF\u03C5 \u03B4\u03B5\u03BD \u03AD\u03C7\u03BF\u03C5\u03BD \u03C3\u03C4\u03B1\u03BB\u03B5\u03AF \u03B1\u03BA\u03CC\u03BC\u03B1.'}
                             </div>
                         </button>
+                        )}
                         <button
                             onClick={() => {
                                 setShowShipmentPrompt(false);

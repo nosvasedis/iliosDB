@@ -39,7 +39,7 @@ export const StagePipelineBar = React.memo(function StagePipelineBar({
 
     return (
         <div className="mt-3">
-            <div className="flex h-7 rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
+            <div className="flex h-7 overflow-visible rounded-lg border border-slate-200 bg-slate-100">
                 {activeStages.map((stage, i) => {
                     const count = stageCounts[stage.id] || 0;
                     const onHold = stageOnHoldCounts[stage.id] || 0;
@@ -56,7 +56,7 @@ export const StagePipelineBar = React.memo(function StagePipelineBar({
                                 {pendingCount > 0 && (
                                     <button
                                         onClick={() => onStageClick(stage.id as ProductionStage, 'pending')}
-                                        className={`relative group flex items-center justify-center transition-all hover:brightness-110 active:scale-y-95 bg-teal-500 ${leftBorder}`}
+                                        className={`relative group flex items-center justify-center first:rounded-l-[0.45rem] last:rounded-r-[0.45rem] transition-all hover:brightness-110 active:scale-y-95 bg-teal-500 ${leftBorder}`}
                                         style={{ width: `${Math.max(pendingPct, 6)}%` }}
                                         title={`${stage.label} • Αναμονή Αποστολής: ${pendingCount} τμχ${pendingOnHold > 0 ? ` (${pendingOnHold} σε αναμονή)` : ''} — πατήστε για λεπτομέρειες`}
                                     >
@@ -71,7 +71,7 @@ export const StagePipelineBar = React.memo(function StagePipelineBar({
                                 {dispatchedCount > 0 && (
                                     <button
                                         onClick={() => onStageClick(stage.id as ProductionStage, 'dispatched')}
-                                        className={`relative group flex items-center justify-center transition-all hover:brightness-110 active:scale-y-95 bg-blue-500 ${pendingCount > 0 || i > 0 ? 'border-l border-white/20' : ''}`}
+                                        className={`relative group flex items-center justify-center first:rounded-l-[0.45rem] last:rounded-r-[0.45rem] transition-all hover:brightness-110 active:scale-y-95 bg-blue-500 ${pendingCount > 0 || i > 0 ? 'border-l border-white/20' : ''}`}
                                         style={{ width: `${Math.max(dispatchedPct, 6)}%` }}
                                         title={`${stage.label} • Στον Τεχνίτη: ${dispatchedCount} τμχ${dispatchedOnHold > 0 ? ` (${dispatchedOnHold} σε αναμονή)` : ''} — πατήστε για λεπτομέρειες`}
                                     >
@@ -94,7 +94,7 @@ export const StagePipelineBar = React.memo(function StagePipelineBar({
                         <button
                             key={stage.id}
                             onClick={() => onStageClick(stage.id as ProductionStage)}
-                            className={`relative group flex items-center justify-center transition-all hover:brightness-110 active:scale-y-95 ${vibrant} ${leftBorder}`}
+                            className={`relative group flex items-center justify-center first:rounded-l-[0.45rem] last:rounded-r-[0.45rem] transition-all hover:brightness-110 active:scale-y-95 ${vibrant} ${leftBorder}`}
                             style={{ width: `${Math.max(pct, 6)}%` }}
                             title={`${stage.label}: ${count} τμχ${onHold > 0 ? ` (${onHold} σε αναμονή)` : ''} — πατήστε για λεπτομέρειες`}
                         >
@@ -109,7 +109,7 @@ export const StagePipelineBar = React.memo(function StagePipelineBar({
                 })}
                 {unbatched > 0 && (
                     <div
-                        className="flex items-center justify-center border-l border-white/20"
+                        className="flex items-center justify-center border-l border-white/20 first:rounded-l-[0.45rem] last:rounded-r-[0.45rem]"
                         style={{ width: `${(unbatched / grandTotal) * 100}%`, ...UNBATCHED_STRIPE_STYLE }}
                         title={`Δεν έχουν μπει ακόμη σε παρτίδα παραγωγής: ${unbatched} τεμ.`}
                     >

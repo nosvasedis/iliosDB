@@ -14,6 +14,34 @@ export interface LatestShipmentPrintData {
   remainingOrder: Order;
 }
 
+export interface ShipmentPrintPayload {
+  order: Order;
+  shipment: OrderShipment;
+  shipmentItems: OrderShipmentItem[];
+}
+
+export function buildShipmentPrintPayloads(
+  order: Order,
+  shipmentSnapshot: OrderShipmentSnapshot | undefined | null,
+): ShipmentPrintPayload[] {
+  const shipments = shipmentSnapshot?.shipments || [];
+  const shipmentItems = shipmentSnapshot?.items || [];
+  if (shipments.length === 0 || shipmentItems.length === 0) return [];
+
+  return [...shipments]
+    .sort((a, b) => {
+      const timeDiff = new Date(b.shipped_at).getTime() - new Date(a.shipped_at).getTime();
+      if (timeDiff !== 0) return timeDiff;
+      return (b.shipment_number || 0) - (a.shipment_number || 0);
+    })
+    .map((shipment) => ({
+      order,
+      shipment,
+      shipmentItems: shipmentItems.filter((item) => item.shipment_id === shipment.id),
+    }))
+    .filter((payload) => payload.shipmentItems.length > 0);
+}
+
 export interface OrderLabelPrintItem {
   product: Product;
   variant?: ProductVariant;
