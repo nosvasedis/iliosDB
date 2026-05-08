@@ -73,7 +73,7 @@ export default function SettingsPage() {
     const handleSaveSettings = async () => {
         setIsSaving(true);
         try {
-            // Use central API method for persistence (local + cloud)
+            // Κεντρική αποθήκευση για τοπικά και απομακρυσμένα δεδομένα.
             await api.updateSettings(settings);
 
             if (localGeminiKey !== GEMINI_API_KEY) {
@@ -245,7 +245,7 @@ export default function SettingsPage() {
     const handleClearSyncQueue = async () => {
         const yes = await confirm({
             title: 'Εκκαθάριση Ουράς Συγχρονισμού',
-            message: 'Αυτό θα διαγράψει ΟΛΕΣ τις εκκρεμείς αλλαγές που δεν έχουν ανέβει στο cloud. Χρησιμοποιήστε το μόνο αν ο συγχρονισμός έχει κολλήσει μόνιμα.',
+            message: 'Αυτό θα διαγράψει ΟΛΕΣ τις εκκρεμείς αλλαγές που δεν έχουν ανέβει στην απομακρυσμένη αποθήκευση. Χρησιμοποιήστε το μόνο αν ο συγχρονισμός έχει κολλήσει μόνιμα.',
             isDestructive: true,
             confirmText: 'Εκκαθάριση'
         });
@@ -299,12 +299,12 @@ export default function SettingsPage() {
                 headers: { 'Authorization': AUTH_KEY_SECRET },
             });
         } catch (error) {
-            console.warn('Old image cleanup skipped:', error);
+            console.warn('Η εκκαθάριση της παλιάς εικόνας παραλείφθηκε:', error);
         }
     };
 
     const uploadOptimizedCloudImage = async (blob: Blob, sku: string): Promise<string> => {
-        if (!navigator.onLine) throw new Error('Image optimization requires internet.');
+        if (!navigator.onLine) throw new Error('Η βελτιστοποίηση εικόνων απαιτεί σύνδεση στο διαδίκτυο.');
 
         const safeSku = sku
             .replace(/[^a-zA-Z0-9-\u0370-\u03FF]/g, '-')
@@ -319,16 +319,15 @@ export default function SettingsPage() {
             body: blob,
         });
 
-        if (!response.ok) throw new Error(`Image upload failed: ${response.status}`);
+        if (!response.ok) throw new Error(`Η μεταφόρτωση εικόνας απέτυχε: ${response.status}`);
         return uploadUrl;
     };
 
-    const handleOptimizeDmKnSkImages = async () => {
-        const prefixes = ['DM', 'KN', 'SK'];
+    const handleOptimizeProductImages = async () => {
         const yes = await confirm({
-            title: 'Optimize DM / KN / SK images',
-            message: 'This will recompress uploaded DM, KN and SK product images, save new smaller image URLs, and leave products unchanged otherwise. It can take a few minutes.',
-            confirmText: 'Optimize Images'
+            title: 'Βελτιστοποίηση εικόνων προϊόντων',
+            message: 'Θα συμπιεστούν ξανά οι εικόνες προϊόντων που είναι αποθηκευμένες στην απομακρυσμένη αποθήκευση, θα αποθηκευτούν νέοι μικρότεροι σύνδεσμοι και τα προϊόντα δεν θα αλλάξουν σε τίποτα άλλο. Οι εικόνες που δεν μικραίνουν αρκετά θα παραλειφθούν. Η διαδικασία μπορεί να πάρει λίγα λεπτά.',
+            confirmText: 'Βελτιστοποίηση'
         });
         if (!yes) return;
 
@@ -341,23 +340,22 @@ export default function SettingsPage() {
         try {
             const products = await api.getProducts();
             const targets = products.filter((product: Product) => {
-                const sku = product.sku.toUpperCase();
                 return Boolean(product.image_url)
                     && !product.image_url?.startsWith('data:')
-                    && prefixes.some(prefix => sku.startsWith(prefix));
+                    && product.image_url?.startsWith(CLOUDFLARE_WORKER_URL);
             });
 
             if (targets.length === 0) {
-                showToast('No DM / KN / SK cloud images found.', 'info');
+                showToast('Δεν βρέθηκαν εικόνες προϊόντων στην απομακρυσμένη αποθήκευση για βελτιστοποίηση.', 'info');
                 return;
             }
 
-            showToast(`Optimizing ${targets.length} images...`, 'info');
+            showToast(`Ξεκίνησε η βελτιστοποίηση ${targets.length} εικόνων...`, 'info');
 
             for (const product of targets) {
                 try {
                     const response = await fetch(product.image_url!);
-                    if (!response.ok) throw new Error(`Image fetch failed: ${response.status}`);
+                    if (!response.ok) throw new Error(`Η λήψη εικόνας απέτυχε: ${response.status}`);
 
                     const originalBlob = await response.blob();
                     const sourceFile = new File([originalBlob], `${product.sku}.jpg`, {
@@ -381,16 +379,16 @@ export default function SettingsPage() {
                     await deleteCloudImageBestEffort(oldUrl);
                 } catch (error) {
                     failed += 1;
-                    console.warn(`Image optimization failed for ${product.sku}:`, error);
+                    console.warn(`Η βελτιστοποίηση εικόνας απέτυχε για ${product.sku}:`, error);
                 }
             }
 
             await queryClient.invalidateQueries({ queryKey: ['products'] });
             const savedMb = (savedBytes / 1024 / 1024).toFixed(1);
-            showToast(`Optimized ${optimized}, skipped ${skipped}, failed ${failed}. Saved about ${savedMb} MB.`, failed ? 'info' : 'success');
+            showToast(`Βελτιστοποιήθηκαν ${optimized}, παραλείφθηκαν ${skipped}, απέτυχαν ${failed}. Εξοικονομήθηκαν περίπου ${savedMb} MB.`, failed ? 'info' : 'success');
         } catch (error) {
             console.error(error);
-            showToast('Image optimization failed.', 'error');
+            showToast('Η βελτιστοποίηση εικόνων απέτυχε.', 'error');
         } finally {
             setIsMaintenanceAction(false);
         }
@@ -521,8 +519,8 @@ export default function SettingsPage() {
                             <RefreshCw size={16} className={isMaintenanceAction ? 'animate-spin' : ''} /> Συγχρονισμός Εκκρεμοτήτων
                         </button>
 
-                        <button onClick={handleOptimizeDmKnSkImages} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-100 rounded-xl hover:bg-emerald-100 transition-colors font-bold text-emerald-700 text-sm">
-                            <ImageIcon size={16} /> Optimize DM / KN / SK Images
+                        <button onClick={handleOptimizeProductImages} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-100 rounded-xl hover:bg-emerald-100 transition-colors font-bold text-emerald-700 text-sm">
+                            <ImageIcon size={16} /> Βελτιστοποίηση Εικόνων Προϊόντων
                         </button>
 
                         <button onClick={handleClearSyncQueue} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 transition-colors font-bold text-amber-700 text-sm">
