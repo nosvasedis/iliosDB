@@ -1767,7 +1767,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                             {transferIndicators.length > 0 && (
                                                 <div className="mt-2 flex flex-wrap gap-1.5">
                                                     {transferIndicators.map((indicator) => (
-                                                        <span key={indicator.detail} title={indicator.detail} className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-md border font-bold uppercase tracking-wide bg-violet-50 text-violet-700 border-violet-100">
+                                                        <span key={indicator.detail} title={indicator.detail} className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-violet-700 shadow-sm">
                                                             <ArrowRightLeft size={11} /> {indicator.label}
                                                         </span>
                                                     ))}
@@ -1778,7 +1778,10 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                     {order.tags.map(t => {
                                                         const c = getTagColor(t, tagColorOverrides);
                                                         return (
-                                                            <span key={t} className={`text-[10px] px-2 py-1 rounded-md border font-bold uppercase tracking-wide ${c.bg} ${c.text} ${c.border}`}>{t}</span>
+                                                            <span key={t} className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide shadow-sm ${c.bg} ${c.text} ${c.border}`}>
+                                                                <span className="h-1.5 w-1.5 rounded-full bg-current opacity-55" />
+                                                                {t}
+                                                            </span>
                                                         );
                                                     })}
                                                 </div>
@@ -1793,32 +1796,38 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                             <div className="mt-1 text-base font-black text-slate-900">{formatCurrency(netValue)}</div>
                                         </div>
                                         <div className="p-4 min-w-0">
-                                            <div className="mb-2 flex items-center justify-between gap-2">
+                                            <div className="mb-2 flex items-center gap-2">
                                                 <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Κατάσταση</div>
-                                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-500">
-                                                    {Math.max(0, orderMeta?.readinessPercent ?? 0)}%
-                                                </span>
                                             </div>
                                             <div className="flex flex-wrap items-start gap-2">
                                                 {(order.status === OrderStatus.InProduction || order.status === OrderStatus.Pending || order.status === OrderStatus.PartiallyDelivered) ? (
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handleSendToProduction(order.id); }}
                                                         title="Διαχείριση Παραγωγής"
-                                                        className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-bold border transition-opacity hover:opacity-75 ${getOrderStatusClasses(order.status)}`}
+                                                        className={`shrink-0 rounded-full border px-3 py-1 text-xs font-black shadow-sm ring-1 ring-white/80 transition-all hover:-translate-y-px hover:shadow-md ${getOrderStatusClasses(order.status)}`}
                                                     >
                                                         {getOrderStatusLabel(order.status)}
                                                     </button>
                                                 ) : (
-                                                    <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-bold border ${getOrderStatusClasses(order.status)}`}>{getOrderStatusLabel(order.status)}</span>
+                                                    <span className={`shrink-0 rounded-full border px-3 py-1 text-xs font-black shadow-sm ring-1 ring-white/80 ${getOrderStatusClasses(order.status)}`}>{getOrderStatusLabel(order.status)}</span>
                                                 )}
-                                                {!ready && <OrderListProgressBar order={order} batches={batches} ready={ready} density="desktop" shippedQty={shippedQtyByOrderId.get(order.id)} />}
+                                                {!ready && (
+                                                    <div className="flex min-w-[12rem] flex-1 items-center gap-2">
+                                                        <OrderListProgressBar order={order} batches={batches} ready={ready} density="desktop" shippedQty={shippedQtyByOrderId.get(order.id)} showPercentLabel={false} />
+                                                        <span className="shrink-0 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-black tabular-nums text-slate-600 shadow-sm">
+                                                            {Math.max(0, orderMeta?.readinessPercent ?? 0)}%
+                                                        </span>
+                                                    </div>
+                                                )}
                                                 {ready && order.status !== OrderStatus.Delivered && (
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handleCompleteOrder(order); }}
-                                                        className="bg-emerald-500 text-white p-1 rounded-full hover:bg-emerald-600 transition-colors shadow-sm animate-pulse shrink-0"
+                                                        className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-black text-emerald-700 shadow-sm ring-1 ring-white/80 transition-all hover:-translate-y-px hover:bg-emerald-100 hover:shadow-md"
                                                         title="Έτοιμη για Ολοκλήρωση"
                                                     >
                                                         <CheckCircle size={14} />
+                                                        Έτοιμο
+                                                        <span className="rounded-full bg-emerald-600 px-1.5 py-0.5 text-[9px] leading-none text-white">100%</span>
                                                     </button>
                                                 )}
                                             </div>

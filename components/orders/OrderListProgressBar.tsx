@@ -22,6 +22,8 @@ type Props = {
   density?: 'desktop' | 'mobile';
   /** Real shipped quantity from DB; used to correctly show unbatched stripe on PartiallyDelivered orders */
   shippedQty?: number;
+  /** Hide the compact numeric label when the parent renders a custom readiness badge. */
+  showPercentLabel?: boolean;
 };
 
 type DesktopExpandedBreakdown =
@@ -111,7 +113,7 @@ function StageStripAndPills(props: {
  * Παραγγελίες list: progress next to status.
  * Σε Παραγωγή / Μερική Παράδοση: συμπαγής μπάρα — σε desktop με ανάπτυγμα (ανά στάδιο, με σωστή σημασιολογία για μερική παράδοση).
  */
-export function OrderListProgressBar({ order, batches, ready, density = 'desktop', shippedQty }: Props) {
+export function OrderListProgressBar({ order, batches, ready, density = 'desktop', shippedQty, showPercentLabel = true }: Props) {
   const [stagesExpanded, setStagesExpanded] = useState(false);
   const expandedBreakdown = useDesktopExpandedBreakdown(order, batches, density);
 
@@ -182,7 +184,7 @@ export function OrderListProgressBar({ order, batches, ready, density = 'desktop
           {chevronButton}
           <div className={`flex min-w-0 flex-1 items-center gap-1.5 ${stagesExpanded ? 'max-w-none' : ''}`}>
             {bar}
-            {pctLabel}
+            {showPercentLabel && pctLabel}
           </div>
         </div>
 
@@ -277,7 +279,7 @@ export function OrderListProgressBar({ order, batches, ready, density = 'desktop
           {chevronButton}
           <div className={`flex min-w-0 flex-1 items-center gap-1.5 ${stagesExpanded ? 'max-w-none' : ''}`}>
             {bar}
-            {pctLabel}
+            {showPercentLabel && pctLabel}
           </div>
         </div>
 
