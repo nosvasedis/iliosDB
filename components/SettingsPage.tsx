@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import { GlobalSettings, Product } from '../types';
 import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Info, Shield, Key, Download, FileJson, FileText, Database, ShieldAlert, RefreshCw, Trash2, HardDrive, Upload, Tag, Activity, AlertTriangle, Clock, Image as ImageIcon, X, Search, Play, CheckSquare } from 'lucide-react';
 import { supabase, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, GEMINI_API_KEY, api } from '../lib/supabase';
@@ -68,6 +68,13 @@ export default function SettingsPage() {
     const [backupComplete, setBackupComplete] = useState(false);
     const [backupSummary, setBackupSummary] = useState('');
     const [backupErrors, setBackupErrors] = useState<Array<{ table: string; message: string }>>([]);
+    const filteredImageOptimizationPreview = useMemo(() => {
+        const filter = imageOptimizationFilter.trim().toUpperCase();
+        const filtered = filter
+            ? imageOptimizationPreview.filter(product => product.sku.toUpperCase().includes(filter))
+            : imageOptimizationPreview;
+        return filtered.slice(0, 200);
+    }, [imageOptimizationFilter, imageOptimizationPreview]);
 
     if (!settings) {
         return <div className="p-8 text-center text-slate-400">Φόρτωση ρυθμίσεων...</div>;
@@ -355,6 +362,14 @@ export default function SettingsPage() {
         return uploadUrl;
     };
 
+    const updateProductImageOnly = async (sku: string, imageUrl: string) => {
+        const { error } = await supabase
+            .from('products')
+            .update({ image_url: imageUrl })
+            .eq('sku', sku);
+        if (error) throw error;
+    };
+
     const getImageDimensions = (blob: Blob): Promise<{ width: number; height: number }> => {
         return new Promise((resolve, reject) => {
             const objectUrl = URL.createObjectURL(blob);
@@ -415,16 +430,18 @@ export default function SettingsPage() {
         }
     };
 
-    const getRemoteProductImages = (products: Product[], skippedUrls: Set<string>, includeSkipped = false) => {
-        const filter = imageOptimizationFilter.trim().toUpperCase();
+    const getRemoteProductImages = (
+        products: Product[],
+        skippedUrls: Set<string>,
+        options: { includeSkipped?: boolean; includeOptimized?: boolean } = {}
+    ) => {
         return products.filter((product: Product) => {
             const imageUrl = product.image_url || '';
             return Boolean(imageUrl)
-                && (!filter || product.sku.toUpperCase().includes(filter))
                 && !imageUrl.startsWith('data:')
                 && imageUrl.startsWith(CLOUDFLARE_WORKER_URL)
-                && !decodeURIComponent(imageUrl).includes('_OPT.')
-                && (includeSkipped || !skippedUrls.has(imageUrl));
+                && (options.includeOptimized || !decodeURIComponent(imageUrl).includes('_OPT.'))
+                && (options.includeSkipped || !skippedUrls.has(imageUrl));
         });
     };
 
@@ -433,15 +450,27 @@ export default function SettingsPage() {
         try {
             const products = await api.getProducts();
             const skippedUrls = getSkippedOptimizationUrls();
-            const candidates = getRemoteProductImages(products, skippedUrls, true).slice(0, 200);
+            const candidates = getRemoteProductImages(products, skippedUrls, {
+                includeSkipped: true,
+                includeOptimized: true,
+            });
             setImageOptimizationPreview(candidates);
             setSelectedImageUrls(new Set());
-            showToast(`Φορτώθηκαν ${candidates.length} εικόνες για επιλογή.`, 'success');
+            showToast(`Φορτώθηκαν ${candidates.length} εικόνες. Το φίλτρο SKU δουλεύει πλέον άμεσα.`, 'success');
         } catch (error) {
             console.error(error);
             showToast('Δεν φορτώθηκε η λίστα εικόνων.', 'error');
         } finally {
             setIsMaintenanceAction(false);
+        }
+    };
+
+    const openImageOptimizationModal = () => {
+        setIsImageOptimizationOpen(true);
+        if (imageOptimizationPreview.length === 0) {
+            window.setTimeout(() => {
+                void loadImageOptimizationPreview();
+            }, 0);
         }
     };
 
@@ -520,8 +549,7 @@ export default function SettingsPage() {
                     const oldUrl = product.image_url;
                     const newUrl = await uploadOptimizedCloudImage(compressedBlob, product.sku);
 
-                    const result = await api.saveProduct({ ...product, image_url: newUrl });
-                    if (result?.error) throw result.error;
+                    await updateProductImageOnly(product.sku, newUrl);
 
                     optimized += 1;
                     savedBytes += Math.max(0, originalBlob.size - compressedBlob.size);
@@ -688,7 +716,7 @@ export default function SettingsPage() {
                             <RefreshCw size={16} className={isMaintenanceAction ? 'animate-spin' : ''} /> Συγχρονισμός Εκκρεμοτήτων
                         </button>
 
-                        <button onClick={() => setIsImageOptimizationOpen(true)} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-100 rounded-xl hover:bg-emerald-100 transition-colors font-bold text-emerald-700 text-sm">
+                        <button onClick={openImageOptimizationModal} disabled={isMaintenanceAction} className="w-full flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-100 rounded-xl hover:bg-emerald-100 transition-colors font-bold text-emerald-700 text-sm">
                             <ImageIcon size={16} /> Βελτιστοποίηση Εικόνων Προϊόντων
                         </button>
 
@@ -777,13 +805,23 @@ export default function SettingsPage() {
 
                                 <div className="border border-slate-100 rounded-2xl overflow-hidden min-h-[320px] bg-slate-50">
                                     <div className="max-h-[42vh] overflow-y-auto p-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                                        {imageOptimizationPreview.length > 0 && (
+                                            <div className="col-span-full text-xs font-bold text-slate-500 px-1">
+                                                Εμφανίζονται {filteredImageOptimizationPreview.length} από {imageOptimizationPreview.length} εικόνες{imageOptimizationFilter.trim() ? ` για "${imageOptimizationFilter.trim().toUpperCase()}"` : ''}.
+                                            </div>
+                                        )}
                                         {imageOptimizationPreview.length === 0 ? (
                                             <div className="col-span-full h-64 flex flex-col items-center justify-center text-slate-400 gap-2">
                                                 <ImageIcon size={36} className="text-slate-300" />
                                                 <p className="font-bold">Φορτώστε λίστα για χειροκίνητη επιλογή.</p>
-                                                <p className="text-xs text-slate-500">Η λίστα δείχνει έως 200 εικόνες ανά φίλτρο SKU.</p>
+                                                <p className="text-xs text-slate-500">Μετά τη φόρτωση, το φίλτρο SKU ενημερώνει άμεσα τη λίστα.</p>
                                             </div>
-                                        ) : imageOptimizationPreview.map(product => {
+                                        ) : filteredImageOptimizationPreview.length === 0 ? (
+                                            <div className="col-span-full h-64 flex flex-col items-center justify-center text-slate-400 gap-2">
+                                                <Search size={36} className="text-slate-300" />
+                                                <p className="font-bold">Δεν βρέθηκαν εικόνες για αυτό το φίλτρο.</p>
+                                            </div>
+                                        ) : filteredImageOptimizationPreview.map(product => {
                                             const imageUrl = product.image_url || '';
                                             const selected = selectedImageUrls.has(imageUrl);
                                             return (
