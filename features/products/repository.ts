@@ -77,6 +77,11 @@ export async function saveProductGraph(input: SaveProductGraphInput): Promise<{ 
   const { queued: prodQueued } = await productsRepository.saveProduct(input.productData);
   let anyPartQueued = prodQueued;
 
+  // Sync DB with the edited variant list: UPSERT only updates present rows; removed suffixes must be deleted
+  // (same pattern as recipes/molds below).
+  const { queued: delVariantsQueued } = await productsRepository.deleteProductVariants(input.finalMasterSku);
+  if (delVariantsQueued) anyPartQueued = true;
+
   if (input.finalVariants.length > 0) {
     for (const variant of input.finalVariants) {
       const { queued } = await productsRepository.saveProductVariant({
