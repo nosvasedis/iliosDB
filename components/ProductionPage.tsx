@@ -363,6 +363,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
     useEffect(() => {
         if (isOpen) {
             setSelectedIds(new Set(batches.map(b => b.id)));
+            setSearchTerm('');
             setSubstageFilter('all');
             setOrderScopeFilter('all');
         }
@@ -438,7 +439,15 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
 
         return Object.entries(groups)
             .sort((a, b) => b[1].items.length - a[1].items.length)
-            .filter(([_, group]) => group.name.toLowerCase().includes(searchTerm.toLowerCase()) || group.items.some(i => i.sku.toLowerCase().includes(searchTerm.toLowerCase())));
+            .filter(([_, group]) => {
+                if (!searchTerm.trim()) return true;
+                const term = searchTerm.trim().toLowerCase();
+                if (group.name.toLowerCase().includes(term)) return true;
+                return group.items.some(i =>
+                    (i.sku + (i.variant_suffix || '')).toLowerCase().includes(term) ||
+                    (i.size_info || '').toLowerCase().includes(term)
+                );
+            });
     }, [visibleBatches, searchTerm]);
 
     const toggleBatch = (id: string) => {
