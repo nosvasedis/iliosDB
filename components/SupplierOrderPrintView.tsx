@@ -125,7 +125,7 @@ export default function SupplierOrderPrintView({ order, products }: Props) {
                     style={{ columnCount: 2, columnGap: '1.5rem', columnRuleWidth: '1px', columnRuleStyle: 'dashed', columnRuleColor: '#e2e8f0' }}
                 >
                     {itemDisplayData.map(({ item, supplierSku, mainDescription, detailLine, imageUrl }, idx) => (
-                        <div key={idx} className="flex items-center py-1.5 border-b border-slate-100 break-inside-avoid">
+                        <div key={idx} className="flex items-start py-1.5 border-b border-slate-100 break-inside-avoid">
                             {/* Index */}
                             <div className="w-5 text-center text-slate-400 text-[10px] tabular-nums flex-shrink-0">{idx + 1}</div>
 
@@ -148,7 +148,7 @@ export default function SupplierOrderPrintView({ order, products }: Props) {
                                         <span className="text-[8px] text-slate-400 truncate">({item.item_name})</span>
                                     )}
                                 </div>
-                                <div className="text-[9px] text-slate-600 font-medium leading-tight truncate">
+                                <div className="text-[9px] text-slate-600 font-medium leading-tight">
                                     {mainDescription}
                                     {detailLine ? <span className="text-slate-400"> — {detailLine}</span> : null}
                                 </div>
@@ -158,8 +158,8 @@ export default function SupplierOrderPrintView({ order, products }: Props) {
                                     )}
                                     {/* customer_reference hidden from supplier PDF */}
                                 </div>
-                                {item.notes && (
-                                    <div className="text-[8px] text-yellow-700 italic leading-tight">↳ {item.notes}</div>
+                                {item.notes?.trim() && (
+                                    <div className="mt-1 rounded border border-yellow-300 bg-yellow-50 px-1.5 py-1 text-[9px] font-bold leading-snug text-yellow-900 whitespace-pre-wrap">{item.notes}</div>
                                 )}
                             </div>
 

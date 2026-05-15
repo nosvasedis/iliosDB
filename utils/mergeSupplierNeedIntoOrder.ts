@@ -6,7 +6,7 @@ export type GroupedSupplierNeedForMerge = {
     size?: string;
     totalQty: number;
     product?: Product;
-    requirements?: { customer: string; quantity?: number }[];
+    requirements?: { customer: string; quantity?: number; orderNote?: string; itemNote?: string; productionNote?: string }[];
 };
 
 export function customerRefsFromRequirements(requirements?: { customer: string }[]): string | undefined {
@@ -28,6 +28,69 @@ export function mergeCustomerReferenceStrings(a: string | undefined, b: string |
     return [...set].join(', ');
 }
 
+function normalizeNote(note: string | undefined): string | undefined {
+    const trimmed = note?.trim();
+    return trimmed || undefined;
+}
+
+function noteLinesFromRequirements(
+    requirements?: { customer: string; quantity?: number; orderNote?: string; itemNote?: string; productionNote?: string }[]
+): string[] {
+    if (!requirements?.length) return [];
+
+    const linesByKey = new Map<string, { customer?: string; label: string; note: string; quantity: number }>();
+
+    for (const req of requirements) {
+        const customer = req.customer?.trim();
+        for (const [label, rawNote] of [
+            ['Σημείωση εντολής', req.orderNote],
+            ['Σημείωση γραμμής', req.itemNote],
+            ['Σημείωση παραγωγής', req.productionNote],
+        ] as const) {
+            const note = normalizeNote(rawNote);
+            if (!note) continue;
+            const key = `${customer || ''}|${label}|${note}`.toLocaleLowerCase('el-GR');
+            const existing = linesByKey.get(key);
+            if (existing) {
+                existing.quantity += req.quantity || 0;
+            } else {
+                linesByKey.set(key, { customer, label, note, quantity: req.quantity || 0 });
+            }
+        }
+    }
+
+    return [...linesByKey.values()].map(({ customer, label, note, quantity }) => {
+        const qty = quantity > 0 ? ` x${quantity}` : '';
+        return customer ? `${customer}${qty} - ${label}: ${note}` : `${label}${qty}: ${note}`;
+    });
+}
+
+export function mergeSupplierOrderNotes(a: string | undefined, b: string | undefined): string | undefined {
+    const lines: string[] = [];
+    const seen = new Set<string>();
+
+    for (const source of [a, b]) {
+        if (!source) continue;
+        for (const rawLine of source.split(/\r?\n/)) {
+            const line = rawLine.trim();
+            if (!line) continue;
+            const key = line.toLocaleLowerCase('el-GR');
+            if (seen.has(key)) continue;
+            seen.add(key);
+            lines.push(line);
+        }
+    }
+
+    return lines.length ? lines.join('\n') : undefined;
+}
+
+export function supplierOrderNotesFromRequirements(
+    requirements?: { customer: string; quantity?: number; orderNote?: string; itemNote?: string; productionNote?: string }[]
+): string | undefined {
+    const lines = noteLinesFromRequirements(requirements);
+    return lines.length ? lines.join('\n') : undefined;
+}
+
 export function mergeNeedIntoItems(
     prev: SupplierOrderItem[],
     need: GroupedSupplierNeedForMerge,
@@ -45,6 +108,7 @@ export function mergeNeedIntoItems(
     );
 
     const refFromNeed = customerRefsFromRequirements(need.requirements);
+    const notesFromNeed = supplierOrderNotesFromRequirements(need.requirements);
 
     if (existingIdx >= 0) {
         const updated = [...prev];
@@ -52,6 +116,7 @@ export function mergeNeedIntoItems(
         line.quantity += need.totalQty;
         line.total_cost = 0;
         line.customer_reference = mergeCustomerReferenceStrings(line.customer_reference, refFromNeed);
+        line.notes = mergeSupplierOrderNotes(line.notes, notesFromNeed);
         updated[existingIdx] = line;
         return updated;
     }
@@ -66,6 +131,7 @@ export function mergeNeedIntoItems(
             quantity: need.totalQty,
             unit_cost: 0,
             total_cost: 0,
+            notes: notesFromNeed,
             size_info: finalSize || undefined,
             customer_reference: refFromNeed,
         },

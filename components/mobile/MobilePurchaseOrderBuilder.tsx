@@ -636,7 +636,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
 
                 <div className="pt-4">
                     <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Σημειώσεις Εντολής</label>
-                    <textarea value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none h-20 resize-none mt-1" placeholder="Εσωτερικές σημειώσεις..." />
+                    <textarea value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none h-20 resize-none mt-1" placeholder="Σημειώσεις για τον προμηθευτή..." />
                 </div>
             </div>
 

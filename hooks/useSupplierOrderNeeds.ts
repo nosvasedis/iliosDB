@@ -9,6 +9,9 @@ export type SupplierOrderNeedRequirement = {
     orderId: string;
     customer: string;
     quantity: number;
+    orderNote?: string;
+    itemNote?: string;
+    productionNote?: string;
 };
 
 /** One grouped row for supplier PO intelligence panels (production or pending orders). */
@@ -69,12 +72,21 @@ export function useSupplierOrderNeeds(supplier: Supplier) {
                     orderId: b.order_id,
                     customer: order?.customer_name || 'Άγνωστος',
                     quantity: b.quantity,
+                    orderNote: order?.notes,
+                    itemNote: order?.items.find(item =>
+                        item.sku === b.sku &&
+                        (item.variant_suffix || '') === (b.variant_suffix || '') &&
+                        (item.size_info || '') === (b.size_info || '') &&
+                        (!b.line_id || item.line_id === b.line_id)
+                    )?.notes,
+                    productionNote: b.notes,
                 });
             } else {
                 groupedNeeds[key].requirements.push({
                     orderId: '',
                     customer: 'Χωρίς σύνδεση παραγγελίας',
                     quantity: b.quantity,
+                    productionNote: b.notes,
                 });
             }
         });
@@ -109,6 +121,8 @@ export function useSupplierOrderNeeds(supplier: Supplier) {
                     orderId: order.id,
                     customer: order.customer_name,
                     quantity: item.quantity,
+                    orderNote: order.notes,
+                    itemNote: item.notes,
                 });
             });
         });
