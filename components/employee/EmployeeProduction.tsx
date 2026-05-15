@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { productionKeys, productionRepository } from '../../features/production';
 import { api } from '../../lib/supabase';
 import { ProductionBatch, ProductionStage } from '../../types';
 import {
@@ -71,7 +72,10 @@ const ClerkBatchCard: React.FC<{ batch: ProductionBatch, onMove: (b: ProductionB
 };
 
 export default function EmployeeProduction() {
-    const { data: batches, isLoading } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
+    const { data: batches, isLoading } = useQuery({
+        queryKey: productionKeys.batches(),
+        queryFn: productionRepository.getProductionBatches,
+    });
     const queryClient = useQueryClient();
     const { showToast } = useUI();
     const [processingId, setProcessingId] = React.useState<string | null>(null);

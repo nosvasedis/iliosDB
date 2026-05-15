@@ -3,8 +3,6 @@ import { deliveryKeys } from '../features/deliveries/keys';
 import { orderKeys } from '../features/orders/keys';
 import { productionKeys } from '../features/production/keys';
 
-const LEGACY_BATCHES_QUERY_KEY = ['batches'] as const;
-
 export type RealtimeInvalidationDomain =
     | 'products'
     | 'collections'
@@ -139,12 +137,43 @@ export function invalidateOffers(queryClient: QueryClient): Promise<void> {
     return queryClient.invalidateQueries({ queryKey: ['offers'] }).then(() => undefined);
 }
 
+/** Refetch the production batch list only (no stage-history table). */
+export function invalidateProductionBatchList(queryClient: QueryClient): Promise<void> {
+    return queryClient.invalidateQueries({ queryKey: productionKeys.batches() }).then(() => undefined);
+}
+
+/** Refetch batch stage history only. */
+export function invalidateBatchStageHistory(queryClient: QueryClient): Promise<void> {
+    return queryClient.invalidateQueries({ queryKey: productionKeys.batchHistoryEntries() }).then(() => undefined);
+}
+
+/** Full production invalidation for mutations that may affect batches and history together. */
 export function invalidateProductionBatches(queryClient: QueryClient): Promise<void> {
     return Promise.all([
-        queryClient.invalidateQueries({ queryKey: LEGACY_BATCHES_QUERY_KEY }),
+        invalidateProductionBatchList(queryClient),
         queryClient.invalidateQueries({ queryKey: productionKeys.all }),
-        queryClient.invalidateQueries({ queryKey: productionKeys.batchHistoryEntries() }),
+        invalidateBatchStageHistory(queryClient),
     ]).then(() => undefined);
+}
+
+function invalidateProductionFromRealtime(
+    queryClient: QueryClient,
+    sourceTables?: string[],
+): Promise<void> {
+    const tables = new Set(sourceTables ?? []);
+    const refreshAll = tables.size === 0;
+    const refreshBatches =
+        refreshAll || tables.has('production_batches') || tables.has('batch_stage_history');
+    const refreshHistory = refreshAll || tables.has('batch_stage_history');
+
+    const tasks: Promise<unknown>[] = [];
+    if (refreshBatches) {
+        tasks.push(invalidateProductionBatchList(queryClient));
+    }
+    if (refreshHistory) {
+        tasks.push(invalidateBatchStageHistory(queryClient));
+    }
+    return Promise.all(tasks).then(() => undefined);
 }
 
 export function invalidateOrdersAndBatches(queryClient: QueryClient): Promise<void> {
@@ -170,6 +199,7 @@ export function invalidateShipmentUndoQueries(queryClient: QueryClient, orderId?
 export function invalidateRealtimeDomain(
     queryClient: QueryClient,
     domain: RealtimeInvalidationDomain,
+    sourceTables?: string[],
 ): Promise<void> {
     switch (domain) {
         case 'products':
@@ -179,7 +209,7 @@ export function invalidateRealtimeDomain(
         case 'orders':
             return invalidateOrders(queryClient);
         case 'production':
-            return invalidateProductionBatches(queryClient);
+            return invalidateProductionFromRealtime(queryClient, sourceTables);
         case 'deliveries':
             return invalidateDeliveries(queryClient);
         case 'resources':

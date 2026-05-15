@@ -4,6 +4,7 @@ import { Activity, Factory, Coins, Plus, ScanBarcode, Zap, Package, ShoppingCart
 import MobileScreenHeader from './MobileScreenHeader';
 import { formatCurrency, formatDecimal } from '../../utils/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
+import { productionKeys, productionRepository } from '../../features/production';
 import { api } from '../../lib/supabase';
 import { APP_ICON_ONLY } from '../../constants';
 import { useAuth } from '../AuthContext';
@@ -46,7 +47,10 @@ const StatCard = ({ title, value, sub, icon, bg, text }: { title: string, value:
 
 export default function MobileDashboard({ products, settings, onNavigate }: Props) {
     const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
-    const { data: batches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
+    const { data: batches } = useQuery({
+        queryKey: productionKeys.batches(),
+        queryFn: productionRepository.getProductionBatches,
+    });
     const { profile } = useAuth();
     const [showPendingRevenue, setShowPendingRevenue] = useState(false);
 

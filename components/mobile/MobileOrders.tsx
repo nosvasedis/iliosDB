@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo, useDeferredValue } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { productionKeys, productionRepository } from '../../features/production';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { Order, OrderShipment, OrderShipmentItem, OrderStatus, Product, ProductVariant, ProductionBatch, ProductionStage } from '../../types';
 import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings, ShoppingBag, Image as ImageIcon, PackageCheck, Globe, Flame, Gem, Hammer, CheckCircle2, SlidersHorizontal, ShoppingCart, BookOpen, FileText, BarChart3, History, Hash } from 'lucide-react';
@@ -1205,7 +1206,10 @@ export default function MobileOrders({
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { data: orders, isLoading } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
-    const { data: batches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
+    const { data: batches } = useQuery({
+        queryKey: productionKeys.batches(),
+        queryFn: productionRepository.getProductionBatches,
+    });
     const { data: allShipments } = useAllShipments();
     const { data: allShipmentItems } = useAllShipmentItems();
     const { overrides: tagColorOverrides, changeTagColor: handleChangeTagColor } = useTagColorOverrides();

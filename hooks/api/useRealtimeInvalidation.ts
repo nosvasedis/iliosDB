@@ -49,14 +49,14 @@ export function useRealtimeInvalidation(): void {
   useEffect(() => {
     if (isLocalMode) return;
 
-    schedulerRef.current = createRealtimeInvalidationScheduler((domain) =>
-      invalidateRealtimeDomain(queryClient, domain),
+    schedulerRef.current = createRealtimeInvalidationScheduler((domain, sourceTables) =>
+      invalidateRealtimeDomain(queryClient, domain, sourceTables),
     );
 
     const handleChange = (payload: { table?: string }) => {
       if (!payload.table) return;
       const domains = getRealtimeInvalidationDomainsForTable(payload.table);
-      domains.forEach((domain) => schedulerRef.current?.schedule(domain));
+      domains.forEach((domain) => schedulerRef.current?.schedule(domain, payload.table));
     };
 
     const subscribe = () => {

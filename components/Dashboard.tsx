@@ -37,6 +37,7 @@ import {
 } from 'recharts';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
+import { productionKeys, productionRepository } from '../features/production';
 import { api } from '../lib/supabase';
 import { getProductionStageLabel } from '../utils/productionStages';
 import DesktopPageHeader from './DesktopPageHeader';
@@ -75,7 +76,10 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
   const [silverOrderScope, setSilverOrderScope] = useState<SilverOrderScope>('active');
 
   const { data: orders, isError: ordersError, error: ordersErr, refetch: refetchOrders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
-  const { data: batches, isError: batchesError, error: batchesErr, refetch: refetchBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
+  const { data: batches, isError: batchesError, error: batchesErr, refetch: refetchBatches } = useQuery({
+    queryKey: productionKeys.batches(),
+    queryFn: productionRepository.getProductionBatches,
+  });
 
   if (ordersError || batchesError) {
     const err = ordersErr || batchesErr;

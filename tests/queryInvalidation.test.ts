@@ -3,10 +3,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { deliveryKeys } from '../features/deliveries/keys';
 import { orderKeys } from '../features/orders/keys';
 import { productionKeys } from '../features/production/keys';
-import { invalidateOrdersAndBatches, invalidateProductionBatches, invalidateShipmentUndoQueries } from '../lib/queryInvalidation';
+import {
+  invalidateOrdersAndBatches,
+  invalidateProductionBatches,
+  invalidateRealtimeDomain,
+  invalidateShipmentUndoQueries,
+} from '../lib/queryInvalidation';
 
 describe('query invalidation helpers', () => {
-  it('invalidates both legacy and modular production batch caches', async () => {
+  it('invalidates modular production batch caches and history', async () => {
     const queryClient = {
       invalidateQueries: vi.fn().mockResolvedValue(undefined),
     } as any;
@@ -14,9 +19,32 @@ describe('query invalidation helpers', () => {
     await invalidateProductionBatches(queryClient);
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(3);
-    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: ['batches'] });
+    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: productionKeys.batches() });
     expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: productionKeys.all });
     expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(3, { queryKey: productionKeys.batchHistoryEntries() });
+  });
+
+  it('realtime production_batches changes refresh the batch list only', async () => {
+    const queryClient = {
+      invalidateQueries: vi.fn().mockResolvedValue(undefined),
+    } as any;
+
+    await invalidateRealtimeDomain(queryClient, 'production', ['production_batches']);
+
+    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1);
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: productionKeys.batches() });
+  });
+
+  it('realtime batch_stage_history changes refresh history and the batch list', async () => {
+    const queryClient = {
+      invalidateQueries: vi.fn().mockResolvedValue(undefined),
+    } as any;
+
+    await invalidateRealtimeDomain(queryClient, 'production', ['batch_stage_history']);
+
+    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2);
+    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: productionKeys.batches() });
+    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: productionKeys.batchHistoryEntries() });
   });
 
   it('invalidates orders alongside all production batch caches', async () => {
@@ -28,7 +56,7 @@ describe('query invalidation helpers', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(4);
     expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: orderKeys.all });
-    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: ['batches'] });
+    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: productionKeys.batches() });
     expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(3, { queryKey: productionKeys.all });
     expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(4, { queryKey: productionKeys.batchHistoryEntries() });
   });
@@ -42,7 +70,7 @@ describe('query invalidation helpers', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(11);
     expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: orderKeys.all });
-    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: ['batches'] });
+    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: productionKeys.batches() });
     expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(3, { queryKey: productionKeys.all });
     expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(4, { queryKey: productionKeys.batchHistoryEntries() });
     expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(5, { queryKey: orderKeys.shipments() });

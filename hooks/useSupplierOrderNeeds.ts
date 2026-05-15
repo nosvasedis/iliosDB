@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { Product, Supplier } from '../types';
 import { ProductionStage, ProductionType } from '../types';
+import { productionKeys, productionRepository } from '../features/production';
 import { api } from '../lib/supabase';
 
 /** One contribution line (batch or order item) feeding a grouped SKU row. */
@@ -43,7 +44,10 @@ function filterPendingNeedBySupplier(product: Product | undefined, supplierId: s
 
 export function useSupplierOrderNeeds(supplier: Supplier) {
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
-    const { data: productionBatches } = useQuery({ queryKey: ['batches'], queryFn: api.getProductionBatches });
+    const { data: productionBatches } = useQuery({
+        queryKey: productionKeys.batches(),
+        queryFn: productionRepository.getProductionBatches,
+    });
     const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
 
     const productionNeeds = useMemo((): SupplierOrderGroupedNeed[] => {

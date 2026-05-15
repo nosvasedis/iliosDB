@@ -2,13 +2,16 @@ import { useQuery } from '@tanstack/react-query';
 import { productionKeys, productionRepository } from '../../features/production';
 import { BatchStageHistoryEntry, ProductionBatch } from '../../types';
 
+/** Matches global React Query staleTime — realtime invalidation handles live updates. */
+const PRODUCTION_BATCHES_SAFETY_POLL_MS = 1000 * 60 * 5;
+
 export const useProductionBatches = () => {
   return useQuery<ProductionBatch[]>({
     queryKey: productionKeys.batches(),
     queryFn: productionRepository.getProductionBatches,
-    // Safety-net polling: the root realtime listener does the immediate refresh;
-    // this catches any edge case where a websocket event is missed.
-    refetchInterval: 15000,
+    // Safety-net polling if a websocket event is missed; realtime remains primary.
+    refetchInterval: PRODUCTION_BATCHES_SAFETY_POLL_MS,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
 };

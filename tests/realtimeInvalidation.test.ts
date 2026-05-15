@@ -50,7 +50,20 @@ describe('realtime invalidation scheduler', () => {
     await vi.advanceTimersByTimeAsync(1);
 
     expect(invalidateDomain).toHaveBeenCalledTimes(2);
-    expect(invalidateDomain).toHaveBeenCalledWith('products');
-    expect(invalidateDomain).toHaveBeenCalledWith('resources');
+    expect(invalidateDomain).toHaveBeenCalledWith('products', undefined);
+    expect(invalidateDomain).toHaveBeenCalledWith('resources', undefined);
+  });
+
+  it('merges source tables for the same domain within the debounce window', async () => {
+    const invalidateDomain = vi.fn().mockResolvedValue(undefined);
+    const scheduler = createRealtimeInvalidationScheduler(invalidateDomain, 400);
+
+    scheduler.schedule('production', 'production_batches');
+    scheduler.schedule('production', 'batch_stage_history');
+
+    await vi.advanceTimersByTimeAsync(400);
+
+    expect(invalidateDomain).toHaveBeenCalledTimes(1);
+    expect(invalidateDomain).toHaveBeenCalledWith('production', ['production_batches', 'batch_stage_history']);
   });
 });
