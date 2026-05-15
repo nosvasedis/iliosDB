@@ -17,7 +17,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     X, ArrowRight, Layers, PauseCircle, PlayCircle,
     Truck, RotateCcw, ShoppingCart, Edit2, Send,
-    CheckCircle, GitBranch,
+    CheckCircle, GitBranch, PackagePlus, PackageCheck, PackageX, Tags,
 } from 'lucide-react';
 import type { LiveActivityNotification, LiveActivityEventType } from '../hooks/useLiveActivity';
 
@@ -43,7 +43,7 @@ const stageLbl = (s?: string) => (s ? (STAGE_LABELS[s] ?? s) : '');
 // label: short uppercase category tag shown above the main text
 interface EventMeta { icon: React.ReactNode; color: string; label: string; }
 
-function getMeta(type: LiveActivityEventType): EventMeta {
+export function getLiveActivityMeta(type: LiveActivityEventType): EventMeta {
     const sz = 13;
     switch (type) {
         case 'batch_moved':
@@ -70,15 +70,30 @@ function getMeta(type: LiveActivityEventType): EventMeta {
             return { color: '#a78bfa', label: 'ΠΑΡΑΓΓΕΛΙΑ', icon: <Send size={sz} /> };
         case 'order_reverted':
             return { color: '#64748b', label: 'ΠΑΡΑΓΓΕΛΙΑ', icon: <RotateCcw size={sz} /> };
+        case 'product_created':
+            return { color: '#22c55e', label: 'SKU', icon: <PackagePlus size={sz} /> };
+        case 'product_updated':
+            return { color: '#84cc16', label: 'SKU', icon: <PackageCheck size={sz} /> };
+        case 'product_deleted':
+            return { color: '#ef4444', label: 'SKU', icon: <PackageX size={sz} /> };
+        case 'product_renamed':
+            return { color: '#0ea5e9', label: 'SKU', icon: <Tags size={sz} /> };
+        case 'product_variant_created':
+            return { color: '#10b981', label: 'VARIANT', icon: <PackagePlus size={sz} /> };
+        case 'product_variant_updated':
+            return { color: '#65a30d', label: 'VARIANT', icon: <PackageCheck size={sz} /> };
+        case 'product_variant_deleted':
+            return { color: '#f97316', label: 'VARIANT', icon: <PackageX size={sz} /> };
         default:
             return { color: '#64748b', label: 'ΕΝΕΡΓΕΙΑ',   icon: <CheckCircle size={sz} /> };
     }
 }
 
 // ── Action text ───────────────────────────────────────────────────────────────
-function getActionText(n: LiveActivityNotification): { line1: string; line2?: string } {
+export function getLiveActivityActionText(n: LiveActivityNotification): { line1: string; line2?: string } {
     const firstName = (n.userName || 'Κάποιος').split(' ')[0];
     const sku   = n.sku ?? '';
+    const fullSku = `${sku}${n.variantSuffix || ''}`;
     const qty   = n.qty ? `${n.qty}×` : '';
     const to    = stageLbl(n.toStage);
     const from  = stageLbl(n.fromStage);
@@ -121,6 +136,23 @@ function getActionText(n: LiveActivityNotification): { line1: string; line2?: st
             return { line1: `${firstName} → Παραγωγή`, line2: n.customerName };
         case 'order_reverted':
             return { line1: `${firstName} επαναφορά παραγγελίας`, line2: n.customerName };
+        case 'product_created':
+            return { line1: `${firstName} created SKU ${sku}` };
+        case 'product_updated':
+            return {
+                line1: `${firstName} updated SKU ${sku}`,
+                line2: count > 1 ? `${count} variants changed` : undefined,
+            };
+        case 'product_deleted':
+            return { line1: `${firstName} deleted SKU ${sku}` };
+        case 'product_renamed':
+            return { line1: `${firstName} renamed SKU`, line2: `${n.oldSku || sku} -> ${n.newSku || sku}` };
+        case 'product_variant_created':
+            return { line1: `${firstName} created variant ${fullSku}` };
+        case 'product_variant_updated':
+            return { line1: `${firstName} updated variant ${fullSku}` };
+        case 'product_variant_deleted':
+            return { line1: `${firstName} deleted variant ${fullSku}` };
         default:
             return { line1: `${firstName} έκανε αλλαγή` };
     }
@@ -197,8 +229,8 @@ interface CardProps {
 
 function ActivityCard({ notification: n, onDismiss }: CardProps) {
     const [entered, setEntered] = useState(false);
-    const meta           = getMeta(n.type);
-    const { line1, line2 } = getActionText(n);
+    const meta           = getLiveActivityMeta(n.type);
+    const { line1, line2 } = getLiveActivityActionText(n);
     const timeLabel      = useRelativeTime(n.receivedAt);
     const firstName      = (n.userName || '').split(' ')[0];
 

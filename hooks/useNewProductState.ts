@@ -22,6 +22,8 @@ import {
     saveProductGraph,
     uploadProductImageForSku,
 } from '../features/products/repository';
+import { useAuth } from '../components/AuthContext';
+import { dispatchLiveActivity } from './useLiveActivity';
 
 export interface UseNewProductStateProps {
     products: Product[];
@@ -36,6 +38,7 @@ export interface UseNewProductStateProps {
 
 export const useNewProductState = ({ products, materials, molds, settings, suppliers, duplicateTemplate, showToast, onCancel }: UseNewProductStateProps) => {
     const queryClient = useQueryClient();
+    const { profile } = useAuth();
 
     const [currentStep, setCurrentStep] = useState(1);
     const [productionType, setProductionType] = useState<ProductionType>(ProductionType.InHouse);
@@ -489,6 +492,11 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
         setIsUploading(true);
         let finalImageUrl: string | null = null;
         try {
+            const previousProduct = products.find(p => p.sku === finalMasterSku);
+            const previousVariantSuffixes = new Set((previousProduct?.variants || []).map(v => v.suffix));
+            const addedVariantSuffixes = finalVariants
+                .map(v => v.suffix)
+                .filter(suffix => !previousVariantSuffixes.has(suffix));
             let existingStockQty = 0; let existingSampleQty = 0;
             try {
                 const existingProd = await getExistingProductSnapshot(finalMasterSku);
@@ -513,6 +521,16 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             await invalidateProductsAndCatalog(queryClient);
             if (anyPartQueued) showToast(`Το προϊόν αποθηκεύτηκε στην ουρά συγχρονισμού.`, "info");
             else showToast(`Το προϊόν ${finalMasterSku} αποθηκεύτηκε επιτυχώς!`, "success");
+            if (!anyPartQueued) {
+                const userName = profile?.full_name || 'Κάποιος';
+                if (!previousProduct) {
+                    dispatchLiveActivity({ type: 'product_created', userName, sku: finalMasterSku });
+                } else if (addedVariantSuffixes.length === 1) {
+                    dispatchLiveActivity({ type: 'product_variant_created', userName, sku: finalMasterSku, variantSuffix: addedVariantSuffixes[0] });
+                } else {
+                    dispatchLiveActivity({ type: 'product_updated', userName, sku: finalMasterSku, count: addedVariantSuffixes.length || undefined });
+                }
+            }
             setVariants(finalVariants);
             setSellingPrice(finalSellingPrice);
             if (onCancel) onCancel();

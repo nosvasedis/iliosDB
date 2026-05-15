@@ -25,13 +25,17 @@ const envUrl = (import.meta as any).env?.VITE_SUPABASE_URL;
 const envKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY;
 const envWorkerKey = (import.meta as any).env?.VITE_WORKER_AUTH_KEY;
 const envGeminiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
+const getLocalStorageItem = (key: string): string | null => {
+    if (typeof localStorage === 'undefined') return null;
+    return localStorage.getItem(key);
+};
 
-const SUPABASE_URL = envUrl || localStorage.getItem('VITE_SUPABASE_URL') || '';
-const SUPABASE_KEY = envKey || localStorage.getItem('VITE_SUPABASE_ANON_KEY') || '';
-export const AUTH_KEY_SECRET = envWorkerKey || localStorage.getItem('VITE_WORKER_AUTH_KEY') || '';
-export const GEMINI_API_KEY = envGeminiKey || localStorage.getItem('VITE_GEMINI_API_KEY') || '';
+const SUPABASE_URL = envUrl || getLocalStorageItem('VITE_SUPABASE_URL') || '';
+const SUPABASE_KEY = envKey || getLocalStorageItem('VITE_SUPABASE_ANON_KEY') || '';
+export const AUTH_KEY_SECRET = envWorkerKey || getLocalStorageItem('VITE_WORKER_AUTH_KEY') || '';
+export const GEMINI_API_KEY = envGeminiKey || getLocalStorageItem('VITE_GEMINI_API_KEY') || '';
 
-export const isLocalMode = localStorage.getItem('ILIOS_LOCAL_MODE') === 'true';
+export const isLocalMode = getLocalStorageItem('ILIOS_LOCAL_MODE') === 'true';
 export const isConfigured = (!!SUPABASE_URL && !!SUPABASE_KEY) || isLocalMode;
 
 export const supabase = createClient(

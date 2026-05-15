@@ -37,13 +37,23 @@ export type LiveActivityEventType =
     | 'order_created'
     | 'order_updated'
     | 'order_sent_to_production'
-    | 'order_reverted';
+    | 'order_reverted'
+    | 'product_created'
+    | 'product_updated'
+    | 'product_deleted'
+    | 'product_renamed'
+    | 'product_variant_created'
+    | 'product_variant_updated'
+    | 'product_variant_deleted';
 
 export interface LiveActivityPayload {
     type: LiveActivityEventType;
     userName: string;
     // batch events
     sku?: string;
+    variantSuffix?: string;
+    oldSku?: string;
+    newSku?: string;
     qty?: number;
     fromStage?: string;
     toStage?: string;

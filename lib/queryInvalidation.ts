@@ -5,6 +5,67 @@ import { productionKeys } from '../features/production/keys';
 
 const LEGACY_BATCHES_QUERY_KEY = ['batches'] as const;
 
+export type RealtimeInvalidationDomain =
+    | 'products'
+    | 'collections'
+    | 'orders'
+    | 'production'
+    | 'deliveries'
+    | 'resources'
+    | 'contacts'
+    | 'settings'
+    | 'pricing'
+    | 'supplierOrders'
+    | 'offers';
+
+const PRODUCT_GRAPH_TABLES = new Set([
+    'products',
+    'product_variants',
+    'product_stock',
+    'recipes',
+    'product_molds',
+    'product_collections',
+    'stock_movements',
+]);
+
+const REALTIME_TABLE_DOMAINS: Record<string, RealtimeInvalidationDomain[]> = {
+    products: ['products'],
+    product_variants: ['products'],
+    product_stock: ['products'],
+    recipes: ['products'],
+    product_molds: ['products'],
+    product_collections: ['products', 'collections'],
+    stock_movements: ['products'],
+    collections: ['collections', 'products'],
+    materials: ['resources', 'products'],
+    molds: ['resources', 'products'],
+    warehouses: ['resources', 'products'],
+    global_settings: ['settings', 'products'],
+    orders: ['orders', 'deliveries'],
+    order_shipments: ['orders', 'deliveries'],
+    order_shipment_items: ['orders', 'deliveries'],
+    order_delivery_plans: ['deliveries', 'orders'],
+    order_delivery_reminders: ['deliveries', 'orders'],
+    production_batches: ['production', 'orders', 'deliveries'],
+    batch_stage_history: ['production'],
+    tag_color_overrides: ['orders'],
+    customers: ['contacts', 'orders', 'deliveries'],
+    suppliers: ['contacts', 'products'],
+    profiles: ['contacts'],
+    supplier_orders: ['supplierOrders'],
+    offers: ['offers'],
+    price_snapshots: ['pricing'],
+    price_snapshot_items: ['pricing'],
+};
+
+export function getRealtimeInvalidationDomainsForTable(tableName: string): RealtimeInvalidationDomain[] {
+    return [...(REALTIME_TABLE_DOMAINS[tableName] || [])];
+}
+
+export function isProductGraphRealtimeTable(tableName: string): boolean {
+    return PRODUCT_GRAPH_TABLES.has(tableName);
+}
+
 /**
  * Invalidates both products and productsCatalog caches so that the main
  * products list and the seller Catalog (Κατάλογος) stay in sync when
@@ -15,6 +76,67 @@ export function invalidateProductsAndCatalog(queryClient: QueryClient): Promise<
         queryClient.invalidateQueries({ queryKey: ['products'] }),
         queryClient.invalidateQueries({ queryKey: ['productsCatalog'] }),
     ]).then(() => undefined);
+}
+
+export function invalidateCollections(queryClient: QueryClient): Promise<void> {
+    return Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['collections'] }),
+    ]).then(() => undefined);
+}
+
+export function invalidateOrders(queryClient: QueryClient): Promise<void> {
+    return Promise.all([
+        queryClient.invalidateQueries({ queryKey: orderKeys.all }),
+        queryClient.invalidateQueries({ queryKey: orderKeys.shipments() }),
+        queryClient.invalidateQueries({ queryKey: orderKeys.shipmentItems() }),
+        queryClient.invalidateQueries({ queryKey: ['order-shipments'] }),
+        queryClient.invalidateQueries({ queryKey: ['tag_color_overrides'] }),
+    ]).then(() => undefined);
+}
+
+export function invalidateDeliveries(queryClient: QueryClient): Promise<void> {
+    return Promise.all([
+        queryClient.invalidateQueries({ queryKey: deliveryKeys.plans() }),
+        queryClient.invalidateQueries({ queryKey: deliveryKeys.reminders() }),
+        queryClient.invalidateQueries({ queryKey: deliveryKeys.shipments() }),
+        queryClient.invalidateQueries({ queryKey: deliveryKeys.shipmentItems() }),
+        queryClient.invalidateQueries({ queryKey: orderKeys.deliveryPlans() }),
+        queryClient.invalidateQueries({ queryKey: orderKeys.deliveryReminders() }),
+    ]).then(() => undefined);
+}
+
+export function invalidateResources(queryClient: QueryClient): Promise<void> {
+    return Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['materials'] }),
+        queryClient.invalidateQueries({ queryKey: ['molds'] }),
+        queryClient.invalidateQueries({ queryKey: ['warehouses'] }),
+    ]).then(() => undefined);
+}
+
+export function invalidateContacts(queryClient: QueryClient): Promise<void> {
+    return Promise.all([
+        queryClient.invalidateQueries({ queryKey: orderKeys.customers() }),
+        queryClient.invalidateQueries({ queryKey: ['suppliers'] }),
+        queryClient.invalidateQueries({ queryKey: ['sellers'] }),
+    ]).then(() => undefined);
+}
+
+export function invalidateSettings(queryClient: QueryClient): Promise<void> {
+    return queryClient.invalidateQueries({ queryKey: ['settings'] }).then(() => undefined);
+}
+
+export function invalidatePricing(queryClient: QueryClient): Promise<void> {
+    return Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['price_snapshots'] }),
+    ]).then(() => undefined);
+}
+
+export function invalidateSupplierOrders(queryClient: QueryClient): Promise<void> {
+    return queryClient.invalidateQueries({ queryKey: ['supplier_orders'] }).then(() => undefined);
+}
+
+export function invalidateOffers(queryClient: QueryClient): Promise<void> {
+    return queryClient.invalidateQueries({ queryKey: ['offers'] }).then(() => undefined);
 }
 
 export function invalidateProductionBatches(queryClient: QueryClient): Promise<void> {
@@ -43,4 +165,36 @@ export function invalidateShipmentUndoQueries(queryClient: QueryClient, orderId?
         queryClient.invalidateQueries({ queryKey: deliveryKeys.shipments() }),
         queryClient.invalidateQueries({ queryKey: deliveryKeys.shipmentItems() }),
     ]).then(() => undefined);
+}
+
+export function invalidateRealtimeDomain(
+    queryClient: QueryClient,
+    domain: RealtimeInvalidationDomain,
+): Promise<void> {
+    switch (domain) {
+        case 'products':
+            return invalidateProductsAndCatalog(queryClient);
+        case 'collections':
+            return invalidateCollections(queryClient);
+        case 'orders':
+            return invalidateOrders(queryClient);
+        case 'production':
+            return invalidateProductionBatches(queryClient);
+        case 'deliveries':
+            return invalidateDeliveries(queryClient);
+        case 'resources':
+            return invalidateResources(queryClient);
+        case 'contacts':
+            return invalidateContacts(queryClient);
+        case 'settings':
+            return invalidateSettings(queryClient);
+        case 'pricing':
+            return invalidatePricing(queryClient);
+        case 'supplierOrders':
+            return invalidateSupplierOrders(queryClient);
+        case 'offers':
+            return invalidateOffers(queryClient);
+        default:
+            return Promise.resolve();
+    }
 }

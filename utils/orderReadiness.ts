@@ -3,12 +3,11 @@ import { Order, OrderStatus, ProductionBatch, ProductionStage, ShipmentReadiness
 import { buildItemIdentityKey } from './itemIdentity';
 import { PRODUCTION_STAGE_ORDER_INDEX } from './productionStages';
 
-/** Orders where the production progress bar should be shown (incl. pending = "nothing sent yet"). */
+/** Orders where the production progress bar should be shown. */
 export function orderStatusShowsProductionProgress(status: OrderStatus): boolean {
   return (
     status === OrderStatus.InProduction ||
-    status === OrderStatus.PartiallyDelivered ||
-    status === OrderStatus.Pending
+    status === OrderStatus.PartiallyDelivered
   );
 }
 
@@ -299,7 +298,7 @@ export function buildInProductionCollapsedProgressSegments(
     {
       qty: unbatchedQty,
       pct: pcts[2],
-      className: 'bg-slate-400',
+      className: 'bg-slate-300',
       label: unbatchedQty > 0 ? `Χωρίς ενεργή παραγωγή: ${unbatchedQty} τεμ.` : 'Χωρίς ενεργή παραγωγή',
       style: unbatchedQty > 0 ? UNBATCHED_STRIPE_STYLE : undefined,
     },
@@ -397,7 +396,7 @@ export function buildPartialDeliveryProgressSegments(
     {
       qty: remainderQty,
       pct: pcts[3],
-      className: 'bg-slate-400',
+      className: 'bg-slate-300',
       label:
         remainderQty > 0
           ? `Χωρίς ενεργή παραγωγή: ${remainderQty} τεμ.`

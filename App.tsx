@@ -34,6 +34,7 @@ import { PrintManager } from './components/PrintManager';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 import { LiveActivityFeed } from './components/LiveActivityFeed';
 import { useLiveActivity } from './hooks/useLiveActivity';
+import { useRealtimeInvalidation } from './hooks/api/useRealtimeInvalidation';
 import { lazyWithChunkRecovery } from './lib/chunkLoadRecovery';
 
 import SetupScreen from './components/SetupScreen';
@@ -163,6 +164,7 @@ function AppContent() {
   const { signOut, profile } = useAuth();
   const { badgeCount: deliveryBadgeCount } = useDeliveryNavBadge();
   const { notifications: liveNotifications, dismiss: dismissLiveNotification } = useLiveActivity();
+  useRealtimeInvalidation();
 
   const {
     setPrintItems, setOrderToPrint, setRemainingOrderToPrint, setShipmentToPrint, setShipmentsToPrint, setOfferToPrint,

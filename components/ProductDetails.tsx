@@ -10,6 +10,7 @@ import { ACCEPTED_IMAGE_INPUT_TYPES, compressImage } from '../utils/imageHelpers
 import { useQueryClient } from '@tanstack/react-query';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 import { useUI } from './UIProvider';
+import { useAuth } from './AuthContext';
 import SkuColorizedText from './SkuColorizedText';
 import JsBarcode from 'jsbarcode';
 import BarcodeView from './BarcodeView';
@@ -28,6 +29,7 @@ import {
 } from '../features/products';
 import { getSecondaryWeightLabel } from '../features/products/productDetailsViewModels';
 import ConvertToInhouseModal from './ConvertToInhouseModal';
+import { dispatchLiveActivity } from '../hooks/useLiveActivity';
 
 interface Props {
     product: Product;
@@ -566,6 +568,7 @@ const BarcodeGallery = React.memo(({ product, variants, onPrint, settings }: { p
 export default function ProductDetails({ product, allProducts, allMaterials, onClose, onSave, setPrintItems, settings, collections, allMolds, viewMode = 'registry', onDuplicate }: Props) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
+    const { profile } = useAuth();
     const { data: suppliers } = useSuppliers();
 
     const [activeTab, setActiveTab] = useState<'overview' | 'recipe' | 'labor' | 'variants' | 'barcodes'>('overview');
@@ -970,8 +973,27 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
             const isComponent = finalEditedProduct.sku.toUpperCase().startsWith('STX');
             const currentCost = calculateProductCost(finalEditedProduct, settings, allMaterials, allProducts).total;
+            const previousVariants = product.variants || [];
+            const nextVariants = finalEditedProduct.variants || [];
+            const previousVariantMap = new Map(previousVariants.map(v => [v.suffix, v]));
+            const nextVariantMap = new Map(nextVariants.map(v => [v.suffix, v]));
+            const addedVariantSuffixes = nextVariants
+                .map(v => v.suffix)
+                .filter(suffix => !previousVariantMap.has(suffix));
+            const deletedVariantSuffixes = previousVariants
+                .map(v => v.suffix)
+                .filter(suffix => !nextVariantMap.has(suffix));
+            const updatedVariantSuffixes = nextVariants
+                .filter(v => {
+                    const previous = previousVariantMap.get(v.suffix);
+                    if (!previous) return false;
+                    return previous.description !== v.description ||
+                        previous.active_price !== v.active_price ||
+                        previous.selling_price !== v.selling_price;
+                })
+                .map(v => v.suffix);
 
-            await saveProductGraph({
+            const { anyPartQueued } = await saveProductGraph({
                 finalMasterSku: finalEditedProduct.sku,
                 productData: {
                     sku: finalEditedProduct.sku,
@@ -1014,6 +1036,19 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             await invalidateProductsAndCatalog(queryClient);
 
             if (onSave) onSave(finalEditedProduct);
+            if (!anyPartQueued) {
+                const userName = profile?.full_name || 'Κάποιος';
+                if (addedVariantSuffixes.length === 1 && deletedVariantSuffixes.length === 0 && updatedVariantSuffixes.length === 0) {
+                    dispatchLiveActivity({ type: 'product_variant_created', userName, sku: finalEditedProduct.sku, variantSuffix: addedVariantSuffixes[0] });
+                } else if (deletedVariantSuffixes.length === 1 && addedVariantSuffixes.length === 0 && updatedVariantSuffixes.length === 0) {
+                    dispatchLiveActivity({ type: 'product_variant_deleted', userName, sku: finalEditedProduct.sku, variantSuffix: deletedVariantSuffixes[0] });
+                } else if (updatedVariantSuffixes.length === 1 && addedVariantSuffixes.length === 0 && deletedVariantSuffixes.length === 0) {
+                    dispatchLiveActivity({ type: 'product_variant_updated', userName, sku: finalEditedProduct.sku, variantSuffix: updatedVariantSuffixes[0] });
+                } else {
+                    const variantChangeCount = addedVariantSuffixes.length + deletedVariantSuffixes.length + updatedVariantSuffixes.length;
+                    dispatchLiveActivity({ type: 'product_updated', userName, sku: finalEditedProduct.sku, count: variantChangeCount || undefined });
+                }
+            }
             showToast("Οι αλλαγές αποθηκεύτηκαν.", "success");
             onClose();
         } catch (err: any) {
@@ -1038,6 +1073,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             await queryClient.refetchQueries({ queryKey: ['products'] });
             await invalidateProductsAndCatalog(queryClient);
             onClose();
+            dispatchLiveActivity({ type: 'product_deleted', userName: profile?.full_name || 'Κάποιος', sku: editedProduct.sku });
             showToast("Το προϊόν διαγράφηκε επιτυχώς.", "success");
         } else {
             showToast(`Σφάλμα: ${result.error}`, "error");
@@ -1282,6 +1318,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             setEditedProduct(prev => ({ ...prev, sku: newSku }));
 
             await invalidateProductsAndCatalog(queryClient);
+            dispatchLiveActivity({ type: 'product_renamed', userName: profile?.full_name || 'Κάποιος', sku: newSku, oldSku: product.sku, newSku });
             showToast(`Επιτυχής μετονομασία σε ${newSku}`, "success");
         } catch (e: any) {
             console.error(e);

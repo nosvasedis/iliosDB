@@ -17,7 +17,7 @@ function defaultLineIdFactory(): string {
 }
 
 function needsPerLineIdentity(item: OrderItem, collisionKeys: Set<string>): boolean {
-  return isSpecialCreationSku(item.sku) || collisionKeys.has(buildItemIdentityKey(item));
+  return isSpecialCreationSku(item.sku) || collisionKeys.has(buildItemIdentityKey({ ...item, line_id: null }));
 }
 
 /** Assign stable line_id to rows that must never collapse into the same catalog identity. */
@@ -29,7 +29,7 @@ export function assignMissingOrderLineIds(
 
   for (const item of items) {
     if (isSpecialCreationSku(item.sku)) continue;
-    const key = buildItemIdentityKey(item);
+    const key = buildItemIdentityKey({ ...item, line_id: null });
     const notes = notesByNaturalKey.get(key) || new Set<string>();
     notes.add(item.notes || '');
     notesByNaturalKey.set(key, notes);
