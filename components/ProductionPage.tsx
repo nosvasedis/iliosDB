@@ -2720,6 +2720,9 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         setSplitModalState({ batch, targetStage, pendingDispatch });
     };
 
+    const attemptMoveRef = useRef(attemptMove);
+    attemptMoveRef.current = attemptMove;
+
     const handleDirectMove = async (batch: ProductionBatch, targetStage: ProductionStage, pendingDispatch?: boolean) => {
         // Lock this batch, cancel in-flight refetches, apply optimistic jump so
         // the card appears in the target column instantly. Rollback on error.
@@ -3007,6 +3010,19 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             }
             return next;
         });
+    }, []);
+
+    const handleFinderMoveToStage = useCallback(
+        (batch: ProductionBatch, targetStage: ProductionStage, opts?: { pendingDispatch?: boolean }) => {
+            attemptMoveRef.current(batch, targetStage, true, opts?.pendingDispatch);
+        },
+        [],
+    );
+
+    const handleToggleHoldRef = useRef(handleToggleHold);
+    handleToggleHoldRef.current = handleToggleHold;
+    const handleFinderToggleHold = useCallback((batch: ProductionBatch) => {
+        void handleToggleHoldRef.current(batch);
     }, []);
 
     const handleBulkMove = async () => {
@@ -3575,10 +3591,8 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         onToggleSelect={toggleBatchSelect}
                         onToggleSelectAll={toggleFinderSelectAll}
                         onViewBatch={setViewBuildBatch}
-                        onMoveToStage={(batch, stage, opts) =>
-                            attemptMove(batch, stage, true, opts?.pendingDispatch)
-                        }
-                        onToggleHold={handleToggleHold}
+                        onMoveToStage={handleFinderMoveToStage}
+                        onToggleHold={handleFinderToggleHold}
                         onEditNote={setEditingNoteBatch}
                     />
                 </div>
