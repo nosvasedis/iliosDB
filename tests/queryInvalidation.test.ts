@@ -4,6 +4,7 @@ import { deliveryKeys } from '../features/deliveries/keys';
 import { orderKeys } from '../features/orders/keys';
 import { productionKeys } from '../features/production/keys';
 import {
+  invalidateAndRefetchAfterShipmentChange,
   invalidateOrdersAndBatches,
   invalidateProductionBatches,
   invalidateRealtimeDomain,
@@ -68,7 +69,7 @@ describe('query invalidation helpers', () => {
 
     await invalidateShipmentUndoQueries(queryClient, 'order-1');
 
-    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(11);
+    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(12);
     expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: orderKeys.all });
     expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: productionKeys.batches() });
     expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(3, { queryKey: productionKeys.all });
@@ -76,9 +77,24 @@ describe('query invalidation helpers', () => {
     expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(5, { queryKey: orderKeys.shipments() });
     expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(6, { queryKey: orderKeys.shipmentsForOrder('order-1') });
     expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(7, { queryKey: orderKeys.shipmentItems() });
-    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(8, { queryKey: deliveryKeys.plans() });
-    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(9, { queryKey: deliveryKeys.reminders() });
-    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(10, { queryKey: deliveryKeys.shipments() });
-    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(11, { queryKey: deliveryKeys.shipmentItems() });
+    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(8, { queryKey: ['order-shipments'] });
+    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(9, { queryKey: deliveryKeys.plans() });
+    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(10, { queryKey: deliveryKeys.reminders() });
+    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(11, { queryKey: deliveryKeys.shipments() });
+    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(12, { queryKey: deliveryKeys.shipmentItems() });
+  });
+
+  it('invalidates shipment caches then refetches active order/production/delivery queries', async () => {
+    const queryClient = {
+      invalidateQueries: vi.fn().mockResolvedValue(undefined),
+      refetchQueries: vi.fn().mockResolvedValue(undefined),
+    } as any;
+
+    await invalidateAndRefetchAfterShipmentChange(queryClient, 'order-1');
+
+    expect(queryClient.invalidateQueries).toHaveBeenCalled();
+    expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: orderKeys.all, type: 'active' });
+    expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: productionKeys.batches(), type: 'active' });
+    expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: orderKeys.shipmentsForOrder('order-1'), type: 'active' });
   });
 });

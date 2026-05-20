@@ -23,7 +23,7 @@ import { useOrderShipmentsForOrder } from '../hooks/api/useOrders';
 import { useBatchStageHistoryEntries } from '../hooks/api/useProductionBatches';
 import { ordersRepository } from '../features/orders';
 import { productionRepository, productionKeys } from '../features/production';
-import { invalidateOrdersAndBatches, invalidateProductionBatches, invalidateShipmentUndoQueries } from '../lib/queryInvalidation';
+import { invalidateAndRefetchAfterShipmentChange, invalidateOrdersAndBatches, invalidateProductionBatches } from '../lib/queryInvalidation';
 import ShipmentUndoConfirmationModal, { getLatestShipmentNumber } from './deliveries/ShipmentUndoConfirmationModal';
 
 import { STAGES, STAGE_BUTTON_COLORS, VIBRANT_STAGES, getStageColorKey } from './production/stageConstants';
@@ -870,7 +870,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                 orderId: order.id,
                 revertedBy: userName,
             });
-            await invalidateShipmentUndoQueries(queryClient, order.id);
+            await invalidateAndRefetchAfterShipmentChange(queryClient, order.id);
             showToast(`Η αποστολή #${shipment.shipment_number} αναιρέθηκε επιτυχώς.`, 'success');
             setShipmentUndoRequest(null);
         } catch (e: any) {

@@ -17,7 +17,7 @@ import { buildInProductionCollapsedProgressSegments, buildPartialDeliveryProgres
 import { OrderListProgressBar } from './orders/OrderListProgressBar';
 import ShipmentCreationModal from './deliveries/ShipmentCreationModal';
 import ShipmentUndoConfirmationModal from './deliveries/ShipmentUndoConfirmationModal';
-import { invalidateOrdersAndBatches, invalidateShipmentUndoQueries } from '../lib/queryInvalidation';
+import { invalidateAndRefetchAfterShipmentChange, invalidateOrdersAndBatches } from '../lib/queryInvalidation';
 import { buildPartialOrderFromBatches, buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildShipmentPrintPayloads, buildSyntheticAggregatedBatches, getShipmentStageBreakdown, getShipmentSummary, getShipmentValue, buildOrderRevisions } from '../features/orders';
 import { getOrderStatusClasses, getOrderStatusLabel, getOrderStatusIcon } from '../features/orders/statusPresentation';
 import { getTagColor } from '../features/orders/tagColors';
@@ -997,6 +997,16 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         setTagInputFocused(false);
     }, [managingOrder]);
 
+    // Keep manage-modal order in sync when the orders query refetches (e.g. after partial shipment).
+    useEffect(() => {
+        if (!managingOrder?.id || !orders) return;
+        const fresh = orders.find((o) => o.id === managingOrder.id);
+        if (!fresh) return;
+        if (fresh.status !== managingOrder.status) {
+            setManagingOrder(fresh);
+        }
+    }, [orders, managingOrder?.id, managingOrder?.status]);
+
     const productsMap = useMemo(() => new Map(products.map(product => [product.sku, product])), [products]);
     const materialsMap = useMemo(() => new Map(materials.map(material => [material.id, material])), [materials]);
 
@@ -1411,7 +1421,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                 notes,
                 allBatches: batches || []
             });
-            void invalidateOrdersAndBatches(queryClient);
+            await invalidateAndRefetchAfterShipmentChange(queryClient, order.id);
             showToast(`Αποστολή ${items.reduce((s, i) => s + i.quantity, 0)} τεμαχίων καταχωρήθηκε.`, 'success');
             setShipmentModalOrder(null);
         } catch (e: any) {
@@ -1438,7 +1448,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                 orderId: order.id,
                 revertedBy: profile?.full_name || 'Σύστημα',
             });
-            await invalidateShipmentUndoQueries(queryClient, order.id);
+            await invalidateAndRefetchAfterShipmentChange(queryClient, order.id);
             showToast(`Η αποστολή #${shipment.shipment_number} αναιρέθηκε επιτυχώς.`, 'success');
             setShipmentUndoRequest(null);
             setManagingOrder(null);

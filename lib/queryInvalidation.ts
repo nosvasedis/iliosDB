@@ -189,11 +189,36 @@ export function invalidateShipmentUndoQueries(queryClient: QueryClient, orderId?
         queryClient.invalidateQueries({ queryKey: orderKeys.shipments() }),
         orderId ? queryClient.invalidateQueries({ queryKey: orderKeys.shipmentsForOrder(orderId) }) : Promise.resolve(),
         queryClient.invalidateQueries({ queryKey: orderKeys.shipmentItems() }),
+        queryClient.invalidateQueries({ queryKey: ['order-shipments'] }),
         queryClient.invalidateQueries({ queryKey: deliveryKeys.plans() }),
         queryClient.invalidateQueries({ queryKey: deliveryKeys.reminders() }),
         queryClient.invalidateQueries({ queryKey: deliveryKeys.shipments() }),
         queryClient.invalidateQueries({ queryKey: deliveryKeys.shipmentItems() }),
     ]).then(() => undefined);
+}
+
+/**
+ * After creating or reverting a partial shipment, invalidate every dependent cache
+ * and await refetch of active queries so Παραγγελίες updates without a full reload.
+ */
+export async function invalidateAndRefetchAfterShipmentChange(
+    queryClient: QueryClient,
+    orderId?: string,
+): Promise<void> {
+    await invalidateShipmentUndoQueries(queryClient, orderId);
+    await Promise.all([
+        queryClient.refetchQueries({ queryKey: orderKeys.all, type: 'active' }),
+        queryClient.refetchQueries({ queryKey: productionKeys.batches(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: orderKeys.shipments(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: orderKeys.shipmentItems(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: deliveryKeys.shipments(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: deliveryKeys.shipmentItems(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: deliveryKeys.plans(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: deliveryKeys.reminders(), type: 'active' }),
+        ...(orderId
+            ? [queryClient.refetchQueries({ queryKey: orderKeys.shipmentsForOrder(orderId), type: 'active' })]
+            : []),
+    ]);
 }
 
 export function invalidateRealtimeDomain(

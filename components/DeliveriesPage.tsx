@@ -21,7 +21,7 @@ import DeliveryPlannerModal from './deliveries/DeliveryPlannerModal';
 import DeliverySummaryCards from './deliveries/DeliverySummaryCards';
 import ShipmentCreationModal from './deliveries/ShipmentCreationModal';
 import ShipmentUndoConfirmationModal from './deliveries/ShipmentUndoConfirmationModal';
-import { invalidateOrdersAndBatches, invalidateShipmentUndoQueries } from '../lib/queryInvalidation';
+import { invalidateAndRefetchAfterShipmentChange, invalidateOrdersAndBatches } from '../lib/queryInvalidation';
 
 interface Props {
   pendingOrderId?: string | null;
@@ -203,7 +203,7 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
         revertedBy: profile?.full_name || 'Σύστημα',
       });
       showToast(`Η αποστολή #${shipment.shipment_number} αναιρέθηκε επιτυχώς.`, 'success');
-      await invalidateShipmentUndoQueries(queryClient, item.order.id);
+      await invalidateAndRefetchAfterShipmentChange(queryClient, item.order.id);
       setShipmentUndoRequest(null);
       setSelectedItem(null);
     } catch (e: any) {
@@ -228,6 +228,7 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
       notes,
       allBatches: batchesQuery.data || []
     });
+    await invalidateAndRefetchAfterShipmentChange(queryClient, order.id);
     showToast(`Αποστολή #${items.reduce((s, i) => s + i.quantity, 0)} τεμαχίων καταχωρήθηκε επιτυχώς.`, 'success');
     setShipmentItem(null);
     setSelectedItem(null);

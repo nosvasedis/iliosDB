@@ -17,7 +17,7 @@ import MobilePlannerSheet from '../deliveries/mobile/MobilePlannerSheet';
 import MobileDeliveryDayList from '../deliveries/mobile/MobileDeliveryDayList';
 import MobileDeliveryDetailSheet from '../deliveries/mobile/MobileDeliveryDetailSheet';
 import ShipmentCreationModal from '../deliveries/ShipmentCreationModal';
-import { invalidateOrdersAndBatches } from '../../lib/queryInvalidation';
+import { invalidateAndRefetchAfterShipmentChange, invalidateOrdersAndBatches } from '../../lib/queryInvalidation';
 
 interface Props {
   pendingOrderId?: string | null;
@@ -172,6 +172,7 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
       notes,
       allBatches: batchesQuery.data || []
     });
+    await invalidateAndRefetchAfterShipmentChange(queryClient, order.id);
     showToast(`Αποστολή #${items.reduce((s, i) => s + i.quantity, 0)} τεμαχίων καταχωρήθηκε επιτυχώς.`, 'success');
     setShipmentItem(null);
     setSelectedItem(null);
