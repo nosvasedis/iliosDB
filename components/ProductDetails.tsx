@@ -28,6 +28,7 @@ import {
     saveProductGraph,
 } from '../features/products';
 import { getSecondaryWeightLabel } from '../features/products/productDetailsViewModels';
+import { createMoldEntry } from '../features/products/repository';
 import ConvertToInhouseModal from './ConvertToInhouseModal';
 import { dispatchLiveActivity } from '../hooks/useLiveActivity';
 
@@ -596,6 +597,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
     const [isAddingMold, setIsAddingMold] = useState(false);
     const [moldSearch, setMoldSearch] = useState('');
+    const [newMoldCode, setNewMoldCode] = useState('L');
+    const [newMoldLoc, setNewMoldLoc] = useState('');
+    const [newMoldDesc, setNewMoldDesc] = useState('');
+    const [isCreatingMold, setIsCreatingMold] = useState(false);
     const [showAnalysisHelp, setShowAnalysisHelp] = useState(false);
 
     const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -1268,6 +1273,42 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         return getAvailableMolds(allMolds, editedProduct.molds, moldSearch);
     }, [allMolds, editedProduct.molds, moldSearch]);
 
+    const handleQuickCreateMold = async () => {
+        const code = newMoldCode.trim().toUpperCase();
+        if (!code || code === 'L') {
+            showToast('Ο Κωδικός είναι υποχρεωτικός.', 'error');
+            return;
+        }
+
+        setIsCreatingMold(true);
+        try {
+            await createMoldEntry({
+                code,
+                location: newMoldLoc.trim(),
+                description: newMoldDesc.trim(),
+                weight_g: 0,
+            });
+
+            await queryClient.invalidateQueries({ queryKey: ['molds'] });
+
+            setEditedProduct((prev) => {
+                if (prev.molds.some((m) => m.code === code)) return prev;
+                return { ...prev, molds: [...prev.molds, { code, quantity: 1 }] };
+            });
+
+            setNewMoldCode('L');
+            setNewMoldLoc('');
+            setNewMoldDesc('');
+            setIsAddingMold(false);
+            setMoldSearch('');
+            showToast(`Το λάστιχο ${code} επιλέχθηκε!`, 'success');
+        } catch (err: any) {
+            showToast('Σφάλμα δημιουργίας. Πιθανώς ο κωδικός υπάρχει ήδη.', 'error');
+        } finally {
+            setIsCreatingMold(false);
+        }
+    };
+
     const secondaryWeightLabel = useMemo(() => {
         return getSecondaryWeightLabel(editedProduct.gender, editedProduct.category);
     }, [editedProduct.gender, editedProduct.category]);
@@ -1862,6 +1903,43 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                     </button>
                                                                 ))}
                                                                 {availableMolds.length === 0 && <div className="text-center text-xs text-slate-400 p-3">Δεν βρέθηκαν διαθέσιμα λάστιχα.</div>}
+                                                            </div>
+
+                                                            <div className="pt-3 mt-2 border-t border-slate-200/70">
+                                                                <div className="text-[10px] font-black text-amber-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                                                    <Plus size={12} /> Νέο Λάστιχο
+                                                                </div>
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="Κωδικός *"
+                                                                        value={newMoldCode}
+                                                                        onChange={(e) => setNewMoldCode(e.target.value.toUpperCase())}
+                                                                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm font-mono font-bold outline-none focus:ring-2 focus:ring-amber-500/15 focus:border-amber-400 transition-all uppercase placeholder-slate-400"
+                                                                    />
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="Τοποθεσία"
+                                                                        value={newMoldLoc}
+                                                                        onChange={(e) => setNewMoldLoc(e.target.value)}
+                                                                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500/15 focus:border-amber-400 transition-all placeholder-slate-400"
+                                                                    />
+                                                                </div>
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Περιγραφή"
+                                                                    value={newMoldDesc}
+                                                                    onChange={(e) => setNewMoldDesc(e.target.value)}
+                                                                    className="mt-2 w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500/15 focus:border-amber-400 transition-all placeholder-slate-400"
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={handleQuickCreateMold}
+                                                                    disabled={isCreatingMold}
+                                                                    className="mt-2.5 w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 rounded-xl transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                                                                >
+                                                                    {isCreatingMold ? <Loader2 size={16} className="animate-spin" /> : <><Check size={16} /> Δημιουργία & Επιλογή</>}
+                                                                </button>
                                                             </div>
                                                         </div>
                                                     )}
