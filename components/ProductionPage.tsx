@@ -25,8 +25,8 @@ import ProductionMoldRequirementsModal from './ProductionMoldRequirementsModal';
 import { buildProductionAlertGroups } from './production/productionAlerts';
 import { invalidateOrdersAndBatches, invalidateProductionBatches } from '../lib/queryInvalidation';
 import { PRODUCTION_STAGES, getProductionStageLabel, getProductionStageShortLabel } from '../utils/productionStages';
-import { getFinderSearchResultSurface } from '../utils/productionFinderSurfaces';
 import { StageOnHoldMiniStrip } from './production/StageOnHoldMiniStrip';
+import ProductionBatchFinder from './production/ProductionBatchFinder';
 import {
     formatGreekDurationFromMs,
     getProductionTimingInfo,
@@ -45,7 +45,6 @@ import { productionKeys, productionRepository } from '../features/production';
 import { auditRepository } from '../features/audit';
 import {
     buildLabelPrintQueue,
-    filterAndSortProductionFinderBatches,
     getNextProductionStage,
     groupProductionBatchesByStage,
     groupProductionBatchesForDisplay,
@@ -1650,18 +1649,6 @@ const HoldBatchModal = ({ batch, onClose, onConfirm, isProcessing }: { batch: Pr
     );
 };
 
-// Stage button colors for finder batch selector
-const FINDER_STAGE_BUTTON_COLORS: Record<string, { bg: string, text: string, border: string }> = {
-    'AwaitingDelivery': { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
-    'Waxing': { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200' },
-    'Casting': { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
-    'Setting': { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
-    'Polishing': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
-    'Assembly': { bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-200' },
-    'Labeling': { bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200' },
-    'Ready': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
-};
-
 // Hex colors for native <select> <option> elements (can't use Tailwind classes there)
 const STAGE_SELECT_COLORS: Record<string, { bg: string; color: string }> = {
     [ProductionStage.AwaitingDelivery]: { bg: '#eef2ff', color: '#4338ca' },
@@ -1672,296 +1659,6 @@ const STAGE_SELECT_COLORS: Record<string, { bg: string; color: string }> = {
     [ProductionStage.Assembly]:          { bg: '#fdf2f8', color: '#be185d' },
     [ProductionStage.Labeling]:          { bg: '#fefce8', color: '#854d0e' },
     [ProductionStage.Ready]:             { bg: '#ecfdf5', color: '#065f46' },
-};
-
-// Stage display order and labels for finder
-const FINDER_STAGE_ORDER: { id: ProductionStage, label: string }[] = [
-    { id: ProductionStage.AwaitingDelivery, label: getProductionStageLabel(ProductionStage.AwaitingDelivery) },
-    { id: ProductionStage.Waxing, label: getProductionStageLabel(ProductionStage.Waxing) },
-    { id: ProductionStage.Casting, label: getProductionStageLabel(ProductionStage.Casting) },
-    { id: ProductionStage.Setting, label: getProductionStageLabel(ProductionStage.Setting) },
-    { id: ProductionStage.Polishing, label: getProductionStageLabel(ProductionStage.Polishing) },
-    { id: ProductionStage.Assembly, label: getProductionStageLabel(ProductionStage.Assembly) },
-    { id: ProductionStage.Labeling, label: getProductionStageLabel(ProductionStage.Labeling) },
-    { id: ProductionStage.Ready, label: getProductionStageLabel(ProductionStage.Ready) },
-];
-
-// Component for stage selector in finder results
-const FinderBatchStageSelector = ({ 
-    batch, 
-    onMoveToStage,
-    onToggleHold,
-    onEditNote,
-    hideNotes = false,
-    isMoving = false,
-}: { 
-    batch: ProductionBatch & { customer_name?: string }, 
-    onMoveToStage: (batch: ProductionBatch, targetStage: ProductionStage, options?: { pendingDispatch?: boolean }) => void,
-    onToggleHold: (batch: ProductionBatch) => void,
-    onEditNote?: (batch: ProductionBatch) => void,
-    hideNotes?: boolean,
-    isMoving?: boolean,
-}) => {
-    const [isOpen, setIsOpen] = useState(false);
-
-    // If the finder row becomes "moving" while its stage popup is open, close
-    // it so the user never sees dead options floating over a syncing row.
-    useEffect(() => {
-        if (isMoving && isOpen) setIsOpen(false);
-    }, [isMoving, isOpen]);
-    const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0 });
-    const buttonRef = useRef<HTMLButtonElement>(null);
-    const popupRef = useRef<HTMLDivElement>(null);
-    
-    // Calculate popup position when opening
-    const updatePosition = useCallback(() => {
-        if (buttonRef.current) {
-            const buttonRect = buttonRef.current.getBoundingClientRect();
-            const popupHeight = 320; // Approximate max height
-            const popupWidth = 160;
-            const padding = 8;
-            
-            // Calculate vertical position - prefer above, but go below if not enough space
-            let top = buttonRect.top - popupHeight - padding;
-            if (top < padding) {
-                // Not enough space above, show below
-                top = buttonRect.bottom + padding;
-            }
-            
-            // Ensure doesn't go off bottom of screen
-            const viewportHeight = window.innerHeight;
-            if (top + popupHeight > viewportHeight - padding) {
-                top = viewportHeight - popupHeight - padding;
-            }
-            
-            // Calculate horizontal position - align right edge with button
-            let left = buttonRect.right - popupWidth;
-            if (left < padding) {
-                left = padding;
-            }
-            
-            setPopupPosition({ top, left });
-        }
-    }, []);
-    
-    // Open/close handler
-    const handleToggle = useCallback((e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (isMoving) return;
-        if (!isOpen) {
-            updatePosition();
-        }
-        setIsOpen(!isOpen);
-    }, [isOpen, updatePosition, isMoving]);
-    
-    // Close selector when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (
-                popupRef.current && !popupRef.current.contains(event.target as Node) &&
-                buttonRef.current && !buttonRef.current.contains(event.target as Node)
-            ) {
-                setIsOpen(false);
-            }
-        };
-        if (isOpen) {
-            document.addEventListener('mousedown', handleClickOutside);
-        }
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [isOpen]);
-    
-    // Update position on scroll/resize
-    useEffect(() => {
-        if (isOpen) {
-            const handleScroll = () => updatePosition();
-            window.addEventListener('scroll', handleScroll, true);
-            window.addEventListener('resize', handleScroll);
-            return () => {
-                window.removeEventListener('scroll', handleScroll, true);
-                window.removeEventListener('resize', handleScroll);
-            };
-        }
-    }, [isOpen, updatePosition]);
-    
-    const currentStageIndex = FINDER_STAGE_ORDER.findIndex(s => s.id === batch.current_stage);
-    
-    const isStageDisabled = (stageId: ProductionStage): boolean => {
-        if (stageId === ProductionStage.Setting && !batch.requires_setting) return true;
-        if (stageId === ProductionStage.Assembly && !batch.requires_assembly) return true;
-        return false;
-    };
-    
-    const handleStageSelect = (targetStage: ProductionStage, options?: { pendingDispatch?: boolean }) => {
-        if (isStageDisabled(targetStage)) return;
-        if (targetStage === batch.current_stage && targetStage !== ProductionStage.Polishing) return;
-        setIsOpen(false);
-        onMoveToStage(batch, targetStage, options);
-    };
-    
-    return (
-        <div className="mt-2 pt-2 border-t border-slate-200/50">
-            {batch.on_hold && (
-                <div className="bg-amber-100 text-amber-800 text-xs font-black p-1.5 px-2 rounded-lg flex items-center gap-1 border border-amber-200 mb-2">
-                    <PauseCircle size={11} className="shrink-0" />
-                    <span>Σε Αναμονή{batch.on_hold_reason ? ` • ${batch.on_hold_reason}` : ''}</span>
-                </div>
-            )}
-            {!hideNotes && (
-                <div
-                    className={`flex items-center gap-1 text-xs font-bold p-1.5 px-2 rounded-lg border mb-2 truncate transition-colors ${
-                        batch.notes
-                            ? onEditNote
-                                ? 'bg-amber-50 text-amber-800 border-amber-100 cursor-pointer hover:bg-amber-100'
-                                : 'bg-amber-50 text-amber-800 border-amber-100'
-                            : onEditNote
-                                ? 'bg-slate-50 text-slate-400 border-slate-100 cursor-pointer hover:bg-slate-100'
-                                : 'hidden'
-                    }`}
-                    onClick={onEditNote ? (e) => { e.stopPropagation(); onEditNote(batch); } : undefined}
-                    title={onEditNote ? 'Επεξεργασία σημείωσης' : undefined}
-                >
-                    <StickyNote size={10} className="shrink-0" />
-                    <span className="truncate">{batch.notes || 'Προσθήκη σημείωσης…'}</span>
-                </div>
-            )}
-            
-            <div className="flex items-center justify-between">
-                <span className="text-[9px] font-bold text-slate-400 uppercase">Μετακίνηση:</span>
-                
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            if (isMoving) return;
-                            onToggleHold(batch);
-                        }}
-                        disabled={isMoving}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 ${
-                            isMoving
-                                ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
-                                : (batch.on_hold ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700' : 'bg-amber-100 hover:bg-amber-200 text-amber-700')
-                        }`}
-                    >
-                        {batch.on_hold ? <PlayCircle size={12} className="fill-current" /> : <PauseCircle size={12} />}
-                        {batch.on_hold ? 'Συνέχεια' : 'Αναμονή'}
-                    </button>
-                    <button
-                        ref={buttonRef}
-                        onClick={handleToggle}
-                        disabled={isMoving}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 ${
-                            isMoving
-                                ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
-                                : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-                        }`}
-                    >
-                        {isMoving ? <Loader2 size={12} className="animate-spin" /> : <MoveRight size={12} />}
-                        {isMoving ? 'Μετακινείται…' : 'Στάδιο'}
-                        {!isMoving && (isOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
-                    </button>
-                </div>
-            </div>
-            
-            {/* Portal-style fixed position popup - rendered at root level */}
-            {isOpen && ReactDOM.createPortal(
-                <div 
-                    ref={popupRef}
-                    className="fixed bg-white rounded-xl shadow-2xl border border-slate-200 p-2 z-[9999] min-w-[150px] max-h-[280px] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-150"
-                    style={{ 
-                        top: popupPosition.top,
-                        left: popupPosition.left,
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-2 sticky top-0 bg-white pt-1">Επιλογή Σταδίου</div>
-                    <div className="space-y-1">
-                        {FINDER_STAGE_ORDER.map((stage, index) => {
-                            const isCurrent = stage.id === batch.current_stage;
-                            const isDisabled = isStageDisabled(stage.id);
-                            const isPast = index < currentStageIndex;
-                            
-                            const colorKey = stage.id === ProductionStage.AwaitingDelivery ? 'AwaitingDelivery' :
-                                             stage.id === ProductionStage.Waxing ? 'Waxing' :
-                                             stage.id === ProductionStage.Casting ? 'Casting' :
-                                             stage.id === ProductionStage.Setting ? 'Setting' :
-                                             stage.id === ProductionStage.Polishing ? 'Polishing' :
-                                             stage.id === ProductionStage.Assembly ? 'Assembly' :
-                                             stage.id === ProductionStage.Labeling ? 'Labeling' : 'Ready';
-                            const stageColors = FINDER_STAGE_BUTTON_COLORS[colorKey];
-                            
-                            // Split Polishing into two sub-stage buttons (side by side)
-                            if (stage.id === ProductionStage.Polishing) {
-                                const isCurrentPending = isCurrent && batch.pending_dispatch;
-                                const isCurrentDispatched = isCurrent && !batch.pending_dispatch;
-                                
-                                return (
-                                    <div key={stage.id} className="flex gap-1">
-                                        <button
-                                            onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: true })}
-                                            disabled={isDisabled}
-                                            className={`flex-1 text-center px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between
-                                                ${isCurrentPending
-                                                    ? 'bg-teal-50 text-teal-700 border-teal-200 border ring-2 ring-offset-1 ring-teal-400/30'
-                                                    : isDisabled
-                                                    ? 'bg-slate-50/50 text-slate-300/50 border border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
-                                                    : isPast
-                                                    ? 'bg-teal-50/50 text-teal-700/70 border border-slate-100 hover:bg-teal-50'
-                                                    : 'bg-teal-50 text-teal-700 border-teal-200 border hover:shadow-md active:scale-95'
-                                                }
-                                            `}
-                                        >
-                                            <span>Τεχν. • Αναμονή</span>
-                                            {isCurrentPending && <span className="text-[8px]">●</span>}
-                                        </button>
-                                        <button
-                                            onClick={() => handleStageSelect(ProductionStage.Polishing, { pendingDispatch: false })}
-                                            disabled={isDisabled}
-                                            className={`flex-1 text-center px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between
-                                                ${isCurrentDispatched
-                                                    ? 'bg-blue-50 text-blue-700 border-blue-200 border ring-2 ring-offset-1 ring-blue-400/30'
-                                                    : isDisabled
-                                                    ? 'bg-slate-50/50 text-slate-300/50 border border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
-                                                    : isPast
-                                                    ? 'bg-blue-50/50 text-blue-700/70 border border-slate-100 hover:bg-blue-50'
-                                                    : 'bg-blue-50 text-blue-700 border-blue-200 border hover:shadow-md active:scale-95'
-                                                }
-                                            `}
-                                        >
-                                            <span>Τεχν. • Στον Τεχν.</span>
-                                            {isCurrentDispatched && <span className="text-[8px]">●</span>}
-                                        </button>
-                                    </div>
-                                );
-                            }
-                            
-                            return (
-                                <button
-                                    key={stage.id}
-                                    onClick={() => handleStageSelect(stage.id)}
-                                    disabled={isDisabled}
-                                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between
-                                        ${isCurrent 
-                                            ? `${stageColors.bg} ${stageColors.text} ${stageColors.border} border ring-2 ring-offset-1 ring-current/30` 
-                                            : isDisabled
-                                            ? 'bg-slate-50/50 text-slate-300/50 border border-slate-100/50 cursor-not-allowed blur-[1px] opacity-50'
-                                            : isPast
-                                            ? `${stageColors.bg}/50 ${stageColors.text}/70 border border-slate-100 hover:${stageColors.bg}`
-                                            : `${stageColors.bg} ${stageColors.text} ${stageColors.border} border hover:shadow-md active:scale-95`
-                                        }
-                                    `}
-                                >
-                                    <span>{stage.label}</span>
-                                    {isCurrent && <span className="text-[8px]">●</span>}
-                                    {isDisabled && <span className="text-[8px] opacity-50">παράλειψη</span>}
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>,
-                document.body
-            )}
-        </div>
-    );
 };
 
 const SplitBatchModal = ({ state, onClose, onConfirm, isProcessing }: { state: { batch: ProductionBatch, targetStage: ProductionStage, isReceive?: boolean }, onClose: () => void, onConfirm: (qty: number, targetStage: ProductionStage) => void, isProcessing: boolean }) => {
@@ -2581,10 +2278,6 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     // Mobile Accordion State
     const [expandedStageId, setExpandedStageId] = useState<string | null>(STAGES[1].id);
 
-    // Finder State
-    const [finderTerm, setFinderTerm] = useState('');
-    const deferredFinderTerm = React.useDeferredValue(finderTerm);
-
     // Overview Modal State
     const [overviewModal, setOverviewModal] = useState<{ isOpen: boolean, type: 'active' | 'delayed' | 'onHold' | 'ready' } | null>(null);
 
@@ -2737,11 +2430,6 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     }, [enhancedBatches]);
 
     const stageBatchesByStage = useMemo(() => groupProductionBatchesByStage(enhancedBatches), [enhancedBatches]);
-
-    const foundBatches = useMemo(
-        () => filterAndSortProductionFinderBatches(enhancedBatches, deferredFinderTerm) as EnhancedProductionBatch[],
-        [enhancedBatches, deferredFinderTerm],
-    );
 
     const quickPickEntries = useMemo(() => {
         if (!orders || orders.length === 0 || enhancedBatches.length === 0) return [] as ProductionQuickPickEntry[];
@@ -3309,6 +2997,18 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         });
     }, []);
 
+    const toggleFinderSelectAll = useCallback((batchIds: string[], selectAll: boolean) => {
+        setMultiSelectIds(prev => {
+            const next = new Set(prev);
+            if (selectAll) {
+                batchIds.forEach(id => next.add(id));
+            } else {
+                batchIds.forEach(id => next.delete(id));
+            }
+            return next;
+        });
+    }, []);
+
     const handleBulkMove = async () => {
         if (!bulkMoveTarget || multiSelectIds.size === 0) return;
         const batchesToMove = enhancedBatches.filter(b => {
@@ -3868,154 +3568,19 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                             <ArrowUp size={12} />
                         </button>
                     </div>
-                    <div className="relative group flex-1 min-w-0">
-                        <input
-                            type="text"
-                            value={finderTerm}
-                            onChange={(e) => setFinderTerm(e.target.value)}
-                            placeholder="Εύρεση SKU / Εντολής / Πελάτη..."
-                            className="w-full pl-10 p-3 rounded-2xl bg-slate-100 border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-bold text-slate-800 uppercase"
-                        />
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-600" size={18} />
-                        {finderTerm && (
-                            <button onClick={() => setFinderTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X size={16} /></button>
-                        )}
-
-                        {/* RESULTS DROPDOWN */}
-                        {finderTerm.length >= 2 && (
-                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 max-h-[70vh] overflow-y-auto custom-scrollbar p-2 space-y-2 w-[900px] max-w-[calc(100vw-3rem)]">
-                                {foundBatches.length > 0 && (
-                                    <div className="flex items-center justify-between px-1 pb-1 border-b border-slate-100 mb-1">
-                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                            {foundBatches.length} αποτελέσματα
-                                        </span>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                const allSelected = foundBatches.every(b => multiSelectIds.has(b.id));
-                                                setMultiSelectIds(prev => {
-                                                    const next = new Set(prev);
-                                                    if (allSelected) {
-                                                        foundBatches.forEach(b => next.delete(b.id));
-                                                    } else {
-                                                        foundBatches.forEach(b => next.add(b.id));
-                                                    }
-                                                    return next;
-                                                });
-                                            }}
-                                            className="text-[10px] font-black text-blue-600 hover:text-blue-800 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors"
-                                        >
-                                            {foundBatches.every(b => multiSelectIds.has(b.id))
-                                                ? <><Square size={11} /> Αποεπιλογή Όλων</>
-                                                : <><CheckSquare size={11} /> Επιλογή Όλων</>
-                                            }
-                                        </button>
-                                    </div>
-                                )}
-                                {foundBatches.map((b, index) => {
-                                    const stageConf = STAGES.find(s => s.id === b.current_stage);
-                                    const isPendingPolishing = b.current_stage === ProductionStage.Polishing && b.pending_dispatch;
-                                    const colors = isPendingPolishing
-                                        ? { text: 'text-teal-700', border: 'border-teal-200' }
-                                        : (STAGE_COLORS[stageConf?.color as keyof typeof STAGE_COLORS] || STAGE_COLORS['slate']);
-                                    const finderBadgeClass = `bg-white/70 backdrop-blur-sm ${colors.text} ${colors.border}`;
-                                    const age = getBatchAgeInfo(b);
-                                    const isSpecialBatch = isSpecialCreationSku(b.sku);
-                                    const finderRowSurface = isPendingPolishing
-                                        ? 'bg-teal-50/25 border border-teal-100/80 border-l-4 border-l-teal-400/45 hover:bg-teal-50/40'
-                                        : getFinderSearchResultSurface(stageConf?.color);
-                                    const isSelected = multiSelectIds.has(b.id);
-                                    const rowMoving = movingBatchIds.has(b.id);
-
-                                    return (
-                                        <div
-                                            key={b.id}
-                                            onClick={() => setViewBuildBatch(b)}
-                                            aria-busy={rowMoving || undefined}
-                                            className={`relative rounded-xl p-3 transition-all group cursor-pointer ${finderRowSurface} ${isSpecialBatch ? 'ring-1 ring-violet-200/65' : ''} ${isSelected ? '!ring-2 !ring-blue-400 ring-offset-0 !border-blue-300/80 !bg-blue-50/35' : ''} ${index > 0 ? 'mt-1 border-t border-t-slate-200/60 pt-3' : ''} ${rowMoving ? 'ring-2 ring-emerald-400/70 ring-offset-1 shadow-lg animate-pulse' : ''}`}
-                                        >
-                                            <div className="flex justify-between items-start">
-                                                <div className="flex items-start gap-2">
-                                                    {/* Selection checkbox */}
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); toggleBatchSelect(b.id); }}
-                                                        className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                                                            isSelected
-                                                                ? 'bg-blue-500 border-blue-500 shadow-sm shadow-blue-200'
-                                                                : 'bg-white border-slate-300 hover:border-blue-400'
-                                                        }`}
-                                                        title={isSelected ? 'Αποεπιλογή' : 'Επιλογή'}
-                                                    >
-                                                        {isSelected && <Check size={11} className="text-white" />}
-                                                    </button>
-
-                                                    <div className="flex items-start gap-3 min-w-0">
-                                                        {/* Image */}
-                                                        <div className="w-10 h-10 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0 relative">
-                                                            {b.product_image ? <img src={b.product_image} className="w-full h-full object-cover" /> : <ImageIcon size={16} className="m-auto text-slate-300" />}
-                                                            <div className="absolute bottom-0 right-0 bg-slate-900 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-tl-lg leading-none">
-                                                                x{b.quantity}
-                                                            </div>
-                                                        </div>
-
-                                                        <div>
-                                                            <div className="flex items-center gap-2">
-                                                                <SkuColorizedText sku={b.sku} suffix={b.variant_suffix || ''} gender={b.product_details?.gender} className="font-black text-lg" masterClassName={isSpecialBatch ? 'text-violet-900' : 'text-slate-800'} />
-                                                                <span className="bg-slate-900 text-white px-2 py-0.5 rounded-md text-xs font-bold shadow-sm">x{b.quantity}</span>
-                                                                {b.size_info && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-black flex items-center gap-1"><Hash size={10} /> {b.size_info}</span>}
-                                                                {b.on_hold && <span className="bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded text-[10px] font-black flex items-center gap-1"><PauseCircle size={10} /> Σε Αναμονή</span>}
-                                                            </div>
-                                                            <div className="flex items-center justify-between mt-1 gap-2 min-w-[200px]">
-                                                                <span className="font-bold text-slate-700 text-xs">{b.customer_name || 'Unknown'}</span>
-                                                                {b.on_hold ? (
-                                                                    <div className="text-[9px] font-black px-1.5 py-0.5 rounded border flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200">
-                                                                        <PauseCircle size={10} /> Hold
-                                                                    </div>
-                                                                ) : (
-                                                                    <div className={`text-[9px] font-black px-1.5 py-0.5 rounded border flex items-center gap-1 ${age.style}`}>
-                                                                        <Clock size={10} /> {age.label}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div className="text-right flex flex-col items-end gap-1">
-                                                    <div className="text-[10px] font-mono text-slate-400">#{formatOrderId(b.order_id)}</div>
-                                                    <span className={`text-[10px] uppercase font-bold border px-2 py-0.5 rounded flex items-center gap-1 shadow-sm ${finderBadgeClass}`}>
-                                                        {stageConf?.icon && React.cloneElement(stageConf.icon as any, { size: 10 })}
-                                                        {b.current_stage === ProductionStage.Polishing
-                                                            ? (b.pending_dispatch ? 'Τεχν. • Αναμονή' : 'Τεχν. • Στον Τεχν.')
-                                                            : (stageConf?.label || b.current_stage)}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <FinderBatchStageSelector 
-                                                batch={b} 
-                                                onMoveToStage={(batch, stage, opts) => attemptMove(batch, stage, true, opts?.pendingDispatch)}
-                                                onToggleHold={handleToggleHold}
-                                                onEditNote={(b) => setEditingNoteBatch(b)}
-                                                isMoving={rowMoving}
-                                            />
-                                            {rowMoving && (
-                                                <div
-                                                    className="absolute inset-0 rounded-xl bg-white/55 backdrop-blur-[1.5px] z-20 flex items-start justify-center pt-2 pointer-events-auto cursor-wait"
-                                                    onClick={(e) => { e.stopPropagation(); }}
-                                                    aria-hidden="true"
-                                                >
-                                                    <div className="flex items-center gap-1.5 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg ring-2 ring-white">
-                                                        <Loader2 size={11} className="animate-spin" />
-                                                        <span>Μετακινείται…</span>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )
-                                })}
-                                {foundBatches.length === 0 && <div className="p-4 text-center text-slate-400 text-xs italic">Δεν βρέθηκαν ενεργές παρτίδες.</div>}
-                            </div>
-                        )}
-                    </div>
+                    <ProductionBatchFinder
+                        batches={enhancedBatches}
+                        multiSelectIds={multiSelectIds}
+                        movingBatchIds={movingBatchIds}
+                        onToggleSelect={toggleBatchSelect}
+                        onToggleSelectAll={toggleFinderSelectAll}
+                        onViewBatch={setViewBuildBatch}
+                        onMoveToStage={(batch, stage, opts) =>
+                            attemptMove(batch, stage, true, opts?.pendingDispatch)
+                        }
+                        onToggleHold={handleToggleHold}
+                        onEditNote={setEditingNoteBatch}
+                    />
                 </div>
 
             <div className="flex items-center gap-1.5 flex-wrap">
