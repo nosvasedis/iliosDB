@@ -22,9 +22,9 @@ import {
 import ProductionFinderResultRow from './ProductionFinderResultRow';
 import { FINDER_STAGE_META_BY_ID } from './productionFinderStageMeta';
 
-/** Fixed row height for virtual scroll (avoids measureElement layout thrash). */
-const FINDER_ROW_ESTIMATE_PX = 152;
-const FINDER_VIRTUAL_OVERSCAN = 2;
+/** Initial guess for virtual row height; remeasured after mount for accurate scroll. */
+const FINDER_ROW_ESTIMATE_PX = 200;
+const FINDER_VIRTUAL_OVERSCAN = 3;
 
 function cloneSelectionSet(source: Set<string>): Set<string> {
     return new Set(source);
@@ -407,6 +407,8 @@ const ProductionFinderResults = memo(function ProductionFinderResults({
                                     key={b.id}
                                     data-index={virtualRow.index}
                                     data-finder-row-index={virtualRow.index}
+                                    ref={rowVirtualizer.measureElement}
+                                    className="pb-1"
                                     style={{
                                         position: 'absolute',
                                         top: 0,
@@ -418,7 +420,6 @@ const ProductionFinderResults = memo(function ProductionFinderResults({
                                     <ProductionFinderResultRow
                                         batch={b}
                                         stageMeta={FINDER_STAGE_META_BY_ID.get(b.current_stage)}
-                                        scrollListRef={listParentRef}
                                         isSelected={displayIds.has(b.id)}
                                         isMoving={movingBatchIds.has(b.id)}
                                         showTopBorder={virtualRow.index > 0}
