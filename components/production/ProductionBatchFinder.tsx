@@ -6,17 +6,117 @@ import React, {
     useMemo,
     useRef,
     useState,
-    useTransition,
 } from 'react';
+import { flushSync } from 'react-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { CheckSquare, Search, Square, X } from 'lucide-react';
+import { CheckSquare, ChevronDown, Search, Square, X } from 'lucide-react';
 import { ProductionBatch, ProductionStage } from '../../types';
 import { EnhancedProductionBatch } from '../../types';
 import { filterAndSortProductionFinderBatches } from '../../features/production/workflowSelectors';
+import { getProductionStageLabel } from '../../utils/productionStages';
 import ProductionFinderResultRow from './ProductionFinderResultRow';
 import { FINDER_STAGE_META_BY_ID } from './productionFinderStageMeta';
 
 const FINDER_ROW_ESTIMATE_PX = 152;
+
+function cloneSelectionSet(source: Set<string>): Set<string> {
+    return new Set(source);
+}
+
+function setsEqual(a: Set<string>, b: Set<string>): boolean {
+    if (a.size !== b.size) return false;
+    for (const id of a) {
+        if (!b.has(id)) return false;
+    }
+    return true;
+}
+
+/** First list index per stage group (results are already sorted by stage order). */
+export function getFinderStageJumpTargets(
+    batches: Array<{ current_stage: ProductionStage }>,
+): Array<{ stage: ProductionStage; index: number; label: string }> {
+    const targets: Array<{ stage: ProductionStage; index: number; label: string }> = [];
+    let lastStage: ProductionStage | null = null;
+    batches.forEach((batch, index) => {
+        if (batch.current_stage === lastStage) return;
+        targets.push({
+            stage: batch.current_stage,
+            index,
+            label: getProductionStageLabel(batch.current_stage),
+        });
+        lastStage = batch.current_stage;
+    });
+    return targets;
+}
+
+function resolveNextStageJumpIndex(
+    stageJumpTargets: ReturnType<typeof getFinderStageJumpTargets>,
+    firstVisibleIndex: number,
+): number {
+    if (stageJumpTargets.length === 0) return 0;
+    if (stageJumpTargets.length === 1) return stageJumpTargets[0].index;
+
+    let currentGroup = 0;
+    for (let i = stageJumpTargets.length - 1; i >= 0; i--) {
+        if (stageJumpTargets[i].index <= firstVisibleIndex) {
+            currentGroup = i;
+            break;
+        }
+    }
+
+    const nextGroup = (currentGroup + 1) % stageJumpTargets.length;
+    return stageJumpTargets[nextGroup].index;
+}
+
+function estimateFirstVisibleIndex(scrollTop: number, batchCount: number): number {
+    if (batchCount <= 0) return 0;
+    return Math.min(batchCount - 1, Math.max(0, Math.floor(scrollTop / FINDER_ROW_ESTIMATE_PX)));
+}
+
+/** Instant finder checkbox UI; parent multiSelect syncs on the next microtask. */
+function useFinderSelectionDisplay(multiSelectIds: Set<string>) {
+    const [displayIds, setDisplayIds] = useState(() => cloneSelectionSet(multiSelectIds));
+
+    useEffect(() => {
+        setDisplayIds((prev) => (setsEqual(prev, multiSelectIds) ? prev : cloneSelectionSet(multiSelectIds)));
+    }, [multiSelectIds]);
+
+    const applyDisplayToggle = useCallback((mutate: (next: Set<string>) => void) => {
+        flushSync(() => {
+            setDisplayIds((prev) => {
+                const next = cloneSelectionSet(prev);
+                mutate(next);
+                return next;
+            });
+        });
+    }, []);
+
+    const toggleOne = useCallback(
+        (batchId: string, onParentToggle: (id: string) => void) => {
+            applyDisplayToggle((next) => {
+                if (next.has(batchId)) next.delete(batchId);
+                else next.add(batchId);
+            });
+            queueMicrotask(() => onParentToggle(batchId));
+        },
+        [applyDisplayToggle],
+    );
+
+    const toggleAll = useCallback(
+        (batchIds: string[], selectAll: boolean, onParentToggleAll: (ids: string[], selectAll: boolean) => void) => {
+            applyDisplayToggle((next) => {
+                batchIds.forEach((id) => {
+                    if (selectAll) next.add(id);
+                    else next.delete(id);
+                });
+            });
+            queueMicrotask(() => onParentToggleAll(batchIds, selectAll));
+        },
+        [applyDisplayToggle],
+    );
+
+    return { displayIds, toggleOne, toggleAll };
+}
 
 type Props = {
     batches: EnhancedProductionBatch[];
@@ -98,8 +198,13 @@ const ProductionFinderResults = memo(function ProductionFinderResults({
     onToggleHold,
     onEditNote,
 }: ResultsProps) {
-    const [, startTransition] = useTransition();
+    const { displayIds, toggleOne, toggleAll } = useFinderSelectionDisplay(multiSelectIds);
     const listParentRef = useRef<HTMLDivElement>(null);
+
+    const stageJumpTargets = useMemo(
+        () => getFinderStageJumpTargets(foundBatches),
+        [foundBatches],
+    );
 
     const rowVirtualizer = useVirtualizer({
         count: foundBatches.length,
@@ -108,32 +213,82 @@ const ProductionFinderResults = memo(function ProductionFinderResults({
         overscan: 5,
     });
 
+    const getFirstVisibleIndex = useCallback(() => {
+        const scrollEl = listParentRef.current;
+        const virtualItems = rowVirtualizer.getVirtualItems();
+        if (virtualItems.length > 0) return virtualItems[0].index;
+        return estimateFirstVisibleIndex(scrollEl?.scrollTop ?? 0, foundBatches.length);
+    }, [rowVirtualizer, foundBatches.length]);
+
+    const getNextStageJumpLabel = useCallback(() => {
+        if (stageJumpTargets.length <= 1) return '';
+        const firstVisible = getFirstVisibleIndex();
+        const targetIndex = resolveNextStageJumpIndex(stageJumpTargets, firstVisible);
+        const stage = foundBatches[targetIndex]?.current_stage;
+        return stage ? getProductionStageLabel(stage) : '';
+    }, [foundBatches, stageJumpTargets, getFirstVisibleIndex]);
+
+    const handleJumpToNextStage = useCallback(
+        (e: React.MouseEvent) => {
+            e.stopPropagation();
+            if (stageJumpTargets.length <= 1) return;
+
+            const targetIndex = resolveNextStageJumpIndex(
+                stageJumpTargets,
+                getFirstVisibleIndex(),
+            );
+
+            rowVirtualizer.scrollToIndex(targetIndex, { align: 'start', behavior: 'auto' });
+        },
+        [foundBatches, stageJumpTargets, getFirstVisibleIndex, rowVirtualizer],
+    );
+
     const handleToggleSelect = useCallback(
         (batchId: string) => {
-            startTransition(() => onToggleSelect(batchId));
+            toggleOne(batchId, onToggleSelect);
         },
-        [onToggleSelect],
+        [toggleOne, onToggleSelect],
     );
 
     const allFoundSelected =
-        foundBatches.length > 0 && foundBatches.every((b) => multiSelectIds.has(b.id));
+        foundBatches.length > 0 && foundBatches.every((b) => displayIds.has(b.id));
 
     const handleSelectAllFound = useCallback(
         (e: React.MouseEvent) => {
             e.stopPropagation();
             const ids = foundBatches.map((b) => b.id);
-            startTransition(() => onToggleSelectAll(ids, !allFoundSelected));
+            toggleAll(ids, !allFoundSelected, onToggleSelectAll);
         },
-        [foundBatches, allFoundSelected, onToggleSelectAll],
+        [foundBatches, allFoundSelected, toggleAll, onToggleSelectAll],
     );
 
     return (
         <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 max-h-[70vh] flex flex-col w-[900px] max-w-[calc(100vw-3rem)]">
             {foundBatches.length > 0 && (
-                <div className="flex items-center justify-between px-3 pt-2 pb-1 border-b border-slate-100 shrink-0">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                <div className="flex items-center justify-between gap-2 px-3 pt-2 pb-1 border-b border-slate-100 shrink-0">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">
                         {foundBatches.length} αποτελέσματα
                     </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                        {stageJumpTargets.length > 1 && (
+                            <button
+                                type="button"
+                                onClick={handleJumpToNextStage}
+                                title={
+                                    getNextStageJumpLabel()
+                                        ? `Μετάβαση στο επόμενο στάδιο: ${getNextStageJumpLabel()}`
+                                        : 'Μετάβαση στο επόμενο στάδιο'
+                                }
+                                aria-label={
+                                    getNextStageJumpLabel()
+                                        ? `Μετάβαση στο επόμενο στάδιο: ${getNextStageJumpLabel()}`
+                                        : 'Μετάβαση στο επόμενο στάδιο'
+                                }
+                                className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600 shadow-sm hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 active:scale-95"
+                            >
+                                <ChevronDown size={14} strokeWidth={2.5} />
+                            </button>
+                        )}
                     <button
                         type="button"
                         onClick={handleSelectAllFound}
@@ -149,6 +304,7 @@ const ProductionFinderResults = memo(function ProductionFinderResults({
                             </>
                         )}
                     </button>
+                    </div>
                 </div>
             )}
 
@@ -181,7 +337,7 @@ const ProductionFinderResults = memo(function ProductionFinderResults({
                                     <ProductionFinderResultRow
                                         batch={b}
                                         stageMeta={FINDER_STAGE_META_BY_ID.get(b.current_stage)}
-                                        isSelected={multiSelectIds.has(b.id)}
+                                        isSelected={displayIds.has(b.id)}
                                         isMoving={movingBatchIds.has(b.id)}
                                         showTopBorder={virtualRow.index > 0}
                                         onRowClick={onViewBatch}
@@ -205,10 +361,10 @@ const ProductionFinderResults = memo(function ProductionFinderResults({
 }, resultsPropsAreEqual);
 
 function resultsPropsAreEqual(prev: ResultsProps, next: ResultsProps): boolean {
+    if (prev.foundBatches !== next.foundBatches) return false;
+    if (prev.movingBatchIds !== next.movingBatchIds) return false;
+    if (!setsEqual(prev.multiSelectIds, next.multiSelectIds)) return false;
     return (
-        prev.foundBatches === next.foundBatches &&
-        prev.multiSelectIds === next.multiSelectIds &&
-        prev.movingBatchIds === next.movingBatchIds &&
         prev.onToggleSelect === next.onToggleSelect &&
         prev.onToggleSelectAll === next.onToggleSelectAll &&
         prev.onViewBatch === next.onViewBatch &&

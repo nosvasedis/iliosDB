@@ -83,11 +83,14 @@ function ProductionFinderResultRow({
             <div className="flex justify-between items-start">
                 <div className="flex items-start gap-2">
                     <button
+                        type="button"
+                        onPointerDown={(e) => e.stopPropagation()}
                         onClick={(e) => {
                             e.stopPropagation();
+                            e.preventDefault();
                             onToggleSelect(batch.id);
                         }}
-                        className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                        className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 touch-manipulation ${
                             isSelected
                                 ? 'bg-blue-500 border-blue-500 shadow-sm shadow-blue-200'
                                 : 'bg-white border-slate-300 hover:border-blue-400'
