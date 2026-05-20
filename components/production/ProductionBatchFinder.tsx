@@ -15,16 +15,16 @@ import { EnhancedProductionBatch } from '../../types';
 import { filterAndSortProductionFinderBatches } from '../../features/production/workflowSelectors';
 import {
     getFinderStageJumpTargets,
-    getNextJumpTarget,
-    getPreviousJumpTarget,
-    resolveNextJumpRowIndex,
-    resolvePreviousJumpRowIndex,
+    resolveActiveJumpGroupIndex,
+    stepJumpGroupIndex,
     type FinderStageJumpTarget,
 } from '../../utils/productionFinderStageJump';
 import ProductionFinderResultRow from './ProductionFinderResultRow';
 import { FINDER_STAGE_META_BY_ID } from './productionFinderStageMeta';
 
+/** Fixed row height for virtual scroll (avoids measureElement layout thrash). */
 const FINDER_ROW_ESTIMATE_PX = 152;
+const FINDER_VIRTUAL_OVERSCAN = 2;
 
 function cloneSelectionSet(source: Set<string>): Set<string> {
     return new Set(source);
@@ -231,7 +231,8 @@ const ProductionFinderResults = memo(function ProductionFinderResults({
 }: ResultsProps) {
     const { displayIds, toggleOne, toggleAll } = useFinderSelectionDisplay(multiSelectIds);
     const listParentRef = useRef<HTMLDivElement>(null);
-    const [scrollAnchorIndex, setScrollAnchorIndex] = useState(0);
+    const [activeJumpGroup, setActiveJumpGroup] = useState(0);
+    const activeJumpGroupRef = useRef(0);
 
     const stageJumpTargets = useMemo(
         () => getFinderStageJumpTargets(foundBatches),
@@ -242,22 +243,27 @@ const ProductionFinderResults = memo(function ProductionFinderResults({
         count: foundBatches.length,
         getScrollElement: () => listParentRef.current,
         estimateSize: () => FINDER_ROW_ESTIMATE_PX,
-        overscan: 5,
+        overscan: FINDER_VIRTUAL_OVERSCAN,
     });
 
-    const syncScrollAnchor = useCallback(() => {
+    const syncActiveJumpGroup = useCallback(() => {
         const scrollEl = listParentRef.current;
-        if (!scrollEl) return;
+        if (!scrollEl || stageJumpTargets.length === 0) return;
+
         const anchor = estimateAnchorRowIndex(
             scrollEl.scrollTop,
             foundBatches.length,
             rowVirtualizer.getVirtualItems(),
         );
-        setScrollAnchorIndex(anchor);
-    }, [foundBatches.length, rowVirtualizer]);
+        const group = resolveActiveJumpGroupIndex(stageJumpTargets, anchor);
+        if (group === activeJumpGroupRef.current) return;
+        activeJumpGroupRef.current = group;
+        setActiveJumpGroup(group);
+    }, [foundBatches.length, rowVirtualizer, stageJumpTargets]);
 
     useEffect(() => {
-        setScrollAnchorIndex(0);
+        activeJumpGroupRef.current = 0;
+        setActiveJumpGroup(0);
         const scrollEl = listParentRef.current;
         if (scrollEl) scrollEl.scrollTop = 0;
     }, [foundBatches]);
@@ -265,49 +271,62 @@ const ProductionFinderResults = memo(function ProductionFinderResults({
     useEffect(() => {
         const scrollEl = listParentRef.current;
         if (!scrollEl) return;
-        const onScroll = () => syncScrollAnchor();
+
+        let rafId = 0;
+        const onScroll = () => {
+            if (rafId) return;
+            rafId = requestAnimationFrame(() => {
+                rafId = 0;
+                syncActiveJumpGroup();
+            });
+        };
+
         scrollEl.addEventListener('scroll', onScroll, { passive: true });
-        syncScrollAnchor();
-        return () => scrollEl.removeEventListener('scroll', onScroll);
-    }, [syncScrollAnchor, foundBatches.length]);
+        syncActiveJumpGroup();
+        return () => {
+            scrollEl.removeEventListener('scroll', onScroll);
+            if (rafId) cancelAnimationFrame(rafId);
+        };
+    }, [syncActiveJumpGroup, foundBatches.length]);
 
-    const nextJumpTarget = useMemo(
-        () => getNextJumpTarget(stageJumpTargets, scrollAnchorIndex),
-        [stageJumpTargets, scrollAnchorIndex],
-    );
+    const nextJumpTarget = useMemo(() => {
+        if (stageJumpTargets.length <= 1) return null;
+        return stageJumpTargets[stepJumpGroupIndex(activeJumpGroup, stageJumpTargets.length, 'next')];
+    }, [stageJumpTargets, activeJumpGroup]);
 
-    const previousJumpTarget = useMemo(
-        () => getPreviousJumpTarget(stageJumpTargets, scrollAnchorIndex),
-        [stageJumpTargets, scrollAnchorIndex],
-    );
+    const previousJumpTarget = useMemo(() => {
+        if (stageJumpTargets.length <= 1) return null;
+        return stageJumpTargets[stepJumpGroupIndex(activeJumpGroup, stageJumpTargets.length, 'prev')];
+    }, [stageJumpTargets, activeJumpGroup]);
 
-    const jumpToRowIndex = useCallback(
-        (targetIndex: number) => {
+    const jumpToGroupIndex = useCallback(
+        (groupIndex: number) => {
             const scrollEl = listParentRef.current;
-            if (!scrollEl) return;
-            scrollFinderListToRow(scrollEl, rowVirtualizer, targetIndex);
-            setScrollAnchorIndex(targetIndex);
-            requestAnimationFrame(syncScrollAnchor);
+            const target = stageJumpTargets[groupIndex];
+            if (!scrollEl || !target) return;
+            scrollFinderListToRow(scrollEl, rowVirtualizer, target.index);
+            activeJumpGroupRef.current = groupIndex;
+            setActiveJumpGroup(groupIndex);
         },
-        [rowVirtualizer, syncScrollAnchor],
+        [stageJumpTargets, rowVirtualizer],
     );
 
     const handleJumpToNextStage = useCallback(
         (e: React.MouseEvent) => {
             e.stopPropagation();
             if (stageJumpTargets.length <= 1) return;
-            jumpToRowIndex(resolveNextJumpRowIndex(stageJumpTargets, scrollAnchorIndex));
+            jumpToGroupIndex(stepJumpGroupIndex(activeJumpGroup, stageJumpTargets.length, 'next'));
         },
-        [stageJumpTargets, scrollAnchorIndex, jumpToRowIndex],
+        [stageJumpTargets, activeJumpGroup, jumpToGroupIndex],
     );
 
     const handleJumpToPreviousStage = useCallback(
         (e: React.MouseEvent) => {
             e.stopPropagation();
             if (stageJumpTargets.length <= 1) return;
-            jumpToRowIndex(resolvePreviousJumpRowIndex(stageJumpTargets, scrollAnchorIndex));
+            jumpToGroupIndex(stepJumpGroupIndex(activeJumpGroup, stageJumpTargets.length, 'prev'));
         },
-        [stageJumpTargets, scrollAnchorIndex, jumpToRowIndex],
+        [stageJumpTargets, activeJumpGroup, jumpToGroupIndex],
     );
 
     const handleToggleSelect = useCallback(
@@ -372,7 +391,7 @@ const ProductionFinderResults = memo(function ProductionFinderResults({
 
             <div
                 ref={listParentRef}
-                className="overflow-y-auto custom-scrollbar p-2 flex-1 min-h-0"
+                className="overflow-y-auto overscroll-contain custom-scrollbar p-2 flex-1 min-h-0"
             >
                 {foundBatches.length > 0 ? (
                     <div
@@ -388,7 +407,6 @@ const ProductionFinderResults = memo(function ProductionFinderResults({
                                     key={b.id}
                                     data-index={virtualRow.index}
                                     data-finder-row-index={virtualRow.index}
-                                    ref={rowVirtualizer.measureElement}
                                     style={{
                                         position: 'absolute',
                                         top: 0,
@@ -400,6 +418,7 @@ const ProductionFinderResults = memo(function ProductionFinderResults({
                                     <ProductionFinderResultRow
                                         batch={b}
                                         stageMeta={FINDER_STAGE_META_BY_ID.get(b.current_stage)}
+                                        scrollListRef={listParentRef}
                                         isSelected={displayIds.has(b.id)}
                                         isMoving={movingBatchIds.has(b.id)}
                                         showTopBorder={virtualRow.index > 0}

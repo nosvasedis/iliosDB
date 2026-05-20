@@ -13,7 +13,7 @@ import { formatOrderId } from '../../utils/orderUtils';
 import { getFinderSearchResultSurface } from '../../utils/productionFinderSurfaces';
 import { getBatchAgeInfo } from '../../features/production/selectors';
 import { isSpecialCreationSku } from '../../utils/specialCreationSku';
-import DesktopFinderBatchStageSelector from './DesktopFinderBatchStageSelector';
+import FinderRowStageActionsLazy from './FinderRowStageActionsLazy';
 
 const STAGE_COLORS: Record<string, { text: string; border: string }> = {
     indigo: { text: 'text-indigo-700', border: 'border-indigo-200' },
@@ -36,6 +36,7 @@ export type FinderStageMeta = {
 type Props = {
     batch: EnhancedProductionBatch;
     stageMeta: FinderStageMeta | undefined;
+    scrollListRef: React.RefObject<HTMLDivElement | null>;
     isSelected: boolean;
     isMoving: boolean;
     showTopBorder: boolean;
@@ -53,6 +54,7 @@ type Props = {
 function ProductionFinderResultRow({
     batch,
     stageMeta,
+    scrollListRef,
     isSelected,
     isMoving,
     showTopBorder,
@@ -78,7 +80,7 @@ function ProductionFinderResultRow({
         <div
             onClick={() => onRowClick(batch)}
             aria-busy={isMoving || undefined}
-            className={`relative rounded-xl p-3 transition-colors group cursor-pointer [contain:layout_style_paint] ${finderRowSurface} ${isSpecialBatch ? 'ring-1 ring-violet-200/65' : ''} ${isSelected ? '!ring-2 !ring-blue-400 ring-offset-0 !border-blue-300/80 !bg-blue-50/35' : ''} ${showTopBorder ? 'mt-1 border-t border-t-slate-200/60 pt-3' : ''} ${isMoving ? 'ring-2 ring-emerald-400/70 ring-offset-1 shadow-lg animate-pulse' : ''}`}
+            className={`relative rounded-xl p-3 group cursor-pointer [contain:strict] ${finderRowSurface} ${isSpecialBatch ? 'ring-1 ring-violet-200/65' : ''} ${isSelected ? '!ring-2 !ring-blue-400 ring-offset-0 !border-blue-300/80 !bg-blue-50/35' : ''} ${showTopBorder ? 'mt-1 border-t border-t-slate-200/60 pt-3' : ''} ${isMoving ? 'ring-2 ring-emerald-400/70 ring-offset-1 shadow-lg animate-pulse' : ''}`}
         >
             <div className="flex justify-between items-start">
                 <div className="flex items-start gap-2">
@@ -177,7 +179,8 @@ function ProductionFinderResultRow({
                     </span>
                 </div>
             </div>
-            <DesktopFinderBatchStageSelector
+            <FinderRowStageActionsLazy
+                scrollListRef={scrollListRef}
                 batch={batch}
                 onMoveToStage={onMoveToStage}
                 onToggleHold={onToggleHold}
@@ -210,6 +213,7 @@ function propsAreEqual(prev: Props, next: Props): boolean {
         prev.isSelected === next.isSelected &&
         prev.isMoving === next.isMoving &&
         prev.showTopBorder === next.showTopBorder &&
+        prev.scrollListRef === next.scrollListRef &&
         pb.current_stage === nb.current_stage &&
         pb.pending_dispatch === nb.pending_dispatch &&
         pb.on_hold === nb.on_hold &&

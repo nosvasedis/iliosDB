@@ -136,6 +136,17 @@ export function resolvePreviousJumpGroupIndex(
     return (active - 1 + targets.length) % targets.length;
 }
 
+/** Step from a known active group index (used by scroll-synced jump buttons). */
+export function stepJumpGroupIndex(
+    activeGroupIndex: number,
+    targetCount: number,
+    direction: 'next' | 'prev',
+): number {
+    if (targetCount <= 1) return 0;
+    if (direction === 'next') return (activeGroupIndex + 1) % targetCount;
+    return (activeGroupIndex - 1 + targetCount) % targetCount;
+}
+
 export function getNextJumpTarget(
     targets: FinderStageJumpTarget[],
     anchorRowIndex: number,
