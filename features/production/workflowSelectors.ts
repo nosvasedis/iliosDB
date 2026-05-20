@@ -1,5 +1,6 @@
 import { AssemblyPrintRow, Collection, EnhancedProductionBatch, Material, MaterialType, Order, OrderStatus, Product, ProductVariant, ProductionBatch, ProductionStage, StageBatchPrintData } from '../../types';
 import { formatOrderId } from '../../utils/orderUtils';
+import { compareFinderPolishingSubStage } from '../../utils/productionFinderStageJump';
 import { PRODUCTION_STAGE_ORDER_INDEX } from '../../utils/productionStages';
 import { getVariantComponents } from '../../utils/pricingEngine';
 import { getBatchStageChronologyTimestamp } from './selectors';
@@ -320,6 +321,9 @@ export function compareProductionFinderBatches(
   const stageA = PRODUCTION_STAGE_ORDER_INDEX[a.current_stage] ?? 99;
   const stageB = PRODUCTION_STAGE_ORDER_INDEX[b.current_stage] ?? 99;
   if (stageA !== stageB) return stageA - stageB;
+
+  const polishingSub = compareFinderPolishingSubStage(a, b);
+  if (polishingSub !== 0) return polishingSub;
 
   const fullA = `${a.sku}${a.variant_suffix || ''}`.toUpperCase();
   const fullB = `${b.sku}${b.variant_suffix || ''}`.toUpperCase();

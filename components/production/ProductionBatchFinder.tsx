@@ -8,12 +8,19 @@ import React, {
     useState,
 } from 'react';
 import { flushSync } from 'react-dom';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { CheckSquare, ChevronDown, Search, Square, X } from 'lucide-react';
+import { useVirtualizer, type Virtualizer } from '@tanstack/react-virtual';
+import { CheckSquare, ChevronDown, ChevronUp, Search, Square, X } from 'lucide-react';
 import { ProductionBatch, ProductionStage } from '../../types';
 import { EnhancedProductionBatch } from '../../types';
 import { filterAndSortProductionFinderBatches } from '../../features/production/workflowSelectors';
-import { getProductionStageLabel } from '../../utils/productionStages';
+import {
+    getFinderStageJumpTargets,
+    getNextJumpTarget,
+    getPreviousJumpTarget,
+    resolveNextJumpRowIndex,
+    resolvePreviousJumpRowIndex,
+    type FinderStageJumpTarget,
+} from '../../utils/productionFinderStageJump';
 import ProductionFinderResultRow from './ProductionFinderResultRow';
 import { FINDER_STAGE_META_BY_ID } from './productionFinderStageMeta';
 
@@ -31,46 +38,70 @@ function setsEqual(a: Set<string>, b: Set<string>): boolean {
     return true;
 }
 
-/** First list index per stage group (results are already sorted by stage order). */
-export function getFinderStageJumpTargets(
-    batches: Array<{ current_stage: ProductionStage }>,
-): Array<{ stage: ProductionStage; index: number; label: string }> {
-    const targets: Array<{ stage: ProductionStage; index: number; label: string }> = [];
-    let lastStage: ProductionStage | null = null;
-    batches.forEach((batch, index) => {
-        if (batch.current_stage === lastStage) return;
-        targets.push({
-            stage: batch.current_stage,
-            index,
-            label: getProductionStageLabel(batch.current_stage),
-        });
-        lastStage = batch.current_stage;
-    });
-    return targets;
-}
+const FINDER_LIST_PADDING_TOP_PX = 8;
 
-function resolveNextStageJumpIndex(
-    stageJumpTargets: ReturnType<typeof getFinderStageJumpTargets>,
-    firstVisibleIndex: number,
+function estimateAnchorRowIndex(
+    scrollTop: number,
+    batchCount: number,
+    virtualItems: Array<{ index: number; start: number }>,
 ): number {
-    if (stageJumpTargets.length === 0) return 0;
-    if (stageJumpTargets.length === 1) return stageJumpTargets[0].index;
-
-    let currentGroup = 0;
-    for (let i = stageJumpTargets.length - 1; i >= 0; i--) {
-        if (stageJumpTargets[i].index <= firstVisibleIndex) {
-            currentGroup = i;
-            break;
+    const probe = scrollTop + FINDER_LIST_PADDING_TOP_PX + 12;
+    if (virtualItems.length > 0) {
+        let anchor = virtualItems[0].index;
+        for (const item of virtualItems) {
+            if (item.start <= probe) anchor = item.index;
         }
+        return anchor;
     }
-
-    const nextGroup = (currentGroup + 1) % stageJumpTargets.length;
-    return stageJumpTargets[nextGroup].index;
-}
-
-function estimateFirstVisibleIndex(scrollTop: number, batchCount: number): number {
     if (batchCount <= 0) return 0;
     return Math.min(batchCount - 1, Math.max(0, Math.floor(scrollTop / FINDER_ROW_ESTIMATE_PX)));
+}
+
+function scrollFinderListToRow(
+    scrollEl: HTMLDivElement,
+    virtualizer: Virtualizer<HTMLDivElement, Element>,
+    rowIndex: number,
+): void {
+    virtualizer.scrollToIndex(rowIndex, { align: 'start', behavior: 'auto' });
+
+    const applyScroll = () => {
+        const rowEl = scrollEl.querySelector<HTMLElement>(`[data-finder-row-index="${rowIndex}"]`);
+        if (rowEl) {
+            rowEl.scrollIntoView({ block: 'start', behavior: 'auto' });
+            return;
+        }
+        scrollEl.scrollTop = Math.max(0, rowIndex * FINDER_ROW_ESTIMATE_PX);
+    };
+
+    requestAnimationFrame(() => {
+        applyScroll();
+        requestAnimationFrame(applyScroll);
+    });
+}
+
+function FinderStageJumpButton({
+    target,
+    direction,
+    onClick,
+}: {
+    target: FinderStageJumpTarget;
+    direction: 'up' | 'down';
+    onClick: (e: React.MouseEvent) => void;
+}) {
+    const verb = direction === 'up' ? 'προηγούμενο' : 'επόμενο';
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            title={`Μετάβαση στο ${verb} στάδιο: ${target.label}`}
+            aria-label={`Μετάβαση στο ${verb} στάδιο: ${target.label}`}
+            className={`flex h-7 max-w-[5.5rem] items-center gap-0.5 rounded-lg border px-1.5 shadow-sm active:scale-95 ${target.buttonClass}`}
+        >
+            {direction === 'up' ? <ChevronUp size={12} strokeWidth={2.75} className="shrink-0" /> : null}
+            <span className="truncate text-[9px] font-black leading-none">{target.shortLabel}</span>
+            {direction === 'down' ? <ChevronDown size={12} strokeWidth={2.75} className="shrink-0" /> : null}
+        </button>
+    );
 }
 
 /** Instant finder checkbox UI; parent multiSelect syncs on the next microtask. */
@@ -200,6 +231,7 @@ const ProductionFinderResults = memo(function ProductionFinderResults({
 }: ResultsProps) {
     const { displayIds, toggleOne, toggleAll } = useFinderSelectionDisplay(multiSelectIds);
     const listParentRef = useRef<HTMLDivElement>(null);
+    const [scrollAnchorIndex, setScrollAnchorIndex] = useState(0);
 
     const stageJumpTargets = useMemo(
         () => getFinderStageJumpTargets(foundBatches),
@@ -213,34 +245,69 @@ const ProductionFinderResults = memo(function ProductionFinderResults({
         overscan: 5,
     });
 
-    const getFirstVisibleIndex = useCallback(() => {
+    const syncScrollAnchor = useCallback(() => {
         const scrollEl = listParentRef.current;
-        const virtualItems = rowVirtualizer.getVirtualItems();
-        if (virtualItems.length > 0) return virtualItems[0].index;
-        return estimateFirstVisibleIndex(scrollEl?.scrollTop ?? 0, foundBatches.length);
-    }, [rowVirtualizer, foundBatches.length]);
+        if (!scrollEl) return;
+        const anchor = estimateAnchorRowIndex(
+            scrollEl.scrollTop,
+            foundBatches.length,
+            rowVirtualizer.getVirtualItems(),
+        );
+        setScrollAnchorIndex(anchor);
+    }, [foundBatches.length, rowVirtualizer]);
 
-    const getNextStageJumpLabel = useCallback(() => {
-        if (stageJumpTargets.length <= 1) return '';
-        const firstVisible = getFirstVisibleIndex();
-        const targetIndex = resolveNextStageJumpIndex(stageJumpTargets, firstVisible);
-        const stage = foundBatches[targetIndex]?.current_stage;
-        return stage ? getProductionStageLabel(stage) : '';
-    }, [foundBatches, stageJumpTargets, getFirstVisibleIndex]);
+    useEffect(() => {
+        setScrollAnchorIndex(0);
+        const scrollEl = listParentRef.current;
+        if (scrollEl) scrollEl.scrollTop = 0;
+    }, [foundBatches]);
+
+    useEffect(() => {
+        const scrollEl = listParentRef.current;
+        if (!scrollEl) return;
+        const onScroll = () => syncScrollAnchor();
+        scrollEl.addEventListener('scroll', onScroll, { passive: true });
+        syncScrollAnchor();
+        return () => scrollEl.removeEventListener('scroll', onScroll);
+    }, [syncScrollAnchor, foundBatches.length]);
+
+    const nextJumpTarget = useMemo(
+        () => getNextJumpTarget(stageJumpTargets, scrollAnchorIndex),
+        [stageJumpTargets, scrollAnchorIndex],
+    );
+
+    const previousJumpTarget = useMemo(
+        () => getPreviousJumpTarget(stageJumpTargets, scrollAnchorIndex),
+        [stageJumpTargets, scrollAnchorIndex],
+    );
+
+    const jumpToRowIndex = useCallback(
+        (targetIndex: number) => {
+            const scrollEl = listParentRef.current;
+            if (!scrollEl) return;
+            scrollFinderListToRow(scrollEl, rowVirtualizer, targetIndex);
+            setScrollAnchorIndex(targetIndex);
+            requestAnimationFrame(syncScrollAnchor);
+        },
+        [rowVirtualizer, syncScrollAnchor],
+    );
 
     const handleJumpToNextStage = useCallback(
         (e: React.MouseEvent) => {
             e.stopPropagation();
             if (stageJumpTargets.length <= 1) return;
-
-            const targetIndex = resolveNextStageJumpIndex(
-                stageJumpTargets,
-                getFirstVisibleIndex(),
-            );
-
-            rowVirtualizer.scrollToIndex(targetIndex, { align: 'start', behavior: 'auto' });
+            jumpToRowIndex(resolveNextJumpRowIndex(stageJumpTargets, scrollAnchorIndex));
         },
-        [foundBatches, stageJumpTargets, getFirstVisibleIndex, rowVirtualizer],
+        [stageJumpTargets, scrollAnchorIndex, jumpToRowIndex],
+    );
+
+    const handleJumpToPreviousStage = useCallback(
+        (e: React.MouseEvent) => {
+            e.stopPropagation();
+            if (stageJumpTargets.length <= 1) return;
+            jumpToRowIndex(resolvePreviousJumpRowIndex(stageJumpTargets, scrollAnchorIndex));
+        },
+        [stageJumpTargets, scrollAnchorIndex, jumpToRowIndex],
     );
 
     const handleToggleSelect = useCallback(
@@ -270,24 +337,19 @@ const ProductionFinderResults = memo(function ProductionFinderResults({
                         {foundBatches.length} αποτελέσματα
                     </span>
                     <div className="flex items-center gap-1.5 shrink-0">
-                        {stageJumpTargets.length > 1 && (
-                            <button
-                                type="button"
+                        {previousJumpTarget && (
+                            <FinderStageJumpButton
+                                target={previousJumpTarget}
+                                direction="up"
+                                onClick={handleJumpToPreviousStage}
+                            />
+                        )}
+                        {nextJumpTarget && (
+                            <FinderStageJumpButton
+                                target={nextJumpTarget}
+                                direction="down"
                                 onClick={handleJumpToNextStage}
-                                title={
-                                    getNextStageJumpLabel()
-                                        ? `Μετάβαση στο επόμενο στάδιο: ${getNextStageJumpLabel()}`
-                                        : 'Μετάβαση στο επόμενο στάδιο'
-                                }
-                                aria-label={
-                                    getNextStageJumpLabel()
-                                        ? `Μετάβαση στο επόμενο στάδιο: ${getNextStageJumpLabel()}`
-                                        : 'Μετάβαση στο επόμενο στάδιο'
-                                }
-                                className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600 shadow-sm hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 active:scale-95"
-                            >
-                                <ChevronDown size={14} strokeWidth={2.5} />
-                            </button>
+                            />
                         )}
                     <button
                         type="button"
@@ -325,6 +387,7 @@ const ProductionFinderResults = memo(function ProductionFinderResults({
                                 <div
                                     key={b.id}
                                     data-index={virtualRow.index}
+                                    data-finder-row-index={virtualRow.index}
                                     ref={rowVirtualizer.measureElement}
                                     style={{
                                         position: 'absolute',
