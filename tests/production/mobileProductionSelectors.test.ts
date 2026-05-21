@@ -120,7 +120,7 @@ describe('mobile production selectors', () => {
         current_stage: ProductionStage.Polishing,
         pending_dispatch: false,
         order_id: 'ord-1',
-        customer_name: 'Ada',
+        customer_name: 'Νίκος',
       },
       {
         id: 'b-pending',
@@ -129,7 +129,7 @@ describe('mobile production selectors', () => {
         current_stage: ProductionStage.Polishing,
         pending_dispatch: true,
         order_id: 'ord-1',
-        customer_name: 'Ada',
+        customer_name: 'Νίκος',
       },
       {
         id: 'b-wax',
@@ -138,11 +138,11 @@ describe('mobile production selectors', () => {
         current_stage: ProductionStage.Waxing,
         pending_dispatch: false,
         order_id: 'ord-2',
-        customer_name: 'Ada',
+        customer_name: 'Νίκος',
       },
     ] as any;
 
-    const found = filterAndSortProductionFinderIndexedBatches(buildProductionFinderIndex(batches), 'ada');
+    const found = filterAndSortProductionFinderIndexedBatches(buildProductionFinderIndex(batches), 'Νίκ');
     expect(found.map((batch) => batch.id)).toEqual(['b-wax', 'b-pending', 'b-dispatched']);
   });
 

@@ -147,6 +147,16 @@ export const BatchRow = React.memo(function BatchRow({
                     {isMoving ? <Loader2 size={14} className="animate-spin" /> : (batch.on_hold ? <PlayCircle size={14} /> : <PauseCircle size={14} />)}
                 </button>
 
+                {/* Note button - moved out of overflow for faster access */}
+                <button
+                    onClick={(e) => { e.stopPropagation(); onEditNote(batch); }}
+                    disabled={isMoving}
+                    className={`p-1.5 rounded-lg border transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${batch.notes ? 'text-amber-600 bg-amber-50 border-amber-200 hover:bg-amber-100' : 'text-slate-500 bg-white border-slate-200 hover:bg-slate-50 hover:text-amber-600 hover:border-amber-200'}`}
+                    title="Σημείωση"
+                >
+                    <StickyNote size={14} />
+                </button>
+
                 {/* More actions dropdown */}
                 <div className="relative" ref={menuRef}>
                     <button
@@ -159,12 +169,6 @@ export const BatchRow = React.memo(function BatchRow({
                     </button>
                     {menuOpen && (
                         <div className="absolute right-0 top-full mt-1 z-30 bg-white rounded-xl border border-slate-200 shadow-xl py-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-150">
-                            <button
-                                onClick={() => { setMenuOpen(false); onEditNote(batch); }}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
-                            >
-                                <StickyNote size={13} className={batch.notes ? 'text-amber-500' : 'text-slate-400'} /> Σημείωση
-                            </button>
                             <button
                                 onClick={() => { setMenuOpen(false); onViewHistory(batch); }}
                                 className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"

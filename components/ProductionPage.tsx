@@ -25,6 +25,7 @@ import { invalidateOrdersAndBatches, invalidateProductionBatches } from '../lib/
 import { PRODUCTION_STAGES, getProductionStageLabel, getProductionStageShortLabel } from '../utils/productionStages';
 import { StageOnHoldMiniStrip } from './production/StageOnHoldMiniStrip';
 import ProductionBatchFinder from './production/ProductionBatchFinder';
+import FinderBatchStageSelector from './production/FinderBatchStageSelector';
 import VirtualizedProductionBatchGroups from './production/VirtualizedProductionBatchGroups';
 import {
     buildBatchStageHistoryMap,

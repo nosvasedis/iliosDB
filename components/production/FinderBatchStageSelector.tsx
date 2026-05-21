@@ -9,12 +9,13 @@ type Props = {
     onToggleHold: (batch: ProductionBatch) => void;
     onEditNote?: (batch: ProductionBatch) => void;
     hideNotes?: boolean;
+    isMoving?: boolean;
 };
 
 /** Ignore opener clicks right after close (avoids ghost tap on «Στάδιο» reopening the sheet). */
 const SHEET_REOPEN_GUARD_MS = 450;
 
-export default function FinderBatchStageSelector({ batch, onMoveToStage, onToggleHold, onEditNote, hideNotes = false }: Props) {
+export default function FinderBatchStageSelector({ batch, onMoveToStage, onToggleHold, onEditNote, hideNotes = false, isMoving = false }: Props) {
     const [isOpen, setIsOpen] = useState(false);
     const lastSheetCloseAt = useRef(0);
 
@@ -25,10 +26,15 @@ export default function FinderBatchStageSelector({ batch, onMoveToStage, onToggl
 
     const openSheet = (e: React.MouseEvent) => {
         e.stopPropagation();
+        if (isMoving) return;
         const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
         if (now - lastSheetCloseAt.current < SHEET_REOPEN_GUARD_MS) return;
         setIsOpen(true);
     };
+
+    useEffect(() => {
+        if (isMoving && isOpen) closeSheet();
+    }, [isMoving, isOpen, closeSheet]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -70,8 +76,10 @@ export default function FinderBatchStageSelector({ batch, onMoveToStage, onToggl
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
+                        if (isMoving) return;
                         onToggleHold(batch);
                     }}
+                    disabled={isMoving}
                     className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 ${batch.on_hold ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700' : 'bg-amber-100 hover:bg-amber-200 text-amber-700'}`}
                 >
                     {batch.on_hold ? <PlayCircle size={12} className="fill-current" /> : <PauseCircle size={12} />}
@@ -81,6 +89,7 @@ export default function FinderBatchStageSelector({ batch, onMoveToStage, onToggl
                 <button
                     type="button"
                     onClick={openSheet}
+                    disabled={isMoving}
                     className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
                 >
                     <MoveRight size={12} />

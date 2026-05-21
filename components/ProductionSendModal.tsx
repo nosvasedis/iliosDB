@@ -1,7 +1,7 @@
 import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType, BatchStageHistoryEntry, StageBatchPrintData, OrderStatus, OrderShipment, OrderShipmentItem } from '../types';
-import { X, Factory, CheckCircle, Loader2, ArrowLeft, Clock, StickyNote, History, Package, PauseCircle, PlayCircle, User, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Hash, Search, Printer, Scissors, Trash2, Split, Merge, FileText, AlertCircle, Save, Truck, Send, MoreHorizontal, RotateCcw } from 'lucide-react';
+import { X, Factory, CheckCircle, Loader2, ArrowLeft, Clock, StickyNote, History, Package, PauseCircle, PlayCircle, User, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Hash, Search, Printer, Scissors, Trash2, Split, Merge, FileText, AlertCircle, Save, Truck, Send, RotateCcw } from 'lucide-react';
 import { checkStockForOrderItems, deductStockForOrder } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import { formatCurrency } from '../utils/pricingEngine';
@@ -101,6 +101,10 @@ export default function ProductionSendModal({ order, products, materials, existi
     // Note Editing State
     const [editingNoteBatch, setEditingNoteBatch] = useState<ProductionBatch | null>(null);
     const [noteText, setNoteText] = useState('');
+    const [bulkNoteOpen, setBulkNoteOpen] = useState(false);
+    const [bulkNoteText, setBulkNoteText] = useState('');
+    const [bulkNoteBatchIds, setBulkNoteBatchIds] = useState<string[]>([]);
+    const [isSavingBulkNote, setIsSavingBulkNote] = useState(false);
     const [holdingBatch, setHoldingBatch] = useState<ProductionBatch | null>(null);
     const [holdReason, setHoldReason] = useState('');
     const [historyModalBatch, setHistoryModalBatch] = useState<ProductionBatch | null>(null);
@@ -818,6 +822,33 @@ export default function ProductionSendModal({ order, products, materials, existi
         setEditingNoteBatch(batch); setNoteText(batch.notes || '');
     }, []);
 
+    const openBulkNoteModal = useCallback((batchIds: string[]) => {
+        const uniqueIds = Array.from(new Set(batchIds));
+        if (uniqueIds.length === 0) return;
+        setBulkNoteBatchIds(uniqueIds);
+        setBulkNoteText('');
+        setBulkNoteOpen(true);
+    }, []);
+
+    const handleSaveBulkNote = useCallback(async () => {
+        if (bulkNoteBatchIds.length === 0) return;
+        setIsSavingBulkNote(true);
+        try {
+            await Promise.all(
+                bulkNoteBatchIds.map(id => productionRepository.updateBatchNotes(id, bulkNoteText || null))
+            );
+            await invalidateProductionBatches(queryClient);
+            showToast(`Η σημείωση αποθηκεύτηκε σε ${bulkNoteBatchIds.length} παρτίδες.`, 'success');
+            setBulkNoteOpen(false);
+            setBulkNoteText('');
+            setBulkNoteBatchIds([]);
+        } catch (e) {
+            showToast('Σφάλμα αποθήκευσης σημειώσεων.', 'error');
+        } finally {
+            setIsSavingBulkNote(false);
+        }
+    }, [bulkNoteBatchIds, bulkNoteText, queryClient, showToast]);
+
     // ─── VIRTUALIZATION ─────────────────────────────────────────────────────
     const listParentRef = useRef<HTMLDivElement>(null);
     const popupListParentRef = useRef<HTMLDivElement>(null);
@@ -1032,6 +1063,15 @@ export default function ProductionSendModal({ order, products, materials, existi
                                             >
                                                 <RotateCcw size={12} strokeWidth={2.5} />
                                                 Επαναφορά ({totalSelectedCount})
+                                            </button>
+                                            <button
+                                                onClick={() => openBulkNoteModal(Array.from(selectedBatchIds))}
+                                                disabled={isAnySelectedMoving || totalSelectedCount === 0}
+                                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-black bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                                title="Σημείωση σε όλες τις επιλεγμένες παρτίδες"
+                                            >
+                                                <StickyNote size={12} />
+                                                Σημείωση ({totalSelectedCount})
                                             </button>
                                         </div>
                                         <BulkStageActions
@@ -1321,6 +1361,33 @@ export default function ProductionSendModal({ order, products, materials, existi
                 </div>
             )}
 
+            {/* Bulk Note */}
+            {bulkNoteOpen && (
+                <div className="fixed inset-0 z-[275] bg-black/60 flex items-center justify-center p-4 animate-in fade-in">
+                    <div className="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl animate-in zoom-in-95 space-y-4">
+                        <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                            <h3 className="font-black text-base text-slate-800 flex items-center gap-2"><StickyNote className="text-amber-500" /> Μαζική Σημείωση</h3>
+                            <button onClick={() => { if (!isSavingBulkNote) setBulkNoteOpen(false); }} disabled={isSavingBulkNote}><X size={18} className="text-slate-400" /></button>
+                        </div>
+                        <p className="text-xs font-bold text-slate-500">Εφαρμογή σε {bulkNoteBatchIds.length} {bulkNoteBatchIds.length === 1 ? 'παρτίδα' : 'παρτίδες'}.</p>
+                        <textarea
+                            value={bulkNoteText}
+                            onChange={(e) => setBulkNoteText(e.target.value)}
+                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 outline-none h-28 resize-none text-sm"
+                            placeholder="Σημείωση..."
+                            autoFocus
+                        />
+                        <button
+                            onClick={handleSaveBulkNote}
+                            disabled={isSavingBulkNote}
+                            className="w-full py-2.5 bg-slate-900 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                        >
+                            {isSavingBulkNote ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Αποθήκευση
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Hold */}
             {holdingBatch && (
                 <div className="fixed inset-0 z-[260] bg-black/60 flex items-center justify-center p-4 animate-in fade-in">
@@ -1454,6 +1521,15 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                     Καθαρ.
                                                 </button>
                                                 <span className="text-[11px] font-black text-slate-500">Επιλ: <span className="text-slate-900">{selectedVisiblePopupCount}</span></span>
+                                                <button
+                                                    onClick={() => openBulkNoteModal(popupBatches.filter(b => selectedBatchIds.has(b.id)).map(b => b.id))}
+                                                    disabled={isAnyPopupSelectedMoving || selectedVisiblePopupCount === 0}
+                                                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-black bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                                    title="Σημείωση στις επιλεγμένες παρτίδες του σταδίου"
+                                                >
+                                                    <StickyNote size={12} />
+                                                    Σημείωση ({selectedVisiblePopupCount})
+                                                </button>
                                             </div>
                                             <BulkStageActions
                                                 disabled={isAnyPopupSelectedMoving || selectedVisiblePopupCount === 0}
