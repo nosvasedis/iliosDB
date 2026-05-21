@@ -2,9 +2,8 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
-import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender, ProductVariant, Order, OrderStatus, AssemblyPrintData, AssemblyPrintRow, StageBatchPrintData } from '../types';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, ArrowUp, ArrowDown, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, Users, StickyNote, Hash, Save, Edit, FolderKanban, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList, Grid, Maximize2, Minimize2 } from 'lucide-react';
+import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender, ProductVariant, Order, AssemblyPrintData, AssemblyPrintRow, StageBatchPrintData } from '../types';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, ArrowUp, ArrowDown, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, Users, StickyNote, Hash, Save, Edit, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList, Grid, Maximize2, Minimize2 } from 'lucide-react';
 import { useUI } from './UIProvider';
 import DesktopPageHeader from './DesktopPageHeader';
 import { useAuth } from './AuthContext';
@@ -15,32 +14,26 @@ import BatchHistoryModal from './BatchHistoryModal';
 import ProductionHealthPanel from './production/ProductionHealthPanel';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { formatOrderId } from '../utils/orderUtils';
-import { ProductionBatchCard } from './ProductionBatchCard';
+import { MemoizedProductionBatchCard as ProductionBatchCard } from './ProductionBatchCard';
 import ProductionOverviewModal from './ProductionOverviewModal';
 import { EnhancedProductionBatch } from '../types';
-import { extractRetailClientFromNotes } from '../utils/retailNotes';
-import { requiresAssemblyStage, requiresSettingStage } from '../constants';
-import { getSpecialCreationProductStub, isSpecialCreationSku } from '../utils/specialCreationSku';
+import { requiresAssemblyStage } from '../constants';
+import { isSpecialCreationSku } from '../utils/specialCreationSku';
 import ProductionMoldRequirementsModal from './ProductionMoldRequirementsModal';
 import { buildProductionAlertGroups } from './production/productionAlerts';
 import { invalidateOrdersAndBatches, invalidateProductionBatches } from '../lib/queryInvalidation';
 import { PRODUCTION_STAGES, getProductionStageLabel, getProductionStageShortLabel } from '../utils/productionStages';
 import { StageOnHoldMiniStrip } from './production/StageOnHoldMiniStrip';
 import ProductionBatchFinder from './production/ProductionBatchFinder';
-import {
-    formatGreekDurationFromMs,
-    getProductionTimingInfo,
-    getProductionTimingStatusClasses,
-    getProductionTimingStatusLabel,
-} from '../utils/productionTiming';
+import VirtualizedProductionBatchGroups from './production/VirtualizedProductionBatchGroups';
 import {
     buildBatchStageHistoryMap,
     getBatchAgeInfo,
     getBatchStageChronologyTimestamp,
 } from '../features/production/selectors';
 import { useCollections } from '../hooks/api/useCollections';
-import { useOrders } from '../hooks/api/useOrders';
-import { useProductionBatches, useBatchStageHistoryEntries } from '../hooks/api/useProductionBatches';
+import { useProductionBoardOrders } from '../hooks/api/useOrders';
+import { useProductionBoardBatches, useProductionBoardBatchStageHistoryEntries } from '../hooks/api/useProductionBatches';
 import { productionKeys, productionRepository } from '../features/production';
 import { auditRepository } from '../features/audit';
 import {
@@ -48,9 +41,19 @@ import {
     getNextProductionStage,
     groupProductionBatchesByStage,
     groupProductionBatchesForDisplay,
-    sortProductionDisplayLevel1Keys,
     type LabelPrintSortMode,
 } from '../features/production/workflowSelectors';
+import {
+    buildActiveProductionNotes,
+    buildBatchesByOrderId,
+    buildProductionAssemblyCandidates,
+    buildProductionHealthSummary,
+    buildProductionQuickPickEntries,
+    buildProductionTimingSnapshots,
+    buildTimedProductionBatches,
+    enrichProductionBatchesForBoard,
+    withProductionTiming,
+} from '../features/production/boardViewModel';
 import { dispatchLiveActivity } from '../hooks/useLiveActivity';
 
 function compareBatchesBySkuAscending(a: ProductionBatch, b: ProductionBatch): number {
@@ -2235,9 +2238,9 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { profile } = useAuth();
-    const { data: batches, isLoading, isError: batchesError, error: batchesErr, refetch: refetchBatches } = useProductionBatches();
-    const { data: batchStageHistoryEntries = [] } = useBatchStageHistoryEntries();
-    const { data: orders } = useOrders();
+    const { data: batches, isLoading, isError: batchesError, error: batchesErr, refetch: refetchBatches } = useProductionBoardBatches();
+    const { data: batchStageHistoryEntries = [] } = useProductionBoardBatchStageHistoryEntries();
+    const { data: orders } = useProductionBoardOrders();
     const { data: collections } = useCollections();
     const [timingNow, setTimingNow] = useState(() => Date.now());
 
@@ -2325,287 +2328,48 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     const collectionsMap = useMemo(() => new Map((collections || []).map(collection => [collection.id, collection])), [collections]);
     const batchHistoryLookup = useMemo(() => buildBatchStageHistoryMap(batchStageHistoryEntries), [batchStageHistoryEntries]);
 
-    // @FIX: Explicitly type return of enhancedBatches map to include customer_name and use intersection type.
     const enhancedBatches = useMemo(() => {
-        const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
-        const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
+        return enrichProductionBatchesForBoard(batches, productsMap, materialsMap, ordersMap);
+    }, [batches, productsMap, materialsMap, ordersMap]);
 
-        const results = batches?.map(b => {
-            const prod = isSpecialCreationSku(b.sku) ? getSpecialCreationProductStub() : productsMap.get(b.sku);
-            const timingInfo = getProductionTimingInfo(b, batchHistoryLookup.get(b.id), timingNow);
-
-            const suffix = b.variant_suffix || '';
-            const stone = getVariantComponents(suffix, prod?.gender).stone;
-            const hasZirconsFromSuffix = stone?.code && ZIRCON_CODES.includes(stone.code) && !NON_ZIRCON_STONE_CODES.includes(stone.code);
-            const hasZirconsFromRecipe =
-                !!prod?.recipe?.some((r) => {
-                    if (r.type !== 'raw') return false;
-                    const material = materialsMap.get(r.id);
-                    return material?.type === MaterialType.Stone && ZIRCON_CODES.some((code) => material.name.includes(code));
-                });
-            const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe || requiresSettingStage(b.sku);
-
-            // Check if assembly stage is required based on SKU
-            const requires_assembly = isSpecialCreationSku(b.sku) ? false : requiresAssemblyStage(b.sku);
-
-            // Inject Customer Name (with retail client extraction)
-            const order = b.order_id ? ordersMap.get(b.order_id) : undefined;
-            const isRetailOrder = order?.customer_id === RETAIL_CUSTOMER_ID || order?.customer_name === RETAIL_CUSTOMER_NAME;
-            const { retailClientLabel } = extractRetailClientFromNotes(order?.notes);
-            const customerName = isRetailOrder && retailClientLabel
-                ? `${RETAIL_CUSTOMER_NAME} • ${retailClientLabel}`
-                : (order?.customer_name || '');
-
-            // Resolve the per-order price override for label printing
-            const matchingOrderItem = order?.items.find(item => {
-                if (item.sku !== b.sku) return false;
-                if ((item.variant_suffix || '') !== (b.variant_suffix || '')) return false;
-                if (b.line_id && item.line_id) return item.line_id === b.line_id;
-                return true;
-            });
-            const overridden_price = (matchingOrderItem && (matchingOrderItem.price_override === true || isSpecialCreationSku(b.sku)))
-                ? matchingOrderItem.price_at_order
-                : undefined;
-
-            return {
-                ...b,
-                product_details: prod,
-                product_image: prod?.image_url ?? null,
-                diffHours: timingInfo.timeInStageHours,
-                isDelayed: timingInfo.isDelayed,
-                stageEnteredAt: timingInfo.stageEnteredAt,
-                timeInStageHours: timingInfo.timeInStageHours,
-                timingStatus: timingInfo.timingStatus,
-                timingLabel: timingInfo.timingLabel,
-                reminderKey: timingInfo.reminderKey,
-                requires_setting: hasZircons,
-                requires_assembly,
-                customer_name: customerName,
-                overridden_price,
-            };
-        }) || [];
-        return results as EnhancedProductionBatch[];
-    }, [batches, productsMap, materialsMap, ordersMap, batchHistoryLookup, timingNow]);
-
-    const productionHealthSummary = useMemo(() => {
-        const total = enhancedBatches.length;
-        const delayed = enhancedBatches.filter((batch) => batch.isDelayed && !batch.on_hold).length;
-        const ready = enhancedBatches.filter((batch) => batch.current_stage === ProductionStage.Ready).length;
-        const onHold = enhancedBatches.filter((batch) => batch.on_hold).length;
-        const inProgress = total - ready - onHold;
-        const healthScore = (inProgress + ready) > 0 ? Math.max(0, 100 - (delayed / (inProgress || 1)) * 100) : 100;
-
-        return { healthScore, delayed, ready, onHold, inProgress };
-    }, [enhancedBatches]);
-
-    const activeProductionNotes = useMemo(() => {
-        return (orders || [])
-            .filter((order) =>
-                order.status === 'In Production' &&
-                order.notes &&
-                order.notes.trim().length > 0 &&
-                enhancedBatches.some((batch) => batch.order_id === order.id)
-            )
-            .map((order) => ({
-                id: order.id,
-                customer: order.customer_name,
-                note: order.notes || '',
-            }));
-    }, [orders, enhancedBatches]);
-
-    const criticalAlertGroups = useMemo(
-        () => buildProductionAlertGroups(enhancedBatches),
-        [enhancedBatches]
+    const timingByBatchId = useMemo(
+        () => buildProductionTimingSnapshots(enhancedBatches, batchHistoryLookup, timingNow),
+        [enhancedBatches, batchHistoryLookup, timingNow]
     );
 
-    const batchesByOrderId = useMemo(() => {
-        const map = new Map<string, EnhancedProductionBatch[]>();
-        enhancedBatches.forEach(batch => {
-            if (!batch.order_id) return;
-            const existing = map.get(batch.order_id);
-            if (existing) existing.push(batch);
-            else map.set(batch.order_id, [batch]);
-        });
-        return map;
-    }, [enhancedBatches]);
+    const timedEnhancedBatches = useMemo(
+        () => buildTimedProductionBatches(enhancedBatches, timingByBatchId),
+        [enhancedBatches, timingByBatchId]
+    );
+
+    const productionHealthSummary = useMemo(
+        () => buildProductionHealthSummary(enhancedBatches, timingByBatchId),
+        [enhancedBatches, timingByBatchId]
+    );
+
+    const batchesByOrderId = useMemo(() => buildBatchesByOrderId(enhancedBatches), [enhancedBatches]);
+
+    const activeProductionNotes = useMemo(
+        () => buildActiveProductionNotes(orders, batchesByOrderId),
+        [orders, batchesByOrderId]
+    );
+
+    const criticalAlertGroups = useMemo(
+        () => buildProductionAlertGroups(timedEnhancedBatches),
+        [timedEnhancedBatches]
+    );
 
     const stageBatchesByStage = useMemo(() => groupProductionBatchesByStage(enhancedBatches), [enhancedBatches]);
 
-    const quickPickEntries = useMemo(() => {
-        if (!orders || orders.length === 0 || enhancedBatches.length === 0) return [] as ProductionQuickPickEntry[];
+    const quickPickEntries = useMemo(
+        () => buildProductionQuickPickEntries(orders, batchesByOrderId),
+        [orders, batchesByOrderId]
+    );
 
-        const orderMap = new Map(orders.map(order => [order.id, order]));
-        const groupedByOrder = enhancedBatches.reduce<Record<string, EnhancedProductionBatch[]>>((acc, batch) => {
-            if (!batch.order_id) return acc;
-            if (!acc[batch.order_id]) acc[batch.order_id] = [];
-            acc[batch.order_id].push(batch);
-            return acc;
-        }, {});
-
-        return Object.entries(groupedByOrder)
-            .map(([orderId, batches]) => {
-                const order = orderMap.get(orderId);
-                if (!order) return null;
-
-                const orderBatches = batches as EnhancedProductionBatch[];
-                const totalQty = orderBatches.reduce((sum, batch) => sum + batch.quantity, 0);
-                const readyQty = orderBatches
-                    .filter(batch => batch.current_stage === ProductionStage.Ready)
-                    .reduce((sum, batch) => sum + batch.quantity, 0);
-                const latestUpdate = orderBatches.reduce((max, batch) => {
-                    return Math.max(max, getBatchStageChronologyTimestamp(batch));
-                }, 0);
-
-                // Calculate stage breakdown
-                const stageBreakdown: Record<string, number> = {};
-                const onHoldByStage: Record<string, number> = {};
-                orderBatches.forEach(batch => {
-                    stageBreakdown[batch.current_stage] = (stageBreakdown[batch.current_stage] || 0) + batch.quantity;
-                    if (batch.on_hold) {
-                        const stage = batch.current_stage;
-                        onHoldByStage[stage] = (onHoldByStage[stage] || 0) + batch.quantity;
-                    }
-                });
-
-                return {
-                    order,
-                    batchesCount: orderBatches.length,
-                    totalQty,
-                    readyQty,
-                    inProgressQty: Math.max(0, totalQty - readyQty),
-                    latestUpdate,
-                    stageBreakdown,
-                    onHoldByStage
-                } as ProductionQuickPickEntry;
-            })
-            .filter((entry): entry is ProductionQuickPickEntry => entry !== null)
-            .sort((a, b) => b.latestUpdate - a.latestUpdate);
-    }, [orders, enhancedBatches]);
-
-    const assemblyOrderCandidates = useMemo(() => {
-        if (!orders || orders.length === 0) return [] as EnrichedAssemblyCandidate[];
-
-        // Build a quick lookup of READY quantities per order+sku+variant+size,
-        // so Assembly sheets won't show items already marked Ready.
-        const readyQtyByKey = new Map<string, number>();
-        enhancedBatches.forEach((b) => {
-            if (!b.order_id) return;
-            if (b.current_stage !== ProductionStage.Ready) return;
-            const key = [
-                b.order_id,
-                b.sku,
-                b.variant_suffix || '',
-                b.size_info || ''
-            ].join('::');
-            readyQtyByKey.set(key, (readyQtyByKey.get(key) || 0) + (b.quantity || 0));
-        });
-
-        // Build per-order batch lookup for stage breakdown
-        const batchesByOrderId = new Map<string, typeof enhancedBatches[0][]>();
-        enhancedBatches.forEach((b) => {
-            if (!b.order_id) return;
-            if (!batchesByOrderId.has(b.order_id)) batchesByOrderId.set(b.order_id, []);
-            batchesByOrderId.get(b.order_id)!.push(b);
-        });
-
-        return orders
-            .filter((order) =>
-                !order.is_archived &&
-                order.status !== OrderStatus.Delivered &&
-                order.status !== OrderStatus.Cancelled &&
-                order.items.some((item) => requiresAssemblyStage(item.sku) && !isSpecialCreationSku(item.sku))
-            )
-            .map((order) => {
-                const qtyByKey = new Map<string, number>();
-                const notesByKey = new Map<string, Set<string>>();
-
-                const isRetailOrder =
-                    order.customer_id === RETAIL_CUSTOMER_ID ||
-                    order.customer_name === RETAIL_CUSTOMER_NAME;
-                const { retailClientLabel } = extractRetailClientFromNotes(order.notes);
-                const displayCustomerName =
-                    isRetailOrder && retailClientLabel
-                        ? `${RETAIL_CUSTOMER_NAME} • ${retailClientLabel}`
-                        : order.customer_name;
-
-                order.items.forEach((item) => {
-                    if (!requiresAssemblyStage(item.sku) || isSpecialCreationSku(item.sku)) return;
-
-                    const key = [
-                        order.id,
-                        item.sku,
-                        item.variant_suffix || '',
-                        item.size_info || ''
-                    ].join('::');
-
-                    qtyByKey.set(key, (qtyByKey.get(key) || 0) + (item.quantity || 0));
-                    if (item.notes && item.notes.trim()) {
-                        if (!notesByKey.has(key)) notesByKey.set(key, new Set());
-                        notesByKey.get(key)!.add(item.notes.trim());
-                    }
-                });
-
-                const rows = Array.from(qtyByKey.entries())
-                    .map(([key, orderedQty], idx) => {
-                        const [order_id, sku, variant_suffix, size_info] = key.split('::');
-                        const readyQty = readyQtyByKey.get(key) || 0;
-                        const remainingQty = Math.max(0, orderedQty - readyQty);
-                        if (remainingQty <= 0) return null;
-
-                        const notes = Array.from(notesByKey.get(key) || [])
-                            .filter(Boolean)
-                            .join(' • ');
-
-                        return {
-                            id: `assembly-order-${order.id}-${idx}`,
-                            order_id,
-                            customer_name: displayCustomerName,
-                            sku,
-                            variant_suffix: variant_suffix || undefined,
-                            size_info: size_info || undefined,
-                            quantity: remainingQty,
-                            notes: notes || undefined
-                        } as AssemblyPrintRow;
-                    })
-                    .filter((r): r is AssemblyPrintRow => r !== null)
-                    .sort((a, b) => {
-                    const skuA = `${a.sku}${a.variant_suffix || ''}`.toUpperCase();
-                    const skuB = `${b.sku}${b.variant_suffix || ''}`.toUpperCase();
-                    const bySku = skuA.localeCompare(skuB, undefined, { numeric: true });
-                    if (bySku !== 0) return bySku;
-                    return (a.size_info || '').localeCompare(b.size_info || '');
-                });
-
-                // Compute stage breakdown from actual batches for this order
-                // Only count assembly-eligible SKUs (the sheet is for assembly only).
-                const orderBatches = (batchesByOrderId.get(order.id) || []).filter(
-                    b => requiresAssemblyStage(b.sku) && !isSpecialCreationSku(b.sku)
-                );
-                const stageBreakdown: Partial<Record<ProductionStage, number>> = {};
-                let polishingPendingQty = 0;
-                let polishingActiveQty = 0;
-                orderBatches.forEach((b) => {
-                    const qty = b.quantity || 0;
-                    stageBreakdown[b.current_stage] = (stageBreakdown[b.current_stage] || 0) + qty;
-                    if (b.current_stage === ProductionStage.Polishing) {
-                        if (b.pending_dispatch) polishingPendingQty += qty;
-                        else polishingActiveQty += qty;
-                    }
-                });
-
-                return {
-                    order,
-                    rows,
-                    assemblySkuCount: rows.length,
-                    totalAssemblyQty: rows.reduce((sum, row) => sum + row.quantity, 0),
-                    stageBreakdown,
-                    polishingPendingQty,
-                    polishingActiveQty,
-                } as EnrichedAssemblyCandidate;
-            })
-            .filter((candidate) => candidate.rows.length > 0)
-            .sort((a, b) => new Date(b.order.created_at).getTime() - new Date(a.order.created_at).getTime());
-    }, [orders, enhancedBatches]);
+    const assemblyOrderCandidates = useMemo(
+        () => buildProductionAssemblyCandidates(orders, enhancedBatches, batchesByOrderId),
+        [orders, enhancedBatches, batchesByOrderId]
+    );
 
     // ── Optimistic cache helpers ────────────────────────────────────────────
     // Update the batches cache in-place so cards jump to their new stage
@@ -3025,6 +2789,49 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         void handleToggleHoldRef.current(batch);
     }, []);
 
+    const handleCardMoveToStage = useCallback(
+        (batch: ProductionBatch, targetStage: ProductionStage, opts?: { pendingDispatch?: boolean }) => {
+            attemptMoveRef.current(batch, targetStage, false, opts?.pendingDispatch);
+        },
+        [],
+    );
+    const handleDeleteBatchRef = useRef(handleDeleteBatch);
+    handleDeleteBatchRef.current = handleDeleteBatch;
+    const handleViewHistoryRef = useRef(handleViewHistory);
+    handleViewHistoryRef.current = handleViewHistory;
+    const handleDispatchBatchesRef = useRef(handleDispatchBatches);
+    handleDispatchBatchesRef.current = handleDispatchBatches;
+    const handleRecallDispatchBatchesRef = useRef(handleRecallDispatchBatches);
+    handleRecallDispatchBatchesRef.current = handleRecallDispatchBatches;
+
+    const handleCardEditNote = useCallback((batch: ProductionBatch) => setEditingNoteBatch(batch), []);
+    const handleCardViewBatch = useCallback((batch: ProductionBatch) => setViewBuildBatch(batch), []);
+    const handleCardToggleHold = useCallback((batch: ProductionBatch) => {
+        void handleToggleHoldRef.current(batch);
+    }, []);
+    const handleCardDelete = useCallback((batch: ProductionBatch) => {
+        void handleDeleteBatchRef.current(batch);
+    }, []);
+    const handleCardViewHistory = useCallback((batch: ProductionBatch) => {
+        void handleViewHistoryRef.current(batch);
+    }, []);
+    const handleDispatchOne = useCallback((batchId: string) => {
+        void handleDispatchBatchesRef.current([batchId]);
+    }, []);
+    const handleRecallOne = useCallback((batchId: string) => {
+        void handleRecallDispatchBatchesRef.current([batchId]);
+    }, []);
+    const handleGroupSelect = useCallback((batchIds: string[], selectAll: boolean) => {
+        setMultiSelectIds(prev => {
+            const next = new Set(prev);
+            batchIds.forEach(id => {
+                if (selectAll) next.add(id);
+                else next.delete(id);
+            });
+            return next;
+        });
+    }, []);
+
     const handleBulkMove = async () => {
         if (!bulkMoveTarget || multiSelectIds.size === 0) return;
         const batchesToMove = enhancedBatches.filter(b => {
@@ -3162,9 +2969,6 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         () => (stageBatchesByStage[ProductionStage.Labeling] || []).filter(batch => !batch.on_hold),
         [stageBatchesByStage]
     );
-
-    // Sort Order for Genders
-    const SORTED_GENDERS = [Gender.Women, Gender.Men, Gender.Unisex, 'Unknown'];
 
     // Handle Print Request with Modal (New Logic)
     const handlePrintRequest = (batchesToPrint: EnhancedProductionBatch[], type: PrintSelectorType) => {
@@ -3412,6 +3216,43 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         }
     };
 
+    const renderBatchCard = useCallback((
+        batch: ProductionBatch & { customer_name?: string },
+        options?: { onRecallDispatch?: (batchId: string) => void }
+    ) => {
+        const timedBatch = withProductionTiming(batch as EnhancedProductionBatch, timingByBatchId);
+        return (
+            <ProductionBatchCard
+                batch={timedBatch}
+                onDragStart={handleDragStart}
+                onMoveToStage={handleCardMoveToStage}
+                onEditNote={handleCardEditNote}
+                onToggleHold={handleCardToggleHold}
+                onDelete={handleCardDelete}
+                onClick={handleCardViewBatch}
+                onViewHistory={handleCardViewHistory}
+                isSelected={multiSelectIds.has(batch.id)}
+                onToggleSelect={(e) => { e.stopPropagation(); toggleBatchSelect(batch.id); }}
+                onDispatch={batch.current_stage === ProductionStage.Polishing && batch.pending_dispatch ? () => handleDispatchOne(batch.id) : undefined}
+                onRecallDispatch={options?.onRecallDispatch && batch.current_stage === ProductionStage.Polishing && !batch.pending_dispatch ? () => options.onRecallDispatch!(batch.id) : undefined}
+                isMoving={movingBatchIds.has(batch.id)}
+            />
+        );
+    }, [
+        timingByBatchId,
+        handleDragStart,
+        handleCardMoveToStage,
+        handleCardEditNote,
+        handleCardToggleHold,
+        handleCardDelete,
+        handleCardViewBatch,
+        handleCardViewHistory,
+        multiSelectIds,
+        toggleBatchSelect,
+        handleDispatchOne,
+        movingBatchIds,
+    ]);
+
     if (isLoading) return <div className="p-12 text-center text-slate-400">Φόρτωση παραγωγής...</div>;
 
     if (batchesError) {
@@ -3426,105 +3267,6 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             </div>
         );
     }
-
-    // ── Reusable batch-groups renderer (used for normal columns + Polishing sub-sections) ──
-    const renderBatchGroups = (groupedData: Record<string, Record<string, (ProductionBatch & { customer_name?: string })[]>>, options?: { onRecallDispatch?: (batchId: string) => void }) => {
-        const level1Keys =
-            groupMode === 'customer'
-                ? sortProductionDisplayLevel1Keys(Object.keys(groupedData), groupedData as any, groupMode, sortOrder)
-                : SORTED_GENDERS;
-
-        return level1Keys.map(level1Key => {
-            const l1Batches = groupedData[level1Key];
-            if (!l1Batches || Object.keys(l1Batches).length === 0) return null;
-
-            const gConfig = groupMode === 'customer' ? null : (GENDER_CONFIG[level1Key] || GENDER_CONFIG['Unknown']);
-            // Collection order is set inside groupProductionBatchesForDisplay (chronology or el alpha).
-            const collectionKeys = Object.keys(l1Batches);
-
-            const allClientBatches = Object.values(l1Batches).flat();
-            const allClientBatchIds = allClientBatches.map(b => b.id);
-            const allSelected = allClientBatchIds.length > 0 && allClientBatchIds.every(id => multiSelectIds.has(id));
-            const someSelected = allClientBatchIds.some(id => multiSelectIds.has(id)) && !allSelected;
-
-            return (
-                <div key={level1Key} className="space-y-3">
-                    {groupMode === 'customer' ? (
-                        <div className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border bg-slate-900 text-white border-slate-900 shadow-sm flex justify-between items-center`}>
-                            <div className="flex items-center gap-2">
-                                {/* Multi-select checkbox for client */}
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setMultiSelectIds(prev => {
-                                            const next = new Set(prev);
-                                            if (allSelected) {
-                                                allClientBatchIds.forEach(id => next.delete(id));
-                                            } else {
-                                                allClientBatchIds.forEach(id => next.add(id));
-                                            }
-                                            return next;
-                                        });
-                                    }}
-                                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                                        allSelected
-                                            ? 'bg-blue-500 border-blue-500 shadow-sm shadow-blue-200'
-                                            : someSelected
-                                                ? 'bg-blue-300 border-blue-300'
-                                                : 'bg-transparent border-white/50 hover:border-white'
-                                    }`}
-                                    title={allSelected ? 'Αποεπιλογή όλων' : 'Επιλογή όλων'}
-                                >
-                                    {(allSelected || someSelected) && (
-                                        <Check size={12} className="text-white" />
-                                    )}
-                                </button>
-                                <span>{level1Key}</span>
-                            </div>
-                            <span className="opacity-60 text-[9px]">{allClientBatches.length}</span>
-                        </div>
-                    ) : (
-                        <div className={`text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border ${gConfig?.style} flex justify-between items-center`}>
-                            <span>{gConfig?.label}</span>
-                            <span className="opacity-60 text-[9px]">{Object.values(l1Batches).flat().length}</span>
-                        </div>
-                    )}
-
-                    {collectionKeys.map(collName => (
-                        <div key={collName} className="pl-2 border-l-2 border-slate-200 ml-1 space-y-2">
-                            <div className="flex items-center gap-2 px-1">
-                                <FolderKanban size={10} className="text-slate-400" />
-                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{collName}</span>
-                            </div>
-
-                            {l1Batches[collName].map((batch, idx) => (
-                                <React.Fragment key={batch.id}>
-                                    {idx > 0 && l1Batches[collName][idx - 1].sku !== batch.sku && (
-                                        <div className="border-t border-slate-200 my-2" />
-                                    )}
-                                    <ProductionBatchCard
-                                        batch={batch}
-                                        onDragStart={handleDragStart}
-                                        onMoveToStage={(b, stg, opts) => attemptMove(b, stg, false, opts?.pendingDispatch)}
-                                        onEditNote={() => setEditingNoteBatch(batch)}
-                                        onToggleHold={() => handleToggleHold(batch)}
-                                        onDelete={() => handleDeleteBatch(batch)}
-                                        onClick={() => setViewBuildBatch(batch)}
-                                        onViewHistory={handleViewHistory}
-                                        isSelected={multiSelectIds.has(batch.id)}
-                                        onToggleSelect={(e) => { e.stopPropagation(); toggleBatchSelect(batch.id); }}
-                                        onDispatch={batch.current_stage === ProductionStage.Polishing && batch.pending_dispatch ? () => handleDispatchBatches([batch.id]) : undefined}
-                                        onRecallDispatch={options?.onRecallDispatch && batch.current_stage === ProductionStage.Polishing && !batch.pending_dispatch ? () => options.onRecallDispatch!(batch.id) : undefined}
-                                        isMoving={movingBatchIds.has(batch.id)}
-                                    />
-                                </React.Fragment>
-                            ))}
-                        </div>
-                    ))}
-                </div>
-            );
-        });
-    };
 
     return (
         <div className="h-[calc(100vh-100px)] flex flex-col space-y-4">
@@ -3588,6 +3330,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         batches={enhancedBatches}
                         multiSelectIds={multiSelectIds}
                         movingBatchIds={movingBatchIds}
+                        timingByBatchId={timingByBatchId}
                         onToggleSelect={toggleBatchSelect}
                         onToggleSelectAll={toggleFinderSelectAll}
                         onViewBatch={setViewBuildBatch}
@@ -3708,15 +3451,22 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                             </div>
                                         </div>
                                         {!pendingCollapsed && (
-                                            <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar lg:min-h-0">
-                                                {renderBatchGroups(groupedPolishingPending)}
-                                                {polishingPendingBatches.length === 0 && (
+                                            <VirtualizedProductionBatchGroups
+                                                groupedData={groupedPolishingPending as any}
+                                                groupMode={groupMode}
+                                                sortOrder={sortOrder}
+                                                genderConfig={GENDER_CONFIG}
+                                                multiSelectIds={multiSelectIds}
+                                                onToggleGroupSelect={handleGroupSelect}
+                                                renderBatch={(batch) => renderBatchCard(batch)}
+                                                className="flex-1 p-3 lg:min-h-0"
+                                                emptyState={(
                                                     <div className="h-24 lg:h-full flex flex-col items-center justify-center text-teal-300/60 p-4 border-2 border-dashed border-teal-200/50 rounded-2xl">
                                                         <Truck size={24} className="mb-2" />
                                                         <p className="text-[10px] font-bold uppercase tracking-widest text-center">Τίποτα σε αναμονή</p>
                                                     </div>
                                                 )}
-                                            </div>
+                                            />
                                         )}
                                     </div>
 
@@ -3752,15 +3502,22 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                             </div>
                                         </div>
                                         {!dispatchedCollapsed && (
-                                            <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar lg:min-h-0">
-                                                {renderBatchGroups(groupedPolishingDispatched, { onRecallDispatch: (batchId) => handleRecallDispatchBatches([batchId]) })}
-                                                {polishingDispatchedBatches.length === 0 && (
+                                            <VirtualizedProductionBatchGroups
+                                                groupedData={groupedPolishingDispatched as any}
+                                                groupMode={groupMode}
+                                                sortOrder={sortOrder}
+                                                genderConfig={GENDER_CONFIG}
+                                                multiSelectIds={multiSelectIds}
+                                                onToggleGroupSelect={handleGroupSelect}
+                                                renderBatch={(batch) => renderBatchCard(batch, { onRecallDispatch: handleRecallOne })}
+                                                className="flex-1 p-3 lg:min-h-0"
+                                                emptyState={(
                                                     <div className="h-24 lg:h-full flex flex-col items-center justify-center text-blue-300/60 p-4 border-2 border-dashed border-blue-200/50 rounded-2xl">
                                                         <Hammer size={24} className="mb-2" />
                                                         <p className="text-[10px] font-bold uppercase tracking-widest text-center">Κανένα στον Τεχνίτη</p>
                                                     </div>
                                                 )}
-                                            </div>
+                                            />
                                         )}
                                     </div>
                                 </div>
@@ -3834,26 +3591,31 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                     </div>
                                 </div>
 
-                                <div className={`
-                                flex-1 overflow-y-auto p-3 space-y-6 custom-scrollbar
-                                ${!isExpanded ? 'hidden lg:block' : 'block'}
-                                min-h-[100px] lg:min-h-0
-                            `}>
-                                    {stageBatches.length > 0 && (
+                                <VirtualizedProductionBatchGroups
+                                    groupedData={groupedData as any}
+                                    groupMode={groupMode}
+                                    sortOrder={sortOrder}
+                                    genderConfig={GENDER_CONFIG}
+                                    multiSelectIds={multiSelectIds}
+                                    onToggleGroupSelect={handleGroupSelect}
+                                    renderBatch={(batch) => renderBatchCard(batch)}
+                                    className={`
+                                        flex-1 p-3
+                                        ${!isExpanded ? 'hidden lg:block' : 'block'}
+                                        min-h-[100px] lg:min-h-0
+                                    `}
+                                    mobileTopIndicator={stageBatches.length > 0 ? (
                                         <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden mb-2 opacity-50 lg:hidden">
                                             <div className={`h-full bg-${stage.color}-500`} style={{ width: '100%' }}></div>
                                         </div>
-                                    )}
-
-                                    {renderBatchGroups(groupedData)}
-
-                                    {stageBatches.length === 0 && (
+                                    ) : null}
+                                    emptyState={(
                                         <div className="h-24 lg:h-full flex flex-col items-center justify-center text-slate-400/50 p-4 border-2 border-dashed border-slate-200/50 rounded-2xl">
                                             <Package size={24} className="mb-2" />
                                             <p className="text-[10px] font-bold uppercase tracking-widest text-center">Τίποτα</p>
                                         </div>
                                     )}
-                                </div>
+                                />
                             </div>
                         );
                     })}
@@ -3988,7 +3750,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                 overviewModal.type === 'onHold' ? 'Παρτίδες σε Αναμονή' : 'Έτοιμες Παρτίδες'
                     }
                     filterType={overviewModal.type}
-                    batches={enhancedBatches}
+                    batches={timedEnhancedBatches}
                     collections={collections || []}
                     onMoveToStage={(b, stage, opts) => attemptMove(b, stage, false, opts?.pendingDispatch)}
                     onEditNote={(b: ProductionBatch) => setEditingNoteBatch(b)}
@@ -4019,7 +3781,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
 
             {stageInspectorStage && (() => {
                 const stageConf = STAGES.find(s => s.id === stageInspectorStage)!;
-                const stageBatches = stageBatchesByStage[stageInspectorStage] || [];
+                const stageBatches = (stageBatchesByStage[stageInspectorStage] || []).map(batch => withProductionTiming(batch, timingByBatchId));
                 return (
                     <StageInspectorModal
                         stage={stageConf}

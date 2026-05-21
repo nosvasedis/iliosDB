@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import {
     ChevronDown,
@@ -45,7 +45,7 @@ type Props = {
     isMoving?: boolean;
 };
 
-export default function DesktopFinderBatchStageSelector({
+function DesktopFinderBatchStageSelector({
     batch,
     onMoveToStage,
     onToggleHold,
@@ -350,3 +350,23 @@ export default function DesktopFinderBatchStageSelector({
         </div>
     );
 }
+
+function propsAreEqual(prev: Props, next: Props): boolean {
+    return (
+        prev.batch.id === next.batch.id &&
+        prev.batch.current_stage === next.batch.current_stage &&
+        prev.batch.pending_dispatch === next.batch.pending_dispatch &&
+        prev.batch.on_hold === next.batch.on_hold &&
+        prev.batch.on_hold_reason === next.batch.on_hold_reason &&
+        prev.batch.notes === next.batch.notes &&
+        prev.batch.requires_setting === next.batch.requires_setting &&
+        prev.batch.requires_assembly === next.batch.requires_assembly &&
+        prev.hideNotes === next.hideNotes &&
+        prev.isMoving === next.isMoving &&
+        prev.onMoveToStage === next.onMoveToStage &&
+        prev.onToggleHold === next.onToggleHold &&
+        prev.onEditNote === next.onEditNote
+    );
+}
+
+export default memo(DesktopFinderBatchStageSelector, propsAreEqual);

@@ -2,6 +2,7 @@ export const orderKeys = {
   all: ['orders'] as const,
   customers: () => ['customers'] as const,
   list: () => [...orderKeys.all, 'list'] as const,
+  productionBoard: () => [...orderKeys.all, 'production-board'] as const,
   detail: (orderId: string) => [...orderKeys.all, 'detail', orderId] as const,
   shipments: () => [...orderKeys.all, 'shipments'] as const,
   shipmentsForOrder: (orderId: string) => [...orderKeys.all, 'shipments', orderId] as const,

@@ -3,8 +3,11 @@ import { BatchStageHistoryEntry, Material, Order, OrderStatus, Product, Producti
 
 export const productionRepository = {
   getProductionBatches: () => api.getProductionBatches(),
+  getProductionBoardBatches: () => api.getProductionBoardBatches(),
   getBatchStageHistoryEntries: () => api.getBatchStageHistoryEntries(),
+  getProductionBoardBatchStageHistoryEntries: () => api.getProductionBoardBatchStageHistoryEntries(),
   getOrders: () => api.getOrders(),
+  getProductionBoardOrders: () => api.getProductionBoardOrders(),
   getCollections: () => api.getCollections(),
   updateBatchStage: (batchId: string, stage: ProductionStage, userName?: string, pendingDispatch?: boolean) =>
     api.updateBatchStage(batchId, stage, userName, pendingDispatch),

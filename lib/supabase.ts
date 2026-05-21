@@ -268,7 +268,9 @@ async function fetchFullTable(tableName: string, select: string = '*', filter?: 
                 } else hasMore = false;
             }
             baseData = allData;
-            offlineDb.saveTable(tableName, allData);
+            if (select === '*') {
+                offlineDb.saveTable(tableName, allData);
+            }
         } catch (err) {
             baseData = await offlineDb.getTable(tableName) || [];
         }
@@ -864,6 +866,14 @@ export const api = {
         return fetchFullTable('orders', '*', (q) => q.order('created_at', { ascending: false }));
     },
 
+    getProductionBoardOrders: async (): Promise<Order[]> => {
+        return fetchFullTable(
+            'orders',
+            'id,customer_id,customer_name,status,notes,items,created_at,is_archived,vat_rate,discount_percent',
+            (q) => q.order('created_at', { ascending: false })
+        );
+    },
+
     getOrderDeliveryPlans: async (): Promise<OrderDeliveryPlan[]> => {
         return fetchFullTable('order_delivery_plans', '*', (q) => q.order('updated_at', { ascending: false }));
     },
@@ -891,8 +901,24 @@ export const api = {
         return fetchFullTable('production_batches', '*', (q) => q.order('created_at', { ascending: false }));
     },
 
+    getProductionBoardBatches: async (): Promise<ProductionBatch[]> => {
+        return fetchFullTable(
+            'production_batches',
+            'id,order_id,sku,variant_suffix,quantity,current_stage,created_at,updated_at,priority,type,notes,requires_setting,requires_assembly,size_info,cord_color,enamel_color,line_id,on_hold,on_hold_reason,pending_dispatch',
+            (q) => q.order('created_at', { ascending: false })
+        );
+    },
+
     getBatchStageHistoryEntries: async (): Promise<BatchStageHistoryEntry[]> => {
         return fetchFullTable('batch_stage_history', '*', (q) => q.order('moved_at', { ascending: false }));
+    },
+
+    getProductionBoardBatchStageHistoryEntries: async (): Promise<BatchStageHistoryEntry[]> => {
+        return fetchFullTable(
+            'batch_stage_history',
+            'id,batch_id,from_stage,to_stage,moved_at,moved_by,notes',
+            (q) => q.order('moved_at', { ascending: false })
+        );
     },
 
     getPriceSnapshots: async (): Promise<PriceSnapshot[]> => {

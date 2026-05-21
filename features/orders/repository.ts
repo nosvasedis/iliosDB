@@ -3,6 +3,7 @@ import { Customer, Material, Order, OrderShipment, OrderShipmentItem, Product, P
 
 export const ordersRepository = {
   getOrders: () => api.getOrders(),
+  getProductionBoardOrders: () => api.getProductionBoardOrders(),
   getCustomers: () => api.getCustomers(),
   saveCustomer: (customer: Customer) => api.saveCustomer(customer),
   updateCustomer: (customerId: string, customer: Customer) => api.updateCustomer(customerId, customer),

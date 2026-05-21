@@ -12,7 +12,11 @@ import { useVirtualizer, type Virtualizer } from '@tanstack/react-virtual';
 import { CheckSquare, ChevronDown, ChevronUp, Search, Square, X } from 'lucide-react';
 import { ProductionBatch, ProductionStage } from '../../types';
 import { EnhancedProductionBatch } from '../../types';
-import { filterAndSortProductionFinderBatches } from '../../features/production/workflowSelectors';
+import {
+    buildProductionFinderIndex,
+    filterAndSortProductionFinderIndexedBatches,
+} from '../../features/production/workflowSelectors';
+import { type ProductionTimingSnapshot, withProductionTiming } from '../../features/production/boardViewModel';
 import {
     getFinderStageJumpTargets,
     resolveActiveJumpGroupIndex,
@@ -153,6 +157,7 @@ type Props = {
     batches: EnhancedProductionBatch[];
     multiSelectIds: Set<string>;
     movingBatchIds: Set<string>;
+    timingByBatchId?: Map<string, ProductionTimingSnapshot>;
     onToggleSelect: (batchId: string) => void;
     onToggleSelectAll: (batchIds: string[], selectAll: boolean) => void;
     onViewBatch: (batch: EnhancedProductionBatch) => void;
@@ -206,6 +211,7 @@ type ResultsProps = {
     foundBatches: EnhancedProductionBatch[];
     multiSelectIds: Set<string>;
     movingBatchIds: Set<string>;
+    timingByBatchId?: Map<string, ProductionTimingSnapshot>;
     onToggleSelect: (batchId: string) => void;
     onToggleSelectAll: (batchIds: string[], selectAll: boolean) => void;
     onViewBatch: (batch: EnhancedProductionBatch) => void;
@@ -222,6 +228,7 @@ const ProductionFinderResults = memo(function ProductionFinderResults({
     foundBatches,
     multiSelectIds,
     movingBatchIds,
+    timingByBatchId,
     onToggleSelect,
     onToggleSelectAll,
     onViewBatch,
@@ -402,6 +409,7 @@ const ProductionFinderResults = memo(function ProductionFinderResults({
                     >
                         {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                             const b = foundBatches[virtualRow.index];
+                            const visibleBatch = timingByBatchId ? withProductionTiming(b, timingByBatchId) : b;
                             return (
                                 <div
                                     key={b.id}
@@ -418,7 +426,7 @@ const ProductionFinderResults = memo(function ProductionFinderResults({
                                     }}
                                 >
                                     <ProductionFinderResultRow
-                                        batch={b}
+                                        batch={visibleBatch}
                                         stageMeta={FINDER_STAGE_META_BY_ID.get(b.current_stage)}
                                         isSelected={displayIds.has(b.id)}
                                         isMoving={movingBatchIds.has(b.id)}
@@ -446,6 +454,7 @@ const ProductionFinderResults = memo(function ProductionFinderResults({
 function resultsPropsAreEqual(prev: ResultsProps, next: ResultsProps): boolean {
     if (prev.foundBatches !== next.foundBatches) return false;
     if (prev.movingBatchIds !== next.movingBatchIds) return false;
+    if (prev.timingByBatchId !== next.timingByBatchId) return false;
     if (!setsEqual(prev.multiSelectIds, next.multiSelectIds)) return false;
     return (
         prev.onToggleSelect === next.onToggleSelect &&
@@ -461,6 +470,7 @@ function ProductionBatchFinder({
     batches,
     multiSelectIds,
     movingBatchIds,
+    timingByBatchId,
     onToggleSelect,
     onToggleSelectAll,
     onViewBatch,
@@ -512,13 +522,10 @@ function ProductionBatchFinder({
         onEditNoteRef.current(batch);
     }, []);
 
+    const finderIndex = useMemo(() => buildProductionFinderIndex(batches), [batches]);
     const foundBatches = useMemo(
-        () =>
-            filterAndSortProductionFinderBatches(
-                batches,
-                deferredFinderTerm,
-            ) as EnhancedProductionBatch[],
-        [batches, deferredFinderTerm],
+        () => filterAndSortProductionFinderIndexedBatches(finderIndex, deferredFinderTerm) as EnhancedProductionBatch[],
+        [finderIndex, deferredFinderTerm],
     );
 
     const showDropdown = finderTerm.trim().length >= 2;
@@ -531,6 +538,7 @@ function ProductionBatchFinder({
                     foundBatches={foundBatches}
                     multiSelectIds={multiSelectIds}
                     movingBatchIds={movingBatchIds}
+                    timingByBatchId={timingByBatchId}
                     onToggleSelect={stableToggleSelect}
                     onToggleSelectAll={stableToggleSelectAll}
                     onViewBatch={stableViewBatch}

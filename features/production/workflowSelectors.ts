@@ -286,6 +286,13 @@ export type ProductionFinderBatchFields = Pick<
   'sku' | 'current_stage' | 'order_id' | 'variant_suffix'
 > & { customer_name?: string | null };
 
+export type ProductionFinderIndexedBatch<T extends ProductionFinderBatchFields = ProductionFinderBatchFields> = {
+  batch: T;
+  fullSkuUpper: string;
+  orderIdUpper: string;
+  customerNameUpper: string;
+};
+
 export function normalizeProductionFinderTerm(finderTerm: string): string | null {
   const term = finderTerm.trim().toUpperCase();
   if (term.length < PRODUCTION_FINDER_MIN_TERM_LENGTH) return null;
@@ -311,6 +318,26 @@ export function matchesProductionFinderBatch(batch: ProductionFinderBatchFields,
   const orderMatch = (batch.order_id || '').toUpperCase().includes(term);
   const customerMatch = !!(batch.customer_name && batch.customer_name.toUpperCase().includes(term));
   return skuMatch || orderMatch || customerMatch;
+}
+
+export function buildProductionFinderIndex<T extends ProductionFinderBatchFields>(
+  batches: T[],
+): ProductionFinderIndexedBatch<T>[] {
+  return batches.map((batch) => ({
+    batch,
+    fullSkuUpper: `${batch.sku}${batch.variant_suffix || ''}`.toUpperCase(),
+    orderIdUpper: (batch.order_id || '').toUpperCase(),
+    customerNameUpper: (batch.customer_name || '').toUpperCase(),
+  }));
+}
+
+export function matchesProductionFinderIndexedBatch(
+  entry: ProductionFinderIndexedBatch,
+  term: string,
+): boolean {
+  const skuMatch = entry.fullSkuUpper.startsWith(term);
+  if (isStrictProductionFinderSkuQuery(term)) return skuMatch;
+  return skuMatch || entry.orderIdUpper.includes(term) || entry.customerNameUpper.includes(term);
 }
 
 export function compareProductionFinderBatches(
@@ -342,6 +369,19 @@ export function filterAndSortProductionFinderBatches<T extends ProductionFinderB
 
   return batches
     .filter((batch) => matchesProductionFinderBatch(batch, term))
+    .sort((a, b) => compareProductionFinderBatches(a, b, term));
+}
+
+export function filterAndSortProductionFinderIndexedBatches<T extends ProductionFinderBatchFields>(
+  finderIndex: ProductionFinderIndexedBatch<T>[],
+  finderTerm: string,
+): T[] {
+  const term = normalizeProductionFinderTerm(finderTerm);
+  if (!term) return [];
+
+  return finderIndex
+    .filter((entry) => matchesProductionFinderIndexedBatch(entry, term))
+    .map((entry) => entry.batch)
     .sort((a, b) => compareProductionFinderBatches(a, b, term));
 }
 

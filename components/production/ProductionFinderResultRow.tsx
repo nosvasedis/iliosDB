@@ -221,6 +221,9 @@ function propsAreEqual(prev: Props, next: Props): boolean {
         pb.on_hold_reason === nb.on_hold_reason &&
         pb.size_info === nb.size_info &&
         pb.product_image === nb.product_image &&
+        pb.timingLabel === nb.timingLabel &&
+        pb.timingStatus === nb.timingStatus &&
+        pb.stageEnteredAt === nb.stageEnteredAt &&
         prev.stageMeta?.id === next.stageMeta?.id
     );
 }

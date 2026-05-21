@@ -9,6 +9,13 @@ export const useOrders = () => {
   });
 };
 
+export const useProductionBoardOrders = () => {
+  return useQuery<Order[]>({
+    queryKey: orderKeys.productionBoard(),
+    queryFn: ordersRepository.getProductionBoardOrders,
+  });
+};
+
 export const useCustomers = () => {
   return useQuery({
     queryKey: orderKeys.customers(),

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { Gender, MaterialType, OrderStatus, ProductionStage, ProductionType } from '../../types';
 import {
+  buildProductionFinderIndex,
   buildMobileProductionFoundBatches,
+  filterAndSortProductionFinderIndexedBatches,
   buildMobileSettingStoneBreakdown,
   buildMobileSettingStoneOrderGroups,
   buildMobileSettingStoneOrderList,
@@ -107,6 +109,41 @@ describe('mobile production selectors', () => {
     const found = buildMobileProductionFoundBatches([batchDa, batchXr] as any, 'XR');
     expect(found.map((b) => b.sku)).toEqual(['XR99']);
     expect(matchesProductionFinderBatch(batchDa as any, 'XR')).toBe(false);
+  });
+
+  it('indexed finder preserves filtering and polishing sub-stage sorting', () => {
+    const batches = [
+      {
+        id: 'b-dispatched',
+        sku: 'XR5',
+        quantity: 1,
+        current_stage: ProductionStage.Polishing,
+        pending_dispatch: false,
+        order_id: 'ord-1',
+        customer_name: 'Ada',
+      },
+      {
+        id: 'b-pending',
+        sku: 'XR5',
+        quantity: 1,
+        current_stage: ProductionStage.Polishing,
+        pending_dispatch: true,
+        order_id: 'ord-1',
+        customer_name: 'Ada',
+      },
+      {
+        id: 'b-wax',
+        sku: 'ZZ9',
+        quantity: 1,
+        current_stage: ProductionStage.Waxing,
+        pending_dispatch: false,
+        order_id: 'ord-2',
+        customer_name: 'Ada',
+      },
+    ] as any;
+
+    const found = filterAndSortProductionFinderIndexedBatches(buildProductionFinderIndex(batches), 'ada');
+    expect(found.map((batch) => batch.id)).toEqual(['b-wax', 'b-pending', 'b-dispatched']);
   });
 
   it('non letter-led queries still match customer name (Greek)', () => {

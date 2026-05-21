@@ -16,9 +16,26 @@ export const useProductionBatches = () => {
   });
 };
 
+export const useProductionBoardBatches = () => {
+  return useQuery<ProductionBatch[]>({
+    queryKey: productionKeys.batches(),
+    queryFn: productionRepository.getProductionBoardBatches,
+    refetchInterval: PRODUCTION_BATCHES_SAFETY_POLL_MS,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+  });
+};
+
 export const useBatchStageHistoryEntries = () => {
   return useQuery<BatchStageHistoryEntry[]>({
     queryKey: productionKeys.batchHistoryEntries(),
     queryFn: productionRepository.getBatchStageHistoryEntries,
+  });
+};
+
+export const useProductionBoardBatchStageHistoryEntries = () => {
+  return useQuery<BatchStageHistoryEntry[]>({
+    queryKey: productionKeys.batchHistoryEntries(),
+    queryFn: productionRepository.getProductionBoardBatchStageHistoryEntries,
   });
 };

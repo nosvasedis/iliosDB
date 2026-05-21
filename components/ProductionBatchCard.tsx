@@ -396,7 +396,13 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                     }}
                 >
                     {batch.product_image ? (
-                        <img src={batch.product_image} className="w-full h-full object-cover" alt="prod" />
+                        <img
+                            src={batch.product_image}
+                            className="w-full h-full object-cover"
+                            alt="prod"
+                            loading="lazy"
+                            decoding="async"
+                        />
                     ) : (
                         <div className={`w-full h-full flex items-center justify-center ${isSpecialCreation ? 'bg-violet-100/50' : 'bg-slate-100'}`}>
                             <ImageIcon size={18} className={isSpecialCreation ? 'text-violet-400' : 'text-slate-300'} />
@@ -625,3 +631,42 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
         </div>
     );
 };
+
+function batchCardPropsAreEqual(prev: BatchCardProps, next: BatchCardProps): boolean {
+    const a = prev.batch;
+    const b = next.batch;
+    return (
+        a.id === b.id &&
+        a.order_id === b.order_id &&
+        a.sku === b.sku &&
+        a.variant_suffix === b.variant_suffix &&
+        a.quantity === b.quantity &&
+        a.current_stage === b.current_stage &&
+        a.priority === b.priority &&
+        a.type === b.type &&
+        a.updated_at === b.updated_at &&
+        a.notes === b.notes &&
+        a.requires_setting === b.requires_setting &&
+        a.requires_assembly === b.requires_assembly &&
+        a.size_info === b.size_info &&
+        a.cord_color === b.cord_color &&
+        a.enamel_color === b.enamel_color &&
+        a.customer_name === b.customer_name &&
+        a.product_image === b.product_image &&
+        a.product_details?.gender === b.product_details?.gender &&
+        a.product_details?.production_type === b.product_details?.production_type &&
+        a.on_hold === b.on_hold &&
+        a.on_hold_reason === b.on_hold_reason &&
+        a.pending_dispatch === b.pending_dispatch &&
+        a.timingLabel === b.timingLabel &&
+        a.timingStatus === b.timingStatus &&
+        a.stageEnteredAt === b.stageEnteredAt &&
+        prev.hideActions === next.hideActions &&
+        prev.isSelected === next.isSelected &&
+        prev.isMoving === next.isMoving &&
+        !!prev.onDispatch === !!next.onDispatch &&
+        !!prev.onRecallDispatch === !!next.onRecallDispatch
+    );
+}
+
+export const MemoizedProductionBatchCard = React.memo(ProductionBatchCard, batchCardPropsAreEqual);
