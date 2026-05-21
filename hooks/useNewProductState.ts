@@ -22,6 +22,7 @@ import {
     saveProductGraph,
     uploadProductImageForSku,
 } from '../features/products/repository';
+import { findDuplicateSkuIdentity } from '../features/products/skuDuplicateValidation';
 import { useAuth } from '../components/AuthContext';
 import { dispatchLiveActivity } from './useLiveActivity';
 
@@ -457,6 +458,18 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
         let finalVariants = [...variants];
         let finalSellingPrice = sellingPrice;
         const finalMasterSku = (detectedMasterSku || sku).toUpperCase().trim();
+        const duplicateSku = findDuplicateSkuIdentity({
+            rawSku: sku,
+            finalMasterSku,
+            finalVariants,
+            products,
+        });
+
+        if (duplicateSku) {
+            showToast(`Το SKU ${duplicateSku.existingFullSku} υπάρχει ήδη. Αλλάξτε το SKU πριν την αποθήκευση.`, "error");
+            setCurrentStep(1);
+            return;
+        }
 
         if (!isSTX) {
             if (useIliosFormula) {
@@ -501,8 +514,9 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             try {
                 const existingProd = await getExistingProductSnapshot(finalMasterSku);
                 if (existingProd) {
-                    existingStockQty = existingProd.stock_qty || 0; existingSampleQty = existingProd.sample_qty || 0;
-                    if (!selectedImage && existingProd.image_url) finalImageUrl = existingProd.image_url;
+                    showToast(`Το SKU ${finalMasterSku} υπάρχει ήδη στη βάση. Αλλάξτε το SKU πριν την αποθήκευση.`, "error");
+                    setCurrentStep(1);
+                    return;
                 }
             } catch (e) { console.warn("Could not check existing stock, assuming 0/0"); }
             if (selectedImage) {
