@@ -2797,8 +2797,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     );
     const handleDeleteBatchRef = useRef(handleDeleteBatch);
     handleDeleteBatchRef.current = handleDeleteBatch;
-    const handleViewHistoryRef = useRef(handleViewHistory);
-    handleViewHistoryRef.current = handleViewHistory;
+    const handleViewHistoryRef = useRef<(batch: ProductionBatch) => void>(() => {});
     const handleDispatchBatchesRef = useRef(handleDispatchBatches);
     handleDispatchBatchesRef.current = handleDispatchBatches;
     const handleRecallDispatchBatchesRef = useRef(handleRecallDispatchBatches);
@@ -2918,6 +2917,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             setIsLoadingHistory(false);
         }
     };
+    handleViewHistoryRef.current = handleViewHistory;
 
     // Determines next logical stage for "Quick Move" button
     const handleQuickNext = (batch: ProductionBatch) => {
