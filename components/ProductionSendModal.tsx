@@ -1044,7 +1044,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                 Επιλ. όλων
                                             </button>
                                             <button
-                                                onClick={() => clearBatchSelection(visibleActiveBatches.map(b => b.id))}
+                                                onClick={() => clearBatchSelection(Array.from(selectedBatchIds))}
                                                 className="px-2.5 py-1 rounded-md text-[11px] font-black bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors"
                                             >
                                                 Καθαρ.
@@ -1516,7 +1516,7 @@ export default function ProductionSendModal({ order, products, materials, existi
                                                     className="px-2.5 py-1 rounded-md text-[11px] font-black bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors">
                                                     Επιλ. όλων
                                                 </button>
-                                                <button onClick={() => clearBatchSelection(popupBatches.map(b => b.id))}
+                                                <button onClick={() => clearBatchSelection(Array.from(selectedBatchIds))}
                                                     className="px-2.5 py-1 rounded-md text-[11px] font-black bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors">
                                                     Καθαρ.
                                                 </button>
