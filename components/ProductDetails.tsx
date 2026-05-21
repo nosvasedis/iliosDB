@@ -1327,13 +1327,13 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
         const newSku = tempSku.trim().toUpperCase();
         if (newSku.length < 3) {
-            showToast("SKU must be at least 3 characters", "error");
+            showToast("Το SKU πρέπει να έχει τουλάχιστον 3 χαρακτήρες.", "error");
             return;
         }
 
         // Check existence
         if (allProducts.some(p => p.sku === newSku)) {
-            showToast(`SKU ${newSku} already exists.`, "error");
+            showToast(`Το SKU ${newSku} υπάρχει ήδη.`, "error");
             return;
         }
 

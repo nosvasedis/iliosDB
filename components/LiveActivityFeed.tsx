@@ -79,11 +79,11 @@ export function getLiveActivityMeta(type: LiveActivityEventType): EventMeta {
         case 'product_renamed':
             return { color: '#0ea5e9', label: 'SKU', icon: <Tags size={sz} /> };
         case 'product_variant_created':
-            return { color: '#10b981', label: 'VARIANT', icon: <PackagePlus size={sz} /> };
+            return { color: '#10b981', label: 'ΠΑΡΑΛΛΑΓΗ', icon: <PackagePlus size={sz} /> };
         case 'product_variant_updated':
-            return { color: '#65a30d', label: 'VARIANT', icon: <PackageCheck size={sz} /> };
+            return { color: '#65a30d', label: 'ΠΑΡΑΛΛΑΓΗ', icon: <PackageCheck size={sz} /> };
         case 'product_variant_deleted':
-            return { color: '#f97316', label: 'VARIANT', icon: <PackageX size={sz} /> };
+            return { color: '#f97316', label: 'ΠΑΡΑΛΛΑΓΗ', icon: <PackageX size={sz} /> };
         default:
             return { color: '#64748b', label: 'ΕΝΕΡΓΕΙΑ',   icon: <CheckCircle size={sz} /> };
     }
@@ -137,22 +137,22 @@ export function getLiveActivityActionText(n: LiveActivityNotification): { line1:
         case 'order_reverted':
             return { line1: `${firstName} επαναφορά παραγγελίας`, line2: n.customerName };
         case 'product_created':
-            return { line1: `${firstName} created SKU ${sku}` };
+            return { line1: `${firstName} δημιούργησε SKU ${sku}` };
         case 'product_updated':
             return {
-                line1: `${firstName} updated SKU ${sku}`,
-                line2: count > 1 ? `${count} variants changed` : undefined,
+                line1: `${firstName} ενημέρωσε SKU ${sku}`,
+                line2: count > 1 ? `${count} παραλλαγές άλλαξαν` : undefined,
             };
         case 'product_deleted':
-            return { line1: `${firstName} deleted SKU ${sku}` };
+            return { line1: `${firstName} διέγραψε SKU ${sku}` };
         case 'product_renamed':
-            return { line1: `${firstName} renamed SKU`, line2: `${n.oldSku || sku} -> ${n.newSku || sku}` };
+            return { line1: `${firstName} μετονόμασε SKU`, line2: `${n.oldSku || sku} -> ${n.newSku || sku}` };
         case 'product_variant_created':
-            return { line1: `${firstName} created variant ${fullSku}` };
+            return { line1: `${firstName} δημιούργησε παραλλαγή ${fullSku}` };
         case 'product_variant_updated':
-            return { line1: `${firstName} updated variant ${fullSku}` };
+            return { line1: `${firstName} ενημέρωσε παραλλαγή ${fullSku}` };
         case 'product_variant_deleted':
-            return { line1: `${firstName} deleted variant ${fullSku}` };
+            return { line1: `${firstName} διέγραψε παραλλαγή ${fullSku}` };
         default:
             return { line1: `${firstName} έκανε αλλαγή` };
     }
