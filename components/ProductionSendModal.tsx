@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
-import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType, BatchStageHistoryEntry, StageBatchPrintData, OrderStatus, OrderShipment, OrderShipmentItem } from '../types';
+import { Order, Product, ProductionBatch, Material, ProductionStage, OrderItem, Collection, Gender, ProductionType, BatchStageHistoryEntry, StageBatchPrintData, OrderStatus, OrderShipment, OrderShipmentItem, PriceSyncPreview } from '../types';
 import { X, Factory, CheckCircle, Loader2, ArrowLeft, Clock, StickyNote, History, Package, PauseCircle, PlayCircle, User, RefreshCw, ImageIcon, Minus, Plus, Filter, Wallet, CheckSquare, Square, Hash, Search, Printer, Scissors, Trash2, Split, Merge, FileText, AlertCircle, Save, Truck, Send, RotateCcw } from 'lucide-react';
 import { checkStockForOrderItems, deductStockForOrder } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -25,6 +25,8 @@ import { ordersRepository } from '../features/orders';
 import { productionRepository, productionKeys } from '../features/production';
 import { invalidateAndRefetchAfterShipmentChange, invalidateOrdersAndBatches, invalidateProductionBatches } from '../lib/queryInvalidation';
 import ShipmentUndoConfirmationModal, { getLatestShipmentNumber } from './deliveries/ShipmentUndoConfirmationModal';
+import PriceSyncPreviewModal from './PriceSyncPreviewModal';
+import { generateOrderPriceSyncPreview, applyOrderPriceSyncPreview } from '../utils/productionPricingUtils';
 
 import { STAGES, STAGE_BUTTON_COLORS, VIBRANT_STAGES, getStageColorKey } from './production/stageConstants';
 import { StagePipelineBar } from './production/StagePipelineBar';
@@ -111,6 +113,9 @@ export default function ProductionSendModal({ order, products, materials, existi
     const [batchHistory, setBatchHistory] = useState<BatchStageHistoryEntry[]>([]);
     const [shipmentUndoRequest, setShipmentUndoRequest] = useState<{ shipment: OrderShipment; shipmentItems: OrderShipmentItem[] } | null>(null);
     const [isUndoingShipment, setIsUndoingShipment] = useState(false);
+    const [priceSyncPreviewModalOpen, setPriceSyncPreviewModalOpen] = useState(false);
+    const [priceSyncPreview, setPriceSyncPreview] = useState<PriceSyncPreview | null>(null);
+    const [isApplyingPriceSync, setIsApplyingPriceSync] = useState(false);
 
     // Stage Popup State
     const [activeStagePopup, setActiveStagePopup] = useState<ProductionStage | null>(null);
@@ -923,6 +928,33 @@ export default function ProductionSendModal({ order, products, materials, existi
         });
     }, [shipmentHistory, order.items, discountFactor, vatRate]);
 
+    const handleSyncPricesClick = useCallback(() => {
+        const preview = generateOrderPriceSyncPreview(order, products, order.discount_percent || 0, vatRate);
+        if (!preview) {
+            showToast('Οι τιμές είναι ήδη επίκαιρες.', 'info');
+            return;
+        }
+        setPriceSyncPreview(preview);
+        setPriceSyncPreviewModalOpen(true);
+    }, [order, products, vatRate, showToast]);
+
+    const handleApplyPriceSync = useCallback(async () => {
+        if (!priceSyncPreview || priceSyncPreview.updatedCount === 0) return;
+        setIsApplyingPriceSync(true);
+        try {
+            const updatedOrder = applyOrderPriceSyncPreview(order, priceSyncPreview);
+            await ordersRepository.updateOrder(updatedOrder);
+            setPriceSyncPreviewModalOpen(false);
+            setPriceSyncPreview(null);
+            showToast(`Ενημερώθηκαν οι τιμές σε ${priceSyncPreview.updatedCount} είδη.`, 'success');
+            onSuccess();
+        } catch (e) {
+            showToast('Σφάλμα κατά την ενημέρωση των τιμών.', 'error');
+        } finally {
+            setIsApplyingPriceSync(false);
+        }
+    }, [priceSyncPreview, order, showToast, onSuccess]);
+
     // ═════════════════════════════════════════════════════════════════════════
     // RENDER
     // ═════════════════════════════════════════════════════════════════════════
@@ -972,6 +1004,13 @@ export default function ProductionSendModal({ order, products, materials, existi
                                 <span className="text-[10px] font-bold break-words whitespace-normal leading-snug">{order.notes}</span>
                             </div>
                         )}
+                        <button
+                            onClick={handleSyncPricesClick}
+                            title="Συγχρονισμός τιμών με τον κατάλογο"
+                            className="p-2 hover:bg-amber-100 rounded-full text-slate-500 hover:text-amber-700 transition-colors"
+                        >
+                            <RefreshCw size={22} />
+                        </button>
                         {onBack && (
                             <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full text-slate-500 hover:text-slate-700 transition-colors" title="Πίσω">
                                 <ArrowLeft size={22} />
@@ -1742,6 +1781,18 @@ export default function ProductionSendModal({ order, products, materials, existi
                 onClose={() => { setHistoryModalBatch(null); setBatchHistory([]); }}
                 batch={historyModalBatch}
                 history={batchHistory as any}
+            />
+
+            {/* Price Sync Preview Modal */}
+            <PriceSyncPreviewModal
+                isOpen={priceSyncPreviewModalOpen}
+                preview={priceSyncPreview}
+                onApply={handleApplyPriceSync}
+                onCancel={() => {
+                    setPriceSyncPreviewModalOpen(false);
+                    setPriceSyncPreview(null);
+                }}
+                isApplying={isApplyingPriceSync}
             />
 
             {/* Image Zoom */}

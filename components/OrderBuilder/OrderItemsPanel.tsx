@@ -1,13 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { Search, X, ArrowDownAZ, Camera, Plus, Minus, Trash2, StickyNote, Box, RefreshCw, Save, Loader2, Pencil, Check, History, ChevronDown } from 'lucide-react';
 import { FINISH_CODES } from '../../constants';
-import { OrderItem, PriceChangeRecord } from '../../types';
+import { OrderItem, PriceChangeRecord, PriceSyncPreview } from '../../types';
 import { formatCurrency, formatDecimal, getVariantComponents, getVariantSuffixDisplayCodes } from '../../utils/pricingEngine';
 import { getSizingInfo } from '../../utils/sizing';
 import { useOrderState, FINISH_COLORS, STONE_TEXT_COLORS } from '../../hooks/useOrderState';
 import { PRODUCT_OPTION_COLORS, PRODUCT_OPTION_COLOR_LABELS, getProductOptionColorLabel, isXrCordEnamelSku } from '../../utils/xrOptions';
 import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 import { getOrderItemMatchKey } from '../../utils/orderItemMatch';
+import PriceSyncPreviewModal from '../PriceSyncPreviewModal';
+import { useUI } from '../UIProvider';
 
 interface Props {
     orderState: ReturnType<typeof useOrderState>;
@@ -17,6 +19,7 @@ interface Props {
 
 export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, isExpanded }) => {
     const { state, setters, actions } = orderState;
+    const { showToast } = useUI();
     const totalPieces = useMemo(
         () => state.selectedItems.reduce((sum, item) => sum + item.quantity, 0),
         [state.selectedItems],
@@ -30,6 +33,9 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
     const [editCordColor, setEditCordColor] = useState<OrderItem['cord_color']>();
     const [editEnamelColor, setEditEnamelColor] = useState<OrderItem['enamel_color']>();
     const [showPriceHistory, setShowPriceHistory] = useState(false);
+    const [priceSyncPreviewModalOpen, setPriceSyncPreviewModalOpen] = useState(false);
+    const [priceSyncPreview, setPriceSyncPreview] = useState<PriceSyncPreview | null>(null);
+    const [isApplyingPriceSync, setIsApplyingPriceSync] = useState(false);
 
     const commitPriceEdit = (item: OrderItem) => {
         const trimmed = priceInputStr.trim();
@@ -42,6 +48,28 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
             }
         }
         setPriceEditLineKey(null);
+    };
+
+    const handleSyncPricesClick = () => {
+        const preview = actions.generatePriceSyncPreview();
+        if (!preview) {
+            showToast('Οι τιμές είναι ήδη επίκαιρες.', 'info');
+            return;
+        }
+        setPriceSyncPreview(preview);
+        setPriceSyncPreviewModalOpen(true);
+    };
+
+    const handleApplyPriceSync = () => {
+        if (!priceSyncPreview || priceSyncPreview.updatedCount === 0) return;
+        setIsApplyingPriceSync(true);
+        try {
+            actions.applyPriceSyncPreview(priceSyncPreview);
+            setPriceSyncPreviewModalOpen(false);
+            setPriceSyncPreview(null);
+        } finally {
+            setIsApplyingPriceSync(false);
+        }
     };
 
     const editProduct = editingItem?.product_details;
@@ -139,7 +167,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                 <div className="flex items-center gap-1 shrink-0">
                     <button
                         type="button"
-                        onClick={actions.handleRecalculatePrices}
+                        onClick={handleSyncPricesClick}
                         title="Συγχρονισμός τιμών με τον κατάλογο"
                         className="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200/90 bg-white/80 text-slate-400 hover:text-amber-700 hover:border-amber-200/80 hover:bg-amber-50/40 transition-colors"
                     >
@@ -594,6 +622,18 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                     </div>
                 </div>
             )}
+
+            {/* Price Sync Preview Modal */}
+            <PriceSyncPreviewModal
+                isOpen={priceSyncPreviewModalOpen}
+                preview={priceSyncPreview}
+                onApply={handleApplyPriceSync}
+                onCancel={() => {
+                    setPriceSyncPreviewModalOpen(false);
+                    setPriceSyncPreview(null);
+                }}
+                isApplying={isApplyingPriceSync}
+            />
         </>
     );
 };

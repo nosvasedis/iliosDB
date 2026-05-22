@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Order, OrderStatus, Product, ProductVariant, ProductionBatch, Material, MaterialType, VatRegime, OrderShipment, OrderShipmentItem, Customer } from '../types';
 import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight, X, Printer, Tag, Settings, Edit, Trash2, Ban, BarChart3, Globe, Flame, Gem, Hammer, BookOpen, FileText, ChevronDown, ChevronUp, Clock, Truck, XCircle, AlertCircle, Factory, Send, RotateCcw, Archive, ArchiveRestore, Layers, CheckSquare, PackageCheck, FileCheck, Loader2, History, UserCheck, ArrowRightLeft, HelpCircle } from 'lucide-react';
@@ -18,7 +18,8 @@ import { OrderListProgressBar } from './orders/OrderListProgressBar';
 import ShipmentCreationModal from './deliveries/ShipmentCreationModal';
 import ShipmentUndoConfirmationModal from './deliveries/ShipmentUndoConfirmationModal';
 import { invalidateAndRefetchAfterShipmentChange, invalidateOrdersAndBatches } from '../lib/queryInvalidation';
-import { buildPartialOrderFromBatches, buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildShipmentPrintPayloads, buildSyntheticAggregatedBatches, getShipmentStageBreakdown, getShipmentSummary, getShipmentValue, buildOrderRevisions } from '../features/orders';
+import { buildPartialOrderFromBatches, buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildShipmentPrintPayloads, buildSyntheticAggregatedBatches, getShipmentStageBreakdown, getShipmentSummary, getShipmentValue, buildOrderRevisions, orderMatchesSearch, estimateOrderListRowHeight } from '../features/orders';
+import DebouncedSearchInput from './orders/DebouncedSearchInput';
 import { getOrderStatusClasses, getOrderStatusLabel, getOrderStatusIcon } from '../features/orders/statusPresentation';
 import { getTagColor } from '../features/orders/tagColors';
 import { OrdersFilterPanel, OrderFilters, DEFAULT_FILTERS, countActiveFilters } from './orders/OrdersFilterPanel';
@@ -955,10 +956,10 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
 
     // View State
     const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchFilter, setSearchFilter] = useState('');
     const [filters, setFilters] = useState<OrderFilters>(DEFAULT_FILTERS);
     const [sortMode, setSortMode] = useState<OrderSortMode>('date_newest');
-    const deferredSearchTerm = React.useDeferredValue(searchTerm);
+    const handleSearchFilterChange = useCallback((value: string) => setSearchFilter(value), []);
 
     // Tag color overrides — synced via Supabase, shared across all devices
     const { overrides: tagColorOverrides, changeTagColor: handleChangeTagColor } = useTagColorOverrides();
@@ -1108,7 +1109,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         const todayStr = now.toISOString().slice(0, 10);
         const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
         const monthAgo = new Date(now); monthAgo.setMonth(now.getMonth() - 1);
-        const normalizedSearch = (deferredSearchTerm ?? '').trim().toLowerCase();
+        const normalizedSearch = searchFilter.trim().toLocaleLowerCase('el');
         const hasSearch = normalizedSearch.length > 0;
 
         const filtered = orders.filter(o => {
@@ -1163,14 +1164,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                 }
             }
 
-            // Search Filter (ID, Name, Tags)
             if (!hasSearch) return true;
-            const term = normalizedSearch;
-            return (
-                o.id.toLowerCase().includes(term) ||
-                o.customer_name.toLowerCase().includes(term) ||
-                (o.tags && o.tags.some(t => t.toLowerCase().includes(term)))
-            );
+            return orderMatchesSearch(o, normalizedSearch);
         });
 
         const sorted = [...filtered].sort((a, b) => {
@@ -1208,15 +1203,29 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         });
 
         return sorted;
-    }, [orders, activeTab, deferredSearchTerm, filters, orderMetaById, sortMode]);
+    }, [orders, activeTab, searchFilter, filters, orderMetaById, sortMode]);
 
     const ordersScrollRef = useRef<HTMLDivElement>(null);
+    const listFilterKey = `${searchFilter}|${activeTab}|${sortMode}|${filters.statuses.size}|${filters.datePreset}|${filters.sellers.size}|${filters.tags.size}|${filters.tagLogic}`;
+    const prevListFilterKeyRef = useRef(listFilterKey);
+
     const ordersRowVirtualizer = useVirtualizer({
         count: filteredOrders.length,
         getScrollElement: () => ordersScrollRef.current,
-        estimateSize: () => 136,
-        overscan: 8
+        estimateSize: (index) => {
+            const order = filteredOrders[index];
+            if (!order) return 136;
+            return estimateOrderListRowHeight(order, { isReady: orderMetaById.get(order.id)?.isReady });
+        },
+        overscan: 6,
+        getItemKey: (index) => filteredOrders[index]?.id ?? index,
     });
+
+    useLayoutEffect(() => {
+        if (prevListFilterKeyRef.current === listFilterKey) return;
+        prevListFilterKeyRef.current = listFilterKey;
+        ordersScrollRef.current?.scrollTo({ top: 0 });
+    }, [listFilterKey]);
 
     const handleEditOrder = (order: Order) => {
         setEditingOrder(order);
@@ -1581,16 +1590,12 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             {/* SEARCH / FILTERS / SORT */}
             <div className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
                 <div className="grid gap-3 lg:grid-cols-[minmax(18rem,1fr)_minmax(16rem,22rem)] lg:items-center">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                        <input
-                            type="text"
-                            placeholder="Αναζήτηση παραγγελίας, πελάτη ή ετικέτας..."
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm font-medium text-slate-700 outline-none transition-all hover:border-slate-300 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
-                        />
-                    </div>
+                    <DebouncedSearchInput
+                        value={searchFilter}
+                        onDebouncedChange={handleSearchFilterChange}
+                        placeholder="Αναζήτηση παραγγελίας, πελάτη ή ετικέτας..."
+                        inputClassName="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm font-medium text-slate-700 outline-none transition-[border-color,background-color,box-shadow] hover:border-slate-300 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+                    />
                     <div className="flex items-center gap-2">
                         <span className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 sm:flex">
                             <ActiveSortIcon size={16} />
@@ -1696,8 +1701,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                     <div
                                         key={order.id}
                                         data-index={virtualRow.index}
-                                        ref={ordersRowVirtualizer.measureElement}
-                                        className="group absolute left-0 my-1 w-full grid grid-cols-[minmax(9rem,1fr)_minmax(14rem,2fr)_minmax(8rem,0.8fr)_minmax(7rem,0.8fr)_minmax(13rem,1.4fr)_minmax(8rem,0.7fr)] gap-0 rounded-2xl border border-slate-200/80 bg-white text-sm shadow-sm ring-1 ring-transparent transition-all hover:border-emerald-200 hover:shadow-md hover:ring-emerald-100"
+                                        className="group absolute left-0 my-1 w-full grid grid-cols-[minmax(9rem,1fr)_minmax(14rem,2fr)_minmax(8rem,0.8fr)_minmax(7rem,0.8fr)_minmax(13rem,1.4fr)_minmax(8rem,0.7fr)] gap-0 rounded-2xl border border-slate-200/80 bg-white text-sm shadow-sm ring-1 ring-transparent transition-[border-color,box-shadow,ring-color] hover:border-emerald-200 hover:shadow-md hover:ring-emerald-100"
                                         style={{ transform: `translateY(${virtualRow.start}px)` }}
                                     >
                                         <div className="p-4 pl-5">

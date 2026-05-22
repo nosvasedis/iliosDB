@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useDeferredValue } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { productionKeys, productionRepository } from '../../features/production';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
@@ -25,7 +25,8 @@ import { OrdersFilterPanel, OrderFilters, DEFAULT_FILTERS, countActiveFilters } 
 import { useTagColorOverrides } from '../../hooks/api/useTagColorOverrides';
 import { invalidateOrdersAndBatches } from '../../lib/queryInvalidation';
 import { PRODUCTION_STAGE_COLORS, getProductionStageLabel } from '../../utils/deliveryLabels';
-import { buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildShipmentPrintPayloads, buildSyntheticAggregatedBatches, buildOrderRevisions } from '../../features/orders';
+import { buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildShipmentPrintPayloads, buildSyntheticAggregatedBatches, buildOrderRevisions, orderMatchesSearch } from '../../features/orders';
+import DebouncedSearchInput from '../orders/DebouncedSearchInput';
 import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 import { StickyNote, UserCheck } from 'lucide-react';
 import { SellerPicker } from '../OrderBuilder/SellerPicker';
@@ -914,7 +915,7 @@ const OrderCard: React.FC<{
     const isRetailOrder = order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME;
     const { retailClientLabel } = extractRetailClientFromNotes(order.notes);
     const [expanded, setExpanded] = useState(false);
-    const orderBatches = useMemo(() => (batches || []).filter((batch) => batch.order_id === order.id), [batches, order.id]);
+    const orderBatches = useMemo(() => batches ?? [], [batches]);
     const stageProgress = useMemo(() => buildOrderProductionStageSegments(order, orderBatches), [order, orderBatches]);
     const itemStageBreakdownByKey = useMemo(() => {
         return new Map(
@@ -952,7 +953,7 @@ const OrderCard: React.FC<{
     const netValue = order.total_price / (1 + activeVat);
 
     return (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden transition-all duration-200 active:scale-[0.99]">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden transition-[transform,box-shadow] duration-200 active:scale-[0.99]">
             <div
                 className="p-4 flex flex-col gap-3"
                 onClick={() => setExpanded(!expanded)}
@@ -1228,8 +1229,8 @@ export default function MobileOrders({
 
     const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
     const [filters, setFilters] = useState<OrderFilters>(DEFAULT_FILTERS);
-    const [search, setSearch] = useState('');
-    const deferredSearchTerm = useDeferredValue(search);
+    const [searchFilter, setSearchFilter] = useState('');
+    const handleSearchFilterChange = useCallback((value: string) => setSearchFilter(value), []);
     const [managingOrder, setManagingOrder] = useState<Order | null>(null);
     const [printModalOrder, setPrintModalOrder] = useState<Order | null>(null);
     const [tagInput, setTagInput] = useState('');
@@ -1255,6 +1256,17 @@ export default function MobileOrders({
         return Array.from(sellerSet).sort((a, b) => a.localeCompare(b, 'el'));
     }, [orders]);
 
+    const batchesByOrderId = useMemo(() => {
+        const map = new Map<string, NonNullable<typeof batches>>();
+        (batches ?? []).forEach((batch) => {
+            if (!batch.order_id) return;
+            const existing = map.get(batch.order_id);
+            if (existing) existing.push(batch);
+            else map.set(batch.order_id, [batch]);
+        });
+        return map;
+    }, [batches]);
+
     const filteredOrders = useMemo(() => {
         if (!orders) return [];
 
@@ -1262,7 +1274,7 @@ export default function MobileOrders({
         const todayStr = now.toISOString().slice(0, 10);
         const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
         const monthAgo = new Date(now); monthAgo.setMonth(now.getMonth() - 1);
-        const normalizedSearch = (deferredSearchTerm ?? '').trim().toLowerCase();
+        const normalizedSearch = searchFilter.trim().toLocaleLowerCase('el');
         const hasSearch = normalizedSearch.length > 0;
 
         return orders.filter(o => {
@@ -1279,7 +1291,7 @@ export default function MobileOrders({
 
             if (filters.statuses.size > 0) {
                 const inSet = filters.statuses.has(o.status as OrderStatus);
-                const readyExtra = filters.statuses.has(OrderStatus.Ready) && isOrderReady(o, batches);
+                const readyExtra = filters.statuses.has(OrderStatus.Ready) && isOrderReady(o, batchesByOrderId.get(o.id));
                 if (!inSet && !readyExtra) return false;
             }
 
@@ -1318,14 +1330,9 @@ export default function MobileOrders({
             }
 
             if (!hasSearch) return true;
-            const term = normalizedSearch;
-            return (
-                o.id.toLowerCase().includes(term) ||
-                o.customer_name.toLowerCase().includes(term) ||
-                (o.tags && o.tags.some(t => t.toLowerCase().includes(term)))
-            );
+            return orderMatchesSearch(o, normalizedSearch);
         });
-    }, [orders, batches, activeTab, deferredSearchTerm, filters]);
+    }, [orders, batchesByOrderId, activeTab, searchFilter, filters]);
 
     const handleDeleteOrder = async (order: Order) => {
         const yes = await confirm({
@@ -1464,16 +1471,13 @@ export default function MobileOrders({
                 </div>
 
                 <div className="flex gap-2">
-                    <div className="relative flex-1 min-w-0">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                        <input
-                            type="text"
-                            placeholder="Αναζήτηση πελάτη, ID ή ετικέτας..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="w-full pl-10 pr-3 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm font-medium"
-                        />
-                    </div>
+                    <DebouncedSearchInput
+                        value={searchFilter}
+                        onDebouncedChange={handleSearchFilterChange}
+                        placeholder="Αναζήτηση πελάτη, ID ή ετικέτας..."
+                        className="relative flex-1 min-w-0"
+                        inputClassName="w-full pl-10 pr-3 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm font-medium"
+                    />
                     <button
                         type="button"
                         onClick={() => setFiltersSheetOpen(true)}
@@ -1542,12 +1546,12 @@ export default function MobileOrders({
                         key={order.id}
                         order={order}
                         products={products}
-                        batches={batches}
+                        batches={batchesByOrderId.get(order.id)}
                         onEdit={onEdit || (() => { })}
                         onDelete={handleDeleteOrder}
                         onCancel={handleCancelOrder}
                         onManage={setManagingOrder}
-                        isReady={isOrderReady(order, batches)}
+                        isReady={isOrderReady(order, batchesByOrderId.get(order.id))}
                         onComplete={handleCompleteOrder}
                         onPrint={setPrintModalOrder}
                         onPrintLabels={onPrintLabels}

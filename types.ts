@@ -241,6 +241,29 @@ export interface ItemPriceDelta {
   variantSuffix?: string;
   oldPrice: number;
   newPrice: number;
+  quantity?: number;
+  sizeInfo?: string;
+}
+
+/** Tracks an item that will be skipped during price sync with reason. */
+export interface SkippedPriceItem {
+  lineKey: string;
+  sku: string;
+  variantSuffix?: string;
+  currentPrice: number;
+  reason: 'manual_override' | 'gift_zero_eur';
+  quantity?: number;
+  sizeInfo?: string;
+}
+
+/** Preview of price sync changes before applying. */
+export interface PriceSyncPreview {
+  itemsToChange: ItemPriceDelta[];
+  itemsToSkip: SkippedPriceItem[];
+  totalsBefore: { subtotal: number; net: number; vat: number; total: number };
+  totalsAfter: { subtotal: number; net: number; vat: number; total: number };
+  updatedCount: number;
+  skippedCount: number;
 }
 
 /** A record of a price-sync event on an order, with per-SKU and aggregate totals. */

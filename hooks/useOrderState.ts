@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime, Collection, ItemPriceDelta, PriceChangeRecord } from '../types';
+import { Product, ProductVariant, Order, OrderItem, Customer, OrderStatus, VatRegime, Collection, ItemPriceDelta, PriceChangeRecord, PriceSyncPreview } from '../types';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { formatCurrency, splitSkuComponents, getVariantComponents, findProductByScannedCode } from '../utils/pricingEngine';
@@ -12,6 +12,7 @@ import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../u
 import { assignMissingOrderLineIds, getOrderItemMatchKey } from '../utils/orderItemMatch';
 import { getSpecialCreationProductStub, isSpecialCreationSku, SPECIAL_CREATION_SKU } from '../utils/specialCreationSku';
 import { isXrCordEnamelSku } from '../utils/xrOptions';
+import { generateOrderPriceSyncPreview } from '../utils/productionPricingUtils';
 import {
     buildOrderContextAffinitySkuSet,
     buildProductSearchIndex,
@@ -897,16 +898,32 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         setPriceDiffs(null);
     };
 
+    const generatePriceSyncPreview = (): PriceSyncPreview | null =>
+        generateOrderPriceSyncPreview(
+            { items: selectedItems, discount_percent: discountPercent } as Order,
+            products,
+            discountPercent,
+            vatRate,
+        );
+
     const handleRecalculatePrices = () => {
         const oldSub = selectedItems.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
         const oldNet = oldSub * (1 - discountPercent / 100);
         const oldVat = oldNet * vatRate;
         const oldTotal = oldNet + oldVat;
 
+
         let updatedCount = 0;
         const itemDeltas: ItemPriceDelta[] = [];
         const newItems = selectedItems.map(item => {
             if (isSpecialCreationSku(item.sku)) return item;
+            
+            // Skip if manually overridden
+            if (item.price_override === true) return item;
+            
+            // Skip if price is 0 EUR (gift/δώρα)
+            if (item.price_at_order === 0) return item;
+
             const product = products.find(p => p.sku === item.sku);
             if (!product) return item;
             let currentRegistryPrice = 0;
@@ -917,7 +934,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             }
             if (currentRegistryPrice === 0) currentRegistryPrice = product.selling_price;
             const hasPriceDiff = currentRegistryPrice > 0 && Math.abs(currentRegistryPrice - item.price_at_order) > 0.01;
-            if (hasPriceDiff || item.price_override) {
+            if (hasPriceDiff) {
                 itemDeltas.push({
                     lineKey: getOrderItemMatchKey(item),
                     sku: item.sku,
@@ -950,6 +967,37 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         } else {
             showToast('Οι τιμές είναι ήδη επίκαιρες.', 'info');
         }
+    };
+
+    const applyPriceSyncPreview = (preview: PriceSyncPreview) => {
+        if (preview.updatedCount === 0) {
+            showToast('Δεν υπάρχουν τιμές προς ενημέρωση.', 'info');
+            return;
+        }
+
+        const newItems = selectedItems.map(item => {
+            const delta = preview.itemsToChange.find(d => d.lineKey === getOrderItemMatchKey(item));
+            if (delta) {
+                return { ...item, price_at_order: delta.newPrice, price_override: undefined };
+            }
+            return item;
+        });
+
+        const record: PriceChangeRecord = {
+            timestamp: new Date().toISOString(),
+            itemChanges: preview.itemsToChange,
+            totalsBefore: preview.totalsBefore,
+            totalsAfter: preview.totalsAfter,
+        };
+        setPriceChangeLog(prev => [record, ...prev]);
+        setSelectedItems(newItems);
+        setPriceDiffs({
+            net: preview.totalsAfter.net - preview.totalsBefore.net,
+            vat: preview.totalsAfter.vat - preview.totalsBefore.vat,
+            total: preview.totalsAfter.total - preview.totalsBefore.total,
+            itemDeltas: preview.itemsToChange,
+        });
+        showToast(`Ενημερώθηκαν οι τιμές σε ${preview.updatedCount} είδη.`, 'success');
     };
 
     // --- Order Save ---
@@ -1105,7 +1153,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             handleSmartInput, handleSelectMaster,
             handleAddItem, executeAddItem, handleScanInOrder,
             updateQuantity, updateItemNotes, updateItemUnitPrice, revertItemToCatalogPrice, updateItemVariantAndSize, handleRemoveItem,
-            handleRecalculatePrices, handleSaveOrder, handleBack,
+            handleRecalculatePrices, generatePriceSyncPreview, applyPriceSyncPreview, handleSaveOrder, handleBack,
             getSkuComponents,
         },
         refs: { inputRef },
