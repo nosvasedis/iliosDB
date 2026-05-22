@@ -923,60 +923,61 @@ export default function OffersPage({ products, materials, settings, collections,
                                     <div
                                         key={offer.id}
                                         onClick={() => handleEditOffer(offer)}
-                                        className="group grid cursor-pointer grid-cols-[minmax(14rem,2fr)_minmax(9rem,1fr)_minmax(8rem,0.8fr)_minmax(8rem,0.8fr)_minmax(8rem,0.7fr)] gap-0 rounded-2xl border border-slate-200/80 bg-white text-sm shadow-sm ring-1 ring-transparent transition-[border-color,box-shadow,ring-color] hover:border-emerald-200 hover:shadow-md hover:ring-emerald-100"
+                                        className="group flex cursor-pointer flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 text-sm shadow-sm ring-1 ring-transparent transition-[border-color,box-shadow,ring-color] hover:border-emerald-200 hover:shadow-md hover:ring-emerald-100 xl:flex-row xl:items-center"
                                     >
-                                        <div className="p-4 pl-5">
-                                            <div className="text-base font-black leading-tight text-slate-900">{offer.customer_name}</div>
-                                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                                        <div className="min-w-0 flex-1">
+                                            <div className="truncate text-base font-black leading-tight text-slate-900">{offer.customer_name}</div>
+                                            <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
                                                 <span className="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 font-mono text-xs font-black text-slate-800 ring-1 ring-slate-200">
                                                     #{offer.id}
                                                 </span>
                                                 {offer.customer_phone && (
-                                                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-black text-slate-500">
+                                                    <span className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-black text-slate-500">
                                                         <Phone size={11} /> {offer.customer_phone}
                                                     </span>
                                                 )}
                                             </div>
                                         </div>
 
-                                        <div className="p-4 text-slate-600">
-                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ημερομηνία</div>
-                                            <div className="mt-1 flex items-center gap-1.5 font-bold text-slate-800">
-                                                <Calendar size={13} className="text-slate-400" />
-                                                {new Date(offer.created_at).toLocaleDateString('el-GR')}
-                                            </div>
-                                        </div>
-
-                                        <div className="p-4 text-slate-600">
-                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Είδη</div>
-                                            <div className="mt-1 flex items-center gap-1.5 font-bold text-slate-800">
-                                                <Package size={13} className="text-slate-400" />
-                                                {itemCount} τεμ.
-                                            </div>
-                                        </div>
-
-                                        <div className="p-4 text-right">
-                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ποσό</div>
-                                            <div className="mt-1 text-base font-black text-slate-900">{formatCurrency(offer.total_price)}</div>
-                                        </div>
-
-                                        <div className="p-4">
-                                            <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-400">Κατάσταση</div>
-                                            <div className="flex items-center justify-between gap-2">
-                                                <span className={`shrink-0 rounded-full border px-3 py-1 text-xs font-black shadow-sm ring-1 ring-white/80 ${statusClasses}`}>
-                                                    {OFFER_STATUS_LABELS[offer.status]}
-                                                </span>
-                                                <div className="flex justify-end gap-1 opacity-70 transition-opacity group-hover:opacity-100">
-                                                    <button onClick={(e) => { e.stopPropagation(); onPrintOffer(offer); }} className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 rounded-lg" title="Εκτύπωση"><Printer size={16} /></button>
-                                                    {offer.status === 'Pending' && (
-                                                        <>
-                                                            <button onClick={(e) => { e.stopPropagation(); handleConvertToOrder(offer); }} className="p-2 text-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg" title="Μετατροπή σε Παραγγελία"><Check size={16} /></button>
-                                                            <button onClick={(e) => { e.stopPropagation(); handleDeclineOffer(offer); }} className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 rounded-lg" title="Απόρριψη"><Ban size={16} /></button>
-                                                        </>
-                                                    )}
-                                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteOffer(offer.id); }} className="p-2 text-rose-400 hover:bg-rose-50 hover:text-rose-600 rounded-lg" title="Διαγραφή"><Trash2 size={16} /></button>
+                                        <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-4 xl:w-[34rem] xl:shrink-0">
+                                            <div className="min-w-0">
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ημερομηνία</div>
+                                                <div className="mt-1 flex items-center gap-1.5 font-bold text-slate-800">
+                                                    <Calendar size={13} className="shrink-0 text-slate-400" />
+                                                    <span className="truncate">{new Date(offer.created_at).toLocaleDateString('el-GR')}</span>
                                                 </div>
                                             </div>
+
+                                            <div className="min-w-0">
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Είδη</div>
+                                                <div className="mt-1 flex items-center gap-1.5 font-bold text-slate-800">
+                                                    <Package size={13} className="shrink-0 text-slate-400" />
+                                                    <span className="truncate">{itemCount} τεμ.</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="min-w-0 sm:text-right">
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ποσό</div>
+                                                <div className="mt-1 truncate text-base font-black text-slate-900">{formatCurrency(offer.total_price)}</div>
+                                            </div>
+
+                                            <div className="min-w-0 sm:text-right">
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Κατάσταση</div>
+                                                <span className={`mt-1 inline-flex max-w-full rounded-full border px-3 py-1 text-xs font-black shadow-sm ring-1 ring-white/80 ${statusClasses}`}>
+                                                    {OFFER_STATUS_LABELS[offer.status]}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex shrink-0 flex-wrap justify-end gap-1 border-t border-slate-100 pt-3 opacity-80 transition-opacity group-hover:opacity-100 xl:w-36 xl:border-t-0 xl:pt-0">
+                                            <button onClick={(e) => { e.stopPropagation(); onPrintOffer(offer); }} className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 rounded-lg" title="Εκτύπωση"><Printer size={16} /></button>
+                                            {offer.status === 'Pending' && (
+                                                <>
+                                                    <button onClick={(e) => { e.stopPropagation(); handleConvertToOrder(offer); }} className="p-2 text-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg" title="Μετατροπή σε Παραγγελία"><Check size={16} /></button>
+                                                    <button onClick={(e) => { e.stopPropagation(); handleDeclineOffer(offer); }} className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 rounded-lg" title="Απόρριψη"><Ban size={16} /></button>
+                                                </>
+                                            )}
+                                            <button onClick={(e) => { e.stopPropagation(); handleDeleteOffer(offer.id); }} className="p-2 text-rose-400 hover:bg-rose-50 hover:text-rose-600 rounded-lg" title="Διαγραφή"><Trash2 size={16} /></button>
                                         </div>
                                     </div>
                                 );
