@@ -12,6 +12,7 @@ import { formatShipmentIssueLine, hasBlockingShipmentIssues, validateReadyMatche
 import { isSpecialCreationSku } from '../utils/specialCreationSku';
 import { assignMissingOrderLineIds } from '../utils/orderItemMatch';
 import { buildOrderShipmentItemKey, buildStockDeductionEntries, checkStockForOrderItems as checkStockForOrderItemsHelper, getOrderShipmentsSnapshotFromTables, getOrderSnapshotById as getOrderSnapshotByIdHelper } from '../features/orders/supabaseHelpers';
+import { planShipmentBatchRestores } from '../features/orders/shipmentRevertHelpers';
 import { buildTransferPlan } from '../features/orders/transferHelpers';
 import { buildInitialBatchHistoryEntry, canMoveBatchToStage as canMoveBatchToStageHelper, getBatchSnapshotById } from '../features/production/supabaseHelpers';
 import { mapCatalogProductsWithRelations, mapProductsWithRelations, resolveProductImageUrl } from '../features/products/mappers';
@@ -123,6 +124,43 @@ const sanitizeDeliveryReminderData = (data: any) => {
     });
     return sanitized;
 };
+
+function buildPartialShipmentRpcItems(
+    items: Array<{
+        sku: string;
+        variant_suffix?: string | null;
+        size_info?: string | null;
+        cord_color?: string | null;
+        enamel_color?: string | null;
+        quantity: number;
+        price_at_order: number;
+        line_id?: string | null;
+    }>
+) {
+    return items.map((item) => ({
+        sku: item.sku,
+        variant_suffix: item.variant_suffix ?? '',
+        size_info: item.size_info ?? '',
+        cord_color: item.cord_color ?? '',
+        enamel_color: item.enamel_color ?? '',
+        line_id: item.line_id ?? '',
+        quantity: item.quantity,
+        price_at_order: item.price_at_order,
+    }));
+}
+
+function mapRpcPartialShipmentResult(data: Record<string, unknown>): OrderShipment {
+    return {
+        id: String(data.id),
+        order_id: String(data.order_id),
+        shipment_number: Number(data.shipment_number),
+        shipped_at: String(data.shipped_at),
+        shipped_by: String(data.shipped_by),
+        delivery_plan_id: (data.delivery_plan_id as string | null) ?? null,
+        notes: (data.notes as string | null) ?? null,
+        created_at: String(data.created_at),
+    };
+}
 
 async function fetchWithTimeout(query: any, timeoutMs: number = 3000): Promise<any> {
     const timeoutPromise = new Promise((_, reject) =>
@@ -1281,7 +1319,6 @@ export const api = {
             }
         }
 
-        const newStatus = hasRemaining ? OrderStatus.PartiallyDelivered : OrderStatus.Delivered;
         let nextPlan: OrderDeliveryPlan | null = null;
         let nextPlanReminders: OrderDeliveryReminder[] = [];
         if (hasRemaining) {
@@ -1328,14 +1365,40 @@ export const api = {
             }));
         }
 
-        await safeMutate('order_shipments', 'INSERT', shipment, { noSelect: true });
-        if (shipmentItems.length > 0) {
-            await safeMutate('order_shipment_items', 'INSERT', shipmentItems, { noSelect: true });
+        // Online: one Postgres transaction (row locks + server-side ready-stock check)
+        if (!isLocalMode && navigator.onLine) {
+            const { data, error } = await supabase.rpc('create_partial_shipment_v1', {
+                p_order_id: params.orderId,
+                p_shipped_by: params.shippedBy,
+                p_items: buildPartialShipmentRpcItems(params.items),
+                p_delivery_plan_id: params.deliveryPlanId || null,
+                p_notes: params.notes || null,
+                p_next_plan: nextPlan ? sanitizeDeliveryPlanData(nextPlan) : null,
+                p_next_reminders: nextPlanReminders.map(sanitizeDeliveryReminderData),
+            });
+            if (error) throw new Error(error.message);
+            return mapRpcPartialShipmentResult((data || {}) as Record<string, unknown>);
         }
-        for (const mutation of batchMutations) {
-            await safeMutate('production_batches', mutation.method, mutation.data, { match: mutation.match });
+
+        const newStatus = hasRemaining ? OrderStatus.PartiallyDelivered : OrderStatus.Delivered;
+        try {
+            await safeMutate('order_shipments', 'INSERT', shipment, { noSelect: true });
+            if (shipmentItems.length > 0) {
+                await safeMutate('order_shipment_items', 'INSERT', shipmentItems, { noSelect: true });
+            }
+            if (batchMutations.length > 0) {
+                await Promise.all(
+                    batchMutations.map((mutation) =>
+                        safeMutate('production_batches', mutation.method, mutation.data, { match: mutation.match, noSelect: true })
+                    )
+                );
+            }
+            await safeMutate('orders', 'UPDATE', { status: newStatus }, { match: { id: params.orderId }, noSelect: true });
+        } catch (err) {
+            await safeMutate('order_shipment_items', 'DELETE', null, { match: { shipment_id: shipmentId } });
+            await safeMutate('order_shipments', 'DELETE', null, { match: { id: shipmentId } });
+            throw err;
         }
-        await safeMutate('orders', 'UPDATE', { status: newStatus }, { match: { id: params.orderId }, noSelect: true });
 
         if (params.deliveryPlanId) {
             await safeMutate('order_delivery_plans', 'UPDATE', {
@@ -1370,57 +1433,68 @@ export const api = {
     }): Promise<void> => {
         const now = new Date().toISOString();
 
-        // 1. Fetch all shipments + items for this order
         const snapshot = await getOrderShipmentsSnapshot(params.orderId);
         const allOrderShipments = snapshot.shipments.sort((a, b) => b.shipment_number - a.shipment_number);
         const targetShipment = allOrderShipments.find((s) => s.id === params.shipmentId);
         if (!targetShipment) throw new Error('Η αποστολή δεν βρέθηκε.');
 
-        // 2. Safety guard: only the latest shipment can be reverted
+        const shipmentItems = snapshot.items.filter((i) => i.shipment_id === params.shipmentId);
+        const itemCount = shipmentItems.reduce((sum, i) => sum + i.quantity, 0);
+
+        if (!isLocalMode && navigator.onLine) {
+            const { error } = await supabase.rpc('revert_partial_shipment_v1', {
+                p_order_id: params.orderId,
+                p_shipment_id: params.shipmentId,
+            });
+            if (error) throw new Error(error.message);
+            await api.logAction(params.revertedBy, 'Αναίρεση Μερικής Αποστολής', {
+                orderId: params.orderId,
+                shipmentId: params.shipmentId,
+                shipmentNumber: targetShipment.shipment_number,
+                itemCount,
+            });
+            return;
+        }
+
         const latestShipment = allOrderShipments[0];
         if (latestShipment.id !== params.shipmentId) {
             throw new Error('Μπορείτε να αναιρέσετε μόνο την τελευταία αποστολή.');
         }
 
-        // 3. Fetch the items belonging to this specific shipment
-        const shipmentItems = snapshot.items.filter((i) => i.shipment_id === params.shipmentId);
+        const local = await offlineDb.getTable('production_batches');
+        const existingBatches = (local || []).filter((b: ProductionBatch) => b.order_id === params.orderId);
 
-        // 4. Restore production batches for each shipped item (back to Ready stage)
-        for (const item of shipmentItems) {
-            if (item.quantity <= 0) continue;
-            const restoredBatch: ProductionBatch = {
-                id: crypto.randomUUID(),
-                order_id: params.orderId,
-                sku: item.sku,
-                variant_suffix: item.variant_suffix || undefined,
-                size_info: item.size_info || undefined,
-                cord_color: (item.cord_color || undefined) as ProductionBatch['cord_color'],
-                enamel_color: (item.enamel_color || undefined) as ProductionBatch['enamel_color'],
-                line_id: item.line_id || null,
-                quantity: item.quantity,
-                current_stage: ProductionStage.Ready,
-                priority: 'Normal',
-                requires_setting: false,
-                requires_assembly: false,
-                on_hold: false,
-                pending_dispatch: false,
-                created_at: now,
-                updated_at: now,
-            };
-            await safeMutate('production_batches', 'INSERT', restoredBatch, { noSelect: true });
+        const { inserts: batchesToRestore, updates: batchRestoreUpdates } = planShipmentBatchRestores(
+            shipmentItems,
+            existingBatches,
+            params.orderId,
+            now,
+        );
+
+        for (const update of batchRestoreUpdates) {
+            await safeMutate('production_batches', 'UPDATE', {
+                quantity: update.quantity,
+                current_stage: update.current_stage,
+                updated_at: update.updated_at,
+            }, { match: { id: update.id }, noSelect: true });
+        }
+        if (batchesToRestore.length > 0) {
+            await safeMutate('production_batches', 'INSERT', batchesToRestore, { noSelect: true });
+            await safeMutate(
+                'batch_stage_history',
+                'INSERT',
+                batchesToRestore.map((batch) => buildInitialBatchHistoryEntry(batch)),
+                { noSelect: true }
+            );
         }
 
-        // 5. Delete shipment items and the shipment record
         await safeMutate('order_shipment_items', 'DELETE', null, { match: { shipment_id: params.shipmentId } });
         await safeMutate('order_shipments', 'DELETE', null, { match: { id: params.shipmentId } });
 
-        // 6. Determine new order status
         const remainingShipments = allOrderShipments.filter((s) => s.id !== params.shipmentId);
         const newStatus = remainingShipments.length > 0 ? OrderStatus.PartiallyDelivered : OrderStatus.InProduction;
         await safeMutate('orders', 'UPDATE', { status: newStatus }, { match: { id: params.orderId }, noSelect: true });
 
-        // 7. Delivery plan handling
-        // 7a. Cancel the auto-created "next plan" that was created by this shipment
         const allPlans = (await fetchFullTable('order_delivery_plans') as OrderDeliveryPlan[])
             .filter((p) => p.order_id === params.orderId);
         const autoCreatedPlan = allPlans.find(
@@ -1436,14 +1510,12 @@ export const api = {
             }, { match: { id: autoCreatedPlan.id }, noSelect: true });
         }
 
-        // 7b. Re-activate the original delivery plan that was completed by this shipment
         if (targetShipment.delivery_plan_id) {
             await safeMutate('order_delivery_plans', 'UPDATE', {
                 plan_status: 'active',
                 completed_at: null,
                 updated_at: now,
             }, { match: { id: targetShipment.delivery_plan_id }, noSelect: true });
-            // Re-open the reminders that were auto-completed by the shipment
             await safeMutate('order_delivery_reminders', 'UPDATE', {
                 completed_at: null,
                 completion_note: null,
@@ -1452,12 +1524,11 @@ export const api = {
             }, { match: { plan_id: targetShipment.delivery_plan_id } });
         }
 
-        // 8. Audit log
         await api.logAction(params.revertedBy, 'Αναίρεση Μερικής Αποστολής', {
             orderId: params.orderId,
             shipmentId: params.shipmentId,
             shipmentNumber: targetShipment.shipment_number,
-            itemCount: shipmentItems.reduce((sum, i) => sum + i.quantity, 0),
+            itemCount,
         });
     },
 

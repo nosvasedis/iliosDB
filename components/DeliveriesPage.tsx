@@ -219,20 +219,25 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
   ) => {
     if (!shipmentItem) return;
     const order = shipmentItem.order;
-    await api.createPartialShipment({
-      orderId: order.id,
-      orderItems: order.items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, quantity: i.quantity, price_at_order: i.price_at_order, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color, line_id: i.line_id || null })),
-      items: items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color, quantity: i.quantity, price_at_order: i.price_at_order, line_id: i.line_id || null })),
-      shippedBy: profile?.full_name || 'Σύστημα',
-      deliveryPlanId: shipmentItem.plan.id,
-      notes,
-      allBatches: batchesQuery.data || []
-    });
-    await invalidateAndRefetchAfterShipmentChange(queryClient, order.id);
-    showToast(`Αποστολή #${items.reduce((s, i) => s + i.quantity, 0)} τεμαχίων καταχωρήθηκε επιτυχώς.`, 'success');
-    setShipmentItem(null);
-    setSelectedItem(null);
-    handleRefresh();
+    try {
+      await api.createPartialShipment({
+        orderId: order.id,
+        orderItems: order.items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, quantity: i.quantity, price_at_order: i.price_at_order, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color, line_id: i.line_id || null })),
+        items: items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color, quantity: i.quantity, price_at_order: i.price_at_order, line_id: i.line_id || null })),
+        shippedBy: profile?.full_name || 'Σύστημα',
+        deliveryPlanId: shipmentItem.plan.id,
+        notes,
+        allBatches: batchesQuery.data || []
+      });
+      await invalidateAndRefetchAfterShipmentChange(queryClient, order.id);
+      showToast(`Αποστολή #${items.reduce((s, i) => s + i.quantity, 0)} τεμαχίων καταχωρήθηκε επιτυχώς.`, 'success');
+      setShipmentItem(null);
+      setSelectedItem(null);
+      handleRefresh();
+    } catch (e: any) {
+      showToast(e?.message || 'Σφάλμα κατά την αποστολή.', 'error');
+      throw e;
+    }
   };
 
   if (isLoading) {
