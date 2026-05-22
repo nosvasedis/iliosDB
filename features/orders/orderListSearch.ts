@@ -18,7 +18,8 @@ export function estimateOrderListRowHeight(
     order: Order,
     options?: { isReady?: boolean }
 ): number {
-    let height = 124;
+    // Base height (124) + margin space (my-1 = 0.25rem top + 0.25rem bottom = 0.5rem = 8px)
+    let height = 132;
     const tagCount = order.tags?.length ?? 0;
     if (tagCount > 0) height += 24 + Math.max(0, Math.ceil(tagCount / 3) - 1) * 22;
     if (getOrderTransferIndicators(order.notes).length > 0) height += 30;
