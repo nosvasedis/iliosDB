@@ -1217,6 +1217,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             if (!order) return 136;
             return estimateOrderListRowHeight(order, { isReady: orderMetaById.get(order.id)?.isReady });
         },
+        measureElement: (element) => element.getBoundingClientRect().height,
         overscan: 6,
         getItemKey: (index) => filteredOrders[index]?.id ?? index,
     });
@@ -1700,10 +1701,12 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                 return (
                                     <div
                                         key={order.id}
+                                        ref={ordersRowVirtualizer.measureElement}
                                         data-index={virtualRow.index}
-                                        className="group absolute left-0 my-1 w-full grid grid-cols-[minmax(9rem,1fr)_minmax(14rem,2fr)_minmax(8rem,0.8fr)_minmax(7rem,0.8fr)_minmax(13rem,1.4fr)_minmax(8rem,0.7fr)] gap-0 rounded-2xl border border-slate-200/80 bg-white text-sm shadow-sm ring-1 ring-transparent transition-[border-color,box-shadow,ring-color] hover:border-emerald-200 hover:shadow-md hover:ring-emerald-100"
+                                        className="absolute left-0 top-0 w-full pb-2"
                                         style={{ transform: `translateY(${virtualRow.start}px)` }}
                                     >
+                                        <div className="group grid w-full grid-cols-[minmax(9rem,1fr)_minmax(14rem,2fr)_minmax(8rem,0.8fr)_minmax(7rem,0.8fr)_minmax(13rem,1.4fr)_minmax(8rem,0.7fr)] gap-0 rounded-2xl border border-slate-200/80 bg-white text-sm shadow-sm ring-1 ring-transparent transition-[border-color,box-shadow,ring-color] hover:border-emerald-200 hover:shadow-md hover:ring-emerald-100">
                                         <div className="p-4 pl-5">
                                             <div className="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 font-mono text-xs font-black text-slate-800 ring-1 ring-slate-200">
                                                 #{order.id}
@@ -1847,6 +1850,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                     <button onClick={() => handleArchiveOrder(order, true)} title="Αρχειοθέτηση" className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Archive size={16} /></button>
                                                 )}
                                             </div>
+                                        </div>
                                         </div>
                                     </div>
                                 );

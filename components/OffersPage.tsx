@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, Customer, Offer, OfferStatus, OrderItem, GlobalSettings, Collection, Material, VatRegime } from '../types';
-import { Plus, Search, Trash2, Printer, Save, FileText, User, Phone, Check, RefreshCw, Loader2, ArrowRight, Ban, FolderKanban, Coins, Percent, X, AlertTriangle, ImageIcon, ScanBarcode, Lightbulb } from 'lucide-react';
+import { Plus, Search, Trash2, Printer, Save, FileText, User, Phone, Check, RefreshCw, Loader2, ArrowRight, Ban, FolderKanban, Coins, Percent, X, AlertTriangle, ImageIcon, ScanBarcode, Lightbulb, Calendar, Package } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -10,6 +10,7 @@ import { normalizedIncludes } from '../utils/greekSearch';
 import { generateOrderId } from '../utils/orderUtils';
 import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../utils/retailNotes';
 import DesktopPageHeader from './DesktopPageHeader';
+import DebouncedSearchInput from './orders/DebouncedSearchInput';
 
 // SKU visualizer colors (synced with BatchPrint / Inventory)
 const FINISH_COLORS: Record<string, string> = {
@@ -28,6 +29,18 @@ const STONE_TEXT_COLORS: Record<string, string> = {
     'AX': 'text-emerald-700'
 };
 
+const OFFER_STATUS_LABELS: Record<OfferStatus, string> = {
+    Pending: 'Εκκρεμεί',
+    Accepted: 'Αποδοχή',
+    Declined: 'Απόρριψη',
+};
+
+function getOfferStatusClasses(status: OfferStatus): string {
+    if (status === 'Accepted') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    if (status === 'Declined') return 'bg-slate-100 text-slate-600 border-slate-200';
+    return 'bg-amber-50 text-amber-700 border-amber-200';
+}
+
 interface Props {
     products: Product[];
     materials: Material[];
@@ -45,6 +58,7 @@ export default function OffersPage({ products, materials, settings, collections,
     const [isCreating, setIsCreating] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [editingOffer, setEditingOffer] = useState<Offer | null>(null);
+    const [offerSearch, setOfferSearch] = useState('');
 
     // Form State
     const [customerName, setCustomerName] = useState('');
@@ -80,6 +94,23 @@ export default function OffersPage({ products, materials, settings, collections,
         if (!customers || !customerName) return [];
         return customers.filter(c => normalizedIncludes(c.full_name, customerName) || (c.phone && c.phone.includes(customerName))).slice(0, 5);
     }, [customers, customerName]);
+
+    const filteredOffers = useMemo(() => {
+        const list = offers || [];
+        const term = offerSearch.trim();
+        if (!term) return list;
+        return list.filter(offer => {
+            const statusLabel = OFFER_STATUS_LABELS[offer.status];
+            const dateLabel = new Date(offer.created_at).toLocaleDateString('el-GR');
+            return (
+                normalizedIncludes(offer.customer_name, term) ||
+                normalizedIncludes(offer.id, term) ||
+                normalizedIncludes(statusLabel, term) ||
+                normalizedIncludes(dateLabel, term) ||
+                (!!offer.customer_phone && offer.customer_phone.includes(term))
+            );
+        });
+    }, [offers, offerSearch]);
 
     const isRetailCustomer = customerId === RETAIL_CUSTOMER_ID || customerName.trim() === RETAIL_CUSTOMER_NAME;
 
@@ -855,49 +886,103 @@ export default function OffersPage({ products, materials, settings, collections,
                 )}
             />
 
-            <div className="flex-1 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-                <div className="overflow-y-auto h-full custom-scrollbar">
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs sticky top-0 shadow-sm">
-                            <tr>
-                                <th className="p-5 pl-8">Πελάτης</th>
-                                <th className="p-5">Ημερομηνία</th>
-                                <th className="p-5 text-right">Ποσό</th>
-                                <th className="p-5 text-center">Κατάσταση</th>
-                                <th className="p-5 text-center">Ενέργειες</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                            {offers?.map(offer => (
-                                <tr key={offer.id} className="hover:bg-slate-50 transition-colors group cursor-pointer" onClick={() => handleEditOffer(offer)}>
-                                    <td className="p-5 pl-8 font-bold text-slate-800">{offer.customer_name}</td>
-                                    <td className="p-5 text-slate-500">{new Date(offer.created_at).toLocaleDateString('el-GR')}</td>
-                                    <td className="p-5 text-right font-black text-slate-900">{formatCurrency(offer.total_price)}</td>
-                                    <td className="p-5 text-center">
-                                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase ${offer.status === 'Accepted' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
-                                            offer.status === 'Declined' ? 'bg-slate-100 text-slate-500 border-slate-200' :
-                                                'bg-amber-50 text-amber-600 border-amber-200'
-                                            }`}>
-                                            {offer.status === 'Pending' ? 'Εκκρεμεί' : (offer.status === 'Accepted' ? 'Αποδοχή' : 'Απόρριψη')}
-                                        </span>
-                                    </td>
-                                    <td className="p-5 text-center">
-                                        <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={(e) => { e.stopPropagation(); onPrintOffer(offer); }} className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 rounded-lg"><Printer size={16} /></button>
-                                            {offer.status === 'Pending' && (
-                                                <>
-                                                    <button onClick={(e) => { e.stopPropagation(); handleConvertToOrder(offer); }} className="p-2 text-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg" title="Μετατροπή σε Παραγγελία"><Check size={16} /></button>
-                                                    <button onClick={(e) => { e.stopPropagation(); handleDeclineOffer(offer); }} className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 rounded-lg" title="Απόρριψη"><Ban size={16} /></button>
-                                                </>
-                                            )}
-                                            <button onClick={(e) => { e.stopPropagation(); handleDeleteOffer(offer.id); }} className="p-2 text-rose-400 hover:bg-rose-50 hover:text-rose-600 rounded-lg"><Trash2 size={16} /></button>
+            <div className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+                <DebouncedSearchInput
+                    value={offerSearch}
+                    onDebouncedChange={setOfferSearch}
+                    placeholder="Αναζήτηση προσφοράς, πελάτη, τηλεφώνου ή κατάστασης..."
+                    inputClassName="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm font-medium text-slate-700 outline-none transition-[border-color,background-color,box-shadow] hover:border-slate-300 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+                />
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-auto custom-scrollbar">
+                <div className="rounded-3xl border border-slate-100 bg-slate-50/70 p-2 shadow-sm">
+                    <div className="sticky top-0 z-10 mb-2 rounded-2xl border border-slate-100 bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="text-xs font-black uppercase tracking-widest text-slate-400">Λίστα Προσφορών</div>
+                            <div className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-600">
+                                {filteredOffers.length} {filteredOffers.length === 1 ? 'προσφορά' : 'προσφορές'}
+                            </div>
+                        </div>
+                    </div>
+
+                    {loadingOffers ? (
+                        <div className="flex items-center justify-center gap-2 p-10 text-sm font-bold text-slate-400">
+                            <Loader2 size={16} className="animate-spin" /> Φόρτωση προσφορών...
+                        </div>
+                    ) : filteredOffers.length === 0 ? (
+                        <div className="p-8 text-center text-sm italic text-slate-400">
+                            {offerSearch.trim() ? 'Δεν βρέθηκαν προσφορές.' : 'Δεν υπάρχουν προσφορές.'}
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            {filteredOffers.map(offer => {
+                                const itemCount = offer.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+                                const statusClasses = getOfferStatusClasses(offer.status);
+                                return (
+                                    <div
+                                        key={offer.id}
+                                        onClick={() => handleEditOffer(offer)}
+                                        className="group grid cursor-pointer grid-cols-[minmax(14rem,2fr)_minmax(9rem,1fr)_minmax(8rem,0.8fr)_minmax(8rem,0.8fr)_minmax(8rem,0.7fr)] gap-0 rounded-2xl border border-slate-200/80 bg-white text-sm shadow-sm ring-1 ring-transparent transition-[border-color,box-shadow,ring-color] hover:border-emerald-200 hover:shadow-md hover:ring-emerald-100"
+                                    >
+                                        <div className="p-4 pl-5">
+                                            <div className="text-base font-black leading-tight text-slate-900">{offer.customer_name}</div>
+                                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                                                <span className="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 font-mono text-xs font-black text-slate-800 ring-1 ring-slate-200">
+                                                    #{offer.id}
+                                                </span>
+                                                {offer.customer_phone && (
+                                                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-black text-slate-500">
+                                                        <Phone size={11} /> {offer.customer_phone}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
-                                    </td>
-                                </tr>
-                            ))}
-                            {offers?.length === 0 && <tr><td colSpan={5} className="p-10 text-center text-slate-400 italic">Δεν υπάρχουν προσφορές.</td></tr>}
-                        </tbody>
-                    </table>
+
+                                        <div className="p-4 text-slate-600">
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ημερομηνία</div>
+                                            <div className="mt-1 flex items-center gap-1.5 font-bold text-slate-800">
+                                                <Calendar size={13} className="text-slate-400" />
+                                                {new Date(offer.created_at).toLocaleDateString('el-GR')}
+                                            </div>
+                                        </div>
+
+                                        <div className="p-4 text-slate-600">
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Είδη</div>
+                                            <div className="mt-1 flex items-center gap-1.5 font-bold text-slate-800">
+                                                <Package size={13} className="text-slate-400" />
+                                                {itemCount} τεμ.
+                                            </div>
+                                        </div>
+
+                                        <div className="p-4 text-right">
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ποσό</div>
+                                            <div className="mt-1 text-base font-black text-slate-900">{formatCurrency(offer.total_price)}</div>
+                                        </div>
+
+                                        <div className="p-4">
+                                            <div className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-400">Κατάσταση</div>
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className={`shrink-0 rounded-full border px-3 py-1 text-xs font-black shadow-sm ring-1 ring-white/80 ${statusClasses}`}>
+                                                    {OFFER_STATUS_LABELS[offer.status]}
+                                                </span>
+                                                <div className="flex justify-end gap-1 opacity-70 transition-opacity group-hover:opacity-100">
+                                                    <button onClick={(e) => { e.stopPropagation(); onPrintOffer(offer); }} className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 rounded-lg" title="Εκτύπωση"><Printer size={16} /></button>
+                                                    {offer.status === 'Pending' && (
+                                                        <>
+                                                            <button onClick={(e) => { e.stopPropagation(); handleConvertToOrder(offer); }} className="p-2 text-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg" title="Μετατροπή σε Παραγγελία"><Check size={16} /></button>
+                                                            <button onClick={(e) => { e.stopPropagation(); handleDeclineOffer(offer); }} className="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 rounded-lg" title="Απόρριψη"><Ban size={16} /></button>
+                                                        </>
+                                                    )}
+                                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteOffer(offer.id); }} className="p-2 text-rose-400 hover:bg-rose-50 hover:text-rose-600 rounded-lg" title="Διαγραφή"><Trash2 size={16} /></button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
