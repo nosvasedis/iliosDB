@@ -251,7 +251,7 @@ export interface SkippedPriceItem {
   sku: string;
   variantSuffix?: string;
   currentPrice: number;
-  reason: 'manual_override' | 'gift_zero_eur';
+  reason: 'manual_override' | 'gift_zero_eur' | 'already_shipped';
   quantity?: number;
   sizeInfo?: string;
 }

@@ -1308,11 +1308,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         }
     };
 
-    const onProductionSuccess = () => {
-        setProductionModalOrder(null);
-        void invalidateOrdersAndBatches(queryClient);
-    };
-
     const handleRevertFromProduction = async (orderId: string) => {
         // Block full production revert if the order has any persisted shipment history.
         const order = orders?.find(o => o.id === orderId);
@@ -2207,7 +2202,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                     materials={materials}
                     existingBatches={batchesByOrderId.get(productionModalOrder.id) || []}
                     onClose={() => setProductionModalOrder(null)}
-                    onSuccess={onProductionSuccess}
+                    onOrderUpdated={setProductionModalOrder}
                     collections={collections}
                     userName={profile?.full_name || 'Σύστημα'}
                     onPrintAggregated={onPrintAggregated}

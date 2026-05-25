@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
-import { X, Check, AlertCircle, Gift, Lock } from 'lucide-react';
+import { X, Check, AlertCircle, Gift, Lock, Truck } from 'lucide-react';
 import { PriceSyncPreview } from '../types';
 import { formatCurrency } from '../utils/pricingEngine';
 
@@ -20,7 +20,7 @@ export default function PriceSyncPreviewModal({ isOpen, preview, onApply, onCanc
     const canApply = preview.updatedCount > 0;
 
     return ReactDOM.createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[700] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-slate-50 to-slate-100/50">
@@ -91,6 +91,35 @@ export default function PriceSyncPreviewModal({ isOpen, preview, onApply, onCanc
                                             </div>
                                         </div>
                                     ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Items Skipped - Already shipped to customer */}
+                        {preview.itemsToSkip.filter(i => i.reason === 'already_shipped').length > 0 && (
+                            <div>
+                                <h3 className="flex items-center gap-2 text-sm font-black text-slate-900 uppercase tracking-tight mb-3">
+                                    <Truck size={16} className="text-blue-600" />
+                                    Ήδη αποσταλμένα ({preview.itemsToSkip.filter(i => i.reason === 'already_shipped').length})
+                                </h3>
+                                <div className="space-y-2">
+                                    {preview.itemsToSkip
+                                        .filter(i => i.reason === 'already_shipped')
+                                        .map((item, idx) => (
+                                            <div key={idx} className="flex items-center justify-between gap-3 p-3 bg-blue-50/50 border border-blue-200 rounded-lg">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="font-semibold text-slate-900 text-sm">{item.sku}{item.variantSuffix ? ` (${item.variantSuffix})` : ''}</div>
+                                                    {item.sizeInfo && <div className="text-xs text-slate-500 mt-0.5">{item.sizeInfo}</div>}
+                                                    {item.quantity != null && (
+                                                        <div className="text-xs text-slate-500">Αποσταλμένα: {item.quantity}</div>
+                                                    )}
+                                                    <div className="text-xs text-blue-700 font-medium mt-1">Η τιμή παραμένει όπως καταχωρήθηκε στην αποστολή</div>
+                                                </div>
+                                                <div className="text-right shrink-0">
+                                                    <div className="font-bold text-slate-900">€{item.currentPrice.toFixed(2)}</div>
+                                                </div>
+                                            </div>
+                                        ))}
                                 </div>
                             </div>
                         )}

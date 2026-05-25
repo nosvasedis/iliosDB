@@ -26,7 +26,7 @@ import { productionRepository, productionKeys } from '../features/production';
 import { invalidateAndRefetchAfterShipmentChange, invalidateOrdersAndBatches, invalidateProductionBatches } from '../lib/queryInvalidation';
 import ShipmentUndoConfirmationModal, { getLatestShipmentNumber } from './deliveries/ShipmentUndoConfirmationModal';
 import PriceSyncPreviewModal from './PriceSyncPreviewModal';
-import { generateOrderPriceSyncPreview, applyOrderPriceSyncPreview } from '../utils/productionPricingUtils';
+import { generateOrderPriceSyncPreview, applyOrderPriceSyncPreview, hasUnsavedOrderPriceChanges } from '../utils/productionPricingUtils';
 
 import { STAGES, STAGE_BUTTON_COLORS, VIBRANT_STAGES, getStageColorKey } from './production/stageConstants';
 import { StagePipelineBar } from './production/StagePipelineBar';
@@ -41,7 +41,8 @@ interface Props {
     existingBatches: ProductionBatch[];
     collections?: Collection[];
     onClose: () => void;
-    onSuccess: () => void;
+    /** Keeps parent order state in sync after price sync (modal stays open). */
+    onOrderUpdated?: (order: Order) => void;
     onPrintAggregated?: (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => void;
     onPrintStageBatches?: (data: StageBatchPrintData) => void;
     onBack?: () => void;
@@ -52,9 +53,13 @@ interface Props {
 
 // ─── MAIN COMPONENT ─────────────────────────────────────────────────────────
 
-export default function ProductionSendModal({ order, products, materials, existingBatches, collections, onClose, onSuccess, onPrintAggregated, onPrintStageBatches, onBack, onPartialShipment, onPrintShipment, userName = 'Σύστημα' }: Props) {
+export default function ProductionSendModal({ order: orderProp, products, materials, existingBatches, collections, onClose, onOrderUpdated, onPrintAggregated, onPrintStageBatches, onBack, onPartialShipment, onPrintShipment, userName = 'Σύστημα' }: Props) {
     const { showToast, confirm } = useUI();
     const queryClient = useQueryClient();
+    const [order, setOrder] = useState(orderProp);
+    useEffect(() => {
+        setOrder(prev => (hasUnsavedOrderPriceChanges(prev, orderProp) ? prev : orderProp));
+    }, [orderProp]);
     const { data: shipmentSnapshot, isLoading: isLoadingShipments } = useOrderShipmentsForOrder(order.id);
     const { data: batchStageHistoryEntries = [] } = useBatchStageHistoryEntries();
     const [isSending, setIsSending] = useState(false);
@@ -929,31 +934,76 @@ export default function ProductionSendModal({ order, products, materials, existi
     }, [shipmentHistory, order.items, discountFactor, vatRate]);
 
     const handleSyncPricesClick = useCallback(() => {
-        const preview = generateOrderPriceSyncPreview(order, products, order.discount_percent || 0, vatRate);
+        const preview = generateOrderPriceSyncPreview(
+            order,
+            products,
+            order.discount_percent || 0,
+            vatRate,
+            shippedQuantities
+        );
         if (!preview) {
             showToast('Οι τιμές είναι ήδη επίκαιρες.', 'info');
             return;
         }
         setPriceSyncPreview(preview);
         setPriceSyncPreviewModalOpen(true);
-    }, [order, products, vatRate, showToast]);
+    }, [order, products, vatRate, shippedQuantities, showToast]);
 
-    const handleApplyPriceSync = useCallback(async () => {
+    const handleApplyPriceSync = useCallback(() => {
         if (!priceSyncPreview || priceSyncPreview.updatedCount === 0) return;
         setIsApplyingPriceSync(true);
-        try {
-            const updatedOrder = applyOrderPriceSyncPreview(order, priceSyncPreview);
-            await ordersRepository.updateOrder(updatedOrder);
-            setPriceSyncPreviewModalOpen(false);
-            setPriceSyncPreview(null);
-            showToast(`Ενημερώθηκαν οι τιμές σε ${priceSyncPreview.updatedCount} είδη.`, 'success');
-            onSuccess();
-        } catch (e) {
-            showToast('Σφάλμα κατά την ενημέρωση των τιμών.', 'error');
-        } finally {
-            setIsApplyingPriceSync(false);
+        const updatedOrder = applyOrderPriceSyncPreview(order, priceSyncPreview);
+        setOrder(updatedOrder);
+        setPriceSyncPreviewModalOpen(false);
+        setPriceSyncPreview(null);
+        setIsApplyingPriceSync(false);
+        showToast(
+            `Ενημερώθηκαν οι τιμές σε ${priceSyncPreview.updatedCount} είδη. Θα αποθηκευτούν όταν κλείσετε τη διαχείριση παραγωγής.`,
+            'info'
+        );
+    }, [priceSyncPreview, order, showToast]);
+
+    const requestClose = useCallback(async (afterClose?: () => void) => {
+        const finishClose = () => {
+            onClose();
+            afterClose?.();
+        };
+
+        if (!hasUnsavedOrderPriceChanges(order, orderProp)) {
+            finishClose();
+            return;
         }
-    }, [priceSyncPreview, order, showToast, onSuccess]);
+
+        const choice = await confirm({
+            title: 'Αποθήκευση αλλαγών τιμών',
+            message:
+                'Έχετε ενημερώσει τιμές που δεν έχουν αποθηκευτεί ακόμα στη βάση. Θέλετε να τις αποθηκεύσετε πριν κλείσετε;',
+            confirmText: 'Αποθήκευση',
+            thirdOptionText: 'Απόρριψη αλλαγών',
+            cancelText: 'Παραμονή',
+        });
+
+        if (choice === null) return;
+
+        if (choice === false) {
+            setOrder(orderProp);
+            finishClose();
+            return;
+        }
+
+        setIsWorking(true);
+        try {
+            await ordersRepository.updateOrder(order);
+            await invalidateOrdersAndBatches(queryClient);
+            onOrderUpdated?.(order);
+            showToast('Οι τιμές αποθηκεύτηκαν.', 'success');
+            finishClose();
+        } catch {
+            showToast('Σφάλμα κατά την αποθήκευση των τιμών.', 'error');
+        } finally {
+            setIsWorking(false);
+        }
+    }, [order, orderProp, confirm, onClose, onOrderUpdated, queryClient, showToast]);
 
     // ═════════════════════════════════════════════════════════════════════════
     // RENDER
@@ -1012,11 +1062,11 @@ export default function ProductionSendModal({ order, products, materials, existi
                             <RefreshCw size={22} />
                         </button>
                         {onBack && (
-                            <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full text-slate-500 hover:text-slate-700 transition-colors" title="Πίσω">
+                            <button onClick={() => void requestClose(onBack)} className="p-2 hover:bg-slate-100 rounded-full text-slate-500 hover:text-slate-700 transition-colors" title="Πίσω">
                                 <ArrowLeft size={22} />
                             </button>
                         )}
-                        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"><X size={22} /></button>
+                        <button onClick={() => void requestClose()} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors" title="Κλείσιμο"><X size={22} /></button>
                     </div>
                 </div>
 
@@ -1209,7 +1259,7 @@ export default function ProductionSendModal({ order, products, materials, existi
 
                             {canPartialShip && (
                                 <button
-                                    onClick={() => { onClose(); onPartialShipment!(); }}
+                                    onClick={() => void requestClose(onPartialShipment)}
                                     className="w-full text-left p-3 rounded-xl flex items-center gap-3 font-bold bg-amber-50 border-2 border-amber-300 text-amber-800 hover:bg-amber-100 transition-colors shadow-sm"
                                 >
                                     <Truck size={16} className="shrink-0" />

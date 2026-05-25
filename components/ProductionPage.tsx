@@ -3674,9 +3674,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                     materials={materials}
                     existingBatches={batchesByOrderId.get(quickManageOrder.id) || []}
                     onClose={() => { setQuickManageOrder(null); setQuickPickerOpen(false); }}
-                    onSuccess={() => {
-                        void invalidateOrdersAndBatches(queryClient);
-                    }}
+                    onOrderUpdated={setQuickManageOrder}
                     collections={collections}
                     userName={profile?.full_name || 'Σύστημα'}
                     onPrintAggregated={onPrintAggregated}
