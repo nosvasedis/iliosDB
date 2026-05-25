@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useRef } from 'react';
+import React, { memo, useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Check, FolderKanban } from 'lucide-react';
 import { Gender, ProductionBatch } from '../../types';
@@ -123,12 +123,26 @@ function VirtualizedProductionBatchGroups({
         [groupedData, groupMode, sortOrder],
     );
 
+    const rowsLayoutKey = useMemo(() => rows.map((row) => row.key).join('|'), [rows]);
+
+    const getItemKey = useCallback(
+        (index: number) => rows[index]?.key ?? index,
+        [rows],
+    );
+
     const virtualizer = useVirtualizer({
         count: rows.length,
         getScrollElement: () => parentRef.current,
         estimateSize: (index) => estimateRowSize(rows[index]),
+        getItemKey,
         overscan: VIRTUAL_OVERSCAN,
     });
+
+    // After bulk moves (or when moving overlays toggle), row indices shift but the
+    // virtualizer can keep stale per-index heights — cards then stack on top of each other.
+    useLayoutEffect(() => {
+        virtualizer.measure();
+    }, [rowsLayoutKey, renderBatch]);
 
     return (
         <div ref={parentRef} className={`${className} overflow-y-auto custom-scrollbar`}>
@@ -146,9 +160,9 @@ function VirtualizedProductionBatchGroups({
                         const row = rows[virtualRow.index];
                         return (
                             <div
-                                key={row.key}
+                                key={virtualRow.key}
                                 data-index={virtualRow.index}
-                                ref={virtualizer.measureElement}
+                                ref={(element) => virtualizer.measureElement(element)}
                                 style={{
                                     position: 'absolute',
                                     top: 0,
