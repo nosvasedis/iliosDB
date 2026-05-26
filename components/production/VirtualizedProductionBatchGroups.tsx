@@ -118,6 +118,7 @@ function VirtualizedProductionBatchGroups({
     mobileTopIndicator,
 }: Props) {
     const parentRef = useRef<HTMLDivElement>(null);
+    const lastScrollPositionRef = useRef({ left: 0, top: 0 });
     const rows = useMemo(
         () => flattenGroupedRows(groupedData, groupMode, sortOrder),
         [groupedData, groupMode, sortOrder],
@@ -142,11 +143,38 @@ function VirtualizedProductionBatchGroups({
     // per-index heights. Keep this tied to actual row-layout changes only;
     // parent re-renders should not re-measure and nudge the scroll position.
     useLayoutEffect(() => {
+        const scrollElement = parentRef.current;
+        const previousScrollPosition = lastScrollPositionRef.current;
+
         virtualizer.measure();
+
+        if (!scrollElement) return;
+
+        const restoreScrollPosition = () => {
+            const maxTop = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
+            const maxLeft = Math.max(0, scrollElement.scrollWidth - scrollElement.clientWidth);
+            scrollElement.scrollTop = Math.min(previousScrollPosition.top, maxTop);
+            scrollElement.scrollLeft = Math.min(previousScrollPosition.left, maxLeft);
+        };
+
+        restoreScrollPosition();
+        const restoreFrame = window.requestAnimationFrame(restoreScrollPosition);
+
+        return () => window.cancelAnimationFrame(restoreFrame);
     }, [rowsLayoutKey]);
 
     return (
-        <div ref={parentRef} className={`${className} overflow-y-auto custom-scrollbar`} style={{ overflowAnchor: 'none' }}>
+        <div
+            ref={parentRef}
+            className={`${className} overflow-y-auto custom-scrollbar`}
+            style={{ overflowAnchor: 'none' }}
+            onScroll={(event) => {
+                lastScrollPositionRef.current = {
+                    left: event.currentTarget.scrollLeft,
+                    top: event.currentTarget.scrollTop,
+                };
+            }}
+        >
             {mobileTopIndicator}
             {rows.length === 0 ? (
                 emptyState || null
