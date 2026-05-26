@@ -138,14 +138,15 @@ function VirtualizedProductionBatchGroups({
         overscan: VIRTUAL_OVERSCAN,
     });
 
-    // After bulk moves (or when moving overlays toggle), row indices shift but the
-    // virtualizer can keep stale per-index heights — cards then stack on top of each other.
+    // After bulk moves row indices shift, but the virtualizer can keep stale
+    // per-index heights. Keep this tied to actual row-layout changes only;
+    // parent re-renders should not re-measure and nudge the scroll position.
     useLayoutEffect(() => {
         virtualizer.measure();
-    }, [rowsLayoutKey, renderBatch]);
+    }, [rowsLayoutKey]);
 
     return (
-        <div ref={parentRef} className={`${className} overflow-y-auto custom-scrollbar`}>
+        <div ref={parentRef} className={`${className} overflow-y-auto custom-scrollbar`} style={{ overflowAnchor: 'none' }}>
             {mobileTopIndicator}
             {rows.length === 0 ? (
                 emptyState || null
