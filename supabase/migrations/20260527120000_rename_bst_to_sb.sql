@@ -55,22 +55,20 @@ UPDATE product_stock
 SET variant_suffix = regexp_replace(variant_suffix, 'BST', 'SB', 'g')
 WHERE variant_suffix LIKE '%BST%';
 
--- 4. orders.items JSON (line items + embedded product snapshots)
+-- 4-6. JSON snapshots: description rename only (do NOT blind-replace BST->SB in JSON text;
+-- that corrupts product SKUs like BST001). Variant suffix renames in orders are covered by
+-- product_variants + scalar tables; see 20260527130000_fix_bst_product_skus_in_json if an
+-- older run used blind replace on orders/offers/audit_logs.
 UPDATE orders
-SET items = replace(replace(items::text, 'Blue Sky Topaz', 'Swiss Blue'), 'BST', 'SB')::jsonb
-WHERE items::text LIKE '%BST%'
-   OR items::text ILIKE '%Blue Sky Topaz%';
+SET items = replace(items::text, 'Blue Sky Topaz', 'Swiss Blue')::jsonb
+WHERE items::text ILIKE '%Blue Sky Topaz%';
 
--- 5. offers.items JSON
 UPDATE offers
-SET items = replace(replace(items::text, 'Blue Sky Topaz', 'Swiss Blue'), 'BST', 'SB')::jsonb
-WHERE items::text LIKE '%BST%'
-   OR items::text ILIKE '%Blue Sky Topaz%';
+SET items = replace(items::text, 'Blue Sky Topaz', 'Swiss Blue')::jsonb
+WHERE items::text ILIKE '%Blue Sky Topaz%';
 
--- 6. audit_logs.details JSON (historical consistency)
 UPDATE audit_logs
-SET details = replace(replace(details::text, 'Blue Sky Topaz', 'Swiss Blue'), 'BST', 'SB')::jsonb
-WHERE details::text LIKE '%BST%'
-   OR details::text ILIKE '%Blue Sky Topaz%';
+SET details = replace(details::text, 'Blue Sky Topaz', 'Swiss Blue')::jsonb
+WHERE details::text ILIKE '%Blue Sky Topaz%';
 
 COMMIT;
