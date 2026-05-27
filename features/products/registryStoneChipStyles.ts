@@ -22,7 +22,7 @@ export const STONE_CHIP_STYLES: Record<string, { bg: string; text: string; dot: 
   LR: { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-300' },
   LA: { bg: 'bg-blue-100', text: 'text-blue-900', dot: 'bg-blue-600' },
   FI: { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-200' },
-  BST: { bg: 'bg-sky-50', text: 'text-sky-700', dot: 'bg-sky-400' },
+  SB: { bg: 'bg-sky-50', text: 'text-sky-700', dot: 'bg-sky-400' },
   XAL: { bg: 'bg-blue-50', text: 'text-blue-600', dot: 'bg-blue-200' },
   KR: { bg: 'bg-orange-50', text: 'text-orange-800', dot: 'bg-orange-400' },
   AX: { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-400' },

@@ -111,7 +111,7 @@ export const DELIVERY_SKU_STONE_TEXT: Record<string, string> = {
   'NF': 'text-green-700', 'CO': 'text-cyan-600', 'TPR': 'text-emerald-500', 'TKO': 'text-rose-600',
   'TMP': 'text-blue-600', 'PCO': 'text-teal-500', 'MCO': 'text-purple-500', 'PAX': 'text-green-600',
   'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-500', 'AP': 'text-cyan-500',
-  'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'BST': 'text-sky-400', 'MP': 'text-blue-400',
+  'AM': 'text-teal-700', 'LR': 'text-indigo-700', 'SB': 'text-sky-400', 'MP': 'text-blue-400',
   'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500', 'MV': 'text-purple-400',
   'RZ': 'text-pink-500', 'AK': 'text-cyan-300', 'XAL': 'text-stone-400', 'SD': 'text-blue-800',
   'AX': 'text-emerald-700'
@@ -139,7 +139,7 @@ export const DELIVERY_SKU_STONE_STYLES: Record<string, string> = {
   'NF': 'bg-green-100 text-green-800 border-green-200', 'CO': 'bg-cyan-100 text-cyan-800 border-cyan-200', 'TPR': 'bg-emerald-100 text-emerald-700 border-emerald-200', 'TKO': 'bg-red-100 text-rose-700 border-red-200',
   'TMP': 'bg-indigo-100 text-indigo-700 border-indigo-200', 'PCO': 'bg-teal-100 text-teal-700 border-teal-200', 'MCO': 'bg-purple-100 text-purple-700 border-purple-200', 'PAX': 'bg-green-100 text-green-700 border-green-200',
   'MAX': 'bg-blue-100 text-blue-800 border-blue-200', 'KAX': 'bg-red-100 text-red-700 border-red-200', 'AI': 'bg-slate-100 text-slate-600 border-slate-200', 'AP': 'bg-cyan-100 text-cyan-700 border-cyan-200',
-  'AM': 'bg-teal-100 text-teal-800 border-teal-200', 'LR': 'bg-indigo-100 text-indigo-700 border-indigo-200', 'BST': 'bg-sky-100 text-sky-700 border-sky-200', 'MP': 'bg-blue-100 text-blue-600 border-blue-200',
+  'AM': 'bg-teal-100 text-teal-800 border-teal-200', 'LR': 'bg-indigo-100 text-indigo-700 border-indigo-200', 'SB': 'bg-sky-100 text-sky-700 border-sky-200', 'MP': 'bg-blue-100 text-blue-600 border-blue-200',
   'LE': 'bg-slate-100 text-slate-600 border-slate-200', 'PR': 'bg-green-100 text-green-600 border-green-200', 'KO': 'bg-red-100 text-red-600 border-red-200', 'MV': 'bg-purple-100 text-purple-500 border-purple-200',
   'RZ': 'bg-pink-100 text-pink-600 border-pink-200', 'AK': 'bg-cyan-100 text-cyan-400 border-cyan-200', 'XAL': 'bg-stone-100 text-stone-600 border-stone-200', 'SD': 'bg-blue-100 text-blue-800 border-blue-200',
   'AX': 'bg-emerald-100 text-emerald-800 border-emerald-200'

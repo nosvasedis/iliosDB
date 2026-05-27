@@ -77,7 +77,7 @@ const getStoneChipStyle = (code: string) => {
         'LR': 'bg-blue-100 text-blue-700',
         'LA': 'bg-blue-200 text-blue-900',
         'FI': 'bg-amber-100 text-amber-700',
-        'BST': 'bg-sky-100 text-sky-700',
+        'SB': 'bg-sky-100 text-sky-700',
         'XAL': 'bg-blue-50 text-blue-600',
         // Men
         'KR': 'bg-orange-100 text-orange-800',
