@@ -4,6 +4,7 @@ import {
   filterOrderNotesFromItemNotes,
   mergeNeedIntoItems,
   mergeSupplierOrderNotes,
+  normalizeSupplierItemNotesForDisplay,
   supplierOrderNotesFromRequirements,
 } from '../../utils/mergeSupplierNeedIntoOrder';
 
@@ -48,6 +49,18 @@ describe('supplier order note merging', () => {
         productionNote: 'Rush',
       },
     ])).toBe('Customer A x1: Use red cord · Rush');
+  });
+
+  it('deduplicates identical line and production notes', () => {
+    expect(supplierOrderNotesFromRequirements([
+      {
+        orderId: 'order-1',
+        customer: 'Customer A',
+        quantity: 1,
+        itemNote: 'KO-PR-KO',
+        productionNote: 'KO-PR-KO',
+      },
+    ])).toBe('Customer A x1: KO-PR-KO');
   });
 
   it('ignores order-level notes when building supplier line notes', () => {
@@ -95,10 +108,22 @@ describe('supplier order note merging', () => {
     ])).toBe('Customer A x3: Use red cord');
   });
 
-  it('strips legacy order note lines from saved item notes for print', () => {
-    expect(filterOrderNotesFromItemNotes(
+  it('strips legacy order note lines and collapses duplicate line/production notes for print', () => {
+    expect(normalizeSupplierItemNotesForDisplay(
       'Customer A x1 - Σημείωση εντολής: Change clasp\nCustomer A x1 - Σημείωση γραμμής: Use red cord',
-    )).toBe('Customer A x1 - Σημείωση γραμμής: Use red cord');
+    )).toBe('Customer A x1: Use red cord');
+
+    expect(normalizeSupplierItemNotesForDisplay(
+      'Customer A x1 - Σημείωση γραμμής: KO-PR-KO\nCustomer A x1 - Σημείωση παραγωγής: KO-PR-KO',
+    )).toBe('Customer A x1: KO-PR-KO');
+
+    expect(normalizeSupplierItemNotesForDisplay(
+      'Customer A x1: KO-PR-KO · KO-PR-KO',
+    )).toBe('Customer A x1: KO-PR-KO');
+
+    expect(filterOrderNotesFromItemNotes(
+      'Customer A x1 - Σημείωση γραμμής: Use red cord\nCustomer A x1 - Σημείωση παραγωγής: Rush',
+    )).toBe('Customer A x1: Use red cord · Rush');
   });
 
   it('keeps manually written notes while adding sourced order notes', () => {

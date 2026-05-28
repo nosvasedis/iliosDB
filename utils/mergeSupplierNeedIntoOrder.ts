@@ -33,6 +33,107 @@ function normalizeNote(note: string | undefined): string | undefined {
     return trimmed || undefined;
 }
 
+function normalizeNoteKey(note: string): string {
+    return note.trim().replace(/\s+/g, ' ').toLocaleLowerCase('el-GR');
+}
+
+function uniqueNoteTexts(...notes: (string | undefined)[]): string[] {
+    const seen = new Set<string>();
+    const unique: string[] = [];
+
+    for (const raw of notes) {
+        const note = normalizeNote(raw);
+        if (!note) continue;
+        const key = normalizeNoteKey(note);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        unique.push(note);
+    }
+
+    return unique;
+}
+
+function combineUniqueNotes(...notes: (string | undefined)[]): string | undefined {
+    const unique = uniqueNoteTexts(...notes);
+    return unique.length ? unique.join(' · ') : undefined;
+}
+
+function splitNoteParts(text: string): string[] {
+    return uniqueNoteTexts(...text.split(/\s*·\s*/));
+}
+
+const LEGACY_LINE_NOTE_RE = /^(.+?)\s+-\s+Σημείωση\s+(?:γραμμής|παραγωγής|εντολής):\s*(.+)$/;
+const CUSTOMER_LINE_NOTE_RE = /^(.+?\sx\d+):\s*(.+)$/;
+
+function parseSupplierNoteLine(line: string): { customerKey: string; noteTexts: string[] } | null {
+    if (line.includes('Σημείωση εντολής:')) return null;
+
+    const legacyMatch = line.match(LEGACY_LINE_NOTE_RE);
+    if (legacyMatch) {
+        return {
+            customerKey: legacyMatch[1].trim(),
+            noteTexts: splitNoteParts(legacyMatch[2]),
+        };
+    }
+
+    const customerMatch = line.match(CUSTOMER_LINE_NOTE_RE);
+    if (customerMatch) {
+        return {
+            customerKey: customerMatch[1].trim(),
+            noteTexts: splitNoteParts(customerMatch[2]),
+        };
+    }
+
+    return { customerKey: '', noteTexts: splitNoteParts(line) };
+}
+
+/** Normalize supplier line notes: drop order notes, dedupe identical line/production notes. */
+export function normalizeSupplierItemNotesForDisplay(notes: string | undefined): string | undefined {
+    if (!notes?.trim()) return undefined;
+
+    const groups = new Map<string, { customerKey: string; order: number; noteOrder: string[]; seen: Set<string> }>();
+    let orderCounter = 0;
+
+    for (const rawLine of notes.split(/\r?\n/)) {
+        const line = rawLine.trim();
+        if (!line) continue;
+
+        const parsed = parseSupplierNoteLine(line);
+        if (!parsed || parsed.noteTexts.length === 0) continue;
+
+        const groupKey = parsed.customerKey.toLocaleLowerCase('el-GR');
+        if (!groups.has(groupKey)) {
+            groups.set(groupKey, {
+                customerKey: parsed.customerKey,
+                order: orderCounter++,
+                noteOrder: [],
+                seen: new Set(),
+            });
+        }
+
+        const group = groups.get(groupKey)!;
+        for (const note of parsed.noteTexts) {
+            const noteKey = normalizeNoteKey(note);
+            if (group.seen.has(noteKey)) continue;
+            group.seen.add(noteKey);
+            group.noteOrder.push(note);
+        }
+    }
+
+    const lines = [...groups.values()]
+        .sort((a, b) => a.order - b.order)
+        .map(({ customerKey, noteOrder }) => {
+            const combined = noteOrder.join(' · ');
+            return customerKey ? `${customerKey}: ${combined}` : combined;
+        })
+        .filter(Boolean);
+
+    return lines.length ? lines.join('\n') : undefined;
+}
+
+/** @deprecated Use normalizeSupplierItemNotesForDisplay */
+export const filterOrderNotesFromItemNotes = normalizeSupplierItemNotesForDisplay;
+
 function noteLinesFromRequirements(
     requirements?: { customer: string; quantity?: number; orderNote?: string; itemNote?: string; productionNote?: string }[]
 ): string[] {
@@ -42,10 +143,7 @@ function noteLinesFromRequirements(
 
     for (const req of requirements) {
         const customer = req.customer?.trim();
-        const noteParts = [req.itemNote, req.productionNote]
-            .map(normalizeNote)
-            .filter((note): note is string => Boolean(note));
-        const combinedNote = noteParts.join(' · ');
+        const combinedNote = combineUniqueNotes(req.itemNote, req.productionNote);
         if (!combinedNote) continue;
 
         const key = `${customer || ''}|${combinedNote}`.toLocaleLowerCase('el-GR');
@@ -61,18 +159,6 @@ function noteLinesFromRequirements(
         const qty = quantity > 0 ? ` x${quantity}` : '';
         return customer ? `${customer}${qty}: ${note}` : note;
     });
-}
-
-/** Strip legacy order-level note lines from item notes (for print/display). */
-export function filterOrderNotesFromItemNotes(notes: string | undefined): string | undefined {
-    if (!notes?.trim()) return undefined;
-
-    const filtered = notes
-        .split(/\r?\n/)
-        .map(line => line.trim())
-        .filter(line => line && !line.includes('Σημείωση εντολής:'));
-
-    return filtered.length ? filtered.join('\n') : undefined;
 }
 
 export function mergeSupplierOrderNotes(a: string | undefined, b: string | undefined): string | undefined {
@@ -98,7 +184,7 @@ export function supplierOrderNotesFromRequirements(
     requirements?: { customer: string; quantity?: number; orderNote?: string; itemNote?: string; productionNote?: string }[]
 ): string | undefined {
     const lines = noteLinesFromRequirements(requirements);
-    return lines.length ? lines.join('\n') : undefined;
+    return normalizeSupplierItemNotesForDisplay(lines.length ? lines.join('\n') : undefined);
 }
 
 export function mergeNeedIntoItems(
@@ -126,7 +212,7 @@ export function mergeNeedIntoItems(
         line.quantity += need.totalQty;
         line.total_cost = 0;
         line.customer_reference = mergeCustomerReferenceStrings(line.customer_reference, refFromNeed);
-        line.notes = mergeSupplierOrderNotes(line.notes, notesFromNeed);
+        line.notes = normalizeSupplierItemNotesForDisplay(mergeSupplierOrderNotes(line.notes, notesFromNeed));
         updated[existingIdx] = line;
         return updated;
     }

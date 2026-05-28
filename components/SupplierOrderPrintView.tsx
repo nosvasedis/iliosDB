@@ -5,7 +5,7 @@ import { APP_LOGO } from '../constants';
 import { ImageIcon } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
-import { filterOrderNotesFromItemNotes } from '../utils/mergeSupplierNeedIntoOrder';
+import { normalizeSupplierItemNotesForDisplay } from '../utils/mergeSupplierNeedIntoOrder';
 
 interface Props {
     order: SupplierOrder;
@@ -160,7 +160,7 @@ export default function SupplierOrderPrintView({ order, products }: Props) {
                                     {/* customer_reference hidden from supplier PDF */}
                                 </div>
                                 {(() => {
-                                    const lineNotes = filterOrderNotesFromItemNotes(item.notes);
+                                    const lineNotes = normalizeSupplierItemNotesForDisplay(item.notes);
                                     return lineNotes ? (
                                         <p className="mt-0.5 pl-1 border-l-2 border-amber-400 text-[8px] leading-[1.25] text-amber-900 italic whitespace-pre-wrap">
                                             {lineNotes}
