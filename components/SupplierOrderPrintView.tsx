@@ -5,6 +5,7 @@ import { APP_LOGO } from '../constants';
 import { ImageIcon } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
+import { filterOrderNotesFromItemNotes } from '../utils/mergeSupplierNeedIntoOrder';
 
 interface Props {
     order: SupplierOrder;
@@ -158,9 +159,14 @@ export default function SupplierOrderPrintView({ order, products }: Props) {
                                     )}
                                     {/* customer_reference hidden from supplier PDF */}
                                 </div>
-                                {item.notes?.trim() && (
-                                    <div className="mt-1 rounded border border-yellow-300 bg-yellow-50 px-1.5 py-1 text-[9px] font-bold leading-snug text-yellow-900 whitespace-pre-wrap">{item.notes}</div>
-                                )}
+                                {(() => {
+                                    const lineNotes = filterOrderNotesFromItemNotes(item.notes);
+                                    return lineNotes ? (
+                                        <p className="mt-0.5 pl-1 border-l-2 border-amber-400 text-[8px] leading-[1.25] text-amber-900 italic whitespace-pre-wrap">
+                                            {lineNotes}
+                                        </p>
+                                    ) : null;
+                                })()}
                             </div>
 
                             {/* Quantity */}

@@ -38,31 +38,41 @@ function noteLinesFromRequirements(
 ): string[] {
     if (!requirements?.length) return [];
 
-    const linesByKey = new Map<string, { customer?: string; label: string; note: string; quantity: number }>();
+    const linesByKey = new Map<string, { customer?: string; note: string; quantity: number }>();
 
     for (const req of requirements) {
         const customer = req.customer?.trim();
-        for (const [label, rawNote] of [
-            ['Σημείωση εντολής', req.orderNote],
-            ['Σημείωση γραμμής', req.itemNote],
-            ['Σημείωση παραγωγής', req.productionNote],
-        ] as const) {
-            const note = normalizeNote(rawNote);
-            if (!note) continue;
-            const key = `${customer || ''}|${label}|${note}`.toLocaleLowerCase('el-GR');
-            const existing = linesByKey.get(key);
-            if (existing) {
-                existing.quantity += req.quantity || 0;
-            } else {
-                linesByKey.set(key, { customer, label, note, quantity: req.quantity || 0 });
-            }
+        const noteParts = [req.itemNote, req.productionNote]
+            .map(normalizeNote)
+            .filter((note): note is string => Boolean(note));
+        const combinedNote = noteParts.join(' · ');
+        if (!combinedNote) continue;
+
+        const key = `${customer || ''}|${combinedNote}`.toLocaleLowerCase('el-GR');
+        const existing = linesByKey.get(key);
+        if (existing) {
+            existing.quantity += req.quantity || 0;
+        } else {
+            linesByKey.set(key, { customer, note: combinedNote, quantity: req.quantity || 0 });
         }
     }
 
-    return [...linesByKey.values()].map(({ customer, label, note, quantity }) => {
+    return [...linesByKey.values()].map(({ customer, note, quantity }) => {
         const qty = quantity > 0 ? ` x${quantity}` : '';
-        return customer ? `${customer}${qty} - ${label}: ${note}` : `${label}${qty}: ${note}`;
+        return customer ? `${customer}${qty}: ${note}` : note;
     });
+}
+
+/** Strip legacy order-level note lines from item notes (for print/display). */
+export function filterOrderNotesFromItemNotes(notes: string | undefined): string | undefined {
+    if (!notes?.trim()) return undefined;
+
+    const filtered = notes
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(line => line && !line.includes('Σημείωση εντολής:'));
+
+    return filtered.length ? filtered.join('\n') : undefined;
 }
 
 export function mergeSupplierOrderNotes(a: string | undefined, b: string | undefined): string | undefined {

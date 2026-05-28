@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { Gender, PlatingType, ProductionType, type Product, type SupplierOrderItem } from '../../types';
-import { mergeNeedIntoItems, mergeSupplierOrderNotes, supplierOrderNotesFromRequirements } from '../../utils/mergeSupplierNeedIntoOrder';
+import {
+  filterOrderNotesFromItemNotes,
+  mergeNeedIntoItems,
+  mergeSupplierOrderNotes,
+  supplierOrderNotesFromRequirements,
+} from '../../utils/mergeSupplierNeedIntoOrder';
 
 const product: Product = {
   sku: 'BDA001',
@@ -32,7 +37,7 @@ const product: Product = {
 };
 
 describe('supplier order note merging', () => {
-  it('builds visible supplier notes from order and line notes', () => {
+  it('builds supplier notes from line and production notes only', () => {
     expect(supplierOrderNotesFromRequirements([
       {
         orderId: 'order-1',
@@ -40,8 +45,20 @@ describe('supplier order note merging', () => {
         quantity: 1,
         orderNote: 'Change clasp',
         itemNote: 'Use red cord',
+        productionNote: 'Rush',
       },
-    ])).toBe('Customer A x1 - Σημείωση εντολής: Change clasp\nCustomer A x1 - Σημείωση γραμμής: Use red cord');
+    ])).toBe('Customer A x1: Use red cord · Rush');
+  });
+
+  it('ignores order-level notes when building supplier line notes', () => {
+    expect(supplierOrderNotesFromRequirements([
+      {
+        orderId: 'order-1',
+        customer: 'Customer A',
+        quantity: 1,
+        orderNote: 'Change clasp',
+      },
+    ])).toBeUndefined();
   });
 
   it('deduplicates notes when multiple needs merge into the same purchase line', () => {
@@ -53,7 +70,7 @@ describe('supplier order note merging', () => {
       quantity: 1,
       unit_cost: 0,
       total_cost: 0,
-      notes: 'Customer A x1 - Σημείωση γραμμής: Use red cord',
+      notes: 'Customer A x1: Use red cord',
     }];
 
     const merged = mergeNeedIntoItems(initial, {
@@ -68,14 +85,20 @@ describe('supplier order note merging', () => {
 
     expect(merged).toHaveLength(1);
     expect(merged[0].quantity).toBe(3);
-    expect(merged[0].notes).toBe('Customer A x1 - Σημείωση γραμμής: Use red cord\nCustomer B x1 - Σημείωση εντολής: Longer chain');
+    expect(merged[0].notes).toBe('Customer A x1: Use red cord');
   });
 
   it('aggregates repeated note quantities for the same customer and note text', () => {
     expect(supplierOrderNotesFromRequirements([
       { orderId: 'order-1', customer: 'Customer A', quantity: 1, itemNote: 'Use red cord' },
       { orderId: 'order-1', customer: 'Customer A', quantity: 2, itemNote: 'Use red cord' },
-    ])).toBe('Customer A x3 - Σημείωση γραμμής: Use red cord');
+    ])).toBe('Customer A x3: Use red cord');
+  });
+
+  it('strips legacy order note lines from saved item notes for print', () => {
+    expect(filterOrderNotesFromItemNotes(
+      'Customer A x1 - Σημείωση εντολής: Change clasp\nCustomer A x1 - Σημείωση γραμμής: Use red cord',
+    )).toBe('Customer A x1 - Σημείωση γραμμής: Use red cord');
   });
 
   it('keeps manually written notes while adding sourced order notes', () => {
