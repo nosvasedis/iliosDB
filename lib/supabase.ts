@@ -169,6 +169,25 @@ async function fetchWithTimeout(query: any, timeoutMs: number = 3000): Promise<a
     return Promise.race([query, timeoutPromise]);
 }
 
+/** Stable pagination order — without this, newly inserted rows land on later pages and vanish when a page times out. */
+const TABLE_DEFAULT_ORDER: Record<string, (query: any) => any> = {
+    products: (q) => q.order('sku'),
+    product_variants: (q) => q.order('product_sku').order('suffix'),
+    recipes: (q) => q.order('parent_sku'),
+    product_molds: (q) => q.order('product_sku').order('mold_code'),
+    product_collections: (q) => q.order('product_sku').order('collection_id'),
+    product_stock: (q) => q.order('product_sku').order('variant_suffix', { nullsFirst: true }),
+};
+
+const TABLE_PAGE_TIMEOUT_MS: Record<string, number> = {
+    products: 12000,
+    product_variants: 12000,
+    recipes: 10000,
+    product_stock: 10000,
+};
+
+const FETCH_PAGE_RETRIES = 3;
+
 function blobToDataUrl(blob: Blob): Promise<string> {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -293,23 +312,38 @@ async function fetchFullTable(tableName: string, select: string = '*', filter?: 
             let from = 0;
             let to = 999;
             let hasMore = true;
+            const pageTimeoutMs = TABLE_PAGE_TIMEOUT_MS[tableName] ?? 4000;
+            const applyOrder = filter ?? TABLE_DEFAULT_ORDER[tableName];
 
             while (hasMore) {
                 let query = supabase.from(tableName).select(select).range(from, to);
-                if (filter) query = filter(query);
-                const { data, error } = await fetchWithTimeout(query, 4000);
-                if (error) throw error;
-                if (data && data.length > 0) {
-                    allData = [...allData, ...data];
-                    if (data.length < 1000) hasMore = false;
+                if (applyOrder) query = applyOrder(query);
+
+                let lastErr: unknown = null;
+                let pageData: any[] | null = null;
+                for (let attempt = 0; attempt < FETCH_PAGE_RETRIES; attempt++) {
+                    try {
+                        const { data, error } = await fetchWithTimeout(query, pageTimeoutMs);
+                        if (error) throw error;
+                        pageData = data;
+                        lastErr = null;
+                        break;
+                    } catch (err) {
+                        lastErr = err;
+                    }
+                }
+                if (lastErr) throw lastErr;
+
+                if (pageData && pageData.length > 0) {
+                    allData = [...allData, ...pageData];
+                    if (pageData.length < 1000) hasMore = false;
                     else { from += 1000; to += 1000; }
                 } else hasMore = false;
             }
             baseData = allData;
-            if (select === '*') {
-                offlineDb.saveTable(tableName, allData);
-            }
+            offlineDb.saveTable(tableName, allData);
         } catch (err) {
+            console.warn(`fetchFullTable fallback to offline cache [${tableName}]:`, err);
             baseData = await offlineDb.getTable(tableName) || [];
         }
     }
@@ -814,15 +848,15 @@ export const api = {
     },
 
     getProducts: async (): Promise<Product[]> => {
-        const prodData = await fetchFullTable('products', '*, suppliers(*)');
+        const prodData = await fetchFullTable('products', '*, suppliers(*)', (q) => q.order('sku'));
         if (!prodData || prodData.length === 0) return [];
 
         const [varData, recData, prodMoldsData, prodCollData, stockData] = await Promise.all([
-            fetchFullTable('product_variants'),
-            fetchFullTable('recipes'),
-            fetchFullTable('product_molds'),
-            fetchFullTable('product_collections'),
-            fetchFullTable('product_stock')
+            fetchFullTable('product_variants', '*', (q) => q.order('product_sku').order('suffix')),
+            fetchFullTable('recipes', '*', (q) => q.order('parent_sku')),
+            fetchFullTable('product_molds', '*', (q) => q.order('product_sku').order('mold_code')),
+            fetchFullTable('product_collections', '*', (q) => q.order('product_sku').order('collection_id')),
+            fetchFullTable('product_stock', '*', (q) => q.order('product_sku').order('variant_suffix', { nullsFirst: true }))
         ]);
         return mapProductsWithRelations(
             prodData as any,
