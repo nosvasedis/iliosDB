@@ -4,6 +4,7 @@ import type { Product, Supplier } from '../types';
 import { ProductionStage, ProductionType } from '../types';
 import { productionKeys, productionRepository } from '../features/production';
 import { api } from '../lib/supabase';
+import { useOrdersWithItems } from './api/useOrders';
 
 /** One contribution line (batch or order item) feeding a grouped SKU row. */
 export type SupplierOrderNeedRequirement = {
@@ -48,7 +49,7 @@ export function useSupplierOrderNeeds(supplier: Supplier) {
         queryKey: productionKeys.batches(),
         queryFn: productionRepository.getProductionBatches,
     });
-    const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
+    const { data: orders } = useOrdersWithItems();
 
     const productionNeeds = useMemo((): SupplierOrderGroupedNeed[] => {
         if (!productionBatches || !products || !orders) return [];

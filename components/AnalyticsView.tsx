@@ -3,6 +3,7 @@ import React, { useMemo } from 'react';
 import { Order, Product, OrderStatus, Gender, GlobalSettings } from '../types';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
+import { useOrdersWithItems } from '../hooks/api/useOrders';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     PieChart, Pie, Cell, AreaChart, Area, ComposedChart, Line
@@ -28,7 +29,7 @@ interface Props {
 const COLORS = ['#059669', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
 
 export default function AnalyticsView({ products, onBack, onPrint }: Props) {
-    const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
+    const { data: orders } = useOrdersWithItems();
     const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
     const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
     const [showHelp, setShowHelp] = React.useState(false);

@@ -29,7 +29,7 @@ import SkuOrderSearchModal from './orders/SkuOrderSearchModal';
 import TransferRemainingItemsModal from './TransferRemainingItemsModal';
 import ShipmentSelectorModal from './ShipmentSelectorModal';
 import { useCollections } from '../hooks/api/useCollections';
-import { useAllShipmentItems, useAllShipments, useCustomers, useOrderShipmentsForOrder, useOrders } from '../hooks/api/useOrders';
+import { useAllShipmentItems, useAllShipments, useCustomers, useOrderShipmentsForOrder, useOrdersWithItems } from '../hooks/api/useOrders';
 import { useProductionBatches } from '../hooks/api/useProductionBatches';
 import { ordersRepository } from '../features/orders';
 import DesktopPageHeader from './DesktopPageHeader';
@@ -935,7 +935,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     const queryClient = ReactQuery.useQueryClient();
     const { showToast, confirm } = useUI();
     const { profile } = useAuth();
-    const { data: orders, isLoading: loadingOrders, isError: ordersError, error: ordersErr, refetch: refetchOrders } = useOrders();
+    const { data: orders, isLoading: loadingOrders, isError: ordersError, error: ordersErr, refetch: refetchOrders } = useOrdersWithItems();
     const { data: customers } = useCustomers();
     const { data: batches, isLoading: loadingBatches, isError: batchesError, error: batchesErr, refetch: refetchBatches } = useProductionBatches();
     const { data: collections } = useCollections();
@@ -1707,7 +1707,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                 #{order.id}
                                             </div>
                                             <div className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-slate-400">
-                                                <Package size={12} /> {order.items.reduce((sum, item) => sum + (item.quantity || 0), 0)} τεμ.
+                                                <Package size={12} /> {(order.item_total_qty ?? order.items.reduce((sum, item) => sum + (item.quantity || 0), 0))} τεμ.
                                             </div>
                                             {order.seller_name && (() => {
                                                 const sellerColors = [

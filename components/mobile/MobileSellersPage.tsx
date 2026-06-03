@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../../lib/supabase';
+import { useQueryClient } from '@tanstack/react-query';
+import { useOrdersWithItems } from '../../hooks/api/useOrders';
 import { UserCheck, Search, Plus, X, Mail, Lock, Percent, Pencil, ToggleLeft, ToggleRight, Eye, EyeOff, KeyRound, TrendingUp, ShoppingCart, DollarSign, ArrowUpRight, ArrowDownRight, Minus, ChevronLeft } from 'lucide-react';
 import MobileScreenHeader from './MobileScreenHeader';
 import { UserProfile, Order, OrderStatus } from '../../types';
@@ -90,7 +90,7 @@ export default function MobileSellersPage() {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
   const { data: sellers, isLoading } = useSellers();
-  const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
+  const { data: orders } = useOrdersWithItems();
 
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);

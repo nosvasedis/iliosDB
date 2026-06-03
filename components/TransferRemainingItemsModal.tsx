@@ -29,7 +29,7 @@ import {
   Info,
 } from 'lucide-react';
 import { Order, OrderStatus, ProductionStage } from '../types';
-import { useOrders, useOrderShipmentsForOrder } from '../hooks/api/useOrders';
+import { useOrdersWithItems, useOrderShipmentsForOrder } from '../hooks/api/useOrders';
 import { useProductionBatches } from '../hooks/api/useProductionBatches';
 import { useAuth } from './AuthContext';
 import { buildTransferPlan, TransferPlan } from '../features/orders/transferHelpers';
@@ -81,7 +81,7 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
 
   // ── Data Hooks ────────────────────────────────────────────────────────────
   // staleTime: 0 ensures we always read fresh data for safety-critical operations.
-  const { data: allOrders = [] } = useOrders();
+  const { data: allOrders = [] } = useOrdersWithItems({ staleTime: 0, refetchOnMount: 'always' });
   const { data: batchesData } = useProductionBatches();
   const allBatches = batchesData ?? [];
 
@@ -324,7 +324,7 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
                           </span>
                         </div>
                         <div className="text-sm font-semibold text-slate-800 mt-1">
-                          {o.items.length} είδη · {formatCurrency(o.total_price)}
+                          {(o.item_count ?? o.items.length)} είδη · {formatCurrency(o.total_price)}
                         </div>
                         <div className="text-xs text-slate-400 mt-0.5">
                           {new Date(o.created_at).toLocaleDateString('el-GR')}

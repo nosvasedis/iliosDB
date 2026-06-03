@@ -11,11 +11,12 @@ import { buildItemIdentityKey } from '../utils/itemIdentity';
 import { formatShipmentIssueLine, hasBlockingShipmentIssues, validateReadyMatchesRemainingForTransfer, validateShipmentRequest } from '../utils/shipmentSafety';
 import { isSpecialCreationSku } from '../utils/specialCreationSku';
 import { assignMissingOrderLineIds } from '../utils/orderItemMatch';
-import { buildOrderShipmentItemKey, buildStockDeductionEntries, checkStockForOrderItems as checkStockForOrderItemsHelper, getOrderShipmentsSnapshotFromTables, getOrderSnapshotById as getOrderSnapshotByIdHelper } from '../features/orders/supabaseHelpers';
+import { buildOrderShipmentItemKey, buildStockDeductionEntries, checkStockForOrderItems as checkStockForOrderItemsHelper, getOrderShipmentsSnapshotFromTables } from '../features/orders/supabaseHelpers';
 import { planShipmentBatchRestores } from '../features/orders/shipmentRevertHelpers';
 import { buildTransferPlan } from '../features/orders/transferHelpers';
-import { buildInitialBatchHistoryEntry, canMoveBatchToStage as canMoveBatchToStageHelper, getBatchSnapshotById } from '../features/production/supabaseHelpers';
-import { mapCatalogProductsWithRelations, mapProductsWithRelations, resolveProductImageUrl } from '../features/products/mappers';
+import { buildInitialBatchHistoryEntry, canMoveBatchToStage as canMoveBatchToStageHelper } from '../features/production/supabaseHelpers';
+import { mapCatalogProductsWithRelations, mapProductsWithRelations, resolveProductImageUrl, attachSuppliersToProductRows } from '../features/products/mappers';
+import { getRegisteredQueryClient } from './queryClientRegistry';
 import { addReceivedSizeQuantity, resolveSupplierOrderProductReceiptTarget } from '../features/suppliers/receiptHelpers';
 
 // Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
@@ -397,28 +398,153 @@ async function fetchFullTable(tableName: string, select: string = '*', filter?: 
     return mergedData;
 }
 
+const ORDER_LIST_SELECT = [
+    'id', 'customer_id', 'customer_name', 'customer_phone', 'seller_id', 'seller_name',
+    'status', 'total_price', 'notes', 'created_at', 'vat_rate', 'discount_percent',
+    'tags', 'is_archived', 'custom_silver_rate', 'seller_commission_percent',
+    'item_count', 'item_total_qty',
+].join(',');
+
+async function fetchRowsByFilter(
+    tableName: string,
+    select: string,
+    applyFilter: (query: any) => any,
+    options?: {
+        single?: boolean;
+        order?: (query: any) => any;
+        localFilter?: (row: any) => boolean;
+    },
+): Promise<any> {
+    if (isLocalMode || !navigator.onLine) {
+        let rows = (await offlineDb.getTable(tableName)) || [];
+        if (options?.localFilter) rows = rows.filter(options.localFilter);
+        if (options?.single) return rows[0] ?? null;
+        return rows;
+    }
+
+    try {
+        let query = supabase.from(tableName).select(select);
+        query = applyFilter(query);
+        if (options?.order) query = options.order(query);
+        const timeoutMs = TABLE_PAGE_TIMEOUT_MS[tableName] ?? 4000;
+        const { data, error } = await fetchWithTimeout(
+            options?.single ? query.maybeSingle() : query,
+            timeoutMs,
+        );
+        if (error) throw error;
+        return data ?? (options?.single ? null : []);
+    } catch (err) {
+        console.warn(`fetchRowsByFilter fallback [${tableName}]:`, err);
+        let rows = (await offlineDb.getTable(tableName)) || [];
+        if (options?.localFilter) rows = rows.filter(options.localFilter);
+        if (options?.single) return rows[0] ?? null;
+        return rows;
+    }
+}
+
+async function fetchBatchesByIds(batchIds: string[]): Promise<ProductionBatch[]> {
+    if (batchIds.length === 0) return [];
+    if (isLocalMode || !navigator.onLine) {
+        const all = (await offlineDb.getTable('production_batches')) || [];
+        const idSet = new Set(batchIds);
+        return all.filter((batch: ProductionBatch) => idSet.has(batch.id));
+    }
+    const { data, error } = await supabase.from('production_batches').select('*').in('id', batchIds);
+    if (error) throw error;
+    return (data || []) as ProductionBatch[];
+}
+
+async function fetchBatchesByOrderId(orderId: string): Promise<ProductionBatch[]> {
+    return fetchRowsByFilter(
+        'production_batches',
+        '*',
+        (query) => query.eq('order_id', orderId),
+        { localFilter: (row) => row.order_id === orderId },
+    ) as Promise<ProductionBatch[]>;
+}
+
+async function fetchBatchesByOrderIds(orderIds: string[]): Promise<ProductionBatch[]> {
+    if (orderIds.length === 0) return [];
+    const unique = Array.from(new Set(orderIds));
+    if (isLocalMode || !navigator.onLine) {
+        const idSet = new Set(unique);
+        const all = (await offlineDb.getTable('production_batches')) || [];
+        return all.filter((batch: ProductionBatch) => idSet.has(batch.order_id));
+    }
+    const { data, error } = await supabase.from('production_batches').select('*').in('order_id', unique);
+    if (error) throw error;
+    return (data || []) as ProductionBatch[];
+}
+
+function mapOrderListRow(row: Record<string, unknown>): Order {
+    return {
+        ...(row as Order),
+        items: [],
+        item_count: Number(row.item_count ?? 0),
+        item_total_qty: Number(row.item_total_qty ?? 0),
+    };
+}
+
+async function getCachedProducts(): Promise<Product[] | null> {
+    return getRegisteredQueryClient()?.getQueryData<Product[]>(['products']) ?? null;
+}
+
+async function getCachedMaterials(): Promise<Material[] | null> {
+    return getRegisteredQueryClient()?.getQueryData<Material[]>(['materials']) ?? null;
+}
+
 async function getOrderShipmentsSnapshot(orderId: string): Promise<{ shipments: OrderShipment[]; items: OrderShipmentItem[] }> {
-    const [shipments, items] = await Promise.all([
-        fetchFullTable('order_shipments'),
-        fetchFullTable('order_shipment_items')
-    ]);
-    return getOrderShipmentsSnapshotFromTables(shipments as OrderShipment[], items as OrderShipmentItem[], orderId);
+    const shipments = await fetchRowsByFilter(
+        'order_shipments',
+        '*',
+        (query) => query.eq('order_id', orderId),
+        {
+            order: (query) => query.order('created_at', { ascending: true }),
+            localFilter: (row) => row.order_id === orderId,
+        },
+    ) as OrderShipment[];
+
+    const shipmentIds = shipments.map((shipment) => shipment.id);
+    if (shipmentIds.length === 0) {
+        return { shipments, items: [] };
+    }
+
+    let items: OrderShipmentItem[] = [];
+    if (isLocalMode || !navigator.onLine) {
+        const allItems = (await offlineDb.getTable('order_shipment_items')) || [];
+        const idSet = new Set(shipmentIds);
+        items = allItems.filter((item: OrderShipmentItem) => idSet.has(item.shipment_id));
+    } else {
+        const { data, error } = await supabase.from('order_shipment_items').select('*').in('shipment_id', shipmentIds);
+        if (error) throw error;
+        items = (data || []) as OrderShipmentItem[];
+    }
+
+    return getOrderShipmentsSnapshotFromTables(shipments, items, orderId);
 }
 
 async function getBatchSnapshot(batchId: string): Promise<ProductionBatch | null> {
-    const batches = await fetchFullTable('production_batches');
-    return getBatchSnapshotById(batches as ProductionBatch[], batchId);
+    return fetchRowsByFilter(
+        'production_batches',
+        '*',
+        (query) => query.eq('id', batchId),
+        { single: true, localFilter: (row) => row.id === batchId },
+    ) as Promise<ProductionBatch | null>;
 }
 
 async function getOrderSnapshot(orderId: string): Promise<Order | null> {
-    const orders = await fetchFullTable('orders');
-    return getOrderSnapshotByIdHelper(orders as Order[], orderId);
+    return fetchRowsByFilter(
+        'orders',
+        '*',
+        (query) => query.eq('id', orderId),
+        { single: true, localFilter: (row) => row.id === orderId },
+    ) as Promise<Order | null>;
 }
 
 async function restoreStockForBatch(batch: ProductionBatch): Promise<void> {
     if (batch.type !== 'Από Stock') return;
 
-    const products = await api.getProducts();
+    const products = (await getCachedProducts()) ?? await api.getProducts();
     const product = products.find((item) => item.sku === batch.sku);
     if (!product) {
         throw new Error(`Δεν βρέθηκε προϊόν για επαναφορά stock (${batch.sku}).`);
@@ -470,12 +596,12 @@ async function syncOrderStatusAfterBatchChange(orderId?: string): Promise<void> 
 
     const [order, batches] = await Promise.all([
         getOrderSnapshot(orderId),
-        fetchFullTable('production_batches')
+        fetchBatchesByOrderId(orderId),
     ]);
 
     if (!order) return;
 
-    const remainingBatches = (batches as ProductionBatch[]).filter((batch) => batch.order_id === orderId);
+    const remainingBatches = batches as ProductionBatch[];
 
     if (remainingBatches.length === 0) {
         if (order.status === OrderStatus.InProduction || order.status === OrderStatus.Ready) {
@@ -848,8 +974,13 @@ export const api = {
     },
 
     getProducts: async (): Promise<Product[]> => {
-        const prodData = await fetchFullTable('products', '*, suppliers(*)', (q) => q.order('sku'));
+        const [prodData, suppliersData] = await Promise.all([
+            fetchFullTable('products', '*', (q) => q.order('sku')),
+            fetchFullTable('suppliers', '*', (q) => q.order('name')),
+        ]);
         if (!prodData || prodData.length === 0) return [];
+
+        const prodWithSuppliers = attachSuppliersToProductRows(prodData as any[], suppliersData as any[]);
 
         const [varData, recData, prodMoldsData, prodCollData, stockData] = await Promise.all([
             fetchFullTable('product_variants', '*', (q) => q.order('product_sku').order('suffix')),
@@ -859,7 +990,7 @@ export const api = {
             fetchFullTable('product_stock', '*', (q) => q.order('product_sku').order('variant_suffix', { nullsFirst: true }))
         ]);
         return mapProductsWithRelations(
-            prodData as any,
+            prodWithSuppliers as any,
             {
                 variants: varData as any,
                 recipes: recData as any,
@@ -884,20 +1015,25 @@ export const api = {
             return { products, hasMore: offset + limit < all.length };
         }
         try {
-            const { data: prodData, error: prodErr } = await fetchWithTimeout(
-                supabase.from('products').select('*, suppliers(*)').order('sku').range(offset, offset + limit - 1),
-                6000
-            );
+            const [prodRes, suppliersRes] = await Promise.all([
+                fetchWithTimeout(
+                    supabase.from('products').select('*').order('sku').range(offset, offset + limit - 1),
+                    6000,
+                ),
+                fetchFullTable('suppliers', '*', (q) => q.order('name')),
+            ]);
+            const { data: prodData, error: prodErr } = prodRes;
             if (prodErr) throw prodErr;
             if (!prodData || prodData.length === 0) return { products: [], hasMore: false };
-            const skus = prodData.map((p: any) => p.sku);
+            const prodWithSuppliers = attachSuppliersToProductRows(prodData as any[], suppliersRes as any[]);
+            const skus = prodWithSuppliers.map((p: any) => p.sku);
             const [varRes, collRes, stockRes] = await Promise.all([
                 supabase.from('product_variants').select('*').in('product_sku', skus),
                 supabase.from('product_collections').select('*').in('product_sku', skus),
                 supabase.from('product_stock').select('*').in('product_sku', skus)
             ]);
             const products: Product[] = mapCatalogProductsWithRelations(
-                prodData as any,
+                prodWithSuppliers as any,
                 {
                     variants: varRes.data || [],
                     collections: collRes.data || [],
@@ -932,6 +1068,19 @@ export const api = {
         await api.ensureRetailCustomer();
         const list = await fetchFullTable('customers', '*', (q) => q.order('full_name'));
         return (list as Customer[]).sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '', 'el', { sensitivity: 'base' }));
+    },
+
+    getOrdersList: async (): Promise<Order[]> => {
+        const rows = await fetchFullTable(
+            'orders',
+            ORDER_LIST_SELECT,
+            (q) => q.order('created_at', { ascending: false }),
+        );
+        return rows.map((row) => mapOrderListRow(row));
+    },
+
+    getOrderById: async (orderId: string): Promise<Order | null> => {
+        return getOrderSnapshot(orderId);
     },
 
     getOrders: async (): Promise<Order[]> => {
@@ -1235,8 +1384,12 @@ export const api = {
     },
 
     getOrderShipmentItems: async (shipmentId: string): Promise<OrderShipmentItem[]> => {
-        const items = await fetchFullTable('order_shipment_items');
-        return (items as OrderShipmentItem[]).filter((item) => item.shipment_id === shipmentId);
+        return fetchRowsByFilter(
+            'order_shipment_items',
+            '*',
+            (query) => query.eq('shipment_id', shipmentId),
+            { localFilter: (row) => row.shipment_id === shipmentId },
+        ) as Promise<OrderShipmentItem[]>;
     },
 
     getAllOrderShipmentItems: async (): Promise<OrderShipmentItem[]> => {
@@ -1615,8 +1768,7 @@ export const api = {
         }
 
         const now = new Date().toISOString();
-        const allBatches = await fetchFullTable('production_batches');
-        const selectedBatches = (allBatches as ProductionBatch[]).filter((batch) => uniqueIds.includes(batch.id));
+        const selectedBatches = await fetchBatchesByIds(uniqueIds);
 
         const movableBatches = selectedBatches.filter((batch) => canMoveBatchToStageHelper(batch, stage));
         if (movableBatches.length === 0) {
@@ -1679,10 +1831,16 @@ export const api = {
 
     // Batch History
     getBatchHistory: async (batchId: string): Promise<BatchStageHistoryEntry[]> => {
-        const history = await fetchFullTable('batch_stage_history');
-        return (history as BatchStageHistoryEntry[])
-            .filter((entry) => entry.batch_id === batchId)
-            .sort((a, b) => new Date(a.moved_at).getTime() - new Date(b.moved_at).getTime());
+        const history = await fetchRowsByFilter(
+            'batch_stage_history',
+            '*',
+            (query) => query.eq('batch_id', batchId),
+            {
+                order: (query) => query.order('moved_at', { ascending: true }),
+                localFilter: (row) => row.batch_id === batchId,
+            },
+        ) as BatchStageHistoryEntry[];
+        return history.sort((a, b) => new Date(a.moved_at).getTime() - new Date(b.moved_at).getTime());
     },
 
     logBatchHistory: async (batchId: string, fromStage: ProductionStage | null, toStage: ProductionStage, userName: string, notes?: string): Promise<void> => {
@@ -1844,7 +2002,11 @@ export const api = {
     // isNewPart=true  → new batches get a fresh timestamp (appear as a separate part in history)
     // isNewPart=false → new batches inherit the earliest existing batch timestamp (stay in same group)
     // isNewPart=undefined → fresh timestamp (legacy / called without user choice)
-    reconcileOrderBatches: async (order: Order, isNewPart?: boolean): Promise<void> => {
+    reconcileOrderBatches: async (
+        order: Order,
+        isNewPart?: boolean,
+        deps?: { products?: Product[]; materials?: Material[] },
+    ): Promise<void> => {
         try {
             // 1. Fetch existing batches
             let existingBatches: any[] = [];
@@ -1861,9 +2023,9 @@ export const api = {
                 return;
             }
 
-            // 2. Fetch dependencies
-            const allProducts = await api.getProducts();
-            const allMaterials = await api.getMaterials();
+            // 2. Fetch dependencies (prefer in-memory React Query cache)
+            const allProducts = deps?.products ?? (await getCachedProducts()) ?? await api.getProducts();
+            const allMaterials = deps?.materials ?? (await getCachedMaterials()) ?? await api.getMaterials();
             const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
             const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
 
@@ -2297,7 +2459,7 @@ export const api = {
             throw new Error('Δεν μπορεί να γίνει πλήρης επαναφορά παραγωγής σε παραγγελία με καταχωρημένες αποστολές.');
         }
 
-        const orderBatches = (await fetchFullTable('production_batches') as ProductionBatch[]).filter((batch) => batch.order_id === orderId);
+        const orderBatches = await fetchBatchesByOrderId(orderId);
         for (const batch of orderBatches) {
             await restoreStockForBatch(batch);
         }
@@ -2387,6 +2549,7 @@ export const api = {
 
         let syncedCount = 0;
         let failedCount = 0;
+        const syncedTables = new Set<string>();
         for (const item of queue) {
             try {
                 let query;
@@ -2434,6 +2597,7 @@ export const api = {
                 if (!error) {
                     await offlineDb.dequeue(item.id);
                     syncedCount++;
+                    syncedTables.add(item.table);
                 } else {
                     failedCount++;
                     const errCode = error.code || '';
@@ -2454,7 +2618,8 @@ export const api = {
             syncedCount,
             failedCount,
             remainingCount: await offlineDb.getQueueCount(),
-            wasQueueEmpty: false
+            wasQueueEmpty: false,
+            syncedTables: [...syncedTables],
         };
     },
 
@@ -2783,7 +2948,7 @@ export const api = {
             return { success: false, rolledBack: true, error: 'Η μεταφορά μπλοκαρίστηκε: δεν βρέθηκε μία από τις δύο παραγγελίες.' };
         }
         const freshSnapshotA = await getOrderShipmentsSnapshot(params.orderA.id);
-        const freshBatches = await fetchFullTable('production_batches') as ProductionBatch[];
+        const freshBatches = await fetchBatchesByOrderIds([params.orderA.id, params.orderB.id]);
         const transferIssues = validateReadyMatchesRemainingForTransfer(freshOrderA, freshSnapshotA.items, freshBatches);
         if (hasBlockingShipmentIssues(transferIssues)) {
             return {

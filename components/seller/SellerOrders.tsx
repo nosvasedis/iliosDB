@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../../lib/supabase';
+import { useQueryClient } from '@tanstack/react-query';
+import { useOrdersWithItems } from '../../hooks/api/useOrders';
 import { Order, OrderStatus } from '../../types';
 import { useAuth } from '../AuthContext';
 import { useUI } from '../UIProvider';
@@ -118,7 +118,7 @@ export default function SellerOrders({ onCreate, onEdit }: Props) {
     const { user, profile } = useAuth();
     const { confirm, showToast } = useUI();
     const queryClient = useQueryClient();
-    const { data: orders, isLoading } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
+    const { data: orders, isLoading } = useOrdersWithItems();
     const [search, setSearch] = useState('');
     const [activeFilter, setActiveFilter] = useState<'all' | OrderStatus>('all');
 

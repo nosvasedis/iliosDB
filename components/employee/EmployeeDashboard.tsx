@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { Product, Order, OrderStatus } from '../../types';
 import { ShoppingCart, Clock, CheckCircle, Package, Truck, Search, Plus, XCircle } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useOrdersWithItems } from '../../hooks/api/useOrders';
 import { api } from '../../lib/supabase';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { getOrderStatusClasses, getOrderStatusLabel } from '../../features/orders/statusPresentation';
@@ -24,7 +24,7 @@ const StatCard = ({ title, value, icon, color }: { title: string, value: string,
 );
 
 export default function EmployeeDashboard({ onNavigate }: Props) {
-    const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
+    const { data: orders } = useOrdersWithItems();
 
     const stats = useMemo(() => {
         if (!orders) return { pending: 0, todaySales: 0, ready: 0 };

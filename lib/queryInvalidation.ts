@@ -35,10 +35,10 @@ const REALTIME_TABLE_DOMAINS: Record<string, RealtimeInvalidationDomain[]> = {
     product_collections: ['products', 'collections'],
     stock_movements: ['products'],
     collections: ['collections', 'products'],
-    materials: ['resources', 'products'],
-    molds: ['resources', 'products'],
-    warehouses: ['resources', 'products'],
-    global_settings: ['settings', 'products'],
+    materials: ['resources'],
+    molds: ['resources'],
+    warehouses: ['resources'],
+    global_settings: ['settings'],
     orders: ['orders', 'deliveries'],
     order_shipments: ['orders', 'deliveries'],
     order_shipment_items: ['orders', 'deliveries'],
@@ -85,6 +85,8 @@ export function invalidateCollections(queryClient: QueryClient): Promise<void> {
 export function invalidateOrders(queryClient: QueryClient): Promise<void> {
     return Promise.all([
         queryClient.invalidateQueries({ queryKey: orderKeys.all }),
+        queryClient.invalidateQueries({ queryKey: orderKeys.list() }),
+        queryClient.invalidateQueries({ queryKey: orderKeys.productionBoard() }),
         queryClient.invalidateQueries({ queryKey: orderKeys.shipments() }),
         queryClient.invalidateQueries({ queryKey: orderKeys.shipmentItems() }),
         queryClient.invalidateQueries({ queryKey: ['order-shipments'] }),
@@ -139,12 +141,18 @@ export function invalidateOffers(queryClient: QueryClient): Promise<void> {
 
 /** Refetch the production batch list only (no stage-history table). */
 export function invalidateProductionBatchList(queryClient: QueryClient): Promise<void> {
-    return queryClient.invalidateQueries({ queryKey: productionKeys.batches() }).then(() => undefined);
+    return Promise.all([
+        queryClient.invalidateQueries({ queryKey: productionKeys.batches() }),
+        queryClient.invalidateQueries({ queryKey: productionKeys.boardBatches() }),
+    ]).then(() => undefined);
 }
 
 /** Refetch batch stage history only. */
 export function invalidateBatchStageHistory(queryClient: QueryClient): Promise<void> {
-    return queryClient.invalidateQueries({ queryKey: productionKeys.batchHistoryEntries() }).then(() => undefined);
+    return Promise.all([
+        queryClient.invalidateQueries({ queryKey: productionKeys.batchHistoryEntries() }),
+        queryClient.invalidateQueries({ queryKey: productionKeys.boardBatchHistoryEntries() }),
+    ]).then(() => undefined);
 }
 
 /** Full production invalidation for mutations that may affect batches and history together. */
@@ -178,7 +186,7 @@ function invalidateProductionFromRealtime(
 
 export function invalidateOrdersAndBatches(queryClient: QueryClient): Promise<void> {
     return Promise.all([
-        queryClient.invalidateQueries({ queryKey: orderKeys.all }),
+        invalidateOrders(queryClient),
         invalidateProductionBatches(queryClient),
     ]).then(() => undefined);
 }
@@ -208,7 +216,10 @@ export async function invalidateAndRefetchAfterShipmentChange(
     await invalidateShipmentUndoQueries(queryClient, orderId);
     await Promise.all([
         queryClient.refetchQueries({ queryKey: orderKeys.all, type: 'active' }),
+        queryClient.refetchQueries({ queryKey: orderKeys.list(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: orderKeys.productionBoard(), type: 'active' }),
         queryClient.refetchQueries({ queryKey: productionKeys.batches(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: productionKeys.boardBatches(), type: 'active' }),
         queryClient.refetchQueries({ queryKey: orderKeys.shipments(), type: 'active' }),
         queryClient.refetchQueries({ queryKey: orderKeys.shipmentItems(), type: 'active' }),
         queryClient.refetchQueries({ queryKey: deliveryKeys.shipments(), type: 'active' }),

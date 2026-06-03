@@ -6,6 +6,7 @@ import { useUI } from './UIProvider';
 import { api, SYSTEM_IDS, recordStockMovement, supabase } from '../lib/supabase';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useOrdersWithItems } from '../hooks/api/useOrders';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import BarcodeScanner from './BarcodeScanner';
 import { formatCurrency, formatDecimal, analyzeSku, getVariantComponents, findProductByScannedCode, transliterateForBarcode, splitSkuComponents, expandSkuRange } from '../utils/pricingEngine';
@@ -354,7 +355,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
     const [viewWarehouseId, setViewWarehouseId] = useState<string>('ALL');
     const [showScanner, setShowScanner] = useState(false);
     const { data: warehouses } = useQuery({ queryKey: ['warehouses'], queryFn: api.getWarehouses });
-    const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
+    const { data: orders } = useOrdersWithItems();
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const [isEditingWarehouse, setIsEditingWarehouse] = useState(false);

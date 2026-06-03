@@ -5,6 +5,9 @@ import { QueryClient } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 import { UIProvider } from './components/UIProvider';
+import { registerQueryClient } from './lib/queryClientRegistry';
+import { productionKeys } from './features/production/keys';
+import { orderKeys } from './features/orders/keys';
 import {
   finalizeChunkRecoveryNavigation,
   isChunkLoadError,
@@ -13,16 +16,34 @@ import {
 
 const PERSIST_CACHE_KEY = 'ilios-react-query-cache';
 const ONE_DAY_MS = 1000 * 60 * 60 * 24;
+const THIRTY_MINUTES_MS = 1000 * 60 * 30;
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // Data is fresh for 5 minutes
-      gcTime: ONE_DAY_MS, // Keep cache 24h so persisted data is not GC'd before restore
+      staleTime: THIRTY_MINUTES_MS,
+      gcTime: ONE_DAY_MS,
       refetchOnWindowFocus: false,
     },
   },
 });
+
+registerQueryClient(queryClient);
+
+const PERSISTED_QUERY_ROOT_KEYS = new Set([
+  'products',
+  'productsCatalog',
+  'materials',
+  'molds',
+  'collections',
+  'orders',
+  'customers',
+  'production',
+  'batchStageHistory',
+  'settings',
+  'suppliers',
+  'warehouses',
+]);
 
 const localStoragePersister = createSyncStoragePersister({
   storage: window.localStorage,
@@ -59,7 +80,16 @@ root.render(
         dehydrateOptions: {
           shouldDehydrateQuery: (query) => {
             const key = query.queryKey[0];
-            return key === 'products' || key === 'productsCatalog';
+            if (typeof key === 'string' && PERSISTED_QUERY_ROOT_KEYS.has(key)) {
+              return true;
+            }
+            if (Array.isArray(query.queryKey) && query.queryKey[0] === orderKeys.all[0]) {
+              return query.queryKey.length === 1 || query.queryKey[1] === 'list';
+            }
+            if (Array.isArray(query.queryKey) && query.queryKey[0] === productionKeys.all[0]) {
+              return true;
+            }
+            return false;
           },
         },
       }}

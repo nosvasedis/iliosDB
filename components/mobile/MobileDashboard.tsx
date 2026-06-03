@@ -4,8 +4,8 @@ import { Activity, Factory, Coins, Plus, ScanBarcode, Zap, Package, ShoppingCart
 import MobileScreenHeader from './MobileScreenHeader';
 import { formatCurrency, formatDecimal } from '../../utils/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
+import { useOrdersWithItems } from '../../hooks/api/useOrders';
 import { productionKeys, productionRepository } from '../../features/production';
-import { api } from '../../lib/supabase';
 import { APP_ICON_ONLY } from '../../constants';
 import { useAuth } from '../AuthContext';
 import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
@@ -46,7 +46,7 @@ const StatCard = ({ title, value, sub, icon, bg, text }: { title: string, value:
 );
 
 export default function MobileDashboard({ products, settings, onNavigate }: Props) {
-    const { data: orders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
+    const { data: orders } = useOrdersWithItems();
     const { data: batches } = useQuery({
         queryKey: productionKeys.batches(),
         queryFn: productionRepository.getProductionBatches,

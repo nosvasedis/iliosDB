@@ -14,7 +14,7 @@ import MobileSupplierDetails from './MobileSupplierDetails';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import { retailEndClientPillClass } from '../../utils/retailPresentation';
 import { ordersRepository } from '../../features/orders';
-import { useCustomers, useOrders } from '../../hooks/api/useOrders';
+import { useCustomers, useOrdersWithItems } from '../../hooks/api/useOrders';
 import { useSuppliers } from '../../hooks/api/useSuppliers';
 
 interface Props {
@@ -25,7 +25,7 @@ interface Props {
 export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
     const { data: customers } = useCustomers();
     const { data: suppliers } = useSuppliers();
-    const { data: orders } = useOrders();
+    const { data: orders } = useOrdersWithItems();
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
 

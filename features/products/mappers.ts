@@ -256,6 +256,18 @@ function mapProductRow(
   } as Product;
 }
 
+/** Join supplier rows in-memory (avoids PostgREST embed duplication on every product row). */
+export function attachSuppliersToProductRows<T extends { supplier_id?: string | null }>(
+  rows: T[],
+  suppliers: Array<{ id: string } & Record<string, unknown>>,
+): Array<T & { suppliers: Record<string, unknown> | null }> {
+  const byId = new Map(suppliers.map((supplier) => [supplier.id, supplier]));
+  return rows.map((row) => ({
+    ...row,
+    suppliers: row.supplier_id ? (byId.get(row.supplier_id) ?? null) : null,
+  }));
+}
+
 export function mapProductsWithRelations(
   rows: RawProductRow[],
   relations: ProductTableRelations,

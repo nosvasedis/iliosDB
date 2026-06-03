@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
+import { useOrdersWithItems } from '../../hooks/api/useOrders';
 import { Order, OrderStatus } from '../../types';
 import { ShoppingCart, Plus, Search, Loader2, ChevronRight, CalendarRange } from 'lucide-react';
 import { useUI } from '../UIProvider';
@@ -10,7 +11,7 @@ import MobileOrderBuilder from '../mobile/MobileOrderBuilder';
 import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
 
 export default function EmployeeOrders({ onOpenDeliveries }: { onOpenDeliveries?: (order: Order) => void }) {
-    const { data: orders, isLoading } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
+    const { data: orders, isLoading } = useOrdersWithItems();
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
     const { showToast } = useUI();
     const [isCreating, setIsCreating] = useState(false);

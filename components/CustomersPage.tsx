@@ -8,7 +8,7 @@ import CustomerDetailsModal from './CustomerDetailsModal';
 import CreateCustomerModal from './CreateCustomerModal';
 import { normalizedIncludes } from '../utils/greekSearch';
 import { ordersRepository } from '../features/orders';
-import { useCustomers, useOrders } from '../hooks/api/useOrders';
+import { useCustomers, useOrdersWithItems } from '../hooks/api/useOrders';
 import DesktopPageHeader from './DesktopPageHeader';
 
 interface Props {
@@ -92,7 +92,7 @@ export default function CustomersPage({ onPrintOrder }: Props) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { data: customers } = useCustomers();
-    const { data: orders } = useOrders();
+    const { data: orders } = useOrdersWithItems();
 
     // UI State
     const [searchTerm, setSearchTerm] = useState('');

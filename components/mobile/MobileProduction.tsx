@@ -40,7 +40,7 @@ import {
 } from '../../features/production/workflowSelectors';
 import { useMaterials } from '../../hooks/api/useMaterials';
 import { useMolds } from '../../hooks/api/useMolds';
-import { useOrders } from '../../hooks/api/useOrders';
+import { useOrdersWithItems } from '../../hooks/api/useOrders';
 import { useBatchStageHistoryEntries, useProductionBatches } from '../../hooks/api/useProductionBatches';
 import { productionRepository } from '../../features/production';
 import { getBatchAgeInfo } from '../../features/production/selectors';
@@ -908,7 +908,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     const { data: batchStageHistoryEntries = [] } = useBatchStageHistoryEntries();
     const { data: materials, isLoading: loadingMaterials } = useMaterials();
     const { data: molds, isLoading: loadingMolds } = useMolds();
-    const { data: orders } = useOrders();
+    const { data: orders } = useOrdersWithItems();
 
     const queryClient = useQueryClient();
     const { showToast } = useUI();

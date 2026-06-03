@@ -16,6 +16,7 @@ import {
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
 import { isConfigured, isLocalMode } from './lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
+import { invalidateAfterOfflineSync } from './lib/syncInvalidation';
 import { Product, Order, ProductionBatch, AssemblyPrintData, StageBatchPrintData } from './types';
 import { UIProvider, useUI } from './components/UIProvider';
 import { AuthProvider, useAuth } from './components/AuthContext';
@@ -184,13 +185,13 @@ function AppContent() {
     onSyncCompleted: async (result) => {
       if (result.syncedCount > 0 && result.remainingCount === 0) {
         showToast(`Συγχρονίστηκαν ${result.syncedCount} αλλαγές!`, 'success');
-        await queryClient.invalidateQueries();
+        await invalidateAfterOfflineSync(queryClient, result.syncedTables);
       } else if (result.syncedCount > 0 && result.remainingCount > 0) {
         showToast(`Συγχρονίστηκαν ${result.syncedCount} αλλαγές, αλλά ${result.remainingCount} παραμένουν εκκρεμείς.`, 'info');
-        await queryClient.invalidateQueries();
+        await invalidateAfterOfflineSync(queryClient, result.syncedTables);
       } else if (!result.wasQueueEmpty && result.remainingCount > 0) {
         showToast(`Ο συγχρονισμός ολοκληρώθηκε με εκκρεμότητες. Απομένουν ${result.remainingCount} αλλαγές στην ουρά.`, 'info');
-        await queryClient.invalidateQueries();
+        await invalidateAfterOfflineSync(queryClient, result.syncedTables);
       }
     },
   });

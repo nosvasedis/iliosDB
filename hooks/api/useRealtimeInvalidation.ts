@@ -5,6 +5,7 @@ import {
   getRealtimeInvalidationDomainsForTable,
   invalidateRealtimeDomain,
 } from '../../lib/queryInvalidation';
+import { tryPatchRealtimeCache } from '../../lib/realtimeCachePatch';
 import { createRealtimeInvalidationScheduler } from './realtimeInvalidationScheduler';
 
 export const CORE_REALTIME_TABLES = [
@@ -53,7 +54,15 @@ export function useRealtimeInvalidation(): void {
       invalidateRealtimeDomain(queryClient, domain, sourceTables),
     );
 
-    const handleChange = (payload: { table?: string }) => {
+    const handleChange = (payload: {
+      table?: string;
+      eventType?: string;
+      new?: Record<string, unknown>;
+      old?: Record<string, unknown>;
+    }) => {
+      if (tryPatchRealtimeCache(queryClient, payload as any)) {
+        return;
+      }
       if (!payload.table) return;
       const domains = getRealtimeInvalidationDomainsForTable(payload.table);
       domains.forEach((domain) => schedulerRef.current?.schedule(domain, payload.table));

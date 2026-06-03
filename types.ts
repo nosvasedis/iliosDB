@@ -232,6 +232,9 @@ export interface Order {
   tags?: string[]; // E.g. ['Exhibition A', 'Seller B']
   is_archived?: boolean;
   price_change_log?: PriceChangeRecord[];
+  /** Populated on list queries that omit the items JSON blob. */
+  item_count?: number;
+  item_total_qty?: number;
 }
 
 /** Tracks a single SKU price delta when order prices are synced with the catalog. */
@@ -447,6 +450,7 @@ export interface SyncOfflineResult {
   failedCount: number;
   remainingCount: number;
   wasQueueEmpty: boolean;
+  syncedTables?: string[];
 }
 
 export type OfferStatus = 'Pending' | 'Accepted' | 'Declined';

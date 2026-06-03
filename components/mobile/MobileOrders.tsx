@@ -19,6 +19,7 @@ import {
   UNBATCHED_PRODUCTION_STAGE_STYLES,
 } from '../orders/orderProductionBarStyles';
 import { buildItemIdentityKey } from '../../utils/itemIdentity';
+import { useOrdersWithItems } from '../../hooks/api/useOrders';
 import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
 import { getTagColor } from '../../features/orders/tagColors';
 import { OrdersFilterPanel, OrderFilters, DEFAULT_FILTERS, countActiveFilters } from '../orders/OrdersFilterPanel';
@@ -1206,7 +1207,7 @@ export default function MobileOrders({
 }: MobileOrdersProps) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
-    const { data: orders, isLoading } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
+    const { data: orders, isLoading } = useOrdersWithItems();
     const { data: batches } = useQuery({
         queryKey: productionKeys.batches(),
         queryFn: productionRepository.getProductionBatches,

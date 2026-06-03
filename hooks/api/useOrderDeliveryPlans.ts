@@ -3,14 +3,14 @@ import { useQuery } from '@tanstack/react-query';
 import { OrderShipment } from '../../types';
 import { getDeliveryNavBadgeCount, enrichDeliveryItems } from '../../utils/deliveryScheduling';
 import { deliveriesRepository, deliveryKeys } from '../../features/deliveries';
-import { useCustomers, useOrders } from './useOrders';
+import { useCustomers, useOrdersWithItems } from './useOrders';
 import { useProductionBatches } from './useProductionBatches';
 import { useProducts } from './useProducts';
 
 export function useOrderDeliveryPlans() {
   const plansQuery = useQuery({ queryKey: deliveryKeys.plans(), queryFn: deliveriesRepository.getOrderDeliveryPlans });
   const remindersQuery = useQuery({ queryKey: deliveryKeys.reminders(), queryFn: deliveriesRepository.getOrderDeliveryReminders });
-  const ordersQuery = useOrders();
+  const ordersQuery = useOrdersWithItems();
   const customersQuery = useCustomers();
   const batchesQuery = useProductionBatches();
   const productsQuery = useProducts();

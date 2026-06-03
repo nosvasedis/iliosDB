@@ -24,6 +24,7 @@ import {
 } from 'recharts';
 import type { Product } from '../../types';
 import { api } from '../../lib/supabase';
+import { useOrdersWithItems } from '../../hooks/api/useOrders';
 import { calculateBusinessStats } from '../../utils/businessAnalytics';
 import { formatCurrency, formatDecimal } from '../../utils/pricingEngine';
 import MobileScreenHeader from './MobileScreenHeader';
@@ -61,7 +62,7 @@ function StatCard({
 }
 
 export default function MobileAnalytics({ products, onPrint }: Props) {
-  const { data: orders, isLoading: loadingOrders } = useQuery({ queryKey: ['orders'], queryFn: api.getOrders });
+  const { data: orders, isLoading: loadingOrders } = useOrdersWithItems();
   const { data: materials, isLoading: loadingMaterials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
   const { data: settings, isLoading: loadingSettings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
 
