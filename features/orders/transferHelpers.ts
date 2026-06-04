@@ -97,7 +97,7 @@ export function canOfferRemainingTransfer(
   shipmentItems: OrderShipmentItem[] = [],
 ): boolean {
   if (order.status === OrderStatus.Delivered || order.status === OrderStatus.Cancelled) return false;
-  if (order.status === OrderStatus.PartiallyDelivered) return true;
+  if (order.status === OrderStatus.Ready || order.status === OrderStatus.PartiallyDelivered) return true;
   if (shipmentItems.length === 0) return false;
   return getRemainingOrderItems(order, shipmentItems).length > 0;
 }

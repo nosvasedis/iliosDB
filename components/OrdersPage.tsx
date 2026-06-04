@@ -1425,6 +1425,26 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         }
     };
 
+    const handleReopenCompletedOrderToReady = async (order: Order) => {
+        const yes = await confirm({
+            title: 'Επαναφορά σε Έτοιμα',
+            message: 'Η παραγγελία θα γυρίσει από "Παραδόθηκε" σε "Έτοιμο" και θα ξαναδημιουργηθούν τα τεμάχια της στα Έτοιμα. Αυτό επιτρέπεται μόνο όταν δεν υπάρχουν καταχωρημένες αποστολές.',
+            confirmText: 'Επαναφορά σε Έτοιμα'
+        });
+        if (!yes) return;
+
+        try {
+            await ordersRepository.reopenCompletedOrderToReady(order.id, profile?.full_name || 'System');
+            await auditRepository.logAction(profile?.full_name || 'System', 'Επαναφορά Παραγγελίας σε Έτοιμα', { order_id: order.id, customer: order.customer_name });
+            await invalidateOrdersAndBatches(queryClient);
+            setManagingOrder(prev => prev?.id === order.id ? { ...prev, status: OrderStatus.Ready } : prev);
+            setShowStatusActions(false);
+            showToast('Η παραγγελία επανήλθε σε Έτοιμα.', 'success');
+        } catch (e: any) {
+            showToast(e?.message || 'Σφάλμα επαναφοράς σε Έτοιμα.', 'error');
+        }
+    };
+
     const handleConfirmShipmentFromOrders = async (
         items: Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: Order['items'][number]['cord_color']; enamel_color?: Order['items'][number]['enamel_color']; quantity: number; price_at_order: number; line_id?: string | null }>,
         notes: string | null
@@ -2120,6 +2140,15 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                 {managingOrder.is_archived ? <ArchiveRestore size={18} /> : <Archive size={18} />}
                                 {managingOrder.is_archived ? 'Ανάκτηση από Αρχείο' : 'Αρχειοθέτηση'}
                             </button>
+
+                            {managingOrder.status === OrderStatus.Delivered && (
+                                <button
+                                    onClick={() => handleReopenCompletedOrderToReady(managingOrder)}
+                                    className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                                >
+                                    <RotateCcw size={18} /> Επαναφορά σε Έτοιμα
+                                </button>
+                            )}
 
                             {managingOrder.status !== OrderStatus.Cancelled && managingOrder.status !== OrderStatus.Delivered && (
                                 <button

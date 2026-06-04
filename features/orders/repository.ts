@@ -15,6 +15,7 @@ export const ordersRepository = {
   deleteOrder: (orderId: string) => api.deleteOrder(orderId),
   archiveOrder: (orderId: string, archive: boolean) => api.archiveOrder(orderId, archive),
   updateOrderStatus: (orderId: string, status: Order['status']) => api.updateOrderStatus(orderId, status),
+  reopenCompletedOrderToReady: (orderId: string, userName?: string) => api.reopenCompletedOrderToReady(orderId, userName),
   sendOrderToProduction: (orderId: string, products: Product[], materials: Material[]) =>
     api.sendOrderToProduction(orderId, products, materials),
   sendPartialOrderToProduction: (

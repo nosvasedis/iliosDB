@@ -1928,6 +1928,94 @@ export const api = {
         return uniqueIds.length;
     },
 
+    reopenCompletedOrderToReady: async (id: string, userName?: string): Promise<void> => {
+        const order = await getOrderSnapshot(id);
+        if (!order) throw new Error('Η παραγγελία δεν βρέθηκε.');
+        if (order.status !== OrderStatus.Delivered) {
+            throw new Error('Η επαναφορά σε Έτοιμα επιτρέπεται μόνο σε παραγγελία που έχει σημειωθεί ως Παραδόθηκε.');
+        }
+
+        const shipmentSnapshot = await getOrderShipmentsSnapshot(id);
+        if (shipmentSnapshot.shipments.length > 0) {
+            throw new Error('Η παραγγελία έχει καταχωρημένες αποστολές. Χρησιμοποιήστε την αναίρεση αποστολής για να μη χαλάσει το ιστορικό.');
+        }
+        if (!order.items || order.items.length === 0) {
+            throw new Error('Δεν υπάρχουν τεμάχια στην παραγγελία για επαναφορά.');
+        }
+
+        const [allProducts, allMaterials] = await Promise.all([
+            getCachedProducts().then((cached) => cached ?? api.getProducts()),
+            getCachedMaterials().then((cached) => cached ?? api.getMaterials()),
+        ]);
+        const productsBySku = new Map(allProducts.map((product) => [product.sku, product]));
+        const materialsById = new Map(allMaterials.map((material) => [material.id, material]));
+        const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
+        const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
+        const now = new Date().toISOString();
+
+        const batches: any[] = order.items
+            .filter((item) => (item.quantity || 0) > 0)
+            .map((item) => {
+                const product = isSpecialCreationSku(item.sku) ? null : productsBySku.get(item.sku);
+                const suffix = item.variant_suffix || '';
+                const stone = product ? getVariantComponents(suffix, product.gender).stone : null;
+                const hasZirconsFromSuffix = !!stone?.code && ZIRCON_CODES.includes(stone.code) && !NON_ZIRCON_STONE_CODES.includes(stone.code);
+                const hasZirconsFromRecipe = !!product?.recipe.some((recipeItem: any) => {
+                    if (recipeItem.type !== 'raw') return false;
+                    const material = materialsById.get(recipeItem.id);
+                    return material?.type === MaterialType.Stone && ZIRCON_CODES.some((code) => material.name.includes(code));
+                });
+
+                return {
+                    id: crypto.randomUUID(),
+                    order_id: order.id,
+                    sku: item.sku,
+                    variant_suffix: item.variant_suffix || null,
+                    quantity: item.quantity,
+                    current_stage: ProductionStage.Ready,
+                    created_at: now,
+                    updated_at: now,
+                    priority: 'Normal',
+                    type: 'ΞΞ­Ξ±',
+                    notes: item.notes || null,
+                    requires_setting: hasZirconsFromSuffix || hasZirconsFromRecipe || requiresSettingStage(item.sku),
+                    requires_assembly: !isSpecialCreationSku(item.sku) && requiresAssemblyStage(item.sku),
+                    size_info: item.size_info || null,
+                    cord_color: item.cord_color || null,
+                    enamel_color: item.enamel_color || null,
+                    line_id: item.line_id ?? null,
+                };
+            });
+
+        await safeMutate('production_batches', 'DELETE', null, { match: { order_id: id }, noSelect: true });
+        await safeMutate('orders', 'UPDATE', { status: OrderStatus.Ready }, { match: { id }, noSelect: true });
+        await safeMutate('order_delivery_plans', 'UPDATE', {
+            plan_status: 'active',
+            completed_at: null,
+            cancelled_at: null,
+            updated_at: now,
+            updated_by: userName || null,
+        }, { match: { order_id: id }, noSelect: true });
+
+        if (batches.length > 0) {
+            await safeMutate('production_batches', 'INSERT', batches, { noSelect: true });
+            await safeMutate(
+                'batch_stage_history',
+                'INSERT',
+                batches.map((batch) => ({
+                    id: crypto.randomUUID(),
+                    batch_id: batch.id,
+                    from_stage: null,
+                    to_stage: ProductionStage.Ready,
+                    moved_by: userName || 'System',
+                    moved_at: now,
+                    notes: 'Επαναφορά ολοκληρωμένης παραγγελίας σε Έτοιμα'
+                })),
+                { noSelect: true }
+            );
+        }
+    },
+
     updateOrderStatus: async (id: string, status: OrderStatus): Promise<void> => {
         await safeMutate('orders', 'UPDATE', { status }, { match: { id: id } });
         if (status === OrderStatus.Delivered || status === OrderStatus.Cancelled) {

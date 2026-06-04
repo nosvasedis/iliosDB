@@ -101,8 +101,41 @@ describe('shipment safety', () => {
     expect(plan.quantityIssues[0].title).toContain('χωρίς αντίστοιχο υπόλοιπο');
   });
 
+  it('allows a fully Ready order to be transferred into another active order', () => {
+    const orderA = order({
+      status: OrderStatus.Ready,
+      items: [{ sku: 'SP001', quantity: 2, price_at_order: 10, line_id: 'line-a' }],
+    });
+    const orderB = order({ id: 'ORD-2', status: OrderStatus.InProduction, items: [] });
+
+    const plan = buildTransferPlan(
+      orderA,
+      orderB,
+      { shipments: [], items: [] },
+      [readyBatch({ id: 'b1', line_id: 'line-a', quantity: 2 })],
+    );
+
+    expect(plan.isValid).toBe(true);
+    expect(plan.transferItems).toEqual([
+      expect.objectContaining({ sku: 'SP001', quantity: 2, line_id: 'line-a' }),
+    ]);
+    expect(plan.batchesToRepoint.map((batch) => batch.id)).toEqual(['b1']);
+    expect(plan.newOrderBItems).toEqual([
+      expect.objectContaining({ sku: 'SP001', quantity: 2, line_id: 'line-a' }),
+    ]);
+  });
+
   it('offers remaining transfer for legacy PartiallyDelivered orders', () => {
     const orderA = order({
+      items: [{ sku: 'SP001', quantity: 2, price_at_order: 10, line_id: 'line-a' }],
+    });
+
+    expect(canOfferRemainingTransfer(orderA, [])).toBe(true);
+  });
+
+  it('offers remaining transfer for Ready orders', () => {
+    const orderA = order({
+      status: OrderStatus.Ready,
       items: [{ sku: 'SP001', quantity: 2, price_at_order: 10, line_id: 'line-a' }],
     });
 
