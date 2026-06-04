@@ -130,16 +130,11 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                     const safeName = getSafeClientName(remainingOrderToPrint.customer_name);
                     docTitle = `Remaining_Items_${safeName || 'Client'}_${remainingOrderToPrint.id}`;
                 } else if (shipmentsToPrint && shipmentsToPrint.length > 0) {
-                    const safeName = getSafeClientName(shipmentsToPrint[0].order.customer_name);
-                    const orderId = shipmentsToPrint[0].order.id;
-                    const numbers = shipmentsToPrint.map(s => s.shipment.shipment_number).join('-');
-                    docTitle = `Shipments_${safeName || 'Client'}_${orderId}_${numbers}`;
+                    docTitle = 'ΜΕΡΙΚΗ ΑΠΟΣΤΟΛΗ';
                 } else if (shipmentToPrint) {
-                    const safeName = getSafeClientName(shipmentToPrint.order.customer_name);
-                    docTitle = `Shipment_${safeName || 'Client'}_${shipmentToPrint.order.id}_${shipmentToPrint.shipment.shipment_number}`;
+                    docTitle = 'ΜΕΡΙΚΗ ΑΠΟΣΤΟΛΗ';
                 } else if (orderToPrint) {
-                    const safeName = getSafeClientName(orderToPrint.customer_name);
-                    docTitle = `Order_${safeName || 'Client'}_${orderToPrint.id}`;
+                    docTitle = 'ΠΡΟΣΦΟΡΑ ILIOS';
                 } else if (offerToPrint) {
                     const safeName = getSafeClientName(offerToPrint.customer_name);
                     docTitle = `Offer_${safeName || 'Client'}_${offerToPrint.id}`;
@@ -198,7 +193,8 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                     docTitle = `Stage_${stageBatchPrintData.stageId}_${safeName || 'Order'}_${dateStr}`;
                 }
 
-                docTitle = sanitizeFilename(docTitle) || 'Ilios_Print_Job';
+                const exactPdfTitles = new Set(['ΜΕΡΙΚΗ ΑΠΟΣΤΟΛΗ', 'ΠΡΟΣΦΟΡΑ ILIOS']);
+                docTitle = exactPdfTitles.has(docTitle) ? docTitle : (sanitizeFilename(docTitle) || 'Ilios_Print_Job');
                 document.title = docTitle;
 
                 const cleanup = () => {
