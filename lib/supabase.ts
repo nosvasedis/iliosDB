@@ -201,6 +201,22 @@ function blobToDataUrl(blob: Blob): Promise<string> {
     });
 }
 
+function getConflictKeys(onConflict?: string): string[] {
+    return (onConflict || '').split(',').map((key) => key.trim()).filter(Boolean);
+}
+
+function findMatchingRowIndex(rows: any[], item: any, onConflict?: string): number {
+    const conflictKeys = getConflictKeys(onConflict);
+    if (conflictKeys.length > 0) {
+        return rows.findIndex((row) => conflictKeys.every((key) => row[key] === item[key]));
+    }
+    return rows.findIndex((row) => {
+        if (row.id && item.id) return row.id === item.id;
+        if (row.sku && item.sku) return row.sku === item.sku;
+        return false;
+    });
+}
+
 async function safeMutate(
     tableName: string,
     method: 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT',
@@ -224,11 +240,7 @@ async function safeMutate(
                 });
             } else {
                 payload.forEach(item => {
-                    const idx = newTable.findIndex(row => {
-                        if (row.id && item.id) return row.id === item.id;
-                        if (row.sku && item.sku) return row.sku === item.sku;
-                        return false;
-                    });
+                    const idx = findMatchingRowIndex(newTable, item, options?.onConflict);
                     if (idx >= 0) {
                         if (method === 'UPSERT' && options?.ignoreDuplicates) return;
                         newTable[idx] = { ...newTable[idx], ...item };
@@ -317,13 +329,12 @@ async function fetchFullTable(tableName: string, select: string = '*', filter?: 
             const applyOrder = filter ?? TABLE_DEFAULT_ORDER[tableName];
 
             while (hasMore) {
-                let query = supabase.from(tableName).select(select).range(from, to);
-                if (applyOrder) query = applyOrder(query);
-
                 let lastErr: unknown = null;
                 let pageData: any[] | null = null;
                 for (let attempt = 0; attempt < FETCH_PAGE_RETRIES; attempt++) {
                     try {
+                        let query = supabase.from(tableName).select(select).range(from, to);
+                        if (applyOrder) query = applyOrder(query);
                         const { data, error } = await fetchWithTimeout(query, pageTimeoutMs);
                         if (error) throw error;
                         pageData = data;
@@ -372,11 +383,7 @@ async function fetchFullTable(tableName: string, select: string = '*', filter?: 
                 });
             } else {
                 payload.forEach((item: any) => {
-                    const idx = mergedData.findIndex((row: any) => {
-                        if (row.id && item.id) return row.id === item.id;
-                        if (row.sku && item.sku) return row.sku === item.sku;
-                        return false;
-                    });
+                    const idx = findMatchingRowIndex(mergedData, item, op.onConflict);
                     if (idx >= 0) {
                         if (op.method === 'UPSERT' && op.ignoreDuplicates) return;
                         mergedData[idx] = { ...mergedData[idx], ...item };
@@ -1047,14 +1054,10 @@ export const api = {
             );
             return { products, hasMore: products.length === limit };
         } catch (err) {
-            const all = await offlineDb.getTable('products').then((d: any[]) => d || []);
-            const fallback = all.slice(offset, offset + limit).map((p: any) => ({
-                ...p,
-                variants: [],
-                collections: [],
-                labor: {}
-            }));
-            return { products: fallback as any, hasMore: offset + limit < all.length };
+            console.warn('getProductsCatalog page fetch failed; falling back to full product graph.', err);
+            const all = await api.getProducts();
+            const products = all.slice(offset, offset + limit);
+            return { products, hasMore: offset + limit < all.length };
         }
     },
 
@@ -1207,6 +1210,17 @@ export const api = {
     saveProductVariant: async (variantData: any) => {
         const { location_stock, stock_by_size, ...cleanVariant } = variantData;
         return safeMutate('product_variants', 'UPSERT', cleanVariant, { onConflict: 'product_sku, suffix' });
+    },
+    getProductVariants: async (sku: string): Promise<ProductVariant[]> => {
+        return fetchRowsByFilter(
+            'product_variants',
+            '*',
+            (query) => query.eq('product_sku', sku).order('suffix'),
+            { localFilter: (row) => row.product_sku === sku },
+        ) as Promise<ProductVariant[]>;
+    },
+    deleteProductVariant: async (sku: string, suffix: string) => {
+        return safeMutate('product_variants', 'DELETE', null, { match: { product_sku: sku, suffix } });
     },
     deleteProductVariants: async (sku: string) => { return safeMutate('product_variants', 'DELETE', null, { match: { product_sku: sku } }); },
     deleteProductRecipes: async (sku: string) => { return safeMutate('recipes', 'DELETE', null, { match: { parent_sku: sku } }); },

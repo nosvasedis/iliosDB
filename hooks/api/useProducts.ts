@@ -6,7 +6,9 @@ import { productKeys, productsRepository } from '../../features/products';
 export const useProducts = () => {
     return useQuery<Product[]>({
         queryKey: productKeys.all,
-        queryFn: productsRepository.getProducts
+        queryFn: productsRepository.getProducts,
+        staleTime: 0,
+        refetchOnMount: 'always',
     });
 };
 

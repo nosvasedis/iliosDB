@@ -267,7 +267,9 @@ export default function SellerCatalog({ products: productsProp }: Props) {
         queryFn: ({ pageParam = 0 }) => api.getProductsCatalog({ limit: CATALOG_PAGE_SIZE, offset: pageParam }),
         getNextPageParam: (lastPage, allPages) => lastPage.hasMore ? allPages.length * CATALOG_PAGE_SIZE : undefined,
         initialPageParam: 0,
-        enabled: productsProp == null
+        enabled: productsProp == null,
+        staleTime: 0,
+        refetchOnMount: 'always',
     });
 
     const catalogProducts = useMemo(() => catalogData?.pages.flatMap(p => p.products) ?? [], [catalogData]);

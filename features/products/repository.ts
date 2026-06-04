@@ -12,6 +12,8 @@ export const productsRepository = {
     active_price?: number | null;
     selling_price?: number | null;
   }) => api.saveProductVariant(input),
+  getProductVariants: (sku: string) => api.getProductVariants(sku),
+  deleteProductVariant: (sku: string, suffix: string) => api.deleteProductVariant(sku, suffix),
   deleteProductVariants: (sku: string) => api.deleteProductVariants(sku),
   deleteProductRecipes: (sku: string) => api.deleteProductRecipes(sku),
   deleteProductMolds: (sku: string) => api.deleteProductMolds(sku),
@@ -74,26 +76,33 @@ export interface SaveProductGraphInput {
 }
 
 export async function saveProductGraph(input: SaveProductGraphInput): Promise<{ anyPartQueued: boolean }> {
+  const existingVariants = await productsRepository.getProductVariants(input.finalMasterSku);
+  const existingVariantMap = new Map(existingVariants.map((variant) => [variant.suffix, variant]));
+  const finalVariantSuffixes = new Set(input.finalVariants.map((variant) => variant.suffix));
+
   const { queued: prodQueued } = await productsRepository.saveProduct(input.productData);
   let anyPartQueued = prodQueued;
 
-  // Sync DB with the edited variant list: UPSERT only updates present rows; removed suffixes must be deleted
-  // (same pattern as recipes/molds below).
-  const { queued: delVariantsQueued } = await productsRepository.deleteProductVariants(input.finalMasterSku);
-  if (delVariantsQueued) anyPartQueued = true;
-
+  // Upsert first, then delete removed suffixes. This avoids a destructive window where
+  // a transient DB/network failure after DELETE makes every variant disappear on reload.
   if (input.finalVariants.length > 0) {
     for (const variant of input.finalVariants) {
+      const existing = existingVariantMap.get(variant.suffix);
       const { queued } = await productsRepository.saveProductVariant({
         product_sku: input.finalMasterSku,
         suffix: variant.suffix,
         description: variant.description,
-        stock_qty: 0,
+        stock_qty: variant.stock_qty ?? existing?.stock_qty ?? 0,
         active_price: variant.active_price,
         selling_price: input.isSTX ? 0 : variant.selling_price,
       });
       if (queued) anyPartQueued = true;
     }
+  }
+  for (const existing of existingVariants) {
+    if (finalVariantSuffixes.has(existing.suffix)) continue;
+    const { queued } = await productsRepository.deleteProductVariant(input.finalMasterSku, existing.suffix);
+    if (queued) anyPartQueued = true;
   }
 
   await productsRepository.deleteProductRecipes(input.finalMasterSku);
