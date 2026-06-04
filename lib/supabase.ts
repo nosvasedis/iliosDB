@@ -126,6 +126,55 @@ const sanitizeDeliveryReminderData = (data: any) => {
     return sanitized;
 };
 
+const sanitizeOrderItemData = (item: any): OrderItem => {
+    const validColumns = [
+        'sku', 'variant_suffix', 'quantity', 'price_at_order', 'price_override',
+        'size_info', 'cord_color', 'enamel_color', 'notes', 'line_id'
+    ];
+    const sanitized: any = {};
+    validColumns.forEach(col => {
+        if (item?.[col] !== undefined) sanitized[col] = item[col];
+    });
+    return sanitized;
+};
+
+const sanitizeOrderData = (data: any, options?: { preserveLightweightItems?: boolean }) => {
+    const validColumns = [
+        'id', 'customer_name', 'customer_phone', 'status', 'total_price', 'items',
+        'notes', 'created_at', 'customer_id', 'seller_id', 'custom_silver_rate',
+        'vat_rate', 'discount_percent', 'tags', 'is_archived', 'seller_name',
+        'price_change_log', 'seller_commission_percent'
+    ];
+    const sanitized: any = {};
+    validColumns.forEach(col => {
+        if (data?.[col] !== undefined) sanitized[col] = data[col];
+    });
+
+    if (Array.isArray(data?.items)) {
+        const isLightweightListRow =
+            options?.preserveLightweightItems &&
+            data.items.length === 0 &&
+            Number(data.item_count ?? 0) > 0;
+        if (isLightweightListRow) delete sanitized.items;
+        else sanitized.items = data.items.map(sanitizeOrderItemData);
+    }
+
+    return sanitized;
+};
+
+const sanitizeMutationData = (tableName: string, rawData: any, options?: { preserveLightweightItems?: boolean }) => {
+    if (!rawData) return rawData;
+    const sanitizeOne = (row: any) => {
+        if (tableName === 'products') return sanitizeProductData(row);
+        if (tableName === 'orders') return sanitizeOrderData(row, options);
+        if (tableName === 'production_batches') return sanitizeBatchData(row);
+        if (tableName === 'order_delivery_plans') return sanitizeDeliveryPlanData(row);
+        if (tableName === 'order_delivery_reminders') return sanitizeDeliveryReminderData(row);
+        return row;
+    };
+    return Array.isArray(rawData) ? rawData.map(sanitizeOne) : sanitizeOne(rawData);
+};
+
 function buildPartialShipmentRpcItems(
     items: Array<{
         sku: string;
@@ -223,10 +272,14 @@ async function safeMutate(
     data: any,
     options?: { match?: Record<string, any>, onConflict?: string, ignoreDuplicates?: boolean, noSelect?: boolean }
 ): Promise<{ data: any, error: any, queued: boolean }> {
+    const mutationData = method === 'DELETE'
+        ? data
+        : sanitizeMutationData(tableName, data, { preserveLightweightItems: method === 'UPDATE' });
+
     if (isLocalMode) {
         const table = await offlineDb.getTable(tableName) || [];
         let newTable = [...table];
-        const payload = Array.isArray(data) ? data : (data ? [data] : []);
+        const payload = Array.isArray(mutationData) ? mutationData : (mutationData ? [mutationData] : []);
 
         if (method === 'INSERT') {
             newTable = [...newTable, ...payload];
@@ -251,21 +304,21 @@ async function safeMutate(
         }
         else if (method === 'DELETE') {
             if (options?.match) newTable = newTable.filter(row => !Object.entries(options.match!).every(([k, v]) => row[k] === v));
-            else if (data) {
-                const targets = Array.isArray(data) ? data : [data];
+            else if (mutationData) {
+                const targets = Array.isArray(mutationData) ? mutationData : [mutationData];
                 newTable = newTable.filter(row => !targets.some(t => (t.id && row.id === t.id) || (t.sku && row.sku === t.sku)));
             }
         }
 
         await offlineDb.saveTable(tableName, newTable);
-        return { data: data, error: null, queued: false };
+        return { data: mutationData, error: null, queued: false };
     }
 
     const queueId = await offlineDb.enqueue({
         type: 'MUTATION',
         table: tableName,
         method,
-        data,
+        data: mutationData,
         match: options?.match,
         onConflict: options?.onConflict,
         ignoreDuplicates: options?.ignoreDuplicates,
@@ -280,21 +333,21 @@ async function safeMutate(
         let query;
         if (method === 'INSERT') {
             query = options?.noSelect
-                ? supabase.from(tableName).insert(data)
-                : supabase.from(tableName).insert(data).select();
+                ? supabase.from(tableName).insert(mutationData)
+                : supabase.from(tableName).insert(mutationData).select();
         } else if (method === 'UPDATE') {
             query = options?.noSelect
-                ? supabase.from(tableName).update(data).match(options?.match || { id: data.id || data.sku })
-                : supabase.from(tableName).update(data).match(options?.match || { id: data.id || data.sku }).select();
+                ? supabase.from(tableName).update(mutationData).match(options?.match || { id: mutationData.id || mutationData.sku })
+                : supabase.from(tableName).update(mutationData).match(options?.match || { id: mutationData.id || mutationData.sku }).select();
         } else if (method === 'DELETE') {
-            query = supabase.from(tableName).delete().match(options?.match || { id: data.id || data.sku });
+            query = supabase.from(tableName).delete().match(options?.match || { id: mutationData.id || mutationData.sku });
         } else if (method === 'UPSERT') {
             query = options?.noSelect
-                ? supabase.from(tableName).upsert(data, {
+                ? supabase.from(tableName).upsert(mutationData, {
                     onConflict: options?.onConflict,
                     ignoreDuplicates: options?.ignoreDuplicates
                 })
-                : supabase.from(tableName).upsert(data, {
+                : supabase.from(tableName).upsert(mutationData, {
                     onConflict: options?.onConflict,
                     ignoreDuplicates: options?.ignoreDuplicates
                 }).select();
@@ -2656,15 +2709,9 @@ export const api = {
             try {
                 let query;
                 const rawData = item.data;
-                const cleanData = item.table === 'products' && rawData
-                    ? sanitizeProductData(rawData)
-                    : item.table === 'production_batches' && rawData
-                        ? sanitizeBatchData(rawData)
-                        : item.table === 'order_delivery_plans' && rawData
-                            ? (Array.isArray(rawData) ? rawData.map(sanitizeDeliveryPlanData) : sanitizeDeliveryPlanData(rawData))
-                            : item.table === 'order_delivery_reminders' && rawData
-                                ? (Array.isArray(rawData) ? rawData.map(sanitizeDeliveryReminderData) : sanitizeDeliveryReminderData(rawData))
-                                : rawData;
+                const cleanData = item.method === 'DELETE'
+                    ? rawData
+                    : sanitizeMutationData(item.table, rawData, { preserveLightweightItems: item.method === 'UPDATE' });
                 const matchTarget = item.match || { id: rawData?.id || rawData?.sku };
 
                 if (['UPDATE', 'UPSERT', 'DELETE'].includes(item.method) && cleanData && cleanData.id && cleanData.updated_at) {
