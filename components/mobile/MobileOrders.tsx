@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { productionKeys, productionRepository } from '../../features/production';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { Order, OrderShipment, OrderShipmentItem, OrderStatus, Product, ProductVariant, ProductionBatch, ProductionStage } from '../../types';
-import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings, ShoppingBag, Image as ImageIcon, PackageCheck, Globe, Flame, Gem, Hammer, CheckCircle2, SlidersHorizontal, ShoppingCart, BookOpen, FileText, BarChart3, History, Hash } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Package, Clock, CheckCircle, Truck, XCircle, AlertCircle, Plus, Edit, Trash2, Printer, Tag, Ban, Archive, ArchiveRestore, Layers, CheckSquare, X, Settings, ShoppingBag, Image as ImageIcon, PackageCheck, Globe, Flame, Gem, Hammer, CheckCircle2, SlidersHorizontal, ShoppingCart, BookOpen, FileText, BarChart3, History, Hash, ArrowRightLeft } from 'lucide-react';
 import MobileScreenHeader, { MOBILE_HEADER_SURFACE } from './MobileScreenHeader';
 import type { LucideIcon } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
@@ -26,7 +26,7 @@ import { OrdersFilterPanel, OrderFilters, DEFAULT_FILTERS, countActiveFilters } 
 import { useTagColorOverrides } from '../../hooks/api/useTagColorOverrides';
 import { invalidateOrdersAndBatches } from '../../lib/queryInvalidation';
 import { PRODUCTION_STAGE_COLORS, getProductionStageLabel } from '../../utils/deliveryLabels';
-import { buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildShipmentPrintPayloads, buildSyntheticAggregatedBatches, buildOrderRevisions, orderMatchesSearch } from '../../features/orders';
+import { buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildShipmentPrintPayloads, buildSyntheticAggregatedBatches, buildOrderRevisions, orderMatchesSearch, canOfferRemainingTransfer } from '../../features/orders';
 import DebouncedSearchInput from '../orders/DebouncedSearchInput';
 import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 import { StickyNote, UserCheck } from 'lucide-react';
@@ -35,6 +35,7 @@ import { useSellers } from '../../hooks/api/useSellers';
 import SkuOrderSearchModal from '../orders/SkuOrderSearchModal';
 import ShipmentSelectorModal from '../ShipmentSelectorModal';
 import { useAllShipmentItems, useAllShipments } from '../../hooks/api/useOrders';
+import TransferRemainingItemsModal from '../TransferRemainingItemsModal';
 
 const STAGE_ICON_MAP: Record<ProductionStage, LucideIcon> = {
     [ProductionStage.AwaitingDelivery]: Globe,
@@ -1216,17 +1217,28 @@ export default function MobileOrders({
     const { data: allShipmentItems } = useAllShipmentItems();
     const { overrides: tagColorOverrides, changeTagColor: handleChangeTagColor } = useTagColorOverrides();
 
-    // Precompute total shipped qty per order (for PartiallyDelivered progress bar stripe)
-    const shippedQtyByOrderId = useMemo(() => {
-        const map = new Map<string, number>();
+    const shipmentItemsByOrderId = useMemo(() => {
+        const map = new Map<string, OrderShipmentItem[]>();
         if (!allShipments || !allShipmentItems) return map;
         const shipmentToOrder = new Map(allShipments.map(s => [s.id, s.order_id]));
         for (const item of allShipmentItems) {
             const orderId = shipmentToOrder.get(item.shipment_id);
-            if (orderId) map.set(orderId, (map.get(orderId) || 0) + item.quantity);
+            if (!orderId) continue;
+            const existing = map.get(orderId);
+            if (existing) existing.push(item);
+            else map.set(orderId, [item]);
         }
         return map;
     }, [allShipments, allShipmentItems]);
+
+    // Precompute total shipped qty per order (for PartiallyDelivered progress bar stripe)
+    const shippedQtyByOrderId = useMemo(() => {
+        const map = new Map<string, number>();
+        shipmentItemsByOrderId.forEach((items, orderId) => {
+            map.set(orderId, items.reduce((sum, item) => sum + item.quantity, 0));
+        });
+        return map;
+    }, [shipmentItemsByOrderId]);
 
     const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
     const [filters, setFilters] = useState<OrderFilters>(DEFAULT_FILTERS);
@@ -1237,6 +1249,7 @@ export default function MobileOrders({
     const [tagInput, setTagInput] = useState('');
     const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
     const [skuSearchOpen, setSkuSearchOpen] = useState(false);
+    const [transferOrder, setTransferOrder] = useState<Order | null>(null);
     const [sellerAssignOrder, setSellerAssignOrder] = useState<Order | null>(null);
     const [assignSellerId, setAssignSellerId] = useState<string | null>(null);
     const [assignSellerName, setAssignSellerName] = useState<string | null>(null);
@@ -1623,6 +1636,18 @@ export default function MobileOrders({
                                     <Settings size={18} className="text-slate-400" /> Παράδοση
                                 </button>
 
+                                {canOfferRemainingTransfer(managingOrder, shipmentItemsByOrderId.get(managingOrder.id) || []) && (
+                                    <button
+                                        onClick={() => {
+                                            setTransferOrder(managingOrder);
+                                            setManagingOrder(null);
+                                        }}
+                                        className="flex items-center gap-2 p-3.5 bg-violet-50 border border-violet-200 text-violet-700 rounded-2xl text-sm font-bold"
+                                    >
+                                        <ArrowRightLeft size={18} className="text-violet-500" /> Μεταφορά Υπολοίπου
+                                    </button>
+                                )}
+
                                 <button onClick={() => handleArchiveOrder(managingOrder, !managingOrder.is_archived)} className="flex items-center gap-2 p-3.5 bg-white border border-slate-200 text-slate-600 rounded-2xl text-sm font-bold">
                                     {managingOrder.is_archived ? <ArchiveRestore size={18} className="text-slate-400" /> : <Archive size={18} className="text-slate-400" />}
                                     {managingOrder.is_archived ? 'Ανάκτηση' : 'Αρχείο'}
@@ -1641,6 +1666,17 @@ export default function MobileOrders({
                         </div>
                     </div>
                 </div>
+            )}
+
+            {transferOrder && (
+                <TransferRemainingItemsModal
+                    orderA={transferOrder}
+                    onClose={() => setTransferOrder(null)}
+                    onSuccess={(updatedOrderB) => {
+                        setTransferOrder(null);
+                        onPrint?.(updatedOrderB);
+                    }}
+                />
             )}
 
             {/* SELLER ASSIGNMENT MODAL */}

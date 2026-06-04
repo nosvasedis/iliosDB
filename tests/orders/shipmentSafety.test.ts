@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTransferPlan } from '../../features/orders/transferHelpers';
+import { buildTransferPlan, canOfferRemainingTransfer } from '../../features/orders/transferHelpers';
 import { getReadyToShipItems } from '../../utils/shipmentUtils';
 import {
   getDuplicateActiveDeliveryPlanGroups,
@@ -99,6 +99,36 @@ describe('shipment safety', () => {
 
     expect(plan.isValid).toBe(false);
     expect(plan.quantityIssues[0].title).toContain('χωρίς αντίστοιχο υπόλοιπο');
+  });
+
+  it('offers remaining transfer for legacy PartiallyDelivered orders', () => {
+    const orderA = order({
+      items: [{ sku: 'SP001', quantity: 2, price_at_order: 10, line_id: 'line-a' }],
+    });
+
+    expect(canOfferRemainingTransfer(orderA, [])).toBe(true);
+  });
+
+  it('offers remaining transfer when shipment history has unshipped items despite status drift', () => {
+    const orderA = order({
+      status: OrderStatus.Ready,
+      items: [{ sku: 'SP001', quantity: 2, price_at_order: 10, line_id: 'line-a' }],
+    });
+
+    expect(canOfferRemainingTransfer(orderA, [
+      { id: 'si1', shipment_id: 's1', sku: 'SP001', quantity: 1, price_at_order: 10, line_id: 'line-a' },
+    ])).toBe(true);
+  });
+
+  it('does not offer remaining transfer for closed orders', () => {
+    const orderA = order({
+      status: OrderStatus.Delivered,
+      items: [{ sku: 'SP001', quantity: 2, price_at_order: 10, line_id: 'line-a' }],
+    });
+
+    expect(canOfferRemainingTransfer(orderA, [
+      { id: 'si1', shipment_id: 's1', sku: 'SP001', quantity: 1, price_at_order: 10, line_id: 'line-a' },
+    ])).toBe(false);
   });
 
   it('detects duplicate active delivery plans per order', () => {

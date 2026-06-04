@@ -18,7 +18,7 @@ import { OrderListProgressBar } from './orders/OrderListProgressBar';
 import ShipmentCreationModal from './deliveries/ShipmentCreationModal';
 import ShipmentUndoConfirmationModal from './deliveries/ShipmentUndoConfirmationModal';
 import { invalidateAndRefetchAfterShipmentChange, invalidateOrdersAndBatches } from '../lib/queryInvalidation';
-import { buildPartialOrderFromBatches, buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildShipmentPrintPayloads, buildSyntheticAggregatedBatches, getShipmentStageBreakdown, getShipmentSummary, getShipmentValue, buildOrderRevisions, orderMatchesSearch, estimateOrderListRowHeight } from '../features/orders';
+import { buildPartialOrderFromBatches, buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildShipmentPrintPayloads, buildSyntheticAggregatedBatches, getShipmentStageBreakdown, getShipmentSummary, getShipmentValue, buildOrderRevisions, orderMatchesSearch, estimateOrderListRowHeight, canOfferRemainingTransfer } from '../features/orders';
 import DebouncedSearchInput from './orders/DebouncedSearchInput';
 import { getOrderStatusClasses, getOrderStatusLabel, getOrderStatusIcon } from '../features/orders/statusPresentation';
 import { getTagColor } from '../features/orders/tagColors';
@@ -942,17 +942,28 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     const { data: allShipments } = useAllShipments();
     const { data: allShipmentItems } = useAllShipmentItems();
 
-    // Precompute total shipped qty per order (for PartiallyDelivered progress bar stripe)
-    const shippedQtyByOrderId = useMemo(() => {
-        const map = new Map<string, number>();
+    const shipmentItemsByOrderId = useMemo(() => {
+        const map = new Map<string, OrderShipmentItem[]>();
         if (!allShipments || !allShipmentItems) return map;
         const shipmentToOrder = new Map(allShipments.map(s => [s.id, s.order_id]));
         for (const item of allShipmentItems) {
             const orderId = shipmentToOrder.get(item.shipment_id);
-            if (orderId) map.set(orderId, (map.get(orderId) || 0) + item.quantity);
+            if (!orderId) continue;
+            const existing = map.get(orderId);
+            if (existing) existing.push(item);
+            else map.set(orderId, [item]);
         }
         return map;
     }, [allShipments, allShipmentItems]);
+
+    // Precompute total shipped qty per order (for PartiallyDelivered progress bar stripe)
+    const shippedQtyByOrderId = useMemo(() => {
+        const map = new Map<string, number>();
+        shipmentItemsByOrderId.forEach((items, orderId) => {
+            map.set(orderId, items.reduce((sum, item) => sum + item.quantity, 0));
+        });
+        return map;
+    }, [shipmentItemsByOrderId]);
 
     // View State
     const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
@@ -1099,6 +1110,10 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         managingOrder.status === OrderStatus.InProduction ||
         managingOrder.status === OrderStatus.PartiallyDelivered ||
         (managingOrder.status === OrderStatus.Delivered && !!managingOrderLatestShipment)
+    );
+    const canTransferManagingOrder = !!managingOrder && canOfferRemainingTransfer(
+        managingOrder,
+        shipmentItemsByOrderId.get(managingOrder.id) || [],
     );
 
     // Derived: Filter orders based on Tab, Search, and all panel Filters
@@ -2056,7 +2071,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                 </button>
                             )}
 
-                            {managingOrder.status === OrderStatus.PartiallyDelivered && (
+                            {canTransferManagingOrder && (
                                 <button
                                     onClick={() => { setShowWorkflowActions(false); setShowTransferModal(true); }}
                                     className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-violet-50 border border-violet-200 text-violet-700 hover:bg-violet-100 transition-colors"

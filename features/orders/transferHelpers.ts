@@ -17,7 +17,7 @@
  *   - No DB is touched here — only analysis/planning.
  */
 
-import { Order, OrderItem, ProductionBatch, ProductionStage } from '../../types';
+import { Order, OrderItem, OrderShipmentItem, OrderStatus, ProductionBatch, ProductionStage } from '../../types';
 import { OrderShipmentSnapshot } from './printHelpers';
 import { getRemainingOrderItems, getShippedQuantities } from '../../utils/shipmentUtils';
 import { ShipmentSafetyIssue, validateReadyMatchesRemainingForTransfer } from '../../utils/shipmentSafety';
@@ -91,6 +91,16 @@ export interface TransferPlan {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+export function canOfferRemainingTransfer(
+  order: Order,
+  shipmentItems: OrderShipmentItem[] = [],
+): boolean {
+  if (order.status === OrderStatus.Delivered || order.status === OrderStatus.Cancelled) return false;
+  if (order.status === OrderStatus.PartiallyDelivered) return true;
+  if (shipmentItems.length === 0) return false;
+  return getRemainingOrderItems(order, shipmentItems).length > 0;
+}
 
 function itemIdentityKey(item: {
   sku: string;
