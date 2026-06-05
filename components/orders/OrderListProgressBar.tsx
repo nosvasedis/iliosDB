@@ -77,6 +77,16 @@ function getStagePillClass(segment: { kind: 'stage' | 'unbatched'; stage?: Produ
   }
 }
 
+function getSegmentPillName(
+  segment: { kind: 'stage' | 'unbatched'; stage?: ProductionStage; pendingDispatch?: boolean },
+  unbatchedPillLabel: string
+): string {
+  if (segment.kind === 'stage' && segment.stage !== undefined) {
+    return getStageSegmentLabel(segment.stage, segment.pendingDispatch);
+  }
+  return unbatchedPillLabel;
+}
+
 function useDesktopExpandedBreakdown(
   order: Order,
   batches: ProductionBatch[] | undefined | null,
@@ -147,9 +157,8 @@ function StageStripAndPills(props: {
               }`}
               style={segment.kind === 'unbatched' ? UNBATCHED_PRODUCTION_STAGE_STYLES.barStyle : undefined}
             />
-            {segment.kind === 'stage' && segment.stage !== undefined
-              ? `${getProductionStageLabel(segment.stage)} · ${segment.quantity}`
-              : `${unbatchedPillLabel} · ${segment.quantity}`}
+            <span className="shrink-0 text-[9px] tabular-nums">{segment.quantity}</span>
+            <span className="min-w-0 truncate text-[9px]">{getSegmentPillName(segment, unbatchedPillLabel)}</span>
           </span>
         ))}
       </div>
@@ -221,9 +230,8 @@ function StageStripAndPillsWithPolishingSplit(props: Parameters<typeof StageStri
               className={`h-1.5 w-1.5 shrink-0 rounded-full ${getStageSegmentBarClass(segment)}`}
               style={segment.kind === 'unbatched' ? UNBATCHED_PRODUCTION_STAGE_STYLES.barStyle : undefined}
             />
-            {segment.kind === 'stage' && segment.stage !== undefined
-              ? `${getStageSegmentLabel(segment.stage, segment.pendingDispatch)} · ${segment.quantity}`
-              : `${unbatchedPillLabel} · ${segment.quantity}`}
+            <span className="shrink-0 text-[9px] tabular-nums">{segment.quantity}</span>
+            <span className="min-w-0 truncate text-[9px]">{getSegmentPillName(segment, unbatchedPillLabel)}</span>
           </span>
         ))}
       </div>
