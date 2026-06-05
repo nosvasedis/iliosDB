@@ -130,6 +130,18 @@ function StageStripAndPills(props: {
 
 function StageStripAndPillsWithPolishingSplit(props: Parameters<typeof StageStripAndPills>[0]) {
   const { segments, unbatchedPillLabel, unbatchedSegmentTitle } = props;
+  const polishingPendingSegment = segments.find(
+    (segment) => segment.kind === 'stage' && segment.stage === ProductionStage.Polishing && segment.pendingDispatch === true
+  );
+  const polishingDispatchedSegment = segments.find(
+    (segment) => segment.kind === 'stage' && segment.stage === ProductionStage.Polishing && segment.pendingDispatch === false
+  );
+  const hasJoinedPolishingPill = !!polishingPendingSegment && !!polishingDispatchedSegment;
+  const polishingPendingQty = polishingPendingSegment?.quantity ?? 0;
+  const polishingDispatchedQty = polishingDispatchedSegment?.quantity ?? 0;
+  const polishingPillOrder = segments.findIndex(
+    (segment) => segment.kind === 'stage' && segment.stage === ProductionStage.Polishing
+  );
   return (
     <>
       <div className="mt-1.5 flex h-2.5 w-full overflow-hidden rounded-full border border-slate-200/80 bg-white/80">
@@ -152,10 +164,27 @@ function StageStripAndPillsWithPolishingSplit(props: Parameters<typeof StageStri
         })}
       </div>
       <div className="mt-2 flex flex-wrap gap-1">
-        {segments.map((segment, index) => (
+        {hasJoinedPolishingPill && (
+          <span
+            className="inline-flex max-w-full overflow-hidden rounded-full border border-white/80 bg-white shadow-sm"
+            style={{ order: polishingPillOrder }}
+            title={`Τεχνίτης • Αναμονή: ${polishingPendingQty} τεμ. · Τεχνίτης • Στον Τεχνίτη: ${polishingDispatchedQty} τεμ.`}
+          >
+            <span className="inline-flex min-w-0 items-center gap-1 border-r border-white/80 bg-teal-50 px-2 py-0.5 text-[9px] font-bold text-teal-700">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-teal-500" />
+              <span className="truncate">Τεχν. • Αναμονή · {polishingPendingQty}</span>
+            </span>
+            <span className="inline-flex min-w-0 items-center gap-1 bg-blue-50 px-2 py-0.5 text-[9px] font-bold text-blue-700">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+              <span className="truncate">Τεχν. • Στον Τεχν. · {polishingDispatchedQty}</span>
+            </span>
+          </span>
+        )}
+        {segments.filter((segment) => !(hasJoinedPolishingPill && segment.kind === 'stage' && segment.stage === ProductionStage.Polishing)).map((segment, index) => (
           <span
             key={`pill-${segment.kind}-${segment.kind === 'stage' ? segment.stage : 'unbatched'}-${segment.kind === 'stage' ? segment.pendingDispatch : ''}-${index}`}
             className="inline-flex items-center gap-1 rounded-full border border-white/80 bg-white/90 px-2 py-0.5 text-[9px] font-bold text-slate-700 shadow-sm"
+            style={{ order: index }}
           >
             <span
               className={`h-1.5 w-1.5 shrink-0 rounded-full ${getStageSegmentBarClass(segment)}`}
