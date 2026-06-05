@@ -48,6 +48,35 @@ function getStageSegmentLabel(stage: ProductionStage, pendingDispatch?: boolean)
   return getProductionStageLabel(stage);
 }
 
+function getStagePillClass(segment: { kind: 'stage' | 'unbatched'; stage?: ProductionStage; pendingDispatch?: boolean }): string {
+  if (segment.kind === 'unbatched') {
+    return `${UNBATCHED_PRODUCTION_STAGE_STYLES.bg} ${UNBATCHED_PRODUCTION_STAGE_STYLES.text} ${UNBATCHED_PRODUCTION_STAGE_STYLES.border}`;
+  }
+  if (segment.stage === ProductionStage.Polishing && segment.pendingDispatch === true) {
+    return `${POLISHING_PENDING_PRODUCTION_STAGE_STYLES.bg} ${POLISHING_PENDING_PRODUCTION_STAGE_STYLES.text} ${POLISHING_PENDING_PRODUCTION_STAGE_STYLES.border}`;
+  }
+  switch (segment.stage) {
+    case ProductionStage.AwaitingDelivery:
+      return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+    case ProductionStage.Waxing:
+      return 'bg-slate-100 text-slate-700 border-slate-200';
+    case ProductionStage.Casting:
+      return 'bg-orange-50 text-orange-700 border-orange-200';
+    case ProductionStage.Setting:
+      return 'bg-purple-50 text-purple-700 border-purple-200';
+    case ProductionStage.Polishing:
+      return 'bg-blue-50 text-blue-700 border-blue-200';
+    case ProductionStage.Assembly:
+      return 'bg-pink-50 text-pink-700 border-pink-200';
+    case ProductionStage.Labeling:
+      return 'bg-yellow-50 text-yellow-700 border-yellow-200';
+    case ProductionStage.Ready:
+      return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    default:
+      return 'bg-slate-50 text-slate-700 border-slate-200';
+  }
+}
+
 function useDesktopExpandedBreakdown(
   order: Order,
   batches: ProductionBatch[] | undefined | null,
@@ -108,7 +137,7 @@ function StageStripAndPills(props: {
         {segments.map((segment, index) => (
           <span
             key={`pill-${segment.kind}-${index}`}
-            className="inline-flex items-center gap-1 rounded-full border border-white/80 bg-white/90 px-2 py-0.5 text-[9px] font-bold text-slate-700 shadow-sm"
+            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold shadow-sm ${getStagePillClass(segment)}`}
           >
             <span
               className={`h-1.5 w-1.5 shrink-0 rounded-full ${
@@ -166,24 +195,26 @@ function StageStripAndPillsWithPolishingSplit(props: Parameters<typeof StageStri
       <div className="mt-2 flex flex-wrap gap-1">
         {hasJoinedPolishingPill && (
           <span
-            className="inline-flex max-w-full overflow-hidden rounded-full border border-white/80 bg-white shadow-sm"
+            className="inline-flex max-w-full overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm"
             style={{ order: polishingPillOrder }}
             title={`Τεχνίτης • Αναμονή: ${polishingPendingQty} τεμ. · Τεχνίτης • Στον Τεχνίτη: ${polishingDispatchedQty} τεμ.`}
           >
-            <span className="inline-flex min-w-0 items-center gap-1 border-r border-white/80 bg-teal-50 px-2 py-0.5 text-[9px] font-bold text-teal-700">
+            <span className="inline-flex min-w-0 items-center gap-1 border-r border-teal-100 bg-teal-50 px-1.5 py-0.5 text-[9px] font-bold text-teal-700">
               <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-teal-500" />
-              <span className="truncate">Τεχν. • Αναμονή · {polishingPendingQty}</span>
+              <span className="shrink-0 tabular-nums">{polishingPendingQty}</span>
+              <span className="min-w-0 truncate">Αναμονή</span>
             </span>
-            <span className="inline-flex min-w-0 items-center gap-1 bg-blue-50 px-2 py-0.5 text-[9px] font-bold text-blue-700">
+            <span className="inline-flex min-w-0 items-center gap-1 bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-blue-700">
               <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
-              <span className="truncate">Τεχν. • Στον Τεχν. · {polishingDispatchedQty}</span>
+              <span className="shrink-0 tabular-nums">{polishingDispatchedQty}</span>
+              <span className="min-w-0 truncate">Στον Τεχν.</span>
             </span>
           </span>
         )}
         {segments.filter((segment) => !(hasJoinedPolishingPill && segment.kind === 'stage' && segment.stage === ProductionStage.Polishing)).map((segment, index) => (
           <span
             key={`pill-${segment.kind}-${segment.kind === 'stage' ? segment.stage : 'unbatched'}-${segment.kind === 'stage' ? segment.pendingDispatch : ''}-${index}`}
-            className="inline-flex items-center gap-1 rounded-full border border-white/80 bg-white/90 px-2 py-0.5 text-[9px] font-bold text-slate-700 shadow-sm"
+            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold shadow-sm ${getStagePillClass(segment)}`}
             style={{ order: index }}
           >
             <span
