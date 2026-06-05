@@ -127,14 +127,15 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                 } else if (analyticsPrintData) {
                     docTitle = `Economics_${dateStr}`;
                 } else if (remainingOrderToPrint) {
-                    const safeName = getSafeClientName(remainingOrderToPrint.customer_name);
-                    docTitle = `Remaining_Items_${safeName || 'Client'}_${remainingOrderToPrint.id}`;
+                    docTitle = 'ΥΠΟΛΟΙΠΑ ΕΙΔΗ ΠΡΟΣΦΟΡΑΣ';
                 } else if (shipmentsToPrint && shipmentsToPrint.length > 0) {
                     docTitle = 'ΜΕΡΙΚΗ ΑΠΟΣΤΟΛΗ';
                 } else if (shipmentToPrint) {
                     docTitle = 'ΜΕΡΙΚΗ ΑΠΟΣΤΟΛΗ';
                 } else if (orderToPrint) {
-                    docTitle = 'ΠΡΟΣΦΟΡΑ ILIOS';
+                    docTitle = (orderToPrint as Order & { _isPartialOffer?: boolean })._isPartialOffer
+                        ? 'ΜΕΡΙΚΗ ΠΡΟΣΦΟΡΑ'
+                        : 'ΠΡΟΣΦΟΡΑ ILIOS';
                 } else if (offerToPrint) {
                     const safeName = getSafeClientName(offerToPrint.customer_name);
                     docTitle = `Offer_${safeName || 'Client'}_${offerToPrint.id}`;
@@ -193,7 +194,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                     docTitle = `Stage_${stageBatchPrintData.stageId}_${safeName || 'Order'}_${dateStr}`;
                 }
 
-                const exactPdfTitles = new Set(['ΜΕΡΙΚΗ ΑΠΟΣΤΟΛΗ', 'ΠΡΟΣΦΟΡΑ ILIOS']);
+                const exactPdfTitles = new Set(['ΜΕΡΙΚΗ ΑΠΟΣΤΟΛΗ', 'ΜΕΡΙΚΗ ΠΡΟΣΦΟΡΑ', 'ΠΡΟΣΦΟΡΑ ILIOS', 'ΥΠΟΛΟΙΠΑ ΕΙΔΗ ΠΡΟΣΦΟΡΑΣ']);
                 docTitle = exactPdfTitles.has(docTitle) ? docTitle : (sanitizeFilename(docTitle) || 'Ilios_Print_Job');
                 document.title = docTitle;
 
@@ -273,8 +274,14 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
     return (
         <>
             <div ref={printContainerRef} className="print-view" aria-hidden="true" style={{ display: 'none' }}>
-                {orderToPrint && <OrderInvoiceView order={orderToPrint} revisionSuffix={(orderToPrint as any)._revisionSuffix} />}
-                {remainingOrderToPrint && <OrderInvoiceView order={remainingOrderToPrint} title="Υπόλοιπα Είδη Παραγγελίας" />}
+                {orderToPrint && (
+                    <OrderInvoiceView
+                        order={orderToPrint}
+                        title={(orderToPrint as Order & { _isPartialOffer?: boolean })._isPartialOffer ? 'ΜΕΡΙΚΗ ΠΡΟΣΦΟΡΑ' : undefined}
+                        revisionSuffix={(orderToPrint as Order & { _revisionSuffix?: string })._revisionSuffix}
+                    />
+                )}
+                {remainingOrderToPrint && <OrderInvoiceView order={remainingOrderToPrint} title="ΥΠΟΛΟΙΠΑ ΕΙΔΗ ΠΡΟΣΦΟΡΑΣ" />}
                 {shipmentsToPrint && shipmentsToPrint.length > 0 && (
                     <>
                     {shipmentsToPrint.map((payload) => (

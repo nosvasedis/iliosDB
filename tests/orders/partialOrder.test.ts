@@ -47,5 +47,6 @@ describe('buildPartialOrderFromBatches', () => {
     expect(partialOrder.items[0].quantity).toBe(2);
     expect(partialOrder.items[1].quantity).toBe(1);
     expect(partialOrder.total_price).toBeCloseTo(44.64, 5);
+    expect((partialOrder as Order & { _isPartialOffer?: boolean })._isPartialOffer).toBe(true);
   });
 });

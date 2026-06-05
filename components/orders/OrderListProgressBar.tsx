@@ -8,9 +8,9 @@ import {
   buildPartialDeliveryProgressSegments,
   orderStatusShowsProductionProgress,
 } from '../../utils/orderReadiness';
-import { getProductionStageLabel } from '../../utils/productionStages';
 import {
-  ORDER_PRODUCTION_STAGE_BAR_CLASSNAMES,
+  getOrderStageSegmentBarClassName,
+  getOrderStageSegmentLabel,
   UNBATCHED_PRODUCTION_STAGE_STYLES,
 } from './orderProductionBarStyles';
 
@@ -57,20 +57,29 @@ function StageStripAndPills(props: {
     stage?: ProductionStage;
     quantity: number;
     pct: number;
+    pendingDispatch?: boolean;
   }>;
   unbatchedPillLabel: string;
   unbatchedSegmentTitle: string;
 }) {
   const { segments, unbatchedPillLabel, unbatchedSegmentTitle } = props;
+
+  const stageSegmentKey = (segment: (typeof segments)[number], index: number) => {
+    if (segment.kind !== 'stage' || segment.stage === undefined) return `unbatched-${index}`;
+    const pendingKey =
+      segment.pendingDispatch === undefined ? '' : segment.pendingDispatch ? ':pending' : ':dispatched';
+    return `${segment.stage}${pendingKey}-${index}`;
+  };
+
   return (
     <>
       <div className="mt-1.5 flex h-2.5 w-full overflow-hidden rounded-full border border-slate-200/80 bg-white/80">
         {segments.map((segment, index) => (
           <div
-            key={`${segment.kind}-${segment.kind === 'stage' ? segment.stage : 'unassigned'}-${index}`}
+            key={stageSegmentKey(segment, index)}
             className={`${
               segment.kind === 'stage' && segment.stage !== undefined
-                ? ORDER_PRODUCTION_STAGE_BAR_CLASSNAMES[segment.stage]
+                ? getOrderStageSegmentBarClassName(segment.stage, segment.pendingDispatch)
                 : UNBATCHED_PRODUCTION_STAGE_STYLES.bar
             } min-w-px border-r border-white/60 last:border-r-0 transition-[width] duration-300`}
             style={{
@@ -79,7 +88,7 @@ function StageStripAndPills(props: {
             }}
             title={
               segment.kind === 'stage' && segment.stage !== undefined
-                ? `${getProductionStageLabel(segment.stage)}: ${segment.quantity} τεμ.`
+                ? `${getOrderStageSegmentLabel(segment.stage, segment.pendingDispatch)}: ${segment.quantity} τεμ.`
                 : unbatchedSegmentTitle
             }
           />
@@ -88,19 +97,19 @@ function StageStripAndPills(props: {
       <div className="mt-2 flex flex-wrap gap-1">
         {segments.map((segment, index) => (
           <span
-            key={`pill-${segment.kind}-${index}`}
+            key={`pill-${stageSegmentKey(segment, index)}`}
             className="inline-flex items-center gap-1 rounded-full border border-white/80 bg-white/90 px-2 py-0.5 text-[9px] font-bold text-slate-700 shadow-sm"
           >
             <span
               className={`h-1.5 w-1.5 shrink-0 rounded-full ${
                 segment.kind === 'stage' && segment.stage !== undefined
-                  ? ORDER_PRODUCTION_STAGE_BAR_CLASSNAMES[segment.stage]
+                  ? getOrderStageSegmentBarClassName(segment.stage, segment.pendingDispatch)
                   : UNBATCHED_PRODUCTION_STAGE_STYLES.bar
               }`}
               style={segment.kind === 'unbatched' ? UNBATCHED_PRODUCTION_STAGE_STYLES.barStyle : undefined}
             />
             {segment.kind === 'stage' && segment.stage !== undefined
-              ? `${getProductionStageLabel(segment.stage)} · ${segment.quantity}`
+              ? `${getOrderStageSegmentLabel(segment.stage, segment.pendingDispatch)} · ${segment.quantity}`
               : `${unbatchedPillLabel} · ${segment.quantity}`}
           </span>
         ))}

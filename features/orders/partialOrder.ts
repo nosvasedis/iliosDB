@@ -32,5 +32,6 @@ export function buildPartialOrderFromBatches(order: Order, selectedBatches: Prod
       quantity: qty,
     })),
     total_price: partialGrandTotal,
-  };
+    _isPartialOffer: true,
+  } as Order & { _isPartialOffer: true };
 }

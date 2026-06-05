@@ -370,6 +370,47 @@ describe('getShipmentReadiness', () => {
 });
 
 describe('buildOrderProductionStageSegments', () => {
+  it('splits Τεχνίτης into Αναμονή and Στον Τεχνίτη substages', () => {
+    const order = {
+      id: 'o1',
+      items: [{ sku: 'A', quantity: 5, price_at_order: 10 }],
+    } as Order;
+
+    const batches = [
+      {
+        id: 'b1',
+        order_id: 'o1',
+        sku: 'A',
+        quantity: 2,
+        current_stage: ProductionStage.Polishing,
+        pending_dispatch: true,
+        created_at: '',
+        updated_at: '',
+        priority: 'Normal',
+        requires_setting: false,
+      },
+      {
+        id: 'b2',
+        order_id: 'o1',
+        sku: 'A',
+        quantity: 3,
+        current_stage: ProductionStage.Polishing,
+        pending_dispatch: false,
+        created_at: '',
+        updated_at: '',
+        priority: 'Normal',
+        requires_setting: false,
+      },
+    ];
+
+    const result = buildOrderProductionStageSegments(order, batches);
+    expect(result).not.toBeNull();
+    expect(result!.segments).toEqual([
+      { kind: 'stage', stage: ProductionStage.Polishing, quantity: 2, pct: 40, pendingDispatch: true },
+      { kind: 'stage', stage: ProductionStage.Polishing, quantity: 3, pct: 60, pendingDispatch: false },
+    ]);
+  });
+
   it('builds stage-based order segments and distributes the full 100%', () => {
     const order = {
       id: 'o1',
