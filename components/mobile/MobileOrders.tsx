@@ -16,6 +16,7 @@ import { buildOrderProductionStageSegments, getOrderItemProductionStageBreakdown
 import { OrderListProgressBar } from '../orders/OrderListProgressBar';
 import {
   ORDER_PRODUCTION_STAGE_BAR_CLASSNAMES,
+  POLISHING_PENDING_PRODUCTION_STAGE_STYLES,
   UNBATCHED_PRODUCTION_STAGE_STYLES,
 } from '../orders/orderProductionBarStyles';
 import { buildItemIdentityKey } from '../../utils/itemIdentity';
@@ -49,6 +50,23 @@ const STAGE_ICON_MAP: Record<ProductionStage, LucideIcon> = {
 };
 
 const POLISHING_PENDING_COLORS = { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-200' };
+
+function getStageProgressBarClass(segment: { kind: 'stage' | 'unbatched'; stage?: ProductionStage; pendingDispatch?: boolean }) {
+    if (segment.kind === 'stage' && segment.stage === ProductionStage.Polishing && segment.pendingDispatch === true) {
+        return POLISHING_PENDING_PRODUCTION_STAGE_STYLES.bar;
+    }
+    if (segment.kind === 'stage' && segment.stage !== undefined) {
+        return ORDER_PRODUCTION_STAGE_BAR_CLASSNAMES[segment.stage];
+    }
+    return UNBATCHED_PRODUCTION_STAGE_STYLES.bar;
+}
+
+function getStageProgressLabel(stage: ProductionStage, pendingDispatch?: boolean): string {
+    if (stage === ProductionStage.Polishing) {
+        return pendingDispatch ? 'Τεχν. • Αναμονή' : 'Τεχν. • Στον Τεχν.';
+    }
+    return getProductionStageLabel(stage);
+}
 
 const StageBadge: React.FC<{
     stage: ProductionStage;
@@ -1084,10 +1102,10 @@ const OrderCard: React.FC<{
                                 {stageProgress.segments.map((segment, index) => (
                                     <div
                                         key={`${segment.kind}-${segment.kind === 'stage' ? segment.stage : 'unbatched'}-${index}`}
-                                        className={`${segment.kind === 'stage' ? ORDER_PRODUCTION_STAGE_BAR_CLASSNAMES[segment.stage] : UNBATCHED_PRODUCTION_STAGE_STYLES.bar} min-w-px border-r border-white/60 last:border-r-0 transition-[width] duration-300`}
-                                        style={{ width: `${segment.pct}%` }}
+                                        className={`${getStageProgressBarClass(segment)} min-w-px border-r border-white/60 last:border-r-0 transition-[width] duration-300`}
+                                        style={{ width: `${segment.pct}%`, ...(segment.kind === 'unbatched' ? UNBATCHED_PRODUCTION_STAGE_STYLES.barStyle : undefined) }}
                                         title={segment.kind === 'stage'
-                                            ? `${getProductionStageLabel(segment.stage)}: ${segment.quantity} τεμ.`
+                                            ? `${getStageProgressLabel(segment.stage, segment.pendingDispatch)}: ${segment.quantity} τεμ.`
                                             : `Χωρίς παρτίδα παραγωγής: ${segment.quantity} τεμ.`}
                                     />
                                 ))}

@@ -21,3 +21,11 @@ export const UNBATCHED_PRODUCTION_STAGE_STYLES = {
   bar: 'bg-slate-400',
   barStyle: UNBATCHED_STRIPE_STYLE,
 } as const;
+
+/** Polishing sub-stage colors: teal = awaiting dispatch, blue = at technician. */
+export const POLISHING_PENDING_PRODUCTION_STAGE_STYLES = {
+  bg: 'bg-teal-50',
+  text: 'text-teal-700',
+  border: 'border-teal-200',
+  bar: 'bg-teal-500',
+} as const;

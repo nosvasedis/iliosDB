@@ -70,6 +70,9 @@ export default function OrderInvoiceView({ order, title, revisionSuffix }: Props
     const vatAmount = netAmount * vatRate;
     const grandTotal = netAmount + vatAmount;
     const hasOverriddenPrices = order.items.some(item => item.price_override);
+    const displayTitle = title && title.toLocaleUpperCase('el-GR').includes('ΠΑΡΑΓΓΕΛΙΑΣ')
+        ? 'ΥΠΟΛΟΙΠΑ ΕΙΔΗ ΠΡΟΣΦΟΡΑΣ'
+        : title;
 
     const company = {
         name: "ILIOS KOSMIMA",
@@ -139,7 +142,7 @@ export default function OrderInvoiceView({ order, title, revisionSuffix }: Props
                 </div>
                 
                 <div className="text-right">
-                    <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-none mb-0.5">{title || 'ΠΡΟΣΦΟΡΑ ILIOS'}</h1>
+                    <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-none mb-0.5">{displayTitle || 'ΠΡΟΣΦΟΡΑ ILIOS'}</h1>
                     <div className="flex items-center justify-end gap-3 text-[10px] text-slate-700 font-medium">
                         <span className="flex items-center gap-1"><Hash size={10}/> {formatOrderId(order.id)}{revisionSuffix || ''}</span>
                         <span className="text-slate-300">|</span>

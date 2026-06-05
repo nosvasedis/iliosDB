@@ -130,9 +130,9 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                     const safeName = getSafeClientName(remainingOrderToPrint.customer_name);
                     docTitle = `Remaining_Items_${safeName || 'Client'}_${remainingOrderToPrint.id}`;
                 } else if (shipmentsToPrint && shipmentsToPrint.length > 0) {
-                    docTitle = 'ΜΕΡΙΚΗ ΑΠΟΣΤΟΛΗ';
+                    docTitle = 'ΜΕΡΙΚΗ ΠΡΟΣΦΟΡΑ';
                 } else if (shipmentToPrint) {
-                    docTitle = 'ΜΕΡΙΚΗ ΑΠΟΣΤΟΛΗ';
+                    docTitle = 'ΜΕΡΙΚΗ ΠΡΟΣΦΟΡΑ';
                 } else if (orderToPrint) {
                     docTitle = 'ΠΡΟΣΦΟΡΑ ILIOS';
                 } else if (offerToPrint) {
@@ -193,7 +193,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                     docTitle = `Stage_${stageBatchPrintData.stageId}_${safeName || 'Order'}_${dateStr}`;
                 }
 
-                const exactPdfTitles = new Set(['ΜΕΡΙΚΗ ΑΠΟΣΤΟΛΗ', 'ΠΡΟΣΦΟΡΑ ILIOS']);
+                const exactPdfTitles = new Set(['ΜΕΡΙΚΗ ΠΡΟΣΦΟΡΑ', 'ΠΡΟΣΦΟΡΑ ILIOS']);
                 docTitle = exactPdfTitles.has(docTitle) ? docTitle : (sanitizeFilename(docTitle) || 'Ilios_Print_Job');
                 document.title = docTitle;
 
@@ -274,7 +274,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
         <>
             <div ref={printContainerRef} className="print-view" aria-hidden="true" style={{ display: 'none' }}>
                 {orderToPrint && <OrderInvoiceView order={orderToPrint} revisionSuffix={(orderToPrint as any)._revisionSuffix} />}
-                {remainingOrderToPrint && <OrderInvoiceView order={remainingOrderToPrint} title="Υπόλοιπα Είδη Παραγγελίας" />}
+                {remainingOrderToPrint && <OrderInvoiceView order={remainingOrderToPrint} title="ΥΠΟΛΟΙΠΑ ΕΙΔΗ ΠΡΟΣΦΟΡΑΣ" />}
                 {shipmentsToPrint && shipmentsToPrint.length > 0 && (
                     <>
                     {shipmentsToPrint.map((payload) => (

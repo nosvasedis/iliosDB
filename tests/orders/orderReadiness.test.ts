@@ -223,6 +223,42 @@ describe('buildOrderPipelineProductionStageSegments', () => {
     expect(r!.segments.find((s) => s.stage === ProductionStage.Ready)?.quantity).toBe(2);
     expect(r!.segments.find((s) => s.stage === ProductionStage.Waxing)?.quantity).toBe(6);
   });
+
+  it('keeps Technician pending and dispatched pipeline quantities separate', () => {
+    const batches = [
+      {
+        id: 'b1',
+        order_id: 'o1',
+        sku: 'A',
+        quantity: 2,
+        current_stage: ProductionStage.Polishing,
+        pending_dispatch: true,
+        created_at: '',
+        updated_at: '',
+        priority: 'Normal',
+        requires_setting: false,
+      },
+      {
+        id: 'b2',
+        order_id: 'o1',
+        sku: 'B',
+        quantity: 3,
+        current_stage: ProductionStage.Polishing,
+        pending_dispatch: false,
+        created_at: '',
+        updated_at: '',
+        priority: 'Normal',
+        requires_setting: false,
+      },
+    ];
+
+    const result = buildOrderPipelineProductionStageSegments('o1', batches);
+    expect(result).not.toBeNull();
+    expect(result!.segments).toEqual([
+      { kind: 'stage', stage: ProductionStage.Polishing, pendingDispatch: true, quantity: 2, pct: 40 },
+      { kind: 'stage', stage: ProductionStage.Polishing, pendingDispatch: false, quantity: 3, pct: 60 },
+    ]);
+  });
 });
 
 describe('getOrderItemProductionStageBreakdown', () => {
@@ -413,6 +449,50 @@ describe('buildOrderProductionStageSegments', () => {
       { kind: 'stage', stage: ProductionStage.Waxing, quantity: 3, pct: 30 },
       { kind: 'stage', stage: ProductionStage.Ready, quantity: 2, pct: 20 },
       { kind: 'unbatched', quantity: 5, pct: 50 },
+    ]);
+  });
+
+  it('keeps Technician pending and dispatched order quantities separate', () => {
+    const order = {
+      id: 'o1',
+      items: [
+        { sku: 'A', quantity: 2, price_at_order: 10 },
+        { sku: 'B', quantity: 3, price_at_order: 10 },
+      ],
+    } as Order;
+
+    const batches = [
+      {
+        id: 'b1',
+        order_id: 'o1',
+        sku: 'A',
+        quantity: 2,
+        current_stage: ProductionStage.Polishing,
+        pending_dispatch: true,
+        created_at: '',
+        updated_at: '',
+        priority: 'Normal',
+        requires_setting: false,
+      },
+      {
+        id: 'b2',
+        order_id: 'o1',
+        sku: 'B',
+        quantity: 3,
+        current_stage: ProductionStage.Polishing,
+        pending_dispatch: false,
+        created_at: '',
+        updated_at: '',
+        priority: 'Normal',
+        requires_setting: false,
+      },
+    ];
+
+    const result = buildOrderProductionStageSegments(order, batches);
+    expect(result).not.toBeNull();
+    expect(result!.segments).toEqual([
+      { kind: 'stage', stage: ProductionStage.Polishing, pendingDispatch: true, quantity: 2, pct: 40 },
+      { kind: 'stage', stage: ProductionStage.Polishing, pendingDispatch: false, quantity: 3, pct: 60 },
     ]);
   });
 });

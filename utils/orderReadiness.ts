@@ -81,6 +81,8 @@ export type OrderProductionStageProgressSegment =
   | {
       kind: 'stage';
       stage: ProductionStage;
+      /** For Polishing only: true = awaiting dispatch, false/undefined = at technician. */
+      pendingDispatch?: boolean;
       quantity: number;
       pct: number;
     }
@@ -124,6 +126,22 @@ function qtysToSegmentPcts(qtys: number[], total: number): number[] {
   const out = [...floors];
   for (let k = 0; k < rem; k++) out[frac[k % frac.length].i] += 1;
   return out;
+}
+
+function getStageCountKey(stage: ProductionStage, pendingDispatch?: boolean): string {
+  return stage + (stage === ProductionStage.Polishing ? `:${pendingDispatch ? '1' : '0'}` : '');
+}
+
+function compareStageCountEntries(
+  a: { stage: ProductionStage; pendingDispatch?: boolean },
+  b: { stage: ProductionStage; pendingDispatch?: boolean }
+): number {
+  const stageOrder = (PRODUCTION_STAGE_ORDER_INDEX[a.stage] ?? 99) - (PRODUCTION_STAGE_ORDER_INDEX[b.stage] ?? 99);
+  if (stageOrder !== 0) return stageOrder;
+  if (a.stage === ProductionStage.Polishing && b.stage === ProductionStage.Polishing) {
+    return (b.pendingDispatch ? 1 : 0) - (a.pendingDispatch ? 1 : 0);
+  }
+  return 0;
 }
 
 export function getOrderItemProductionStageBreakdown(
@@ -184,26 +202,34 @@ export function buildOrderProductionStageSegments(
   if (totalQty <= 0) return null;
 
   const orderBatches = getOrderBatches(order.id, batches);
-  const stageCounts = new Map<ProductionStage, number>();
+  const stageCounts = new Map<string, { stage: ProductionStage; pendingDispatch?: boolean; quantity: number }>();
   let assignedQty = 0;
 
   for (const batch of orderBatches) {
     const qty = batch.quantity || 0;
     assignedQty += qty;
-    stageCounts.set(batch.current_stage, (stageCounts.get(batch.current_stage) || 0) + qty);
+    const pendingDispatch = batch.current_stage === ProductionStage.Polishing ? !!batch.pending_dispatch : undefined;
+    const key = getStageCountKey(batch.current_stage, pendingDispatch);
+    const existing = stageCounts.get(key);
+    if (existing) {
+      existing.quantity += qty;
+    } else {
+      stageCounts.set(key, { stage: batch.current_stage, pendingDispatch, quantity: qty });
+    }
   }
 
-  const sortedStageEntries = Array.from(stageCounts.entries())
-    .sort((a, b) => (PRODUCTION_STAGE_ORDER_INDEX[a[0]] ?? 99) - (PRODUCTION_STAGE_ORDER_INDEX[b[0]] ?? 99))
-    .filter(([, quantity]) => quantity > 0);
+  const sortedStageEntries = Array.from(stageCounts.values())
+    .sort(compareStageCountEntries)
+    .filter((entry) => entry.quantity > 0);
 
   const unbatchedQty = Math.max(0, totalQty - assignedQty);
-  const qtys = [...sortedStageEntries.map(([, quantity]) => quantity), ...(unbatchedQty > 0 ? [unbatchedQty] : [])];
+  const qtys = [...sortedStageEntries.map((entry) => entry.quantity), ...(unbatchedQty > 0 ? [unbatchedQty] : [])];
   const pcts = qtysToSegmentPcts(qtys, totalQty);
 
-  const segments: OrderProductionStageProgressSegment[] = sortedStageEntries.map(([stage, quantity], index) => ({
+  const segments: OrderProductionStageProgressSegment[] = sortedStageEntries.map(({ stage, pendingDispatch, quantity }, index) => ({
     kind: 'stage',
     stage,
+    ...(pendingDispatch !== undefined ? { pendingDispatch } : {}),
     quantity,
     pct: pcts[index] || 0,
   }));
@@ -234,27 +260,35 @@ export function buildOrderPipelineProductionStageSegments(
   const orderBatches = getOrderBatches(orderId, batches);
   if (orderBatches.length === 0) return null;
 
-  const stageCounts = new Map<ProductionStage, number>();
+  const stageCounts = new Map<string, { stage: ProductionStage; pendingDispatch?: boolean; quantity: number }>();
   let pipelineQty = 0;
   for (const batch of orderBatches) {
     const qty = batch.quantity || 0;
     pipelineQty += qty;
-    stageCounts.set(batch.current_stage, (stageCounts.get(batch.current_stage) || 0) + qty);
+    const pendingDispatch = batch.current_stage === ProductionStage.Polishing ? !!batch.pending_dispatch : undefined;
+    const key = getStageCountKey(batch.current_stage, pendingDispatch);
+    const existing = stageCounts.get(key);
+    if (existing) {
+      existing.quantity += qty;
+    } else {
+      stageCounts.set(key, { stage: batch.current_stage, pendingDispatch, quantity: qty });
+    }
   }
   if (pipelineQty <= 0) return null;
 
-  const sortedStageEntries = Array.from(stageCounts.entries())
-    .sort((a, b) => (PRODUCTION_STAGE_ORDER_INDEX[a[0]] ?? 99) - (PRODUCTION_STAGE_ORDER_INDEX[b[0]] ?? 99))
-    .filter(([, quantity]) => quantity > 0);
+  const sortedStageEntries = Array.from(stageCounts.values())
+    .sort(compareStageCountEntries)
+    .filter((entry) => entry.quantity > 0);
 
   if (sortedStageEntries.length === 0) return null;
 
-  const qtys = sortedStageEntries.map(([, quantity]) => quantity);
+  const qtys = sortedStageEntries.map((entry) => entry.quantity);
   const pcts = qtysToSegmentPcts(qtys, pipelineQty);
 
-  const segments: OrderProductionStageProgressSegment[] = sortedStageEntries.map(([stage, quantity], index) => ({
+  const segments: OrderProductionStageProgressSegment[] = sortedStageEntries.map(({ stage, pendingDispatch, quantity }, index) => ({
     kind: 'stage' as const,
     stage,
+    ...(pendingDispatch !== undefined ? { pendingDispatch } : {}),
     quantity,
     pct: pcts[index] || 0,
   }));

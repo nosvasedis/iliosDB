@@ -11,6 +11,7 @@ import {
 import { getProductionStageLabel } from '../../utils/productionStages';
 import {
   ORDER_PRODUCTION_STAGE_BAR_CLASSNAMES,
+  POLISHING_PENDING_PRODUCTION_STAGE_STYLES,
   UNBATCHED_PRODUCTION_STAGE_STYLES,
 } from './orderProductionBarStyles';
 
@@ -29,6 +30,23 @@ type Props = {
 type DesktopExpandedBreakdown =
   | { mode: 'inProduction'; stageBreakdown: NonNullable<ReturnType<typeof buildOrderProductionStageSegments>> }
   | { mode: 'partialPipeline'; pipeline: NonNullable<ReturnType<typeof buildOrderPipelineProductionStageSegments>> };
+
+function getStageSegmentBarClass(segment: { kind: 'stage' | 'unbatched'; stage?: ProductionStage; pendingDispatch?: boolean }) {
+  if (segment.kind === 'stage' && segment.stage === ProductionStage.Polishing && segment.pendingDispatch === true) {
+    return POLISHING_PENDING_PRODUCTION_STAGE_STYLES.bar;
+  }
+  if (segment.kind === 'stage' && segment.stage !== undefined) {
+    return ORDER_PRODUCTION_STAGE_BAR_CLASSNAMES[segment.stage];
+  }
+  return UNBATCHED_PRODUCTION_STAGE_STYLES.bar;
+}
+
+function getStageSegmentLabel(stage: ProductionStage, pendingDispatch?: boolean): string {
+  if (stage === ProductionStage.Polishing) {
+    return pendingDispatch ? 'Τεχν. • Αναμονή' : 'Τεχν. • Στον Τεχν.';
+  }
+  return getProductionStageLabel(stage);
+}
 
 function useDesktopExpandedBreakdown(
   order: Order,
@@ -55,6 +73,7 @@ function StageStripAndPills(props: {
   segments: Array<{
     kind: 'stage' | 'unbatched';
     stage?: ProductionStage;
+    pendingDispatch?: boolean;
     quantity: number;
     pct: number;
   }>;
@@ -70,7 +89,7 @@ function StageStripAndPills(props: {
             key={`${segment.kind}-${segment.kind === 'stage' ? segment.stage : 'unassigned'}-${index}`}
             className={`${
               segment.kind === 'stage' && segment.stage !== undefined
-                ? ORDER_PRODUCTION_STAGE_BAR_CLASSNAMES[segment.stage]
+                ? getStageSegmentBarClass(segment)
                 : UNBATCHED_PRODUCTION_STAGE_STYLES.bar
             } min-w-px border-r border-white/60 last:border-r-0 transition-[width] duration-300`}
             style={{
@@ -94,13 +113,56 @@ function StageStripAndPills(props: {
             <span
               className={`h-1.5 w-1.5 shrink-0 rounded-full ${
                 segment.kind === 'stage' && segment.stage !== undefined
-                  ? ORDER_PRODUCTION_STAGE_BAR_CLASSNAMES[segment.stage]
+                  ? getStageSegmentBarClass(segment)
                   : UNBATCHED_PRODUCTION_STAGE_STYLES.bar
               }`}
               style={segment.kind === 'unbatched' ? UNBATCHED_PRODUCTION_STAGE_STYLES.barStyle : undefined}
             />
             {segment.kind === 'stage' && segment.stage !== undefined
               ? `${getProductionStageLabel(segment.stage)} · ${segment.quantity}`
+              : `${unbatchedPillLabel} · ${segment.quantity}`}
+          </span>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function StageStripAndPillsWithPolishingSplit(props: Parameters<typeof StageStripAndPills>[0]) {
+  const { segments, unbatchedPillLabel, unbatchedSegmentTitle } = props;
+  return (
+    <>
+      <div className="mt-1.5 flex h-2.5 w-full overflow-hidden rounded-full border border-slate-200/80 bg-white/80">
+        {segments.map((segment, index) => {
+          const isUnbatched = segment.kind === 'unbatched';
+          const label = segment.kind === 'stage' && segment.stage !== undefined
+            ? `${getStageSegmentLabel(segment.stage, segment.pendingDispatch)}: ${segment.quantity} τεμ.`
+            : unbatchedSegmentTitle;
+          return (
+            <div
+              key={`${segment.kind}-${segment.kind === 'stage' ? segment.stage : 'unassigned'}-${segment.kind === 'stage' ? segment.pendingDispatch : ''}-${index}`}
+              className={`${getStageSegmentBarClass(segment)} min-w-px border-r border-white/60 last:border-r-0 transition-[width] duration-300`}
+              style={{
+                width: `${segment.pct}%`,
+                ...(isUnbatched ? UNBATCHED_PRODUCTION_STAGE_STYLES.barStyle : undefined),
+              }}
+              title={label}
+            />
+          );
+        })}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1">
+        {segments.map((segment, index) => (
+          <span
+            key={`pill-${segment.kind}-${segment.kind === 'stage' ? segment.stage : 'unbatched'}-${segment.kind === 'stage' ? segment.pendingDispatch : ''}-${index}`}
+            className="inline-flex items-center gap-1 rounded-full border border-white/80 bg-white/90 px-2 py-0.5 text-[9px] font-bold text-slate-700 shadow-sm"
+          >
+            <span
+              className={`h-1.5 w-1.5 shrink-0 rounded-full ${getStageSegmentBarClass(segment)}`}
+              style={segment.kind === 'unbatched' ? UNBATCHED_PRODUCTION_STAGE_STYLES.barStyle : undefined}
+            />
+            {segment.kind === 'stage' && segment.stage !== undefined
+              ? `${getStageSegmentLabel(segment.stage, segment.pendingDispatch)} · ${segment.quantity}`
               : `${unbatchedPillLabel} · ${segment.quantity}`}
           </span>
         ))}
@@ -198,7 +260,7 @@ export function OrderListProgressBar({ order, batches, ready, density = 'desktop
             </p>
 
             {expandedBreakdown?.mode === 'partialPipeline' ? (
-              <StageStripAndPills
+              <StageStripAndPillsWithPolishingSplit
                 segments={expandedBreakdown.pipeline.segments}
                 unbatchedPillLabel="Λοιπά"
                 unbatchedSegmentTitle="Λοιπά"
@@ -286,7 +348,7 @@ export function OrderListProgressBar({ order, batches, ready, density = 'desktop
         {stagesExpanded && stageBreakdown && stageBreakdown.segments.length > 0 && (
           <div className="animate-in slide-in-from-top-1 fade-in rounded-lg border border-indigo-100 bg-gradient-to-br from-slate-50 to-indigo-50/40 px-2.5 py-2 shadow-sm duration-200">
             <div className="text-[9px] font-black uppercase tracking-[0.12em] text-indigo-500/90">Ανάλυση ανά στάδιο</div>
-            <StageStripAndPills
+            <StageStripAndPillsWithPolishingSplit
               segments={stageBreakdown.segments}
               unbatchedPillLabel="Χωρίς παρτίδα"
               unbatchedSegmentTitle={`Δεν έχουν μπει ακόμη σε παρτίδα παραγωγής: ${stageBreakdown.segments.find((s) => s.kind === 'unbatched')?.quantity ?? 0} τεμ.`}
