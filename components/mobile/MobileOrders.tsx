@@ -15,8 +15,7 @@ import SkuColorizedText from '../SkuColorizedText';
 import { buildOrderProductionStageSegments, getOrderItemProductionStageBreakdown, groupBatchesByShipment, isOrderReady, orderStatusShowsProductionProgress } from '../../utils/orderReadiness';
 import { OrderListProgressBar } from '../orders/OrderListProgressBar';
 import {
-  getOrderStageSegmentBarClassName,
-  getOrderStageSegmentLabel,
+  ORDER_PRODUCTION_STAGE_BAR_CLASSNAMES,
   UNBATCHED_PRODUCTION_STAGE_STYLES,
 } from '../orders/orderProductionBarStyles';
 import { buildItemIdentityKey } from '../../utils/itemIdentity';
@@ -1084,15 +1083,11 @@ const OrderCard: React.FC<{
                             <div className="mt-3 flex h-2.5 w-full overflow-hidden rounded-full border border-slate-200 bg-slate-100">
                                 {stageProgress.segments.map((segment, index) => (
                                     <div
-                                        key={
-                                            segment.kind === 'stage'
-                                                ? `${segment.stage}${segment.pendingDispatch === undefined ? '' : segment.pendingDispatch ? ':pending' : ':dispatched'}-${index}`
-                                                : `unbatched-${index}`
-                                        }
-                                        className={`${segment.kind === 'stage' ? getOrderStageSegmentBarClassName(segment.stage, segment.pendingDispatch) : UNBATCHED_PRODUCTION_STAGE_STYLES.bar} min-w-px border-r border-white/60 last:border-r-0 transition-[width] duration-300`}
+                                        key={`${segment.kind}-${segment.kind === 'stage' ? segment.stage : 'unbatched'}-${index}`}
+                                        className={`${segment.kind === 'stage' ? ORDER_PRODUCTION_STAGE_BAR_CLASSNAMES[segment.stage] : UNBATCHED_PRODUCTION_STAGE_STYLES.bar} min-w-px border-r border-white/60 last:border-r-0 transition-[width] duration-300`}
                                         style={{ width: `${segment.pct}%` }}
                                         title={segment.kind === 'stage'
-                                            ? `${getOrderStageSegmentLabel(segment.stage, segment.pendingDispatch)}: ${segment.quantity} τεμ.`
+                                            ? `${getProductionStageLabel(segment.stage)}: ${segment.quantity} τεμ.`
                                             : `Χωρίς παρτίδα παραγωγής: ${segment.quantity} τεμ.`}
                                     />
                                 ))}
@@ -1101,13 +1096,7 @@ const OrderCard: React.FC<{
                             <div className="mt-3 flex flex-wrap gap-2">
                                 {stageProgress.segments.map((segment, index) => (
                                     segment.kind === 'stage' ? (
-                                        <StageBadge
-                                            key={`${segment.stage}${segment.pendingDispatch === undefined ? '' : segment.pendingDispatch ? ':pending' : ':dispatched'}-${index}`}
-                                            stage={segment.stage}
-                                            quantity={segment.quantity}
-                                            compact
-                                            pendingDispatch={segment.pendingDispatch}
-                                        />
+                                        <StageBadge key={`${segment.stage}-${index}`} stage={segment.stage} quantity={segment.quantity} compact pendingDispatch={(segment as any).pendingDispatch} />
                                     ) : (
                                         <UnbatchedBadge key={`unbatched-${index}`} quantity={segment.quantity} compact />
                                     )

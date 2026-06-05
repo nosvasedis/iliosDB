@@ -83,54 +83,12 @@ export type OrderProductionStageProgressSegment =
       stage: ProductionStage;
       quantity: number;
       pct: number;
-      /** For Polishing only: true = Αναμονή Αποστολής, false = Στον Τεχνίτη. */
-      pendingDispatch?: boolean;
     }
   | {
       kind: 'unbatched';
       quantity: number;
       pct: number;
     };
-
-type OrderBatchStageCountEntry = {
-  stage: ProductionStage;
-  quantity: number;
-  pendingDispatch?: boolean;
-};
-
-function accumulateOrderBatchStageCounts(batches: ProductionBatch[]): OrderBatchStageCountEntry[] {
-  const stageCounts = new Map<string, OrderBatchStageCountEntry>();
-
-  for (const batch of batches) {
-    const qty = batch.quantity || 0;
-    const isPendingDispatch =
-      batch.current_stage === ProductionStage.Polishing ? !!batch.pending_dispatch : undefined;
-    const key =
-      batch.current_stage +
-      (isPendingDispatch !== undefined ? `:${isPendingDispatch ? '1' : '0'}` : '');
-
-    const existing = stageCounts.get(key);
-    if (existing) {
-      existing.quantity += qty;
-    } else {
-      stageCounts.set(key, {
-        stage: batch.current_stage,
-        quantity: qty,
-        pendingDispatch: isPendingDispatch,
-      });
-    }
-  }
-
-  return Array.from(stageCounts.values()).sort((a, b) => {
-    const stageOrder =
-      (PRODUCTION_STAGE_ORDER_INDEX[a.stage] ?? 99) - (PRODUCTION_STAGE_ORDER_INDEX[b.stage] ?? 99);
-    if (stageOrder !== 0) return stageOrder;
-    if (a.pendingDispatch !== undefined && b.pendingDispatch !== undefined) {
-      return (b.pendingDispatch ? 1 : 0) - (a.pendingDispatch ? 1 : 0);
-    }
-    return 0;
-  });
-}
 
 function getOrderItems(order: Order): Order['items'] {
   return Array.isArray(order.items) ? order.items : [];
@@ -226,25 +184,28 @@ export function buildOrderProductionStageSegments(
   if (totalQty <= 0) return null;
 
   const orderBatches = getOrderBatches(order.id, batches);
+  const stageCounts = new Map<ProductionStage, number>();
   let assignedQty = 0;
+
   for (const batch of orderBatches) {
-    assignedQty += batch.quantity || 0;
+    const qty = batch.quantity || 0;
+    assignedQty += qty;
+    stageCounts.set(batch.current_stage, (stageCounts.get(batch.current_stage) || 0) + qty);
   }
 
-  const sortedStageEntries = accumulateOrderBatchStageCounts(orderBatches).filter(
-    (entry) => entry.quantity > 0
-  );
+  const sortedStageEntries = Array.from(stageCounts.entries())
+    .sort((a, b) => (PRODUCTION_STAGE_ORDER_INDEX[a[0]] ?? 99) - (PRODUCTION_STAGE_ORDER_INDEX[b[0]] ?? 99))
+    .filter(([, quantity]) => quantity > 0);
 
   const unbatchedQty = Math.max(0, totalQty - assignedQty);
-  const qtys = [...sortedStageEntries.map((entry) => entry.quantity), ...(unbatchedQty > 0 ? [unbatchedQty] : [])];
+  const qtys = [...sortedStageEntries.map(([, quantity]) => quantity), ...(unbatchedQty > 0 ? [unbatchedQty] : [])];
   const pcts = qtysToSegmentPcts(qtys, totalQty);
 
-  const segments: OrderProductionStageProgressSegment[] = sortedStageEntries.map((entry, index) => ({
+  const segments: OrderProductionStageProgressSegment[] = sortedStageEntries.map(([stage, quantity], index) => ({
     kind: 'stage',
-    stage: entry.stage,
-    quantity: entry.quantity,
+    stage,
+    quantity,
     pct: pcts[index] || 0,
-    ...(entry.pendingDispatch !== undefined ? { pendingDispatch: entry.pendingDispatch } : {}),
   }));
 
   if (unbatchedQty > 0) {
@@ -273,27 +234,29 @@ export function buildOrderPipelineProductionStageSegments(
   const orderBatches = getOrderBatches(orderId, batches);
   if (orderBatches.length === 0) return null;
 
+  const stageCounts = new Map<ProductionStage, number>();
   let pipelineQty = 0;
   for (const batch of orderBatches) {
-    pipelineQty += batch.quantity || 0;
+    const qty = batch.quantity || 0;
+    pipelineQty += qty;
+    stageCounts.set(batch.current_stage, (stageCounts.get(batch.current_stage) || 0) + qty);
   }
   if (pipelineQty <= 0) return null;
 
-  const sortedStageEntries = accumulateOrderBatchStageCounts(orderBatches).filter(
-    (entry) => entry.quantity > 0
-  );
+  const sortedStageEntries = Array.from(stageCounts.entries())
+    .sort((a, b) => (PRODUCTION_STAGE_ORDER_INDEX[a[0]] ?? 99) - (PRODUCTION_STAGE_ORDER_INDEX[b[0]] ?? 99))
+    .filter(([, quantity]) => quantity > 0);
 
   if (sortedStageEntries.length === 0) return null;
 
-  const qtys = sortedStageEntries.map((entry) => entry.quantity);
+  const qtys = sortedStageEntries.map(([, quantity]) => quantity);
   const pcts = qtysToSegmentPcts(qtys, pipelineQty);
 
-  const segments: OrderProductionStageProgressSegment[] = sortedStageEntries.map((entry, index) => ({
+  const segments: OrderProductionStageProgressSegment[] = sortedStageEntries.map(([stage, quantity], index) => ({
     kind: 'stage' as const,
-    stage: entry.stage,
-    quantity: entry.quantity,
+    stage,
+    quantity,
     pct: pcts[index] || 0,
-    ...(entry.pendingDispatch !== undefined ? { pendingDispatch: entry.pendingDispatch } : {}),
   }));
 
   return { segments, pipelineQty };
