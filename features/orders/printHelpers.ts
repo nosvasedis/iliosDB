@@ -67,9 +67,10 @@ export function buildLatestShipmentPrintData(
   order: Order,
   shipmentSnapshot: OrderShipmentSnapshot | undefined | null,
 ): LatestShipmentPrintData | null {
+  const orderItems = Array.isArray(order.items) ? order.items : [];
   const shipments = shipmentSnapshot?.shipments || [];
   const shipmentItems = shipmentSnapshot?.items || [];
-  if (shipments.length === 0 || shipmentItems.length === 0) return null;
+  if (orderItems.length === 0 || shipments.length === 0 || shipmentItems.length === 0) return null;
 
   const latestShipment = [...shipments].sort((a, b) => {
     const timeDiff = new Date(b.shipped_at).getTime() - new Date(a.shipped_at).getTime();
@@ -91,7 +92,7 @@ export function buildLatestShipmentPrintData(
 
   const remainingOrderItems = remainingItems
     .map((remainingItem) => {
-      const existingItem = order.items.find(
+      const existingItem = orderItems.find(
         (item) => buildOrderItemIdentityKey(item) === buildOrderItemIdentityKey(remainingItem)
       );
       if (!existingItem) return null;
@@ -118,7 +119,8 @@ export function buildOrderLabelPrintItems(
   order: Order,
   products: Product[],
 ): OrderLabelPrintItem[] {
-  return order.items.flatMap((item) => {
+  const orderItems = Array.isArray(order.items) ? order.items : [];
+  return orderItems.flatMap((item) => {
     const product = products.find((p) => p.sku === item.sku)
       ?? (isSpecialCreationSku(item.sku) ? getSpecialCreationProductStub() : undefined);
     if (!product) return [];
@@ -149,7 +151,8 @@ export function buildOrderLabelPrintItems(
 
 export function buildSyntheticAggregatedBatches(order: Order): ProductionBatch[] {
   const now = new Date().toISOString();
-  return order.items.map((item, index) => ({
+  const orderItems = Array.isArray(order.items) ? order.items : [];
+  return orderItems.map((item, index) => ({
     id: `synthetic-${order.id}-${index}`,
     order_id: order.id,
     sku: item.sku,
@@ -184,7 +187,8 @@ export interface OrderRevision {
  */
 export function buildOrderRevisions(order: Order): OrderRevision[] {
   const log = order.price_change_log;
-  if (!log || log.length === 0) return [];
+  const orderItems = Array.isArray(order.items) ? order.items : [];
+  if (!log || log.length === 0 || orderItems.length === 0) return [];
 
   // log[0] = most recent, log[N-1] = oldest
   const totalRevisions = log.length + 1;
@@ -196,7 +200,7 @@ export function buildOrderRevisions(order: Order): OrderRevision[] {
     const numToRevert = totalRevisions - revNum;
 
     // Clone items
-    const revertedItems = order.items.map(item => ({ ...item }));
+    const revertedItems = orderItems.map(item => ({ ...item }));
 
     // Apply reverts from newest to oldest so older overwrites correctly
     for (let r = 0; r < numToRevert; r++) {

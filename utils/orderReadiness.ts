@@ -46,7 +46,7 @@ export function isOrderReady(order: Order, batches: ProductionBatch[] | undefine
     return batchTotal > 0;
   }
 
-  const itemsTotal = order.items.reduce((s, i) => s + (i.quantity || 0), 0);
+  const itemsTotal = sumOrderItemsQty(order);
   if (itemsTotal <= 0) return false;
   return batchTotal === itemsTotal;
 }
@@ -90,8 +90,12 @@ export type OrderProductionStageProgressSegment =
       pct: number;
     };
 
+function getOrderItems(order: Order): Order['items'] {
+  return Array.isArray(order.items) ? order.items : [];
+}
+
 function sumOrderItemsQty(order: Order): number {
-  return order.items.reduce((s, i) => s + (i.quantity || 0), 0);
+  return getOrderItems(order).reduce((s, i) => s + (i.quantity || 0), 0);
 }
 
 function getMatchingOrderItemBatches(

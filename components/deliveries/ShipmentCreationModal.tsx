@@ -21,6 +21,7 @@ interface Props {
 }
 
 export default function ShipmentCreationModal({ order, batches, products, deliveryPlanId, userName, onConfirm, onClose }: Props) {
+  const orderItems = useMemo(() => Array.isArray(order.items) ? order.items : [], [order.items]);
   const readyItems = useMemo(() => getReadyToShipItems(order.id, batches), [order.id, batches]);
   const getItemIdentityKey = (item: { sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null; line_id?: string | null }) =>
     buildItemIdentityKey({
@@ -72,10 +73,10 @@ export default function ShipmentCreationModal({ order, batches, products, delive
       enamel_color: enamelColor as OrderShipmentItem['enamel_color'],
       line_id: lineId || null
     });
-    const match = order.items.find(i => buildItemIdentityKey(i) === targetKey);
+    const match = orderItems.find(i => buildItemIdentityKey(i) === targetKey);
     if (match) return match.price_at_order;
     // Fallback: match without size
-    const fallback = order.items.find(i => i.sku === sku && (i.variant_suffix || null) === (variantSuffix || null));
+    const fallback = orderItems.find(i => i.sku === sku && (i.variant_suffix || null) === (variantSuffix || null));
     return fallback?.price_at_order || 0;
   };
 
@@ -100,7 +101,7 @@ export default function ShipmentCreationModal({ order, batches, products, delive
         };
       })
       .filter(Boolean) as OrderShipmentItem[],
-    [readyItems, shipQtys]
+    [readyItems, shipQtys, orderItems]
   );
 
   const vatRate = order.vat_rate !== undefined ? order.vat_rate : 0.24;

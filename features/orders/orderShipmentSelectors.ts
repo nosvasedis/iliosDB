@@ -24,10 +24,11 @@ export function getShipmentValue(
 ): number {
   const vatRate = order.vat_rate !== undefined ? order.vat_rate : 0.24;
   const discountFactor = 1 - ((order.discount_percent || 0) / 100);
+  const orderItems = Array.isArray(order.items) ? order.items : [];
 
   let value = 0;
   shipmentBatches.forEach((batch) => {
-    const item = order.items.find((orderItem) =>
+    const item = orderItems.find((orderItem) =>
       orderItem.sku === batch.sku &&
       (orderItem.variant_suffix || '') === (batch.variant_suffix || '') &&
       (orderItem.size_info || '') === (batch.size_info || '')

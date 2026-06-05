@@ -95,6 +95,15 @@ function getOrderReadinessPercent(order: Order, batches: ProductionBatch[] | und
     return 0;
 }
 
+function hasFullOrderItems(order: Order | null | undefined): order is Order {
+    if (!order || !Array.isArray(order.items)) return false;
+    return !(order.items.length === 0 && Number(order.item_count ?? 0) > 0);
+}
+
+function getOrderTotalQuantity(order: Order): number {
+    return order.item_total_qty ?? (Array.isArray(order.items) ? order.items.reduce((sum, item) => sum + (item.quantity || 0), 0) : 0);
+}
+
 // ── Inline Seller Assignment Modal ──────────────────────────────────────────
 function SellerAssignmentModal({ order, onClose, onSaved }: {
     order: Order;
@@ -1019,6 +1028,26 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         }
     }, [orders, managingOrder?.id, managingOrder?.status]);
 
+    const ensureFullOrderItems = useCallback(async (order: Order): Promise<Order | null> => {
+        if (hasFullOrderItems(order)) return order;
+        try {
+            const fresh = await ordersRepository.getOrderById(order.id);
+            if (fresh && hasFullOrderItems(fresh)) return fresh;
+        } catch {
+            // Fall through to the user-facing message below.
+        }
+        showToast('Order details are still loading. Refresh orders and try again.', 'error');
+        return null;
+    }, [showToast]);
+
+    const openShipmentModal = useCallback(async (order: Order) => {
+        const fullOrder = await ensureFullOrderItems(order);
+        if (!fullOrder) return;
+        setShipmentModalOrder(fullOrder);
+        setManagingOrder(null);
+        setProductionModalOrder(null);
+    }, [ensureFullOrderItems]);
+
     const productsMap = useMemo(() => new Map(products.map(product => [product.sku, product])), [products]);
     const materialsMap = useMemo(() => new Map(materials.map(material => [material.id, material])), [materials]);
 
@@ -1251,7 +1280,9 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     const handleSendToProduction = async (orderId: string) => {
         const order = orders?.find(o => o.id === orderId);
         if (order) {
-            setProductionModalOrder(order);
+            const fullOrder = await ensureFullOrderItems(order);
+            if (!fullOrder) return;
+            setProductionModalOrder(fullOrder);
             setManagingOrder(null);
         } else {
             showToast("Σφάλμα εύρεσης παραγγελίας", "error");
@@ -1260,6 +1291,9 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
 
     const handleQuickSendToProduction = async (order: Order) => {
         if (quickSendingOrders.has(order.id)) return;
+        const fullOrder = await ensureFullOrderItems(order);
+        if (!fullOrder) return;
+        order = fullOrder;
 
         const existingBatchesForOrder = batchesByOrderId.get(order.id) || [];
         const inProductionQtyByKey = new Map<string, number>();
@@ -1451,6 +1485,10 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     ) => {
         if (!shipmentModalOrder) return;
         const order = shipmentModalOrder;
+        if (!hasFullOrderItems(order)) {
+            showToast('Order details are still loading. Refresh orders and try again.', 'error');
+            throw new Error('Order items are not loaded.');
+        }
         try {
             await ordersRepository.createPartialShipment({
                 orderId: order.id,
@@ -1742,7 +1780,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                 #{order.id}
                                             </div>
                                             <div className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-slate-400">
-                                                <Package size={12} /> {(order.item_total_qty ?? order.items.reduce((sum, item) => sum + (item.quantity || 0), 0))} τεμ.
+                                                <Package size={12} /> {getOrderTotalQuantity(order)} τεμ.
                                             </div>
                                             {order.seller_name && (() => {
                                                 const sellerColors = [
@@ -2075,7 +2113,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
 
                             {managingShipmentReadiness?.is_partially_ready && managingOrder.status !== OrderStatus.Delivered && managingOrder.status !== OrderStatus.Cancelled && (
                                 <button
-                                    onClick={() => { setShipmentModalOrder(managingOrder); setManagingOrder(null); }}
+                                    onClick={() => { void openShipmentModal(managingOrder); }}
                                     className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors"
                                 >
                                     <Truck size={18} /> Μερική Αποστολή ({managingShipmentReadiness.ready_qty}/{managingShipmentReadiness.total_qty} τεμ. έτοιμα)
@@ -2252,8 +2290,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                     onPrintAggregated={onPrintAggregated}
                     onPrintShipment={onPrintShipment}
                     onPartialShipment={() => {
-                        setShipmentModalOrder(productionModalOrder);
-                        setProductionModalOrder(null);
+                        void openShipmentModal(productionModalOrder);
                     }}
                 />
             )}

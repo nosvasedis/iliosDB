@@ -2,11 +2,12 @@ import { Order, ProductionBatch } from '../../types';
 import { buildItemIdentityKey } from '../../utils/itemIdentity';
 
 export function buildPartialOrderFromBatches(order: Order, selectedBatches: ProductionBatch[]): Order {
-  const partialItems = new Map<string, { item: typeof order.items[number]; qty: number }>();
+  const orderItems = Array.isArray(order.items) ? order.items : [];
+  const partialItems = new Map<string, { item: typeof orderItems[number]; qty: number }>();
 
   selectedBatches.forEach((batch) => {
     const key = buildItemIdentityKey(batch);
-    const existingItem = order.items.find((item) => buildItemIdentityKey(item) === key);
+    const existingItem = orderItems.find((item) => buildItemIdentityKey(item) === key);
     if (!existingItem) return;
 
     if (!partialItems.has(key)) {

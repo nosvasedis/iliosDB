@@ -37,9 +37,10 @@ export function getRemainingOrderItems(
   shipmentItems: OrderShipmentItem[]
 ): Array<{ sku: string; variant_suffix?: string; size_info?: string; cord_color?: string | null; enamel_color?: string | null; quantity: number; price_at_order: number; line_id?: string | null }> {
   const shipped = getShippedQuantities(shipmentItems);
+  const orderItems = Array.isArray(order.items) ? order.items : [];
   const remaining: Array<{ sku: string; variant_suffix?: string; size_info?: string; cord_color?: string | null; enamel_color?: string | null; quantity: number; price_at_order: number; line_id?: string | null }> = [];
 
-  for (const item of order.items) {
+  for (const item of orderItems) {
     const key = itemKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color, item.line_id);
     const shippedQty = shipped.get(key) || 0;
     const remainingQty = item.quantity - shippedQty;

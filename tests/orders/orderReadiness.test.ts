@@ -33,6 +33,20 @@ describe('isOrderReady', () => {
     expect(isOrderReady(order, [])).toBe(false);
   });
 
+  it('does not throw when a lightweight cached order has no items array', () => {
+    const order = {
+      id: 'o1',
+      status: OrderStatus.InProduction,
+      item_count: 1,
+      item_total_qty: 2,
+    } as Order;
+    const batches = [
+      { ...baseBatch, id: 'a', order_id: 'o1', sku: 'A', quantity: 2, current_stage: ProductionStage.Ready },
+    ];
+    expect(isOrderReady(order, batches)).toBe(false);
+    expect(buildInProductionCollapsedProgressSegments(order, batches)).toBeNull();
+  });
+
   it('is false when all batches are Ready but batch qty is less than order lines', () => {
     const order = {
       id: 'o1',

@@ -364,6 +364,7 @@ async function safeMutate(
 }
 
 async function fetchFullTable(tableName: string, select: string = '*', filter?: (query: any) => any): Promise<any[]> {
+    const isFullRowSelect = select.trim() === '*';
     if (isLocalMode) {
         const localData = await offlineDb.getTable(tableName);
         return localData || [];
@@ -406,7 +407,9 @@ async function fetchFullTable(tableName: string, select: string = '*', filter?: 
                 } else hasMore = false;
             }
             baseData = allData;
-            offlineDb.saveTable(tableName, allData);
+            if (isFullRowSelect) {
+                offlineDb.saveTable(tableName, allData);
+            }
         } catch (err) {
             console.warn(`fetchFullTable fallback to offline cache [${tableName}]:`, err);
             baseData = await offlineDb.getTable(tableName) || [];
@@ -1564,7 +1567,8 @@ export const api = {
         });
 
         let hasRemaining = false;
-        for (const orderItem of params.orderItems) {
+        const orderItemsForRemainingCheck = Array.isArray(orderSnapshot.items) ? orderSnapshot.items : params.orderItems;
+        for (const orderItem of orderItemsForRemainingCheck) {
             const key = buildOrderShipmentItemKey(orderItem.sku, orderItem.variant_suffix, orderItem.size_info, orderItem.cord_color, orderItem.enamel_color, orderItem.line_id);
             const shipped = shippedMap.get(key) || 0;
             if (shipped < orderItem.quantity) {
