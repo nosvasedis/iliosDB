@@ -74,7 +74,8 @@ export function enrichProductionBatchesForBoard(
       return material?.type === MaterialType.Stone && ZIRCON_CODES.some((code) => material.name.includes(code));
     });
     const order = batch.order_id ? ordersMap.get(batch.order_id) : undefined;
-    const matchingOrderItem = order?.items.find((item) => {
+    const orderItems = Array.isArray(order?.items) ? order.items : [];
+    const matchingOrderItem = orderItems.find((item) => {
       if (item.sku !== batch.sku) return false;
       if ((item.variant_suffix || '') !== (batch.variant_suffix || '')) return false;
       if (batch.line_id && item.line_id) return item.line_id === batch.line_id;
@@ -243,14 +244,15 @@ export function buildProductionAssemblyCandidates(
       !order.is_archived &&
       order.status !== OrderStatus.Delivered &&
       order.status !== OrderStatus.Cancelled &&
-      order.items.some((item) => requiresAssemblyStage(item.sku) && !isSpecialCreationSku(item.sku)),
+      (Array.isArray(order.items) ? order.items : []).some((item) => requiresAssemblyStage(item.sku) && !isSpecialCreationSku(item.sku)),
     )
     .map((order) => {
       const qtyByKey = new Map<string, number>();
       const notesByKey = new Map<string, Set<string>>();
       const displayCustomerName = getDisplayCustomerName(order);
 
-      order.items.forEach((item) => {
+      const orderItems = Array.isArray(order.items) ? order.items : [];
+      orderItems.forEach((item) => {
         if (!requiresAssemblyStage(item.sku) || isSpecialCreationSku(item.sku)) return;
         const key = [order.id, item.sku, item.variant_suffix || '', item.size_info || ''].join('::');
         qtyByKey.set(key, (qtyByKey.get(key) || 0) + (item.quantity || 0));

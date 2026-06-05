@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Gender, ProductionStage, ProductionType } from '../../types';
 import {
+  buildAssemblyOrderCandidates,
   buildLabelPrintQueue,
   getNextProductionStage,
   groupProductionBatchesByStage,
@@ -159,5 +160,24 @@ describe('production workflow selectors', () => {
     ] as any, 'customer', products);
 
     expect(queue.map((item) => item.quantity)).toEqual([1, 2]);
+  });
+
+  it('skips assembly candidate orders while their items are missing', () => {
+    const candidates = buildAssemblyOrderCandidates(
+      [{ id: 'ord-partial', customer_name: 'Ada', items: undefined } as any],
+      [{
+        id: 'b1',
+        order_id: 'ord-partial',
+        sku: 'PN1',
+        quantity: 1,
+        current_stage: ProductionStage.Polishing,
+        created_at: '2024-01-01T00:00:00.000Z',
+        updated_at: '2024-01-01T00:00:00.000Z',
+        priority: 'Normal',
+        requires_setting: false,
+      }] as any,
+    );
+
+    expect(candidates).toEqual([]);
   });
 });

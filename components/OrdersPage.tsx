@@ -95,7 +95,7 @@ function getOrderReadinessPercent(order: Order, batches: ProductionBatch[] | und
     return 0;
 }
 
-function hasFullOrderItems(order: Order | null | undefined): order is Order {
+function hasFullOrderItems(order: Order | null | undefined): boolean {
     if (!order || !Array.isArray(order.items)) return false;
     return !(order.items.length === 0 && Number(order.item_count ?? 0) > 0);
 }

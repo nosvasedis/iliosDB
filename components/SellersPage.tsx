@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { UserCheck, Plus, Search, X, Mail, Lock, Percent, ToggleLeft, ToggleRight, Pencil, Eye, EyeOff, KeyRound, TrendingUp, ShoppingCart, DollarSign, ArrowUpRight, ArrowDownRight, Minus, Package, Clock } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
-import { useOrdersWithItems } from '../hooks/api/useOrders';
+import { useOrdersList } from '../hooks/api/useOrders';
 import { useUI } from './UIProvider';
 import { useSellers, sellerKeys } from '../hooks/api/useSellers';
 import { UserProfile, Order, OrderStatus } from '../types';
@@ -91,7 +91,7 @@ export default function SellersPage() {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
   const { data: sellers, isLoading } = useSellers();
-  const { data: orders } = useOrdersWithItems();
+  const { data: orders } = useOrdersList();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);

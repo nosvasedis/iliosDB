@@ -541,7 +541,7 @@ async function fetchBatchesByOrderIds(orderIds: string[]): Promise<ProductionBat
 
 function mapOrderListRow(row: Record<string, unknown>): Order {
     return {
-        ...(row as Order),
+        ...(row as unknown as Order),
         items: [],
         item_count: Number(row.item_count ?? 0),
         item_total_qty: Number(row.item_total_qty ?? 0),

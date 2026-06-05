@@ -5,6 +5,7 @@ import { useOrdersWithItems } from '../../hooks/api/useOrders';
 import { Order, OrderStatus } from '../../types';
 import { useAuth } from '../AuthContext';
 import { useUI } from '../UIProvider';
+import { orderKeys, ordersRepository } from '../../features/orders';
 import {
     Search, Plus, Loader2, ChevronDown, ChevronUp, Edit, ShoppingCart, Trash2
 } from 'lucide-react';
@@ -131,8 +132,8 @@ export default function SellerOrders({ onCreate, onEdit }: Props) {
         const yes = await confirm({ title: 'Διαγραφή Παραγγελίας', message: 'Θέλετε να διαγράψετε οριστικά αυτή την παραγγελία;', isDestructive: true });
         if (!yes) return;
         try {
-            await api.deleteOrder(id);
-            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            await ordersRepository.deleteOrder(id);
+            queryClient.invalidateQueries({ queryKey: orderKeys.all });
             showToast('Η παραγγελία διαγράφηκε.', 'success');
         } catch (e) {
             showToast('Σφάλμα διαγραφής.', 'error');

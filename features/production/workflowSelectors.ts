@@ -514,11 +514,12 @@ export function buildAssemblyOrderCandidates(
       !order.is_archived &&
       order.status !== OrderStatus.Delivered &&
       order.status !== OrderStatus.Cancelled &&
-      order.items.some((item) => requiresAssemblyStage(item.sku) && !isSpecialCreationSku(item.sku)),
+      (Array.isArray(order.items) ? order.items : []).some((item) => requiresAssemblyStage(item.sku) && !isSpecialCreationSku(item.sku)),
     )
     .map((order) => {
       const qtyByKey = new Map<string, number>();
       const notesByKey = new Map<string, Set<string>>();
+      const orderItems = Array.isArray(order.items) ? order.items : [];
 
       const isRetailOrder =
         order.customer_id === RETAIL_CUSTOMER_ID ||
@@ -529,7 +530,7 @@ export function buildAssemblyOrderCandidates(
           ? `${RETAIL_CUSTOMER_NAME} - ${retailClientLabel}`
           : order.customer_name;
 
-      order.items.forEach((item) => {
+      orderItems.forEach((item) => {
         if (!requiresAssemblyStage(item.sku) || isSpecialCreationSku(item.sku)) return;
 
         const key = [

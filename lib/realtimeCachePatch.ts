@@ -114,7 +114,7 @@ function patchListById<T extends { id: string }>(
 ): boolean {
     const cached = queryClient.getQueryData<T[]>(queryKey);
     if (!cached) return false;
-    const row = (payload.eventType === 'DELETE' ? payload.old : payload.new) as T | undefined;
+    const row = (payload.eventType === 'DELETE' ? payload.old : payload.new) as unknown as T | undefined;
     if (!row?.id) return false;
     queryClient.setQueryData(queryKey, upsertById(cached, mapRow && payload.eventType !== 'DELETE' ? mapRow(row) : row, payload.eventType));
     return true;
@@ -145,7 +145,7 @@ export function tryPatchRealtimeCache(queryClient: QueryClient, payload: Realtim
     }
 
     if (table === 'orders') {
-        const row = (payload.eventType === 'DELETE' ? payload.old : payload.new) as Order | undefined;
+        const row = (payload.eventType === 'DELETE' ? payload.old : payload.new) as unknown as Order | undefined;
         let patched = false;
         if (row?.id) {
             queryClient.setQueryData(orderKeys.detail(row.id), payload.eventType === 'DELETE' ? null : row);

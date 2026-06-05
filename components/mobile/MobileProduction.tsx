@@ -977,7 +977,8 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             const requires_assembly = isSpecialCreationSku(b.sku) ? false : requiresAssemblyStage(b.sku);
 
             // Resolve the per-order price override for label printing
-            const matchingOrderItem = order?.items.find(item => {
+            const orderItems = Array.isArray(order?.items) ? order.items : [];
+            const matchingOrderItem = orderItems.find(item => {
                 if (item.sku !== b.sku) return false;
                 if ((item.variant_suffix || '') !== (b.variant_suffix || '')) return false;
                 if (b.line_id && item.line_id) return item.line_id === b.line_id;

@@ -85,6 +85,22 @@ describe('production board view model', () => {
     expect(enriched[0].timingLabel).toBeUndefined();
   });
 
+  it('tolerates production-board orders whose items are temporarily missing', () => {
+    const partialOrder = { ...order, items: undefined } as any;
+    const enriched = enrichProductionBatchesForBoard(
+      batches,
+      new Map([['RZ1', product]]),
+      new Map([['stone-1', { id: 'stone-1', name: 'LE stone', type: MaterialType.Stone } as any]]),
+      new Map([['ord-1', partialOrder]]),
+    );
+    const byOrder = buildBatchesByOrderId(enriched);
+
+    expect(enriched).toHaveLength(2);
+    expect(enriched[0].customer_name).toBe('Ada');
+    expect(enriched[0].overridden_price).toBeUndefined();
+    expect(buildProductionAssemblyCandidates([partialOrder], enriched, byOrder)).toEqual([]);
+  });
+
   it('builds quick-pick totals and assembly candidates from shared order buckets', () => {
     const enriched = enrichProductionBatchesForBoard(
       batches,
