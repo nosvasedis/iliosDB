@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Product, GlobalSettings, Material, PriceSnapshot, PriceSnapshotItem } from '../types';
-import { RefreshCw, CheckCircle, AlertCircle, Loader2, DollarSign, ArrowRight, TrendingUp, Percent, History, Save, X, RotateCcw, Eye, Trash2, ArrowUpRight, ArrowDownRight, Anchor, Info, Calculator, Tag, Layers, Search, AlertTriangle, Play, Lock, ChevronDown, ChevronUp, Wand2 } from 'lucide-react';
+import { RefreshCw, CheckCircle, AlertCircle, Loader2, DollarSign, ArrowRight, TrendingUp, Percent, History, Save, X, RotateCcw, Eye, Trash2, ArrowUpRight, ArrowDownRight, Anchor, Info, Tag, Layers, Search, Lock, ChevronDown, ChevronUp, Wand2 } from 'lucide-react';
 import { formatCurrency, formatDecimal, getIliosSuggestedPriceForProduct } from '../utils/pricingEngine';
 import {
   buildBulkPricingPreview,
@@ -58,7 +58,7 @@ export default function PricingManager({ products, settings, materials }: Props)
   const [sortBy, setSortBy] = useState<PricingSortBy>('sku');
   const [forceApplyFormula, setForceApplyFormula] = useState(false);
   const [includeManualPrices, setIncludeManualPrices] = useState(false);
-  const [manualPanelOpen, setManualPanelOpen] = useState(true);
+  const [manualPanelOpen, setManualPanelOpen] = useState(false);
   const legacyBackfillStartedRef = useRef(false);
 
   const [isSnapshotting, setIsSnapshotting] = useState(false);
@@ -479,269 +479,205 @@ export default function PricingManager({ products, settings, materials }: Props)
   };
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto h-[calc(100vh-100px)] flex flex-col">
+    <div className="space-y-2 max-w-6xl mx-auto h-[calc(100vh-56px)] flex flex-col min-h-0">
       <DesktopPageHeader
         icon={DollarSign}
         title="Διαχείριση Τιμών"
-        subtitle="Εργαλεία μαζικής κοστολόγησης και εμπορικής πολιτικής."
-        tail={mode !== 'history' ? (
-            <button
+        padding="compact"
+        roundedClassName="rounded-2xl"
+        tail={(
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex rounded-xl border border-slate-100 bg-slate-50 p-0.5">
+              <button
+                type="button"
+                onClick={() => switchMode('cost')}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${mode === 'cost' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:bg-white'}`}
+              >
+                <RefreshCw size={14} /> Κόστος (Ασήμι)
+              </button>
+              <button
+                type="button"
+                onClick={() => switchMode('selling')}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${mode === 'selling' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:bg-white'}`}
+              >
+                <TrendingUp size={14} /> Χονδρική
+              </button>
+              <button
+                type="button"
+                onClick={() => switchMode('history')}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${mode === 'history' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-white'}`}
+              >
+                <History size={14} /> Ιστορικό
+              </button>
+            </div>
+            {mode !== 'history' && (
+              <button
                 type="button"
                 onClick={handleCreateSnapshot}
                 disabled={isSnapshotting}
-                className="flex items-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-white px-5 py-3 text-sm font-bold text-slate-600 transition-all hover:border-blue-400 hover:text-blue-600"
-            >
-                {isSnapshotting ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                Αντίγραφο Τρεχουσών Τιμών
-            </button>
-        ) : undefined}
-        below={(
-            <div className="flex w-fit rounded-2xl border border-slate-100 bg-white p-2 shadow-sm">
-                <button
-                    type="button"
-                    onClick={() => switchMode('cost')}
-                    className={`flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold transition-all ${mode === 'cost' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
-                >
-                    <RefreshCw size={16} /> Κόστος (Silver)
-                </button>
-                <button
-                    type="button"
-                    onClick={() => switchMode('selling')}
-                    className={`flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold transition-all ${mode === 'selling' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
-                >
-                    <TrendingUp size={16} /> Χονδρική
-                </button>
-                <button
-                    type="button"
-                    onClick={() => switchMode('history')}
-                    className={`flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold transition-all ${mode === 'history' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
-                >
-                    <History size={16} /> Ιστορικό
-                </button>
-            </div>
+                className="flex items-center gap-1.5 rounded-xl border border-dashed border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 transition-all hover:border-blue-400 hover:text-blue-600 disabled:opacity-60"
+              >
+                {isSnapshotting ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                Αντίγραφο
+              </button>
+            )}
+          </div>
         )}
+        below={mode !== 'history' ? (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            {mode === 'cost' ? (
+              <>
+                <div className="flex items-center gap-2 text-xs">
+                  <Anchor size={12} className="text-slate-400" />
+                  <span className="font-bold text-slate-400 uppercase tracking-wide">Βάση:</span>
+                  <span className="font-mono font-bold text-slate-600">{formatDecimal(settings.last_calc_silver_price, 3)} €/g</span>
+                </div>
+                <ArrowRight size={14} className="text-slate-300 hidden sm:block" />
+                <div className="flex items-center gap-2 text-xs">
+                  <TrendingUp size={12} className="text-emerald-500" />
+                  <span className="font-bold text-emerald-600 uppercase tracking-wide">Τρέχουσα:</span>
+                  <span className="font-mono font-black text-emerald-800">{formatDecimal(settings.silver_price_gram, 3)} €/g</span>
+                </div>
+                <span className="hidden lg:inline text-[10px] text-slate-400 max-w-xs truncate" title="Σύγκριση κόστους με βάση την τρέχουσα τιμή ασημιού">
+                  <Info size={10} className="inline mr-1" />
+                  Σύγκριση με βάση {formatDecimal(settings.last_calc_silver_price, 2)}€/g
+                </span>
+              </>
+            ) : (
+              <>
+                <div className="flex bg-slate-100 p-0.5 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => { setMarkupMode('adjust'); setMarkupPercent(0); }}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${markupMode === 'adjust' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    Αναπροσαρμογή
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setMarkupMode('target'); setMarkupPercent(60); }}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${markupMode === 'target' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    Στόχος
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setMarkupMode('formula'); setMarkupPercent(0); }}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${markupMode === 'formula' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    Τύπος Ilios
+                  </button>
+                </div>
+                {markupMode !== 'formula' ? (
+                  <div className="relative w-24">
+                    <input
+                      type="number"
+                      value={markupPercent}
+                      onChange={(e) => setMarkupPercent(parseFloat(e.target.value) || 0)}
+                      className="w-full py-1.5 pl-2 pr-7 border border-amber-200 rounded-lg bg-white text-slate-900 font-mono text-sm font-bold focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none"
+                      placeholder="0"
+                    />
+                    <Percent className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                  </div>
+                ) : (
+                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-lg">
+                    (Μη-Μέταλλο ×2) + Ασήμι + (Βάρος ×2)
+                  </span>
+                )}
+                {manualPriceCount > 0 && (
+                  <span className="text-[10px] text-amber-700 font-bold flex items-center gap-1">
+                    <Lock size={10} /> {manualPriceCount} χειροκίνητες
+                  </span>
+                )}
+              </>
+            )}
+
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              {!isCalculated ? (
+                <button
+                  type="button"
+                  onClick={handleRecalculate}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 text-white shadow-sm transition-all hover:-translate-y-px ${mode === 'cost' ? 'bg-slate-900 hover:bg-slate-800' : 'bg-amber-500 hover:bg-amber-600'}`}
+                >
+                  {mode === 'cost' ? <RefreshCw size={14} /> : <TrendingUp size={14} />}
+                  {mode === 'cost' ? 'Υπολογισμός Κόστους' : 'Υπολογισμός Τιμών'}
+                </button>
+              ) : (
+                <>
+                  {isCommitting && progress && (
+                    <div className="w-28 bg-slate-100 rounded-full h-2 overflow-hidden relative">
+                      <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${(progress.current / progress.total) * 100}%` }} />
+                      {progress.failed > 0 && <div className="absolute top-0 right-0 h-full bg-red-500" style={{ width: `${(progress.failed / progress.total) * 100}%` }} />}
+                    </div>
+                  )}
+                  {mode === 'selling' && markupMode === 'formula' && (
+                    <label className="flex items-center gap-1.5 text-[10px] text-slate-600 cursor-pointer whitespace-nowrap">
+                      <input type="checkbox" checked={forceApplyFormula} onChange={e => setForceApplyFormula(e.target.checked)} className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                      Σε όλους
+                    </label>
+                  )}
+                  {mode === 'selling' && (
+                    <label className="flex items-center gap-1.5 text-[10px] text-slate-600 cursor-pointer whitespace-nowrap">
+                      <input type="checkbox" checked={includeManualPrices} onChange={e => setIncludeManualPrices(e.target.checked)} className="rounded border-slate-300 text-amber-600 focus:ring-amber-500" />
+                      Χειροκίνητες
+                    </label>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => { setIsCalculated(false); setCalculatedData([]); setForceApplyFormula(false); setIncludeManualPrices(false); setListFilter('all'); }}
+                    disabled={isCommitting}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors disabled:opacity-50"
+                  >
+                    Ακύρωση
+                  </button>
+                  <button
+                    type="button"
+                    onClick={commitPrices}
+                    disabled={isCommitting || pendingCommitCount === 0}
+                    className="px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 transition-all disabled:opacity-70"
+                  >
+                    {isCommitting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                    {isCommitting
+                      ? `${progress ? Math.round((progress.current / progress.total) * 100) : 0}%...`
+                      : `Εφαρμογή (${pendingCommitCount})`}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        ) : undefined}
       />
 
       {mode !== 'history' && (
-          <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 flex flex-col md:flex-row items-start justify-between gap-8 animate-in fade-in">
-                <div className="w-full md:w-2/3">
-                {mode === 'cost' ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                                    <Anchor size={12}/> Ιστορικό Baseline
-                                </label>
-                                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
-                                    <span className="font-mono text-xl font-bold text-slate-500">{formatDecimal(settings.last_calc_silver_price, 3)} €/g</span>
-                                    <span className="text-[10px] font-black text-slate-400 bg-white px-2 py-1 rounded border border-slate-100 uppercase">Τελευταία</span>
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-emerald-600 mb-2 uppercase tracking-widest flex items-center gap-1">
-                                    <TrendingUp size={12}/> Τρέχουσα Τιμή
-                                </label>
-                                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between ring-2 ring-emerald-500/10">
-                                    <span className="font-mono text-2xl font-black text-emerald-800">{formatDecimal(settings.silver_price_gram, 3)} €/g</span>
-                                    <span className="text-[10px] font-black text-emerald-600 bg-white px-2 py-1 rounded border border-slate-100 uppercase animate-pulse">Τρέχουσα</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 text-xs text-slate-600 space-y-3 leading-relaxed">
-                            <h4 className="font-black text-slate-800 uppercase text-[10px] flex items-center gap-2 mb-2"><Info size={14} className="text-blue-500"/> Ανάλυση Κόστους</h4>
-                            <p>Το σύστημα εντοπίζει ότι οι τρέχουσες τιμές σας υπολογίστηκαν με ασήμι στα <strong>{formatDecimal(settings.last_calc_silver_price, 2)}€/g</strong>.</p>
-                            <p>Η σύγκριση στον πίνακα θα δείξει την επίδραση της μεταβολής της τιμής του ασημιού στα περιθώρια κέρδους σας.</p>
-                        </div>
+            <div className="flex-1 min-h-0 overflow-hidden bg-white rounded-2xl shadow-lg border border-slate-100 flex flex-col">
+                <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 flex flex-wrap items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                        {isCalculated ? <Layers size={14} className="text-emerald-500"/> : <AlertCircle size={14}/>}
+                        {isCalculated ? 'Προεπισκόπηση' : 'Όλοι οι Κωδικοί'}
+                        <span className="bg-white px-1.5 py-0.5 rounded text-[10px] border border-slate-200 font-mono">{filteredList.length}</span>
                     </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                        <div>
-                            <div className="flex bg-slate-100 p-1 rounded-lg mb-4">
-                                <button
-                                    onClick={() => { setMarkupMode('adjust'); setMarkupPercent(0); }}
-                                    className={`flex-1 px-2 py-2 rounded-md text-[10px] font-bold transition-all ${markupMode === 'adjust' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    Αναπροσαρμογή
-                                </button>
-                                <button
-                                    onClick={() => { setMarkupMode('target'); setMarkupPercent(60); }}
-                                    className={`flex-1 px-2 py-2 rounded-md text-[10px] font-bold transition-all ${markupMode === 'target' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    Στόχος
-                                </button>
-                                <button
-                                    onClick={() => { setMarkupMode('formula'); setMarkupPercent(0); }}
-                                    className={`flex-1 px-2 py-2 rounded-md text-[10px] font-bold transition-all ${markupMode === 'formula' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    Τύπος Ilios
-                                </button>
-                            </div>
 
-                            {markupMode !== 'formula' && (
-                                <>
-                                <label className="block text-sm font-bold text-amber-800 mb-2 uppercase tracking-wide">
-                                    {markupMode === 'adjust' ? 'Ποσοστό Αναπροσαρμογής (%)' : 'Επιθυμητό Περιθώριο Κέρδους (%)'}
-                                </label>
-                                <div className="relative">
-                                    <input 
-                                        type="number" 
-                                        value={markupPercent} 
-                                        onChange={(e) => setMarkupPercent(parseFloat(e.target.value) || 0)}
-                                        className="w-full p-4 border border-amber-200 rounded-2xl bg-white text-slate-900 font-mono text-2xl font-black focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none"
-                                        placeholder="0"
-                                    />
-                                    <Percent className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                                </div>
-                                </>
-                            )}
-                            
-                            {markupMode === 'formula' && (
-                                <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl flex flex-col items-center justify-center text-center">
-                                    <Calculator className="text-emerald-500 mb-2" size={24}/>
-                                    <p className="font-bold text-emerald-800">Αυτόματος Υπολογισμός</p>
-                                    <p className="text-xs text-emerald-600 mt-1">(NonMetal x 2) + Silver + (Weight x 2)</p>
-                                </div>
-                            )}
-                        </div>
-                        <div>
-                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Οδηγίες</h4>
-                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs text-slate-600 leading-relaxed space-y-2">
-                                {markupMode === 'adjust' && <p>Αλλάζει τις τρέχουσες τιμές χονδρικής κατά το ποσοστό που θα ορίσετε (π.χ. +5% για πληθωρισμό).</p>}
-                                {markupMode === 'target' && <p>Υπολογίζει νέες τιμές χονδρικής ώστε κάθε SKU να έχει το ίδιο περιθώριο κέρδους βάσει του τρέχοντος κόστους.</p>}
-                                {markupMode === 'formula' && <p>Εφαρμόζει τον τυπικό μαθηματικό τύπο του Ilios για υπολογισμό προτεινόμενης χονδρικής βάσει κόστους εργατικών/υλικών (x2) και βάρους.</p>}
-                                <p className="text-amber-700 font-medium flex items-start gap-1.5 pt-1 border-t border-slate-200">
-                                    <Lock size={12} className="shrink-0 mt-0.5" />
-                                    Κωδικοί με χειροκίνητη τιμή στο Μητρώο δεν θα τροποποιηθούν αυτόματα.
-                                </p>
-                                {manualPriceCount > 0 && (
-                                    <p className="text-slate-500">{manualPriceCount} κωδικοί με χειροκίνητη τιμή στο σύστημα.</p>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )}
-                </div>
-
-                <div className="flex-1 flex flex-col items-center justify-center border-l border-slate-100 pl-8">
-                {!isCalculated ? (
-                    <button onClick={handleRecalculate} className={`px-8 py-4 rounded-xl font-bold flex items-center gap-3 text-white shadow-lg transition-all hover:-translate-y-0.5 ${mode === 'cost' ? 'bg-slate-900 shadow-slate-200 hover:bg-slate-800' : 'bg-amber-500 shadow-amber-200 hover:bg-amber-600'}`}>
-                        {mode === 'cost' ? <RefreshCw size={20} /> : <TrendingUp size={20} />} 
-                        {mode === 'cost' ? 'Υπολογισμός Κόστους' : 'Υπολογισμός Τιμών'}
-                    </button>
-                ) : (
-                    <div className="flex flex-col gap-3 w-full">
-                        {isCommitting && progress && (
-                            <div className="w-full bg-slate-100 rounded-full h-3 mb-2 overflow-hidden relative">
-                                <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${(progress.current / progress.total) * 100}%` }}></div>
-                                {progress.failed > 0 && <div className="absolute top-0 right-0 h-full bg-red-500" style={{ width: `${(progress.failed / progress.total) * 100}%` }}></div>}
-                            </div>
-                        )}
-                        {mode === 'selling' && (
-                            <>
-                                {markupMode === 'formula' && (
-                                    <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
-                                        <input type="checkbox" checked={forceApplyFormula} onChange={e => setForceApplyFormula(e.target.checked)} className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
-                                        <span>Εφαρμογή σε όλους (ακόμα και χωρίς αλλαγή)</span>
-                                    </label>
-                                )}
-                                <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
-                                    <input type="checkbox" checked={includeManualPrices} onChange={e => setIncludeManualPrices(e.target.checked)} className="rounded border-slate-300 text-amber-600 focus:ring-amber-500" />
-                                    <span>Συμπερίληψη χειροκίνητων τιμών</span>
-                                </label>
-                            </>
-                        )}
-                        <div className="flex gap-3 justify-center">
-                            <button onClick={() => { setIsCalculated(false); setCalculatedData([]); setForceApplyFormula(false); setIncludeManualPrices(false); setListFilter('all'); }} disabled={isCommitting} className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors disabled:opacity-50">
-                                Ακύρωση
-                            </button>
-                            <button onClick={commitPrices} disabled={isCommitting || pendingCommitCount === 0} className="px-8 py-3 rounded-xl font-bold flex items-center gap-2 bg-emerald-600 text-white shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all hover:-translate-y-0.5 disabled:opacity-70 disabled:translate-y-0">
-                                {isCommitting ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle size={20} />}
-                                {isCommitting
-                                    ? `Ενημέρωση (${progress ? Math.round((progress.current / progress.total) * 100) : 0}%)...`
-                                    : `Εφαρμογή σε ${pendingCommitCount}`}
-                            </button>
-                        </div>
-                        {progress?.failed ? <p className="text-[10px] text-red-500 text-center font-bold">{progress.failed} απέτυχαν (θα αγνοηθούν)</p> : null}
-                    </div>
-                )}
-                </div>
-            </div>
-      )}
-
-      {mode !== 'history' && (
-            <div className="flex-1 overflow-hidden bg-white rounded-3xl shadow-lg border border-slate-100 flex flex-col">
-                {isCalculated && previewSummary && (
-                    <div className="px-4 pt-4 grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0">
-                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
-                            <div className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Προς Ενημέρωση</div>
-                            <div className="text-2xl font-black text-emerald-700 mt-1">{previewSummary.willUpdate}</div>
-                        </div>
-                        <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
-                            <div className="text-[10px] font-black uppercase tracking-widest text-amber-700 flex items-center gap-1"><Lock size={12}/> Προστατευόμενες</div>
-                            <div className="text-2xl font-black text-amber-700 mt-1">{previewSummary.manualProtected}</div>
-                        </div>
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Χωρίς Αλλαγή</div>
-                            <div className="text-2xl font-black text-slate-600 mt-1">{previewSummary.unchanged}</div>
-                        </div>
-                    </div>
-                )}
-
-                {isCalculated && manualProtectedItems.length > 0 && (
-                    <div className="mx-4 mt-3 rounded-2xl border border-amber-200 bg-amber-50/40 shrink-0 overflow-hidden">
-                        <button
-                            type="button"
-                            onClick={() => setManualPanelOpen((open) => !open)}
-                            className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-amber-50 transition-colors"
-                        >
-                            <span className="text-sm font-black text-amber-800 flex items-center gap-2">
-                                <Lock size={16} />
-                                Προστατευόμενες Χειροκίνητες Τιμές ({manualProtectedItems.length})
+                    {isCalculated && previewSummary && (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded border border-emerald-200">
+                                ↑ {previewSummary.willUpdate} ενημέρωση
                             </span>
-                            {manualPanelOpen ? <ChevronUp size={16} className="text-amber-700" /> : <ChevronDown size={16} className="text-amber-700" />}
-                        </button>
-                        {manualPanelOpen && (
-                            <div className="px-4 pb-4 space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
-                                {manualProtectedItems.map((item) => (
-                                    <div key={item.id} className="flex items-center justify-between gap-3 p-3 bg-white rounded-xl border border-amber-100">
-                                        <div className="min-w-0">
-                                            <div className="font-mono font-bold text-slate-800 text-sm">{item.sku}</div>
-                                            <div className="text-[10px] text-slate-500 truncate">{item.name}</div>
-                                        </div>
-                                        <div className="text-right shrink-0">
-                                            <div className="text-xs text-slate-500">Τρέχουσα: {formatCurrency(item.currentPrice)}</div>
-                                            {item.suggestedPrice != null && (
-                                                <div className="text-xs text-emerald-700 font-bold">Τύπος: {formatCurrency(item.suggestedPrice)}</div>
-                                            )}
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleSingleUpdate(item, { applyFormula: true })}
-                                            disabled={processingSingleId === item.id}
-                                            className="shrink-0 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[10px] font-bold hover:bg-emerald-700 flex items-center gap-1 disabled:opacity-60"
-                                        >
-                                            {processingSingleId === item.id ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
-                                            Εφαρμογή τύπου
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0">
-                    <div className="flex flex-wrap items-center gap-2 text-slate-600 font-bold">
-                        {isCalculated ? <Layers size={18} className="text-emerald-500"/> : <AlertCircle size={18}/>}
-                        {isCalculated ? 'Ανάλυση & Προεπισκόπηση' : 'Όλοι οι Κωδικοί & Παραλλαγές'}
-                        <span className="bg-white px-2 py-0.5 rounded text-xs border border-slate-200">{filteredList.length} εγγραφές</span>
-                        {!isCalculated && mode === 'selling' && manualPriceCount > 0 && (
-                            <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-xs border border-amber-200 flex items-center gap-1">
-                                <Lock size={10} /> {manualPriceCount} χειροκίνητες
+                            <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1">
+                                <Lock size={10}/> {previewSummary.manualProtected} προστατευμένες
                             </span>
-                        )}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200">
+                                = {previewSummary.unchanged} χωρίς αλλαγή
+                            </span>
+                        </div>
+                    )}
+
+                    {!isCalculated && mode === 'selling' && manualPriceCount > 0 && (
+                        <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 font-bold">
+                            <Lock size={10} /> {manualPriceCount} χειροκίνητες
+                        </span>
+                    )}
+
+                    <div className="ml-auto flex flex-wrap items-center gap-1.5">
                         {isCalculated && (
                             <div className="flex flex-wrap gap-1">
                                 {([
@@ -754,7 +690,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                                         key={value}
                                         type="button"
                                         onClick={() => setListFilter(value)}
-                                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${listFilter === value ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-100'}`}
+                                        className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${listFilter === value ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-100'}`}
                                     >
                                         {label}
                                     </button>
@@ -764,36 +700,79 @@ export default function PricingManager({ products, settings, materials }: Props)
                         <select
                             value={sortBy}
                             onChange={(e) => setSortBy(e.target.value as PricingSortBy)}
-                            className="text-[10px] font-bold bg-white border border-slate-200 rounded-lg px-2 py-1.5 outline-none"
+                            className="text-[10px] font-bold bg-white border border-slate-200 rounded-md px-2 py-1 outline-none"
                         >
                             <option value="sku">Κωδικός (Α-Ω)</option>
                             <option value="diff_desc">Μεγαλύτερη διαφορά</option>
                             <option value="margin_asc">Μικρότερο περιθώριο</option>
                         </select>
                         {isCalculated && mode === 'cost' && (
-                            <span className="text-xs bg-amber-50 px-2 py-1 rounded text-amber-700 font-bold border border-amber-100">Νέα Βάση: {settings.silver_price_gram}€/g</span>
+                            <span className="text-[10px] bg-amber-50 px-2 py-0.5 rounded text-amber-700 font-bold border border-amber-100 whitespace-nowrap">Νέα βάση: {settings.silver_price_gram}€/g</span>
                         )}
-                        <div className="relative w-56">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14}/>
+                        <div className="relative w-44">
+                            <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" size={12}/>
                             <input
                                 type="text"
-                                placeholder="Αναζήτηση κωδικού, περιγραφής..."
+                                placeholder="Αναζήτηση..."
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full pl-8 py-1.5 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                className="w-full pl-7 py-1 text-[11px] bg-white border border-slate-200 rounded-md outline-none focus:ring-2 focus:ring-emerald-500/20"
                             />
                         </div>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_24px_minmax(0,0.8fr)_minmax(0,0.7fr)_minmax(0,0.6fr)_88px] gap-2 px-4 py-2 bg-white border-b border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400 shrink-0 sticky top-0 z-10">
-                    <div className="pl-4">Κωδικός</div>
+                {isCalculated && manualProtectedItems.length > 0 && (
+                    <div className="mx-3 mt-1 rounded-xl border border-amber-200 bg-amber-50/40 shrink-0 overflow-hidden">
+                        <button
+                            type="button"
+                            onClick={() => setManualPanelOpen((open) => !open)}
+                            className="w-full px-3 py-1.5 flex items-center justify-between text-left hover:bg-amber-50 transition-colors"
+                        >
+                            <span className="text-xs font-black text-amber-800 flex items-center gap-1.5">
+                                <Lock size={14} />
+                                Προστατευόμενες ({manualProtectedItems.length})
+                            </span>
+                            {manualPanelOpen ? <ChevronUp size={14} className="text-amber-700" /> : <ChevronDown size={14} className="text-amber-700" />}
+                        </button>
+                        {manualPanelOpen && (
+                            <div className="px-3 pb-2 space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
+                                {manualProtectedItems.map((item) => (
+                                    <div key={item.id} className="flex items-center justify-between gap-2 p-2 bg-white rounded-lg border border-amber-100">
+                                        <div className="min-w-0">
+                                            <div className="font-mono font-bold text-slate-800 text-xs">{item.sku}</div>
+                                            <div className="text-[9px] text-slate-500 truncate">{item.name}</div>
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                            <div className="text-[10px] text-slate-500">{formatCurrency(item.currentPrice)}</div>
+                                            {item.suggestedPrice != null && (
+                                                <div className="text-[10px] text-emerald-700 font-bold">Τύπος: {formatCurrency(item.suggestedPrice)}</div>
+                                            )}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleSingleUpdate(item, { applyFormula: true })}
+                                            disabled={processingSingleId === item.id}
+                                            className="shrink-0 px-2 py-1 rounded-md bg-emerald-600 text-white text-[9px] font-bold hover:bg-emerald-700 flex items-center gap-1 disabled:opacity-60"
+                                        >
+                                            {processingSingleId === item.id ? <Loader2 size={10} className="animate-spin" /> : <Wand2 size={10} />}
+                                            Τύπος
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_20px_minmax(0,0.8fr)_minmax(0,0.7fr)_minmax(0,0.6fr)_80px] gap-2 px-3 py-1.5 bg-white border-b border-slate-100 text-[9px] font-black uppercase tracking-widest text-slate-400 shrink-0">
+                    <div className="pl-3">Κωδικός</div>
                     <div className="text-right">Τρέχουσα</div>
                     <div />
                     <div className="text-right">Νέα</div>
                     <div className="text-right">Διαφορά</div>
                     <div className="text-right">{mode === 'selling' ? 'Περιθώριο' : ''}</div>
-                    <div className="text-right pr-2">Ενέργειες</div>
+                    <div className="text-right pr-1">Ενέργειες</div>
                 </div>
                 
                 <div className="flex-1 overflow-auto custom-scrollbar" ref={parentRef}>
@@ -815,7 +794,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                             return (
                                 <div 
                                     key={virtualRow.key}
-                                    className={`absolute top-0 left-0 w-full grid grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_24px_minmax(0,0.8fr)_minmax(0,0.7fr)_minmax(0,0.6fr)_88px] gap-2 items-center border-b border-slate-50 transition-colors ${rowClass}`}
+                                    className={`absolute top-0 left-0 w-full grid grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_20px_minmax(0,0.8fr)_minmax(0,0.7fr)_minmax(0,0.6fr)_80px] gap-2 items-center border-b border-slate-50 transition-colors ${rowClass}`}
                                     style={{ 
                                         height: `${virtualRow.size}px`, 
                                         transform: `translateY(${virtualRow.start}px)`
@@ -890,7 +869,7 @@ export default function PricingManager({ products, settings, materials }: Props)
       )}
 
       {mode === 'history' && (
-          <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in">
+          <div className="flex-1 min-h-0 overflow-hidden grid grid-cols-1 lg:grid-cols-3 gap-4 animate-in fade-in">
               <div className="lg:col-span-1 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
                   <div className="p-6 border-b border-slate-100 bg-slate-50/50">
                       <h3 className="font-bold text-slate-800 flex items-center gap-2"><History size={18} className="text-blue-500"/> Λίστα Αντιγράφων</h3>
@@ -943,7 +922,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                                 <table className="w-full text-left text-sm">
                                     <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] sticky top-0 shadow-sm">
                                         <tr>
-                                            <th className="p-4 pl-8">Κωδικός (SKU/Var)</th>
+                                            <th className="p-4 pl-8">Κωδικός / Παράλλαγη</th>
                                             <th className="p-4 text-right">Τιμή Αντιγράφου</th>
                                             <th className="p-4 text-right">Τρέχουσα Τιμή</th>
                                             <th className="p-4 text-right pr-8">Διαφορά</th>
