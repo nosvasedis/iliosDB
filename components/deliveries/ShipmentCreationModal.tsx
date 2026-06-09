@@ -1,6 +1,6 @@
 
-import React, { useState, useMemo } from 'react';
-import { X, Truck, Package, Minus, Plus, ImageIcon, StickyNote, CheckCircle2, AlertTriangle } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { X, Truck, Package, Minus, Plus, ImageIcon, StickyNote, CheckCircle2, AlertTriangle, Search, Hash, Sparkles } from 'lucide-react';
 import { Order, ProductionBatch, Product, OrderShipmentItem } from '../../types';
 import { getReadyToShipItems, computeShipmentValue } from '../../utils/shipmentUtils';
 import { formatShipmentIssueLine, hasBlockingShipmentIssues, ShipmentSafetyIssue, validateShipmentRequest } from '../../utils/shipmentSafety';
@@ -9,6 +9,7 @@ import { formatOrderId } from '../../utils/orderUtils';
 import { buildItemIdentityKey } from '../../utils/itemIdentity';
 import { getProductOptionColorLabel } from '../../utils/xrOptions';
 import { api } from '../../lib/supabase';
+import SkuColorizedText from '../SkuColorizedText';
 
 interface Props {
   order: Order;
@@ -46,6 +47,36 @@ export default function ShipmentCreationModal({ order, batches, products, delive
   const [loading, setLoading] = useState(false);
   const [safetyIssues, setSafetyIssues] = useState<ShipmentSafetyIssue[]>([]);
   const [safetyError, setSafetyError] = useState<string | null>(null);
+  const [searchInput, setSearchInput] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchTerm(searchInput.trim().toLowerCase()), 250);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  const filteredReadyItems = useMemo(() => {
+    if (!searchTerm) return readyItems;
+    return readyItems.filter(item => {
+      const product = products.find(p => p.sku === item.sku);
+      const { finish, stone } = getVariantComponents(item.variant_suffix ?? '', product?.gender);
+      const haystack = [
+        item.sku,
+        item.variant_suffix,
+        item.size_info,
+        finish.name,
+        finish.code,
+        stone.name,
+        stone.code,
+        product?.category,
+        item.cord_color ? getProductOptionColorLabel(item.cord_color as OrderShipmentItem['cord_color']) : null,
+        item.enamel_color ? getProductOptionColorLabel(item.enamel_color as OrderShipmentItem['enamel_color']) : null,
+      ].filter(Boolean).join(' ').toLowerCase();
+      return haystack.includes(searchTerm);
+    });
+  }, [readyItems, searchTerm, products]);
+
+  const totalReadyQty = useMemo(() => readyItems.reduce((acc, i) => acc + i.quantity, 0), [readyItems]);
 
   const adjustQty = (key: string, delta: number) => {
     setShipQtys(prev => {
@@ -53,6 +84,28 @@ export default function ShipmentCreationModal({ order, batches, products, delive
       if (!item) return prev;
       const newQty = Math.max(0, Math.min(item.quantity, (prev[key] || 0) + delta));
       return { ...prev, [key]: newQty };
+    });
+  };
+
+  const shipAllVisible = () => {
+    setShipQtys(prev => {
+      const next = { ...prev };
+      for (const item of filteredReadyItems) {
+        const key = getItemIdentityKey(item);
+        next[key] = item.quantity;
+      }
+      return next;
+    });
+  };
+
+  const clearAllVisible = () => {
+    setShipQtys(prev => {
+      const next = { ...prev };
+      for (const item of filteredReadyItems) {
+        const key = getItemIdentityKey(item);
+        next[key] = 0;
+      }
+      return next;
     });
   };
 
@@ -152,23 +205,75 @@ export default function ShipmentCreationModal({ order, batches, products, delive
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="p-6 border-b border-slate-100 shrink-0">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                <Truck size={22} className="text-amber-600" />
-                Αποστολή Ετοίμων
-              </h2>
-              <p className="text-sm text-slate-500 mt-1">Παραγγελία {formatOrderId(order.id)} — {order.customer_name}</p>
+        <div className="relative shrink-0 overflow-hidden border-b border-amber-100/80">
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-50 via-white to-emerald-50/60" />
+          <div className="relative p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                  <span className="flex items-center justify-center w-9 h-9 rounded-2xl bg-amber-500 text-white shadow-md shadow-amber-200">
+                    <Truck size={18} />
+                  </span>
+                  Αποστολή Ετοίμων
+                </h2>
+                <p className="text-sm text-slate-600 mt-2 font-medium">
+                  Παραγγελία <span className="font-black text-slate-900">{formatOrderId(order.id)}</span>
+                  <span className="text-slate-300 mx-1.5">·</span>
+                  {order.customer_name}
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 px-3 py-1 text-[11px] font-black">
+                    <Sparkles size={12} />
+                    {readyItems.length} γραμμ{readyItems.length !== 1 ? 'ές' : 'ή'} · {totalReadyQty} τεμ. έτοιμα
+                  </span>
+                </div>
+              </div>
+              <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/80 transition-colors border border-transparent hover:border-slate-200">
+                <X size={20} className="text-slate-400" />
+              </button>
             </div>
-            <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 transition-colors">
-              <X size={20} className="text-slate-400" />
-            </button>
+          </div>
+        </div>
+
+        {/* Search + quick actions */}
+        <div className="px-6 py-4 border-b border-slate-100 shrink-0 space-y-3 bg-slate-50/60">
+          <div className="relative">
+            <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              placeholder="Αναζήτηση SKU, πέτρας, φινιρίσματος, μεγέθους..."
+              className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200 bg-white outline-none focus:ring-2 focus:ring-amber-400/30 text-sm font-medium text-slate-700 placeholder:text-slate-400 shadow-sm"
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs font-bold text-slate-500">
+              {searchTerm
+                ? `${filteredReadyItems.length} από ${readyItems.length} γραμμές`
+                : `${readyItems.length} γραμμές προς επιλογή`}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={shipAllVisible}
+                className="px-3 py-1.5 rounded-xl text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+              >
+                Όλα
+              </button>
+              <button
+                type="button"
+                onClick={clearAllVisible}
+                className="px-3 py-1.5 rounded-xl text-[11px] font-black bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 transition-colors"
+              >
+                Καμία
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Items */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-3">
+        <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-gradient-to-b from-slate-50/40 to-white">
           {(safetyIssues.length > 0 || safetyError) && (
             <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
               <div className="flex items-center gap-2 font-black">
@@ -192,53 +297,106 @@ export default function ShipmentCreationModal({ order, batches, products, delive
               )}
             </div>
           )}
-          {readyItems.map(item => {
+          {filteredReadyItems.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center">
+              <Search size={32} className="mx-auto text-slate-300 mb-3" />
+              <p className="text-sm font-black text-slate-700">Δεν βρέθηκαν τεμάχια</p>
+              <p className="text-xs text-slate-500 mt-1">Δοκιμάστε άλλο SKU, πέτρα ή φινίρισμα.</p>
+            </div>
+          ) : filteredReadyItems.map(item => {
             const key = getItemIdentityKey(item);
             const qty = shipQtys[key] || 0;
             const product = products.find(p => p.sku === item.sku);
             const { finish, stone } = getVariantComponents(item.variant_suffix ?? '', product?.gender);
             const price = getPrice(item.sku, item.variant_suffix, item.size_info, item.cord_color as OrderShipmentItem['cord_color'], item.enamel_color as OrderShipmentItem['enamel_color'], item.line_id || null);
+            const isSelected = qty > 0;
 
             return (
-              <div key={key} className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
+              <div
+                key={key}
+                className={`flex items-center gap-4 rounded-2xl border p-4 transition-all shadow-sm ${
+                  isSelected
+                    ? 'border-amber-200 bg-white ring-1 ring-amber-100'
+                    : 'border-slate-200 bg-white/80 opacity-75 hover:opacity-100 hover:border-slate-300'
+                }`}
+              >
                 {/* Image */}
-                <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                <div className="w-14 h-14 rounded-xl bg-slate-50 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center shadow-inner">
                   {product?.image_url ? (
                     <img src={product.image_url} alt={item.sku} className="w-full h-full object-cover" />
                   ) : (
-                    <ImageIcon size={24} className="text-slate-400" />
+                    <ImageIcon size={22} className="text-slate-300" />
                   )}
                 </div>
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
-                  <div className="font-black text-slate-900 text-sm">{item.sku}{item.variant_suffix ? <span className="text-slate-400 font-bold ml-1">{item.variant_suffix}</span> : null}</div>
-                  <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
-                    {item.size_info && <span className="font-bold">#{item.size_info}</span>}
-                    {item.cord_color && <span className="font-bold text-amber-700">Κορδόνι: {getProductOptionColorLabel(item.cord_color as OrderShipmentItem['cord_color'])}</span>}
-                    {item.enamel_color && <span className="font-bold text-rose-700">Σμάλτο: {getProductOptionColorLabel(item.enamel_color as OrderShipmentItem['enamel_color'])}</span>}
-                    {finish.name && <span>{finish.name}</span>}
-                    {stone.name && <span>{stone.name}</span>}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <SkuColorizedText
+                      sku={item.sku}
+                      suffix={item.variant_suffix ?? undefined}
+                      gender={product?.gender}
+                      className="font-black text-sm"
+                    />
+                    {item.size_info && (
+                      <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 font-bold flex items-center gap-0.5">
+                        <Hash size={8} /> {item.size_info}
+                      </span>
+                    )}
+                    {item.cord_color && (
+                      <span className="text-[9px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-100 font-bold">
+                        Κορδόνι: {getProductOptionColorLabel(item.cord_color as OrderShipmentItem['cord_color'])}
+                      </span>
+                    )}
+                    {item.enamel_color && (
+                      <span className="text-[9px] bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded border border-rose-100 font-bold">
+                        Σμάλτο: {getProductOptionColorLabel(item.enamel_color as OrderShipmentItem['enamel_color'])}
+                      </span>
+                    )}
                   </div>
-                  <div className="text-xs text-emerald-600 font-bold mt-1 flex items-center gap-1">
-                    <CheckCircle2 size={12} /> Έτοιμα: {item.quantity} τεμ. — {formatCurrency(price)}/τεμ.
+                  {product?.category && (
+                    <div className="text-[10px] font-bold uppercase text-slate-400 truncate mt-0.5">
+                      {product.category}
+                    </div>
+                  )}
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    {finish.name && (
+                      <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 font-bold">
+                        {finish.name}
+                      </span>
+                    )}
+                    {stone.name && (
+                      <span className="text-[9px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-100 font-bold">
+                        {stone.name}
+                      </span>
+                    )}
+                    <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 font-black bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                      <CheckCircle2 size={10} /> Έτοιμα: {item.quantity}
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-500">
+                      {formatCurrency(price)}/τεμ.
+                    </span>
                   </div>
                 </div>
 
                 {/* Quantity stepper */}
-                <div className="flex items-center gap-2 shrink-0">
+                <div className={`flex items-center gap-1.5 shrink-0 rounded-xl border p-1 ${isSelected ? 'border-amber-200 bg-amber-50/50' : 'border-slate-200 bg-slate-50'}`}>
                   <button
+                    type="button"
                     onClick={() => adjustQty(key, -1)}
                     disabled={qty <= 0}
-                    className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-slate-100 disabled:opacity-30 transition-colors"
+                    className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center hover:bg-slate-50 disabled:opacity-30 transition-colors"
                   >
                     <Minus size={14} />
                   </button>
-                  <span className="w-8 text-center font-black text-slate-900">{qty}</span>
+                  <span className={`w-8 text-center font-black tabular-nums ${isSelected ? 'text-amber-700' : 'text-slate-500'}`}>
+                    {qty}
+                  </span>
                   <button
+                    type="button"
                     onClick={() => adjustQty(key, 1)}
                     disabled={qty >= item.quantity}
-                    className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-slate-100 disabled:opacity-30 transition-colors"
+                    className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center hover:bg-slate-50 disabled:opacity-30 transition-colors"
                   >
                     <Plus size={14} />
                   </button>
@@ -248,7 +406,7 @@ export default function ShipmentCreationModal({ order, batches, products, delive
           })}
 
           {/* Notes */}
-          <div className="pt-3">
+          <div className="pt-2">
             <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
               <StickyNote size={14} /> Σημειώσεις αποστολής
             </label>
@@ -256,14 +414,14 @@ export default function ShipmentCreationModal({ order, batches, products, delive
               value={notes}
               onChange={e => setNotes(e.target.value)}
               placeholder="Προαιρετικές σημειώσεις για αυτή την αποστολή..."
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300/40 resize-none shadow-sm"
               rows={2}
             />
           </div>
         </div>
 
         {/* Footer with financials + confirm */}
-        <div className="p-6 border-t border-slate-100 shrink-0 space-y-4">
+        <div className="p-6 border-t border-slate-100 shrink-0 space-y-4 bg-gradient-to-t from-amber-50/40 to-white">
           {/* Financial summary */}
           <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
             <span className="text-slate-500">Υποσύνολο αποστολής</span>
@@ -294,7 +452,7 @@ export default function ShipmentCreationModal({ order, batches, products, delive
               <button
                 onClick={handleConfirm}
                 disabled={totalShippingQty === 0 || loading}
-                className="px-6 py-3 rounded-2xl bg-amber-500 text-white font-black text-sm flex items-center gap-2 disabled:opacity-40 hover:bg-amber-600 transition-colors"
+                className="px-6 py-3 rounded-2xl bg-amber-500 text-white font-black text-sm flex items-center gap-2 disabled:opacity-40 hover:bg-amber-600 transition-colors shadow-md shadow-amber-200/60"
               >
                 {loading ? <span className="animate-spin">⏳</span> : <Truck size={16} />}
                 Επιβεβαίωση Αποστολής
