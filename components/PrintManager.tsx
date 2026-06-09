@@ -15,7 +15,10 @@ import BarcodeView from './BarcodeView';
 import PhotoCatalogPrintView from './PhotoCatalogPrintView';
 import StageBatchPrintView from './StageBatchPrintView';
 import { transliterateForBarcode } from '../utils/pricingEngine';
-import { PRINT_SUBSEQUENT_PAGE_TOP_MARGIN_STYLES } from '../utils/printPageStyles';
+import {
+    buildPrintIframeOnloadScript,
+    PRINT_SUBSEQUENT_PAGE_TOP_MARGIN_STYLES,
+} from '../utils/printPageStyles';
 
 interface PrintManagerProps {
     settings: GlobalSettings | undefined;
@@ -232,7 +235,12 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                             display: flex !important;
                         }
                         @media print {
-                          @page { size: auto; margin: 0; }
+                          @page {
+                            size: auto;
+                            margin-left: 0;
+                            margin-right: 0;
+                            margin-bottom: 0;
+                          }
                           html, body { height: 100%; margin: 0 !important; padding: 0 !important; }
                           .label-container { display: flex !important; }
                         }
@@ -243,14 +251,8 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                       <div class="print-view">
                         ${printContent.innerHTML}
                       </div>
-                      <style>${PRINT_SUBSEQUENT_PAGE_TOP_MARGIN_STYLES}</style>
                       <script>
-                        window.onload = function() {
-                          setTimeout(function() {
-                            window.focus();
-                            window.print();
-                          }, 500);
-                        };
+                        ${buildPrintIframeOnloadScript(PRINT_SUBSEQUENT_PAGE_TOP_MARGIN_STYLES)}
                       </script>
                     </body>
                   </html>

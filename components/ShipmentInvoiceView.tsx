@@ -5,6 +5,8 @@ import { ImageIcon, Phone, MapPin, StickyNote, Calendar, Hash, Truck } from 'luc
 import { formatOrderId } from '../utils/orderUtils';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
 import { getProductOptionColorLabel } from '../utils/xrOptions';
+import { PRINT_INVOICE_DOCUMENT_STYLES } from '../utils/printPageStyles';
+import { chunkPrintPages, getPrintPageItemIndex } from '../utils/printPagination';
 
 interface Props {
     order: Order;
@@ -95,142 +97,165 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
         );
     };
 
+    const printPages = useMemo(() => chunkPrintPages(sortedShipmentItems), [sortedShipmentItems]);
+    const lastPageIndex = printPages.length - 1;
+
+    const columnHeaderRow = (
+        <div className="flex border-b-2 border-slate-800 pb-1 mb-1 text-[10px] font-black text-slate-700 uppercase tracking-wider">
+            <div className="flex-1 flex items-center pr-3">
+                <div className="w-6 text-center text-slate-400">#</div>
+                <div className="w-8 text-center">Eik.</div>
+                <div className="flex-1 px-1">Περιγραφή</div>
+                <div className="w-8 text-center">Ποσ.</div>
+                <div className="w-12 text-right">Τιμή</div>
+                <div className="w-14 text-right">Σύνολο</div>
+            </div>
+            <div className="flex-1 flex items-center pl-3 border-l border-slate-300">
+                <div className="w-6 text-center text-slate-400">#</div>
+                <div className="w-8 text-center">Eik.</div>
+                <div className="flex-1 px-1">Περιγραφή</div>
+                <div className="w-8 text-center">Ποσ.</div>
+                <div className="w-12 text-right">Τιμή</div>
+                <div className="w-14 text-right">Σύνολο</div>
+            </div>
+        </div>
+    );
+
+    const itemsColumnStyle = {
+        columnCount: 2,
+        columnGap: '1.5rem',
+        columnRuleWidth: '1px',
+        columnRuleStyle: 'dashed' as const,
+        columnRuleColor: '#e2e8f0',
+    };
+
     return (
-        <div className="bg-white text-black font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 page-break-after-always flex flex-col relative">
+        <div className="bg-white text-black font-sans w-[210mm] mx-auto shadow-lg print:shadow-none print:w-full page-break-after-always relative">
+            <style>{PRINT_INVOICE_DOCUMENT_STYLES}</style>
 
-            {/* HEADER */}
-            <div className="flex justify-between items-end border-b-2 border-slate-900 pb-2 mb-3 shrink-0">
-                <div className="flex items-center gap-3">
-                    <img src={APP_LOGO} alt="ILIOS" className="h-9 w-auto object-contain" />
-                    <div className="text-[8px] text-slate-600 leading-tight border-l border-slate-300 pl-2">
-                        <p className="font-bold text-slate-900 uppercase tracking-wide">{company.name}</p>
-                        <p>{company.address}</p>
-                        <p>{company.email} &bull; {company.phone}</p>
-                    </div>
-                </div>
-
-                <div className="text-right">
-                    <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-none mb-0.5">ΜΕΡΙΚΗ ΠΡΟΣΦΟΡΑ</h1>
-                    <div className="flex items-center justify-end gap-3 text-[10px] text-slate-700 font-medium">
-                        <span className="flex items-center gap-1"><Truck size={10}/> Αποστολή #{shipment.shipment_number}</span>
-                        <span className="text-slate-300">|</span>
-                        <span className="flex items-center gap-1"><Hash size={10}/> {formatOrderId(order.id)}</span>
-                        <span className="text-slate-300">|</span>
-                        <span className="flex items-center gap-1"><Calendar size={10}/> {formatDate(shipment.shipped_at)}</span>
-                    </div>
-                </div>
-            </div>
-
-            {/* INFO BAR */}
-            <div className="flex gap-4 mb-3 shrink-0 bg-slate-50 rounded-lg border border-slate-200 p-2">
-                <div className="flex-1 flex flex-col justify-center">
-                    <div className="flex items-baseline gap-2 mb-0.5">
-                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Πελάτης</span>
-                        <span className="font-black text-slate-900 text-sm leading-none">{customer?.full_name || order.customer_name}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-[10px] text-slate-700">
-                        {(customer?.phone || order.customer_phone) && (
-                            <span className="flex items-center gap-1"><Phone size={10} className="text-slate-400"/> {customer?.phone || order.customer_phone}</span>
-                        )}
-                        {customer?.address && (
-                            <span className="flex items-center gap-1"><MapPin size={10} className="text-slate-400"/> {customer.address}</span>
-                        )}
-                        {customer?.vat_number && (
-                            <span className="font-mono text-slate-600">ΑΦΜ: {customer.vat_number}</span>
-                        )}
-                    </div>
-                </div>
-
-                <div className="w-px bg-slate-200 my-0.5"></div>
-
-                <div className="flex flex-col justify-center items-end px-2 min-w-[120px]">
-                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Αξία Αποστολής</span>
-                    <span className="font-black text-xl text-slate-900 leading-none">{grandTotal.toFixed(2).replace('.', ',')}&#8364;</span>
-                </div>
-            </div>
-
-            {/* Shipment meta */}
-            <div className="flex gap-4 mb-3 text-[10px] text-slate-600 font-medium bg-amber-50 rounded-lg border border-amber-100 px-3 py-2">
-                <span>Απεστάλη από: <span className="font-bold text-slate-800">{shipment.shipped_by}</span></span>
-                {shipment.notes && (
-                    <>
-                        <span className="text-slate-300">|</span>
-                        <span className="flex items-center gap-1"><StickyNote size={10}/> {shipment.notes}</span>
-                    </>
-                )}
-            </div>
-
-            {/* DUAL COLUMN ITEMS GRID */}
-            <main className="flex-1 min-h-0 relative">
-                <div className="flex border-b-2 border-slate-800 pb-1 mb-1 text-[10px] font-black text-slate-700 uppercase tracking-wider">
-                    <div className="flex-1 flex items-center pr-3">
-                        <div className="w-6 text-center text-slate-400">#</div>
-                        <div className="w-8 text-center">Eik.</div>
-                        <div className="flex-1 px-1">Περιγραφή</div>
-                        <div className="w-8 text-center">Ποσ.</div>
-                        <div className="w-12 text-right">Τιμή</div>
-                        <div className="w-14 text-right">Σύνολο</div>
-                    </div>
-                    <div className="flex-1 flex items-center pl-3 border-l border-slate-300">
-                        <div className="w-6 text-center text-slate-400">#</div>
-                        <div className="w-8 text-center">Eik.</div>
-                        <div className="flex-1 px-1">Περιγραφή</div>
-                        <div className="w-8 text-center">Ποσ.</div>
-                        <div className="w-12 text-right">Τιμή</div>
-                        <div className="w-14 text-right">Σύνολο</div>
-                    </div>
-                </div>
-
-                {/* Items Grid - CSS columns: page-aware vertical flow, left→right per page */}
-                <div
-                    className="text-[12px] leading-snug"
-                    style={{ columnCount: 2, columnGap: '1.5rem', columnRuleWidth: '1px', columnRuleStyle: 'dashed', columnRuleColor: '#e2e8f0' }}
+            {printPages.map((pageItems, pageIndex) => (
+                <section
+                    key={pageIndex}
+                    className={`flex flex-col p-6 print:p-6 ${pageIndex > 0 ? 'ilios-print-continuation-page' : ''} ${pageIndex < lastPageIndex ? 'page-break-after-always' : ''}`}
                 >
-                    {sortedShipmentItems.map((item, index) => renderShipmentItem(item, index))}
-                </div>
-            </main>
+                    {pageIndex === 0 && (
+                        <>
+                            <div className="flex justify-between items-end border-b-2 border-slate-900 pb-2 mb-3 shrink-0">
+                                <div className="flex items-center gap-3">
+                                    <img src={APP_LOGO} alt="ILIOS" className="h-9 w-auto object-contain" />
+                                    <div className="text-[8px] text-slate-600 leading-tight border-l border-slate-300 pl-2">
+                                        <p className="font-bold text-slate-900 uppercase tracking-wide">{company.name}</p>
+                                        <p>{company.address}</p>
+                                        <p>{company.email} &bull; {company.phone}</p>
+                                    </div>
+                                </div>
 
-            {/* FOOTER */}
-            <footer className="mt-2 pt-2 border-t-2 border-slate-900 flex justify-between items-start shrink-0">
-                <div className="text-[9px] text-slate-600 max-w-xs leading-snug">
-                    <p className="font-bold uppercase text-slate-500 mb-0.5">Σημειώσεις</p>
-                    <p className="italic bg-slate-50 p-1.5 rounded border border-slate-100">{shipment.notes || order.notes || "Δεν υπάρχουν σημειώσεις."}</p>
-                </div>
+                                <div className="text-right">
+                                    <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-none mb-0.5">ΜΕΡΙΚΗ ΠΡΟΣΦΟΡΑ</h1>
+                                    <div className="flex items-center justify-end gap-3 text-[10px] text-slate-700 font-medium">
+                                        <span className="flex items-center gap-1"><Truck size={10}/> Αποστολή #{shipment.shipment_number}</span>
+                                        <span className="text-slate-300">|</span>
+                                        <span className="flex items-center gap-1"><Hash size={10}/> {formatOrderId(order.id)}</span>
+                                        <span className="text-slate-300">|</span>
+                                        <span className="flex items-center gap-1"><Calendar size={10}/> {formatDate(shipment.shipped_at)}</span>
+                                    </div>
+                                </div>
+                            </div>
 
-                <div className="w-48 text-[11px]">
-                    <div className="flex justify-between items-center text-slate-700 mb-1 pb-1 border-b border-slate-200">
-                        <span>Σύνολο Τεμαχίων:</span>
-                        <span className="tabular-nums font-bold">{totalPieces}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-slate-600 mb-0.5">
-                        <span>Καθαρή Αξία:</span>
-                        <span className="tabular-nums font-bold">{subtotal.toFixed(2).replace('.', ',')}&#8364;</span>
-                    </div>
-                    {discountAmount > 0 && (
-                        <div className="flex justify-between items-center text-rose-600 mb-0.5">
-                            <span>Έκπτωση ({discountPercent}%):</span>
-                            <span className="tabular-nums font-bold">-{discountAmount.toFixed(2).replace('.', ',')}&#8364;</span>
-                        </div>
+                            <div className="flex gap-4 mb-3 shrink-0 bg-slate-50 rounded-lg border border-slate-200 p-2">
+                                <div className="flex-1 flex flex-col justify-center">
+                                    <div className="flex items-baseline gap-2 mb-0.5">
+                                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Πελάτης</span>
+                                        <span className="font-black text-slate-900 text-sm leading-none">{customer?.full_name || order.customer_name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 text-[10px] text-slate-700">
+                                        {(customer?.phone || order.customer_phone) && (
+                                            <span className="flex items-center gap-1"><Phone size={10} className="text-slate-400"/> {customer?.phone || order.customer_phone}</span>
+                                        )}
+                                        {customer?.address && (
+                                            <span className="flex items-center gap-1"><MapPin size={10} className="text-slate-400"/> {customer.address}</span>
+                                        )}
+                                        {customer?.vat_number && (
+                                            <span className="font-mono text-slate-600">ΑΦΜ: {customer.vat_number}</span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="w-px bg-slate-200 my-0.5"></div>
+
+                                <div className="flex flex-col justify-center items-end px-2 min-w-[120px]">
+                                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Αξία Αποστολής</span>
+                                    <span className="font-black text-xl text-slate-900 leading-none">{grandTotal.toFixed(2).replace('.', ',')}&#8364;</span>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-4 mb-3 text-[10px] text-slate-600 font-medium bg-amber-50 rounded-lg border border-amber-100 px-3 py-2">
+                                <span>Απεστάλη από: <span className="font-bold text-slate-800">{shipment.shipped_by}</span></span>
+                                {shipment.notes && (
+                                    <>
+                                        <span className="text-slate-300">|</span>
+                                        <span className="flex items-center gap-1"><StickyNote size={10}/> {shipment.notes}</span>
+                                    </>
+                                )}
+                            </div>
+                        </>
                     )}
-                    <div className="flex justify-between items-center text-slate-600 mb-1 pb-1 border-b border-slate-200">
-                        <span>Φ.Π.Α. ({(vatRate * 100).toFixed(0)}%):</span>
-                        <span className="tabular-nums font-bold">{vatAmount.toFixed(2).replace('.', ',')}&#8364;</span>
-                    </div>
 
-                    <div className="flex justify-between items-center text-slate-900 font-black text-sm">
-                        <span className="uppercase">Γενικό Σύνολο:</span>
-                        <span className="tabular-nums text-base">{grandTotal.toFixed(2).replace('.', ',')}&#8364;</span>
-                    </div>
-                </div>
-            </footer>
-            <div className="mt-4 text-center text-[8px] text-slate-400 uppercase tracking-widest font-bold">
-                Δελτίο Μερικής Αποστολής #{shipment.shipment_number} &bull; Ilios Kosmima ERP &bull; {new Date().toLocaleTimeString()}
-            </div>
-            {hasOverriddenPrices && (
-                <div className="mt-1 text-center text-[8px] text-amber-700 font-bold">
-                    * Τιμή ανά τεμάχιο με εξαίρεση για τη συγκεκριμένη παραγγελία.
-                </div>
-            )}
+                    <main className="flex-1 min-h-0 relative">
+                        {columnHeaderRow}
+                        <div className="text-[12px] leading-snug" style={itemsColumnStyle}>
+                            {pageItems.map((item, indexInPage) =>
+                                renderShipmentItem(item, getPrintPageItemIndex(pageIndex, indexInPage))
+                            )}
+                        </div>
+                    </main>
+
+                    {pageIndex === lastPageIndex && (
+                        <>
+                            <footer className="mt-2 pt-2 border-t-2 border-slate-900 flex justify-between items-start shrink-0">
+                                <div className="text-[9px] text-slate-600 max-w-xs leading-snug">
+                                    <p className="font-bold uppercase text-slate-500 mb-0.5">Σημειώσεις</p>
+                                    <p className="italic bg-slate-50 p-1.5 rounded border border-slate-100">{shipment.notes || order.notes || "Δεν υπάρχουν σημειώσεις."}</p>
+                                </div>
+
+                                <div className="w-48 text-[11px]">
+                                    <div className="flex justify-between items-center text-slate-700 mb-1 pb-1 border-b border-slate-200">
+                                        <span>Σύνολο Τεμαχίων:</span>
+                                        <span className="tabular-nums font-bold">{totalPieces}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-slate-600 mb-0.5">
+                                        <span>Καθαρή Αξία:</span>
+                                        <span className="tabular-nums font-bold">{subtotal.toFixed(2).replace('.', ',')}&#8364;</span>
+                                    </div>
+                                    {discountAmount > 0 && (
+                                        <div className="flex justify-between items-center text-rose-600 mb-0.5">
+                                            <span>Έκπτωση ({discountPercent}%):</span>
+                                            <span className="tabular-nums font-bold">-{discountAmount.toFixed(2).replace('.', ',')}&#8364;</span>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between items-center text-slate-600 mb-1 pb-1 border-b border-slate-200">
+                                        <span>Φ.Π.Α. ({(vatRate * 100).toFixed(0)}%):</span>
+                                        <span className="tabular-nums font-bold">{vatAmount.toFixed(2).replace('.', ',')}&#8364;</span>
+                                    </div>
+
+                                    <div className="flex justify-between items-center text-slate-900 font-black text-sm">
+                                        <span className="uppercase">Γενικό Σύνολο:</span>
+                                        <span className="tabular-nums text-base">{grandTotal.toFixed(2).replace('.', ',')}&#8364;</span>
+                                    </div>
+                                </div>
+                            </footer>
+                            <div className="mt-4 text-center text-[8px] text-slate-400 uppercase tracking-widest font-bold">
+                                Δελτίο Μερικής Αποστολής #{shipment.shipment_number} &bull; Ilios Kosmima ERP &bull; {new Date().toLocaleTimeString()}
+                            </div>
+                            {hasOverriddenPrices && (
+                                <div className="mt-1 text-center text-[8px] text-amber-700 font-bold">
+                                    * Τιμή ανά τεμάχιο με εξαίρεση για τη συγκεκριμένη παραγγελία.
+                                </div>
+                            )}
+                        </>
+                    )}
+                </section>
+            ))}
         </div>
     );
 }

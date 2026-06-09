@@ -47,8 +47,17 @@
         .print-view { 
           display: block !important; 
         }
-        @page :not(:first) {
+        @page {
           margin-top: 2cm;
+        }
+        @page :left {
+          margin-top: 2cm;
+        }
+        @page :right {
+          margin-top: 2cm;
+        }
+        @page :first {
+          margin-top: 0;
         }
       }
     </style>

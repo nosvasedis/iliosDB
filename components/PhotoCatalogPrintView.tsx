@@ -47,9 +47,6 @@ export default function PhotoCatalogPrintView({ products, molds, title = 'Φωτ
                         size: A4 portrait;
                         margin: 10mm 8mm;
                     }
-                    @page :not(:first) {
-                        margin: 10mm 8mm !important;
-                    }
                     html, body {
                         margin: 0 !important;
                         padding: 0 !important;
