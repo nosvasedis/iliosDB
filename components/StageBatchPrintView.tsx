@@ -36,7 +36,7 @@ const STONE_COLORS_PRINT: Record<string, string> = {
     'NF': '#15803d', 'CO': '#0d9488', 'TPR': '#10b981', 'TKO': '#e11d48',
     'TMP': '#2563eb', 'PCO': '#34d399', 'MCO': '#a855f7', 'PAX': '#16a34a',
     'MAX': '#1d4ed8', 'KAX': '#b91c1c', 'AI': '#64748b', 'AP': '#06b6d4',
-    'AM': '#0f766e', 'LR': '#3730a3', 'SB': '#38bdf8', 'MP': '#60a5fa',
+    'AM': '#0f766e', 'AZM': '#0d9488', 'LR': '#3730a3', 'SB': '#38bdf8', 'MP': '#60a5fa',
     'LE': '#94a3b8', 'PR': '#22c55e', 'KO': '#ef4444', 'MV': '#c084fc',
     'RZ': '#f472b6', 'AK': '#67e8f9', 'XAL': '#78716c', 'SD': '#1e3a8a',
     'AX': '#047857',

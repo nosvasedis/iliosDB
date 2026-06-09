@@ -99,7 +99,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
 
         // Code based heuristics
         const hasMenCode = variantCodes.some(vc => ['KR','GSU','RSU','QN','TG','IA','BSU','MA'].includes(vc));
-        const hasWomenCode = variantCodes.some(vc => ['SB','PAX','MAX','KAX','PCO','MCO','CO','AP','AM'].includes(vc));
+        const hasWomenCode = variantCodes.some(vc => ['SB','PAX','MAX','KAX','PCO','MCO','CO','AP','AM','AZM'].includes(vc));
         
         if (hasMenCode && !hasWomenCode) return 'men';
         if (hasWomenCode && !hasMenCode) return 'women';

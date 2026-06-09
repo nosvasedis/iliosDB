@@ -19,6 +19,7 @@ export const STONE_CHIP_STYLES: Record<string, { bg: string; text: string; dot: 
   AI: { bg: 'bg-zinc-100', text: 'text-zinc-700', dot: 'bg-zinc-500' },
   AP: { bg: 'bg-teal-50', text: 'text-teal-700', dot: 'bg-teal-300' },
   AM: { bg: 'bg-teal-50', text: 'text-teal-800', dot: 'bg-teal-400' },
+  AZM: { bg: 'bg-teal-50', text: 'text-teal-800', dot: 'bg-teal-500' },
   LR: { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-300' },
   LA: { bg: 'bg-blue-100', text: 'text-blue-900', dot: 'bg-blue-600' },
   FI: { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-200' },

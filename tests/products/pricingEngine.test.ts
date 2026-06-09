@@ -16,3 +16,24 @@ describe('Swiss Blue stone code (SB)', () => {
     expect(description).not.toContain('Blue Sky Topaz');
   });
 });
+
+describe('Azurite-Malachite stone code (AZM)', () => {
+  it('parses AZM suffix as lustre with stone AZM', () => {
+    const { stone, finish } = getVariantComponents('AZM', Gender.Women);
+    expect(stone.code).toBe('AZM');
+    expect(stone.name).toBe('Αζουρίτης - Μαλαχίτης');
+    expect(finish.code).toBe('');
+  });
+
+  it('parses PAZM suffix as finish P with stone AZM', () => {
+    const { stone, finish } = getVariantComponents('PAZM', Gender.Women);
+    expect(stone.code).toBe('AZM');
+    expect(stone.name).toBe('Αζουρίτης - Μαλαχίτης');
+    expect(finish.code).toBe('P');
+  });
+
+  it('generates Αζουρίτης - Μαλαχίτης in auto variant description for XAZM', () => {
+    const description = analyzeSuffix('XAZM', Gender.Women);
+    expect(description).toContain('Αζουρίτης - Μαλαχίτης');
+  });
+});

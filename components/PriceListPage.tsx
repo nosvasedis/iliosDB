@@ -74,6 +74,7 @@ const getStoneChipStyle = (code: string) => {
         'AI': 'bg-zinc-100 text-zinc-700',
         'AP': 'bg-teal-100 text-teal-700',
         'AM': 'bg-teal-100 text-teal-800',
+        'AZM': 'bg-teal-100 text-teal-800',
         'LR': 'bg-blue-100 text-blue-700',
         'LA': 'bg-blue-200 text-blue-900',
         'FI': 'bg-amber-100 text-amber-700',
