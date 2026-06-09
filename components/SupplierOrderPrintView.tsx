@@ -6,6 +6,7 @@ import { ImageIcon } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
 import { normalizeSupplierItemNotesForDisplay } from '../utils/mergeSupplierNeedIntoOrder';
+import { PRINT_SUBSEQUENT_PAGE_TOP_MARGIN_STYLES } from '../utils/printPageStyles';
 
 interface Props {
     order: SupplierOrder;
@@ -73,6 +74,7 @@ export default function SupplierOrderPrintView({ order, products }: Props) {
         <div className="bg-white text-black font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 page-break-after-always relative flex flex-col">
             <style>{`
                 @page { size: A4; margin: 0; }
+                ${PRINT_SUBSEQUENT_PAGE_TOP_MARGIN_STYLES}
                 .break-avoid { break-inside: avoid; }
                 .item-card { break-inside: avoid; }
             `}</style>

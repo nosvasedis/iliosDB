@@ -15,6 +15,7 @@ import BarcodeView from './BarcodeView';
 import PhotoCatalogPrintView from './PhotoCatalogPrintView';
 import StageBatchPrintView from './StageBatchPrintView';
 import { transliterateForBarcode } from '../utils/pricingEngine';
+import { PRINT_SUBSEQUENT_PAGE_TOP_MARGIN_STYLES } from '../utils/printPageStyles';
 
 interface PrintManagerProps {
     settings: GlobalSettings | undefined;
@@ -242,6 +243,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                       <div class="print-view">
                         ${printContent.innerHTML}
                       </div>
+                      <style>${PRINT_SUBSEQUENT_PAGE_TOP_MARGIN_STYLES}</style>
                       <script>
                         window.onload = function() {
                           setTimeout(function() {
