@@ -2,6 +2,7 @@
 import React, { useMemo } from 'react';
 import { APP_LOGO } from '../constants';
 import { compareSkuValues } from '../utils/skuSort';
+import { printPageMarginWithBaseTop } from '../utils/printPageStyles';
 
 export interface PriceListPrintData {
     title: string;
@@ -46,6 +47,7 @@ export default function PriceListPrintView({ data }: Props) {
                     color: #64748b;
                 }
               }
+              ${printPageMarginWithBaseTop('10mm')}
               
               html, body {
                 height: auto !important;

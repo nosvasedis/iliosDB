@@ -1,6 +1,7 @@
 import React from 'react';
 import { Product, Mold } from '../types';
 import { compareSkuValues } from '../utils/skuSort';
+import { PRINT_CATALOG_CONTINUATION_CSS } from '../utils/printPageStyles';
 
 interface Props {
     products: Product[];
@@ -59,6 +60,7 @@ export default function PhotoCatalogPrintView({ products, molds, title = 'Φωτ
                         page-break-after: avoid;
                         break-after: avoid;
                     }
+                    ${PRINT_CATALOG_CONTINUATION_CSS}
                     * {
                         -webkit-print-color-adjust: exact !important;
                         print-color-adjust: exact !important;
