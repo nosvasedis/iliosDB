@@ -94,6 +94,7 @@ export interface ProductVariant {
   location_stock?: Record<string, number>;
   active_price?: number | null;
   selling_price?: number | null;
+  selling_price_manual_override?: boolean;
 }
 
 export interface Collection {
@@ -125,6 +126,7 @@ export interface Product {
   active_price: number;
   draft_price: number;
   selling_price: number;
+  selling_price_manual_override?: boolean;
 
   // Inventory
   stock_qty: number;

@@ -325,7 +325,8 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
         if (!settings) return;
 
         setUseIliosFormula(true);
-        const updatedVariants = buildIliosPricedVariants(variants, currentTempProduct, settings, materials, products, weight, secondaryWeight);
+        const updatedVariants = buildIliosPricedVariants(variants, currentTempProduct, settings, materials, products, weight, secondaryWeight)
+            .map((variant) => ({ ...variant, selling_price_manual_override: false }));
         const masterFormulaPrice = buildIliosMasterPrice(currentTempProduct, settings, materials, products, weight, secondaryWeight, costBreakdown);
 
         setVariants(updatedVariants);
@@ -341,7 +342,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
         }
 
         setUseIliosFormula(false);
-        setVariants(prev => prev.map(v => ({ ...v, selling_price: sellingPrice })));
+        setVariants(prev => prev.map(v => ({ ...v, selling_price: sellingPrice, selling_price_manual_override: true })));
         showToast("Η τιμή Master εφαρμόστηκε σε όλες τις παραλλαγές.", "success");
     };
 
@@ -434,7 +435,11 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
     const updateVariant = (index: number, field: keyof ProductVariant, value: any) => {
         if (field === 'selling_price') setUseIliosFormula(false);
         const updated = [...variants];
-        updated[index] = { ...updated[index], [field]: value };
+        updated[index] = {
+            ...updated[index],
+            [field]: value,
+            ...(field === 'selling_price' ? { selling_price_manual_override: true } : {}),
+        };
         setVariants(updated);
     };
     const removeVariant = (index: number) => { setVariants(variants.filter((_, i) => i !== index)); };
@@ -478,13 +483,15 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
                     setCurrentStep(finalStepId);
                     return;
                 }
-                finalVariants = buildIliosPricedVariants(finalVariants, currentTempProduct, settings, materials, products, weight, secondaryWeight);
+                finalVariants = buildIliosPricedVariants(finalVariants, currentTempProduct, settings, materials, products, weight, secondaryWeight)
+                    .map((variant) => ({ ...variant, selling_price_manual_override: false }));
                 const formulaMasterPrice = buildIliosMasterPrice(currentTempProduct, settings, materials, products, weight, secondaryWeight, costBreakdown);
                 finalSellingPrice = finalVariants.length > 0 ? (finalVariants[0].selling_price || formulaMasterPrice) : formulaMasterPrice;
             } else {
                 finalVariants = finalVariants.map(v => ({
                     ...v,
-                    selling_price: (v.selling_price || 0) > 0 ? v.selling_price : sellingPrice
+                    selling_price: (v.selling_price || 0) > 0 ? v.selling_price : sellingPrice,
+                    selling_price_manual_override: true,
                 }));
 
                 if (finalSellingPrice <= 0 && finalVariants.length > 0) {
@@ -522,7 +529,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             if (selectedImage) {
                 try { const compressedBlob = await compressImage(selectedImage); finalImageUrl = await uploadProductImageForSku(compressedBlob, finalMasterSku); } catch (imgErr) { console.warn("Image upload skipped (offline?)"); showToast("Η εικόνα δεν ανέβηκε λόγω σύνδεσης.", "info"); }
             }
-            const productData = { sku: finalMasterSku, prefix: finalMasterSku.substring(0, 2), category, description: isSTX ? stxDescription : null, gender, image_url: finalImageUrl, weight_g: Number(weight) || 0, secondary_weight_g: Number(secondaryWeight) || null, plating_type: plating, active_price: masterEstimatedCost, draft_price: masterEstimatedCost, selling_price: finalSellingPrice, stock_qty: existingStockQty, sample_qty: existingSampleQty, is_component: isSTX, labor_casting: Number(labor.casting_cost), labor_setter: Number(labor.setter_cost), labor_technician: Number(labor.technician_cost), labor_plating_x: Number(labor.plating_cost_x || 0), labor_plating_d: Number(labor.plating_cost_d || 0), labor_subcontract: Number(labor.subcontract_cost || 0), labor_casting_manual_override: labor.casting_cost_manual_override, labor_technician_manual_override: labor.technician_cost_manual_override, labor_plating_x_manual_override: labor.plating_cost_x_manual_override, labor_plating_d_manual_override: labor.plating_cost_d_manual_override, production_type: productionType, supplier_id: (productionType === ProductionType.Imported && supplierId) ? supplierId : null, supplier_sku: productionType === ProductionType.Imported ? supplierSku : null, supplier_cost: productionType === ProductionType.Imported ? supplierCost : null, labor_stone_setting: productionType === ProductionType.Imported ? labor.stone_setting_cost : null };
+            const productData = { sku: finalMasterSku, prefix: finalMasterSku.substring(0, 2), category, description: isSTX ? stxDescription : null, gender, image_url: finalImageUrl, weight_g: Number(weight) || 0, secondary_weight_g: Number(secondaryWeight) || null, plating_type: plating, active_price: masterEstimatedCost, draft_price: masterEstimatedCost, selling_price: finalSellingPrice, selling_price_manual_override: !isSTX && !useIliosFormula, stock_qty: existingStockQty, sample_qty: existingSampleQty, is_component: isSTX, labor_casting: Number(labor.casting_cost), labor_setter: Number(labor.setter_cost), labor_technician: Number(labor.technician_cost), labor_plating_x: Number(labor.plating_cost_x || 0), labor_plating_d: Number(labor.plating_cost_d || 0), labor_subcontract: Number(labor.subcontract_cost || 0), labor_casting_manual_override: labor.casting_cost_manual_override, labor_technician_manual_override: labor.technician_cost_manual_override, labor_plating_x_manual_override: labor.plating_cost_x_manual_override, labor_plating_d_manual_override: labor.plating_cost_d_manual_override, production_type: productionType, supplier_id: (productionType === ProductionType.Imported && supplierId) ? supplierId : null, supplier_sku: productionType === ProductionType.Imported ? supplierSku : null, supplier_cost: productionType === ProductionType.Imported ? supplierCost : null, labor_stone_setting: productionType === ProductionType.Imported ? labor.stone_setting_cost : null };
             const { anyPartQueued } = await saveProductGraph({
                 finalMasterSku,
                 productData,

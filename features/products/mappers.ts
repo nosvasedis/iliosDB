@@ -21,6 +21,7 @@ type RawVariantRow = {
   stock_by_size?: Record<string, number> | null;
   active_price?: number | null;
   selling_price?: number | null;
+  selling_price_manual_override?: boolean | null;
 };
 
 type RawRecipeRow = {
@@ -76,6 +77,7 @@ type RawProductRow = {
   labor_technician_manual_override?: boolean | null;
   labor_plating_x_manual_override?: boolean | null;
   labor_plating_d_manual_override?: boolean | null;
+  selling_price_manual_override?: boolean | null;
 };
 
 export interface ProductTableMappingContext {
@@ -192,6 +194,7 @@ function mapProductRow(
       location_stock: vCustomStock,
       active_price: variantRow.active_price != null ? Number(variantRow.active_price) : null,
       selling_price: variantRow.selling_price != null ? Number(variantRow.selling_price) : null,
+      selling_price_manual_override: !!variantRow.selling_price_manual_override,
     };
   });
 
@@ -230,6 +233,7 @@ function mapProductRow(
     active_price: Number(row.active_price || 0),
     draft_price: Number(row.draft_price || 0),
     selling_price: Number(row.selling_price || 0),
+    selling_price_manual_override: !!row.selling_price_manual_override,
     stock_qty: Number(row.stock_qty || 0),
     sample_qty: Number(row.sample_qty || 0),
     stock_by_size: row.stock_by_size || {},

@@ -1,8 +1,22 @@
 
-import React, { useState, useMemo } from 'react';
-import { Product, GlobalSettings, Material, PriceSnapshot, PriceSnapshotItem, ProductVariant } from '../types';
-import { RefreshCw, CheckCircle, AlertCircle, Loader2, DollarSign, ArrowRight, TrendingUp, Percent, History, Save, X, RotateCcw, Eye, Trash2, ArrowUpRight, ArrowDownRight, Anchor, Info, Calculator, Tag, Layers, Search, AlertTriangle, Play } from 'lucide-react';
-import { calculateProductCost, formatCurrency, formatDecimal, roundPrice, getIliosSuggestedPriceForProduct, estimateVariantCost } from '../utils/pricingEngine';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { Product, GlobalSettings, Material, PriceSnapshot, PriceSnapshotItem } from '../types';
+import { RefreshCw, CheckCircle, AlertCircle, Loader2, DollarSign, ArrowRight, TrendingUp, Percent, History, Save, X, RotateCcw, Eye, Trash2, ArrowUpRight, ArrowDownRight, Anchor, Info, Calculator, Tag, Layers, Search, AlertTriangle, Play, Lock, ChevronDown, ChevronUp, Wand2 } from 'lucide-react';
+import { formatCurrency, formatDecimal, getIliosSuggestedPriceForProduct } from '../utils/pricingEngine';
+import {
+  buildBulkPricingPreview,
+  BulkPricingItem,
+  countManualSellingPrices,
+  detectLegacyManualPriceCandidates,
+  filterPricingList,
+  flattenInventoryForPricing,
+  getCommitCandidates,
+  getPricingItemMargin,
+  PricingListFilter,
+  PricingSortBy,
+  sortPricingList,
+  summarizePricingPreview,
+} from '../utils/bulkPricingPreview';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase } from '../lib/supabase';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
@@ -19,28 +33,12 @@ interface Props {
 type Mode = 'cost' | 'selling' | 'history';
 type MarkupMode = 'adjust' | 'target' | 'formula';
 
-// Flattened Item for Table Display
-interface PricingItem {
-    id: string; // Unique key (SKU + Suffix)
-    sku: string; // Display SKU
-    masterSku: string;
-    variantSuffix: string | null;
-    name: string; // Description or Category
-    
-    currentPrice: number; // Current value in DB (Cost or Selling based on Mode)
-    newPrice: number; // Calculated value
-    
-    costBasis: number; // The active cost (for margin calc)
-    isVariant: boolean;
-    
-    // Metadata for identifying changes
-    hasChange: boolean;
-}
-
 interface SnapshotComparisonItem extends PriceSnapshotItem {
     currentPrice: number;
     diff: number;
 }
+
+const LEGACY_BACKFILL_KEY = 'ilios_pricing_legacy_backfill_v1';
 
 export default function PricingManager({ products, settings, materials }: Props) {
   const [mode, setMode] = useState<Mode>('cost');
@@ -48,7 +46,7 @@ export default function PricingManager({ products, settings, materials }: Props)
   const [markupPercent, setMarkupPercent] = useState<number>(0);
   
   const [isCalculated, setIsCalculated] = useState(false);
-  const [calculatedData, setCalculatedData] = useState<PricingItem[]>([]);
+  const [calculatedData, setCalculatedData] = useState<BulkPricingItem[]>([]);
   
   // Update state for batching
   const [isCommitting, setIsCommitting] = useState(false);
@@ -56,7 +54,12 @@ export default function PricingManager({ products, settings, materials }: Props)
   const [processingSingleId, setProcessingSingleId] = useState<string | null>(null);
   
   const [searchTerm, setSearchTerm] = useState('');
+  const [listFilter, setListFilter] = useState<PricingListFilter>('all');
+  const [sortBy, setSortBy] = useState<PricingSortBy>('sku');
   const [forceApplyFormula, setForceApplyFormula] = useState(false);
+  const [includeManualPrices, setIncludeManualPrices] = useState(false);
+  const [manualPanelOpen, setManualPanelOpen] = useState(true);
+  const legacyBackfillStartedRef = useRef(false);
 
   const [isSnapshotting, setIsSnapshotting] = useState(false);
   const [snapshotNote, setSnapshotNote] = useState('');
@@ -81,223 +84,196 @@ export default function PricingManager({ products, settings, materials }: Props)
     setMarkupPercent(0);
     setMarkupMode('adjust');
     setForceApplyFormula(false);
+    setIncludeManualPrices(false);
+    setListFilter('all');
+    setSearchTerm('');
     setSelectedSnapshot(null);
   };
 
-  // 1. Flatten Inventory Memo
-  // This creates the "Default" list of all sellable items (Masters & Variants)
-  const flattenedInventory = useMemo(() => {
-      return products.flatMap(p => {
-          if (p.variants && p.variants.length > 0) {
-              return p.variants.map(v => ({
-                  id: `${p.sku}-${v.suffix}`,
-                  sku: `${p.sku}${v.suffix}`,
-                  masterSku: p.sku,
-                  variantSuffix: v.suffix,
-                  name: v.description || p.category,
-                  currentPrice: mode === 'cost' ? (v.active_price || 0) : (v.selling_price || 0),
-                  newPrice: mode === 'cost' ? (v.active_price || 0) : (v.selling_price || 0),
-                  costBasis: v.active_price || 0,
-                  isVariant: true,
-                  hasChange: false
-              }));
+  const manualPriceCount = useMemo(() => countManualSellingPrices(products), [products]);
+
+  useEffect(() => {
+    if (mode !== 'selling' || legacyBackfillStartedRef.current) return;
+    if (typeof window !== 'undefined' && window.localStorage.getItem(LEGACY_BACKFILL_KEY) === 'done') return;
+
+    legacyBackfillStartedRef.current = true;
+    const candidates = detectLegacyManualPriceCandidates(products, settings, materials);
+    if (candidates.length === 0) {
+      window.localStorage.setItem(LEGACY_BACKFILL_KEY, 'done');
+      return;
+    }
+
+    (async () => {
+      try {
+        for (const candidate of candidates) {
+          if (candidate.isVariant && candidate.variantSuffix !== null) {
+            await supabase
+              .from('product_variants')
+              .update({ selling_price_manual_override: true })
+              .match({ product_sku: candidate.masterSku, suffix: candidate.variantSuffix || '' });
           } else {
-              return [{
-                  id: p.sku,
-                  sku: p.sku,
-                  masterSku: p.sku,
-                  variantSuffix: null,
-                  name: p.category,
-                  currentPrice: mode === 'cost' ? (p.active_price || 0) : (p.selling_price || 0),
-                  newPrice: mode === 'cost' ? (p.active_price || 0) : (p.selling_price || 0),
-                  costBasis: p.active_price || 0,
-                  isVariant: false,
-                  hasChange: false
-              }];
+            await supabase
+              .from('products')
+              .update({ selling_price_manual_override: true })
+              .eq('sku', candidate.masterSku);
           }
-      }).sort((a,b) => a.sku.localeCompare(b.sku, undefined, { numeric: true }));
-  }, [products, mode]);
+        }
+        window.localStorage.setItem(LEGACY_BACKFILL_KEY, 'done');
+        await invalidateProductsAndCatalog(queryClient);
+        showToast(
+          `Εντοπίστηκαν ${candidates.length} κωδικοί με τιμή που διαφέρει από τον τύπο Ilios — σημειώθηκαν ως χειροκίνητοι.`,
+          'info',
+        );
+      } catch (error) {
+        console.error(error);
+      }
+    })();
+  }, [mode, products, settings, materials, queryClient, showToast]);
+
+  const flattenedInventory = useMemo(
+    () => flattenInventoryForPricing(products, mode),
+    [products, mode],
+  );
 
   const handleRecalculate = () => {
-    // Perform calculation on the flattened list directly
-    const items: PricingItem[] = products.flatMap(product => {
-        const productItems: PricingItem[] = [];
-        
-        // Helper to process a specific item (Variant or Master)
-        const processItem = (variantSuffix: string | null, currentVal: number, name: string, isVariantRow: boolean): PricingItem => {
-            let newVal = 0;
-            let costBasis = 0;
-            
-            // Recalculate cost FRESH.
-            // Note: If variantSuffix is "" (Lustre), we still treat it as a variant calculation to ensure
-            // any specific variant logic (like stone override, though unlikely for "") is respected.
-            const costCalc = isVariantRow && variantSuffix !== null
-                ? estimateVariantCost(product, variantSuffix, settings, materials, products)
-                : calculateProductCost(product, settings, materials, products);
-            
-            const freshCost = costCalc.total;
-            costBasis = freshCost;
-
-            if (mode === 'cost') {
-                // Cost Mode: New Price = Fresh Calculated Cost
-                newVal = freshCost;
-            } else {
-                // Selling Mode: Apply markup logic
-                const basePrice = currentVal; // Current selling price
-                
-                if (markupMode === 'adjust') {
-                    newVal = roundPrice(basePrice * (1 + markupPercent / 100));
-                } else if (markupMode === 'target') {
-                    const margin = markupPercent / 100;
-                    if (margin >= 1) newVal = 0; 
-                    else newVal = roundPrice(freshCost / (1 - margin));
-                } else if (markupMode === 'formula') {
-                    newVal = getIliosSuggestedPriceForProduct(product, variantSuffix, settings, materials, products);
-                }
-            }
-
-            // Determine if there is a "change" worth highlighting
-            const hasChange = Math.abs(newVal - currentVal) > 0.01;
-
-            return {
-                id: variantSuffix !== null ? `${product.sku}-${variantSuffix}` : product.sku,
-                sku: variantSuffix !== null ? `${product.sku}${variantSuffix}` : product.sku,
-                masterSku: product.sku,
-                variantSuffix: variantSuffix,
-                name: name,
-                currentPrice: currentVal, // Old/Current Value
-                newPrice: newVal,         // New/Proposed Value
-                costBasis: freshCost,
-                isVariant: isVariantRow, 
-                hasChange
-            };
-        };
-
-        if (product.variants && product.variants.length > 0) {
-            product.variants.forEach(v => {
-                // IMPORTANT: Pass true for isVariantRow, even if suffix is empty string.
-                productItems.push(processItem(v.suffix, mode === 'cost' ? (v.active_price || 0) : (v.selling_price || 0), v.description || product.category, true));
-            });
-        } else {
-            // Master Product (No Variants)
-            productItems.push(processItem(null, mode === 'cost' ? (product.active_price || 0) : (product.selling_price || 0), product.category, false));
-        }
-        
-        return productItems;
+    const items = buildBulkPricingPreview(products, settings, materials, {
+      mode,
+      markupMode,
+      markupPercent,
     });
 
-    // SORT: Changed items FIRST, then Alphanumeric
-    const sortedItems = items.sort((a,b) => {
-        if (a.hasChange !== b.hasChange) {
-            return a.hasChange ? -1 : 1;
-        }
-        return a.sku.localeCompare(b.sku, undefined, { numeric: true });
-    });
-
-    setCalculatedData(sortedItems);
+    setCalculatedData(items);
     setIsCalculated(true);
+    setListFilter('all');
 
-    const changeCount = sortedItems.filter(i => i.hasChange).length;
+    const summary = summarizePricingPreview(items);
     if (mode === 'cost') {
-        showToast(`Υπολογίστηκε νέο κόστος για ${items.length} κωδικούς (Βάση: ${formatDecimal(settings.last_calc_silver_price, 2)}€/g).`, 'info');
+      showToast(
+        `Υπολογίστηκε νέο κόστος για ${summary.total} κωδικούς (Βάση: ${formatDecimal(settings.last_calc_silver_price, 2)}€/g).`,
+        'info',
+      );
     } else {
-        const msg = markupMode === 'formula' ? 'Υπολογίστηκαν τιμές Formula (Ilios).' : `Υπολογίστηκαν νέες τιμές (${markupPercent}%).`;
-        showToast(msg, 'info');
-        if (markupMode === 'formula' && changeCount === 0) {
-            showToast('Όλες οι τιμές ταιριάζουν ήδη με τον Τύπο Ilios.', 'info');
-        }
+      const modeLabel =
+        markupMode === 'formula'
+          ? 'Τύπος Ilios'
+          : markupMode === 'adjust'
+            ? `Αναπροσαρμογή ${markupPercent}%`
+            : `Στόχος ${markupPercent}%`;
+      showToast(
+        `Υπολογίστηκαν τιμές (${modeLabel}) για ${summary.total} κωδικούς. ${summary.willUpdate} θα ενημερωθούν, ${summary.manualProtected} προστατεύονται (χειροκίνητες).`,
+        'info',
+      );
+      if (summary.willUpdate === 0 && summary.manualProtected === 0) {
+        showToast('Όλες οι τιμές είναι ήδη ενημερωμένες.', 'info');
+      }
     }
   };
 
-  // --- SINGLE ITEM UPDATE HANDLER ---
-  const handleSingleUpdate = async (item: PricingItem) => {
-      // Find original product to recalculate fresh (ensure we are not using stale list data)
-      const product = products.find(p => p.sku === item.masterSku);
-      if (!product) return;
+  const commitItemUpdate = async (item: BulkPricingItem, newVal: number, clearManualFlag: boolean) => {
+    const updates: Record<string, number | boolean> = {};
+    if (mode === 'cost') {
+      updates.active_price = newVal;
+      if (!item.isVariant) updates.draft_price = newVal;
+    } else {
+      updates.selling_price = newVal;
+      if (clearManualFlag) updates.selling_price_manual_override = false;
+    }
 
-      setProcessingSingleId(item.id);
-      
-      try {
-          // 1. Recalculate Specific Cost
-          const isVariantRow = item.isVariant;
-          const variantSuffix = item.variantSuffix;
+    if (item.isVariant) {
+      const { error } = await supabase
+        .from('product_variants')
+        .update(updates)
+        .match({
+          product_sku: item.masterSku,
+          suffix: item.variantSuffix || '',
+        });
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from('products').update(updates).eq('sku', item.masterSku);
+      if (error) throw error;
+    }
+  };
 
-          const costCalc = isVariantRow && variantSuffix !== null
-              ? estimateVariantCost(product, variantSuffix, settings, materials, products)
-              : calculateProductCost(product, settings, materials, products);
-          
-          const freshCost = costCalc.total;
+  const handleSingleUpdate = async (item: BulkPricingItem, options?: { forceManual?: boolean; applyFormula?: boolean }) => {
+    const product = products.find((p) => p.sku === item.masterSku);
+    if (!product) return;
 
-          // 2. Determine New Price based on current Mode Settings
-          let newVal = 0;
-          if (mode === 'cost') {
-              newVal = freshCost;
-          } else {
-              const currentVal = item.currentPrice;
-              if (markupMode === 'adjust') {
-                  newVal = roundPrice(currentVal * (1 + markupPercent / 100));
-              } else if (markupMode === 'target') {
-                  const margin = markupPercent / 100;
-                  if (margin >= 1) newVal = 0; 
-                  else newVal = roundPrice(freshCost / (1 - margin));
-              } else if (markupMode === 'formula') {
-                  newVal = getIliosSuggestedPriceForProduct(product, variantSuffix, settings, materials, products);
-              }
-          }
+    if (item.isManualPrice && !options?.forceManual && !options?.applyFormula) {
+      const yes = await confirm({
+        title: 'Χειροκίνητη Τιμή',
+        message: `Ο κωδικός ${item.sku} έχει χειροκίνητη τιμή. Θέλετε να την αντικαταστήσετε;`,
+        confirmText: 'Ναι, Αντικατάσταση',
+      });
+      if (!yes) return;
+    }
 
-          // 3. Confirm only if meaningful change or forced
-          if (Math.abs(newVal - item.currentPrice) < 0.01) {
-              const yes = await confirm({
-                  title: 'Καμία Αλλαγή',
-                  message: 'Η νέα τιμή είναι ίδια με την τρέχουσα. Θέλετε να την ενημερώσετε ούτως ή άλλως;',
-                  confirmText: 'Ναι, Ενημέρωση'
-              });
-              if (!yes) {
-                  setProcessingSingleId(null);
-                  return;
-              }
-          }
+    setProcessingSingleId(item.id);
 
-          // 4. Update Database
-          const updates: any = {};
-          if (mode === 'cost') {
-              updates.active_price = newVal;
-              if (!item.isVariant) updates.draft_price = newVal;
-          } else {
-              updates.selling_price = newVal;
-          }
+    try {
+      let newVal = item.newPrice;
+      let clearManualFlag = false;
 
-          if (item.isVariant) {
-              await supabase.from('product_variants')
-                  .update(updates)
-                  .match({ 
-                      product_sku: item.masterSku, 
-                      suffix: item.variantSuffix || "" 
-                  });
-          } else {
-              await supabase.from('products')
-                  .update(updates)
-                  .eq('sku', item.masterSku);
-          }
+      if (options?.applyFormula) {
+        newVal = getIliosSuggestedPriceForProduct(
+          product,
+          item.variantSuffix,
+          settings,
+          materials,
+          products,
+        );
+        clearManualFlag = true;
+      } else {
+        const previewItem = buildBulkPricingPreview([product], settings, materials, {
+          mode,
+          markupMode,
+          markupPercent,
+        }).find((row) => row.id === item.id);
 
-          // 5. Success
-          await invalidateProductsAndCatalog(queryClient);
-          showToast(`${item.sku}: Ενημερώθηκε σε ${formatCurrency(newVal)}`, 'success');
-
-      } catch (error) {
-          console.error(error);
-          showToast("Σφάλμα ενημέρωσης.", 'error');
-      } finally {
-          setProcessingSingleId(null);
+        if (previewItem) {
+          newVal = previewItem.newPrice;
+        }
+        clearManualFlag = mode === 'selling';
       }
+
+      if (Math.abs(newVal - item.currentPrice) < 0.01 && !options?.applyFormula) {
+        const yes = await confirm({
+          title: 'Καμία Αλλαγή',
+          message: 'Η νέα τιμή είναι ίδια με την τρέχουσα. Θέλετε να την ενημερώσετε ούτως ή άλλως;',
+          confirmText: 'Ναι, Ενημέρωση',
+        });
+        if (!yes) {
+          setProcessingSingleId(null);
+          return;
+        }
+      }
+
+      await commitItemUpdate(item, newVal, clearManualFlag);
+      await invalidateProductsAndCatalog(queryClient);
+      showToast(`${item.sku}: Ενημερώθηκε σε ${formatCurrency(newVal)}`, 'success');
+      setIsCalculated(false);
+      setCalculatedData([]);
+    } catch (error) {
+      console.error(error);
+      showToast('Σφάλμα ενημέρωσης.', 'error');
+    } finally {
+      setProcessingSingleId(null);
+    }
   };
 
   const activeList = isCalculated ? calculatedData : flattenedInventory;
+  const previewSummary = useMemo(
+    () => (isCalculated ? summarizePricingPreview(calculatedData) : null),
+    [isCalculated, calculatedData],
+  );
+  const manualProtectedItems = useMemo(
+    () => (isCalculated ? calculatedData.filter((item) => item.status === 'manual_protected') : []),
+    [isCalculated, calculatedData],
+  );
+
   const filteredList = useMemo(() => {
-      if (!searchTerm) return activeList;
-      const lower = searchTerm.toLowerCase();
-      return activeList.filter(i => i.sku.toLowerCase().includes(lower) || i.name.toLowerCase().includes(lower));
-  }, [activeList, searchTerm]);
+    const filtered = filterPricingList(activeList, isCalculated ? listFilter : 'all', searchTerm);
+    return sortPricingList(filtered, sortBy);
+  }, [activeList, isCalculated, listFilter, searchTerm, sortBy]);
 
   // Virtualizer for the massive list
   const rowVirtualizer = useVirtualizer({
@@ -308,24 +284,31 @@ export default function PricingManager({ products, settings, materials }: Props)
   });
 
   const commitPrices = async () => {
-    // 1. Identify items to update: by default only those with hasChange; in formula mode allow "force apply to all"
-    const forceApply = mode === 'selling' && markupMode === 'formula' && forceApplyFormula;
     const updatesToApply = isCalculated
-      ? (forceApply ? calculatedData : calculatedData.filter(i => i.hasChange))
+      ? getCommitCandidates(calculatedData, {
+          mode,
+          markupMode,
+          forceApplyFormula,
+          includeManualPrices,
+        })
       : [];
     const count = updatesToApply.length;
 
     if (count === 0) {
-        showToast("Δεν υπάρχουν αλλαγές προς ενημέρωση.", 'info');
-        return;
+      showToast('Δεν υπάρχουν αλλαγές προς ενημέρωση.', 'info');
+      return;
     }
 
+    const manualIncluded = updatesToApply.filter((item) => item.isManualPrice).length;
     const yes = await confirm({
-        title: mode === 'cost' ? 'Ενημέρωση Κόστους' : 'Ενημέρωση Τιμών Χονδρικής',
-        message: mode === 'cost' 
-            ? `Θα ενημερωθεί η Τιμή Κόστους για ${count} κωδικούς.` 
-            : `Θα αλλάξει η Τιμή Χονδρικής για ${count} κωδικούς. Είστε σίγουροι;`,
-        confirmText: 'Ενημέρωση',
+      title: mode === 'cost' ? 'Ενημέρωση Κόστους' : 'Ενημέρωση Τιμών Χονδρικής',
+      message:
+        mode === 'cost'
+          ? `Θα ενημερωθεί η Τιμή Κόστους για ${count} κωδικούς.`
+          : manualIncluded > 0
+            ? `Θα αλλάξει η Τιμή Χονδρικής για ${count} κωδικούς (συμπεριλαμβανομένων ${manualIncluded} χειροκίνητων). Είστε σίγουροι;`
+            : `Θα αλλάξει η Τιμή Χονδρικής για ${count} κωδικούς. ${manualProtectedItems.length} χειροκίνητοι κωδικοί θα παραμείνουν ως έχουν.`,
+      confirmText: 'Ενημέρωση',
     });
 
     if (!yes) return;
@@ -333,101 +316,81 @@ export default function PricingManager({ products, settings, materials }: Props)
     setIsCommitting(true);
     let successCount = 0;
     let failCount = 0;
-    
+
     try {
-        setProgress({ current: 0, total: count, failed: 0 });
-        
-        // 2. Reduced Batch Size for Stability
-        const BATCH_SIZE = 10; 
-        
-        for (let i = 0; i < updatesToApply.length; i += BATCH_SIZE) {
-            const batch = updatesToApply.slice(i, i + BATCH_SIZE);
-            
-            // 3. Map Promises
-            const promises = batch.map(item => {
-                const updates: any = {};
-                if (mode === 'cost') {
-                    updates.active_price = item.newPrice;
-                    if (!item.isVariant) updates.draft_price = item.newPrice;
-                } else {
-                    updates.selling_price = item.newPrice;
-                }
+      setProgress({ current: 0, total: count, failed: 0 });
+      const BATCH_SIZE = 10;
 
-                // FIXED: Use .match() instead of chained .eq() for variants.
-                // This ensures the composite key (product_sku + suffix) is correctly targeted,
-                // even when suffix is an empty string.
-                if (item.isVariant) {
-                    return supabase.from('product_variants')
-                        .update(updates)
-                        .match({ 
-                            product_sku: item.masterSku, 
-                            suffix: item.variantSuffix || "" // Ensure empty string is passed, not null
-                        });
-                } else {
-                    return supabase.from('products')
-                        .update(updates)
-                        .eq('sku', item.masterSku);
-                }
-            });
+      for (let i = 0; i < updatesToApply.length; i += BATCH_SIZE) {
+        const batch = updatesToApply.slice(i, i + BATCH_SIZE);
 
-            // 4. Use allSettled to ensure 1 failure doesn't kill the batch
-            const results = await Promise.allSettled(promises);
-            
-            results.forEach(res => {
-                if (res.status === 'fulfilled' && !res.value.error) {
-                    successCount++;
-                } else {
-                    failCount++;
-                    console.error("Batch item failed:", res);
-                }
-            });
-            
-            // 5. Update progress UI
-            setProgress({ 
-                current: Math.min(i + BATCH_SIZE, count), 
-                total: count, 
-                failed: failCount 
-            });
+        const promises = batch.map((item) =>
+          commitItemUpdate(item, item.newPrice, mode === 'selling'),
+        );
 
-            // 6. Throttle slightly to breathe
-            await new Promise(resolve => setTimeout(resolve, 100));
-        }
-        
-        // Update global settings if cost mode
-        if (mode === 'cost') {
-            await supabase.from('global_settings').update({ 
-                last_calc_silver_price: settings.silver_price_gram 
-            }).eq('id', 1);
-            await queryClient.invalidateQueries({ queryKey: ['settings'] });
-        }
+        const results = await Promise.allSettled(promises);
 
-        // Wait a beat to ensure DB is consistent before refetch
-        await new Promise(resolve => setTimeout(resolve, 500));
-        await invalidateProductsAndCatalog(queryClient);
-        
-        setIsCalculated(false);
-        setCalculatedData([]);
-        setProgress(null);
-        
-        if (failCount > 0) {
-            showToast(`Ενημερώθηκαν ${successCount}, απέτυχαν ${failCount}.`, 'warning');
-        } else {
-            showToast(`Επιτυχής ενημέρωση ${successCount} κωδικών!`, 'success');
-        }
+        results.forEach((res) => {
+          if (res.status === 'fulfilled') successCount++;
+          else {
+            failCount++;
+            console.error('Batch item failed:', res);
+          }
+        });
 
-    } catch(err) {
-        console.error(err);
-        showToast("Κρίσιμο σφάλμα κατά την ενημέρωση.", 'error');
+        setProgress({
+          current: Math.min(i + BATCH_SIZE, count),
+          total: count,
+          failed: failCount,
+        });
+
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      if (mode === 'cost') {
+        await supabase
+          .from('global_settings')
+          .update({ last_calc_silver_price: settings.silver_price_gram })
+          .eq('id', 1);
+        await queryClient.invalidateQueries({ queryKey: ['settings'] });
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await invalidateProductsAndCatalog(queryClient);
+
+      setIsCalculated(false);
+      setCalculatedData([]);
+      setIncludeManualPrices(false);
+      setProgress(null);
+
+      if (failCount > 0) {
+        showToast(`Ενημερώθηκαν ${successCount}, απέτυχαν ${failCount}.`, 'warning');
+      } else {
+        showToast(`Επιτυχής ενημέρωση ${successCount} κωδικών!`, 'success');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Κρίσιμο σφάλμα κατά την ενημέρωση.', 'error');
     } finally {
-        setIsCommitting(false);
-        setProgress(null);
+      setIsCommitting(false);
+      setProgress(null);
     }
   };
+
+  const pendingCommitCount = useMemo(() => {
+    if (!isCalculated) return 0;
+    return getCommitCandidates(calculatedData, {
+      mode,
+      markupMode,
+      forceApplyFormula,
+      includeManualPrices,
+    }).length;
+  }, [isCalculated, calculatedData, mode, markupMode, forceApplyFormula, includeManualPrices]);
 
   const handleCreateSnapshot = async () => {
       setIsSnapshotting(true);
       try {
-          await api.createPriceSnapshot(snapshotNote || `Manual Backup - ${new Date().toLocaleDateString('el-GR')}`, products);
+          await api.createPriceSnapshot(snapshotNote || `Χειροκίνητο αντίγραφο - ${new Date().toLocaleDateString('el-GR')}`, products);
           queryClient.invalidateQueries({ queryKey: ['price_snapshots'] });
           setSnapshotNote('');
           showToast("Το αντίγραφο ασφαλείας δημιουργήθηκε!", "success");
@@ -480,7 +443,7 @@ export default function PricingManager({ products, settings, materials }: Props)
 
   const handleDeleteSnapshot = async (snap: PriceSnapshot) => {
       const yes = await confirm({
-          title: 'Διαγραφή Snapshot',
+          title: 'Διαγραφή Αντιγράφου',
           message: 'Θέλετε να διαγράψετε οριστικά αυτό το αντίγραφο τιμών;',
           isDestructive: true
       });
@@ -489,7 +452,7 @@ export default function PricingManager({ products, settings, materials }: Props)
           await api.deletePriceSnapshot(snap.id);
           queryClient.invalidateQueries({ queryKey: ['price_snapshots'] });
           if (selectedSnapshot?.id === snap.id) setSelectedSnapshot(null);
-          showToast("Το snapshot διαγράφηκε.", "info");
+          showToast('Το αντίγραφο διαγράφηκε.', 'info');
       } catch (err) {
           showToast("Σφάλμα διαγραφής.", "error");
       }
@@ -529,7 +492,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                 className="flex items-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-white px-5 py-3 text-sm font-bold text-slate-600 transition-all hover:border-blue-400 hover:text-blue-600"
             >
                 {isSnapshotting ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                Backup Τρεχουσών Τιμών
+                Αντίγραφο Τρεχουσών Τιμών
             </button>
         ) : undefined}
         below={(
@@ -546,14 +509,14 @@ export default function PricingManager({ products, settings, materials }: Props)
                     onClick={() => switchMode('selling')}
                     className={`flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold transition-all ${mode === 'selling' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
                 >
-                    <TrendingUp size={16} /> Markup
+                    <TrendingUp size={16} /> Χονδρική
                 </button>
                 <button
                     type="button"
                     onClick={() => switchMode('history')}
                     className={`flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold transition-all ${mode === 'history' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
                 >
-                    <History size={16} /> Snapshots
+                    <History size={16} /> Ιστορικό
                 </button>
             </div>
         )}
@@ -571,7 +534,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                                 </label>
                                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
                                     <span className="font-mono text-xl font-bold text-slate-500">{formatDecimal(settings.last_calc_silver_price, 3)} €/g</span>
-                                    <span className="text-[10px] font-black text-slate-400 bg-white px-2 py-1 rounded border border-slate-100 uppercase">Last Saved</span>
+                                    <span className="text-[10px] font-black text-slate-400 bg-white px-2 py-1 rounded border border-slate-100 uppercase">Τελευταία</span>
                                 </div>
                             </div>
                             <div>
@@ -580,12 +543,12 @@ export default function PricingManager({ products, settings, materials }: Props)
                                 </label>
                                 <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between ring-2 ring-emerald-500/10">
                                     <span className="font-mono text-2xl font-black text-emerald-800">{formatDecimal(settings.silver_price_gram, 3)} €/g</span>
-                                    <span className="text-[10px] font-black text-emerald-600 bg-white px-2 py-1 rounded border border-slate-100 uppercase animate-pulse">Live Now</span>
+                                    <span className="text-[10px] font-black text-emerald-600 bg-white px-2 py-1 rounded border border-slate-100 uppercase animate-pulse">Τρέχουσα</span>
                                 </div>
                             </div>
                         </div>
                         <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 text-xs text-slate-600 space-y-3 leading-relaxed">
-                            <h4 className="font-black text-slate-800 uppercase text-[10px] flex items-center gap-2 mb-2"><Info size={14} className="text-blue-500"/> Forensic Pricing</h4>
+                            <h4 className="font-black text-slate-800 uppercase text-[10px] flex items-center gap-2 mb-2"><Info size={14} className="text-blue-500"/> Ανάλυση Κόστους</h4>
                             <p>Το σύστημα εντοπίζει ότι οι τρέχουσες τιμές σας υπολογίστηκαν με ασήμι στα <strong>{formatDecimal(settings.last_calc_silver_price, 2)}€/g</strong>.</p>
                             <p>Η σύγκριση στον πίνακα θα δείξει την επίδραση της μεταβολής της τιμής του ασημιού στα περιθώρια κέρδους σας.</p>
                         </div>
@@ -642,10 +605,17 @@ export default function PricingManager({ products, settings, materials }: Props)
                         </div>
                         <div>
                             <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Οδηγίες</h4>
-                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs text-slate-600 leading-relaxed">
-                                {markupMode === 'adjust' && "Αλλάζει τις τρέχουσες τιμές χονδρικής κατά το ποσοστό που θα ορίσετε (π.χ. +5% για πληθωρισμό)."}
-                                {markupMode === 'target' && "Υπολογίζει νέες τιμές χονδρικής ώστε κάθε SKU να έχει το ίδιο περιθώριο κέρδους βάσει του τρέχοντος κόστους."}
-                                {markupMode === 'formula' && "Εφαρμόζει τον τυπικό μαθηματικό τύπο του Ilios για υπολογισμό προτεινόμενης χονδρικής βάσει κόστους εργατικών/υλικών (x2) και βάρους."}
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs text-slate-600 leading-relaxed space-y-2">
+                                {markupMode === 'adjust' && <p>Αλλάζει τις τρέχουσες τιμές χονδρικής κατά το ποσοστό που θα ορίσετε (π.χ. +5% για πληθωρισμό).</p>}
+                                {markupMode === 'target' && <p>Υπολογίζει νέες τιμές χονδρικής ώστε κάθε SKU να έχει το ίδιο περιθώριο κέρδους βάσει του τρέχοντος κόστους.</p>}
+                                {markupMode === 'formula' && <p>Εφαρμόζει τον τυπικό μαθηματικό τύπο του Ilios για υπολογισμό προτεινόμενης χονδρικής βάσει κόστους εργατικών/υλικών (x2) και βάρους.</p>}
+                                <p className="text-amber-700 font-medium flex items-start gap-1.5 pt-1 border-t border-slate-200">
+                                    <Lock size={12} className="shrink-0 mt-0.5" />
+                                    Κωδικοί με χειροκίνητη τιμή στο Μητρώο δεν θα τροποποιηθούν αυτόματα.
+                                </p>
+                                {manualPriceCount > 0 && (
+                                    <p className="text-slate-500">{manualPriceCount} κωδικοί με χειροκίνητη τιμή στο σύστημα.</p>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -666,21 +636,29 @@ export default function PricingManager({ products, settings, materials }: Props)
                                 {progress.failed > 0 && <div className="absolute top-0 right-0 h-full bg-red-500" style={{ width: `${(progress.failed / progress.total) * 100}%` }}></div>}
                             </div>
                         )}
-                        {mode === 'selling' && markupMode === 'formula' && (
-                            <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
-                                <input type="checkbox" checked={forceApplyFormula} onChange={e => setForceApplyFormula(e.target.checked)} className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
-                                <span>Εφαρμογή σε όλους (ακόμα και χωρίς αλλαγή)</span>
-                            </label>
+                        {mode === 'selling' && (
+                            <>
+                                {markupMode === 'formula' && (
+                                    <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+                                        <input type="checkbox" checked={forceApplyFormula} onChange={e => setForceApplyFormula(e.target.checked)} className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                                        <span>Εφαρμογή σε όλους (ακόμα και χωρίς αλλαγή)</span>
+                                    </label>
+                                )}
+                                <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+                                    <input type="checkbox" checked={includeManualPrices} onChange={e => setIncludeManualPrices(e.target.checked)} className="rounded border-slate-300 text-amber-600 focus:ring-amber-500" />
+                                    <span>Συμπερίληψη χειροκίνητων τιμών</span>
+                                </label>
+                            </>
                         )}
                         <div className="flex gap-3 justify-center">
-                            <button onClick={() => { setIsCalculated(false); setCalculatedData([]); setForceApplyFormula(false); }} disabled={isCommitting} className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors disabled:opacity-50">
+                            <button onClick={() => { setIsCalculated(false); setCalculatedData([]); setForceApplyFormula(false); setIncludeManualPrices(false); setListFilter('all'); }} disabled={isCommitting} className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors disabled:opacity-50">
                                 Ακύρωση
                             </button>
-                            <button onClick={commitPrices} disabled={isCommitting} className="px-8 py-3 rounded-xl font-bold flex items-center gap-2 bg-emerald-600 text-white shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all hover:-translate-y-0.5 disabled:opacity-70 disabled:translate-y-0">
+                            <button onClick={commitPrices} disabled={isCommitting || pendingCommitCount === 0} className="px-8 py-3 rounded-xl font-bold flex items-center gap-2 bg-emerald-600 text-white shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all hover:-translate-y-0.5 disabled:opacity-70 disabled:translate-y-0">
                                 {isCommitting ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle size={20} />}
-                                {isCommitting 
-                                    ? `Ενημέρωση (${progress ? Math.round((progress.current/progress.total)*100) : 0}%)...` 
-                                    : `Εφαρμογή σε ${(mode === 'selling' && markupMode === 'formula' && forceApplyFormula) ? calculatedData.length : calculatedData.filter(i => i.hasChange).length}`}
+                                {isCommitting
+                                    ? `Ενημέρωση (${progress ? Math.round((progress.current / progress.total) * 100) : 0}%)...`
+                                    : `Εφαρμογή σε ${pendingCommitCount}`}
                             </button>
                         </div>
                         {progress?.failed ? <p className="text-[10px] text-red-500 text-center font-bold">{progress.failed} απέτυχαν (θα αγνοηθούν)</p> : null}
@@ -692,30 +670,130 @@ export default function PricingManager({ products, settings, materials }: Props)
 
       {mode !== 'history' && (
             <div className="flex-1 overflow-hidden bg-white rounded-3xl shadow-lg border border-slate-100 flex flex-col">
-                <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0">
-                    <div className="flex items-center gap-2 text-slate-600 font-bold">
+                {isCalculated && previewSummary && (
+                    <div className="px-4 pt-4 grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0">
+                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
+                            <div className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Προς Ενημέρωση</div>
+                            <div className="text-2xl font-black text-emerald-700 mt-1">{previewSummary.willUpdate}</div>
+                        </div>
+                        <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+                            <div className="text-[10px] font-black uppercase tracking-widest text-amber-700 flex items-center gap-1"><Lock size={12}/> Προστατευόμενες</div>
+                            <div className="text-2xl font-black text-amber-700 mt-1">{previewSummary.manualProtected}</div>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Χωρίς Αλλαγή</div>
+                            <div className="text-2xl font-black text-slate-600 mt-1">{previewSummary.unchanged}</div>
+                        </div>
+                    </div>
+                )}
+
+                {isCalculated && manualProtectedItems.length > 0 && (
+                    <div className="mx-4 mt-3 rounded-2xl border border-amber-200 bg-amber-50/40 shrink-0 overflow-hidden">
+                        <button
+                            type="button"
+                            onClick={() => setManualPanelOpen((open) => !open)}
+                            className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-amber-50 transition-colors"
+                        >
+                            <span className="text-sm font-black text-amber-800 flex items-center gap-2">
+                                <Lock size={16} />
+                                Προστατευόμενες Χειροκίνητες Τιμές ({manualProtectedItems.length})
+                            </span>
+                            {manualPanelOpen ? <ChevronUp size={16} className="text-amber-700" /> : <ChevronDown size={16} className="text-amber-700" />}
+                        </button>
+                        {manualPanelOpen && (
+                            <div className="px-4 pb-4 space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+                                {manualProtectedItems.map((item) => (
+                                    <div key={item.id} className="flex items-center justify-between gap-3 p-3 bg-white rounded-xl border border-amber-100">
+                                        <div className="min-w-0">
+                                            <div className="font-mono font-bold text-slate-800 text-sm">{item.sku}</div>
+                                            <div className="text-[10px] text-slate-500 truncate">{item.name}</div>
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                            <div className="text-xs text-slate-500">Τρέχουσα: {formatCurrency(item.currentPrice)}</div>
+                                            {item.suggestedPrice != null && (
+                                                <div className="text-xs text-emerald-700 font-bold">Τύπος: {formatCurrency(item.suggestedPrice)}</div>
+                                            )}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleSingleUpdate(item, { applyFormula: true })}
+                                            disabled={processingSingleId === item.id}
+                                            className="shrink-0 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[10px] font-bold hover:bg-emerald-700 flex items-center gap-1 disabled:opacity-60"
+                                        >
+                                            {processingSingleId === item.id ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                                            Εφαρμογή τύπου
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2 text-slate-600 font-bold">
                         {isCalculated ? <Layers size={18} className="text-emerald-500"/> : <AlertCircle size={18}/>}
                         {isCalculated ? 'Ανάλυση & Προεπισκόπηση' : 'Όλοι οι Κωδικοί & Παραλλαγές'}
-                        <span className="bg-white px-2 py-0.5 rounded text-xs border border-slate-200">{filteredList.length} items</span>
-                        {isCalculated && (
-                            <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-xs border border-emerald-200 ml-2">
-                                {filteredList.filter(i => i.hasChange).length} με αλλαγές
+                        <span className="bg-white px-2 py-0.5 rounded text-xs border border-slate-200">{filteredList.length} εγγραφές</span>
+                        {!isCalculated && mode === 'selling' && manualPriceCount > 0 && (
+                            <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-xs border border-amber-200 flex items-center gap-1">
+                                <Lock size={10} /> {manualPriceCount} χειροκίνητες
                             </span>
                         )}
                     </div>
-                    <div className="flex items-center gap-4">
-                        {isCalculated && mode === 'cost' && <span className="text-xs bg-amber-50 px-2 py-1 rounded text-amber-700 font-bold border border-amber-100">Νέα Βάση: {settings.silver_price_gram}€/g</span>}
-                        <div className="relative w-48">
+                    <div className="flex flex-wrap items-center gap-2">
+                        {isCalculated && (
+                            <div className="flex flex-wrap gap-1">
+                                {([
+                                    ['all', 'Όλα'],
+                                    ['changes', 'Με αλλαγές'],
+                                    ['manual', 'Χειροκίνητες'],
+                                    ['unchanged', 'Χωρίς αλλαγές'],
+                                ] as const).map(([value, label]) => (
+                                    <button
+                                        key={value}
+                                        type="button"
+                                        onClick={() => setListFilter(value)}
+                                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${listFilter === value ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-100'}`}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                        <select
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value as PricingSortBy)}
+                            className="text-[10px] font-bold bg-white border border-slate-200 rounded-lg px-2 py-1.5 outline-none"
+                        >
+                            <option value="sku">Κωδικός (Α-Ω)</option>
+                            <option value="diff_desc">Μεγαλύτερη διαφορά</option>
+                            <option value="margin_asc">Μικρότερο περιθώριο</option>
+                        </select>
+                        {isCalculated && mode === 'cost' && (
+                            <span className="text-xs bg-amber-50 px-2 py-1 rounded text-amber-700 font-bold border border-amber-100">Νέα Βάση: {settings.silver_price_gram}€/g</span>
+                        )}
+                        <div className="relative w-56">
                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14}/>
-                            <input 
-                                type="text" 
-                                placeholder="Αναζήτηση..." 
-                                value={searchTerm} 
-                                onChange={e => setSearchTerm(e.target.value)} 
+                            <input
+                                type="text"
+                                placeholder="Αναζήτηση κωδικού, περιγραφής..."
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
                                 className="w-full pl-8 py-1.5 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500/20"
                             />
                         </div>
                     </div>
+                </div>
+
+                <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_24px_minmax(0,0.8fr)_minmax(0,0.7fr)_minmax(0,0.6fr)_88px] gap-2 px-4 py-2 bg-white border-b border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400 shrink-0 sticky top-0 z-10">
+                    <div className="pl-4">Κωδικός</div>
+                    <div className="text-right">Τρέχουσα</div>
+                    <div />
+                    <div className="text-right">Νέα</div>
+                    <div className="text-right">Διαφορά</div>
+                    <div className="text-right">{mode === 'selling' ? 'Περιθώριο' : ''}</div>
+                    <div className="text-right pr-2">Ενέργειες</div>
                 </div>
                 
                 <div className="flex-1 overflow-auto custom-scrollbar" ref={parentRef}>
@@ -727,58 +805,75 @@ export default function PricingManager({ products, settings, materials }: Props)
                             const diff = item.newPrice - item.currentPrice;
                             const isProcessing = processingSingleId === item.id;
                             
-                            // Calculate margin dynamically based on updated values
-                            let margin = 0;
-                            if (mode === 'cost') {
-                                margin = 0;
-                            } else {
-                                // Selling Mode: New Selling - Current Cost
-                                const profit = item.newPrice - item.costBasis;
-                                margin = item.newPrice > 0 ? (profit / item.newPrice) * 100 : 0;
-                            }
+                            const margin = mode === 'selling' ? getPricingItemMargin(item) : 0;
+                            const rowClass = item.status === 'manual_protected'
+                                ? 'bg-amber-50/80 hover:bg-amber-100/80'
+                                : item.hasChange
+                                    ? 'bg-emerald-50/60 hover:bg-emerald-100/60'
+                                    : 'hover:bg-slate-50/80';
 
                             return (
                                 <div 
                                     key={virtualRow.key}
-                                    className={`absolute top-0 left-0 w-full flex items-center border-b border-slate-50 transition-colors ${item.hasChange ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-slate-50/80'}`}
+                                    className={`absolute top-0 left-0 w-full grid grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_24px_minmax(0,0.8fr)_minmax(0,0.7fr)_minmax(0,0.6fr)_88px] gap-2 items-center border-b border-slate-50 transition-colors ${rowClass}`}
                                     style={{ 
                                         height: `${virtualRow.size}px`, 
                                         transform: `translateY(${virtualRow.start}px)`
                                     }}
                                 >
-                                    <div className="w-1/3 px-4 pl-8 flex flex-col justify-center">
-                                        <div className="font-mono font-bold text-slate-700 flex items-center gap-2">
+                                    <div className="px-4 pl-8 flex flex-col justify-center min-w-0">
+                                        <div className="font-mono font-bold text-slate-700 flex items-center gap-2 flex-wrap">
                                             {item.sku}
-                                            {item.isVariant && <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 font-bold">VAR</span>}
+                                            {item.isVariant && <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 font-bold">Παρ.</span>}
+                                            {item.isManualPrice && (
+                                                <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200 font-bold flex items-center gap-1">
+                                                    <Lock size={10} /> Χειροκίνητη
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="text-[10px] text-slate-400 truncate">{item.name}</div>
+                                        <div className="text-[9px] text-slate-300 truncate">{item.category}</div>
                                     </div>
-                                    <div className="w-1/6 px-4 text-right flex flex-col justify-center">
+                                    <div className="px-2 text-right flex flex-col justify-center">
                                         <span className="text-slate-500 font-mono text-xs">{formatCurrency(item.currentPrice)}</span>
-                                        <span className="text-[9px] text-slate-300 uppercase font-bold">{mode === 'cost' ? 'COST' : 'PRICE'}</span>
+                                        <span className="text-[9px] text-slate-300 uppercase font-bold">{mode === 'cost' ? 'Κόστος' : 'Τιμή'}</span>
                                     </div>
-                                    <div className="w-10 flex items-center justify-center text-slate-300"><ArrowRight size={14}/></div>
-                                    <div className="w-1/6 px-4 text-right flex flex-col justify-center">
-                                        <span className={`font-black font-mono text-sm ${item.hasChange ? 'text-slate-800' : 'text-slate-400'}`}>{formatCurrency(item.newPrice)}</span>
+                                    <div className="flex items-center justify-center text-slate-300"><ArrowRight size={14}/></div>
+                                    <div className="px-2 text-right flex flex-col justify-center">
+                                        <span className={`font-black font-mono text-sm ${item.hasChange || item.status === 'manual_protected' ? 'text-slate-800' : 'text-slate-400'}`}>{formatCurrency(item.newPrice)}</span>
                                     </div>
-                                    <div className="w-1/6 px-4 text-right flex flex-col justify-center">
+                                    <div className="px-2 text-right flex flex-col justify-center">
                                         {Math.abs(diff) > 0.01 && (
                                             <div className={`text-xs font-bold flex items-center justify-end gap-1 ${diff > 0 ? (mode === 'cost' ? 'text-rose-500' : 'text-emerald-500') : (mode === 'cost' ? 'text-emerald-500' : 'text-rose-500')}`}>
                                                 {diff > 0 ? <ArrowUpRight size={12}/> : <ArrowDownRight size={12}/>}
                                                 {formatDecimal(Math.abs(diff), 2)}€
                                             </div>
                                         )}
+                                        {item.status === 'manual_protected' && item.suggestedPrice != null && Math.abs(item.suggestedPrice - item.currentPrice) > 0.01 && (
+                                            <div className="text-[9px] text-amber-600 font-bold">Τύπος: {formatCurrency(item.suggestedPrice)}</div>
+                                        )}
                                     </div>
-                                    <div className="w-28 px-4 pr-8 text-right flex items-center justify-end gap-3">
+                                    <div className="px-2 text-right flex flex-col justify-center">
                                         {mode === 'selling' && (
                                             <span className={`font-black text-xs ${margin < 30 ? 'text-rose-500' : 'text-emerald-600'}`}>{formatDecimal(margin, 1)}%</span>
                                         )}
-                                        
+                                    </div>
+                                    <div className="px-2 pr-4 text-right flex items-center justify-end gap-1">
+                                        {item.isManualPrice && isCalculated && (
+                                            <button
+                                                onClick={() => handleSingleUpdate(item, { applyFormula: true })}
+                                                disabled={isProcessing}
+                                                className="p-1.5 rounded-lg text-amber-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                                                title="Εφαρμογή τύπου"
+                                            >
+                                                {isProcessing ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14}/>}
+                                            </button>
+                                        )}
                                         <button 
-                                            onClick={() => handleSingleUpdate(item)}
-                                            disabled={isProcessing}
-                                            className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
-                                            title="Update Single"
+                                            onClick={() => handleSingleUpdate(item, { forceManual: true })}
+                                            disabled={isProcessing || (item.isManualPrice && !isCalculated)}
+                                            className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-40"
+                                            title="Ενημέρωση"
                                         >
                                             {isProcessing ? <Loader2 size={16} className="animate-spin text-emerald-500"/> : <RefreshCw size={16}/>}
                                         </button>
@@ -798,7 +893,7 @@ export default function PricingManager({ products, settings, materials }: Props)
           <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in">
               <div className="lg:col-span-1 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
                   <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-                      <h3 className="font-bold text-slate-800 flex items-center gap-2"><History size={18} className="text-blue-500"/> Λίστα Snapshots</h3>
+                      <h3 className="font-bold text-slate-800 flex items-center gap-2"><History size={18} className="text-blue-500"/> Λίστα Αντιγράφων
                   </div>
                   <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
                       {loadingSnapshots ? <Loader2 className="animate-spin mx-auto mt-10 text-slate-300"/> : snapshots?.map(snap => (
@@ -821,10 +916,10 @@ export default function PricingManager({ products, settings, materials }: Props)
                               <p className="font-bold text-slate-800 text-sm mb-3">{snap.notes}</p>
                               <div className="flex gap-2">
                                   <button onClick={(e) => { e.stopPropagation(); handleRevert(snap); }} className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-rose-50 text-rose-600 rounded-lg text-xs font-bold hover:bg-rose-100 transition-colors">
-                                      <RotateCcw size={12}/> Revert
+                                      <RotateCcw size={12}/> Επαναφορά
                                   </button>
                                   <button onClick={(e) => { e.stopPropagation(); viewSnapshotDetails(snap); }} className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors">
-                                      <Eye size={12}/> View
+                                      <Eye size={12}/> Προβολή
                                   </button>
                               </div>
                           </div>
@@ -838,7 +933,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                       <>
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                             <div>
-                                <h3 className="font-bold text-slate-800">Σύγκριση Backup με Τρέχουσες Τιμές</h3>
+                                <h3 className="font-bold text-slate-800">Σύγκριση Αντιγράφου με Τρέχουσες Τιμές</h3>
                                 <p className="text-xs text-slate-500">{new Date(selectedSnapshot.created_at).toLocaleString('el-GR')} • {selectedSnapshot.notes}</p>
                             </div>
                             <button onClick={() => setSelectedSnapshot(null)} className="p-2 hover:bg-slate-200 rounded-full"><X size={20}/></button>
@@ -849,7 +944,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                                     <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] sticky top-0 shadow-sm">
                                         <tr>
                                             <th className="p-4 pl-8">Κωδικός (SKU/Var)</th>
-                                            <th className="p-4 text-right">Τιμή Backup</th>
+                                            <th className="p-4 text-right">Τιμή Αντιγράφου</th>
                                             <th className="p-4 text-right">Τρέχουσα Τιμή</th>
                                             <th className="p-4 text-right pr-8">Διαφορά</th>
                                         </tr>
@@ -881,7 +976,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                   ) : (
                       <div className="flex-1 flex flex-col items-center justify-center text-slate-300 p-20 text-center">
                           <History size={64} className="mb-4 opacity-20"/>
-                          <p className="font-bold text-lg">Επιλέξτε ένα Snapshot</p>
+                          <p className="font-bold text-lg">Επιλέξτε ένα Αντίγραφο</p>
                           <p className="text-sm">Για να δείτε πώς έχουν αλλάξει οι τιμές από τότε μέχρι σήμερα.</p>
                       </div>
                   )}

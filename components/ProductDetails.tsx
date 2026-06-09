@@ -762,7 +762,11 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     };
 
     const applyReprice = () => {
-        setEditedProduct(prev => ({ ...prev, selling_price: calculatedPrice }));
+        setEditedProduct(prev => ({
+            ...prev,
+            selling_price: calculatedPrice,
+            selling_price_manual_override: false,
+        }));
     };
 
     const variants = editedProduct.variants || [];
@@ -869,7 +873,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         updates.forEach((variant, idx) => {
             const suggested = getSuggestedPriceForVariant(variant.suffix, mode, targetMargin);
             if (Math.abs((variant.selling_price || 0) - suggested) > 0.01) {
-                updates[idx] = { ...variant, selling_price: suggested };
+                updates[idx] = { ...variant, selling_price: suggested, selling_price_manual_override: false };
                 updateCount++;
             }
         });
@@ -886,7 +890,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         setEditedProduct(prev => ({
             ...prev,
             variants: updates,
-            selling_price: !hasVariants ? masterPriceUpdate : prev.selling_price
+            selling_price: !hasVariants ? masterPriceUpdate : prev.selling_price,
+            selling_price_manual_override: !hasVariants ? false : prev.selling_price_manual_override,
         }));
 
         if (updateCount > 0) {
@@ -904,7 +909,11 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         const suggested = getSuggestedPriceForVariant(variant.suffix, 'formula');
 
         const newVariants = [...(editedProduct.variants || [])];
-        newVariants[realIndex] = { ...newVariants[realIndex], selling_price: suggested };
+        newVariants[realIndex] = {
+            ...newVariants[realIndex],
+            selling_price: suggested,
+            selling_price_manual_override: false,
+        };
         setEditedProduct(prev => ({ ...prev, variants: newVariants }));
         showToast(`Τιμή για ${variant.suffix}: ${suggested}€`, 'success');
     };
@@ -1010,6 +1019,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     weight_g: finalEditedProduct.weight_g,
                     secondary_weight_g: finalEditedProduct.secondary_weight_g || null,
                     selling_price: isComponent ? 0 : finalEditedProduct.selling_price,
+                    selling_price_manual_override: isComponent ? false : !!finalEditedProduct.selling_price_manual_override,
                     plating_type: finalEditedProduct.plating_type,
                     labor_casting: finalEditedProduct.labor.casting_cost,
                     labor_setter: finalEditedProduct.labor.setter_cost,
@@ -1235,7 +1245,11 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         const realIndex = (editedProduct.variants || []).findIndex(v => v.suffix === variantToUpdate.suffix);
         if (realIndex === -1) return;
         const newVariants = [...(editedProduct.variants || [])];
-        newVariants[realIndex] = { ...newVariants[realIndex], [field]: value };
+        newVariants[realIndex] = {
+            ...newVariants[realIndex],
+            [field]: value,
+            ...(field === 'selling_price' ? { selling_price_manual_override: true } : {}),
+        };
         setEditedProduct(prev => ({ ...prev, variants: newVariants }));
     };
 
@@ -1741,7 +1755,11 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                             type="number" step="0.01"
                                                                             className="w-full p-2.5 bg-white border border-emerald-200 rounded-lg font-bold font-mono text-emerald-900 focus:ring-2 focus:ring-emerald-400/30 outline-none text-sm shadow-sm"
                                                                             value={editedProduct.selling_price}
-                                                                            onChange={e => setEditedProduct({ ...editedProduct, selling_price: parseFloat(e.target.value) || 0 })}
+                                                                            onChange={e => setEditedProduct({
+                                                                                ...editedProduct,
+                                                                                selling_price: parseFloat(e.target.value) || 0,
+                                                                                selling_price_manual_override: true,
+                                                                            })}
                                                                         />
                                                                         <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-emerald-400 font-semibold">€</span>
                                                                     </div>
@@ -1785,7 +1803,13 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                                     const newVars = [...currentVariants];
                                                                                     group.forEach(gVar => {
                                                                                         const idx = newVars.findIndex(nv => nv.suffix === gVar.suffix);
-                                                                                        if (idx !== -1) newVars[idx] = { ...newVars[idx], selling_price: val };
+                                                                                        if (idx !== -1) {
+                                                                                            newVars[idx] = {
+                                                                                                ...newVars[idx],
+                                                                                                selling_price: val,
+                                                                                                selling_price_manual_override: true,
+                                                                                            };
+                                                                                        }
                                                                                     });
                                                                                     setEditedProduct({ ...editedProduct, variants: newVars });
                                                                                 }}
@@ -2038,7 +2062,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                 <Coins size={11} className="text-slate-400" /> Τιμή Πώλησης (€)
                                                             </label>
                                                             <div className="relative">
-                                                                <input type="number" step="0.01" className="w-full p-2.5 bg-white border border-amber-200 text-amber-900 rounded-xl font-bold font-mono outline-none focus:ring-2 focus:ring-amber-400/20 focus:border-amber-300 transition-all shadow-sm" value={editedProduct.selling_price} onChange={e => setEditedProduct({ ...editedProduct, selling_price: parseFloat(e.target.value) || 0 })} />
+                                                                <input type="number" step="0.01" className="w-full p-2.5 bg-white border border-amber-200 text-amber-900 rounded-xl font-bold font-mono outline-none focus:ring-2 focus:ring-amber-400/20 focus:border-amber-300 transition-all shadow-sm" value={editedProduct.selling_price} onChange={e => setEditedProduct({ ...editedProduct, selling_price: parseFloat(e.target.value) || 0, selling_price_manual_override: true })} />
                                                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-400 font-semibold">€</span>
                                                             </div>
                                                         </div>

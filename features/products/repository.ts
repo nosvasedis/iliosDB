@@ -11,6 +11,7 @@ export const productsRepository = {
     stock_qty?: number;
     active_price?: number | null;
     selling_price?: number | null;
+    selling_price_manual_override?: boolean;
   }) => api.saveProductVariant(input),
   getProductVariants: (sku: string) => api.getProductVariants(sku),
   deleteProductVariant: (sku: string, suffix: string) => api.deleteProductVariant(sku, suffix),
@@ -95,6 +96,7 @@ export async function saveProductGraph(input: SaveProductGraphInput): Promise<{ 
         stock_qty: variant.stock_qty ?? existing?.stock_qty ?? 0,
         active_price: variant.active_price,
         selling_price: input.isSTX ? 0 : variant.selling_price,
+        selling_price_manual_override: input.isSTX ? false : !!variant.selling_price_manual_override,
       });
       if (queued) anyPartQueued = true;
     }

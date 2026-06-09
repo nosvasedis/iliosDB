@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender, PlatingType, ProductionType } from '../types';
-import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, ChevronLeft, ChevronRight, Tag, Puzzle, Gem, Palette, X, Camera, LayoutGrid, List, CheckSquare, Printer, Factory, ShoppingBag, FolderOpen } from 'lucide-react';
+import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, ChevronLeft, ChevronRight, Tag, Puzzle, Gem, Palette, X, Camera, LayoutGrid, List, CheckSquare, Printer, Factory, ShoppingBag, FolderOpen, Lock } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import NewProduct from './NewProduct';
 import BarcodeScanner from './BarcodeScanner';
@@ -18,6 +18,7 @@ import { useMolds } from '../hooks/api/useMolds';
 import { useProducts } from '../hooks/api/useProducts';
 import { useSettings } from '../hooks/api/useSettings';
 import { productsRepository } from '../features/products';
+import { resolveSellingPriceManualOverride } from '../utils/bulkPricingPreview';
 import DesktopPageHeader from './DesktopPageHeader';
 import {
     buildPrintableSkuMap,
@@ -341,6 +342,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
     const [selectedSkus, setSelectedSkus] = useState<Set<string>>(new Set());
     const [editingPrice, setEditingPrice] = useState<{ sku: string, price: string } | null>(null);
+    const [priceEditUsedFormula, setPriceEditUsedFormula] = useState<string | null>(null);
 
     const [showFab, setShowFab] = useState(false);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -557,21 +559,35 @@ export default function ProductRegistry({ setPrintItems }: Props) {
         const newPrice = parseFloat(editingPrice.price.replace(',', '.'));
         if (isNaN(newPrice) || newPrice < 0) {
             setEditingPrice(null);
+            setPriceEditUsedFormula(null);
             return;
         }
+
+        const usedFormulaFill = priceEditUsedFormula === sku;
 
         if (viewMode === 'table') {
             const tableItem = tableVariants.find(t => t.variantSku === sku);
             if (tableItem) {
+                const manualOverride = resolveSellingPriceManualOverride(
+                    newPrice,
+                    tableItem.suggestedPrice,
+                    usedFormulaFill,
+                );
                 const masterProduct = { ...tableItem.product };
                 if (tableItem.variant && masterProduct.variants) {
                     const vIndex = masterProduct.variants.findIndex(v => v.suffix === tableItem.variant!.suffix);
                     if (vIndex !== -1) {
-                        const newVariants = [...masterProduct.variants];
-                        newVariants[vIndex] = { ...newVariants[vIndex], selling_price: newPrice };
-                        masterProduct.variants = newVariants;
+                        const variant = masterProduct.variants[vIndex];
                         try {
-                            await productsRepository.saveProduct(masterProduct);
+                            await productsRepository.saveProductVariant({
+                                product_sku: masterProduct.sku,
+                                suffix: variant.suffix,
+                                description: variant.description,
+                                stock_qty: variant.stock_qty,
+                                active_price: variant.active_price,
+                                selling_price: newPrice,
+                                selling_price_manual_override: manualOverride,
+                            });
                             invalidateProductsAndCatalog(queryClient);
                             showToast(`Η τιμή για ${sku} αποθηκεύτηκε`, 'success');
                         } catch (e) {
@@ -580,6 +596,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                     }
                 } else {
                     masterProduct.selling_price = newPrice;
+                    masterProduct.selling_price_manual_override = manualOverride;
                     try {
                         await productsRepository.saveProduct(masterProduct);
                         invalidateProductsAndCatalog(queryClient);
@@ -593,7 +610,11 @@ export default function ProductRegistry({ setPrintItems }: Props) {
             const product = products.find(p => p.sku === sku);
             if (product && product.selling_price !== newPrice) {
                 try {
-                    await productsRepository.saveProduct({ ...product, selling_price: newPrice });
+                    await productsRepository.saveProduct({
+                        ...product,
+                        selling_price: newPrice,
+                        selling_price_manual_override: true,
+                    });
                     invalidateProductsAndCatalog(queryClient);
                     showToast(`Η τιμή για ${sku} αποθηκεύτηκε`, 'success');
                 } catch (error) {
@@ -602,6 +623,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
             }
         }
         setEditingPrice(null);
+        setPriceEditUsedFormula(null);
     };
 
     if (isCreating) {
@@ -832,13 +854,21 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                             </div>
                                             <div className="flex items-center justify-end flex-1 min-w-[120px]">
                                                 <div className="text-right flex flex-col items-end">
-                                                    <div className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Χονδρικη</div>
+                                                    <div className="text-[10px] uppercase font-bold text-slate-400 mb-0.5 flex items-center justify-end gap-1">
+                                                        Χονδρικη
+                                                        {(item.variant?.selling_price_manual_override || (!item.variant && item.product.selling_price_manual_override)) && (
+                                                            <span className="inline-flex items-center gap-0.5 text-amber-600 normal-case font-bold">
+                                                                <Lock size={10} /> Χειροκίνητη
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                     {editingPrice?.sku === item.variantSku ? (
                                                         <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                                                             <button
                                                                 title="Υπολογισμός με Ilios Formula (Προτεινόμενη Τιμή)"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
+                                                                    setPriceEditUsedFormula(item.variantSku);
                                                                     setEditingPrice({ sku: item.variantSku, price: item.suggestedPrice.toString() });
                                                                 }}
                                                                 className="p-1 rounded bg-amber-50 text-amber-500 hover:bg-amber-100 hover:text-amber-600 transition-colors border border-amber-200 mr-1"
@@ -854,7 +884,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                                         </div>
                                                     ) : (
                                                         <div className="text-lg font-black text-slate-900 group relative flex items-center justify-end gap-2 cursor-pointer hover:text-emerald-600 transition-colors"
-                                                            onClick={(e) => { e.stopPropagation(); setEditingPrice({ sku: item.variantSku, price: item.price.toString() }); }}>
+                                                            onClick={(e) => { e.stopPropagation(); setPriceEditUsedFormula(null); setEditingPrice({ sku: item.variantSku, price: item.price.toString() }); }}>
                                                             {formatCurrency(item.price)}
                                                             <Edit3 size={12} className="opacity-0 group-hover:opacity-100 absolute -left-4 text-emerald-500 transition-opacity" />
                                                         </div>

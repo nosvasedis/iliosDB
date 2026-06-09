@@ -63,7 +63,8 @@ const sanitizeProductData = (data: any) => {
         'labor_casting', 'labor_setter', 'labor_technician', 'labor_plating_x',
         'labor_plating_d', 'labor_subcontract', 'labor_stone_setting',
         'labor_casting_manual_override', 'labor_technician_manual_override',
-        'labor_plating_x_manual_override', 'labor_plating_d_manual_override'
+        'labor_plating_x_manual_override', 'labor_plating_d_manual_override',
+        'selling_price_manual_override'
     ];
 
     const sanitized: any = {};
