@@ -17,6 +17,7 @@ import StageBatchPrintView from './StageBatchPrintView';
 import { transliterateForBarcode } from '../utils/pricingEngine';
 import {
     buildPrintIframeOnloadScript,
+    isLabelPrintJob,
     PRINT_IFRAME_PAGE_MARGIN_CSS,
 } from '../utils/printPageStyles';
 
@@ -214,6 +215,8 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
 
                 iframeDoc.open();
 
+                const printingLabels = isLabelPrintJob(printItems);
+
                 let styles = '';
                 document.querySelectorAll('style, link[rel="stylesheet"]').forEach(el => {
                     styles += el.outerHTML;
@@ -237,9 +240,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                         @media print {
                           @page {
                             size: auto;
-                            margin-left: 0;
-                            margin-right: 0;
-                            margin-bottom: 0;
+                            ${printingLabels ? 'margin: 0 !important;' : 'margin-left: 0; margin-right: 0; margin-bottom: 0;'}
                           }
                           html, body { height: 100%; margin: 0 !important; padding: 0 !important; }
                           .label-container { display: flex !important; }
@@ -252,7 +253,9 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                         ${printContent.innerHTML}
                       </div>
                       <script>
-                        ${buildPrintIframeOnloadScript(PRINT_IFRAME_PAGE_MARGIN_CSS)}
+                        ${buildPrintIframeOnloadScript(
+                            printingLabels ? undefined : PRINT_IFRAME_PAGE_MARGIN_CSS,
+                        )}
                       </script>
                     </body>
                   </html>

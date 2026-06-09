@@ -9,9 +9,7 @@ export const PRINT_PRINTER_TOP_SAFE_INSET = '1cm';
  * Injected last in the print iframe, immediately before window.print().
  * Uses @page + @page :first (well supported in Chrome); :left/:right as fallback.
  * No !important so views with their own @page top margin can override via calc().
- */
-/**
- * Raw @page rules (no @media wrapper) for embedding inside an existing `@media print` block.
+ * Do NOT use for barcode labels — use PRINT_LABEL_PAGE_MARGIN_CSS instead.
  */
 export const PRINT_IFRAME_PAGE_MARGIN_RULES = `
   @page {
@@ -31,6 +29,26 @@ export const PRINT_IFRAME_PAGE_MARGIN_RULES = `
 export const PRINT_IFRAME_PAGE_MARGIN_CSS = `@media print {
   ${PRINT_IFRAME_PAGE_MARGIN_RULES}
 }`;
+
+/** Zero margins on every page — wholesale (standard) and retail barcode labels only. */
+export const PRINT_LABEL_PAGE_MARGIN_CSS = `@media print {
+  @page {
+    size: auto;
+    margin: 0 !important;
+  }
+}`;
+
+/** Raw zero-margin @page rule for embedding in an existing `@media print` block. */
+export const PRINT_LABEL_PAGE_MARGIN_RULES = `
+  @page {
+    size: auto;
+    margin: 0 !important;
+  }
+`;
+
+export const isLabelPrintJob = (
+    printItems: ReadonlyArray<{ format?: 'standard' | 'simple' | 'retail' }>,
+): boolean => printItems.length > 0;
 
 /** For views that already define a non-zero @page top margin on every page. */
 export const printPageMarginWithBaseTop = (baseTopMargin: string) => `@media print {
@@ -57,12 +75,12 @@ export const PRINT_CATALOG_CONTINUATION_CSS = `@media print {
   }
 }`;
 
-export const buildPrintIframeOnloadScript = (marginCss: string) => `
+export const buildPrintIframeOnloadScript = (marginCss?: string) => `
 window.onload = function() {
-  var style = document.createElement('style');
-  style.id = 'ilios-printer-top-inset';
+  ${marginCss ? `var style = document.createElement('style');
+  style.id = 'ilios-print-page-margin';
   style.textContent = ${JSON.stringify(marginCss)};
-  document.head.appendChild(style);
+  document.head.appendChild(style);` : ''}
   setTimeout(function() {
     window.focus();
     window.print();

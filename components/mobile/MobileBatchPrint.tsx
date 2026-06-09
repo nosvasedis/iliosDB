@@ -8,7 +8,6 @@ import { api } from '../../lib/supabase';
 import { findProductByScannedCode, getVariantComponents, expandSkuRange, splitSkuComponents } from '../../utils/pricingEngine';
 import BarcodeView from '../BarcodeView';
 import { Product, ProductVariant } from '../../types';
-import { PRINT_IFRAME_PAGE_MARGIN_RULES } from '../../utils/printPageStyles';
 
 interface Props {
     onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail' }[]) => void;
@@ -387,13 +386,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                 
                 <style>{`
                     @media print {
-                        @page {
-                            size: auto;
-                            margin-left: 0;
-                            margin-right: 0;
-                            margin-bottom: 0;
-                        }
-                        ${PRINT_IFRAME_PAGE_MARGIN_RULES}
+                        @page { size: auto; margin: 0 !important; }
                         body { background: white; }
                         .print-area { display: flex; flex-wrap: wrap; }
                         .print\\:hidden { display: none !important; }

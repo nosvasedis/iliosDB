@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   PRINT_IFRAME_PAGE_MARGIN_CSS,
+  PRINT_LABEL_PAGE_MARGIN_CSS,
   PRINT_PRINTER_TOP_SAFE_INSET,
+  isLabelPrintJob,
   printPageMarginWithBaseTop,
 } from '../../utils/printPageStyles';
 
@@ -12,6 +14,14 @@ describe('printPageStyles', () => {
     expect(PRINT_IFRAME_PAGE_MARGIN_CSS).toContain('margin-top: 0');
     expect(PRINT_IFRAME_PAGE_MARGIN_CSS).toContain('margin-top: 1cm');
     expect(PRINT_IFRAME_PAGE_MARGIN_CSS).not.toContain(':not(:first)');
+  });
+
+  it('keeps barcode label jobs on zero @page margins', () => {
+    expect(isLabelPrintJob([{ format: 'standard' }])).toBe(true);
+    expect(isLabelPrintJob([{ format: 'retail' }])).toBe(true);
+    expect(isLabelPrintJob([])).toBe(false);
+    expect(PRINT_LABEL_PAGE_MARGIN_CSS).toContain('margin: 0 !important');
+    expect(PRINT_LABEL_PAGE_MARGIN_CSS).not.toContain('margin-top: 1cm');
   });
 
   it('adds the inset on top of an existing @page top margin', () => {
