@@ -5,7 +5,6 @@ import { APP_LOGO } from '../constants';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { Phone, Mail, MapPin, Coins } from 'lucide-react';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
-import { PRINT_INVOICE_DOCUMENT_STYLES } from '../utils/printPageStyles';
 
 interface Props {
     offer: Offer;
@@ -69,7 +68,6 @@ export default function OfferPrintView({ offer }: Props) {
 
     return (
         <div className="bg-white text-black font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 page-break-after-always relative flex flex-col">
-            <style>{PRINT_INVOICE_DOCUMENT_STYLES}</style>
             
             {/* Watermark Background */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03] z-0">

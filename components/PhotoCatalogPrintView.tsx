@@ -1,7 +1,6 @@
 import React from 'react';
 import { Product, Mold } from '../types';
 import { compareSkuValues } from '../utils/skuSort';
-import { printExplicitPageInsetStyles } from '../utils/printPageStyles';
 
 interface Props {
     products: Product[];
@@ -60,7 +59,6 @@ export default function PhotoCatalogPrintView({ products, molds, title = 'Φωτ
                         page-break-after: avoid;
                         break-after: avoid;
                     }
-                    ${printExplicitPageInsetStyles('.catalog-page', '277mm')}
                     * {
                         -webkit-print-color-adjust: exact !important;
                         print-color-adjust: exact !important;

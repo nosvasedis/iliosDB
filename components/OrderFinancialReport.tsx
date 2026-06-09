@@ -4,7 +4,6 @@ import { APP_LOGO } from '../constants';
 import { Wallet, Tag, Target, Coins, Hammer, Box, AlertTriangle, Weight } from 'lucide-react';
 import { formatOrderId } from '../utils/orderUtils';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
-import { printSubsequentPageTopMarginWithBase } from '../utils/printPageStyles';
 
 interface Props {
     stats: any; // Result from calculateBusinessStats
@@ -32,7 +31,6 @@ export default function OrderFinancialReport({ stats, orderId, customerName, dat
         <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-8 mx-auto page-break-after-always relative flex flex-col">
             <style>{`
                 @page { size: A4; margin: 10mm 15mm; }
-                ${printSubsequentPageTopMarginWithBase('10mm')}
                 .break-avoid { break-inside: avoid; }
                 table { border-collapse: collapse; width: 100%; }
                 th, td { padding: 6px 8px; }

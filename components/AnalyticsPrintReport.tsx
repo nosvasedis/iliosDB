@@ -4,7 +4,6 @@ import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { APP_LOGO } from '../constants';
 import { TrendingUp, DollarSign, Wallet, Scale, Users, Award, PieChart, ShoppingCart, Tag } from 'lucide-react';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
-import { printSubsequentPageTopMarginWithBase } from '../utils/printPageStyles';
 
 interface Props {
     stats: any;
@@ -24,7 +23,6 @@ export default function AnalyticsPrintReport({ stats, title }: Props) {
         <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-8 mx-auto page-break-after-always relative">
             <style>{`
                 @page { size: A4; margin: 10mm 15mm; }
-                ${printSubsequentPageTopMarginWithBase('10mm')}
                 .break-avoid { break-inside: avoid; }
                 table { border-collapse: collapse; width: 100%; }
                 th, td { padding: 4px 8px; }
