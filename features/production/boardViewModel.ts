@@ -7,6 +7,7 @@ import {
   Material,
   MaterialType,
   Order,
+  OrderItem,
   OrderStatus,
   Product,
   ProductionBatch,
@@ -56,6 +57,49 @@ function getDisplayCustomerName(order: Order | undefined): string {
     : (order.customer_name || '');
 }
 
+function sameNullableValue(a: string | null | undefined, b: string | null | undefined): boolean {
+  return (a || '') === (b || '');
+}
+
+export function findMatchingOrderItemForBatch(
+  batch: Pick<ProductionBatch, 'sku' | 'variant_suffix' | 'size_info' | 'cord_color' | 'enamel_color' | 'line_id' | 'quantity'>,
+  orderItems: OrderItem[],
+): OrderItem | undefined {
+  const candidates = orderItems.filter((item) =>
+    item.sku === batch.sku &&
+    sameNullableValue(item.variant_suffix, batch.variant_suffix),
+  );
+
+  if (candidates.length === 0) return undefined;
+
+  if (batch.line_id) {
+    const byLineId = candidates.find((item) => item.line_id === batch.line_id);
+    if (byLineId) return byLineId;
+  }
+
+  if (batch.size_info || batch.cord_color || batch.enamel_color) {
+    const byIdentity = candidates.find((item) =>
+      sameNullableValue(item.size_info, batch.size_info) &&
+      sameNullableValue(item.cord_color, batch.cord_color) &&
+      sameNullableValue(item.enamel_color, batch.enamel_color),
+    );
+    if (byIdentity) return byIdentity;
+  }
+
+  if (candidates.length === 1) return candidates[0];
+
+  const byQuantity = candidates.filter((item) => item.quantity === batch.quantity);
+  if (byQuantity.length === 1) return byQuantity[0];
+
+  const candidateSizes = new Set(candidates.map((item) => (item.size_info || '').trim()).filter(Boolean));
+  if (!batch.size_info && candidateSizes.size === 1) {
+    const [onlySize] = Array.from(candidateSizes);
+    return candidates.find((item) => (item.size_info || '').trim() === onlySize);
+  }
+
+  return undefined;
+}
+
 export function enrichProductionBatchesForBoard(
   batches: ProductionBatch[] | undefined | null,
   productsMap: Map<string, Product>,
@@ -75,15 +119,12 @@ export function enrichProductionBatchesForBoard(
     });
     const order = batch.order_id ? ordersMap.get(batch.order_id) : undefined;
     const orderItems = Array.isArray(order?.items) ? order.items : [];
-    const matchingOrderItem = orderItems.find((item) => {
-      if (item.sku !== batch.sku) return false;
-      if ((item.variant_suffix || '') !== (batch.variant_suffix || '')) return false;
-      if (batch.line_id && item.line_id) return item.line_id === batch.line_id;
-      return true;
-    });
+    const matchingOrderItem = findMatchingOrderItemForBatch(batch, orderItems);
+    const resolvedSizeInfo = batch.size_info || matchingOrderItem?.size_info || undefined;
 
     return {
       ...batch,
+      size_info: resolvedSizeInfo,
       product_details: product,
       product_image: product?.image_url ?? null,
       requires_setting: hasZirconsFromSuffix || hasZirconsFromRecipe || requiresSettingStage(batch.sku),
