@@ -13,6 +13,7 @@ import {
   getCommitCandidates,
   getPricingItemMargin,
   PricingListFilter,
+  PricingMode,
   PricingSortBy,
   sortPricingList,
   summarizePricingPreview,
@@ -70,6 +71,7 @@ export default function PricingManager({ products, settings, materials }: Props)
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
   const parentRef = React.useRef<HTMLDivElement>(null);
+  const pricingMode: PricingMode = mode === 'history' ? 'cost' : mode;
 
   const { data: snapshots, isLoading: loadingSnapshots } = useQuery({ 
       queryKey: ['price_snapshots'], 
@@ -131,13 +133,15 @@ export default function PricingManager({ products, settings, materials }: Props)
   }, [mode, products, settings, materials, queryClient, showToast]);
 
   const flattenedInventory = useMemo(
-    () => flattenInventoryForPricing(products, mode),
-    [products, mode],
+    () => flattenInventoryForPricing(products, pricingMode),
+    [products, pricingMode],
   );
 
   const handleRecalculate = () => {
+    if (mode === 'history') return;
+
     const items = buildBulkPricingPreview(products, settings, materials, {
-      mode,
+      mode: pricingMode,
       markupMode,
       markupPercent,
     });
@@ -195,6 +199,8 @@ export default function PricingManager({ products, settings, materials }: Props)
   };
 
   const handleSingleUpdate = async (item: BulkPricingItem, options?: { forceManual?: boolean; applyFormula?: boolean }) => {
+    if (mode === 'history') return;
+
     const product = products.find((p) => p.sku === item.masterSku);
     if (!product) return;
 
@@ -224,7 +230,7 @@ export default function PricingManager({ products, settings, materials }: Props)
         clearManualFlag = true;
       } else {
         const previewItem = buildBulkPricingPreview([product], settings, materials, {
-          mode,
+          mode: pricingMode,
           markupMode,
           markupPercent,
         }).find((row) => row.id === item.id);
@@ -284,9 +290,11 @@ export default function PricingManager({ products, settings, materials }: Props)
   });
 
   const commitPrices = async () => {
+    if (mode === 'history') return;
+
     const updatesToApply = isCalculated
       ? getCommitCandidates(calculatedData, {
-          mode,
+          mode: pricingMode,
           markupMode,
           forceApplyFormula,
           includeManualPrices,
@@ -380,12 +388,12 @@ export default function PricingManager({ products, settings, materials }: Props)
   const pendingCommitCount = useMemo(() => {
     if (!isCalculated) return 0;
     return getCommitCandidates(calculatedData, {
-      mode,
+      mode: pricingMode,
       markupMode,
       forceApplyFormula,
       includeManualPrices,
     }).length;
-  }, [isCalculated, calculatedData, mode, markupMode, forceApplyFormula, includeManualPrices]);
+  }, [isCalculated, calculatedData, pricingMode, markupMode, forceApplyFormula, includeManualPrices]);
 
   const handleCreateSnapshot = async () => {
       setIsSnapshotting(true);
