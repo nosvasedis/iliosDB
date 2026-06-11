@@ -163,6 +163,8 @@ describe('legal document helpers', () => {
     expect(xml).toContain('<paymentMethods>');
     expect(xml).toContain('<vatCategory>1</vatCategory>');
     expect(xml).toContain('<classificationType>E3_561_001</classificationType>');
+    expect(xml).not.toContain('<itemCode>');
+    expect(xml.indexOf('<paymentMethods>')).toBeLessThan(xml.indexOf('<invoiceHeader>'));
     expect(xml).not.toContain('<isDeliveryNote>');
     expect(validateLegalDocument(document, document.lines).some((issue) => issue.field.startsWith('delivery'))).toBe(false);
   });
@@ -195,6 +197,9 @@ describe('legal document helpers', () => {
     expect(xml).toContain('<isDeliveryNote>true</isDeliveryNote>');
     expect(xml).toContain('<dispatchDate>');
     expect(xml).toContain('<itemDescr>Silver ring</itemDescr>');
+    expect(xml).toContain('<itemCode>RNG001</itemCode>');
+    expect(xml.indexOf('<incomeClassification>')).toBeLessThan(xml.indexOf('<itemDescr>'));
+    expect(xml.indexOf('<itemDescr>')).toBeLessThan(xml.indexOf('<itemCode>'));
   });
 
   it('uses the official non-E3 classification for delivery notes', () => {
@@ -216,6 +221,12 @@ describe('legal document helpers', () => {
     expect(xml).toContain('<classificationCategory>category3</classificationCategory>');
     expect(xml).not.toContain('<classificationType>');
     expect(errors).toEqual([]);
+  });
+
+  it('parses wrapped and encoded AADE error responses', () => {
+    const parsed = parseAadeResponseXml(`<string xmlns="http://schemas.microsoft.com/2003/10/Serialization/">&lt;ResponseDoc&gt;&lt;response&gt;&lt;statusCode&gt;XMLSyntaxError&lt;/statusCode&gt;&lt;errors&gt;&lt;error&gt;&lt;message&gt;invalid child element itemCode&lt;/message&gt;&lt;/error&gt;&lt;/errors&gt;&lt;/response&gt;&lt;/ResponseDoc&gt;</string>`);
+    expect(parsed.statusCode).toBe('XMLSyntaxError');
+    expect(parsed.errors.join(' ')).toContain('invalid child element itemCode');
   });
 
   it('parses AADE response XML and gates legal printing on MARK plus QR', () => {

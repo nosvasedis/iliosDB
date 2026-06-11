@@ -37,23 +37,43 @@ function xmlEscape(value) {
     .replace(/'/g, '&apos;');
 }
 
+function decodeXmlEntities(value) {
+  return String(value || '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
 function findXmlValue(xml, tag) {
   const match = String(xml || '').match(new RegExp(`<(?:\\w+:)?${tag}>([\\s\\S]*?)</(?:\\w+:)?${tag}>`, 'i'));
-  return match?.[1]?.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').trim();
+  return match?.[1] ? decodeXmlEntities(match[1]).trim() : undefined;
+}
+
+function normalizeAadeResponseXml(raw) {
+  let text = String(raw || '').trim();
+  if (!text) return text;
+  const stringMatch = text.match(/<string[^>]*>([\s\S]*)<\/string>/i);
+  if (stringMatch) text = decodeXmlEntities(stringMatch[1]);
+  return text;
 }
 
 function parseAadeResponseXml(xml) {
-  const text = String(xml || '');
+  const text = normalizeAadeResponseXml(xml);
   const errorMatches = Array.from(text.matchAll(/<(?:\w+:)?message>([\s\S]*?)<\/(?:\w+:)?message>/gi));
+  const errors = errorMatches.map((match) => decodeXmlEntities(match[1]).trim()).filter(Boolean);
+  const statusCode = findXmlValue(text, 'statusCode');
+  if (!errors.length && statusCode && statusCode !== 'Success') errors.push(statusCode);
   return {
-    statusCode: findXmlValue(text, 'statusCode'),
+    statusCode,
     invoiceUid: findXmlValue(text, 'invoiceUid'),
     invoiceMark: findXmlValue(text, 'invoiceMark'),
     classificationMark: findXmlValue(text, 'classificationMark'),
     cancellationMark: findXmlValue(text, 'cancellationMark'),
     authenticationCode: findXmlValue(text, 'authenticationCode'),
     qrUrl: findXmlValue(text, 'qrUrl'),
-    errors: errorMatches.map((m) => m[1].trim()).filter(Boolean),
+    errors,
   };
 }
 

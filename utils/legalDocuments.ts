@@ -1132,7 +1132,7 @@ function buildPaymentXml(document: LegalDocument): string {
 }
 
 function buildLineXml(line: LegalDocumentLine, document: LegalDocument): string {
-  const canSendItemDescription = document.document_kind === 'delivery_note' || document.document_kind === 'invoice_delivery';
+  const canSendDeliveryLineFields = document.document_kind === 'delivery_note' || document.document_kind === 'invoice_delivery';
   return `<invoiceDetails>${[
     xmlTag('lineNumber', line.line_number),
     xmlTag('quantity', line.quantity),
@@ -1141,9 +1141,9 @@ function buildLineXml(line: LegalDocumentLine, document: LegalDocument): string 
     xmlTag('vatCategory', line.vat_category),
     xmlTag('vatAmount', xmlMoney(line.vat_amount)),
     line.vat_category === 7 ? xmlTag('vatExemptionCategory', document.vat_exemption_category) : '',
-    canSendItemDescription ? xmlTag('itemDescr', line.description.slice(0, 300)) : '',
-    xmlTag('itemCode', line.item_code),
     buildIncomeClassificationXml(line.income_classification),
+    canSendDeliveryLineFields ? xmlTag('itemDescr', line.description.slice(0, 300)) : '',
+    canSendDeliveryLineFields && line.item_code ? xmlTag('itemCode', line.item_code) : '',
   ].join('')}</invoiceDetails>`;
 }
 
@@ -1165,8 +1165,8 @@ export function buildAadeInvoiceXml(document: LegalDocument, lines: LegalDocumen
   const invoice = [
     buildPartyXml('issuer', document.issuer, true),
     buildPartyXml('counterpart', document.counterpart, true),
-    buildHeaderXml(document),
     buildPaymentXml(document),
+    buildHeaderXml(document),
     lines.map((line) => buildLineXml(line, document)).join(''),
     buildSummaryXml({ ...document, revenue_classification: groupIncomeClassifications(lines), totals: computeLegalTotals(lines) }),
   ].join('');
@@ -1239,22 +1239,47 @@ export function buildAadeTransmittedDocsQuery(
   return query;
 }
 
+function decodeXmlEntities(value: string): string {
+  return value
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
 function findXmlValue(xml: string, tag: string): string | undefined {
   const match = xml.match(new RegExp(`<(?:\\w+:)?${tag}>([\\s\\S]*?)</(?:\\w+:)?${tag}>`, 'i'));
-  return match?.[1]?.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').trim();
+  return match?.[1] ? decodeXmlEntities(match[1]).trim() : undefined;
+}
+
+export function normalizeAadeResponseXml(raw: string): string {
+  let text = String(raw || '').trim();
+  if (!text) return text;
+  const stringMatch = text.match(/<string[^>]*>([\s\S]*)<\/string>/i);
+  if (stringMatch) {
+    text = decodeXmlEntities(stringMatch[1]);
+  }
+  return text;
 }
 
 export function parseAadeResponseXml(xml: string) {
-  const errorMatches = Array.from(xml.matchAll(/<(?:\w+:)?message>([\s\S]*?)<\/(?:\w+:)?message>/gi));
+  const text = normalizeAadeResponseXml(xml);
+  const errorMatches = Array.from(text.matchAll(/<(?:\w+:)?message>([\s\S]*?)<\/(?:\w+:)?message>/gi));
+  const errors = errorMatches.map((match) => decodeXmlEntities(match[1]).trim()).filter(Boolean);
+  const statusCode = findXmlValue(text, 'statusCode');
+  if (!errors.length && statusCode && statusCode !== 'Success') {
+    errors.push(statusCode);
+  }
   return {
-    statusCode: findXmlValue(xml, 'statusCode'),
-    invoiceUid: findXmlValue(xml, 'invoiceUid'),
-    invoiceMark: findXmlValue(xml, 'invoiceMark'),
-    classificationMark: findXmlValue(xml, 'classificationMark'),
-    cancellationMark: findXmlValue(xml, 'cancellationMark'),
-    authenticationCode: findXmlValue(xml, 'authenticationCode'),
-    qrUrl: findXmlValue(xml, 'qrUrl'),
-    errors: errorMatches.map((m) => m[1].trim()).filter(Boolean),
+    statusCode,
+    invoiceUid: findXmlValue(text, 'invoiceUid'),
+    invoiceMark: findXmlValue(text, 'invoiceMark'),
+    classificationMark: findXmlValue(text, 'classificationMark'),
+    cancellationMark: findXmlValue(text, 'cancellationMark'),
+    authenticationCode: findXmlValue(text, 'authenticationCode'),
+    qrUrl: findXmlValue(text, 'qrUrl'),
+    errors,
   };
 }
 

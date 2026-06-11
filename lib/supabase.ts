@@ -1392,6 +1392,7 @@ export const api = {
             });
             const parsed = proxyResult.parsed || parseAadeResponseXml(proxyResult.responseText || '');
             const success = proxyResult.ok && parsed.statusCode === 'Success' && !!parsed.invoiceMark;
+            const failureMessage = getAadeProxyErrorMessage(proxyResult, 'AADE rejected the document.');
             await supabase.from('legal_transmissions').insert({
                 document_id: document.id,
                 action: 'send_invoices',
@@ -1400,11 +1401,11 @@ export const api = {
                 status: success ? 'success' : 'failed',
                 request_payload: rawXml,
                 response_payload: proxyResult.responseText,
-                error_message: success ? null : (parsed.errors?.join('\n') || parsed.statusCode || `HTTP ${proxyResult.status}`),
+                error_message: success ? null : failureMessage,
             });
 
             if (!success) {
-                const message = parsed.errors?.join('\n') || parsed.statusCode || 'AADE rejected the document.';
+                const message = failureMessage;
                 await supabase.from('legal_documents').update({
                     status: 'failed',
                     last_error: message,
