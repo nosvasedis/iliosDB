@@ -164,7 +164,7 @@ describe('legal document helpers', () => {
     expect(xml).toContain('<vatCategory>1</vatCategory>');
     expect(xml).toContain('<classificationType>E3_561_001</classificationType>');
     expect(xml).not.toContain('<itemCode>');
-    expect(xml.indexOf('<paymentMethods>')).toBeLessThan(xml.indexOf('<invoiceHeader>'));
+    expect(xml.indexOf('<invoiceHeader>')).toBeLessThan(xml.indexOf('<paymentMethods>'));
     expect(xml).not.toContain('<isDeliveryNote>');
     expect(validateLegalDocument(document, document.lines).some((issue) => issue.field.startsWith('delivery'))).toBe(false);
   });

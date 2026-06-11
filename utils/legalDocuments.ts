@@ -1165,8 +1165,8 @@ export function buildAadeInvoiceXml(document: LegalDocument, lines: LegalDocumen
   const invoice = [
     buildPartyXml('issuer', document.issuer, true),
     buildPartyXml('counterpart', document.counterpart, true),
-    buildPaymentXml(document),
     buildHeaderXml(document),
+    buildPaymentXml(document),
     lines.map((line) => buildLineXml(line, document)).join(''),
     buildSummaryXml({ ...document, revenue_classification: groupIncomeClassifications(lines), totals: computeLegalTotals(lines) }),
   ].join('');
