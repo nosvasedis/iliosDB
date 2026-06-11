@@ -1,5 +1,6 @@
 import {
   AadeDocumentType,
+  AadeProxyResult,
   AadeTransmittedDocsParseResult,
   Customer,
   LegalDeliveryDetails,
@@ -239,6 +240,18 @@ export function roundMoney(value: number): number {
 
 export function toIsoDate(value: string | Date): string {
   return value instanceof Date ? value.toISOString().slice(0, 10) : value.slice(0, 10);
+}
+
+/** AADE query endpoints (RequestDocs / RequestTransmittedDocs) expect dd/MM/yyyy. */
+export function toAadeQueryDate(value?: string | null): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+  const greekMatch = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (greekMatch) return trimmed;
+  return trimmed;
 }
 
 function toXmlDateTimeDate(value?: string | null): string {
@@ -1073,6 +1086,44 @@ export function buildAadeInvoiceXml(document: LegalDocument, lines: LegalDocumen
   ].join('');
 }
 
+export function isEmptyTransmittedDocsResponse(
+  result: Pick<AadeProxyResult, 'ok' | 'status' | 'responseText' | 'parsed'>,
+  parsed: AadeTransmittedDocsParseResult,
+): boolean {
+  if (parsed.documents.length > 0 || parsed.cancellations.length > 0) return false;
+  if (result.ok || result.status === 404 || result.status === 204) return true;
+  const responseText = String(result.responseText || '').trim();
+  if (!responseText || /<RequestedDoc\b[^>]*\/>/i.test(responseText) || /<RequestedDoc>\s*<\/RequestedDoc>/i.test(responseText)) {
+    return true;
+  }
+  const parsedResponse = result.parsed?.statusCode
+    ? result.parsed
+    : parseAadeResponseXml(responseText);
+  if (parsedResponse.statusCode === 'NoDocuments') return true;
+  const errors = (parsedResponse.errors || []).map((message) => message.toLowerCase());
+  return errors.some((message) =>
+    message.includes('not found')
+    || message.includes('δεν βρέθη')
+    || message.includes('no documents')
+    || message.includes('requested invoice was not found')
+  );
+}
+
+export function getAadeProxyErrorMessage(result: Pick<AadeProxyResult, 'status' | 'responseText' | 'parsed'>, fallback: string): string {
+  const responseText = String(result.responseText || '');
+  const errors = [
+    ...(result.parsed?.errors || []),
+    ...parseAadeResponseXml(responseText).errors,
+  ].map((message) => message.trim()).filter(Boolean);
+  if (errors.length) return errors.join('\n');
+  if (result.status === 400) {
+    return 'Η ΑΑΔΕ απέρριψε το αίτημα συγχρονισμού. Ελέγξτε τις ημερομηνίες, το MARK και τα προαιρετικά φίλτρα.';
+  }
+  if (result.status === 401) return 'Τα AADE credentials δεν έγιναν αποδεκτά από την ΑΑΔΕ.';
+  if (result.status === 404) return 'Η ΑΑΔΕ δεν απάντησε στο αίτημα (404). Συχνά σημαίνει συντήρηση ή προσωρινή μη διαθεσιμότητα.';
+  return fallback;
+}
+
 export function buildAadeTransmittedDocsQuery(
   params: LegalSyncParams,
   continuation?: { nextPartitionKey?: string | null; nextRowKey?: string | null },
@@ -1080,8 +1131,10 @@ export function buildAadeTransmittedDocsQuery(
   const query: Record<string, string> = {
     mark: String(params.markFrom || '0'),
   };
-  if (params.dateFrom) query.dateFrom = params.dateFrom;
-  if (params.dateTo) query.dateTo = params.dateTo;
+  const dateFrom = toAadeQueryDate(params.dateFrom);
+  const dateTo = toAadeQueryDate(params.dateTo);
+  if (dateFrom) query.dateFrom = dateFrom;
+  if (dateTo) query.dateTo = dateTo;
   const entityVatNumber = normalizeVatNumber(params.entityVatNumber);
   const receiverVatNumber = normalizeVatNumber(params.receiverVatNumber);
   if (entityVatNumber) query.entityVatNumber = entityVatNumber;

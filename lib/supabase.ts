@@ -18,7 +18,7 @@ import { buildInitialBatchHistoryEntry, canMoveBatchToStage as canMoveBatchToSta
 import { mapCatalogProductsWithRelations, mapProductsWithRelations, resolveProductImageUrl, attachSuppliersToProductRows } from '../features/products/mappers';
 import { getRegisteredQueryClient } from './queryClientRegistry';
 import { addReceivedSizeQuantity, resolveSupplierOrderProductReceiptTarget } from '../features/suppliers/receiptHelpers';
-import { buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, parseAadeResponseXml, parseTransmittedDocumentsXml, roundMoney, validateLegalDocument } from '../utils/legalDocuments';
+import { buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, getAadeProxyErrorMessage, isEmptyTransmittedDocsResponse, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, parseAadeResponseXml, parseTransmittedDocumentsXml, roundMoney, validateLegalDocument } from '../utils/legalDocuments';
 
 // Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
 export const R2_PUBLIC_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
@@ -1097,11 +1097,7 @@ export const api = {
                     query,
                 });
                 const parsed = parseTransmittedDocumentsXml(result.responseText || '');
-                const noTransmittedDocumentsFound =
-                    !result.ok &&
-                    result.status === 404 &&
-                    parsed.documents.length === 0 &&
-                    parsed.cancellations.length === 0;
+                const noTransmittedDocumentsFound = isEmptyTransmittedDocsResponse(result, parsed);
                 await supabase.from('legal_transmissions').insert({
                     document_id: null,
                     action: 'request_transmitted_docs',
@@ -1114,14 +1110,16 @@ export const api = {
                         ? null
                         : noTransmittedDocumentsFound
                             ? 'Δεν βρέθηκαν παραστατικά στο επιλεγμένο διάστημα.'
-                            : `HTTP ${result.status}`,
+                            : getAadeProxyErrorMessage(result, `AADE sync failed (${result.status})`),
                 });
                 if (noTransmittedDocumentsFound) {
                     nextPartitionKey = undefined;
                     nextRowKey = undefined;
                     break;
                 }
-                if (!result.ok) throw new Error(parsed.documents.length ? `AADE sync failed (${result.status})` : (result.parsed?.errors?.join('\n') || `AADE sync failed (${result.status})`));
+                if (!result.ok) {
+                    throw new Error(getAadeProxyErrorMessage(result, `AADE sync failed (${result.status})`));
+                }
 
                 const existingDocuments = await api.getLegalDocuments();
                 for (const transmitted of parsed.documents) {

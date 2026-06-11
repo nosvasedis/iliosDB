@@ -153,6 +153,21 @@ export function buildEndpoint(environment, method, query) {
   return endpoint;
 }
 
+function isEmptyTransmittedDocsAadeResult(result) {
+  const responseText = String(result?.responseText || '').trim();
+  if (!responseText) return true;
+  if (/<RequestedDoc\b[^>]*\/>/i.test(responseText) || /<RequestedDoc>\s*<\/RequestedDoc>/i.test(responseText)) {
+    return true;
+  }
+  if (result?.status === 404 || result?.status === 204) return true;
+  const errors = (result?.parsed?.errors || []).map((message) => String(message).toLowerCase());
+  return errors.some((message) =>
+    message.includes('not found')
+    || message.includes('δεν βρέθη')
+    || message.includes('no documents')
+  );
+}
+
 function buildDeliveryXml(rootName, payload) {
   const mark = payload.mark || payload.invoiceMark || '';
   const outcome = payload.failed ? 'FAILED' : 'DELIVERED';
@@ -303,7 +318,7 @@ async function handleAadeRoute(request, env, corsHeaders, url) {
 
   try {
     const result = await callAadeXml(env, environment, route.method, route.xml, route.query, route.httpMethod || 'POST');
-    if (route.method === 'RequestTransmittedDocs' && result.status === 404) {
+    if (route.method === 'RequestTransmittedDocs' && isEmptyTransmittedDocsAadeResult(result)) {
       return jsonResponse({
         ...result,
         ok: true,
@@ -311,7 +326,7 @@ async function handleAadeRoute(request, env, corsHeaders, url) {
         parsed: { ...result.parsed, statusCode: 'NoDocuments', errors: [] },
       }, 200, corsHeaders);
     }
-    return jsonResponse(result, result.ok ? 200 : 502, corsHeaders);
+    return jsonResponse(result, 200, corsHeaders);
   } catch (error) {
     return jsonResponse({
       ok: false,

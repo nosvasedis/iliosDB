@@ -5,6 +5,8 @@ import {
   AADE_VAT_CATEGORY_OPTIONS,
   buildAadeInvoiceXml,
   buildAadeTransmittedDocsQuery,
+  isEmptyTransmittedDocsResponse,
+  toAadeQueryDate,
   buildLegalDocumentFromOrder,
   buildManualLegalDocument,
   buildManualProforma,
@@ -484,6 +486,11 @@ describe('legal document helpers', () => {
     });
   });
 
+  it('formats transmitted-doc sync dates for AADE query parameters', () => {
+    expect(toAadeQueryDate('2026-06-11')).toBe('11/06/2026');
+    expect(toAadeQueryDate('11/06/2026')).toBe('11/06/2026');
+  });
+
   it('builds official RequestTransmittedDocs filters and pagination query keys', () => {
     const query = buildAadeTransmittedDocsQuery({
       environment: 'dev',
@@ -501,8 +508,8 @@ describe('legal document helpers', () => {
 
     expect(query).toEqual({
       mark: '100',
-      dateFrom: '2026-06-01',
-      dateTo: '2026-06-30',
+      dateFrom: '01/06/2026',
+      dateTo: '30/06/2026',
       entityVatNumber: '123456789',
       receiverVatNumber: '987654321',
       invType: '1.1',
@@ -510,5 +517,21 @@ describe('legal document helpers', () => {
       nextPartitionKey: 'pk',
       nextRowKey: 'rk',
     });
+  });
+
+  it('treats empty transmitted-doc responses as a successful sync with zero imports', () => {
+    expect(isEmptyTransmittedDocsResponse({
+      ok: false,
+      status: 404,
+      responseText: '<RequestedDoc />',
+      parsed: { statusCode: undefined, errors: [] },
+    }, { documents: [], cancellations: [] })).toBe(true);
+
+    expect(isEmptyTransmittedDocsResponse({
+      ok: false,
+      status: 400,
+      responseText: '<ResponseDoc><response><statusCode>ValidationError</statusCode><errors><error><message>Requested Invoice was not found</message></error></errors></response></ResponseDoc>',
+      parsed: { statusCode: 'ValidationError', errors: ['Requested Invoice was not found'] },
+    }, { documents: [], cancellations: [] })).toBe(true);
   });
 });

@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { Customer, Product, LegalCarrier, LegalDocument, LegalDocumentKind, LegalDocumentLine, LegalEnvironment, LegalSettings, ProformaDocument, ProformaDocumentLine } from '../types';
 import DesktopPageHeader from './DesktopPageHeader';
+import SkuProductPicker from './legal/SkuProductPicker';
 import { useUI } from './UIProvider';
 import { useAuth } from './AuthContext';
 import { useAllShipmentItems, useAllShipments, useCustomers, useOrdersWithItems } from '../hooks/api/useOrders';
@@ -427,22 +428,28 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
   };
 
   const applyProductToLegalLine = (lineId: string, sku: string) => {
-    const product = products.find((item) => item.sku === sku);
+    const normalizedSku = sku.trim().toUpperCase();
+    const product = normalizedSku === 'MANUAL'
+      ? undefined
+      : products.find((item) => item.sku.toUpperCase() === normalizedSku);
     updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((line) => line.id === lineId ? {
       ...line,
-      sku,
-      item_code: sku,
+      sku: normalizedSku,
+      item_code: normalizedSku === 'MANUAL' ? line.item_code : (product?.sku || normalizedSku),
       description: product?.description || product?.category || line.description,
       unit_price: product?.selling_price || product?.active_price || line.unit_price,
     } : line), settingsDraft));
   };
 
   const applyProductToProformaLine = (lineId: string, sku: string) => {
-    const product = products.find((item) => item.sku === sku);
+    const normalizedSku = sku.trim().toUpperCase();
+    const product = normalizedSku === 'MANUAL'
+      ? undefined
+      : products.find((item) => item.sku.toUpperCase() === normalizedSku);
     updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((line) => line.id === lineId ? {
       ...line,
-      sku,
-      item_code: sku,
+      sku: normalizedSku,
+      item_code: normalizedSku === 'MANUAL' ? line.item_code : (product?.sku || normalizedSku),
       description: product?.description || product?.category || line.description,
       unit_price: product?.selling_price || product?.active_price || line.unit_price,
     } : line), settingsDraft));
@@ -930,17 +937,11 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
                   <tr key={line.id}>
                     <td className="px-3 py-2 font-bold">{line.line_number}</td>
                     <td className="px-3 py-2">
-                      <select
+                      <SkuProductPicker
                         value={line.sku}
-                        onChange={(event) => {
-                          applyProductToLegalLine(line.id, event.target.value);
-                        }}
-                        className="w-36 rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold outline-none"
-                      >
-                        <option value={line.sku}>{line.sku}</option>
-                        <option value="MANUAL">MANUAL</option>
-                        {products.map((product) => <option key={product.sku} value={product.sku}>{product.sku}</option>)}
-                      </select>
+                        products={products}
+                        onSelect={(sku) => applyProductToLegalLine(line.id, sku)}
+                      />
                     </td>
                     <td className="px-3 py-2">
                       <input value={line.item_code || ''} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, item_code: event.target.value } : item), settingsDraft))} className="w-28 rounded-lg border border-slate-200 px-2 py-1 font-mono text-xs outline-none" />
@@ -1201,11 +1202,11 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
                   <tr key={line.id}>
                     <td className="px-3 py-2 font-bold">{line.line_number}</td>
                     <td className="px-3 py-2">
-                      <select value={line.sku} onChange={(event) => applyProductToProformaLine(line.id, event.target.value)} className="w-36 rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold outline-none">
-                        <option value={line.sku}>{line.sku}</option>
-                        <option value="MANUAL">MANUAL</option>
-                        {products.map((product) => <option key={product.sku} value={product.sku}>{product.sku}</option>)}
-                      </select>
+                      <SkuProductPicker
+                        value={line.sku}
+                        products={products}
+                        onSelect={(sku) => applyProductToProformaLine(line.id, sku)}
+                      />
                     </td>
                     <td className="px-3 py-2"><input value={line.item_code || ''} onChange={(event) => updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((item) => item.id === line.id ? { ...item, item_code: event.target.value } : item), settingsDraft))} className="w-28 rounded-lg border border-slate-200 px-2 py-1 font-mono text-xs outline-none" /></td>
                     <td className="px-3 py-2"><input value={line.description} onChange={(event) => updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((item) => item.id === line.id ? { ...item, description: event.target.value } : item), settingsDraft))} className="min-w-56 rounded-lg border border-slate-200 px-2 py-1 outline-none" /></td>
@@ -1443,8 +1444,8 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
           Φέρνει παραστατικά που έχουν ήδη εκδοθεί ή ακυρωθεί με τα ίδια AADE credentials. Δεν καταναλώνει σειρές ή αρίθμηση του ERP.
         </div>
         <div className="mt-4 space-y-4">
-          <TextInput label="Από ημερομηνία" type="date" value={syncDraft.dateFrom} onChange={(value) => setSyncDraft((current) => ({ ...current, dateFrom: value }))} />
-          <TextInput label="Έως ημερομηνία" type="date" value={syncDraft.dateTo} onChange={(value) => setSyncDraft((current) => ({ ...current, dateTo: value }))} />
+          <TextInput label="Από ημερομηνία" type="date" value={syncDraft.dateFrom} onChange={(value) => setSyncDraft((current) => ({ ...current, dateFrom: value }))} help="Η εφαρμογή μετατρέπει αυτόματα σε μορφή ΑΑΔΕ (ηη/μμ/εεεε)." />
+          <TextInput label="Έως ημερομηνία" type="date" value={syncDraft.dateTo} onChange={(value) => setSyncDraft((current) => ({ ...current, dateTo: value }))} help="Αν δεν υπάρχουν παραστατικά στο διάστημα, ο συγχρονισμός ολοκληρώνεται κανονικά με 0 εισαγωγές." />
           <TextInput label="Από MARK" value={syncDraft.markFrom} onChange={(value) => setSyncDraft((current) => ({ ...current, markFrom: value }))} help="Προαιρετικό σημείο εκκίνησης της ΑΑΔΕ. Αφήστε 0 για συγχρονισμό με βάση ημερομηνίες." />
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
             <div className="mb-3 flex items-center gap-2 text-sm font-black text-slate-800">
