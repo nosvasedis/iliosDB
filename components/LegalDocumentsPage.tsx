@@ -184,6 +184,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument }: L
   const [newCarrier, setNewCarrier] = useState({ name: '', vat_number: '', vehicle_number: '', phone: '' });
   const [credentialEnvironment, setCredentialEnvironment] = useState<LegalEnvironment>('dev');
   const [credentialDraft, setCredentialDraft] = useState({ userId: '', subscriptionKey: '' });
+  const [cloudflareBootstrapDraft, setCloudflareBootstrapDraft] = useState({ apiToken: '', accountId: '' });
 
   const { showToast, confirm } = useUI();
   const { profile } = useAuth();
@@ -414,8 +415,14 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument }: L
   const handleSaveAadeCredentials = async () => {
     const userId = credentialDraft.userId.trim();
     const subscriptionKey = credentialDraft.subscriptionKey.trim();
+    const cloudflareApiToken = cloudflareBootstrapDraft.apiToken.trim();
+    const cloudflareAccountId = cloudflareBootstrapDraft.accountId.trim();
     if (!userId || !subscriptionKey) {
       showToast('Συμπληρώστε AADE User ID και Subscription Key.', 'warning');
+      return;
+    }
+    if (!credentialStatus?.workerCanStoreSecrets && (!cloudflareApiToken || !cloudflareAccountId)) {
+      showToast('Στην πρώτη ρύθμιση χρειάζονται και Cloudflare API Token + Account ID.', 'warning');
       return;
     }
 
@@ -424,8 +431,10 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument }: L
         environment: credentialEnvironment,
         userId,
         subscriptionKey,
+        ...(!credentialStatus?.workerCanStoreSecrets ? { cloudflareApiToken, cloudflareAccountId } : {}),
       });
       setCredentialDraft({ userId: '', subscriptionKey: '' });
+      setCloudflareBootstrapDraft({ apiToken: '', accountId: '' });
       await refetchCredentialStatus();
       showToast(`Τα AADE credentials για ${credentialEnvironment.toUpperCase()} αποθηκεύτηκαν με ασφάλεια στο Cloudflare Worker.`, 'success');
     } catch (error: any) {
@@ -817,8 +826,24 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument }: L
           </div>
 
           {missingSecretManager.length > 0 && (
-            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-700">
-              Λείπει από το Worker: {missingSecretManager.join(', ')}. Χωρίς αυτό δεν μπορεί να αποθηκεύσει νέα AADE credentials από το UI.
+            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">
+              Πρώτη ρύθμιση: συμπληρώστε παρακάτω Cloudflare API Token και Account ID μαζί με τα AADE credentials. Αποθηκεύονται μόνο στο Worker, όχι στη βάση ή στον browser.
+            </div>
+          )}
+
+          {!credentialStatus?.workerCanStoreSecrets && (
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <TextInput
+                label="Cloudflare API Token (μία φορά)"
+                type="password"
+                value={cloudflareBootstrapDraft.apiToken}
+                onChange={(value) => setCloudflareBootstrapDraft((current) => ({ ...current, apiToken: value }))}
+              />
+              <TextInput
+                label="Cloudflare Account ID (μία φορά)"
+                value={cloudflareBootstrapDraft.accountId}
+                onChange={(value) => setCloudflareBootstrapDraft((current) => ({ ...current, accountId: value }))}
+              />
             </div>
           )}
 
@@ -829,7 +854,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument }: L
             </SelectInput>
             <TextInput label="AADE User ID" value={credentialDraft.userId} onChange={(value) => setCredentialDraft((current) => ({ ...current, userId: value }))} />
             <TextInput label="Subscription Key" type="password" value={credentialDraft.subscriptionKey} onChange={(value) => setCredentialDraft((current) => ({ ...current, subscriptionKey: value }))} />
-            <ActionButton onClick={handleSaveAadeCredentials} disabled={saveAadeCredentials.isPending || credentialStatus?.workerCanStoreSecrets === false}>
+            <ActionButton onClick={handleSaveAadeCredentials} disabled={saveAadeCredentials.isPending}>
               {saveAadeCredentials.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Αποθήκευση
             </ActionButton>
           </div>

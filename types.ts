@@ -642,6 +642,9 @@ export interface AadeCredentialSavePayload {
   environment: LegalEnvironment;
   userId: string;
   subscriptionKey: string;
+  /** One-time bootstrap when Worker secret manager is not configured yet. */
+  cloudflareApiToken?: string;
+  cloudflareAccountId?: string;
 }
 
 export interface LegalPartyAddress {

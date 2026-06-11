@@ -70,14 +70,18 @@ const AADE_SECRET_NAMES = {
   prod: { userId: 'AADE_USER_ID_PROD', subscriptionKey: 'AADE_SUBSCRIPTION_KEY_PROD' },
 };
 
-function getCloudflareSecretManager(env) {
-  const apiToken = env.CLOUDFLARE_API_TOKEN;
-  const accountId = env.CLOUDFLARE_ACCOUNT_ID;
+function resolveSecretManager(env, payload = {}) {
+  const apiToken = String(payload.cloudflareApiToken || env.CLOUDFLARE_API_TOKEN || '').trim();
+  const accountId = String(payload.cloudflareAccountId || env.CLOUDFLARE_ACCOUNT_ID || '').trim();
   const scriptName = env.CLOUDFLARE_SCRIPT_NAME || 'ilios-image-handler';
   const missing = [];
   if (!apiToken) missing.push('CLOUDFLARE_API_TOKEN');
   if (!accountId) missing.push('CLOUDFLARE_ACCOUNT_ID');
   return { apiToken, accountId, scriptName, missing };
+}
+
+function getCloudflareSecretManager(env) {
+  return resolveSecretManager(env);
 }
 
 function getCredentialPresence(env, environment) {
@@ -102,8 +106,7 @@ function getAadeCredentialStatus(env, optimisticEnvironment) {
   return status;
 }
 
-async function putWorkerSecret(env, name, text) {
-  const manager = getCloudflareSecretManager(env);
+async function putWorkerSecretWithManager(manager, name, text) {
   if (manager.missing.length > 0) {
     throw new Error(`Missing Cloudflare secret manager configuration: ${manager.missing.join(', ')}`);
   }
@@ -125,6 +128,10 @@ async function putWorkerSecret(env, name, text) {
     throw new Error(message);
   }
   return body;
+}
+
+async function putWorkerSecret(env, name, text, payload = {}) {
+  return putWorkerSecretWithManager(resolveSecretManager(env, payload), name, text);
 }
 
 function buildEndpoint(environment, method, query) {
@@ -231,11 +238,28 @@ async function handleAadeRoute(request, env, corsHeaders, url) {
       return jsonResponse({ error: 'AADE user ID and subscription key are required.' }, 400, corsHeaders);
     }
 
+    const manager = resolveSecretManager(env, payload);
+    if (manager.missing.length > 0) {
+      return jsonResponse({
+        error: `Συμπληρώστε ${manager.missing.join(' και ')} στην πρώτη αποθήκευση, ώστε το Worker να μπορεί να αποθηκεύσει τα AADE credentials.`,
+      }, 400, corsHeaders);
+    }
+
     try {
       const secretNames = AADE_SECRET_NAMES[environment];
-      await putWorkerSecret(env, secretNames.userId, userId);
-      await putWorkerSecret(env, secretNames.subscriptionKey, subscriptionKey);
-      return jsonResponse({ ok: true, status: getAadeCredentialStatus(env, environment) }, 200, corsHeaders);
+      if (!String(env.CLOUDFLARE_API_TOKEN || '').trim() && payload.cloudflareApiToken) {
+        await putWorkerSecretWithManager(manager, 'CLOUDFLARE_API_TOKEN', String(payload.cloudflareApiToken).trim());
+      }
+      if (!String(env.CLOUDFLARE_ACCOUNT_ID || '').trim() && payload.cloudflareAccountId) {
+        await putWorkerSecretWithManager(manager, 'CLOUDFLARE_ACCOUNT_ID', String(payload.cloudflareAccountId).trim());
+      }
+      await putWorkerSecretWithManager(manager, secretNames.userId, userId);
+      await putWorkerSecretWithManager(manager, secretNames.subscriptionKey, subscriptionKey);
+
+      const status = getAadeCredentialStatus(env, environment);
+      status.workerCanStoreSecrets = true;
+      status.missingWorkerSecretManager = [];
+      return jsonResponse({ ok: true, status }, 200, corsHeaders);
     } catch (error) {
       return jsonResponse({ error: error?.message || 'AADE credential configuration failed.' }, 500, corsHeaders);
     }
