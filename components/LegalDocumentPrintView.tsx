@@ -8,15 +8,16 @@ import {
 } from '../utils/legalDocuments';
 import {
   LegalPrintAadePanel,
+  LegalPrintCustomerBar,
   LegalPrintDeliverySection,
   LegalPrintFooter,
   LegalPrintHeader,
   LegalPrintLinesTable,
   LegalPrintPage,
-  LegalPrintPartyGrid,
   LegalPrintTotalsSection,
   formatPrintMoney,
 } from './legal/legalPrintShared';
+import { getLegalDocumentDisplayNumber } from '../utils/legalDocuments';
 
 interface LegalDocumentPrintViewProps {
   document: LegalDocument;
@@ -32,11 +33,8 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
   return (
     <LegalPrintPage>
       <LegalPrintHeader
-        title={kindLabel}
-        subtitle="Νόμιμο φορολογικό παραστατικό · myDATA"
-        issuer={document.issuer}
-        series={document.series}
-        aa={document.aa}
+        title={kindLabel.toUpperCase()}
+        documentNumber={getLegalDocumentDisplayNumber(document)}
         issueDate={document.issue_date}
         documentTypeCode={document.aade_document_type}
         statusBadge={document.status === 'cancelled' ? (
@@ -46,7 +44,12 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
         ) : undefined}
       />
 
-      <LegalPrintPartyGrid issuer={document.issuer} counterpart={document.counterpart} />
+      <LegalPrintCustomerBar
+        issuer={document.issuer}
+        counterpart={document.counterpart}
+        gross={document.totals.gross}
+        currency={document.currency}
+      />
 
       <LegalPrintAadePanel
         qrUrl={document.qr_url}

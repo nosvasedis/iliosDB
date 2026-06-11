@@ -264,6 +264,17 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                           .label-container { display: flex !important; }
                         }
                         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                        .legal-print-header, .legal-print-logo {
+                          display: block !important;
+                          visibility: visible !important;
+                          opacity: 1 !important;
+                        }
+                        .legal-print-logo {
+                          height: 36px !important;
+                          width: auto !important;
+                          max-width: 140px !important;
+                          object-fit: contain !important;
+                        }
                       </style>
                     </head>
                     <body>

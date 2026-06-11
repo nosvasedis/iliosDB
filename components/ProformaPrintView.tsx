@@ -2,11 +2,11 @@ import React from 'react';
 import { ProformaDocument, ProformaDocumentLine } from '../types';
 import { getLegalDocumentDisplayNumber, PAYMENT_METHOD_LABELS } from '../utils/legalDocuments';
 import {
+  LegalPrintCustomerBar,
   LegalPrintFooter,
   LegalPrintHeader,
   LegalPrintLinesTable,
   LegalPrintPage,
-  LegalPrintPartyGrid,
   LegalPrintTotalsSection,
   formatPrintDate,
 } from './legal/legalPrintShared';
@@ -22,11 +22,8 @@ const ProformaPrintView: React.FC<ProformaPrintViewProps> = ({ document, lines }
   return (
     <LegalPrintPage>
       <LegalPrintHeader
-        title="Προτιμολόγιο"
-        subtitle={displayNumber}
-        issuer={document.issuer}
-        series={document.series}
-        aa={document.aa}
+        title="ΠΡΟΤΙΜΟΛΟΓΙΟ"
+        documentNumber={displayNumber}
         issueDate={document.issue_date}
         statusBadge={(
           <span className="inline-flex rounded border border-sky-300 bg-sky-50 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-sky-900">
@@ -35,34 +32,35 @@ const ProformaPrintView: React.FC<ProformaPrintViewProps> = ({ document, lines }
         )}
       />
 
-      <section className="legal-print-break-inside mb-4 rounded-lg border-2 border-amber-300 bg-amber-50 px-3 py-2 text-center text-[10px] font-bold leading-snug text-amber-950">
+      <section className="legal-print-break-inside mb-3 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-center text-[9px] font-bold leading-snug text-amber-950">
         Δεν έχει διαβιβαστεί στη myDATA · χωρίς MARK, UID ή QR ΑΑΔΕ · δεν αντικαθιστά τιμολόγιο
       </section>
 
-      <LegalPrintPartyGrid
+      <LegalPrintCustomerBar
         issuer={document.issuer}
         counterpart={document.counterpart}
         counterpartTitle="Πελάτης"
+        gross={document.totals.gross}
+        currency={document.currency}
+        extraMeta={(
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-slate-600">
+            <span>
+              <span className="font-bold text-slate-500">Κατάσταση: </span>
+              {document.status === 'void' ? 'Ακυρωμένο' : document.status === 'converted' ? 'Μετατράπηκε' : 'Πρόχειρο'}
+            </span>
+            <span>
+              <span className="font-bold text-slate-500">Πληρωμή: </span>
+              {PAYMENT_METHOD_LABELS[document.payment_method_code] || document.payment_method_code}
+            </span>
+            {document.valid_until && (
+              <span>
+                <span className="font-bold text-slate-500">Ισχύει έως: </span>
+                {formatPrintDate(document.valid_until)}
+              </span>
+            )}
+          </div>
+        )}
       />
-
-      <section className="legal-print-break-inside mb-4 grid grid-cols-3 gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-[10px]">
-        <div>
-          <span className="font-bold uppercase tracking-wide text-slate-500">Κατάσταση</span>
-          <div className="mt-0.5 font-semibold text-slate-900">
-            {document.status === 'void' ? 'Ακυρωμένο' : document.status === 'converted' ? 'Μετατράπηκε σε παραστατικό' : 'Πρόχειρο'}
-          </div>
-        </div>
-        <div>
-          <span className="font-bold uppercase tracking-wide text-slate-500">Πληρωμή</span>
-          <div className="mt-0.5 font-semibold text-slate-900">
-            {PAYMENT_METHOD_LABELS[document.payment_method_code] || document.payment_method_code}
-          </div>
-        </div>
-        <div>
-          <span className="font-bold uppercase tracking-wide text-slate-500">Ισχύει έως</span>
-          <div className="mt-0.5 font-semibold text-slate-900">{formatPrintDate(document.valid_until)}</div>
-        </div>
-      </section>
 
       <LegalPrintLinesTable lines={lines} currency={document.currency} />
 
