@@ -8,6 +8,7 @@ import {
   buildProductionTimingSnapshots,
   enrichProductionBatchesForBoard,
 } from '../../features/production/boardViewModel';
+import { buildLabelPrintQueue as buildWorkflowLabelPrintQueue } from '../../features/production/workflowSelectors';
 import { buildBatchStageHistoryMap } from '../../features/production/selectors';
 
 describe('production board view model', () => {
@@ -83,6 +84,46 @@ describe('production board view model', () => {
       overridden_price: 12,
     }));
     expect(enriched[0].timingLabel).toBeUndefined();
+  });
+
+  it('carries order item size into production label print items when batch size is missing', () => {
+    const sizedProduct = {
+      ...product,
+      sku: 'DA100',
+      prefix: 'DA',
+      variants: [{ suffix: '', description: 'Lustre', stock_qty: 0, selling_price: 40 }],
+      selling_price: 40,
+    } as any;
+    const sizedOrder = {
+      ...order,
+      items: [
+        {
+          sku: 'DA100',
+          variant_suffix: '',
+          quantity: 1,
+          price_at_order: 35,
+          price_override: true,
+          size_info: '58',
+        },
+      ],
+    } as any;
+    const sizedBatch = {
+      ...batches[0],
+      sku: 'DA100',
+      quantity: 1,
+      size_info: undefined,
+    } as any;
+
+    const enriched = enrichProductionBatchesForBoard(
+      [sizedBatch],
+      new Map([['DA100', sizedProduct]]),
+      new Map(),
+      new Map([['ord-1', sizedOrder]]),
+    );
+    const labelItems = buildWorkflowLabelPrintQueue(enriched, 'as_sent', new Map([['DA100', sizedProduct]]));
+
+    expect(enriched[0].size_info).toBe('58');
+    expect(labelItems[0]).toEqual(expect.objectContaining({ size: '58' }));
   });
 
   it('tolerates production-board orders whose items are temporarily missing', () => {

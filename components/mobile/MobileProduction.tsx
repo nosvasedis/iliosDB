@@ -43,6 +43,7 @@ import { useMolds } from '../../hooks/api/useMolds';
 import { useOrdersWithItems } from '../../hooks/api/useOrders';
 import { useBatchStageHistoryEntries, useProductionBatches } from '../../hooks/api/useProductionBatches';
 import { productionRepository } from '../../features/production';
+import { findMatchingOrderItemForBatch } from '../../features/production/boardViewModel';
 import { getBatchAgeInfo } from '../../features/production/selectors';
 import { invalidateProductionBatches } from '../../lib/queryInvalidation';
 
@@ -978,18 +979,15 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
 
             // Resolve the per-order price override for label printing
             const orderItems = Array.isArray(order?.items) ? order.items : [];
-            const matchingOrderItem = orderItems.find(item => {
-                if (item.sku !== b.sku) return false;
-                if ((item.variant_suffix || '') !== (b.variant_suffix || '')) return false;
-                if (b.line_id && item.line_id) return item.line_id === b.line_id;
-                return true;
-            });
+            const matchingOrderItem = findMatchingOrderItemForBatch(b, orderItems);
+            const resolvedSizeInfo = b.size_info || matchingOrderItem?.size_info || undefined;
             const overridden_price = (matchingOrderItem && (matchingOrderItem.price_override === true || isSpecialCreationSku(b.sku)))
                 ? matchingOrderItem.price_at_order
                 : undefined;
 
             return {
                 ...b,
+                size_info: resolvedSizeInfo,
                 requires_setting: hasZircons,
                 requires_assembly,
                 product_details: prod,

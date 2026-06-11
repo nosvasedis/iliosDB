@@ -8,8 +8,18 @@ import {
   groupProductionBatchesForDisplay,
   sortProductionDisplayLevel1Keys,
 } from '../../features/production/workflowSelectors';
+import { requiresAssemblyStage } from '../../constants';
 
 describe('production workflow selectors', () => {
+  it('includes the expanded SK and BR assembly SKU ranges', () => {
+    expect(requiresAssemblyStage('SK201')).toBe(true);
+    expect(requiresAssemblyStage('SK235')).toBe(true);
+    expect(requiresAssemblyStage('SK236')).toBe(false);
+    expect(requiresAssemblyStage('BR300')).toBe(true);
+    expect(requiresAssemblyStage('BR350')).toBe(true);
+    expect(requiresAssemblyStage('BR351')).toBe(false);
+  });
+
   it('resolves next stages including skipped and imported flows', () => {
     expect(getNextProductionStage(ProductionStage.AwaitingDelivery, {
       id: 'b1',

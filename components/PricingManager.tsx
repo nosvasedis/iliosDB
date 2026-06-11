@@ -138,6 +138,8 @@ export default function PricingManager({ products, settings, materials }: Props)
   );
 
   const handleRecalculate = () => {
+    if (mode === 'history') return;
+
     const items = buildBulkPricingPreview(products, settings, materials, {
       mode: pricingMode,
       markupMode,
@@ -197,6 +199,8 @@ export default function PricingManager({ products, settings, materials }: Props)
   };
 
   const handleSingleUpdate = async (item: BulkPricingItem, options?: { forceManual?: boolean; applyFormula?: boolean }) => {
+    if (mode === 'history') return;
+
     const product = products.find((p) => p.sku === item.masterSku);
     if (!product) return;
 
@@ -286,6 +290,8 @@ export default function PricingManager({ products, settings, materials }: Props)
   });
 
   const commitPrices = async () => {
+    if (mode === 'history') return;
+
     const updatesToApply = isCalculated
       ? getCommitCandidates(calculatedData, {
           mode: pricingMode,

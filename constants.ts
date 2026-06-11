@@ -222,7 +222,11 @@ export const ASSEMBLY_SKU_PATTERNS = {
   ],
   // SK ranges (Σκουλαρίκια)
   SK_RANGES: [
-    { min: 201, max: 220 },
+    { min: 201, max: 235 },
+  ],
+  // BR ranges (Βραχιόλι)
+  BR_RANGES: [
+    { min: 300, max: 350 },
   ],
   // BR specific SKUs
   BR_SPECIFIC: [297, 310],
@@ -268,15 +272,18 @@ export function requiresAssemblyStage(sku: string): boolean {
     }
   }
 
-  // Check SK ranges (SK201–SK220)
+  // Check SK ranges (SK201–SK235)
   if (prefix === 'SK' && ASSEMBLY_SKU_PATTERNS.SK_RANGES) {
     for (const range of ASSEMBLY_SKU_PATTERNS.SK_RANGES) {
       if (numPart >= range.min && numPart <= range.max) return true;
     }
   }
 
-  // Check BR specific SKUs
+  // Check BR ranges and specific SKUs
   if (prefix === 'BR') {
+    for (const range of ASSEMBLY_SKU_PATTERNS.BR_RANGES) {
+      if (numPart >= range.min && numPart <= range.max) return true;
+    }
     if (ASSEMBLY_SKU_PATTERNS.BR_SPECIFIC.includes(numPart)) return true;
   }
   
