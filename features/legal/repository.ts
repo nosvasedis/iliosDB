@@ -29,6 +29,7 @@ export const legalRepository = {
   getTransmissions: (documentId: string): Promise<LegalTransmission[]> => api.getLegalTransmissions(documentId),
   getDeliveryEvents: (documentId: string): Promise<LegalDeliveryEvent[]> => api.getLegalDeliveryEvents(documentId),
   getSyncRuns: (): Promise<LegalSyncRun[]> => api.getLegalSyncRuns(),
+  clearSyncRuns: (): Promise<void> => api.clearLegalSyncRuns(),
   syncTransmittedDocuments: (params: LegalSyncParams): Promise<LegalSyncRun> => api.syncTransmittedLegalDocuments(params),
   getProformas: (): Promise<ProformaDocument[]> => api.getProformaDocuments(),
   getProformaLines: (proformaId: string): Promise<ProformaDocumentLine[]> => api.getProformaDocumentLines(proformaId),

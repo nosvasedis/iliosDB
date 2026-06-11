@@ -307,9 +307,16 @@ export function isStrictProductionFinderSkuQuery(term: string): boolean {
   return /^[A-Z]{2}[A-Z0-9]*$/.test(term);
 }
 
+function productionFinderSkuMatches(fullSkuUpper: string, term: string): boolean {
+  if (isStrictProductionFinderSkuQuery(term)) {
+    return fullSkuUpper.startsWith(term);
+  }
+  return fullSkuUpper.includes(term);
+}
+
 export function matchesProductionFinderBatch(batch: ProductionFinderBatchFields, term: string): boolean {
   const fullSku = `${batch.sku}${batch.variant_suffix || ''}`.toUpperCase();
-  const skuMatch = fullSku.startsWith(term);
+  const skuMatch = productionFinderSkuMatches(fullSku, term);
 
   if (isStrictProductionFinderSkuQuery(term)) {
     return skuMatch;
@@ -335,7 +342,7 @@ export function matchesProductionFinderIndexedBatch(
   entry: ProductionFinderIndexedBatch,
   term: string,
 ): boolean {
-  const skuMatch = entry.fullSkuUpper.startsWith(term);
+  const skuMatch = productionFinderSkuMatches(entry.fullSkuUpper, term);
   if (isStrictProductionFinderSkuQuery(term)) return skuMatch;
   return skuMatch || entry.orderIdUpper.includes(term) || entry.customerNameUpper.includes(term);
 }

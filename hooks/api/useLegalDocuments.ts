@@ -141,6 +141,16 @@ export const useSyncTransmittedLegalDocuments = () => {
   });
 };
 
+export const useClearLegalSyncRuns = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => legalRepository.clearSyncRuns(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: legalKeys.syncRuns() });
+    },
+  });
+};
+
 export const useSubmitLegalDocument = () => {
   const queryClient = useQueryClient();
   return useMutation({

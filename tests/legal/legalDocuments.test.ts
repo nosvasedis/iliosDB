@@ -3,8 +3,10 @@ import { Customer, Order, Product, ProductionType } from '../../types';
 import {
   AADE_REVENUE_CLASSIFICATION_COMBINATIONS,
   AADE_VAT_CATEGORY_OPTIONS,
+  applyLegalDocumentDeliveryToggle,
   buildAadeInvoiceXml,
   buildAadeTransmittedDocsQuery,
+  documentIncludesDeliveryNote,
   isEmptyTransmittedDocsResponse,
   toAadeQueryDate,
   buildLegalDocumentFromOrder,
@@ -158,6 +160,22 @@ describe('legal document helpers', () => {
     expect(xml).toContain('<paymentMethods>');
     expect(xml).toContain('<vatCategory>1</vatCategory>');
     expect(xml).toContain('<classificationType>E3_561_001</classificationType>');
+    expect(xml).not.toContain('<isDeliveryNote>');
+    expect(validateLegalDocument(document, document.lines).some((issue) => issue.field.startsWith('delivery'))).toBe(false);
+  });
+
+  it('toggles combined invoice-delivery mode without affecting plain invoices', () => {
+    const invoice = buildManualLegalDocument({ settings, kind: 'invoice', customer });
+    expect(documentIncludesDeliveryNote(invoice)).toBe(false);
+
+    const withDelivery = applyLegalDocumentDeliveryToggle(invoice, true, settings, customer);
+    expect(withDelivery.document_kind).toBe('invoice_delivery');
+    expect(documentIncludesDeliveryNote(withDelivery)).toBe(true);
+    expect(withDelivery.delivery?.dispatch_date).toBeTruthy();
+
+    const backToInvoice = applyLegalDocumentDeliveryToggle(withDelivery, false, settings, customer);
+    expect(backToInvoice.document_kind).toBe('invoice');
+    expect(backToInvoice.delivery).toBeNull();
   });
 
   it('marks combined invoice-delivery documents as delivery notes in XML', () => {

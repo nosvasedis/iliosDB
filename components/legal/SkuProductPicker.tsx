@@ -1,100 +1,26 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CornerDownLeft, PenLine } from 'lucide-react';
+import { CornerDownLeft, ImageIcon, PenLine } from 'lucide-react';
 import { Product } from '../../types';
+import SkuColorizedText from '../SkuColorizedText';
+import {
+  formatSkuDisplayValue,
+  getSkuAutocompleteValue,
+  resolveTypedSkuSelection,
+  searchSkuProductOptions,
+  selectionFromOption,
+  SkuProductSelection,
+} from '../../utils/skuProductPicker';
+import { findProductByScannedCode, formatCurrency } from '../../utils/pricingEngine';
 
-type SkuPickerOption = {
-  sku: string;
-  label: string;
-  hint?: string;
-  manual?: boolean;
-  product?: Product;
-};
-
-export function searchSkuProductOptions(products: Product[], query: string, allowManual = true, limit = 10): SkuPickerOption[] {
-  const term = query.trim().toUpperCase();
-  const options: SkuPickerOption[] = [];
-
-  if (allowManual && (!term || 'MANUAL'.startsWith(term) || term.startsWith('MAN'))) {
-    options.push({
-      sku: 'MANUAL',
-      label: 'MANUAL',
-      hint: 'Χειροκίνητη γραμμή χωρίς προϊόν ERP',
-      manual: true,
-    });
-  }
-
-  if (!term) {
-    return [
-      ...options,
-      ...products
-        .filter((product) => !product.is_component)
-        .slice(0, limit)
-        .map((product) => ({
-          sku: product.sku,
-          label: product.sku,
-          hint: product.description || product.category || undefined,
-          product,
-        })),
-    ];
-  }
-
-  const numericMatch = term.match(/\d+/);
-  const numberTerm = numericMatch && numericMatch[0].length >= 3 ? numericMatch[0] : null;
-
-  const matches = products
-    .filter((product) => {
-      if (product.is_component) return false;
-      const sku = product.sku.toUpperCase();
-      const description = `${product.description || ''} ${product.category || ''}`.toUpperCase();
-      if (sku.startsWith(term)) return true;
-      if (sku.includes(term)) return true;
-      if (description.includes(term)) return true;
-      if (numberTerm && sku.includes(numberTerm)) return true;
-      return false;
-    })
-    .sort((left, right) => {
-      const leftSku = left.sku.toUpperCase();
-      const rightSku = right.sku.toUpperCase();
-      const leftStarts = leftSku.startsWith(term) ? 0 : 1;
-      const rightStarts = rightSku.startsWith(term) ? 0 : 1;
-      if (leftStarts !== rightStarts) return leftStarts - rightStarts;
-      if (leftSku.length !== rightSku.length) return leftSku.length - rightSku.length;
-      return leftSku.localeCompare(rightSku);
-    })
-    .slice(0, limit)
-    .map((product) => ({
-      sku: product.sku,
-      label: product.sku,
-      hint: product.description || product.category || undefined,
-      product,
-    }));
-
-  return [...options, ...matches];
-}
-
-function getAutocompleteSku(inputValue: string, options: SkuPickerOption[], products: Product[]): string | null {
-  const term = inputValue.trim().toUpperCase();
-  if (!term) return null;
-
-  const exact = products.find((product) => product.sku.toUpperCase() === term);
-  if (exact) return exact.sku;
-
-  const prefixMatches = products
-    .filter((product) => !product.is_component && product.sku.toUpperCase().startsWith(term))
-    .sort((left, right) => left.sku.length - right.sku.length);
-  if (prefixMatches.length === 1) return prefixMatches[0].sku;
-
-  const highlighted = options.find((option) => option.sku.toUpperCase().startsWith(term));
-  if (highlighted && highlighted.sku.length > term.length) return highlighted.sku;
-
-  return prefixMatches[0]?.sku ?? null;
-}
+export type { SkuProductSelection } from '../../utils/skuProductPicker';
+export { searchSkuProductOptions } from '../../utils/skuProductPicker';
 
 interface SkuProductPickerProps {
-  value: string;
+  sku: string;
+  variantSuffix?: string | null;
   products: Product[];
-  onSelect: (sku: string) => void;
+  onSelect: (selection: SkuProductSelection) => void;
   className?: string;
   inputClassName?: string;
   placeholder?: string;
@@ -102,7 +28,8 @@ interface SkuProductPickerProps {
 }
 
 export default function SkuProductPicker({
-  value,
+  sku,
+  variantSuffix = null,
   products,
   onSelect,
   className = '',
@@ -113,19 +40,30 @@ export default function SkuProductPicker({
   const listboxId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [inputValue, setInputValue] = useState(value);
+  const displayValue = formatSkuDisplayValue(sku, variantSuffix);
+  const [inputValue, setInputValue] = useState(displayValue);
   const [open, setOpen] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(0);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
 
   useEffect(() => {
-    setInputValue(value);
-  }, [value]);
+    setInputValue(displayValue);
+  }, [displayValue]);
 
   const options = useMemo(
     () => searchSkuProductOptions(products, inputValue, allowManual),
     [allowManual, inputValue, products],
   );
+
+  const resolvedPreview = useMemo(
+    () => resolveTypedSkuSelection(displayValue, products),
+    [displayValue, products],
+  );
+
+  const previewProduct = useMemo(() => {
+    if (!resolvedPreview || resolvedPreview.manual) return null;
+    return products.find((product) => product.sku === resolvedPreview.sku) || null;
+  }, [products, resolvedPreview]);
 
   useEffect(() => {
     if (!open) return;
@@ -140,7 +78,7 @@ export default function SkuProductPicker({
       position: 'fixed',
       top: rect.bottom + 4,
       left: rect.left,
-      width: Math.max(rect.width, 300),
+      width: Math.max(rect.width, 340),
       zIndex: 80,
     });
   };
@@ -163,25 +101,25 @@ export default function SkuProductPicker({
       const target = event.target as Node;
       if (containerRef.current?.contains(target)) return;
       setOpen(false);
-      setInputValue(value);
+      setInputValue(displayValue);
     };
     document.addEventListener('mousedown', handlePointerDown);
     return () => document.removeEventListener('mousedown', handlePointerDown);
-  }, [open, value]);
+  }, [displayValue, open]);
 
-  const commitSku = (sku: string) => {
-    const normalized = sku.trim().toUpperCase();
-    setInputValue(normalized);
-    onSelect(normalized);
+  const commitSelection = (selection: SkuProductSelection) => {
+    setInputValue(selection.displaySku);
+    onSelect(selection);
     setOpen(false);
   };
 
   const handleAutocomplete = () => {
-    const completion = getAutocompleteSku(inputValue, options, products);
+    const completion = getSkuAutocompleteValue(inputValue, options, products);
     if (!completion) return false;
     const term = inputValue.trim().toUpperCase();
     if (completion.toUpperCase() === term) {
-      commitSku(completion);
+      const resolved = resolveTypedSkuSelection(completion, products);
+      if (resolved) commitSelection(resolved);
       return true;
     }
     setInputValue(completion);
@@ -212,23 +150,24 @@ export default function SkuProductPicker({
     if (event.key === 'Tab' && !event.shiftKey) {
       if (open && options.length > 0) {
         event.preventDefault();
-        commitSku(options[highlightIndex]?.sku || options[0].sku);
+        commitSelection(selectionFromOption(options[highlightIndex] || options[0]));
       }
       return;
     }
     if (event.key === 'Enter') {
       event.preventDefault();
       if (open && options.length > 0) {
-        commitSku(options[highlightIndex]?.sku || options[0].sku);
+        commitSelection(selectionFromOption(options[highlightIndex] || options[0]));
         return;
       }
-      commitSku(inputValue);
+      const resolved = resolveTypedSkuSelection(inputValue, products);
+      if (resolved) commitSelection(resolved);
       return;
     }
     if (event.key === 'Escape') {
       event.preventDefault();
       setOpen(false);
-      setInputValue(value);
+      setInputValue(displayValue);
     }
   };
 
@@ -237,17 +176,13 @@ export default function SkuProductPicker({
       if (!containerRef.current?.contains(document.activeElement)) {
         const term = inputValue.trim().toUpperCase();
         if (!term) {
-          setInputValue(value);
+          setInputValue(displayValue);
           setOpen(false);
           return;
         }
-        const exactProduct = products.find((product) => product.sku.toUpperCase() === term);
-        if (exactProduct || term === 'MANUAL') {
-          commitSku(term);
-          return;
-        }
-        if (term !== value.toUpperCase()) {
-          commitSku(term);
+        const resolved = resolveTypedSkuSelection(term, products);
+        if (resolved && (resolved.manual || findProductByScannedCode(term, products) || term !== displayValue.toUpperCase())) {
+          commitSelection(resolved);
           return;
         }
         setOpen(false);
@@ -260,7 +195,7 @@ export default function SkuProductPicker({
       id={listboxId}
       role="listbox"
       style={dropdownStyle}
-      className="max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl"
+      className="max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl"
     >
       {options.length === 0 ? (
         <div className="px-3 py-2 text-xs font-medium text-slate-500">
@@ -268,28 +203,54 @@ export default function SkuProductPicker({
         </div>
       ) : options.map((option, index) => (
         <button
-          key={`${option.sku}-${index}`}
+          key={option.key}
           type="button"
           role="option"
           aria-selected={index === highlightIndex}
           onMouseEnter={() => setHighlightIndex(index)}
           onMouseDown={(event) => event.preventDefault()}
-          onClick={() => commitSku(option.sku)}
+          onClick={() => commitSelection(selectionFromOption(option))}
           onContextMenu={(event) => {
             event.preventDefault();
-            commitSku(option.sku);
+            commitSelection(selectionFromOption(option));
           }}
-          className={`flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left transition ${
+          className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition ${
             index === highlightIndex ? 'bg-emerald-50 text-emerald-900' : 'text-slate-800 hover:bg-slate-50'
           }`}
           title="Κλικ, Enter ή δεξί κλικ για συμπλήρωση γραμμής"
         >
-          <div className="mt-0.5 shrink-0 text-slate-400">
-            {option.manual ? <PenLine size={14} /> : <CornerDownLeft size={14} />}
+          <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+            {option.manual ? (
+              <div className="flex h-full w-full items-center justify-center text-slate-400">
+                <PenLine size={14} />
+              </div>
+            ) : option.product?.image_url ? (
+              <img src={option.product.image_url} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-slate-300">
+                <ImageIcon size={14} />
+              </div>
+            )}
           </div>
-          <div className="min-w-0">
-            <div className="font-mono text-xs font-black">{option.label}</div>
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-black leading-tight">
+              {option.manual ? (
+                <span className="font-mono">MANUAL</span>
+              ) : (
+                <SkuColorizedText
+                  sku={option.sku}
+                  suffix={option.variant_suffix || undefined}
+                  gender={option.product?.gender}
+                />
+              )}
+            </div>
             {option.hint ? <div className="truncate text-[11px] font-medium text-slate-500">{option.hint}</div> : null}
+          </div>
+          {typeof option.price === 'number' && option.price > 0 ? (
+            <div className="shrink-0 text-[11px] font-black text-emerald-700">{formatCurrency(option.price)}</div>
+          ) : null}
+          <div className="shrink-0 text-slate-400">
+            <CornerDownLeft size={14} />
           </div>
         </button>
       ))}
@@ -300,32 +261,56 @@ export default function SkuProductPicker({
   ) : null;
 
   return (
-    <div ref={containerRef} className={`relative ${className}`}>
-      <input
-        ref={inputRef}
-        value={inputValue}
-        onChange={(event) => {
-          setInputValue(event.target.value.toUpperCase());
-          setOpen(true);
-          setHighlightIndex(0);
-        }}
-        onFocus={() => {
-          setOpen(true);
-          updateDropdownPosition();
-        }}
-        onBlur={handleBlur}
-        onKeyDown={handleKeyDown}
-        onContextMenu={(event) => {
-          if (!open || options.length === 0) return;
-          event.preventDefault();
-          commitSku(options[highlightIndex]?.sku || options[0].sku);
-        }}
-        placeholder={placeholder}
-        aria-autocomplete="list"
-        aria-expanded={open}
-        aria-controls={open ? listboxId : undefined}
-        className={`w-full min-w-[9rem] rounded-lg border border-slate-200 px-2 py-1 font-mono text-xs font-bold outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 ${inputClassName}`}
-      />
+    <div ref={containerRef} className={`relative min-w-[10rem] ${className}`}>
+      <div className="relative">
+        <input
+          ref={inputRef}
+          value={inputValue}
+          onChange={(event) => {
+            setInputValue(event.target.value.toUpperCase());
+            setOpen(true);
+            setHighlightIndex(0);
+          }}
+          onFocus={() => {
+            setOpen(true);
+            updateDropdownPosition();
+          }}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+          onContextMenu={(event) => {
+            if (!open || options.length === 0) return;
+            event.preventDefault();
+            commitSelection(selectionFromOption(options[highlightIndex] || options[0]));
+          }}
+          placeholder={placeholder}
+          aria-autocomplete="list"
+          aria-expanded={open}
+          aria-controls={open ? listboxId : undefined}
+          className={`w-full rounded-lg border border-slate-200 px-2 py-1 font-mono text-xs font-bold outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 ${
+            !open && previewProduct && resolvedPreview && !resolvedPreview.manual ? 'text-transparent caret-slate-800' : ''
+          } ${inputClassName}`}
+        />
+        {!open && previewProduct && resolvedPreview && !resolvedPreview.manual ? (
+          <div className="pointer-events-none absolute inset-y-0 left-2 flex items-center">
+            <SkuColorizedText
+              sku={resolvedPreview.sku}
+              suffix={resolvedPreview.variant_suffix || undefined}
+              gender={previewProduct.gender}
+              className="text-xs"
+            />
+          </div>
+        ) : null}
+      </div>
+      {!open && previewProduct?.image_url ? (
+        <div className="mt-1 flex items-center gap-2">
+          <div className="h-7 w-7 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
+            <img src={previewProduct.image_url} alt="" className="h-full w-full object-cover" />
+          </div>
+          <span className="truncate text-[10px] font-medium text-slate-500">
+            {previewProduct.description || previewProduct.category}
+          </span>
+        </div>
+      ) : null}
       {typeof document !== 'undefined' && dropdown ? createPortal(dropdown, document.body) : null}
     </div>
   );

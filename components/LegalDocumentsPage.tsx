@@ -4,6 +4,8 @@ import {
   Archive,
   Ban,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   ClipboardCheck,
   Copy,
   Edit3,
@@ -27,7 +29,7 @@ import {
 } from 'lucide-react';
 import { Customer, Product, LegalCarrier, LegalDocument, LegalDocumentKind, LegalDocumentLine, LegalEnvironment, LegalSettings, ProformaDocument, ProformaDocumentLine } from '../types';
 import DesktopPageHeader from './DesktopPageHeader';
-import SkuProductPicker from './legal/SkuProductPicker';
+import SkuProductPicker, { SkuProductSelection } from './legal/SkuProductPicker';
 import { useUI } from './UIProvider';
 import { useAuth } from './AuthContext';
 import { useAllShipmentItems, useAllShipments, useCustomers, useOrdersWithItems } from '../hooks/api/useOrders';
@@ -52,11 +54,13 @@ import {
   useSaveLegalSettings,
   useSubmitLegalDocument,
   useSyncTransmittedLegalDocuments,
+  useClearLegalSyncRuns,
   useVoidProformaDocument,
   useMarkProformaConverted,
 } from '../hooks/api/useLegalDocuments';
 import { legalRepository } from '../features/legal';
 import {
+  applyLegalDocumentDeliveryToggle,
   buildDefaultDeliveryDetails,
   buildLegalDocumentFromOrder,
   buildLegalDocumentFromShipment,
@@ -67,6 +71,8 @@ import {
   canPrintProforma,
   convertProformaToLegalDraft,
   createManualLegalDocumentLine,
+  documentIncludesDeliveryNote,
+  getLegalCatalogLineDetails,
   AADE_INCOME_CATEGORY_OPTIONS,
   AADE_INCOME_TYPE_OPTIONS,
   AADE_VAT_CATEGORY_OPTIONS,
@@ -100,7 +106,13 @@ const tabItems: Array<{ id: LegalTab; label: string; icon: LucideIcon }> = [
   { id: 'settings', label: 'Τεχνικές ρυθμίσεις', icon: Settings },
 ];
 
-const kindItems: LegalDocumentKind[] = ['invoice', 'delivery_note', 'invoice_delivery', 'credit'];
+const kindItems: LegalDocumentKind[] = ['invoice', 'delivery_note', 'credit'];
+
+const kindHelpText: Partial<Record<LegalDocumentKind, string>> = {
+  invoice: 'Τιμολόγιο 1.1 χωρίς δελτίο διακίνησης — το συνηθισμένο για B2B πωλήσεις.',
+  delivery_note: 'Αυτόνομο δελτίο αποστολής 9.3 με υποχρεωτικά στοιχεία διακίνησης.',
+  credit: 'Πιστωτικό τιμολόγιο 5.2.',
+};
 const vatRateOptions = AADE_VAT_CATEGORY_OPTIONS;
 const incomeCategoryOptions = AADE_INCOME_CATEGORY_OPTIONS;
 const incomeTypeOptions = AADE_INCOME_TYPE_OPTIONS;
@@ -266,6 +278,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
   const [credentialEnvironment, setCredentialEnvironment] = useState<LegalEnvironment>('dev');
   const [credentialDraft, setCredentialDraft] = useState({ userId: '', subscriptionKey: '' });
   const [cloudflareBootstrapDraft, setCloudflareBootstrapDraft] = useState({ apiToken: '', accountId: '' });
+  const [deliveryPaneOpen, setDeliveryPaneOpen] = useState(false);
 
   const { showToast, confirm } = useUI();
   const { profile } = useAuth();
@@ -292,6 +305,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
   const voidProforma = useVoidProformaDocument();
   const markProformaConverted = useMarkProformaConverted();
   const syncTransmittedDocuments = useSyncTransmittedLegalDocuments();
+  const clearSyncRuns = useClearLegalSyncRuns();
   const submitDocument = useSubmitLegalDocument();
   const cancelDocument = useCancelLegalDocument();
   const markPrinted = useMarkLegalDocumentPrinted();
@@ -313,6 +327,15 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
   useEffect(() => {
     setCredentialEnvironment(settingsDraft.environment);
   }, [settingsDraft.environment]);
+
+  useEffect(() => {
+    if (!draftBundle) {
+      setDeliveryPaneOpen(false);
+      return;
+    }
+    const kind = draftBundle.document.document_kind;
+    setDeliveryPaneOpen(kind === 'delivery_note' || kind === 'invoice_delivery');
+  }, [draftBundle?.document.id, draftBundle?.document.document_kind]);
 
   const selectedOrder = useMemo(
     () => orders.find((order) => order.id === selectedOrderId) || null,
@@ -427,32 +450,58 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
     }
   };
 
-  const applyProductToLegalLine = (lineId: string, sku: string) => {
-    const normalizedSku = sku.trim().toUpperCase();
-    const product = normalizedSku === 'MANUAL'
-      ? undefined
-      : products.find((item) => item.sku.toUpperCase() === normalizedSku);
-    updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((line) => line.id === lineId ? {
-      ...line,
-      sku: normalizedSku,
-      item_code: normalizedSku === 'MANUAL' ? line.item_code : (product?.sku || normalizedSku),
-      description: product?.description || product?.category || line.description,
-      unit_price: product?.selling_price || product?.active_price || line.unit_price,
-    } : line), settingsDraft));
+  const applyCatalogToLegalLine = (lineId: string, selection: SkuProductSelection) => {
+    updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((line) => {
+      if (line.id !== lineId) return line;
+      if (selection.manual) {
+        return {
+          ...line,
+          sku: 'MANUAL',
+          variant_suffix: null,
+          item_code: line.item_code || 'MANUAL',
+        };
+      }
+      const product = products.find((item) => item.sku === selection.sku);
+      if (!product) {
+        return {
+          ...line,
+          sku: selection.displaySku,
+          variant_suffix: null,
+          item_code: selection.displaySku,
+        };
+      }
+      return {
+        ...line,
+        ...getLegalCatalogLineDetails(product, settingsDraft, selection.variant_suffix, current.aade_document_type),
+      };
+    }), settingsDraft));
   };
 
-  const applyProductToProformaLine = (lineId: string, sku: string) => {
-    const normalizedSku = sku.trim().toUpperCase();
-    const product = normalizedSku === 'MANUAL'
-      ? undefined
-      : products.find((item) => item.sku.toUpperCase() === normalizedSku);
-    updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((line) => line.id === lineId ? {
-      ...line,
-      sku: normalizedSku,
-      item_code: normalizedSku === 'MANUAL' ? line.item_code : (product?.sku || normalizedSku),
-      description: product?.description || product?.category || line.description,
-      unit_price: product?.selling_price || product?.active_price || line.unit_price,
-    } : line), settingsDraft));
+  const applyCatalogToProformaLine = (lineId: string, selection: SkuProductSelection) => {
+    updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((line) => {
+      if (line.id !== lineId) return line;
+      if (selection.manual) {
+        return {
+          ...line,
+          sku: 'MANUAL',
+          variant_suffix: null,
+          item_code: line.item_code || 'MANUAL',
+        };
+      }
+      const product = products.find((item) => item.sku === selection.sku);
+      if (!product) {
+        return {
+          ...line,
+          sku: selection.displaySku,
+          variant_suffix: null,
+          item_code: selection.displaySku,
+        };
+      }
+      return {
+        ...line,
+        ...getLegalCatalogLineDetails(product, settingsDraft, selection.variant_suffix, '1.1'),
+      };
+    }), settingsDraft));
   };
 
   const applyLegalVatProfile = (vatRate: number) => {
@@ -826,11 +875,13 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
     }
 
     const document = draftBundle.document;
-    const isDelivery = document.document_kind === 'delivery_note' || document.document_kind === 'invoice_delivery';
+    const includesDelivery = documentIncludesDeliveryNote(document);
+    const isStandaloneDeliveryNote = document.document_kind === 'delivery_note';
+    const canToggleDelivery = document.document_kind === 'invoice' || document.document_kind === 'invoice_delivery';
 
     return (
-      <div className="space-y-5">
-        <section className="rounded-lg border border-slate-200 bg-white p-5">
+      <div className="min-w-0 space-y-4">
+        <section className="rounded-lg border border-slate-200 bg-white p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-black text-slate-900">{LEGAL_DOCUMENT_KIND_LABELS[document.document_kind]}</h2>
@@ -843,59 +894,93 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
             </span>
           </div>
 
-          <div className="mt-5 grid gap-4 md:grid-cols-5">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <SelectInput label="Πελάτης εφαρμογής" value="" onChange={(value) => applyCustomerToDraft(value, 'legal')} help="Γεμίζει αυτόματα ΑΦΜ, επωνυμία, στοιχεία επικοινωνίας και καθεστώς ΦΠΑ από τους πελάτες του ERP.">
               <option value="">Χειροκίνητα / χωρίς αλλαγή</option>
               {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.full_name}{customer.vat_number ? ` | ΑΦΜ ${customer.vat_number}` : ''}</option>)}
             </SelectInput>
             <TextInput label="Ημερομηνία" type="date" value={document.issue_date} onChange={(value) => updateDraftDocument((current) => ({ ...current, issue_date: value }))} />
-            <TextInput label="ΑΦΜ Πελάτη" value={document.counterpart.vat_number || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, vat_number: normalizeVatNumber(value) } }))} />
-            <TextInput label="Επωνυμία Πελάτη" value={document.counterpart.name || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, name: value } }))} />
             <SelectInput label="Πληρωμή" value={document.payment_method_code} onChange={(value) => updateDraftDocument((current) => ({ ...current, payment_method_code: Number(value) }))}>
               {PAYMENT_METHOD_CODES.map((code) => <option key={code} value={code}>{PAYMENT_METHOD_LABELS[code]}</option>)}
             </SelectInput>
-          </div>
-
-          <div className="mt-4 grid gap-4 md:grid-cols-4">
+            <TextInput label="ΑΦΜ Πελάτη" value={document.counterpart.vat_number || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, vat_number: normalizeVatNumber(value) } }))} />
+            <TextInput label="Επωνυμία Πελάτη" value={document.counterpart.name || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, name: value } }))} />
+            <SelectInput label="Καθεστώς ΦΠΑ" value={document.vat_rate ?? 0.24} onChange={(value) => applyLegalVatProfile(Number(value))} help="Ο βασικός συντελεστής ΦΠΑ για τις γραμμές. Αν χρειάζεται, κάθε γραμμή μπορεί να έχει διαφορετική κατηγορία ΦΠΑ.">
+              {vatRateOptions.map((option) => <option key={option.category} value={option.value}>{option.label}</option>)}
+            </SelectInput>
             <TextInput label="Οδός Πελάτη" value={document.counterpart.address?.street || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, address: { ...(current.counterpart.address || {}), street: value } } }))} />
             <TextInput label="Αριθμός" value={document.counterpart.address?.number || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, address: { ...(current.counterpart.address || {}), number: value } } }))} />
             <TextInput label="Τ.Κ." value={document.counterpart.address?.postal_code || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, address: { ...(current.counterpart.address || {}), postal_code: value } } }))} />
             <TextInput label="Πόλη" value={document.counterpart.address?.city || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, address: { ...(current.counterpart.address || {}), city: value } } }))} />
-          </div>
-
-          <div className="mt-4 grid gap-4 md:grid-cols-5">
             <TextInput label="Αιτία απαλλαγής ΦΠΑ" type="number" value={document.vat_exemption_category || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, vat_exemption_category: value ? Number(value) : null }))} />
-            <SelectInput label="Καθεστώς ΦΠΑ" value={document.vat_rate ?? 0.24} onChange={(value) => applyLegalVatProfile(Number(value))} help="Ο βασικός συντελεστής ΦΠΑ για τις γραμμές. Αν χρειάζεται, κάθε γραμμή μπορεί να έχει διαφορετική κατηγορία ΦΠΑ.">
-              {vatRateOptions.map((option) => <option key={option.category} value={option.value}>{option.label}</option>)}
-            </SelectInput>
           </div>
 
-          {isDelivery && (
-            <div className="mt-5 border-t border-slate-100 pt-5">
-              <div className="mb-3 flex items-center gap-2 text-sm font-black text-slate-800"><Truck size={16} /> Διακίνηση</div>
-              <div className="grid gap-4 md:grid-cols-4">
-                <TextInput label="Ημ/νία Έναρξης" type="date" value={document.delivery?.dispatch_date || today()} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), dispatch_date: value } }))} />
-                <TextInput label="Ώρα Έναρξης" type="time" value={(document.delivery?.dispatch_time || '10:00').slice(0, 5)} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), dispatch_time: `${value}:00` } }))} />
-                <TextInput label="Όχημα" value={document.delivery?.vehicle_number || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), vehicle_number: value } }))} />
-                <SelectInput label="Μεταφορέας" value={document.delivery?.carrier_id || ''} onChange={(value) => {
-                  const carrier = carriers.find((item) => item.id === value);
-                  updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), carrier_id: value || null, carrier_name: carrier?.name || null, carrier_vat_number: carrier?.vat_number || null, carrier_vehicle_number: carrier?.vehicle_number || null } }));
-                }}>
-                  <option value="">Ίδια μέσα</option>
-                  {carriers.map((carrier) => <option key={carrier.id} value={carrier.id}>{carrier.name}</option>)}
-                </SelectInput>
+          {(isStandaloneDeliveryNote || canToggleDelivery) && (
+            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/70">
+              <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDeliveryPaneOpen((open) => !open)}
+                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-black text-slate-800 hover:bg-white"
+                    aria-expanded={deliveryPaneOpen}
+                  >
+                    {deliveryPaneOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    <Truck size={16} />
+                    Διακίνηση
+                  </button>
+                  {canToggleDelivery ? (
+                    <label className="inline-flex items-center gap-2 rounded-lg bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 ring-1 ring-slate-200">
+                      <input
+                        type="checkbox"
+                        checked={includesDelivery}
+                        onChange={(event) => {
+                          updateDraftDocument((current) => applyLegalDocumentDeliveryToggle(
+                            current,
+                            event.target.checked,
+                            settingsDraft,
+                            selectedCustomer,
+                          ));
+                          if (event.target.checked) setDeliveryPaneOpen(true);
+                        }}
+                      />
+                      Με δελτίο διακίνησης
+                    </label>
+                  ) : null}
+                </div>
+                <span className="text-[11px] font-medium text-slate-500">
+                  {isStandaloneDeliveryNote
+                    ? 'Υποχρεωτικά για δελτίο αποστολής 9.3.'
+                    : includesDelivery
+                      ? 'Προαιρετικό συνδυασμένο τιμολόγιο–διακίνηση (Α 1170/2023).'
+                      : 'Το απλό τιμολόγιο 1.1 δεν απαιτεί στοιχεία διακίνησης.'}
+                </span>
               </div>
-              <div className="mt-4 grid gap-4 md:grid-cols-4">
-                <TextInput label="Φόρτωση" value={document.delivery?.loading_address?.street || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), loading_address: { ...(current.delivery?.loading_address || {}), street: value } } }))} />
-                <TextInput label="Παράδοση" value={document.delivery?.delivery_address?.street || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), delivery_address: { ...(current.delivery?.delivery_address || {}), street: value } } }))} />
-                <TextInput label="Σκοπός" type="number" value={document.delivery?.move_purpose || settingsDraft.default_move_purpose} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), move_purpose: Number(value) || 1 } }))} />
-              </div>
+              {deliveryPaneOpen && includesDelivery ? (
+                <div className="border-t border-slate-200 px-3 pb-3 pt-3">
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <TextInput label="Ημ/νία Έναρξης" type="date" value={document.delivery?.dispatch_date || today()} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), dispatch_date: value } }))} />
+                    <TextInput label="Ώρα Έναρξης" type="time" value={(document.delivery?.dispatch_time || '10:00').slice(0, 5)} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), dispatch_time: `${value}:00` } }))} />
+                    <TextInput label="Όχημα" value={document.delivery?.vehicle_number || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), vehicle_number: value } }))} />
+                    <SelectInput label="Μεταφορέας" value={document.delivery?.carrier_id || ''} onChange={(value) => {
+                      const carrier = carriers.find((item) => item.id === value);
+                      updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), carrier_id: value || null, carrier_name: carrier?.name || null, carrier_vat_number: carrier?.vat_number || null, carrier_vehicle_number: carrier?.vehicle_number || null } }));
+                    }}>
+                      <option value="">Ίδια μέσα</option>
+                      {carriers.map((carrier) => <option key={carrier.id} value={carrier.id}>{carrier.name}</option>)}
+                    </SelectInput>
+                    <TextInput label="Φόρτωση" value={document.delivery?.loading_address?.street || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), loading_address: { ...(current.delivery?.loading_address || {}), street: value } } }))} />
+                    <TextInput label="Παράδοση" value={document.delivery?.delivery_address?.street || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), delivery_address: { ...(current.delivery?.delivery_address || {}), street: value } } }))} />
+                    <TextInput label="Σκοπός" type="number" value={document.delivery?.move_purpose || settingsDraft.default_move_purpose} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), move_purpose: Number(value) || 1 } }))} help="Κωδικός σκοπού διακίνησης ΑΑΔΕ. Συνήθως 1 για πώληση." />
+                  </div>
+                </div>
+              ) : null}
             </div>
           )}
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-5">
-          <div className="mb-3 flex items-center justify-between gap-3">
+        <section className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <h3 className="font-black text-slate-900">Γραμμές</h3>
             <div className="flex flex-wrap items-center gap-2">
               <div className="text-sm font-black text-slate-700">{draftBundle.lines.length} γραμμές | {money(document.totals.gross)}</div>
@@ -914,69 +999,64 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500">
+            <table className="w-full table-fixed text-xs">
+              <thead className="bg-slate-50 text-left text-[10px] uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="px-3 py-2">#</th>
-                  <th className="px-3 py-2">SKU</th>
-                  <th className="px-3 py-2">Κωδ.</th>
-                  <th className="px-3 py-2">Περιγραφή</th>
-                  <th className="px-3 py-2 text-right">Ποσ.</th>
-                  <th className="px-3 py-2 text-right">Μον.</th>
-                  <th className="px-3 py-2 text-right">Τιμή</th>
-                  <th className="px-3 py-2 text-right">ΦΠΑ %</th>
-                  <th className="px-3 py-2 text-right">Καθαρή</th>
-                  <th className="px-3 py-2 text-right">ΦΠΑ</th>
-                  <th className="px-3 py-2 text-right">Σύνολο</th>
-                  <th className="px-3 py-2">Χαρακτ.</th>
-                  <th className="px-3 py-2"></th>
+                  <th className="w-8 px-2 py-2">#</th>
+                  <th className="w-[7.5rem] px-2 py-2">SKU</th>
+                  <th className="px-2 py-2">Περιγραφή</th>
+                  <th className="w-14 px-2 py-2 text-right">Ποσ.</th>
+                  <th className="w-16 px-2 py-2 text-right">Τιμή</th>
+                  <th className="w-20 px-2 py-2 text-right">ΦΠΑ</th>
+                  <th className="w-24 px-2 py-2 text-right" title="Καθαρή / ΦΠΑ / Σύνολο">Ποσά</th>
+                  <th className="w-24 px-2 py-2">Χαρ.</th>
+                  <th className="w-8 px-2 py-2"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {draftBundle.lines.map((line, index) => (
                   <tr key={line.id}>
-                    <td className="px-3 py-2 font-bold">{line.line_number}</td>
-                    <td className="px-3 py-2">
+                    <td className="px-2 py-1.5 font-bold">{line.line_number}</td>
+                    <td className="px-2 py-1.5">
                       <SkuProductPicker
-                        value={line.sku}
+                        sku={line.sku}
+                        variantSuffix={line.variant_suffix}
                         products={products}
-                        onSelect={(sku) => applyProductToLegalLine(line.id, sku)}
+                        onSelect={(selection) => applyCatalogToLegalLine(line.id, selection)}
+                        inputClassName="px-1.5 py-1"
                       />
                     </td>
-                    <td className="px-3 py-2">
-                      <input value={line.item_code || ''} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, item_code: event.target.value } : item), settingsDraft))} className="w-28 rounded-lg border border-slate-200 px-2 py-1 font-mono text-xs outline-none" />
+                    <td className="px-2 py-1.5">
+                      <input value={line.description} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, description: event.target.value } : item), settingsDraft))} className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs outline-none" />
+                      <input value={line.item_code || ''} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, item_code: event.target.value } : item), settingsDraft))} className="mt-1 w-full rounded border border-slate-100 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 outline-none" placeholder="Κωδικός είδους" title="Κωδικός είδους AADE (itemCode)" />
                     </td>
-                    <td className="px-3 py-2">
-                      <input value={line.description} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, description: event.target.value } : item), settingsDraft))} className="min-w-56 rounded-lg border border-slate-200 px-2 py-1 outline-none" />
+                    <td className="px-2 py-1.5 text-right">
+                      <input type="number" min="0.001" step="0.001" value={line.quantity} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, quantity: Number(event.target.value) || 0 } : item), settingsDraft))} className="w-full rounded-lg border border-slate-200 px-1 py-1 text-right outline-none" />
                     </td>
-                    <td className="px-3 py-2 text-right">
-                      <input type="number" min="0.001" step="0.001" value={line.quantity} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, quantity: Number(event.target.value) || 0 } : item), settingsDraft))} className="w-24 rounded-lg border border-slate-200 px-2 py-1 text-right outline-none" />
+                    <td className="px-2 py-1.5 text-right">
+                      <input type="number" step="0.01" value={line.unit_price} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, unit_price: Number(event.target.value) || 0 } : item), settingsDraft))} className="w-full rounded-lg border border-slate-200 px-1 py-1 text-right outline-none" />
                     </td>
-                    <td className="px-3 py-2 text-right">
-                      <input type="number" min="1" step="1" value={line.measurement_unit} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, measurement_unit: Number(event.target.value) || 1 } : item), settingsDraft))} className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-right outline-none" title="Μονάδα μέτρησης AADE. Συνήθως 1 για τεμάχιο." />
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <input type="number" step="0.01" value={line.unit_price} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, unit_price: Number(event.target.value) || 0 } : item), settingsDraft))} className="w-24 rounded-lg border border-slate-200 px-2 py-1 text-right outline-none" />
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <select value={line.vat_category} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, vat_category: Number(event.target.value) } : item), settingsDraft))} className="w-40 rounded-lg border border-slate-200 px-2 py-1 text-right outline-none">
+                    <td className="px-2 py-1.5 text-right">
+                      <select value={line.vat_category} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, vat_category: Number(event.target.value) } : item), settingsDraft))} className="w-full rounded-lg border border-slate-200 px-1 py-1 text-right text-[10px] outline-none">
                         {vatRateOptions.map((option) => <option key={option.category} value={option.category}>{option.label}</option>)}
                       </select>
                     </td>
-                    <td className="px-3 py-2 text-right">{money(line.net_value)}</td>
-                    <td className="px-3 py-2 text-right">{money(line.vat_amount)}</td>
-                    <td className="px-3 py-2 text-right font-black">{money(line.gross_value)}</td>
-                    <td className="px-3 py-2">
-                      <input value={line.income_classification.classification_type || ''} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, income_classification: { ...item.income_classification, classification_type: event.target.value } } : item), settingsDraft))} className="w-28 rounded-lg border border-slate-200 px-2 py-1 text-xs outline-none" title="Χαρακτηρισμός εσόδου myDATA, π.χ. E3_561_001." />
+                    <td className="px-2 py-1.5 text-right leading-tight">
+                      <div className="font-medium text-slate-600">{money(line.net_value)}</div>
+                      <div className="text-[10px] text-slate-400">{money(line.vat_amount)}</div>
+                      <div className="font-black text-slate-900">{money(line.gross_value)}</div>
                     </td>
-                    <td className="px-3 py-2 text-right">
+                    <td className="px-2 py-1.5">
+                      <input value={line.income_classification.classification_type || ''} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, income_classification: { ...item.income_classification, classification_type: event.target.value } } : item), settingsDraft))} className="w-full rounded-lg border border-slate-200 px-1 py-1 text-[10px] outline-none" title="Χαρακτηρισμός εσόδου myDATA, π.χ. E3_561_001." />
+                    </td>
+                    <td className="px-2 py-1.5 text-right">
                       <button
                         type="button"
                         onClick={() => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.filter((_, itemIndex) => itemIndex !== index), settingsDraft))}
-                        className="rounded-lg p-2 text-red-500 hover:bg-red-50"
+                        className="rounded-lg p-1.5 text-red-500 hover:bg-red-50"
                         title="Διαγραφή γραμμής"
                       >
-                        <Trash2 size={15} />
+                        <Trash2 size={14} />
                       </button>
                     </td>
                   </tr>
@@ -1023,8 +1103,8 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
   );
 
   const renderNewTab = () => (
-    <div className="grid gap-5 xl:grid-cols-[minmax(280px,360px)_1fr_minmax(280px,360px)]">
-      <section className="rounded-lg border border-slate-200 bg-white p-5">
+    <div className="grid gap-5 lg:grid-cols-[minmax(250px,290px)_minmax(0,1fr)]">
+      <section className="rounded-lg border border-slate-200 bg-white p-5 lg:sticky lg:top-4 lg:self-start">
         <div className="mb-4 flex items-center gap-2">
           <FileCheck2 size={18} className="text-slate-700" />
           <h2 className="font-black text-slate-900">Πηγή</h2>
@@ -1086,6 +1166,9 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
                 </button>
               ))}
             </div>
+            {kindHelpText[documentKind] ? (
+              <p className="mt-2 text-xs font-medium leading-relaxed text-slate-500">{kindHelpText[documentKind]}</p>
+            ) : null}
           </div>
           <ActionButton onClick={handleGenerateDraft} disabled={(creationSource === 'order' && !selectedOrder) || loadingOrders}>
             {loadingOrders ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Δημιουργία
@@ -1096,8 +1179,10 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
         </div>
       </section>
 
-      {renderDraftEditor()}
-      {renderValidation()}
+      <div className="min-w-0 space-y-4">
+        {renderDraftEditor()}
+        {renderValidation()}
+      </div>
     </div>
   );
 
@@ -1203,9 +1288,10 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
                     <td className="px-3 py-2 font-bold">{line.line_number}</td>
                     <td className="px-3 py-2">
                       <SkuProductPicker
-                        value={line.sku}
+                        sku={line.sku}
+                        variantSuffix={line.variant_suffix}
                         products={products}
-                        onSelect={(sku) => applyProductToProformaLine(line.id, sku)}
+                        onSelect={(selection) => applyCatalogToProformaLine(line.id, selection)}
                       />
                     </td>
                     <td className="px-3 py-2"><input value={line.item_code || ''} onChange={(event) => updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((item) => item.id === line.id ? { ...item, item_code: event.target.value } : item), settingsDraft))} className="w-28 rounded-lg border border-slate-200 px-2 py-1 font-mono text-xs outline-none" /></td>
@@ -1476,9 +1562,34 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
       </section>
 
       <section className="rounded-lg border border-slate-200 bg-white">
-        <div className="border-b border-slate-100 p-4">
-          <h2 className="font-black text-slate-900">Ιστορικό συγχρονισμών</h2>
-          <div className="text-sm font-medium text-slate-500">{syncRuns.length} εκτελέσεις</div>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
+          <div>
+            <h2 className="font-black text-slate-900">Ιστορικό συγχρονισμών</h2>
+            <div className="text-sm font-medium text-slate-500">{syncRuns.length} εκτελέσεις</div>
+          </div>
+          <ActionButton
+            variant="secondary"
+            onClick={async () => {
+              if (!syncRuns.length) return;
+              const ok = await confirm({
+                title: 'Διαγραφή ιστορικού συγχρονισμών',
+                message: 'Θα διαγραφούν όλες οι εγγραφές ιστορικού συγχρονισμού AADE από την εφαρμογή. Τα ήδη εισαγμένα παραστατικά δεν επηρεάζονται.',
+                confirmText: 'Διαγραφή ιστορικού',
+                cancelText: 'Πίσω',
+                isDestructive: true,
+              });
+              if (!ok) return;
+              try {
+                await clearSyncRuns.mutateAsync();
+                showToast('Το ιστορικό συγχρονισμών διαγράφηκε.', 'success');
+              } catch (error: any) {
+                showToast(error?.message || 'Δεν διαγράφηκε το ιστορικό συγχρονισμών.', 'error');
+              }
+            }}
+            disabled={!syncRuns.length || clearSyncRuns.isPending}
+          >
+            {clearSyncRuns.isPending ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />} Διαγραφή ιστορικού
+          </ActionButton>
         </div>
         <div className="divide-y divide-slate-100">
           {syncRuns.length === 0 ? (
@@ -1519,6 +1630,10 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
       <div className="border-b border-slate-100 p-4">
         <h2 className="font-black text-slate-900">Διακίνηση</h2>
         <div className="text-sm font-medium text-slate-500">{deliveryDocuments.length} δελτία ή συνδυασμένα παραστατικά</div>
+        <p className="mt-2 max-w-3xl text-xs font-medium leading-relaxed text-slate-500">
+          Προαιρετική ροή μετά την έκδοση: καταγραφή έναρξης/παράδοσης για παραστατικά με δελτίο διακίνησης.
+          Τα απλά τιμολόγια 1.1 δεν χρειάζονται αυτή τη διαδικασία.
+        </p>
       </div>
       <div className="divide-y divide-slate-100">
         {deliveryDocuments.length === 0 ? (

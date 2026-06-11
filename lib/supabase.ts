@@ -984,6 +984,18 @@ export const api = {
         return rows as LegalSyncRun[];
     },
 
+    clearLegalSyncRuns: async (): Promise<void> => {
+        if (isLocalMode) {
+            await offlineDb.saveTable('legal_sync_runs', []);
+            return;
+        }
+        const { error } = await supabase
+            .from('legal_sync_runs')
+            .delete()
+            .neq('id', '00000000-0000-0000-0000-000000000000');
+        if (error) throw error;
+    },
+
     getProformaDocuments: async (): Promise<ProformaDocument[]> => {
         const rows = await fetchFullTable('proforma_documents', '*', (q) => q.order('created_at', { ascending: false }));
         return rows as ProformaDocument[];

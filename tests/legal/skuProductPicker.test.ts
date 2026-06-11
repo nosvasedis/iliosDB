@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ProductionType } from '../../types';
-import { searchSkuProductOptions } from '../../components/legal/SkuProductPicker';
+import { searchSkuProductOptions } from '../../utils/skuProductPicker';
 
 const products = [
   {
@@ -31,6 +31,10 @@ const products = [
       subcontract_cost: 0,
     },
     collections: [],
+    variants: [
+      { suffix: '', description: 'Base ring', selling_price: 120, stock_qty: 5, stock_by_size: {}, location_stock: {} },
+      { suffix: 'DLE', description: 'Gold plated ring', selling_price: 145, stock_qty: 3, stock_by_size: {}, location_stock: {} },
+    ],
   },
   {
     sku: 'RNG010',
@@ -60,16 +64,20 @@ const products = [
       subcontract_cost: 0,
     },
     collections: [],
+    variants: [],
   },
 ];
 
-describe('SkuProductPicker search', () => {
-  it('ranks SKU prefix matches and exposes MANUAL when relevant', () => {
-    const skuMatches = searchSkuProductOptions(products, 'RNG', true, 5);
-    expect(skuMatches[0]?.sku).toBe('RNG001');
-    expect(skuMatches.some((option) => option.sku === 'RNG010')).toBe(true);
+describe('sku product picker search', () => {
+  it('returns variant rows with suffix-specific prices', () => {
+    const options = searchSkuProductOptions(products, 'RNG001D', true, 8);
+    const variant = options.find((option) => option.displaySku === 'RNG001DLE');
+    expect(variant?.price).toBe(145);
+    expect(variant?.variant_suffix).toBe('DLE');
+  });
 
-    const manualMatches = searchSkuProductOptions(products, 'MA', true, 5);
-    expect(manualMatches[0]?.sku).toBe('MANUAL');
+  it('exposes MANUAL when the query matches it', () => {
+    const options = searchSkuProductOptions(products, 'MA', true, 5);
+    expect(options.some((option) => option.sku === 'MANUAL')).toBe(true);
   });
 });

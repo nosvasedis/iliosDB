@@ -216,6 +216,36 @@ export function getAadeDocumentTypeForKind(kind: LegalDocumentKind): AadeDocumen
   return '1.1';
 }
 
+/** True when myDATA XML should carry dispatch / delivery-note header fields. */
+export function documentIncludesDeliveryNote(document: Pick<LegalDocument, 'document_kind'>): boolean {
+  return document.document_kind === 'delivery_note' || document.document_kind === 'invoice_delivery';
+}
+
+export function applyLegalDocumentDeliveryToggle(
+  document: LegalDocument,
+  includeDeliveryNote: boolean,
+  settings: LegalSettings,
+  customer?: Customer | null,
+): LegalDocument {
+  if (document.document_kind === 'delivery_note' || document.document_kind === 'credit') {
+    return document;
+  }
+  if (!includeDeliveryNote) {
+    return {
+      ...document,
+      document_kind: 'invoice',
+      aade_document_type: '1.1',
+      delivery: null,
+    };
+  }
+  return {
+    ...document,
+    document_kind: 'invoice_delivery',
+    aade_document_type: '1.1',
+    delivery: document.delivery || buildDefaultDeliveryDetails(settings, customer),
+  };
+}
+
 export function getDocumentKindFromAadeType(type: AadeDocumentType): LegalDocumentKind {
   if (type === '9.3') return 'delivery_note';
   if (type === '5.1' || type === '5.2') return 'credit';
@@ -346,6 +376,27 @@ function getIncomeClassification(product: Product | undefined, settings: LegalSe
       : settings.inhouse_income_classification_type,
     amount: roundMoney(amount),
   });
+}
+
+export function getLegalCatalogLineDetails(
+  product: Product,
+  settings: LegalSettings,
+  variant_suffix?: string | null,
+  aadeDocumentType?: AadeDocumentType,
+) {
+  const variant = variant_suffix
+    ? product.variants?.find((item) => item.suffix === variant_suffix)
+    : product.variants?.find((item) => item.suffix === '') || null;
+  const suffix = variant?.suffix ?? variant_suffix ?? null;
+  const unitPrice = Number(variant?.selling_price || product.selling_price || product.active_price || 0);
+  return {
+    sku: product.sku,
+    variant_suffix: suffix,
+    item_code: product.sku + (suffix || ''),
+    description: variant?.description || product.description || product.category || product.sku,
+    unit_price: unitPrice,
+    income_classification: getIncomeClassification(product, settings, unitPrice, aadeDocumentType),
+  };
 }
 
 export function computeLegalTotals(lines: Array<Pick<LegalDocumentLine, 'net_value' | 'vat_amount' | 'gross_value' | 'quantity'>>): LegalTotals {
@@ -898,7 +949,7 @@ function vatCategoryToExemption(vatRate: number, settings: LegalSettings): numbe
 
 export function validateLegalDocument(document: LegalDocument, lines: LegalDocumentLine[] = document.lines || []): LegalValidationIssue[] {
   const issues: LegalValidationIssue[] = [];
-  const isDelivery = document.document_kind === 'delivery_note' || document.document_kind === 'invoice_delivery';
+  const isDelivery = documentIncludesDeliveryNote(document);
 
   if (!normalizeVatNumber(document.issuer.vat_number)) {
     issues.push({ field: 'issuer.vat_number', severity: 'error', message: 'Συμπληρώστε ΑΦΜ εκδότη στις ρυθμίσεις.' });
@@ -1008,7 +1059,7 @@ function buildIncomeClassificationXml(item: LegalIncomeClassification): string {
 }
 
 function buildHeaderXml(document: LegalDocument): string {
-  const isDelivery = document.document_kind === 'delivery_note' || document.document_kind === 'invoice_delivery';
+  const isDelivery = documentIncludesDeliveryNote(document);
   const delivery = document.delivery;
   const header = [
     xmlTag('series', document.series || ''),

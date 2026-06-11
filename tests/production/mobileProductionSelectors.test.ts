@@ -57,6 +57,59 @@ describe('mobile production selectors', () => {
     expect(found[0].customerName).toBe('Beta');
   });
 
+  it('matches numeric SKU fragments anywhere in the code (e.g. 824 → RN824, DA824)', () => {
+    const found = buildMobileProductionFoundBatches(
+      [
+        {
+          id: 'b-rn',
+          sku: 'RN824',
+          quantity: 1,
+          current_stage: ProductionStage.Waxing,
+          created_at: '2024-01-01T00:00:00.000Z',
+          updated_at: '2024-01-01T00:00:00.000Z',
+          priority: 'Normal',
+          requires_setting: true,
+          customer_name: 'A',
+        },
+        {
+          id: 'b-da',
+          sku: 'DA824',
+          quantity: 1,
+          current_stage: ProductionStage.Waxing,
+          created_at: '2024-01-01T00:00:00.000Z',
+          updated_at: '2024-01-01T00:00:00.000Z',
+          priority: 'Normal',
+          requires_setting: true,
+          customer_name: 'B',
+        },
+        {
+          id: 'b-xr',
+          sku: 'XR824',
+          quantity: 1,
+          current_stage: ProductionStage.Waxing,
+          created_at: '2024-01-01T00:00:00.000Z',
+          updated_at: '2024-01-01T00:00:00.000Z',
+          priority: 'Normal',
+          requires_setting: true,
+          customer_name: 'C',
+        },
+        {
+          id: 'b-other',
+          sku: 'PN100',
+          quantity: 1,
+          current_stage: ProductionStage.Waxing,
+          created_at: '2024-01-01T00:00:00.000Z',
+          updated_at: '2024-01-01T00:00:00.000Z',
+          priority: 'Normal',
+          requires_setting: true,
+          customer_name: 'D',
+        },
+      ] as any,
+      '824',
+    );
+    expect(found.map((b) => b.sku).sort()).toEqual(['DA824', 'RN824', 'XR824']);
+  });
+
   it('uses SKU prefix matching so internal fragments do not match', () => {
     const found = buildMobileProductionFoundBatches(
       [
