@@ -1097,16 +1097,30 @@ export const api = {
                     query,
                 });
                 const parsed = parseTransmittedDocumentsXml(result.responseText || '');
+                const noTransmittedDocumentsFound =
+                    !result.ok &&
+                    result.status === 404 &&
+                    parsed.documents.length === 0 &&
+                    parsed.cancellations.length === 0;
                 await supabase.from('legal_transmissions').insert({
                     document_id: null,
                     action: 'request_transmitted_docs',
                     endpoint: result.endpoint,
                     environment: params.environment,
-                    status: result.ok ? 'success' : 'failed',
+                    status: result.ok || noTransmittedDocumentsFound ? 'success' : 'failed',
                     request_payload: JSON.stringify(query),
                     response_payload: result.responseText,
-                    error_message: result.ok ? null : `HTTP ${result.status}`,
+                    error_message: result.ok
+                        ? null
+                        : noTransmittedDocumentsFound
+                            ? 'Δεν βρέθηκαν παραστατικά στο επιλεγμένο διάστημα.'
+                            : `HTTP ${result.status}`,
                 });
+                if (noTransmittedDocumentsFound) {
+                    nextPartitionKey = undefined;
+                    nextRowKey = undefined;
+                    break;
+                }
                 if (!result.ok) throw new Error(parsed.documents.length ? `AADE sync failed (${result.status})` : (result.parsed?.errors?.join('\n') || `AADE sync failed (${result.status})`));
 
                 const existingDocuments = await api.getLegalDocuments();

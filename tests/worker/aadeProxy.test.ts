@@ -80,6 +80,24 @@ describe('AADE Worker proxy', () => {
     expect(fetchMock.mock.calls[0][1].body).toBeUndefined();
   });
 
+  it('treats empty transmitted document sync as an empty successful response', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('<RequestedDoc />', { status: 404 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await worker.fetch(new Request('https://worker.example/aade/request-transmitted-docs', {
+      method: 'POST',
+      headers: { Authorization: 'secret', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ environment: 'dev', query: { dateFrom: '2026-06-11', dateTo: '2026-06-11', mark: '0' } }),
+    }), env);
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.ok).toBe(true);
+    expect(data.status).toBe(204);
+    expect(data.parsed.statusCode).toBe('NoDocuments');
+    expect(fetchMock.mock.calls[0][1].method).toBe('GET');
+  });
+
   it('sends cancellation to AADE as GET query with no XML body', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response('<ResponseDoc><response><statusCode>Success</statusCode><cancellationMark>456</cancellationMark></response></ResponseDoc>', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);

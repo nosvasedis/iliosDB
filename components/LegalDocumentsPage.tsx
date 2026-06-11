@@ -64,6 +64,8 @@ import {
   canPrintProforma,
   convertProformaToLegalDraft,
   createManualLegalDocumentLine,
+  AADE_INCOME_CATEGORY_OPTIONS,
+  AADE_INCOME_TYPE_OPTIONS,
   AADE_VAT_CATEGORY_OPTIONS,
   DEFAULT_LEGAL_SETTINGS,
   getLegalDocumentDisplayNumber,
@@ -96,6 +98,8 @@ const tabItems: Array<{ id: LegalTab; label: string; icon: LucideIcon }> = [
 
 const kindItems: LegalDocumentKind[] = ['invoice', 'delivery_note', 'invoice_delivery', 'credit'];
 const vatRateOptions = AADE_VAT_CATEGORY_OPTIONS;
+const incomeCategoryOptions = AADE_INCOME_CATEGORY_OPTIONS;
+const incomeTypeOptions = AADE_INCOME_TYPE_OPTIONS;
 const proformaStatusLabel: Record<ProformaDocument['status'], string> = {
   draft: 'Πρόχειρο',
   converted: 'Μετατράπηκε',
@@ -605,7 +609,11 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
         maxMark: syncDraft.maxMark || null,
         userName,
       });
-      showToast(`Συγχρονισμός ολοκληρώθηκε: ${result.imported_count} νέα, ${result.updated_count} ενημερώσεις.`, 'success');
+      if (result.imported_count === 0 && result.updated_count === 0) {
+        showToast('Ο συγχρονισμός ολοκληρώθηκε. Δεν βρέθηκαν παραστατικά για τα επιλεγμένα φίλτρα.', 'info');
+      } else {
+        showToast(`Συγχρονισμός ολοκληρώθηκε: ${result.imported_count} νέα, ${result.updated_count} ενημερώσεις.`, 'success');
+      }
     } catch (error: any) {
       showToast(error?.message || 'Ο συγχρονισμός AADE απέτυχε.', 'error');
     }
@@ -1600,15 +1608,30 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
           <div className="mt-4 grid gap-4 md:grid-cols-4">
             <TextInput label="Τηλέφωνο" value={settingsDraft.issuer.phone || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, phone: value } }))} />
             <TextInput label="Email" value={settingsDraft.issuer.email || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, email: value } }))} />
-            <SelectInput label="Πληρωμή Default" value={settingsDraft.default_payment_method} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_payment_method: Number(value) }))}>
+            <SelectInput label="Προεπιλογή πληρωμής" value={settingsDraft.default_payment_method} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_payment_method: Number(value) }))}>
               {PAYMENT_METHOD_CODES.map((code) => <option key={code} value={code}>{PAYMENT_METHOD_LABELS[code]}</option>)}
             </SelectInput>
-            <TextInput label="Απαλλαγή ΦΠΑ Default" type="number" value={settingsDraft.default_vat_exemption_category || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_vat_exemption_category: value ? Number(value) : null }))} help="Συμπληρώνεται μόνο όταν η γραμμή έχει ΦΠΑ 0% και απαιτείται αιτία απαλλαγής." />
+            <TextInput label="Προεπιλογή απαλλαγής ΦΠΑ" type="number" value={settingsDraft.default_vat_exemption_category || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_vat_exemption_category: value ? Number(value) : null }))} help="Συμπληρώνεται μόνο όταν η γραμμή έχει ΦΠΑ 0% και απαιτείται αιτία απαλλαγής." />
           </div>
           <div className="mt-4 grid gap-4 md:grid-cols-4">
-            <TextInput label="E3 Χονδρικής" value={settingsDraft.default_income_classification_type} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_income_classification_type: value, inhouse_income_classification_type: value, imported_income_classification_type: value }))} help="Κωδικός χαρακτηρισμού εσόδου myDATA που εμφανίζεται στις γραμμές, π.χ. E3_561_001." />
-            <TextInput label="Κατηγορία In-house" value={settingsDraft.inhouse_income_classification_category} onChange={(value) => setSettingsDraft((current) => ({ ...current, inhouse_income_classification_category: value }))} help="Κατηγορία εσόδων για προϊόντα που παράγονται εσωτερικά." />
-            <TextInput label="Κατηγορία Εισαγόμενα" value={settingsDraft.imported_income_classification_category} onChange={(value) => setSettingsDraft((current) => ({ ...current, imported_income_classification_category: value }))} help="Κατηγορία εσόδων για εμπορεύματα/εισαγόμενα προϊόντα." />
+            <SelectInput label="Προεπιλογή πώλησης" value={settingsDraft.default_income_classification_type} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_income_classification_type: value, inhouse_income_classification_type: value, imported_income_classification_type: value }))} help="Ο χαρακτηρισμός εσόδου που θα μπαίνει αυτόματα στις γραμμές. Ο κωδικός ΑΑΔΕ φαίνεται σε παρένθεση.">
+              {!incomeTypeOptions.some((option) => option.value === settingsDraft.default_income_classification_type) && (
+                <option value={settingsDraft.default_income_classification_type}>{settingsDraft.default_income_classification_type}</option>
+              )}
+              {incomeTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </SelectInput>
+            <SelectInput label="Προϊόντα δικής μας παραγωγής" value={settingsDraft.inhouse_income_classification_category} onChange={(value) => setSettingsDraft((current) => ({ ...current, inhouse_income_classification_category: value }))} help="Ποια κατηγορία εσόδου θα χρησιμοποιείται για προϊόντα που παράγονται εσωτερικά. Ο κωδικός ΑΑΔΕ φαίνεται σε παρένθεση.">
+              {!incomeCategoryOptions.some((option) => option.value === settingsDraft.inhouse_income_classification_category) && (
+                <option value={settingsDraft.inhouse_income_classification_category}>{settingsDraft.inhouse_income_classification_category}</option>
+              )}
+              {incomeCategoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </SelectInput>
+            <SelectInput label="Εμπορεύματα / εισαγόμενα" value={settingsDraft.imported_income_classification_category} onChange={(value) => setSettingsDraft((current) => ({ ...current, imported_income_classification_category: value }))} help="Ποια κατηγορία εσόδου θα χρησιμοποιείται για εμπορεύματα ή εισαγόμενα προϊόντα. Ο κωδικός ΑΑΔΕ φαίνεται σε παρένθεση.">
+              {!incomeCategoryOptions.some((option) => option.value === settingsDraft.imported_income_classification_category) && (
+                <option value={settingsDraft.imported_income_classification_category}>{settingsDraft.imported_income_classification_category}</option>
+              )}
+              {incomeCategoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </SelectInput>
             <TextInput label="Σκοπός Διακίνησης" type="number" value={settingsDraft.default_move_purpose} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_move_purpose: Number(value) || 1 }))} help="Κωδικός σκοπού διακίνησης της ΑΑΔΕ. Συνήθως 1 για πώληση." />
           </div>
           <div className="mt-5">

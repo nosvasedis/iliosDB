@@ -303,6 +303,14 @@ async function handleAadeRoute(request, env, corsHeaders, url) {
 
   try {
     const result = await callAadeXml(env, environment, route.method, route.xml, route.query, route.httpMethod || 'POST');
+    if (route.method === 'RequestTransmittedDocs' && result.status === 404) {
+      return jsonResponse({
+        ...result,
+        ok: true,
+        status: 204,
+        parsed: { ...result.parsed, statusCode: 'NoDocuments', errors: [] },
+      }, 200, corsHeaders);
+    }
     return jsonResponse(result, result.ok ? 200 : 502, corsHeaders);
   } catch (error) {
     return jsonResponse({

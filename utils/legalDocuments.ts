@@ -164,6 +164,51 @@ export const AADE_REVENUE_CLASSIFICATION_COMBINATIONS: Partial<Record<AadeDocume
   ],
 };
 
+export const AADE_INCOME_CATEGORY_LABELS: Record<string, string> = {
+  category1_1: 'Πώληση εμπορευμάτων',
+  category1_2: 'Πώληση προϊόντων',
+  category1_3: 'Παροχή υπηρεσιών',
+  category1_4: 'Πώληση παγίων',
+  category1_5: 'Λοιπά έσοδα / κέρδη',
+  category1_6: 'Αυτοπαραδόσεις / ιδιοχρησιμοποιήσεις',
+  category1_7: 'Έσοδα για λογαριασμό τρίτων',
+  category1_8: 'Έσοδα προηγούμενων χρήσεων',
+  category1_9: 'Έσοδα επόμενων χρήσεων',
+  category1_10: 'Λοιπές εγγραφές τακτοποίησης εσόδων',
+  category1_95: 'Λοιπά πληροφοριακά στοιχεία εσόδων',
+  category3: 'Διακίνηση χωρίς ενημέρωση Ε3',
+};
+
+export const AADE_INCOME_TYPE_LABELS: Record<string, string> = {
+  E3_561_001: 'Χονδρικές πωλήσεις σε επαγγελματίες',
+  E3_561_002: 'Χονδρικές πωλήσεις άρθρου 39α ΦΠΑ',
+  E3_561_005: 'Πωλήσεις εξωτερικού - ενδοκοινοτικές',
+  E3_561_006: 'Πωλήσεις εξωτερικού - τρίτες χώρες',
+  E3_561_007: 'Λοιπές πωλήσεις αγαθών και υπηρεσιών',
+  E3_562: 'Λοιπά συνήθη έσοδα',
+  E3_563: 'Πιστωτικοί τόκοι και συναφή έσοδα',
+  E3_564: 'Πιστωτικές συναλλαγματικές διαφορές',
+  E3_565: 'Έσοδα συμμετοχών',
+  E3_566: 'Κέρδη από διάθεση μη κυκλοφορούντων στοιχείων',
+  E3_567: 'Κέρδη από αναστροφή προβλέψεων / απομειώσεων',
+  E3_568: 'Κέρδη από επιμέτρηση στην εύλογη αξία',
+  E3_570: 'Ασυνήθη έσοδα και κέρδη',
+  E3_596: 'Επιδοτήσεις - επιχορηγήσεις',
+  E3_597: 'Επιχορηγήσεις επενδύσεων / κάλυψη δαπανών',
+  E3_880_001: 'Πωλήσεις παγίων χονδρικές',
+  E3_880_003: 'Πωλήσεις παγίων ενδοκοινοτικές',
+  E3_880_004: 'Πωλήσεις παγίων τρίτων χωρών',
+  E3_881_001: 'Πωλήσεις για λογαριασμό τρίτων χονδρικές',
+  E3_881_003: 'Πωλήσεις για λογαριασμό τρίτων ενδοκοινοτικές',
+  E3_881_004: 'Πωλήσεις για λογαριασμό τρίτων τρίτων χωρών',
+};
+
+export const AADE_INCOME_CATEGORY_OPTIONS = Object.entries(AADE_INCOME_CATEGORY_LABELS)
+  .map(([value, label]) => ({ value, label: `${label} (${value})` }));
+
+export const AADE_INCOME_TYPE_OPTIONS = Object.entries(AADE_INCOME_TYPE_LABELS)
+  .map(([value, label]) => ({ value, label: `${label} (${value})` }));
+
 export function getAadeDocumentTypeForKind(kind: LegalDocumentKind): AadeDocumentType {
   if (kind === 'delivery_note') return '9.3';
   if (kind === 'credit') return '5.2';
