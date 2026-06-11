@@ -451,6 +451,27 @@ describe('legal document helpers', () => {
     expect(row.document_id).toBe(document.id);
   });
 
+  it('serializeLegalDocumentLineForDb drops proforma-only fields from stale line payloads', () => {
+    const row = serializeLegalDocumentLineForDb({
+      id: 'line-1',
+      document_id: 'doc-1',
+      proforma_id: 'proforma-1',
+      line_number: 1,
+      sku: 'SKU-1',
+      description: 'Item',
+      quantity: 1,
+      unit_price: 10,
+      net_value: 10,
+      vat_category: 1,
+      vat_amount: 2.4,
+      gross_value: 12.4,
+      measurement_unit: 1,
+      income_classification: { classification_category: 'category1_1', classification_type: 'E3_561_001', amount: 10 },
+    } as any, 'doc-1');
+    expect(row).not.toHaveProperty('proforma_id');
+    expect(row.document_id).toBe('doc-1');
+  });
+
   it('parses transmitted AADE documents, cancellation marks, and pagination keys', () => {
     const parsed = parseTransmittedDocumentsXml(`
       <RequestedDoc>

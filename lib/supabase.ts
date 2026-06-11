@@ -172,6 +172,12 @@ const sanitizeMutationData = (tableName: string, rawData: any, options?: { prese
         if (tableName === 'production_batches') return sanitizeBatchData(row);
         if (tableName === 'order_delivery_plans') return sanitizeDeliveryPlanData(row);
         if (tableName === 'order_delivery_reminders') return sanitizeDeliveryReminderData(row);
+        if (tableName === 'legal_documents') return serializeLegalDocumentForDb(row as LegalDocument);
+        if (tableName === 'legal_document_lines') {
+            const documentId = row?.document_id;
+            if (!documentId) return row;
+            return serializeLegalDocumentLineForDb(row, documentId);
+        }
         return row;
     };
     return Array.isArray(rawData) ? rawData.map(sanitizeOne) : sanitizeOne(rawData);
@@ -290,7 +296,7 @@ async function safeMutate(
     method: 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT',
     data: any,
     options?: { match?: Record<string, any>, onConflict?: string, ignoreDuplicates?: boolean, noSelect?: boolean }
-): Promise<{ data: any, error: any, queued: boolean }> {
+): Promise<{ data: any, error: any, queued: boolean, queueId?: number }> {
     const mutationData = method === 'DELETE'
         ? data
         : sanitizeMutationData(tableName, data, { preserveLightweightItems: method === 'UPDATE' });
@@ -330,7 +336,7 @@ async function safeMutate(
         }
 
         await offlineDb.saveTable(tableName, newTable);
-        return { data: mutationData, error: null, queued: false };
+        return { data: mutationData, error: null, queued: false, queueId: undefined };
     }
 
     const queueId = await offlineDb.enqueue({
@@ -345,7 +351,7 @@ async function safeMutate(
     });
 
     if (!navigator.onLine) {
-        return { data: null, error: null, queued: true };
+        return { data: null, error: null, queued: true, queueId };
     }
 
     try {
@@ -375,11 +381,33 @@ async function safeMutate(
         const { data: resData, error } = await query!;
         if (error) throw error;
         await offlineDb.dequeue(queueId);
-        return { data: Array.isArray(resData) ? resData[0] : resData, error: null, queued: false };
+        return { data: Array.isArray(resData) ? resData[0] : resData, error: null, queued: false, queueId };
     } catch (err) {
-        console.warn(`Cloud mutation failed. Keeping in queue for retry:`, err);
-        return { data: null, error: err, queued: true };
+        const errCode = (err as { code?: string })?.code || '';
+        const isPermanentFailure = errCode === '42501'
+            || errCode.startsWith('42')
+            || errCode.startsWith('PGRST')
+            || errCode === '23505'
+            || errCode === '23502'
+            || errCode === '23514';
+        if (isPermanentFailure) {
+            await offlineDb.dequeue(queueId);
+            console.warn(`Cloud mutation rejected permanently for ${tableName} (${errCode}). Removed from sync queue.`, err);
+        } else {
+            console.warn(`Cloud mutation failed. Keeping in queue for retry:`, err);
+        }
+        return { data: null, error: err, queued: !isPermanentFailure, queueId };
     }
+}
+
+function isPermanentMutationError(error: unknown): boolean {
+    const errCode = (error as { code?: string })?.code || '';
+    return errCode === '42501'
+        || errCode.startsWith('42')
+        || errCode.startsWith('PGRST')
+        || errCode === '23505'
+        || errCode === '23502'
+        || errCode === '23514';
 }
 
 async function requireCloudMutation(
@@ -1249,7 +1277,11 @@ export const api = {
                         importedCount += 1;
                     }
                     await supabase.from('legal_document_lines').delete().eq('document_id', documentId);
-                    if (lines.length) await supabase.from('legal_document_lines').insert(lines);
+                    if (lines.length) {
+                        await supabase.from('legal_document_lines').insert(
+                            lines.map((line) => serializeLegalDocumentLineForDb(line, documentId)),
+                        );
+                    }
                 }
 
                 for (const cancellation of parsed.cancellations) {
@@ -3467,14 +3499,8 @@ export const api = {
                     syncedTables.add(item.table);
                 } else {
                     failedCount++;
-                    const errCode = error.code || '';
-                    const isPermanentFailure = errCode === '42501'
-                        || errCode.startsWith('42')
-                        || errCode.startsWith('PGRST')
-                        || errCode === '23505'
-                        || errCode === '23502'
-                        || errCode === '23514';
-                    if (isPermanentFailure) {
+                    if (isPermanentMutationError(error)) {
+                        const errCode = error.code || '';
                         await offlineDb.dequeue(item.id);
                         window.dispatchEvent(new CustomEvent('ilios-sync-error', { detail: { message: `Αποτυχία συγχρονισμού για ${item.table} (${errCode}). Η μη έγκυρη εγγραφή αφαιρέθηκε από την ουρά.` } }));
                     }
