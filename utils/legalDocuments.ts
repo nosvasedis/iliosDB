@@ -261,15 +261,36 @@ function parseAddress(address?: string | null): LegalPartyAddress | null {
   return { street: address, number: '', postal_code: '', city: '' };
 }
 
-function buildCounterpart(order: Order, customer?: Customer | null): LegalParty {
+function buildEmptyCounterpart(): LegalParty {
   return {
-    vat_number: normalizeVatNumber(customer?.vat_number),
+    vat_number: '',
     country: 'GR',
     branch: 0,
+    name: '',
+    address: null,
+    phone: null,
+    email: null,
+  };
+}
+
+function buildCounterpartFromCustomer(customer?: Customer | null): LegalParty {
+  if (!customer) return buildEmptyCounterpart();
+  return {
+    vat_number: normalizeVatNumber(customer.vat_number),
+    country: 'GR',
+    branch: 0,
+    name: customer.full_name,
+    address: customer.address ? parseAddress(customer.address) : null,
+    phone: customer.phone || null,
+    email: customer.email || null,
+  };
+}
+
+function buildCounterpart(order: Order, customer?: Customer | null): LegalParty {
+  return {
+    ...buildCounterpartFromCustomer(customer),
     name: customer?.full_name || order.customer_name,
-    address: customer?.address ? parseAddress(customer.address) : null,
-    phone: customer?.phone || order.customer_phone || null,
-    email: customer?.email || null,
+    phone: customer?.phone || order.customer_phone || buildCounterpartFromCustomer(customer).phone,
   };
 }
 
@@ -511,6 +532,95 @@ function toProformaLine(line: LegalDocumentLine, proformaId: string): ProformaDo
     id: crypto.randomUUID(),
     document_id: proformaId,
     proforma_id: proformaId,
+  };
+}
+
+export function buildManualLegalDocument(params: {
+  settings: LegalSettings;
+  kind: LegalDocumentKind;
+  userName?: string | null;
+  customer?: Customer | null;
+}): LegalDocument {
+  const now = new Date().toISOString();
+  const id = crypto.randomUUID();
+  const vatRate = params.customer?.vat_rate ?? 0.24;
+  const aadeDocumentType = getAadeDocumentTypeForKind(params.kind);
+  const line = createManualLegalDocumentLine({
+    documentId: id,
+    lineNumber: 1,
+    settings: params.settings,
+    vatRate,
+    aadeDocumentType,
+  });
+  const lines = [line];
+  const totals = computeLegalTotals(lines);
+  const isDelivery = params.kind === 'delivery_note' || params.kind === 'invoice_delivery';
+  return {
+    id,
+    order_id: null,
+    shipment_id: null,
+    source_kind: 'manual',
+    document_kind: params.kind,
+    aade_document_type: aadeDocumentType,
+    status: 'draft',
+    issue_date: toIsoDate(now),
+    issuer: params.settings.issuer,
+    counterpart: buildCounterpartFromCustomer(params.customer),
+    delivery: isDelivery ? buildDefaultDeliveryDetails(params.settings, params.customer) : null,
+    payment_method_code: params.settings.default_payment_method,
+    currency: 'EUR',
+    vat_rate: vatRate,
+    vat_exemption_category: vatCategoryToExemption(vatRate, params.settings),
+    revenue_classification: groupIncomeClassifications(lines),
+    totals,
+    created_by: params.userName || null,
+    created_at: now,
+    updated_at: now,
+    lines,
+  };
+}
+
+export function buildManualProforma(params: {
+  settings: LegalSettings;
+  userName?: string | null;
+  customer?: Customer | null;
+}): ProformaDocument {
+  const legalLike = buildManualLegalDocument({
+    settings: params.settings,
+    kind: 'invoice',
+    userName: params.userName,
+    customer: params.customer,
+  });
+  const now = new Date().toISOString();
+  const lines = (legalLike.lines || []).map((line) => toProformaLine(line, legalLike.id));
+  return {
+    id: legalLike.id,
+    order_id: null,
+    shipment_id: null,
+    source_kind: 'manual',
+    document_kind: 'proforma',
+    status: 'draft',
+    series: null,
+    aa: null,
+    issue_date: legalLike.issue_date,
+    valid_until: null,
+    issuer: legalLike.issuer,
+    counterpart: legalLike.counterpart,
+    payment_method_code: legalLike.payment_method_code,
+    currency: legalLike.currency,
+    vat_rate: legalLike.vat_rate,
+    vat_exemption_category: legalLike.vat_exemption_category,
+    revenue_classification: legalLike.revenue_classification,
+    totals: legalLike.totals,
+    notes: null,
+    converted_legal_document_id: null,
+    converted_at: null,
+    voided_at: null,
+    aade_mark: null,
+    created_by: params.userName || null,
+    created_at: now,
+    updated_at: now,
+    lines,
   };
 }
 

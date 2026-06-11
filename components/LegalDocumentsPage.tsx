@@ -59,6 +59,8 @@ import {
   buildDefaultDeliveryDetails,
   buildLegalDocumentFromOrder,
   buildLegalDocumentFromShipment,
+  buildManualLegalDocument,
+  buildManualProforma,
   buildProformaFromOrder,
   canPrintLegalDocument,
   canPrintProforma,
@@ -80,6 +82,7 @@ import {
 } from '../utils/legalDocuments';
 
 type LegalTab = 'new' | 'proformas' | 'archive' | 'sync' | 'delivery' | 'settings';
+type DocumentCreationSource = 'order' | 'manual';
 
 interface LegalDocumentsPageProps {
   products: Product[];
@@ -243,6 +246,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
   const [selectedOrderId, setSelectedOrderId] = useState('');
   const [selectedShipmentId, setSelectedShipmentId] = useState('');
   const [documentKind, setDocumentKind] = useState<LegalDocumentKind>('invoice');
+  const [creationSource, setCreationSource] = useState<DocumentCreationSource>('order');
   const [draftBundle, setDraftBundle] = useState<{ document: LegalDocument; lines: LegalDocumentLine[] } | null>(null);
   const [proformaBundle, setProformaBundle] = useState<{ document: ProformaDocument; lines: ProformaDocumentLine[] } | null>(null);
   const [archiveSearch, setArchiveSearch] = useState('');
@@ -462,6 +466,17 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
 
   const handleGenerateDraft = () => {
     const settings = legalSettings || settingsDraft;
+    if (creationSource === 'manual') {
+      const document = buildManualLegalDocument({
+        settings,
+        kind: documentKind,
+        userName,
+        customer: selectedCustomer,
+      });
+      setDraftBundle({ document, lines: document.lines || [] });
+      return;
+    }
+
     if (!selectedOrder) {
       showToast('Επιλέξτε παραγγελία.', 'warning');
       return;
@@ -494,8 +509,18 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
     setDraftBundle({ document, lines: document.lines || [] });
   };
 
-  const handleGenerateProforma = () => {
+  const handleGenerateProforma = (source: DocumentCreationSource = creationSource) => {
     const settings = legalSettings || settingsDraft;
+    if (source === 'manual') {
+      const proforma = buildManualProforma({
+        settings,
+        userName,
+        customer: selectedCustomer,
+      });
+      setProformaBundle({ document: proforma, lines: proforma.lines || [] });
+      setActiveTab('proformas');
+      return;
+    }
     if (!selectedOrder) {
       showToast('Επιλέξτε παραγγελία για το προτιμολόγιο.', 'warning');
       return;
@@ -788,7 +813,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
         <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
           <FileCheck2 size={36} className="mx-auto mb-3 text-slate-300" />
           <div className="font-black text-slate-700">Καμία προεπισκόπηση</div>
-          <div className="mt-1 text-sm">Επιλέξτε παραγγελία και τύπο παραστατικού.</div>
+          <div className="mt-1 text-sm">Δημιουργήστε από παραγγελία ή ξεκινήστε κενό χειροκίνητο παραστατικό.</div>
         </div>
       );
     }
@@ -1004,22 +1029,49 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
           <h2 className="font-black text-slate-900">Πηγή</h2>
         </div>
         <div className="space-y-4">
-          <SelectInput label="Παραγγελία" value={selectedOrderId} onChange={(value) => { setSelectedOrderId(value); setSelectedShipmentId(''); setDraftBundle(null); }}>
-            <option value="">Επιλογή παραγγελίας</option>
-            {orders.map((order) => (
-              <option key={order.id} value={order.id}>
-                {order.customer_name} | {order.id} | {money(order.total_price)}
-              </option>
-            ))}
-          </SelectInput>
-          <SelectInput label="Μερική αποστολή" value={selectedShipmentId} onChange={(value) => { setSelectedShipmentId(value); setDraftBundle(null); }}>
-            <option value="">Όλη η παραγγελία</option>
-            {orderShipments.map((shipment) => (
-              <option key={shipment.id} value={shipment.id}>
-                ΔΑ #{shipment.shipment_number} | {new Date(shipment.shipped_at).toLocaleDateString('el-GR')}
-              </option>
-            ))}
-          </SelectInput>
+          <div>
+            <span className="block text-[11px] font-black uppercase tracking-wide text-slate-500 mb-2">Πηγή</span>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => { setCreationSource('order'); setDraftBundle(null); }}
+                className={`rounded-lg border px-3 py-2 text-left text-sm font-black transition ${creationSource === 'order' ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+              >
+                Από παραγγελία
+              </button>
+              <button
+                type="button"
+                onClick={() => { setCreationSource('manual'); setSelectedShipmentId(''); setDraftBundle(null); }}
+                className={`rounded-lg border px-3 py-2 text-left text-sm font-black transition ${creationSource === 'manual' ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+              >
+                Χειροκίνητα
+              </button>
+            </div>
+          </div>
+          {creationSource === 'order' ? (
+            <>
+              <SelectInput label="Παραγγελία" value={selectedOrderId} onChange={(value) => { setSelectedOrderId(value); setSelectedShipmentId(''); setDraftBundle(null); }}>
+                <option value="">Επιλογή παραγγελίας</option>
+                {orders.map((order) => (
+                  <option key={order.id} value={order.id}>
+                    {order.customer_name} | {order.id} | {money(order.total_price)}
+                  </option>
+                ))}
+              </SelectInput>
+              <SelectInput label="Μερική αποστολή" value={selectedShipmentId} onChange={(value) => { setSelectedShipmentId(value); setDraftBundle(null); }}>
+                <option value="">Όλη η παραγγελία</option>
+                {orderShipments.map((shipment) => (
+                  <option key={shipment.id} value={shipment.id}>
+                    ΔΑ #{shipment.shipment_number} | {new Date(shipment.shipped_at).toLocaleDateString('el-GR')}
+                  </option>
+                ))}
+              </SelectInput>
+            </>
+          ) : (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-600">
+              Ξεκινάτε κενό παραστατικό. Συμπληρώστε πελάτη, γραμμές και στοιχεία χειροκίνητα στον επεξεργαστή.
+            </div>
+          )}
           <div>
             <span className="block text-[11px] font-black uppercase tracking-wide text-slate-500 mb-2">Τύπος</span>
             <div className="grid gap-2">
@@ -1034,10 +1086,10 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
               ))}
             </div>
           </div>
-          <ActionButton onClick={handleGenerateDraft} disabled={!selectedOrder || loadingOrders}>
+          <ActionButton onClick={handleGenerateDraft} disabled={(creationSource === 'order' && !selectedOrder) || loadingOrders}>
             {loadingOrders ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Δημιουργία
           </ActionButton>
-          <ActionButton variant="secondary" onClick={handleGenerateProforma} disabled={!selectedOrder || loadingOrders}>
+          <ActionButton variant="secondary" onClick={() => handleGenerateProforma()} disabled={(creationSource === 'order' && !selectedOrder) || loadingOrders}>
             <FileText size={16} /> Προτιμολόγιο
           </ActionButton>
         </div>
@@ -1054,7 +1106,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
         <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
           <FileText size={36} className="mx-auto mb-3 text-slate-300" />
           <div className="font-black text-slate-700">Δεν έχει ανοιχτεί προτιμολόγιο</div>
-          <div className="mt-1 text-sm">Δημιουργήστε ένα από παραγγελία ή ανοίξτε παλιότερο από τη λίστα.</div>
+          <div className="mt-1 text-sm">Δημιουργήστε από παραγγελία, ξεκινήστε κενό χειροκίνητο προτιμολόγιο ή ανοίξτε παλιότερο από τη λίστα.</div>
         </div>
       );
     }
@@ -1201,7 +1253,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
           <FileText size={18} className="text-sky-600" />
           <h2 className="font-black text-slate-900">Νέο προτιμολόγιο</h2>
         </div>
-        <div className="grid gap-4 md:grid-cols-[1fr_auto_auto] md:items-end">
+        <div className="grid gap-4 md:grid-cols-[1fr_auto_auto_auto] md:items-end">
           <SelectInput label="Παραγγελία" value={selectedOrderId} onChange={(value) => { setSelectedOrderId(value); setSelectedShipmentId(''); }}>
             <option value="">Επιλογή παραγγελίας</option>
             {orders.map((order) => (
@@ -1210,8 +1262,11 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
               </option>
             ))}
           </SelectInput>
-          <ActionButton onClick={handleGenerateProforma} disabled={!selectedOrder || loadingOrders}>
-            {loadingOrders ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Δημιουργία
+          <ActionButton onClick={() => handleGenerateProforma('order')} disabled={!selectedOrder || loadingOrders}>
+            {loadingOrders ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Από παραγγελία
+          </ActionButton>
+          <ActionButton variant="secondary" onClick={() => handleGenerateProforma('manual')}>
+            <Plus size={16} /> Κενό προτιμολόγιο
           </ActionButton>
           <ActionButton variant="quiet" onClick={() => setProformaBundle(null)} disabled={!proformaBundle}>
             Καθαρισμός

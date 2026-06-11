@@ -6,6 +6,8 @@ import {
   buildAadeInvoiceXml,
   buildAadeTransmittedDocsQuery,
   buildLegalDocumentFromOrder,
+  buildManualLegalDocument,
+  buildManualProforma,
   buildProformaFromOrder,
   canPrintLegalDocument,
   canPrintProforma,
@@ -351,6 +353,42 @@ describe('legal document helpers', () => {
     expect(canPrintProforma(recalculated.document)).toBe(true);
     expect(recalculated.lines[0].description).toBe('Editable proforma line');
     expect(recalculated.document.totals.gross).toBe(62);
+  });
+
+  it('builds manual legal documents and proformas without an order', () => {
+    const document = buildManualLegalDocument({
+      settings,
+      kind: 'invoice',
+      userName: 'Tester',
+    });
+
+    expect(document.source_kind).toBe('manual');
+    expect(document.order_id).toBeNull();
+    expect(document.status).toBe('draft');
+    expect(document.lines).toHaveLength(1);
+    expect(document.counterpart.name).toBe('');
+    expect(document.totals.gross).toBe(0);
+
+    const deliveryDocument = buildManualLegalDocument({
+      settings,
+      kind: 'delivery_note',
+      userName: 'Tester',
+      customer,
+    });
+    expect(deliveryDocument.aade_document_type).toBe('9.3');
+    expect(deliveryDocument.delivery?.dispatch_date).toBeTruthy();
+    expect(deliveryDocument.counterpart.vat_number).toBe('987654321');
+
+    const proforma = buildManualProforma({
+      settings,
+      userName: 'Tester',
+      customer,
+    });
+    expect(proforma.source_kind).toBe('manual');
+    expect(proforma.order_id).toBeNull();
+    expect(proforma.document_kind).toBe('proforma');
+    expect(proforma.lines).toHaveLength(1);
+    expect(proforma.aade_mark).toBeNull();
   });
 
   it('converts a proforma into a legal draft without copying AADE marks or numbering', () => {
