@@ -88,20 +88,28 @@ function getCredentialPresence(env, environment) {
   const credentials = getAadeCredentials(env, environment);
   const userId = !!String(credentials.userId || '').trim();
   const subscriptionKey = !!String(credentials.subscriptionKey || '').trim();
-  return { userId, subscriptionKey, ready: userId && subscriptionKey };
+  const missing = [];
+  const names = AADE_SECRET_NAMES[environment];
+  if (!userId) missing.push(names.userId);
+  if (!subscriptionKey) missing.push(names.subscriptionKey);
+  return { userId, subscriptionKey, ready: userId && subscriptionKey, missing };
 }
 
-function getAadeCredentialStatus(env, optimisticEnvironment) {
+export function getAadeCredentialStatus(env, optimisticEnvironment) {
   const manager = getCloudflareSecretManager(env);
+  const dev = getCredentialPresence(env, 'dev');
+  const prod = getCredentialPresence(env, 'prod');
   const status = {
-    dev: getCredentialPresence(env, 'dev'),
-    prod: getCredentialPresence(env, 'prod'),
+    dev,
+    prod,
     workerCanStoreSecrets: manager.missing.length === 0,
     missingWorkerSecretManager: manager.missing,
+    missingAadeCredentials: [...dev.missing, ...prod.missing],
     checkedAt: new Date().toISOString(),
   };
   if (optimisticEnvironment === 'dev' || optimisticEnvironment === 'prod') {
-    status[optimisticEnvironment] = { userId: true, subscriptionKey: true, ready: true };
+    status[optimisticEnvironment] = { userId: true, subscriptionKey: true, ready: true, missing: [] };
+    status.missingAadeCredentials = [...status.dev.missing, ...status.prod.missing];
   }
   return status;
 }
@@ -134,7 +142,7 @@ async function putWorkerSecret(env, name, text, payload = {}) {
   return putWorkerSecretWithManager(resolveSecretManager(env, payload), name, text);
 }
 
-function buildEndpoint(environment, method, query) {
+export function buildEndpoint(environment, method, query) {
   const base = AADE_BASE_URLS[environment] || AADE_BASE_URLS.dev;
   const endpoint = new URL(`${base}/${method}`);
   if (query) {
@@ -172,9 +180,10 @@ function buildMockAadeResult(method) {
   return `<?xml version="1.0" encoding="UTF-8"?><ResponseDoc><response><index>1</index><invoiceUid>${uid}</invoiceUid><invoiceMark>${mark}</invoiceMark><authenticationCode>AUTH-${mark}</authenticationCode><qrUrl>https://www1.aade.gr/timologio/qr/${uid}</qrUrl><statusCode>Success</statusCode></response></ResponseDoc>`;
 }
 
-async function postAadeXml(env, environment, method, xml, query) {
+export async function callAadeXml(env, environment, method, xml, query, httpMethod = 'POST') {
   const credentials = getAadeCredentials(env, environment);
   const endpoint = buildEndpoint(environment, method, query);
+  const normalizedMethod = httpMethod === 'GET' ? 'GET' : 'POST';
 
   if (env.AADE_MOCK_MODE === 'true') {
     const responseText = buildMockAadeResult(method);
@@ -188,7 +197,8 @@ async function postAadeXml(env, environment, method, xml, query) {
   }
 
   if (!credentials.userId || !credentials.subscriptionKey) {
-    const responseText = '<ResponseDoc><response><statusCode>WorkerConfigError</statusCode><errors><error><message>AADE credentials are not configured on the Cloudflare Worker.</message></error></errors></response></ResponseDoc>';
+    const missing = getCredentialPresence(env, environment).missing;
+    const responseText = `<ResponseDoc><response><statusCode>WorkerConfigError</statusCode><errors><error><message>AADE credentials are not configured on the Cloudflare Worker. Missing secrets: ${xmlEscape(missing.join(', '))}</message></error></errors></response></ResponseDoc>`;
     return {
       ok: false,
       status: 500,
@@ -198,16 +208,22 @@ async function postAadeXml(env, environment, method, xml, query) {
     };
   }
 
-  const response = await fetch(endpoint.toString(), {
-    method: 'POST',
+  const headers = {
+    'Accept': 'application/xml',
+    'aade-user-id': credentials.userId,
+    'Ocp-Apim-Subscription-Key': credentials.subscriptionKey,
+  };
+  if (normalizedMethod !== 'GET') headers['Content-Type'] = 'application/xml; charset=utf-8';
+
+  const requestInit = {
+    method: normalizedMethod,
     headers: {
-      'Content-Type': 'application/xml; charset=utf-8',
-      'Accept': 'application/xml',
-      'aade-user-id': credentials.userId,
-      'Ocp-Apim-Subscription-Key': credentials.subscriptionKey,
+      ...headers,
     },
-    body: xml || '',
-  });
+  };
+  if (normalizedMethod !== 'GET') requestInit.body = xml || '';
+
+  const response = await fetch(endpoint.toString(), requestInit);
   const responseText = await response.text();
   return {
     ok: response.ok,
@@ -273,9 +289,9 @@ async function handleAadeRoute(request, env, corsHeaders, url) {
   const environment = payload.environment === 'prod' ? 'prod' : 'dev';
   const routeMap = {
     '/aade/send-invoices': { method: 'SendInvoices', xml: payload.xml },
-    '/aade/cancel-invoice': { method: 'CancelInvoice', xml: '', query: { mark: payload.mark } },
+    '/aade/cancel-invoice': { method: 'CancelInvoice', xml: '', query: { mark: payload.mark, entityVatNumber: payload.entityVatNumber }, httpMethod: 'GET' },
     '/aade/send-payments-method': { method: 'SendPaymentsMethod', xml: payload.xml },
-    '/aade/request-transmitted-docs': { method: 'RequestTransmittedDocs', xml: payload.xml || '', query: payload.query },
+    '/aade/request-transmitted-docs': { method: 'RequestTransmittedDocs', xml: '', query: payload.query, httpMethod: 'GET' },
     '/aade/register-transfer': { method: 'RegisterTransfer', xml: payload.xml || buildDeliveryXml('RegisterTransferRequest', payload) },
     '/aade/confirm-delivery-outcome': { method: 'ConfirmDeliveryOutcome', xml: payload.xml || buildDeliveryXml('ConfirmDeliveryOutcomeRequest', payload) },
     '/aade/get-delivery-note-status': { method: 'GetDeliveryNoteStatus', xml: payload.xml || buildDeliveryXml('GetDeliveryNoteStatusRequest', payload) },
@@ -286,7 +302,7 @@ async function handleAadeRoute(request, env, corsHeaders, url) {
   if (!route) return jsonResponse({ error: 'Unknown AADE proxy route.' }, 404, corsHeaders);
 
   try {
-    const result = await postAadeXml(env, environment, route.method, route.xml, route.query);
+    const result = await callAadeXml(env, environment, route.method, route.xml, route.query, route.httpMethod || 'POST');
     return jsonResponse(result, result.ok ? 200 : 502, corsHeaders);
   } catch (error) {
     return jsonResponse({

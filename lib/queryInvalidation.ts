@@ -14,7 +14,8 @@ export type RealtimeInvalidationDomain =
     | 'settings'
     | 'pricing'
     | 'supplierOrders'
-    | 'offers';
+    | 'offers'
+    | 'legal';
 
 const PRODUCT_GRAPH_TABLES = new Set([
     'products',
@@ -52,6 +53,16 @@ const REALTIME_TABLE_DOMAINS: Record<string, RealtimeInvalidationDomain[]> = {
     profiles: ['contacts'],
     supplier_orders: ['supplierOrders'],
     offers: ['offers'],
+    legal_settings: ['legal'],
+    legal_numbering_sequences: ['legal'],
+    legal_carriers: ['legal'],
+    legal_documents: ['legal'],
+    legal_document_lines: ['legal'],
+    legal_transmissions: ['legal'],
+    legal_delivery_events: ['legal'],
+    legal_sync_runs: ['legal'],
+    proforma_documents: ['legal'],
+    proforma_document_lines: ['legal'],
     price_snapshots: ['pricing'],
     price_snapshot_items: ['pricing'],
 };
@@ -137,6 +148,22 @@ export function invalidateSupplierOrders(queryClient: QueryClient): Promise<void
 
 export function invalidateOffers(queryClient: QueryClient): Promise<void> {
     return queryClient.invalidateQueries({ queryKey: ['offers'] }).then(() => undefined);
+}
+
+export function invalidateLegal(queryClient: QueryClient): Promise<void> {
+    return Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['legal_settings'] }),
+        queryClient.invalidateQueries({ queryKey: ['legal_numbering_sequences'] }),
+        queryClient.invalidateQueries({ queryKey: ['legal_carriers'] }),
+        queryClient.invalidateQueries({ queryKey: ['legal_documents'] }),
+        queryClient.invalidateQueries({ queryKey: ['legal_document_lines'] }),
+        queryClient.invalidateQueries({ queryKey: ['legal_transmissions'] }),
+        queryClient.invalidateQueries({ queryKey: ['legal_delivery_events'] }),
+        queryClient.invalidateQueries({ queryKey: ['legal_sync_runs'] }),
+        queryClient.invalidateQueries({ queryKey: ['proforma_documents'] }),
+        queryClient.invalidateQueries({ queryKey: ['proforma_document_lines'] }),
+        queryClient.invalidateQueries({ queryKey: ['legal_aade_credentials'] }),
+    ]).then(() => undefined);
 }
 
 /** Refetch the production batch list only (no stage-history table). */
@@ -260,6 +287,8 @@ export function invalidateRealtimeDomain(
             return invalidateSupplierOrders(queryClient);
         case 'offers':
             return invalidateOffers(queryClient);
+        case 'legal':
+            return invalidateLegal(queryClient);
         default:
             return Promise.resolve();
     }

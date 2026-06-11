@@ -9,6 +9,10 @@ import {
   LegalTransmission,
   AadeCredentialSavePayload,
   AadeCredentialStatus,
+  LegalSyncParams,
+  LegalSyncRun,
+  ProformaDocument,
+  ProformaDocumentLine,
 } from '../../types';
 
 export const legalRepository = {
@@ -24,6 +28,15 @@ export const legalRepository = {
   getDocumentLines: (documentId: string): Promise<LegalDocumentLine[]> => api.getLegalDocumentLines(documentId),
   getTransmissions: (documentId: string): Promise<LegalTransmission[]> => api.getLegalTransmissions(documentId),
   getDeliveryEvents: (documentId: string): Promise<LegalDeliveryEvent[]> => api.getLegalDeliveryEvents(documentId),
+  getSyncRuns: (): Promise<LegalSyncRun[]> => api.getLegalSyncRuns(),
+  syncTransmittedDocuments: (params: LegalSyncParams): Promise<LegalSyncRun> => api.syncTransmittedLegalDocuments(params),
+  getProformas: (): Promise<ProformaDocument[]> => api.getProformaDocuments(),
+  getProformaLines: (proformaId: string): Promise<ProformaDocumentLine[]> => api.getProformaDocumentLines(proformaId),
+  saveProforma: (document: ProformaDocument, lines: ProformaDocumentLine[]): Promise<void> =>
+    api.saveProformaDraft(document, lines),
+  voidProforma: (documentId: string): Promise<void> => api.voidProformaDocument(documentId),
+  markProformaConverted: (proformaId: string, legalDocumentId: string): Promise<void> =>
+    api.markProformaConverted(proformaId, legalDocumentId),
   saveDraft: (document: LegalDocument, lines: LegalDocumentLine[]): Promise<void> => api.saveLegalDraft(document, lines),
   submitDocument: (documentId: string, userName?: string | null): Promise<LegalDocument> =>
     api.submitLegalDocument(documentId, userName),

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AadeCredentialSavePayload, LegalCarrier, LegalDocument, LegalDocumentLine, LegalNumberingSequence, LegalSettings } from '../../types';
+import { AadeCredentialSavePayload, LegalCarrier, LegalDocument, LegalDocumentLine, LegalNumberingSequence, LegalSettings, LegalSyncParams, ProformaDocument, ProformaDocumentLine } from '../../types';
 import { legalKeys, legalRepository } from '../../features/legal';
 
 export const useLegalSettings = () =>
@@ -38,6 +38,25 @@ export const useLegalDocumentLines = (documentId: string | null | undefined) =>
     queryKey: legalKeys.documentLines(documentId || ''),
     queryFn: () => (documentId ? legalRepository.getDocumentLines(documentId) : Promise.resolve([])),
     enabled: !!documentId,
+  });
+
+export const useLegalSyncRuns = () =>
+  useQuery({
+    queryKey: legalKeys.syncRuns(),
+    queryFn: legalRepository.getSyncRuns,
+  });
+
+export const useProformaDocuments = () =>
+  useQuery({
+    queryKey: legalKeys.proformas(),
+    queryFn: legalRepository.getProformas,
+  });
+
+export const useProformaDocumentLines = (proformaId: string | null | undefined) =>
+  useQuery({
+    queryKey: legalKeys.proformaLines(proformaId || ''),
+    queryFn: () => (proformaId ? legalRepository.getProformaLines(proformaId) : Promise.resolve([])),
+    enabled: !!proformaId,
   });
 
 export const useSaveLegalSettings = () => {
@@ -79,6 +98,45 @@ export const useSaveLegalDraft = () => {
       legalRepository.saveDraft(document, lines),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: legalKeys.documents() });
+    },
+  });
+};
+
+export const useSaveProformaDraft = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ document, lines }: { document: ProformaDocument; lines: ProformaDocumentLine[] }) =>
+      legalRepository.saveProforma(document, lines),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: legalKeys.proformas() });
+    },
+  });
+};
+
+export const useVoidProformaDocument = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (documentId: string) => legalRepository.voidProforma(documentId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: legalKeys.proformas() }),
+  });
+};
+
+export const useMarkProformaConverted = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ proformaId, legalDocumentId }: { proformaId: string; legalDocumentId: string }) =>
+      legalRepository.markProformaConverted(proformaId, legalDocumentId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: legalKeys.proformas() }),
+  });
+};
+
+export const useSyncTransmittedLegalDocuments = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (params: LegalSyncParams) => legalRepository.syncTransmittedDocuments(params),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: legalKeys.documents() });
+      queryClient.invalidateQueries({ queryKey: legalKeys.syncRuns() });
     },
   });
 };

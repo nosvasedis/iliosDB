@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
-import { Product, ProductVariant, Order, ProductionBatch, AggregatedData, Offer, SupplierOrder, AssemblyPrintData, StageBatchPrintData, OrderShipment, OrderShipmentItem, LegalDocument, LegalDocumentLine } from '../types';
+import { Product, ProductVariant, Order, ProductionBatch, AggregatedData, Offer, SupplierOrder, AssemblyPrintData, StageBatchPrintData, OrderShipment, OrderShipmentItem, LegalDocument, LegalDocumentLine, ProformaDocument, ProformaDocumentLine } from '../types';
 import { PriceListPrintData } from './PriceListPrintView';
 
 interface PrintItem {
@@ -43,6 +43,8 @@ interface PrintContextType {
     setStageBatchPrintData: (data: StageBatchPrintData | null) => void;
     legalDocumentToPrint: { document: LegalDocument; lines: LegalDocumentLine[] } | null;
     setLegalDocumentToPrint: (data: { document: LegalDocument; lines: LegalDocumentLine[] } | null) => void;
+    proformaToPrint: { document: ProformaDocument; lines: ProformaDocumentLine[] } | null;
+    setProformaToPrint: (data: { document: ProformaDocument; lines: ProformaDocumentLine[] } | null) => void;
 }
 
 const PrintContext = createContext<PrintContextType | undefined>(undefined);
@@ -72,6 +74,7 @@ export const PrintProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [orderAnalyticsData, setOrderAnalyticsData] = useState<{ stats: any; order: Order } | null>(null);
     const [stageBatchPrintData, setStageBatchPrintData] = useState<StageBatchPrintData | null>(null);
     const [legalDocumentToPrint, setLegalDocumentToPrint] = useState<{ document: LegalDocument; lines: LegalDocumentLine[] } | null>(null);
+    const [proformaToPrint, setProformaToPrint] = useState<{ document: ProformaDocument; lines: ProformaDocumentLine[] } | null>(null);
 
     return (
         <PrintContext.Provider
@@ -92,6 +95,7 @@ export const PrintProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 orderAnalyticsData, setOrderAnalyticsData,
                 stageBatchPrintData, setStageBatchPrintData,
                 legalDocumentToPrint, setLegalDocumentToPrint,
+                proformaToPrint, setProformaToPrint,
             }}
         >
             {children}

@@ -1,0 +1,2 @@
+CREATE INDEX IF NOT EXISTS idx_proforma_documents_converted_legal_document_id
+  ON public.proforma_documents(converted_legal_document_id);

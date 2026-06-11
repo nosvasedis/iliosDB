@@ -620,14 +620,18 @@ export type LegalDocumentKind = 'invoice' | 'delivery_note' | 'invoice_delivery'
 export type AadeDocumentType = '1.1' | '9.3' | '5.1' | '5.2';
 export type LegalDocumentStatus = 'draft' | 'submitted' | 'issued' | 'failed' | 'cancelled';
 export type LegalEnvironment = 'dev' | 'prod';
-export type LegalSourceKind = 'order' | 'shipment' | 'manual';
+export type LegalSourceKind = 'order' | 'shipment' | 'manual' | 'aade_sync' | 'proforma';
 export type LegalDeliveryActorRole = 'issuer' | 'carrier' | 'receiver';
 export type LegalDeliveryEventType = 'register_transfer' | 'confirm_delivery' | 'failed_delivery' | 'reject_delivery' | 'status_poll';
+export type LegalExternalSource = 'ilios' | 'aade_sync';
+export type LegalSyncStatus = 'success' | 'failed' | 'partial';
+export type ProformaStatus = 'draft' | 'converted' | 'void';
 
 export interface AadeEnvironmentCredentialStatus {
   userId: boolean;
   subscriptionKey: boolean;
   ready: boolean;
+  missing?: string[];
 }
 
 export interface AadeCredentialStatus {
@@ -635,6 +639,7 @@ export interface AadeCredentialStatus {
   prod: AadeEnvironmentCredentialStatus;
   workerCanStoreSecrets: boolean;
   missingWorkerSecretManager: string[];
+  missingAadeCredentials: string[];
   checkedAt?: string;
 }
 
@@ -788,10 +793,48 @@ export interface LegalDocument {
   submitted_at?: string | null;
   cancelled_at?: string | null;
   printed_at?: string | null;
+  external_source?: LegalExternalSource | null;
+  synced_at?: string | null;
+  sync_run_id?: string | null;
+  local_notes?: string | null;
   created_by?: string | null;
   created_at: string;
   updated_at: string;
   lines?: LegalDocumentLine[];
+}
+
+export interface ProformaDocumentLine extends LegalDocumentLine {
+  proforma_id: string;
+}
+
+export interface ProformaDocument {
+  id: string;
+  order_id?: string | null;
+  shipment_id?: string | null;
+  source_kind: LegalSourceKind;
+  document_kind: 'proforma';
+  status: ProformaStatus;
+  series?: string | null;
+  aa?: string | null;
+  issue_date: string;
+  valid_until?: string | null;
+  issuer: LegalIssuerSettings;
+  counterpart: LegalParty;
+  payment_method_code: number;
+  currency: string;
+  vat_rate?: number | null;
+  vat_exemption_category?: number | null;
+  revenue_classification: LegalIncomeClassification[];
+  totals: LegalTotals;
+  notes?: string | null;
+  converted_legal_document_id?: string | null;
+  converted_at?: string | null;
+  voided_at?: string | null;
+  aade_mark?: null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  lines?: ProformaDocumentLine[];
 }
 
 export interface LegalPayment {
@@ -827,6 +870,72 @@ export interface LegalDeliveryEvent {
   event_mark?: string | null;
   created_by?: string | null;
   created_at: string;
+}
+
+export interface LegalSyncRun {
+  id: string;
+  environment: LegalEnvironment;
+  date_from?: string | null;
+  date_to?: string | null;
+  mark_from?: string | null;
+  status: LegalSyncStatus;
+  imported_count: number;
+  updated_count: number;
+  error_message?: string | null;
+  next_partition_key?: string | null;
+  next_row_key?: string | null;
+  created_by?: string | null;
+  started_at: string;
+  finished_at?: string | null;
+}
+
+export interface LegalSyncParams {
+  environment: LegalEnvironment;
+  dateFrom?: string | null;
+  dateTo?: string | null;
+  markFrom?: string | null;
+  entityVatNumber?: string | null;
+  receiverVatNumber?: string | null;
+  invType?: string | null;
+  maxMark?: string | null;
+  userName?: string | null;
+}
+
+export interface AadeTransmittedLine {
+  lineNumber: number;
+  netValue: number;
+  vatCategory: number;
+  vatAmount: number;
+  itemCode?: string | null;
+  quantity?: number | null;
+}
+
+export interface AadeTransmittedDocument {
+  mark: string;
+  uid?: string;
+  qrUrl?: string;
+  series?: string;
+  aa?: string;
+  issueDate?: string;
+  invoiceType: AadeDocumentType | string;
+  issuerVat?: string;
+  counterpartVat?: string;
+  totals: LegalTotals;
+  lines: AadeTransmittedLine[];
+  rawXml: string;
+}
+
+export interface AadeTransmittedCancellation {
+  invoiceMark: string;
+  cancellationMark?: string;
+  cancellationDate?: string;
+}
+
+export interface AadeTransmittedDocsParseResult {
+  documents: AadeTransmittedDocument[];
+  cancellations: AadeTransmittedCancellation[];
+  nextPartitionKey?: string;
+  nextRowKey?: string;
 }
 
 export interface LegalValidationIssue {

@@ -21,6 +21,8 @@ import {
   SupplierOrder,
   LegalDocument,
   LegalDocumentLine,
+  ProformaDocument,
+  ProformaDocumentLine,
 } from './types';
 import { useMaterials } from './hooks/api/useMaterials';
 import { useMolds } from './hooks/api/useMolds';
@@ -88,6 +90,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
   const [photoCatalogPrintData, setPhotoCatalogPrintData] = useState<Product[] | null>(null);
   const [stageBatchPrintData, setStageBatchPrintData] = useState<StageBatchPrintData | null>(null);
   const [legalDocumentToPrint, setLegalDocumentToPrint] = useState<{ document: LegalDocument; lines: LegalDocumentLine[] } | null>(null);
+  const [proformaToPrint, setProformaToPrint] = useState<{ document: ProformaDocument; lines: ProformaDocumentLine[] } | null>(null);
   const [printItems, setPrintItems] = useState<{ product: Product; variant?: ProductVariant; quantity: number; size?: string; format?: 'standard' | 'simple' | 'retail' }[]>([]);
   const [supplierOrderToPrint, setSupplierOrderToPrint] = useState<SupplierOrder | null>(null);
 
@@ -199,7 +202,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
     pricelist: <MobilePriceList onPrint={setPriceListPrintData} />,
     offers: <MobileOffers onPrintOffer={setOfferToPrint} />,
     analytics: <MobileAnalytics products={products} onPrint={(data) => setAnalyticsPrintData({ ...data, title: 'Οικονομική Ανάλυση' })} />,
-    legal: <LegalDocumentsPage products={products} onPrintLegalDocument={setLegalDocumentToPrint} />,
+    legal: <LegalDocumentsPage products={products} onPrintLegalDocument={setLegalDocumentToPrint} onPrintProforma={setProformaToPrint} />,
     sellers: <MobileSellers />,
   };
 
@@ -227,6 +230,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         photoCatalogPrintData={photoCatalogPrintData}
         stageBatchPrintData={stageBatchPrintData}
         legalDocumentToPrint={legalDocumentToPrint}
+        proformaToPrint={proformaToPrint}
         setPrintItems={setPrintItems as (items: []) => void}
         setOrderToPrint={setOrderToPrint}
         setRemainingOrderToPrint={setRemainingOrderToPrint}
@@ -244,6 +248,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         setPhotoCatalogPrintData={setPhotoCatalogPrintData}
         setStageBatchPrintData={setStageBatchPrintData}
         setLegalDocumentToPrint={setLegalDocumentToPrint}
+        setProformaToPrint={setProformaToPrint}
       />
 
       <MobileLayout

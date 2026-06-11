@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, OrderItem, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, BatchStageHistoryEntry, SyncOfflineResult, LegalSettings, LegalNumberingSequence, LegalCarrier, LegalDocument, LegalDocumentLine, LegalTransmission, LegalDeliveryEvent, AadeProxyResult, AadeCredentialStatus, AadeCredentialSavePayload } from '../types';
+import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, OrderItem, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, BatchStageHistoryEntry, SyncOfflineResult, LegalSettings, LegalNumberingSequence, LegalCarrier, LegalDocument, LegalDocumentLine, LegalTransmission, LegalDeliveryEvent, AadeProxyResult, AadeCredentialStatus, AadeCredentialSavePayload, ProformaDocument, ProformaDocumentLine, LegalSyncParams, LegalSyncRun, AadeDocumentType } from '../types';
 import { INITIAL_SETTINGS, MOCK_MATERIALS, requiresAssemblyStage, requiresSettingStage } from '../constants';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { offlineDb } from './offlineDb';
@@ -18,7 +18,7 @@ import { buildInitialBatchHistoryEntry, canMoveBatchToStage as canMoveBatchToSta
 import { mapCatalogProductsWithRelations, mapProductsWithRelations, resolveProductImageUrl, attachSuppliersToProductRows } from '../features/products/mappers';
 import { getRegisteredQueryClient } from './queryClientRegistry';
 import { addReceivedSizeQuantity, resolveSupplierOrderProductReceiptTarget } from '../features/suppliers/receiptHelpers';
-import { buildAadeInvoiceXml, DEFAULT_LEGAL_SETTINGS, LEGAL_SETTINGS_ID, parseAadeResponseXml, validateLegalDocument } from '../utils/legalDocuments';
+import { buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, parseAadeResponseXml, parseTransmittedDocumentsXml, roundMoney, validateLegalDocument } from '../utils/legalDocuments';
 
 // Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
 export const R2_PUBLIC_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
@@ -243,6 +243,9 @@ const TABLE_DEFAULT_ORDER: Record<string, (query: any) => any> = {
     legal_document_lines: (q) => q.order('line_number'),
     legal_transmissions: (q) => q.order('created_at', { ascending: false }),
     legal_delivery_events: (q) => q.order('created_at', { ascending: false }),
+    legal_sync_runs: (q) => q.order('started_at', { ascending: false }),
+    proforma_documents: (q) => q.order('created_at', { ascending: false }),
+    proforma_document_lines: (q) => q.order('line_number'),
 };
 
 const TABLE_PAGE_TIMEOUT_MS: Record<string, number> = {
@@ -976,6 +979,70 @@ export const api = {
         return rows as LegalDeliveryEvent[];
     },
 
+    getLegalSyncRuns: async (): Promise<LegalSyncRun[]> => {
+        const rows = await fetchFullTable('legal_sync_runs', '*', (q) => q.order('started_at', { ascending: false }).limit(50));
+        return rows as LegalSyncRun[];
+    },
+
+    getProformaDocuments: async (): Promise<ProformaDocument[]> => {
+        const rows = await fetchFullTable('proforma_documents', '*', (q) => q.order('created_at', { ascending: false }));
+        return rows as ProformaDocument[];
+    },
+
+    getProformaDocumentLines: async (proformaId: string): Promise<ProformaDocumentLine[]> => {
+        const rows = await fetchRowsByFilter(
+            'proforma_document_lines',
+            '*',
+            (q) => q.eq('proforma_id', proformaId),
+            {
+                order: (q) => q.order('line_number', { ascending: true }),
+                localFilter: (row) => row.proforma_id === proformaId,
+            }
+        );
+        return (rows || []).map((row: any) => ({
+            ...row,
+            document_id: row.document_id || row.proforma_id,
+        })) as ProformaDocumentLine[];
+    },
+
+    saveProformaDraft: async (document: ProformaDocument, lines: ProformaDocumentLine[]): Promise<void> => {
+        if (document.status !== 'draft') {
+            throw new Error('This proforma is locked and cannot be edited.');
+        }
+        const normalizedDocument: Record<string, unknown> = {
+            ...document,
+            aade_mark: null,
+            updated_at: new Date().toISOString(),
+        };
+        delete normalizedDocument.lines;
+        delete normalizedDocument.aade_mark;
+        await safeMutate('proforma_documents', 'UPSERT', normalizedDocument, { onConflict: 'id', noSelect: true });
+        await safeMutate('proforma_document_lines', 'DELETE', null, { match: { proforma_id: document.id } });
+        if (lines.length > 0) {
+            await safeMutate('proforma_document_lines', 'INSERT', lines.map((line) => {
+                const { document_id: _documentId, lines: _lines, ...row } = line as any;
+                return { ...row, proforma_id: document.id };
+            }), { noSelect: true });
+        }
+    },
+
+    voidProformaDocument: async (documentId: string): Promise<void> => {
+        await safeMutate('proforma_documents', 'UPDATE', {
+            status: 'void',
+            voided_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+        }, { match: { id: documentId }, noSelect: true });
+    },
+
+    markProformaConverted: async (proformaId: string, legalDocumentId: string): Promise<void> => {
+        await safeMutate('proforma_documents', 'UPDATE', {
+            status: 'converted',
+            converted_legal_document_id: legalDocumentId,
+            converted_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+        }, { match: { id: proformaId }, noSelect: true });
+    },
+
     saveLegalDraft: async (document: LegalDocument, lines: LegalDocumentLine[]): Promise<void> => {
         if (document.status !== 'draft' && document.status !== 'failed') {
             throw new Error('This legal document is locked and cannot be edited.');
@@ -996,6 +1063,209 @@ export const api = {
             user_name: document.created_by || null,
             details: { document_kind: document.document_kind, source_kind: document.source_kind },
         }, { noSelect: true });
+    },
+
+    syncTransmittedLegalDocuments: async (params: LegalSyncParams): Promise<LegalSyncRun> => {
+        if (isLocalMode || !navigator.onLine) {
+            throw new Error('AADE historical sync requires an online Supabase and AADE connection.');
+        }
+        const settings = await api.getLegalSettings();
+        const startedAt = new Date().toISOString();
+        const runId = crypto.randomUUID();
+        await supabase.from('legal_sync_runs').insert({
+            id: runId,
+            environment: params.environment,
+            date_from: params.dateFrom || null,
+            date_to: params.dateTo || null,
+            mark_from: params.markFrom || '0',
+            status: 'success',
+            imported_count: 0,
+            updated_count: 0,
+            created_by: params.userName || null,
+            started_at: startedAt,
+        });
+
+        let importedCount = 0;
+        let updatedCount = 0;
+        let nextPartitionKey: string | undefined;
+        let nextRowKey: string | undefined;
+        try {
+            do {
+                const query = buildAadeTransmittedDocsQuery(params, { nextPartitionKey, nextRowKey });
+                const result = await api.callAadeProxy('/aade/request-transmitted-docs', {
+                    environment: params.environment,
+                    query,
+                });
+                const parsed = parseTransmittedDocumentsXml(result.responseText || '');
+                await supabase.from('legal_transmissions').insert({
+                    document_id: null,
+                    action: 'request_transmitted_docs',
+                    endpoint: result.endpoint,
+                    environment: params.environment,
+                    status: result.ok ? 'success' : 'failed',
+                    request_payload: JSON.stringify(query),
+                    response_payload: result.responseText,
+                    error_message: result.ok ? null : `HTTP ${result.status}`,
+                });
+                if (!result.ok) throw new Error(parsed.documents.length ? `AADE sync failed (${result.status})` : (result.parsed?.errors?.join('\n') || `AADE sync failed (${result.status})`));
+
+                const existingDocuments = await api.getLegalDocuments();
+                for (const transmitted of parsed.documents) {
+                    const existing = existingDocuments.find((document) => document.aade_mark === transmitted.mark);
+                    const documentId = existing?.id || crypto.randomUUID();
+                    const now = new Date().toISOString();
+                    const documentKind = getDocumentKindFromAadeType(transmitted.invoiceType as AadeDocumentType);
+                    const lines: LegalDocumentLine[] = transmitted.lines.map((line) => {
+                        const quantity = line.quantity || 1;
+                        const netValue = roundMoney(line.netValue);
+                        return {
+                            id: existing ? crypto.randomUUID() : crypto.randomUUID(),
+                            document_id: documentId,
+                            line_number: line.lineNumber,
+                            sku: line.itemCode || 'AADE',
+                            variant_suffix: null,
+                            description: line.itemCode || `AADE γραμμή ${line.lineNumber}`,
+                            quantity,
+                            unit_price: roundMoney(netValue / quantity),
+                            net_value: netValue,
+                            vat_category: line.vatCategory,
+                            vat_amount: roundMoney(line.vatAmount),
+                            gross_value: roundMoney(line.netValue + line.vatAmount),
+                            measurement_unit: 1,
+                            item_code: line.itemCode || null,
+                            income_classification: {
+                                classification_category: settings.default_income_classification_category,
+                                classification_type: settings.default_income_classification_type,
+                                amount: netValue,
+                            },
+                            source_order_line_key: null,
+                            line_id: null,
+                            created_at: now,
+                        };
+                    });
+                    const documentPayload: LegalDocument = {
+                        id: documentId,
+                        order_id: existing?.order_id || null,
+                        shipment_id: existing?.shipment_id || null,
+                        source_kind: 'aade_sync',
+                        document_kind: documentKind,
+                        aade_document_type: transmitted.invoiceType as AadeDocumentType,
+                        status: existing?.status === 'cancelled' ? 'cancelled' : 'issued',
+                        series: transmitted.series || existing?.series || null,
+                        aa: transmitted.aa || existing?.aa || null,
+                        issue_date: transmitted.issueDate || existing?.issue_date || new Date().toISOString().slice(0, 10),
+                        issuer: {
+                            ...settings.issuer,
+                            vat_number: transmitted.issuerVat || settings.issuer.vat_number,
+                        },
+                        counterpart: {
+                            vat_number: transmitted.counterpartVat || null,
+                            country: 'GR',
+                            branch: 0,
+                            name: existing?.counterpart?.name || transmitted.counterpartVat || 'Συγχρονισμένος λήπτης',
+                            address: existing?.counterpart?.address || null,
+                            phone: existing?.counterpart?.phone || null,
+                            email: existing?.counterpart?.email || null,
+                        },
+                        delivery: existing?.delivery || null,
+                        payment_method_code: existing?.payment_method_code || settings.default_payment_method,
+                        currency: existing?.currency || 'EUR',
+                        vat_rate: existing?.vat_rate || null,
+                        vat_exemption_category: existing?.vat_exemption_category || null,
+                        revenue_classification: [{
+                            classification_category: settings.default_income_classification_category,
+                            classification_type: settings.default_income_classification_type,
+                            amount: transmitted.totals.net,
+                        }],
+                        totals: transmitted.totals,
+                        aade_uid: transmitted.uid || existing?.aade_uid || null,
+                        aade_mark: transmitted.mark,
+                        cancellation_mark: existing?.cancellation_mark || null,
+                        authentication_code: existing?.authentication_code || null,
+                        qr_url: transmitted.qrUrl || existing?.qr_url || null,
+                        last_error: null,
+                        raw_xml: transmitted.rawXml,
+                        locked_at: existing?.locked_at || now,
+                        submitted_at: existing?.submitted_at || null,
+                        cancelled_at: existing?.cancelled_at || null,
+                        printed_at: existing?.printed_at || null,
+                        external_source: 'aade_sync',
+                        synced_at: now,
+                        sync_run_id: runId,
+                        local_notes: existing?.local_notes || null,
+                        created_by: existing?.created_by || params.userName || null,
+                        created_at: existing?.created_at || now,
+                        updated_at: now,
+                        lines,
+                    };
+                    const normalizedDocument: Record<string, unknown> = { ...documentPayload };
+                    delete normalizedDocument.lines;
+                    if (existing) {
+                        await supabase.from('legal_documents').update(normalizedDocument).eq('id', documentId);
+                        updatedCount += 1;
+                    } else {
+                        await supabase.from('legal_documents').insert(normalizedDocument);
+                        importedCount += 1;
+                    }
+                    await supabase.from('legal_document_lines').delete().eq('document_id', documentId);
+                    if (lines.length) await supabase.from('legal_document_lines').insert(lines);
+                }
+
+                for (const cancellation of parsed.cancellations) {
+                    const matching = (await api.getLegalDocuments()).find((document) => document.aade_mark === cancellation.invoiceMark);
+                    if (!matching) continue;
+                    await supabase.from('legal_documents').update({
+                        status: 'cancelled',
+                        cancellation_mark: cancellation.cancellationMark || matching.cancellation_mark,
+                        cancelled_at: cancellation.cancellationDate || new Date().toISOString(),
+                        synced_at: new Date().toISOString(),
+                        sync_run_id: runId,
+                        updated_at: new Date().toISOString(),
+                    }).eq('id', matching.id);
+                    updatedCount += 1;
+                }
+
+                nextPartitionKey = parsed.nextPartitionKey;
+                nextRowKey = parsed.nextRowKey;
+            } while (nextPartitionKey && nextRowKey);
+
+            const finishedAt = new Date().toISOString();
+            await supabase.from('legal_sync_runs').update({
+                status: 'success',
+                imported_count: importedCount,
+                updated_count: updatedCount,
+                next_partition_key: nextPartitionKey || null,
+                next_row_key: nextRowKey || null,
+                finished_at: finishedAt,
+            }).eq('id', runId);
+            return {
+                id: runId,
+                environment: params.environment,
+                date_from: params.dateFrom || null,
+                date_to: params.dateTo || null,
+                mark_from: params.markFrom || '0',
+                status: 'success',
+                imported_count: importedCount,
+                updated_count: updatedCount,
+                next_partition_key: nextPartitionKey || null,
+                next_row_key: nextRowKey || null,
+                created_by: params.userName || null,
+                started_at: startedAt,
+                finished_at: finishedAt,
+            };
+        } catch (error: any) {
+            const finishedAt = new Date().toISOString();
+            await supabase.from('legal_sync_runs').update({
+                status: importedCount || updatedCount ? 'partial' : 'failed',
+                imported_count: importedCount,
+                updated_count: updatedCount,
+                error_message: error?.message || 'AADE sync failed',
+                next_partition_key: nextPartitionKey || null,
+                next_row_key: nextRowKey || null,
+                finished_at: finishedAt,
+            }).eq('id', runId);
+            throw error;
+        }
     },
 
     submitLegalDocument: async (documentId: string, userName?: string | null): Promise<LegalDocument> => {
