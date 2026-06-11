@@ -98,7 +98,7 @@ describe('AADE Worker proxy', () => {
     expect(fetchMock.mock.calls[0][1].method).toBe('GET');
   });
 
-  it('sends cancellation to AADE as GET query with no XML body', async () => {
+  it('sends cancellation to AADE as POST with mark query and no XML body', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response('<ResponseDoc><response><statusCode>Success</statusCode><cancellationMark>456</cancellationMark></response></ResponseDoc>', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -113,12 +113,12 @@ describe('AADE Worker proxy', () => {
     expect(fetchMock.mock.calls[0][0]).toContain('/CancelInvoice?');
     expect(fetchMock.mock.calls[0][0]).toContain('mark=123');
     expect(fetchMock.mock.calls[0][0]).toContain('entityVatNumber=999999999');
-    expect(fetchMock.mock.calls[0][1].method).toBe('GET');
-    expect(fetchMock.mock.calls[0][1].body).toBeUndefined();
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+    expect(fetchMock.mock.calls[0][1].body).toBe('');
   });
 
   it('returns missing credential diagnostics instead of calling AADE', async () => {
-    const result = await callAadeXml({}, 'prod', 'CancelInvoice', '', { mark: '123' }, 'GET');
+    const result = await callAadeXml({}, 'prod', 'CancelInvoice', '', { mark: '123' }, 'POST');
 
     expect(result.ok).toBe(false);
     expect(result.status).toBe(500);

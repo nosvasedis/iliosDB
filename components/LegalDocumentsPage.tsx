@@ -30,6 +30,8 @@ import {
 import { Customer, Product, LegalCarrier, LegalDocument, LegalDocumentKind, LegalDocumentLine, LegalEnvironment, LegalSettings, ProformaDocument, ProformaDocumentLine } from '../types';
 import DesktopPageHeader from './DesktopPageHeader';
 import SkuProductPicker, { SkuProductSelection } from './legal/SkuProductPicker';
+import ProformaConvertModal from './legal/ProformaConvertModal';
+import IncomeClassificationTypeSelect from './legal/IncomeClassificationTypeSelect';
 import { useUI } from './UIProvider';
 import { useAuth } from './AuthContext';
 import { useAllShipmentItems, useAllShipments, useCustomers, useOrdersWithItems } from '../hooks/api/useOrders';
@@ -266,6 +268,14 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
   const [proformaBundle, setProformaBundle] = useState<{ document: ProformaDocument; lines: ProformaDocumentLine[] } | null>(null);
   const [archiveSearch, setArchiveSearch] = useState('');
   const [proformaSearch, setProformaSearch] = useState('');
+  const [proformaStatusFilter, setProformaStatusFilter] = useState<'all' | ProformaDocument['status']>('all');
+  const [convertModal, setConvertModal] = useState<{
+    proforma: ProformaDocument | null;
+    lines: ProformaDocumentLine[];
+    step: 'preview' | 'converting' | 'success';
+    createdDocument: LegalDocument | null;
+    error: string | null;
+  }>({ proforma: null, lines: [], step: 'preview', createdDocument: null, error: null });
   const [syncDraft, setSyncDraft] = useState({
     dateFrom: today(),
     dateTo: today(),
@@ -395,16 +405,35 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
     ].filter(Boolean).join(' ').toLowerCase().includes(needle));
   }, [archiveSearch, legalDocuments]);
 
+  const legalDocumentById = useMemo(
+    () => new Map(legalDocuments.map((document) => [document.id, document])),
+    [legalDocuments],
+  );
+
+  const proformaArchiveStats = useMemo(() => ({
+    all: proformas.length,
+    draft: proformas.filter((document) => document.status === 'draft').length,
+    converted: proformas.filter((document) => document.status === 'converted').length,
+    void: proformas.filter((document) => document.status === 'void').length,
+  }), [proformas]);
+
   const filteredProformas = useMemo(() => {
     const needle = proformaSearch.trim().toLowerCase();
-    if (!needle) return proformas;
-    return proformas.filter((document) => [
-      getLegalDocumentDisplayNumber(document as any),
-      document.counterpart.name,
-      document.counterpart.vat_number,
-      document.notes,
-    ].filter(Boolean).join(' ').toLowerCase().includes(needle));
-  }, [proformaSearch, proformas]);
+    return proformas.filter((document) => {
+      if (proformaStatusFilter !== 'all' && document.status !== proformaStatusFilter) return false;
+      if (!needle) return true;
+      const linkedInvoice = document.converted_legal_document_id
+        ? legalDocumentById.get(document.converted_legal_document_id)
+        : null;
+      return [
+        getLegalDocumentDisplayNumber(document as LegalDocument),
+        document.counterpart.name,
+        document.counterpart.vat_number,
+        document.notes,
+        linkedInvoice ? getLegalDocumentDisplayNumber(linkedInvoice) : '',
+      ].filter(Boolean).join(' ').toLowerCase().includes(needle);
+    });
+  }, [proformaSearch, proformaStatusFilter, proformas, legalDocumentById]);
 
   const deliveryDocuments = useMemo(
     () => legalDocuments.filter((document) =>
@@ -640,26 +669,50 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
     }
   };
 
-  const handleConvertProforma = async (document: ProformaDocument, activeLines?: ProformaDocumentLine[]) => {
+  const openConvertModal = async (document: ProformaDocument, activeLines?: ProformaDocumentLine[]) => {
     try {
       const lines = activeLines || await legalRepository.getProformaLines(document.id);
+      setConvertModal({ proforma: document, lines, step: 'preview', createdDocument: null, error: null });
+    } catch (error: any) {
+      showToast(error?.message || 'Δεν φορτώθηκε το προτιμολόγιο.', 'error');
+    }
+  };
+
+  const closeConvertModal = () => {
+    setConvertModal({ proforma: null, lines: [], step: 'preview', createdDocument: null, error: null });
+  };
+
+  const runProformaConvert = async () => {
+    const { proforma, lines } = convertModal;
+    if (!proforma) return;
+    setConvertModal((current) => ({ ...current, step: 'converting', error: null }));
+    try {
       const draft = convertProformaToLegalDraft({
-        proforma: document,
+        proforma,
         lines,
         settings: settingsDraft,
         kind: 'invoice',
         userName,
       });
       await saveDraft.mutateAsync(draft);
-      if (proformas.some((item) => item.id === document.id)) {
-        await markProformaConverted.mutateAsync({ proformaId: document.id, legalDocumentId: draft.document.id });
+      if (proformas.some((item) => item.id === proforma.id)) {
+        await markProformaConverted.mutateAsync({ proformaId: proforma.id, legalDocumentId: draft.document.id });
       }
       setDraftBundle(draft);
-      setActiveTab('new');
-      showToast('Το προτιμολόγιο μετατράπηκε σε πρόχειρο τιμολόγιο.', 'success');
+      if (proformaBundle?.document.id === proforma.id) setProformaBundle(null);
+      setConvertModal((current) => ({ ...current, step: 'success', createdDocument: draft.document, error: null }));
     } catch (error: any) {
-      showToast(error?.message || 'Δεν έγινε μετατροπή σε τιμολόγιο.', 'error');
+      setConvertModal((current) => ({
+        ...current,
+        step: 'preview',
+        error: error?.message || 'Δεν έγινε μετατροπή σε τιμολόγιο.',
+      }));
     }
+  };
+
+  const handleOpenConvertedInvoice = () => {
+    closeConvertModal();
+    setActiveTab('new');
   };
 
   const handleSyncTransmitted = async () => {
@@ -995,7 +1048,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
                   <th className="w-16 px-2 py-2 text-right">Τιμή</th>
                   <th className="w-20 px-2 py-2 text-right">ΦΠΑ</th>
                   <th className="w-24 px-2 py-2 text-right" title="Καθαρή / ΦΠΑ / Σύνολο">Ποσά</th>
-                  <th className="w-24 px-2 py-2">Χαρ.</th>
+                  <th className="min-w-[11rem] px-2 py-2" title="Χαρακτηρισμός εσόδου myDATA">Χαρ.</th>
                   <th className="w-8 px-2 py-2"></th>
                 </tr>
               </thead>
@@ -1034,7 +1087,12 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
                       <div className="font-black text-slate-900">{money(line.gross_value)}</div>
                     </td>
                     <td className="px-2 py-1.5">
-                      <input value={line.income_classification.classification_type || ''} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, income_classification: { ...item.income_classification, classification_type: event.target.value } } : item), settingsDraft))} className="w-full rounded-lg border border-slate-200 px-1 py-1 text-[10px] outline-none" title="Χαρακτηρισμός εσόδου myDATA, π.χ. E3_561_001." />
+                      <IncomeClassificationTypeSelect
+                        documentType={draftBundle.document.aade_document_type}
+                        category={line.income_classification.classification_category}
+                        value={line.income_classification.classification_type || ''}
+                        onChange={(classification_type) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, income_classification: { ...item.income_classification, classification_type } } : item), settingsDraft))}
+                      />
                     </td>
                     <td className="px-2 py-1.5 text-right">
                       <button
@@ -1292,7 +1350,15 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
                       </select>
                     </td>
                     <td className="px-3 py-2 text-right font-black">{money(line.gross_value)}</td>
-                    <td className="px-3 py-2"><input value={line.income_classification.classification_type || ''} onChange={(event) => updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((item) => item.id === line.id ? { ...item, income_classification: { ...item.income_classification, classification_type: event.target.value } } : item), settingsDraft))} className="w-28 rounded-lg border border-slate-200 px-2 py-1 text-xs outline-none" /></td>
+                    <td className="min-w-[11rem] px-3 py-2">
+                      <IncomeClassificationTypeSelect
+                        documentType="1.1"
+                        category={line.income_classification.classification_category}
+                        value={line.income_classification.classification_type || ''}
+                        onChange={(classification_type) => updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((item) => item.id === line.id ? { ...item, income_classification: { ...item.income_classification, classification_type } } : item), settingsDraft))}
+                        selectClassName="text-xs"
+                      />
+                    </td>
                     <td className="px-3 py-2 text-right">
                       <button type="button" onClick={() => updateProformaBundle((current, lines) => recalculateProforma(current, lines.filter((_, itemIndex) => itemIndex !== index), settingsDraft))} className="rounded-lg p-2 text-red-500 hover:bg-red-50" title="Διαγραφή γραμμής">
                         <Trash2 size={15} />
@@ -1311,7 +1377,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
             <ActionButton onClick={() => handlePrintProforma(document, proformaBundle.lines)}>
               <Printer size={16} /> Εκτύπωση
             </ActionButton>
-            <ActionButton variant="secondary" onClick={() => handleConvertProforma(document, proformaBundle.lines)} disabled={saveDraft.isPending}>
+            <ActionButton variant="secondary" onClick={() => void openConvertModal(document, proformaBundle.lines)} disabled={document.status !== 'draft' || saveDraft.isPending}>
               <Copy size={16} /> Μετατροπή σε τιμολόγιο
             </ActionButton>
           </div>
@@ -1351,20 +1417,40 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
       {renderProformaEditor()}
 
       <section className="rounded-lg border border-slate-200 bg-white">
-        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="font-black text-slate-900">Αρχείο προτιμολογίων</h2>
-            <div className="text-sm font-medium text-slate-500">{filteredProformas.length} εγγραφές</div>
+        <div className="flex flex-col gap-4 border-b border-slate-100 p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="font-black text-slate-900">Αρχείο προτιμολογίων</h2>
+              <div className="text-sm font-medium text-slate-500">{filteredProformas.length} από {proformas.length} εγγραφές</div>
+            </div>
+            <label className="relative w-full md:max-w-sm">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                value={proformaSearch}
+                onChange={(event) => setProformaSearch(event.target.value)}
+                placeholder="Αναζήτηση προτιμολογίων ή τιμολογίου"
+                className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm font-medium outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+              />
+            </label>
           </div>
-          <label className="relative w-full md:max-w-sm">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              value={proformaSearch}
-              onChange={(event) => setProformaSearch(event.target.value)}
-              placeholder="Αναζήτηση προτιμολογίων"
-              className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm font-medium outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
-            />
-          </label>
+          <div className="grid gap-2 sm:grid-cols-4">
+            {([
+              ['all', 'Όλα', proformaArchiveStats.all, 'border-slate-200 bg-slate-50 text-slate-700'],
+              ['draft', 'Πρόχειρα', proformaArchiveStats.draft, 'border-sky-200 bg-sky-50 text-sky-700'],
+              ['converted', 'Μετατράπηκαν', proformaArchiveStats.converted, 'border-emerald-200 bg-emerald-50 text-emerald-700'],
+              ['void', 'Ακυρωμένα', proformaArchiveStats.void, 'border-slate-200 bg-slate-100 text-slate-500'],
+            ] as const).map(([id, label, count, className]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setProformaStatusFilter(id)}
+                className={`rounded-xl border px-3 py-2 text-left transition ${proformaStatusFilter === id ? 'ring-2 ring-sky-300' : 'hover:brightness-95'} ${className}`}
+              >
+                <div className="text-[10px] font-black uppercase tracking-wide">{label}</div>
+                <div className="text-xl font-black">{count}</div>
+              </button>
+            ))}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
@@ -1373,47 +1459,76 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
                 <th className="px-4 py-3">Προτιμολόγιο</th>
                 <th className="px-4 py-3">Πελάτης</th>
                 <th className="px-4 py-3">Κατάσταση</th>
+                <th className="px-4 py-3">Σύνδεση</th>
                 <th className="px-4 py-3 text-right">Αξία</th>
                 <th className="px-4 py-3 text-right">Ενέργειες</th>
               </tr>
             </thead>
             <tbody>
               {loadingProformas ? (
-                <tr><td colSpan={5} className="px-4 py-10 text-center text-slate-500"><Loader2 size={24} className="mx-auto animate-spin" /></td></tr>
+                <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-500"><Loader2 size={24} className="mx-auto animate-spin" /></td></tr>
               ) : filteredProformas.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-10 text-center text-slate-500">Δεν υπάρχουν προτιμολόγια.</td></tr>
-              ) : filteredProformas.map((document) => (
-                <tr key={document.id} className="border-b border-slate-100 bg-white align-top">
-                  <td className="px-4 py-3">
-                    <div className="font-black text-slate-900">{getLegalDocumentDisplayNumber(document as any)}</div>
-                    <div className="text-xs font-bold text-sky-700">Δεν αποστέλλεται στη myDATA</div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="font-bold text-slate-800">{document.counterpart.name || '-'}</div>
-                    <div className="text-xs font-mono text-slate-500">ΑΦΜ {document.counterpart.vat_number || '-'}</div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex rounded-lg border px-2 py-1 text-xs font-black ${proformaStatusClass[document.status]}`}>{proformaStatusLabel[document.status]}</span>
-                  </td>
-                  <td className="px-4 py-3 text-right font-black">{money(document.totals.gross)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <ActionButton variant="secondary" onClick={() => void handleEditProforma(document)} disabled={document.status === 'void'}>
-                        <Edit3 size={16} /> Άνοιγμα
-                      </ActionButton>
-                      <ActionButton variant="secondary" onClick={() => void handlePrintProforma(document)} disabled={!canPrintProforma(document)}>
-                        <Printer size={16} /> Εκτύπωση
-                      </ActionButton>
-                      <ActionButton variant="secondary" onClick={() => void handleConvertProforma(document)} disabled={document.status !== 'draft'}>
-                        <Copy size={16} /> Μετατροπή
-                      </ActionButton>
-                      <ActionButton variant="danger" onClick={() => void handleVoidProforma(document)} disabled={document.status !== 'draft'}>
-                        <Ban size={16} /> Ακύρωση
-                      </ActionButton>
-                    </div>
+                <tr>
+                  <td colSpan={6} className="px-4 py-10 text-center text-slate-500">
+                    {proformas.length === 0
+                      ? 'Δεν υπάρχουν προτιμολόγια. Δημιουργήστε ένα από παραγγελία ή κενό πρότυπο.'
+                      : 'Δεν βρέθηκαν προτιμολόγια με τα τρέχοντα φίλτρα.'}
                   </td>
                 </tr>
-              ))}
+              ) : filteredProformas.map((document) => {
+                const linkedInvoice = document.converted_legal_document_id
+                  ? legalDocumentById.get(document.converted_legal_document_id)
+                  : null;
+                return (
+                  <tr key={document.id} className="border-b border-slate-100 bg-white align-top">
+                    <td className="px-4 py-3">
+                      <div className="font-black text-slate-900">{getLegalDocumentDisplayNumber(document as LegalDocument)}</div>
+                      <div className="text-xs font-bold text-sky-700">Δεν αποστέλλεται στη myDATA</div>
+                      {document.issue_date && <div className="mt-1 text-xs text-slate-500">{document.issue_date}</div>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="font-bold text-slate-800">{document.counterpart.name || '-'}</div>
+                      <div className="text-xs font-mono text-slate-500">ΑΦΜ {document.counterpart.vat_number || '-'}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex rounded-lg border px-2 py-1 text-xs font-black ${proformaStatusClass[document.status]}`}>{proformaStatusLabel[document.status]}</span>
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {linkedInvoice ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleOpenLegalDocument(linkedInvoice)}
+                          className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-left text-xs font-black text-emerald-800 hover:bg-emerald-100"
+                        >
+                          {getLegalDocumentDisplayNumber(linkedInvoice)}
+                          <div className="font-medium text-emerald-600">{statusLabel[linkedInvoice.status]}</div>
+                        </button>
+                      ) : document.status === 'draft' ? (
+                        <span className="text-xs font-medium text-slate-400">Έτοιμο για μετατροπή</span>
+                      ) : (
+                        <span className="text-xs font-medium text-slate-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right font-black">{money(document.totals.gross)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <ActionButton variant="secondary" onClick={() => void handleEditProforma(document)} disabled={document.status === 'void'}>
+                          <Edit3 size={16} /> Άνοιγμα
+                        </ActionButton>
+                        <ActionButton variant="secondary" onClick={() => void handlePrintProforma(document)} disabled={!canPrintProforma(document)}>
+                          <Printer size={16} /> Εκτύπωση
+                        </ActionButton>
+                        <ActionButton variant="secondary" onClick={() => void openConvertModal(document)} disabled={document.status !== 'draft' || saveDraft.isPending}>
+                          <Copy size={16} /> Μετατροπή
+                        </ActionButton>
+                        <ActionButton variant="danger" onClick={() => void handleVoidProforma(document)} disabled={document.status !== 'draft'}>
+                          <Ban size={16} /> Ακύρωση
+                        </ActionButton>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -1886,6 +2001,19 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
       {activeTab === 'sync' && renderSyncTab()}
       {activeTab === 'delivery' && renderDeliveryTab()}
       {activeTab === 'settings' && renderSettingsTab()}
+
+      <ProformaConvertModal
+        isOpen={!!convertModal.proforma}
+        step={convertModal.step}
+        proforma={convertModal.proforma}
+        lines={convertModal.lines}
+        createdDocument={convertModal.createdDocument}
+        errorMessage={convertModal.error}
+        onConfirm={() => void runProformaConvert()}
+        onClose={closeConvertModal}
+        onOpenInvoice={handleOpenConvertedInvoice}
+        money={money}
+      />
     </div>
   );
 }

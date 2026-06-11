@@ -4,6 +4,9 @@ import {
   AADE_REVENUE_CLASSIFICATION_COMBINATIONS,
   AADE_VAT_CATEGORY_LINE_OPTIONS,
   AADE_VAT_CATEGORY_OPTIONS,
+  formatAadeIncomeCategoryLabel,
+  formatAadeIncomeTypeLabel,
+  getAllowedIncomeTypeOptions,
   applyLegalDocumentDeliveryToggle,
   buildAadeInvoiceXml,
   buildAadeTransmittedDocsQuery,
@@ -117,6 +120,13 @@ describe('legal document helpers', () => {
     expect(AADE_VAT_CATEGORY_LINE_OPTIONS.map((option) => option.category)).toEqual([1, 4, 2, 5, 3, 6, 9, 7, 10]);
     expect(AADE_REVENUE_CLASSIFICATION_COMBINATIONS['1.1']).toContainEqual(['category1_2', 'E3_561_001']);
     expect(AADE_REVENUE_CLASSIFICATION_COMBINATIONS['9.3']).toEqual([['category3', '']]);
+    expect(formatAadeIncomeTypeLabel('E3_561_001')).toBe('Χονδρικές πωλήσεις σε επαγγελματίες (E3_561_001)');
+    expect(formatAadeIncomeCategoryLabel('category1_2')).toBe('Πώληση προϊόντων (category1_2)');
+    expect(getAllowedIncomeTypeOptions('1.1', 'category1_2').map((option) => option.value)).toEqual([
+      'E3_561_001',
+      'E3_561_002',
+      'E3_561_007',
+    ]);
   });
 
   it('builds an invoice draft with totals and revenue classification', () => {

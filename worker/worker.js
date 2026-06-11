@@ -324,7 +324,7 @@ async function handleAadeRoute(request, env, corsHeaders, url) {
   const environment = payload.environment === 'prod' ? 'prod' : 'dev';
   const routeMap = {
     '/aade/send-invoices': { method: 'SendInvoices', xml: payload.xml },
-    '/aade/cancel-invoice': { method: 'CancelInvoice', xml: '', query: { mark: payload.mark, entityVatNumber: payload.entityVatNumber }, httpMethod: 'GET' },
+    '/aade/cancel-invoice': { method: 'CancelInvoice', xml: '', query: { mark: payload.mark, entityVatNumber: payload.entityVatNumber } },
     '/aade/send-payments-method': { method: 'SendPaymentsMethod', xml: payload.xml },
     '/aade/request-transmitted-docs': { method: 'RequestTransmittedDocs', xml: '', query: payload.query, httpMethod: 'GET' },
     '/aade/register-transfer': { method: 'RegisterTransfer', xml: payload.xml || buildDeliveryXml('RegisterTransferRequest', payload) },

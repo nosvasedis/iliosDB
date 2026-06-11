@@ -1477,23 +1477,26 @@ export const api = {
             throw new Error('Only an issued document with MARK can be cancelled.');
         }
 
-        const result = await api.callAadeProxy('/aade/cancel-invoice', {
+        const cancelPayload = {
             environment: settings.environment,
             mark: document.aade_mark,
-        });
+            entityVatNumber: settings.issuer?.vat_number || document.issuer?.vat_number || undefined,
+        };
+        const result = await api.callAadeProxy('/aade/cancel-invoice', cancelPayload);
         const parsed = result.parsed || parseAadeResponseXml(result.responseText || '');
         const success = result.ok && parsed.statusCode === 'Success' && !!parsed.cancellationMark;
+        const failureMessage = getAadeProxyErrorMessage(result, 'AADE rejected cancellation.');
         await supabase.from('legal_transmissions').insert({
             document_id: document.id,
             action: 'cancel_invoice',
             endpoint: result.endpoint,
             environment: settings.environment,
             status: success ? 'success' : 'failed',
-            request_payload: JSON.stringify({ mark: document.aade_mark }),
+            request_payload: JSON.stringify({ mark: document.aade_mark, entityVatNumber: cancelPayload.entityVatNumber || null }),
             response_payload: result.responseText,
-            error_message: success ? null : (parsed.errors?.join('\n') || parsed.statusCode || `HTTP ${result.status}`),
+            error_message: success ? null : failureMessage,
         });
-        if (!success) throw new Error(parsed.errors?.join('\n') || parsed.statusCode || 'AADE rejected cancellation.');
+        if (!success) throw new Error(failureMessage);
 
         const now = new Date().toISOString();
         await supabase.from('legal_documents').update({

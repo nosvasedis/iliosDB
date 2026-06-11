@@ -214,6 +214,40 @@ export const AADE_INCOME_CATEGORY_OPTIONS = Object.entries(AADE_INCOME_CATEGORY_
 export const AADE_INCOME_TYPE_OPTIONS = Object.entries(AADE_INCOME_TYPE_LABELS)
   .map(([value, label]) => ({ value, label: `${label} (${value})` }));
 
+export function formatAadeIncomeCategoryLabel(code: string | null | undefined): string {
+  const value = String(code || '').trim();
+  if (!value) return '—';
+  const label = AADE_INCOME_CATEGORY_LABELS[value];
+  return label ? `${label} (${value})` : value;
+}
+
+export function formatAadeIncomeTypeLabel(code: string | null | undefined): string {
+  const value = String(code || '').trim();
+  if (!value) return '—';
+  const label = AADE_INCOME_TYPE_LABELS[value];
+  return label ? `${label} (${value})` : value;
+}
+
+export function getAllowedIncomeTypeOptions(
+  documentType: AadeDocumentType,
+  category?: string | null,
+): Array<{ value: string; label: string }> {
+  const combinations = AADE_REVENUE_CLASSIFICATION_COMBINATIONS[documentType];
+  if (!combinations) return AADE_INCOME_TYPE_OPTIONS;
+  const normalizedCategory = String(category || '').trim();
+  const allowedTypes = new Set(
+    combinations
+      .filter(([cat, type]) => type && (!normalizedCategory || cat === normalizedCategory))
+      .map(([, type]) => type),
+  );
+  if (!allowedTypes.size) {
+    return AADE_INCOME_TYPE_OPTIONS.filter((option) =>
+      combinations.some(([, type]) => type === option.value),
+    );
+  }
+  return AADE_INCOME_TYPE_OPTIONS.filter((option) => allowedTypes.has(option.value));
+}
+
 export function getAadeDocumentTypeForKind(kind: LegalDocumentKind): AadeDocumentType {
   if (kind === 'delivery_note') return '9.3';
   if (kind === 'credit') return '5.2';
@@ -1245,6 +1279,15 @@ export function getAadeProxyErrorMessage(result: Pick<AadeProxyResult, 'status' 
     ...(result.parsed?.errors || []),
     ...parseAadeResponseXml(responseText).errors,
   ].map((message) => message.trim()).filter(Boolean);
+  if (!errors.length && responseText.trim().startsWith('{')) {
+    try {
+      const json = JSON.parse(responseText) as { message?: string; statusCode?: number | string };
+      if (json.message) errors.push(String(json.message));
+      else if (json.statusCode) errors.push(`AADE HTTP ${json.statusCode}`);
+    } catch {
+      // ignore malformed JSON
+    }
+  }
   if (errors.length) return errors.join('\n');
   if (result.status === 400) {
     return 'Η ΑΑΔΕ απέρριψε το αίτημα συγχρονισμού. Ελέγξτε τις ημερομηνίες, το MARK και τα προαιρετικά φίλτρα.';
