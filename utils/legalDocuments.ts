@@ -303,6 +303,23 @@ export function normalizeVatNumber(value?: string | null): string {
   return (value || '').replace(/^EL/i, '').replace(/\D/g, '').slice(0, 9);
 }
 
+export function isGreekParty(party: Pick<LegalParty, 'country'>): boolean {
+  const country = String(party.country || 'GR').trim().toUpperCase();
+  return country === 'GR' || country === 'EL';
+}
+
+export function isValidGreekVatNumber(value?: string | null): boolean {
+  const digits = normalizeVatNumber(value);
+  if (!/^\d{9}$/.test(digits) || digits === '000000000') return false;
+  let sum = 0;
+  for (let index = 0; index < 8; index += 1) {
+    sum += Number(digits.charAt(index)) * (2 ** (8 - index));
+  }
+  const remainder = sum % 11;
+  const expectedCheckDigit = remainder % 10;
+  return expectedCheckDigit === Number(digits.charAt(8));
+}
+
 function parseAddress(address?: string | null): LegalPartyAddress | null {
   if (!address) return null;
   return { street: address, number: '', postal_code: '', city: '' };
@@ -995,9 +1012,21 @@ export function validateLegalDocument(document: LegalDocument, lines: LegalDocum
 
   if (!normalizeVatNumber(document.issuer.vat_number)) {
     issues.push({ field: 'issuer.vat_number', severity: 'error', message: 'Συμπληρώστε ΑΦΜ εκδότη στις ρυθμίσεις.' });
+  } else if (isGreekParty(document.issuer) && !isValidGreekVatNumber(document.issuer.vat_number)) {
+    issues.push({
+      field: 'issuer.vat_number',
+      severity: 'error',
+      message: 'Ο ΑΦΜ εκδότη δεν είναι έγκυρος ελληνικός ΑΦΜ. Στο myDATA dev/prod χρειάζεται ο πραγματικός ΑΦΜ της εγγραφής REST API (ίδιος με το AADE User ID).',
+    });
   }
   if (!normalizeVatNumber(document.counterpart.vat_number)) {
     issues.push({ field: 'counterpart.vat_number', severity: 'error', message: 'Ο πελάτης χρειάζεται έγκυρο ΑΦΜ για B2B παραστατικό.' });
+  } else if (isGreekParty(document.counterpart) && !isValidGreekVatNumber(document.counterpart.vat_number)) {
+    issues.push({
+      field: 'counterpart.vat_number',
+      severity: 'error',
+      message: 'Ο ΑΦΜ πελάτη δεν είναι έγκυρος ελληνικός ΑΦΜ. Η ΑΑΔΕ δεν δέχεται πλαστικούς αριθμούς (π.χ. 999999999), ούτε στο dev.',
+    });
   }
   if (!document.issue_date) {
     issues.push({ field: 'issue_date', severity: 'error', message: 'Λείπει ημερομηνία έκδοσης.' });
@@ -1090,11 +1119,12 @@ function buildAddressXml(tag: string, address?: LegalPartyAddress | null): strin
 
 function buildPartyXml(tag: string, party: LegalParty, includeAddress = true): string {
   const vat = normalizeVatNumber(party.vat_number);
+  const greekParty = isGreekParty(party);
   const children = [
     xmlTag('vatNumber', vat),
     xmlTag('country', party.country || 'GR'),
     xmlTag('branch', party.branch ?? 0),
-    includeAddress ? buildAddressXml('address', party.address) : '',
+    includeAddress && !greekParty ? buildAddressXml('address', party.address) : '',
   ].join('');
   return `<${tag}>${children}</${tag}>`;
 }

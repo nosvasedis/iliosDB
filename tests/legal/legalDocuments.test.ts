@@ -25,6 +25,7 @@ import {
   parseTransmittedDocumentsXml,
   recalculateLegalDocument,
   recalculateProforma,
+  isValidGreekVatNumber,
   validateLegalDocument,
   vatRateToAadeCategory,
 } from '../../utils/legalDocuments';
@@ -35,7 +36,7 @@ const settings = {
     ...DEFAULT_LEGAL_SETTINGS.issuer,
     business_name: 'ILIOS TEST',
     name: 'ILIOS TEST',
-    vat_number: '123456789',
+    vat_number: '094259216',
     address: { street: 'Test', number: '1', postal_code: '11111', city: 'Athens' },
   },
   loading_address: { street: 'Test', number: '1', postal_code: '11111', city: 'Athens' },
@@ -44,7 +45,7 @@ const settings = {
 const customer: Customer = {
   id: 'customer-1',
   full_name: 'B2B Customer',
-  vat_number: '987654321',
+  vat_number: '987654324',
   address: 'Client Street 2 22222 Athens',
   phone: '2100000000',
   created_at: '2026-06-11T08:00:00.000Z',
@@ -165,6 +166,8 @@ describe('legal document helpers', () => {
     expect(xml).toContain('xmlns:icls="https://www.aade.gr/myDATA/incomeClassificaton/v1.0"');
     expect(xml).toContain('<icls:classificationType>E3_561_001</icls:classificationType>');
     expect(xml).not.toContain('<itemCode>');
+    expect(xml).not.toMatch(/<issuer>[\s\S]*<address>/);
+    expect(xml).not.toMatch(/<counterpart>[\s\S]*<address>/);
     expect(xml.indexOf('<invoiceHeader>')).toBeLessThan(xml.indexOf('<paymentMethods>'));
     expect(xml).not.toContain('<isDeliveryNote>');
     expect(validateLegalDocument(document, document.lines).some((issue) => issue.field.startsWith('delivery'))).toBe(false);
@@ -222,6 +225,25 @@ describe('legal document helpers', () => {
     expect(xml).toContain('<icls:classificationCategory>category3</icls:classificationCategory>');
     expect(xml).not.toContain('<icls:classificationType>');
     expect(errors).toEqual([]);
+  });
+
+  it('rejects fake Greek VAT numbers before AADE submission', () => {
+    expect(isValidGreekVatNumber('999999999')).toBe(false);
+    expect(isValidGreekVatNumber('094259216')).toBe(true);
+
+    const document = buildLegalDocumentFromOrder({
+      order: baseOrder,
+      customer: { ...customer, vat_number: '999999999' },
+      products: [product],
+      settings: {
+        ...settings,
+        issuer: { ...settings.issuer, vat_number: '999999999' },
+      },
+      kind: 'invoice',
+    });
+    const issues = validateLegalDocument(document, document.lines).filter((issue) => issue.severity === 'error');
+    expect(issues.some((issue) => issue.field === 'issuer.vat_number')).toBe(true);
+    expect(issues.some((issue) => issue.field === 'counterpart.vat_number')).toBe(true);
   });
 
   it('parses wrapped and encoded AADE error responses', () => {
@@ -412,7 +434,7 @@ describe('legal document helpers', () => {
     });
     expect(deliveryDocument.aade_document_type).toBe('9.3');
     expect(deliveryDocument.delivery?.dispatch_date).toBeTruthy();
-    expect(deliveryDocument.counterpart.vat_number).toBe('987654321');
+    expect(deliveryDocument.counterpart.vat_number).toBe('987654324');
 
     const proforma = buildManualProforma({
       settings,
@@ -493,8 +515,8 @@ describe('legal document helpers', () => {
         </continuationToken>
         <invoicesDoc>
           <invoice>
-            <issuer><vatNumber>123456789</vatNumber><country>GR</country><branch>0</branch></issuer>
-            <counterpart><vatNumber>987654321</vatNumber><country>GR</country><branch>0</branch></counterpart>
+            <issuer><vatNumber>094259216</vatNumber><country>GR</country><branch>0</branch></issuer>
+            <counterpart><vatNumber>987654324</vatNumber><country>GR</country><branch>0</branch></counterpart>
             <invoiceHeader>
               <series>TIM</series>
               <aa>44</aa>
@@ -556,8 +578,8 @@ describe('legal document helpers', () => {
       dateFrom: '2026-06-01',
       dateTo: '2026-06-30',
       markFrom: '100',
-      entityVatNumber: 'EL123456789',
-      receiverVatNumber: '987-654-321',
+      entityVatNumber: 'EL094259216',
+      receiverVatNumber: '987-654-324',
       invType: '1.1',
       maxMark: '999',
     }, {
@@ -569,8 +591,8 @@ describe('legal document helpers', () => {
       mark: '100',
       dateFrom: '01/06/2026',
       dateTo: '30/06/2026',
-      entityVatNumber: '123456789',
-      receiverVatNumber: '987654321',
+      entityVatNumber: '094259216',
+      receiverVatNumber: '987654324',
       invType: '1.1',
       maxMark: '999',
       nextPartitionKey: 'pk',
