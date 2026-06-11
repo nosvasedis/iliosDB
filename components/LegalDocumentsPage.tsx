@@ -81,6 +81,7 @@ import {
   AADE_VAT_CATEGORY_OPTIONS,
   DEFAULT_LEGAL_SETTINGS,
   getLegalDocumentDisplayNumber,
+  isLegalDocumentEditable,
   LEGAL_DOCUMENT_KIND_LABELS,
   normalizeVatNumber,
   PAYMENT_METHOD_CODES,
@@ -100,10 +101,7 @@ interface LegalDocumentsPageProps {
   onPrintProforma?: (payload: { document: ProformaDocument; lines: ProformaDocumentLine[] } | null) => void;
 }
 
-const tabItems: Array<{ id: LegalTab; label: string; icon: LucideIcon }> = [
-  { id: 'new', label: 'Δημιουργία', icon: FileCheck2 },
-  { id: 'proformas', label: 'Προτιμολόγια', icon: FileText },
-  { id: 'archive', label: 'Αρχείο', icon: Archive },
+const secondaryTabItems: Array<{ id: LegalTab; label: string; icon: LucideIcon }> = [
   { id: 'sync', label: 'Συγχρονισμός', icon: RefreshCw },
   { id: 'delivery', label: 'Διακίνηση', icon: Truck },
   { id: 'settings', label: 'Τεχνικές ρυθμίσεις', icon: Settings },
@@ -259,7 +257,7 @@ const ActionButton = ({
 };
 
 export default function LegalDocumentsPage({ products, onPrintLegalDocument, onPrintProforma }: LegalDocumentsPageProps) {
-  const [activeTab, setActiveTab] = useState<LegalTab>('new');
+  const [activeTab, setActiveTab] = useState<LegalTab>('proformas');
   const [selectedOrderId, setSelectedOrderId] = useState('');
   const [selectedShipmentId, setSelectedShipmentId] = useState('');
   const [documentKind, setDocumentKind] = useState<LegalDocumentKind>('invoice');
@@ -609,6 +607,12 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
 
   const handleSaveDraft = async () => {
     if (!draftBundle) return;
+    if (!isLegalDocumentEditable(draftBundle.document)) {
+      showToast('Το παραστατικό είναι κλειδωμένο. Δείτε το στο Αρχείο.', 'info');
+      setDraftBundle(null);
+      setActiveTab('archive');
+      return;
+    }
     try {
       await saveDraft.mutateAsync(draftBundle);
       showToast('Το παραστατικό αποθηκεύτηκε ως πρόχειρο.', 'success');
@@ -752,16 +756,30 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
 
   const handleSubmitDraft = async () => {
     if (!draftBundle || validationErrors.length > 0) return;
+    if (!isLegalDocumentEditable(draftBundle.document)) {
+      showToast('Το παραστατικό έχει ήδη εκδοθεί. Βρίσκεται στο Αρχείο.', 'info');
+      setArchiveSearch(getLegalDocumentDisplayNumber(draftBundle.document));
+      setDraftBundle(null);
+      setActiveTab('archive');
+      return;
+    }
     if (!(await ensureAadeCredentialsReady())) return;
     try {
       await saveDraft.mutateAsync(draftBundle);
       const issued = await submitDocument.mutateAsync({ documentId: draftBundle.document.id, userName });
-      setDraftBundle({ document: issued, lines: draftBundle.lines });
+      setArchiveSearch(getLegalDocumentDisplayNumber(issued));
+      setDraftBundle(null);
       setActiveTab('archive');
-      showToast(`Αποδοχή myDATA με MARK ${issued.aade_mark}.`, 'success');
+      showToast(`Αποδοχή myDATA με MARK ${issued.aade_mark}. Το παραστατικό μεταφέρθηκε στο Αρχείο.`, 'success');
     } catch (error: any) {
       showToast(error?.message || 'Η AADE απέρριψε το παραστατικό.', 'error');
     }
+  };
+
+  const startNewDocumentWorkspace = () => {
+    setDraftBundle(null);
+    setProformaBundle(null);
+    setActiveTab('new');
   };
 
   const handleRetry = async (document: LegalDocument) => {
@@ -914,6 +932,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
     }
 
     const document = draftBundle.document;
+    const editable = isLegalDocumentEditable(document);
     const includesDelivery = documentIncludesDeliveryNote(document);
     const isStandaloneDeliveryNote = document.document_kind === 'delivery_note';
     const canToggleDelivery = document.document_kind === 'invoice' || document.document_kind === 'invoice_delivery';
@@ -933,7 +952,26 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
             </span>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {!editable && (
+            <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">
+              <div className="font-black">Το παραστατικό δεν είναι πλέον πρόχειρο.</div>
+              <div className="mt-1 text-emerald-800">
+                {document.status === 'issued'
+                  ? `Εκδόθηκε με MARK ${document.aade_mark || '—'}. Δείτε το στο Αρχείο για εκτύπωση ή ακύρωση.`
+                  : 'Δείτε το στο Αρχείο για τις διαθέσιμες ενέργειες.'}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <ActionButton variant="secondary" onClick={() => { setArchiveSearch(getLegalDocumentDisplayNumber(document)); setDraftBundle(null); setActiveTab('archive'); }}>
+                  <Archive size={16} /> Μετάβαση στο Αρχείο
+                </ActionButton>
+                <ActionButton variant="quiet" onClick={startNewDocumentWorkspace}>
+                  <Plus size={16} /> Νέο παραστατικό
+                </ActionButton>
+              </div>
+            </div>
+          )}
+
+          <fieldset disabled={!editable} className={`mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 ${!editable ? 'opacity-60' : ''}`}>
             <SelectInput label="Πελάτης εφαρμογής" value="" onChange={(value) => applyCustomerToDraft(value, 'legal')} help="Γεμίζει αυτόματα ΑΦΜ, επωνυμία, στοιχεία επικοινωνίας και καθεστώς ΦΠΑ από τους πελάτες του ERP.">
               <option value="">Χειροκίνητα / χωρίς αλλαγή</option>
               {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.full_name}{customer.vat_number ? ` | ΑΦΜ ${customer.vat_number}` : ''}</option>)}
@@ -952,7 +990,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
             <TextInput label="Τ.Κ." value={document.counterpart.address?.postal_code || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, address: { ...(current.counterpart.address || {}), postal_code: value } } }))} />
             <TextInput label="Πόλη" value={document.counterpart.address?.city || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, address: { ...(current.counterpart.address || {}), city: value } } }))} />
             <TextInput label="Αιτία απαλλαγής ΦΠΑ" type="number" value={document.vat_exemption_category || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, vat_exemption_category: value ? Number(value) : null }))} />
-          </div>
+          </fieldset>
 
           {(isStandaloneDeliveryNote || canToggleDelivery) && (
             <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/70">
@@ -1018,12 +1056,12 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
           )}
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-4">
+        <section className={`rounded-lg border border-slate-200 bg-white p-4 ${!editable ? 'opacity-60' : ''}`}>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <h3 className="font-black text-slate-900">Γραμμές</h3>
             <div className="flex flex-wrap items-center gap-2">
               <div className="text-sm font-black text-slate-700">{draftBundle.lines.length} γραμμές | {money(document.totals.gross)}</div>
-              <ActionButton variant="secondary" onClick={() => updateDraftBundle((current, lines) => recalculateLegalDocument(current, [
+              <ActionButton variant="secondary" disabled={!editable} onClick={() => updateDraftBundle((current, lines) => recalculateLegalDocument(current, [
                 ...lines,
                 createManualLegalDocumentLine({
                   documentId: current.id,
@@ -1114,45 +1152,66 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
     );
   };
 
-  const renderValidation = () => (
-    <section className="rounded-lg border border-slate-200 bg-white p-5">
-      <div className="mb-4 flex items-center gap-2">
-        <ClipboardCheck size={18} className="text-emerald-600" />
-        <h3 className="font-black text-slate-900">Έλεγχος πριν την υποβολή</h3>
-      </div>
-      {!draftBundle ? (
-        <div className="text-sm font-medium text-slate-500">Δεν υπάρχει πρόχειρο για έλεγχο.</div>
-      ) : validationIssues.length === 0 ? (
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-700">
-          <CheckCircle2 size={16} /> Έτοιμο για υποβολή
+  const renderValidation = () => {
+    const editable = draftBundle ? isLegalDocumentEditable(draftBundle.document) : false;
+
+    return (
+      <section className="rounded-lg border border-slate-200 bg-white p-5">
+        <div className="mb-4 flex items-center gap-2">
+          <ClipboardCheck size={18} className="text-emerald-600" />
+          <h3 className="font-black text-slate-900">Έλεγχος & υποβολή</h3>
         </div>
-      ) : (
-        <div className="space-y-2">
-          {validationIssues.map((issue) => (
-            <div key={`${issue.field}-${issue.message}`} className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm font-bold ${issue.severity === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
-              {issue.severity === 'error' ? <XCircle size={16} className="mt-0.5 shrink-0" /> : <AlertTriangle size={16} className="mt-0.5 shrink-0" />}
-              <span>{issue.message}</span>
+        {!draftBundle ? (
+          <div className="text-sm font-medium text-slate-500">Δημιουργήστε πρόχειρο για έλεγχο και αποστολή στη myDATA.</div>
+        ) : !editable ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-700">
+              <CheckCircle2 size={16} />
+              {draftBundle.document.status === 'issued' ? 'Εκδόθηκε — δεν μπορεί να ξανασταλεί' : 'Κλειδωμένο παραστατικό'}
             </div>
-          ))}
-        </div>
-      )}
-      <div className="mt-5 flex flex-wrap gap-2">
-        <ActionButton variant="secondary" onClick={handleSaveDraft} disabled={!draftBundle || saveDraft.isPending}>
-          {saveDraft.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Αποθήκευση
-        </ActionButton>
-        <ActionButton onClick={handleSubmitDraft} disabled={!draftBundle || validationErrors.length > 0 || submitDocument.isPending || saveDraft.isPending}>
-          {submitDocument.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Υποβολή στη myDATA
-        </ActionButton>
-      </div>
-    </section>
-  );
+            <ActionButton variant="secondary" onClick={() => { setArchiveSearch(getLegalDocumentDisplayNumber(draftBundle.document)); setDraftBundle(null); setActiveTab('archive'); }}>
+              <Archive size={16} /> Άνοιγμα στο Αρχείο
+            </ActionButton>
+          </div>
+        ) : validationIssues.length === 0 ? (
+          <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-700">
+            <CheckCircle2 size={16} /> Έτοιμο για υποβολή στη myDATA
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {validationIssues.map((issue) => (
+              <div key={`${issue.field}-${issue.message}`} className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm font-bold ${issue.severity === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                {issue.severity === 'error' ? <XCircle size={16} className="mt-0.5 shrink-0" /> : <AlertTriangle size={16} className="mt-0.5 shrink-0" />}
+                <span>{issue.message}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {editable && (
+          <div className="mt-5 flex flex-wrap gap-2">
+            <ActionButton variant="secondary" onClick={handleSaveDraft} disabled={!draftBundle || saveDraft.isPending}>
+              {saveDraft.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Αποθήκευση πρόχειρου
+            </ActionButton>
+            <ActionButton onClick={handleSubmitDraft} disabled={!draftBundle || validationErrors.length > 0 || submitDocument.isPending || saveDraft.isPending}>
+              {submitDocument.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Υποβολή στη myDATA
+            </ActionButton>
+          </div>
+        )}
+      </section>
+    );
+  };
 
   const renderNewTab = () => (
-    <div className="grid gap-5 lg:grid-cols-[minmax(250px,290px)_minmax(0,1fr)]">
+    <div className="space-y-4">
+      <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
+        <span className="font-black">Δημιουργία</span> — νέο πρόχειρο παραστατικό, έλεγχος και υποβολή στη myDATA.
+        {' '}Μετά την έκδοση, το παραστατικό μεταφέρεται αυτόματα στο <span className="font-black">Αρχείο</span>.
+      </div>
+      <div className="grid gap-5 lg:grid-cols-[minmax(250px,290px)_minmax(0,1fr)]">
       <section className="rounded-lg border border-slate-200 bg-white p-5 lg:sticky lg:top-4 lg:self-start">
         <div className="mb-4 flex items-center gap-2">
           <FileCheck2 size={18} className="text-slate-700" />
-          <h2 className="font-black text-slate-900">Πηγή</h2>
+          <h2 className="font-black text-slate-900">Νέο παραστατικό</h2>
         </div>
         <div className="space-y-4">
           <div>
@@ -1228,6 +1287,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
         {renderDraftEditor()}
         {renderValidation()}
       </div>
+    </div>
     </div>
   );
 
@@ -1579,13 +1639,22 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
   );
 
   const renderArchiveTab = () => (
+    <div className="space-y-4">
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+        <span className="font-black">Αρχείο</span> — όλα τα πρόχειρα, εκδοθέντα και ακυρωμένα παραστατικά.
+        {' '}Εδώ βλέπετε MARK, QR και ενέργειες (εκτύπωση, ακύρωση, αποστολή).
+      </div>
     <section className="rounded-lg border border-slate-200 bg-white">
       <div className="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="font-black text-slate-900">Αρχείο παραστατικών</h2>
           <div className="text-sm font-medium text-slate-500">{filteredArchive.length} εγγραφές</div>
         </div>
-        <label className="relative w-full md:max-w-sm">
+        <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center md:w-auto">
+          <ActionButton onClick={() => { setDraftBundle(null); setActiveTab('new'); }}>
+            <Plus size={16} /> Νέο παραστατικό
+          </ActionButton>
+        <label className="relative w-full sm:min-w-[14rem] md:max-w-sm">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             value={archiveSearch}
@@ -1594,6 +1663,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
             className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm font-medium outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
           />
         </label>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
@@ -1619,6 +1689,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
         </table>
       </div>
     </section>
+    </div>
   );
 
   const renderSyncTab = () => (
@@ -1965,8 +2036,8 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
     <div className="space-y-5">
       <DesktopPageHeader
         icon={FileCheck2}
-        title="Νόμιμα Παραστατικά"
-        subtitle="myDATA, MARK, QR, διακίνηση και νόμιμη εκτύπωση"
+        title="Παραστατικά"
+        subtitle="Προτιμολόγια, τιμολόγια myDATA, αρχείο και εκτύπωση"
         roundedClassName="rounded-lg"
         tail={(
           <div className="grid w-full grid-cols-2 gap-2 md:flex md:w-auto">
@@ -1978,12 +2049,39 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
           </div>
         )}
         below={(
-          <div className="flex flex-wrap gap-2">
-            {tabItems.map((tab) => {
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab('proformas')}
+              className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-black transition ${activeTab === 'proformas' ? 'bg-[#060b00] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+            >
+              <FileText size={16} /> Προτιμολόγια
+            </button>
+
+            <div className="inline-flex overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+              <button
+                type="button"
+                onClick={() => setActiveTab('new')}
+                className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-black transition ${activeTab === 'new' ? 'bg-[#060b00] text-white' : 'text-slate-700 hover:bg-slate-200'}`}
+              >
+                <FileCheck2 size={16} /> Δημιουργία
+              </button>
+              <span className="w-px self-stretch bg-slate-300" aria-hidden="true" />
+              <button
+                type="button"
+                onClick={() => setActiveTab('archive')}
+                className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-black transition ${activeTab === 'archive' ? 'bg-[#060b00] text-white' : 'text-slate-700 hover:bg-slate-200'}`}
+              >
+                <Archive size={16} /> Αρχείο
+              </button>
+            </div>
+
+            {secondaryTabItems.map((tab) => {
               const Icon = tab.icon;
               return (
                 <button
                   key={tab.id}
+                  type="button"
                   onClick={() => setActiveTab(tab.id)}
                   className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-black transition ${activeTab === tab.id ? 'bg-[#060b00] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
                 >

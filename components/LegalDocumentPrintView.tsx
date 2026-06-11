@@ -76,7 +76,7 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
 
       <LegalPrintFooter>
         Το παρόν εκτυπώνεται από το IliosERP μετά από επιτυχή διαβίβαση στη myDATA.
-        Το QR, το MARK και ο κωδικός authentication επιβεβαιώνουν την καταχώρηση στην ΑΑΔΕ.
+        Το QR και το MARK επιβεβαιώνουν την καταχώρηση στην ΑΑΔΕ.
       </LegalPrintFooter>
     </LegalPrintPage>
   );

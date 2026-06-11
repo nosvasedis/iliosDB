@@ -26,6 +26,10 @@ import {
 
 export const LEGAL_SETTINGS_ID = '00000000-0000-0000-0000-000000000091';
 
+export function isLegalDocumentEditable(document: Pick<LegalDocument, 'status'>): boolean {
+  return document.status === 'draft' || document.status === 'failed';
+}
+
 export const DEFAULT_LEGAL_SETTINGS: LegalSettings = {
   id: LEGAL_SETTINGS_ID,
   environment: 'dev',

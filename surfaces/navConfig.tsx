@@ -47,7 +47,7 @@ export const adminNavSections: NavSection<AdminPage>[] = [
       { id: 'deliveries', icon: CalendarRange, label: 'Ημερολόγιο' },
       { id: 'orders', icon: ShoppingCart, label: 'Παραγγελίες' },
       { id: 'offers', icon: FileBadge, label: 'Προσφορές' },
-      { id: 'legal', icon: FileCheck2, label: 'Νόμιμα Παραστατικά' },
+      { id: 'legal', icon: FileCheck2, label: 'Παραστατικά' },
       { id: 'production', icon: FactoryIcon, label: 'Παραγωγή' },
       { id: 'customers', icon: Users, label: 'Πελάτες' },
       { id: 'suppliers', icon: Globe, label: 'Προμηθευτές' },

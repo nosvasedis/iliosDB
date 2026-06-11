@@ -1063,7 +1063,7 @@ export const api = {
 
     saveProformaDraft: async (document: ProformaDocument, lines: ProformaDocumentLine[]): Promise<void> => {
         if (document.status !== 'draft') {
-            throw new Error('This proforma is locked and cannot be edited.');
+            throw new Error('Το προτιμολόγιο είναι κλειδωμένο και δεν μπορεί να επεξεργαστεί.');
         }
         const normalizedDocument: Record<string, unknown> = {
             ...document,
@@ -1101,7 +1101,7 @@ export const api = {
 
     saveLegalDraft: async (document: LegalDocument, lines: LegalDocumentLine[]): Promise<void> => {
         if (document.status !== 'draft' && document.status !== 'failed') {
-            throw new Error('This legal document is locked and cannot be edited.');
+            throw new Error('Το παραστατικό είναι κλειδωμένο και δεν μπορεί να επεξεργαστεί.');
         }
         const normalizedDocument = serializeLegalDocumentForDb(document);
         await requireCloudMutation('legal_documents', 'UPSERT', normalizedDocument, { onConflict: 'id', noSelect: true });
@@ -1124,7 +1124,7 @@ export const api = {
 
     syncTransmittedLegalDocuments: async (params: LegalSyncParams): Promise<LegalSyncRun> => {
         if (isLocalMode || !navigator.onLine) {
-            throw new Error('AADE historical sync requires an online Supabase and AADE connection.');
+            throw new Error('Ο συγχρονισμός AADE απαιτεί σύνδεση στο διαδίκτυο και στο Supabase.');
         }
         const settings = await api.getLegalSettings();
         const startedAt = new Date().toISOString();
@@ -1167,7 +1167,7 @@ export const api = {
                         ? null
                         : noTransmittedDocumentsFound
                             ? 'Δεν βρέθηκαν παραστατικά στο επιλεγμένο διάστημα.'
-                            : getAadeProxyErrorMessage(result, `AADE sync failed (${result.status})`),
+                            : getAadeProxyErrorMessage(result, `Ο συγχρονισμός AADE απέτυχε (${result.status})`),
                 });
                 if (noTransmittedDocumentsFound) {
                     nextPartitionKey = undefined;
@@ -1175,7 +1175,7 @@ export const api = {
                     break;
                 }
                 if (!result.ok) {
-                    throw new Error(getAadeProxyErrorMessage(result, `AADE sync failed (${result.status})`));
+                    throw new Error(getAadeProxyErrorMessage(result, `Ο συγχρονισμός AADE απέτυχε (${result.status})`));
                 }
 
                 const existingDocuments = await api.getLegalDocuments();
@@ -1332,7 +1332,7 @@ export const api = {
                 status: importedCount || updatedCount ? 'partial' : 'failed',
                 imported_count: importedCount,
                 updated_count: updatedCount,
-                error_message: error?.message || 'AADE sync failed',
+                error_message: error?.message || 'Ο συγχρονισμός AADE απέτυχε',
                 next_partition_key: nextPartitionKey || null,
                 next_row_key: nextRowKey || null,
                 finished_at: finishedAt,
@@ -1343,14 +1343,14 @@ export const api = {
 
     submitLegalDocument: async (documentId: string, userName?: string | null): Promise<LegalDocument> => {
         if (isLocalMode || !navigator.onLine) {
-            throw new Error('Legal issuance requires an online Supabase and AADE connection.');
+            throw new Error('Η έκδοση παραστατικού απαιτεί σύνδεση στο διαδίκτυο και στο Supabase.');
         }
         const settings = await api.getLegalSettings();
         const documents = await api.getLegalDocuments();
         const existing = documents.find((item) => item.id === documentId);
-        if (!existing) throw new Error('Legal document not found.');
+        if (!existing) throw new Error('Το παραστατικό δεν βρέθηκε.');
         if (existing.status === 'issued') return existing;
-        if (existing.status === 'cancelled') throw new Error('This legal document is cancelled.');
+        if (existing.status === 'cancelled') throw new Error('Το παραστατικό έχει ακυρωθεί.');
 
         const lines = await api.getLegalDocumentLines(documentId);
         let document: LegalDocument = { ...existing, lines };
@@ -1364,7 +1364,7 @@ export const api = {
                 item.document_kind === document.document_kind &&
                 item.aade_document_type === document.aade_document_type
             );
-            if (!sequence) throw new Error('No active numbering sequence exists for this legal document type.');
+            if (!sequence) throw new Error('Δεν υπάρχει ενεργή σειρά αρίθμησης για αυτόν τον τύπο παραστατικού.');
             const { data, error } = await supabase.rpc('allocate_legal_document_number', { p_sequence_id: sequence.id });
             if (error) throw new Error(error.message);
             const allocated = Array.isArray(data) ? data[0] : data;
@@ -1392,7 +1392,7 @@ export const api = {
             });
             const parsed = proxyResult.parsed || parseAadeResponseXml(proxyResult.responseText || '');
             const success = proxyResult.ok && parsed.statusCode === 'Success' && !!parsed.invoiceMark;
-            const failureMessage = getAadeProxyErrorMessage(proxyResult, 'AADE rejected the document.');
+            const failureMessage = getAadeProxyErrorMessage(proxyResult, 'Η ΑΑΔΕ απέρριψε το παραστατικό.');
             await supabase.from('legal_transmissions').insert({
                 document_id: document.id,
                 action: 'send_invoices',
@@ -1468,13 +1468,13 @@ export const api = {
     },
 
     cancelLegalDocument: async (documentId: string, userName?: string | null): Promise<LegalDocument> => {
-        if (isLocalMode || !navigator.onLine) throw new Error('Cancellation requires an online connection.');
+        if (isLocalMode || !navigator.onLine) throw new Error('Η ακύρωση απαιτεί σύνδεση στο διαδίκτυο.');
         const settings = await api.getLegalSettings();
         const documents = await api.getLegalDocuments();
         const document = documents.find((item) => item.id === documentId);
-        if (!document) throw new Error('Legal document not found.');
+        if (!document) throw new Error('Το παραστατικό δεν βρέθηκε.');
         if (document.status !== 'issued' || !document.aade_mark) {
-            throw new Error('Only an issued document with MARK can be cancelled.');
+            throw new Error('Μόνο εκδομένο παραστατικό με MARK μπορεί να ακυρωθεί.');
         }
 
         const cancelPayload = {
@@ -1485,7 +1485,7 @@ export const api = {
         const result = await api.callAadeProxy('/aade/cancel-invoice', cancelPayload);
         const parsed = result.parsed || parseAadeResponseXml(result.responseText || '');
         const success = result.ok && parsed.statusCode === 'Success' && !!parsed.cancellationMark;
-        const failureMessage = getAadeProxyErrorMessage(result, 'AADE rejected cancellation.');
+        const failureMessage = getAadeProxyErrorMessage(result, 'Η ΑΑΔΕ απέρριψε την ακύρωση.');
         await supabase.from('legal_transmissions').insert({
             document_id: document.id,
             action: 'cancel_invoice',
@@ -1532,11 +1532,11 @@ export const api = {
     },
 
     sendLegalDeliveryEvent: async (documentId: string, eventType: LegalDeliveryEvent['event_type'], route: string, userName?: string | null, extraPayload?: Record<string, unknown>): Promise<void> => {
-        if (isLocalMode || !navigator.onLine) throw new Error('Delivery-note actions require an online connection.');
+        if (isLocalMode || !navigator.onLine) throw new Error('Οι ενέργειες διακίνησης απαιτούν σύνδεση στο διαδίκτυο.');
         const settings = await api.getLegalSettings();
         const documents = await api.getLegalDocuments();
         const document = documents.find((item) => item.id === documentId);
-        if (!document || !document.aade_mark) throw new Error('The delivery document does not have MARK.');
+        if (!document || !document.aade_mark) throw new Error('Το παραστατικό διακίνησης δεν έχει MARK.');
 
         const result = await api.callAadeProxy(route, {
             environment: settings.environment,
@@ -1567,30 +1567,30 @@ export const api = {
     },
 
     getAadeCredentialStatus: async (): Promise<AadeCredentialStatus> => {
-        if (!AUTH_KEY_SECRET) throw new Error('Worker Auth Key is missing from IliosERP setup.');
+        if (!AUTH_KEY_SECRET) throw new Error('Λείπει το κλειδί Worker Auth από τη ρύθμιση του IliosERP.');
         const response = await fetch(`${CLOUDFLARE_WORKER_URL}/aade/credential-status`, {
             method: 'GET',
             headers: { Authorization: AUTH_KEY_SECRET },
         });
         const data = await parseWorkerJsonResponse(response);
-        if (!response.ok) throw new Error(data?.error || `AADE credential status failed (${response.status}).`);
+        if (!response.ok) throw new Error(data?.error || `Αποτυχία ανάγνωσης AADE credentials (${response.status}).`);
         return (data?.status || data) as AadeCredentialStatus;
     },
 
     saveAadeCredentials: async (payload: AadeCredentialSavePayload): Promise<AadeCredentialStatus> => {
-        if (!AUTH_KEY_SECRET) throw new Error('Worker Auth Key is missing from IliosERP setup.');
+        if (!AUTH_KEY_SECRET) throw new Error('Λείπει το κλειδί Worker Auth από τη ρύθμιση του IliosERP.');
         const response = await fetch(`${CLOUDFLARE_WORKER_URL}/aade/configure-credentials`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: AUTH_KEY_SECRET },
             body: JSON.stringify(payload),
         });
         const data = await parseWorkerJsonResponse(response);
-        if (!response.ok) throw new Error(data?.error || `AADE credential save failed (${response.status}).`);
+        if (!response.ok) throw new Error(data?.error || `Αποτυχία αποθήκευσης AADE credentials (${response.status}).`);
         return (data?.status || data) as AadeCredentialStatus;
     },
 
     callAadeProxy: async (route: string, payload: Record<string, unknown>): Promise<AadeProxyResult> => {
-        if (!AUTH_KEY_SECRET) throw new Error('Worker Auth Key is missing from IliosERP setup.');
+        if (!AUTH_KEY_SECRET) throw new Error('Λείπει το κλειδί Worker Auth από τη ρύθμιση του IliosERP.');
         const response = await fetch(`${CLOUDFLARE_WORKER_URL}${route}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: AUTH_KEY_SECRET },
