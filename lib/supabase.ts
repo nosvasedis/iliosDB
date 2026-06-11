@@ -18,7 +18,7 @@ import { buildInitialBatchHistoryEntry, canMoveBatchToStage as canMoveBatchToSta
 import { mapCatalogProductsWithRelations, mapProductsWithRelations, resolveProductImageUrl, attachSuppliersToProductRows } from '../features/products/mappers';
 import { getRegisteredQueryClient } from './queryClientRegistry';
 import { addReceivedSizeQuantity, resolveSupplierOrderProductReceiptTarget } from '../features/suppliers/receiptHelpers';
-import { buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, getAadeProxyErrorMessage, isEmptyTransmittedDocsResponse, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, parseAadeResponseXml, parseTransmittedDocumentsXml, roundMoney, validateLegalDocument } from '../utils/legalDocuments';
+import { buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, getAadeProxyErrorMessage, isEmptyTransmittedDocsResponse, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, parseAadeResponseXml, parseTransmittedDocumentsXml, roundMoney, serializeLegalDocumentForDb, serializeLegalDocumentLineForDb, validateLegalDocument } from '../utils/legalDocuments';
 
 // Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
 export const R2_PUBLIC_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
@@ -378,8 +378,24 @@ async function safeMutate(
         return { data: Array.isArray(resData) ? resData[0] : resData, error: null, queued: false };
     } catch (err) {
         console.warn(`Cloud mutation failed. Keeping in queue for retry:`, err);
-        return { data: null, error: null, queued: true };
+        return { data: null, error: err, queued: true };
     }
+}
+
+async function requireCloudMutation(
+    tableName: string,
+    method: 'INSERT' | 'UPDATE' | 'DELETE' | 'UPSERT',
+    data: any,
+    options?: { match?: Record<string, any>, onConflict?: string, ignoreDuplicates?: boolean, noSelect?: boolean }
+): Promise<void> {
+    const result = await safeMutate(tableName, method, data, options);
+    if (!result.error) return;
+    const message = result.error?.message
+        || result.error?.details
+        || result.error?.hint
+        || (typeof result.error === 'string' ? result.error : null)
+        || `Αποτυχία αποθήκευσης στον πίνακα ${tableName}.`;
+    throw new Error(message);
 }
 
 async function fetchFullTable(tableName: string, select: string = '*', filter?: (query: any) => any): Promise<any[]> {
@@ -1047,7 +1063,7 @@ export const api = {
     },
 
     markProformaConverted: async (proformaId: string, legalDocumentId: string): Promise<void> => {
-        await safeMutate('proforma_documents', 'UPDATE', {
+        await requireCloudMutation('proforma_documents', 'UPDATE', {
             status: 'converted',
             converted_legal_document_id: legalDocumentId,
             converted_at: new Date().toISOString(),
@@ -1059,17 +1075,18 @@ export const api = {
         if (document.status !== 'draft' && document.status !== 'failed') {
             throw new Error('This legal document is locked and cannot be edited.');
         }
-        const normalizedDocument: Record<string, unknown> = {
-            ...document,
-            updated_at: new Date().toISOString(),
-        };
-        delete normalizedDocument.lines;
-        await safeMutate('legal_documents', 'UPSERT', normalizedDocument, { onConflict: 'id', noSelect: true });
-        await safeMutate('legal_document_lines', 'DELETE', null, { match: { document_id: document.id } });
+        const normalizedDocument = serializeLegalDocumentForDb(document);
+        await requireCloudMutation('legal_documents', 'UPSERT', normalizedDocument, { onConflict: 'id', noSelect: true });
+        await requireCloudMutation('legal_document_lines', 'DELETE', null, { match: { document_id: document.id } });
         if (lines.length > 0) {
-            await safeMutate('legal_document_lines', 'INSERT', lines.map((line) => ({ ...line, document_id: document.id })), { noSelect: true });
+            await requireCloudMutation(
+                'legal_document_lines',
+                'INSERT',
+                lines.map((line) => serializeLegalDocumentLineForDb(line, document.id)),
+                { noSelect: true },
+            );
         }
-        await safeMutate('legal_audit_log', 'INSERT', {
+        await requireCloudMutation('legal_audit_log', 'INSERT', {
             document_id: document.id,
             action: 'draft_saved',
             user_name: document.created_by || null,
@@ -3451,9 +3468,15 @@ export const api = {
                 } else {
                     failedCount++;
                     const errCode = error.code || '';
-                    if (errCode === '42501' || errCode.startsWith('42') || errCode.startsWith('PGRST') || errCode === '23505') {
+                    const isPermanentFailure = errCode === '42501'
+                        || errCode.startsWith('42')
+                        || errCode.startsWith('PGRST')
+                        || errCode === '23505'
+                        || errCode === '23502'
+                        || errCode === '23514';
+                    if (isPermanentFailure) {
                         await offlineDb.dequeue(item.id);
-                        window.dispatchEvent(new CustomEvent('ilios-sync-error', { detail: { message: `Αποτυχία συγχρονισμού για ${item.table} (${errCode}).` } }));
+                        window.dispatchEvent(new CustomEvent('ilios-sync-error', { detail: { message: `Αποτυχία συγχρονισμού για ${item.table} (${errCode}). Η μη έγκυρη εγγραφή αφαιρέθηκε από την ουρά.` } }));
                     }
                 }
             } catch (err) {

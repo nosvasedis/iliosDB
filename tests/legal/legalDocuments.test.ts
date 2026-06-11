@@ -17,6 +17,7 @@ import {
   canPrintLegalDocument,
   canPrintProforma,
   convertProformaToLegalDraft,
+  serializeLegalDocumentLineForDb,
   createManualLegalDocumentLine,
   DEFAULT_LEGAL_SETTINGS,
   PAYMENT_METHOD_CODES,
@@ -440,9 +441,14 @@ describe('legal document helpers', () => {
     expect(document.series).toBeNull();
     expect(document.aa).toBeNull();
     expect(document.aade_mark).toBeNull();
-    expect(document.source_kind).toBe('manual');
+    expect(document.source_kind).toBe('proforma');
+    expect(document.order_id).toBe(baseOrder.id);
     expect(lines).toHaveLength(1);
     expect(lines[0].document_id).toBe(document.id);
+    expect(lines[0]).not.toHaveProperty('proforma_id');
+    const row = serializeLegalDocumentLineForDb(lines[0], document.id);
+    expect(row).not.toHaveProperty('proforma_id');
+    expect(row.document_id).toBe(document.id);
   });
 
   it('parses transmitted AADE documents, cancellation marks, and pagination keys', () => {

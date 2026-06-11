@@ -770,6 +770,43 @@ export function canPrintProforma(proforma: ProformaDocument): boolean {
   return proforma.status !== 'void';
 }
 
+export function serializeLegalDocumentForDb(document: LegalDocument): Record<string, unknown> {
+  const normalized: Record<string, unknown> = {
+    ...document,
+    updated_at: new Date().toISOString(),
+  };
+  delete normalized.lines;
+  return normalized;
+}
+
+export function serializeLegalDocumentLineForDb(
+  line: LegalDocumentLine | ProformaDocumentLine,
+  documentId: string,
+): Record<string, unknown> {
+  const sku = String(line.sku || '').trim();
+  const description = String(line.description || '').trim();
+  return {
+    id: line.id,
+    document_id: documentId,
+    line_number: line.line_number,
+    sku: sku || '—',
+    variant_suffix: line.variant_suffix ?? null,
+    description: description || '—',
+    quantity: line.quantity,
+    unit_price: line.unit_price,
+    net_value: line.net_value,
+    vat_category: line.vat_category,
+    vat_amount: line.vat_amount,
+    gross_value: line.gross_value,
+    measurement_unit: line.measurement_unit,
+    item_code: line.item_code ?? null,
+    income_classification: line.income_classification,
+    source_order_line_key: line.source_order_line_key ?? null,
+    line_id: line.line_id ?? null,
+    created_at: line.created_at ?? new Date().toISOString(),
+  };
+}
+
 export function convertProformaToLegalDraft(params: {
   proforma: ProformaDocument;
   lines: ProformaDocumentLine[];
@@ -779,21 +816,22 @@ export function convertProformaToLegalDraft(params: {
 }): { document: LegalDocument; lines: LegalDocumentLine[] } {
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
-  const lines = params.lines.map((line, index) =>
-    recalculateLegalLine({
-      ...line,
+  const lines = params.lines.map((line, index) => {
+    const { proforma_id: _proformaId, ...legalLine } = line;
+    return recalculateLegalLine({
+      ...legalLine,
       id: crypto.randomUUID(),
       document_id: id,
       line_number: index + 1,
       source_order_line_key: line.source_order_line_key || null,
-    }, params.settings, undefined, getAadeDocumentTypeForKind(params.kind))
-  );
+    }, params.settings, undefined, getAadeDocumentTypeForKind(params.kind));
+  });
   const totals = computeLegalTotals(lines);
   const document: LegalDocument = {
     id,
-    order_id: null,
-    shipment_id: null,
-    source_kind: 'manual',
+    order_id: params.proforma.order_id ?? null,
+    shipment_id: params.proforma.shipment_id ?? null,
+    source_kind: 'proforma',
     document_kind: params.kind,
     aade_document_type: getAadeDocumentTypeForKind(params.kind),
     status: 'draft',
