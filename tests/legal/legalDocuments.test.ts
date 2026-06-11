@@ -162,7 +162,8 @@ describe('legal document helpers', () => {
     expect(xml).toContain('<invoiceType>1.1</invoiceType>');
     expect(xml).toContain('<paymentMethods>');
     expect(xml).toContain('<vatCategory>1</vatCategory>');
-    expect(xml).toContain('<classificationType>E3_561_001</classificationType>');
+    expect(xml).toContain('xmlns:icls="https://www.aade.gr/myDATA/incomeClassificaton/v1.0"');
+    expect(xml).toContain('<icls:classificationType>E3_561_001</icls:classificationType>');
     expect(xml).not.toContain('<itemCode>');
     expect(xml.indexOf('<invoiceHeader>')).toBeLessThan(xml.indexOf('<paymentMethods>'));
     expect(xml).not.toContain('<isDeliveryNote>');
@@ -218,8 +219,8 @@ describe('legal document helpers', () => {
       classification_category: 'category3',
       classification_type: '',
     });
-    expect(xml).toContain('<classificationCategory>category3</classificationCategory>');
-    expect(xml).not.toContain('<classificationType>');
+    expect(xml).toContain('<icls:classificationCategory>category3</icls:classificationCategory>');
+    expect(xml).not.toContain('<icls:classificationType>');
     expect(errors).toEqual([]);
   });
 

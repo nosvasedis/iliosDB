@@ -1062,9 +1062,16 @@ function xmlEscape(value: unknown): string {
     .replace(/'/g, '&apos;');
 }
 
+const AADE_INCOME_CLASSIFICATION_NS = 'https://www.aade.gr/myDATA/incomeClassificaton/v1.0';
+
 function xmlTag(name: string, value: unknown): string {
   if (value === undefined || value === null || value === '') return '';
   return `<${name}>${xmlEscape(value)}</${name}>`;
+}
+
+function iclsTag(name: string, value: unknown): string {
+  if (value === undefined || value === null || value === '') return '';
+  return `<icls:${name}>${xmlEscape(value)}</icls:${name}>`;
 }
 
 function xmlMoney(value: number): string {
@@ -1094,9 +1101,9 @@ function buildPartyXml(tag: string, party: LegalParty, includeAddress = true): s
 
 function buildIncomeClassificationXml(item: LegalIncomeClassification): string {
   return `<incomeClassification>${[
-    xmlTag('classificationType', item.classification_type),
-    xmlTag('classificationCategory', item.classification_category),
-    xmlTag('amount', xmlMoney(item.amount)),
+    iclsTag('classificationType', item.classification_type),
+    iclsTag('classificationCategory', item.classification_category),
+    iclsTag('amount', xmlMoney(item.amount)),
   ].join('')}</incomeClassification>`;
 }
 
@@ -1173,7 +1180,7 @@ export function buildAadeInvoiceXml(document: LegalDocument, lines: LegalDocumen
 
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    '<InvoicesDoc xmlns="http://www.aade.gr/myDATA/invoice/v1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">',
+    `<InvoicesDoc xmlns="http://www.aade.gr/myDATA/invoice/v1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:icls="${AADE_INCOME_CLASSIFICATION_NS}">`,
     `<invoice>${invoice}</invoice>`,
     '</InvoicesDoc>',
   ].join('');
