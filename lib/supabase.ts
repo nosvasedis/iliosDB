@@ -871,15 +871,36 @@ export const api = {
 
 
     getLegalSettings: async (): Promise<LegalSettings> => {
-        const rows = await fetchFullTable('legal_settings');
-        const row = (rows || []).find((item: any) => item.id === LEGAL_SETTINGS_ID) || rows?.[0];
-        if (!row) return { ...DEFAULT_LEGAL_SETTINGS };
-        return {
+        const mapRow = (row: any): LegalSettings => ({
             ...DEFAULT_LEGAL_SETTINGS,
             ...row,
             issuer: { ...DEFAULT_LEGAL_SETTINGS.issuer, ...(row.issuer || {}) },
             loading_address: row.loading_address || DEFAULT_LEGAL_SETTINGS.loading_address,
-        } as LegalSettings;
+        } as LegalSettings);
+
+        if (isLocalMode) {
+            const rows = await offlineDb.getTable('legal_settings');
+            const row = (rows || []).find((item: any) => item.id === LEGAL_SETTINGS_ID) || rows?.[0];
+            return row ? mapRow(row) : { ...DEFAULT_LEGAL_SETTINGS };
+        }
+
+        try {
+            const { data, error } = await fetchWithTimeout(
+                supabase.from('legal_settings').select('*').eq('id', LEGAL_SETTINGS_ID).maybeSingle(),
+                8000,
+            );
+            if (error) throw error;
+            if (data) {
+                offlineDb.saveTable('legal_settings', [data]);
+                return mapRow(data);
+            }
+            return { ...DEFAULT_LEGAL_SETTINGS };
+        } catch (err) {
+            console.warn('getLegalSettings fallback to offline cache:', err);
+            const rows = await offlineDb.getTable('legal_settings') || [];
+            const row = rows.find((item: any) => item.id === LEGAL_SETTINGS_ID) || rows[0];
+            return row ? mapRow(row) : { ...DEFAULT_LEGAL_SETTINGS };
+        }
     },
 
     saveLegalSettings: async (settings: LegalSettings): Promise<void> => {
