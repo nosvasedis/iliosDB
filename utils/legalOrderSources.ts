@@ -1,7 +1,12 @@
 import { Order, OrderItem, OrderShipment, OrderShipmentItem } from '../types';
+import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { buildOrderItemIdentityKey } from '../features/orders/printHelpers';
 import { computeShipmentValue, getRemainingOrderItems } from './shipmentUtils';
 import { formatOrderId } from './orderUtils';
+
+export function isRetailOrder(order: Pick<Order, 'customer_id' | 'customer_name'>): boolean {
+  return order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME;
+}
 
 /** Select value for invoicing only items not yet shipped. */
 export const LEGAL_REMAINING_SOURCE_VALUE = '__remaining__';
@@ -71,7 +76,7 @@ export interface LegalOrderPickerRow {
 }
 
 export function buildLegalOrderPickerRows(orders: Order[]): LegalOrderPickerRow[] {
-  const rows = orders.map((order) => {
+  const rows = orders.filter((order) => !isRetailOrder(order)).map((order) => {
     const transferOutShortId = parseTransferOutShortId(order.notes);
     const transferInShortId = parseTransferInShortId(order.notes);
     const qtyTotal = getOrderItemQuantityTotal(order);
@@ -137,6 +142,31 @@ function sortShipmentsNewestFirst(shipments: OrderShipment[]): OrderShipment[] {
   });
 }
 
+type RemainingLine = ReturnType<typeof getRemainingOrderItems>[number];
+
+function areRemainingItemsSameAsOrder(order: Order, remaining: RemainingLine[]): boolean {
+  const orderItems = Array.isArray(order.items) ? order.items : [];
+  if (remaining.length === 0 || remaining.length !== orderItems.length) return remaining.length === orderItems.length;
+
+  const remainingByKey = new Map(
+    remaining.map((item) => [buildOrderItemIdentityKey(item), item.quantity]),
+  );
+
+  return orderItems.every((item) => remainingByKey.get(buildOrderItemIdentityKey(item)) === item.quantity);
+}
+
+/** Υπόλειπα είδη όταν υπάρχουν πραγματικά μη αποσταλμένα είδη που διαφέρουν από «Όλη η παραγγελία». */
+export function shouldOfferLegalRemainingSource(
+  order: Order,
+  shipments: OrderShipment[],
+  shipmentItems: OrderShipmentItem[],
+): boolean {
+  if (shipments.length === 0) return false;
+  const remaining = getRemainingOrderItems(order, shipmentItems);
+  if (remaining.length === 0) return false;
+  return !areRemainingItemsSameAsOrder(order, remaining);
+}
+
 export function buildLegalLineSourceOptions(params: {
   order: Order;
   shipments: OrderShipment[];
@@ -156,8 +186,8 @@ export function buildLegalLineSourceOptions(params: {
     description: 'Όλα τα τρέχοντα είδη της παραγγελίας',
   });
 
-  const remaining = getRemainingOrderItems(order, shipmentItems);
-  if (remaining.length > 0) {
+  if (shouldOfferLegalRemainingSource(order, shipments, shipmentItems)) {
+    const remaining = getRemainingOrderItems(order, shipmentItems);
     const remainingQty = remaining.reduce((sum, item) => sum + item.quantity, 0);
     const remainingTotal = computeShipmentValue(remaining, vatRate, discountPercent).grandTotal;
     options.push({

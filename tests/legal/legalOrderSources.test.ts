@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { Order, OrderShipment, OrderShipmentItem } from '../../types';
+import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import {
   LEGAL_REMAINING_SOURCE_VALUE,
   buildLegalLineSourceOptions,
   buildLegalOrderPickerRows,
   buildOrderWithRemainingItems,
   findOrderByShortId,
+  isRetailOrder,
   parseTransferInShortId,
   parseTransferOutShortId,
+  shouldOfferLegalRemainingSource,
 } from '../../utils/legalOrderSources';
 
 const baseOrder = (overrides: Partial<Order> = {}): Order => ({
@@ -57,9 +60,20 @@ describe('legalOrderSources', () => {
     expect(findOrderByShortId([source, target], 'eeeeee')?.id).toBe(target.id);
   });
 
-  it('builds line source options with remaining items and shipments', () => {
+  it('hides retail orders from the legal order picker', () => {
+    const retail = baseOrder({
+      customer_id: RETAIL_CUSTOMER_ID,
+      customer_name: RETAIL_CUSTOMER_NAME,
+    });
+    const wholesale = baseOrder({ customer_name: 'Χονδρικός' });
+
+    expect(isRetailOrder(retail)).toBe(true);
+    expect(buildLegalOrderPickerRows([retail, wholesale]).map((row) => row.order.id)).toEqual([wholesale.id]);
+  });
+
+  it('shows remaining when partial shipments left unshipped items, including with multiple deliveries', () => {
     const order = baseOrder();
-    const shipments: OrderShipment[] = [{
+    const shipment: OrderShipment = {
       id: 'ship-1',
       order_id: order.id,
       shipment_number: 1,
@@ -67,20 +81,97 @@ describe('legalOrderSources', () => {
       shipped_by: 'Tester',
       notes: null,
       created_at: '2026-06-05T12:00:00.000Z',
-    }];
-    const shipmentItems: OrderShipmentItem[] = [{
+    };
+    const partialItem: OrderShipmentItem = {
       id: 'item-1',
       shipment_id: 'ship-1',
       sku: 'STX-1',
       quantity: 1,
       price_at_order: 100,
       created_at: '2026-06-05T12:00:00.000Z',
-    }];
+    };
 
+    expect(shouldOfferLegalRemainingSource(order, [], [])).toBe(false);
+    expect(shouldOfferLegalRemainingSource(order, [shipment], [partialItem])).toBe(true);
+
+    const optionsWithOneShipment = buildLegalLineSourceOptions({
+      order,
+      shipments: [shipment],
+      shipmentItems: [partialItem],
+    });
+    expect(optionsWithOneShipment.map((option) => option.value)).toEqual(['', LEGAL_REMAINING_SOURCE_VALUE, 'ship-1']);
+
+    const twoShipments = [
+      shipment,
+      { ...shipment, id: 'ship-2', shipment_number: 2, shipped_at: '2026-06-06T12:00:00.000Z' },
+    ];
+    const optionsWithTwoShipments = buildLegalLineSourceOptions({
+      order,
+      shipments: twoShipments,
+      shipmentItems: [
+        partialItem,
+        { ...partialItem, id: 'item-2', shipment_id: 'ship-2', sku: 'STX-2', quantity: 1 },
+      ],
+    });
+    expect(optionsWithTwoShipments.map((option) => option.value)).toEqual([
+      '',
+      LEGAL_REMAINING_SOURCE_VALUE,
+      'ship-2',
+      'ship-1',
+    ]);
+  });
+
+  it('shows full order and each shipment for fully delivered orders without remaining', () => {
+    const order = baseOrder();
+    const shipments: OrderShipment[] = [
+      {
+        id: 'ship-1',
+        order_id: order.id,
+        shipment_number: 1,
+        shipped_at: '2026-06-05T12:00:00.000Z',
+        shipped_by: 'Tester',
+        notes: null,
+        created_at: '2026-06-05T12:00:00.000Z',
+      },
+      {
+        id: 'ship-2',
+        order_id: order.id,
+        shipment_number: 2,
+        shipped_at: '2026-06-06T12:00:00.000Z',
+        shipped_by: 'Tester',
+        notes: null,
+        created_at: '2026-06-06T12:00:00.000Z',
+      },
+    ];
+    const shipmentItems: OrderShipmentItem[] = [
+      {
+        id: 'item-1',
+        shipment_id: 'ship-1',
+        sku: 'STX-1',
+        quantity: 2,
+        price_at_order: 100,
+        created_at: '2026-06-05T12:00:00.000Z',
+      },
+      {
+        id: 'item-2',
+        shipment_id: 'ship-2',
+        sku: 'STX-2',
+        quantity: 1,
+        price_at_order: 50,
+        created_at: '2026-06-06T12:00:00.000Z',
+      },
+    ];
+
+    expect(shouldOfferLegalRemainingSource(order, shipments, shipmentItems)).toBe(false);
     const options = buildLegalLineSourceOptions({ order, shipments, shipmentItems });
-    expect(options.map((option) => option.value)).toEqual(['', LEGAL_REMAINING_SOURCE_VALUE, 'ship-1']);
-    expect(options[1]?.label).toContain('Υπόλειπα είδη');
-    expect(options[2]?.label).toContain('ΔΑ #1');
+    expect(options.map((option) => option.value)).toEqual(['', 'ship-2', 'ship-1']);
+    expect(options[0]?.label).toContain('Όλη η παραγγελία');
+  });
+
+  it('omits remaining when it matches the full order (no shipments yet)', () => {
+    const order = baseOrder();
+    const options = buildLegalLineSourceOptions({ order, shipments: [], shipmentItems: [] });
+    expect(options.map((option) => option.value)).toEqual(['']);
   });
 
   it('builds a remaining-only order snapshot for legal documents', () => {

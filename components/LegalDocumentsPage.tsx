@@ -411,6 +411,12 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
     [lineSourceOptions, selectedShipmentId]
   );
 
+  useEffect(() => {
+    if (!selectedShipmentId) return;
+    const stillValid = lineSourceOptions.some((option) => option.value === selectedShipmentId);
+    if (!stillValid) setSelectedShipmentId('');
+  }, [lineSourceOptions, selectedShipmentId]);
+
   const selectedShipment = useMemo(
     () => orderShipments.find((shipment) => shipment.id === selectedShipmentId) || null,
     [orderShipments, selectedShipmentId]
