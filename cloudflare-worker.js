@@ -1,10 +1,27 @@
+/**
+ * Ilios Cloudflare Worker: image handler, silver price, VAT lookup, Orthodox calendar.
+ * GET /orthodox-calendar?year=YYYY → { events: CalendarDayEvent[] }
+ * Events are fetched from online sources (greek-namedays) + computed major holidays; no hardcoded nameday list.
+ */
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Max-Age': '86400',
+};
+
+// External data: Greek Orthodox namedays (fixed + moving) from GitHub. Cache 24h.
+const FIXED_NAMEDAYS_URL = 'https://raw.githubusercontent.com/stavros-melidoniotis/greek-namedays/master/fixed_namedays.json';
+const MOVING_NAMEDAYS_URL = 'https://raw.githubusercontent.com/stavros-melidoniotis/greek-namedays/master/moving_namedays.json';
+const GITHUB_FETCH_OPTS = { cf: { cacheTtl: 86400 } }; // 24h
 
 const AADE_BASE_URLS = {
   dev: 'https://mydataapidev.aade.gr',
   prod: 'https://mydatapi.aade.gr/myDATA',
 };
 
-function jsonResponse(data, status, corsHeaders) {
+function jsonResponse(data, status, corsHeaders = CORS_HEADERS) {
   return new Response(JSON.stringify(data), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -258,26 +275,312 @@ async function handleAadeRoute(request, env, corsHeaders, url) {
   }
 }
 
+async function handleAdminRoute(request, env, corsHeaders, url) {
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
+    return jsonResponse({ error: 'Missing Supabase admin configuration on worker.' }, 500, corsHeaders);
+  }
+
+  const supabaseAdmin = async (path, options = {}) => {
+    const response = await fetch(`${env.SUPABASE_URL}${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': env.SUPABASE_SERVICE_ROLE_KEY,
+        'Authorization': `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        ...(options.headers || {}),
+      },
+    });
+    const text = await response.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = text; }
+    return { ok: response.ok, status: response.status, data };
+  };
+
+  if (url.pathname === '/admin/create-seller' && request.method === 'POST') {
+    const body = await request.json();
+    const { email, password, full_name, commission_percent } = body;
+    if (!email || !password || !full_name) {
+      return jsonResponse({ error: 'Απαιτούνται email, password και full_name.' }, 400, corsHeaders);
+    }
+
+    const authRes = await supabaseAdmin('/auth/v1/admin/users', {
+      method: 'POST',
+      body: JSON.stringify({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { full_name },
+      }),
+    });
+    if (!authRes.ok) {
+      const msg = authRes.data?.msg || authRes.data?.message || JSON.stringify(authRes.data);
+      return jsonResponse({ error: `Σφάλμα δημιουργίας χρήστη: ${msg}` }, authRes.status, corsHeaders);
+    }
+
+    const userId = authRes.data.id;
+    const profileRes = await supabaseAdmin('/rest/v1/profiles', {
+      method: 'POST',
+      headers: { 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify({
+        id: userId,
+        email,
+        full_name,
+        role: 'seller',
+        is_approved: true,
+        commission_percent: commission_percent ?? null,
+      }),
+    });
+    if (!profileRes.ok) {
+      return jsonResponse({ error: 'Ο χρήστης δημιουργήθηκε αλλά το προφίλ απέτυχε.', details: profileRes.data }, 500, corsHeaders);
+    }
+    return jsonResponse({ id: userId, email, full_name, commission_percent: commission_percent ?? null }, 201, corsHeaders);
+  }
+
+  if (url.pathname === '/admin/update-seller' && request.method === 'POST') {
+    const body = await request.json();
+    const { id, full_name, commission_percent, is_approved, new_password } = body;
+    if (!id) return jsonResponse({ error: 'Απαιτείται id.' }, 400, corsHeaders);
+
+    const profilePayload = {};
+    if (full_name !== undefined) profilePayload.full_name = full_name;
+    if (commission_percent !== undefined) profilePayload.commission_percent = commission_percent;
+    if (is_approved !== undefined) profilePayload.is_approved = is_approved;
+
+    if (Object.keys(profilePayload).length > 0) {
+      const profileRes = await supabaseAdmin(`/rest/v1/profiles?id=eq.${id}`, {
+        method: 'PATCH',
+        headers: { 'Prefer': 'return=minimal' },
+        body: JSON.stringify(profilePayload),
+      });
+      if (!profileRes.ok) {
+        return jsonResponse({ error: 'Σφάλμα ενημέρωσης προφίλ.', details: profileRes.data }, 500, corsHeaders);
+      }
+    }
+
+    if (new_password) {
+      const passwordRes = await supabaseAdmin(`/auth/v1/admin/users/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ password: new_password }),
+      });
+      if (!passwordRes.ok) {
+        return jsonResponse({ error: 'Το προφίλ ενημερώθηκε αλλά η αλλαγή κωδικού απέτυχε.', details: passwordRes.data }, 500, corsHeaders);
+      }
+    }
+
+    return jsonResponse({ success: true }, 200, corsHeaders);
+  }
+
+  if (url.pathname === '/admin/delete-seller' && request.method === 'POST') {
+    const body = await request.json();
+    const { id } = body;
+    if (!id) return jsonResponse({ error: 'Απαιτείται id.' }, 400, corsHeaders);
+
+    const profileRes = await supabaseAdmin(`/rest/v1/profiles?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: { 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ is_approved: false }),
+    });
+    if (!profileRes.ok) {
+      return jsonResponse({ error: 'Σφάλμα απενεργοποίησης πλασιέ.', details: profileRes.data }, 500, corsHeaders);
+    }
+
+    return jsonResponse({ success: true }, 200, corsHeaders);
+  }
+
+  return jsonResponse({ error: 'Unknown admin route' }, 404, corsHeaders);
+}
+
+// Major Orthodox holidays (computed from Easter / fixed dates; no API for these)
+const ORTHODOX_RULES = [
+  { id: 'new-year', title: 'Πρωτοχρονιά', month: 1, day: 1, priority: 100 },
+  { id: 'theophany', title: 'Θεοφάνεια', month: 1, day: 6, priority: 90 },
+  { id: 'clean-monday', title: 'Καθαρά Δευτέρα', easterOffsetDays: -48, priority: 95 },
+  { id: 'annunciation', title: 'Ευαγγελισμός της Θεοτόκου', month: 3, day: 25, priority: 100 },
+  { id: 'palm-sunday', title: 'Κυριακή των Βαΐων', easterOffsetDays: -7, priority: 80 },
+  { id: 'holy-monday', title: 'Μεγάλη Δευτέρα', easterOffsetDays: -6, priority: 70 },
+  { id: 'holy-tuesday', title: 'Μεγάλη Τρίτη', easterOffsetDays: -5, priority: 70 },
+  { id: 'holy-wednesday', title: 'Μεγάλη Τετάρτη', easterOffsetDays: -4, priority: 70 },
+  { id: 'holy-thursday', title: 'Μεγάλη Πέμπτη', easterOffsetDays: -3, priority: 85 },
+  { id: 'good-friday', title: 'Μεγάλη Παρασκευή', easterOffsetDays: -2, priority: 100 },
+  { id: 'holy-saturday', title: 'Μεγάλο Σάββατο', easterOffsetDays: -1, priority: 95 },
+  { id: 'easter', title: 'Κυριακή του Πάσχα', easterOffsetDays: 0, priority: 110 },
+  { id: 'easter-monday', title: 'Δευτέρα του Πάσχα', easterOffsetDays: 1, priority: 95 },
+  { id: 'thomas-sunday', title: 'Κυριακή του Θωμά', easterOffsetDays: 7, priority: 75 },
+  { id: 'ascension', title: 'Ανάληψη', easterOffsetDays: 39, priority: 85 },
+  { id: 'pentecost', title: 'Πεντηκοστή', easterOffsetDays: 49, priority: 95 },
+  { id: 'holy-spirit', title: 'Αγίου Πνεύματος', easterOffsetDays: 50, priority: 90 },
+  { id: 'transfiguration', title: 'Μεταμόρφωση του Σωτήρος', month: 8, day: 6, priority: 90 },
+  { id: 'assumption', title: 'Κοίμηση της Θεοτόκου', month: 8, day: 15, priority: 100 },
+  { id: 'elevation-cross', title: 'Ύψωση του Τιμίου Σταυρού', month: 9, day: 14, priority: 95 },
+  { id: 'demetrios', title: 'Αγίου Δημητρίου', month: 10, day: 26, priority: 90 },
+  { id: 'introduction-theotokos', title: 'Εισόδια της Θεοτόκου', month: 11, day: 21, priority: 85 },
+  { id: 'christmas-eve', title: 'Παραμονή Χριστουγέννων', month: 12, day: 24, priority: 85 },
+  { id: 'christmas', title: 'Χριστούγεννα', month: 12, day: 25, priority: 110 },
+  { id: 'synaxis-theotokos', title: 'Σύναξη Υπεραγίας Θεοτόκου', month: 12, day: 26, priority: 80 },
+  { id: 'new-years-eve', title: 'Παραμονή Πρωτοχρονιάς', month: 12, day: 31, priority: 80 },
+];
+
+/**
+ * Orthodox Easter: Julian calendar algorithm then Gregorian correction.
+ * See e.g. https://dateofeaster.org/julian.php — 2026 → April 12.
+ */
+function getOrthodoxEaster(year) {
+  const remainder = (year + Math.floor(year / 4) + 4) % 7;
+  const L = remainder === 0 ? 7 : 7 - remainder;
+  const G = (year % 19) + 1;
+  const E = (11 * G - 11) % 30;
+  const D = E > 16 ? 66 - E : 36 - E;
+  const pfmMarch = D < 32;
+  const pfmDay = pfmMarch ? D : D - 31;
+  const pfmMonth = pfmMarch ? 3 : 4;
+  const dow = ((D + 3 - L) % 7) + 1;
+  const daysToSunday = dow === 1 ? 7 : 8 - dow;
+  const easterJulianDay = pfmDay + daysToSunday;
+  let month, day;
+  if (pfmMarch) {
+    if (easterJulianDay <= 31) {
+      month = 3;
+      day = easterJulianDay;
+    } else {
+      month = 4;
+      day = easterJulianDay - 31;
+    }
+  } else {
+    if (easterJulianDay <= 30) {
+      month = 4;
+      day = easterJulianDay;
+    } else {
+      month = 5;
+      day = easterJulianDay - 30;
+    }
+  }
+  const C = Math.floor(year / 100);
+  const Q = Math.floor(((C - 15) * 3) / 4) + 10;
+  const gregorian = new Date(Date.UTC(year, month - 1, day));
+  gregorian.setUTCDate(gregorian.getUTCDate() + Q);
+  return gregorian;
+}
+
+function localDateKey(d) {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function getDateFromRule(rule, year) {
+  if (typeof rule.easterOffsetDays === 'number') {
+    const easter = getOrthodoxEaster(year);
+    easter.setUTCDate(easter.getUTCDate() + rule.easterOffsetDays);
+    return new Date(easter);
+  }
+  return new Date(Date.UTC(year, (rule.month || 1) - 1, rule.day || 1, 9, 0, 0));
+}
+
+function getMajorEventsForYear(year) {
+  return ORTHODOX_RULES.map((rule) => {
+    const date = getDateFromRule(rule, year);
+    return {
+      id: `${rule.id}-${year}`,
+      date: localDateKey(date),
+      type: 'major_event',
+      title: rule.title,
+      priority: rule.priority,
+    };
+  });
+}
+
+/** Parse "X ημέρες πριν το Πάσχα" / "X ημέρες μετά το Πάσχα" / "ημέρα του Πάσχα" → offset number or null */
+function parseEasterOffsetFromCelebration(celebration) {
+  if (!celebration || typeof celebration !== 'string') return null;
+  const text = celebration.trim();
+  // "την ημέρα του Πάσχα" → 0
+  if (/ημέρα\s+του\s+Πάσχα/i.test(text) && !/πριν|μετά/.test(text)) return 0;
+  // "43 ημέρες πριν το Πάσχα" or "1 ημέρα πριν"
+  const before = text.match(/(\d+)\s*ημέρες?\s*πριν\s*το\s*Πάσχα/i);
+  if (before) return -parseInt(before[1], 10);
+  // "7 ημέρες μετά το Πάσχα" or "1 ημέρα μετά"
+  const after = text.match(/(\d+)\s*ημέρες?\s*μετά\s*το\s*Πάσχα/i);
+  if (after) return parseInt(after[1], 10);
+  return null;
+}
+
+/** Build full Orthodox calendar for year: major events + fixed namedays + moving namedays from online JSON */
+async function getOrthodoxCalendarEventsForYear(year) {
+  const events = [...getMajorEventsForYear(year)];
+
+  try {
+    const [fixedRes, movingRes] = await Promise.all([
+      fetch(FIXED_NAMEDAYS_URL, GITHUB_FETCH_OPTS),
+      fetch(MOVING_NAMEDAYS_URL, GITHUB_FETCH_OPTS),
+    ]);
+
+    // Fixed namedays: keys "day/month" (e.g. "7/1" = 7 Jan) → { names: string[] }
+    if (fixedRes.ok) {
+      const fixed = await fixedRes.json();
+      if (fixed && typeof fixed === 'object') {
+        for (const key of Object.keys(fixed)) {
+          const match = key.match(/^(\d{1,2})\/(\d{1,2})$/);
+          if (!match) continue;
+          const day = match[1].padStart(2, '0');
+          const month = match[2].padStart(2, '0');
+          const names = fixed[key]?.names;
+          if (!Array.isArray(names) || names.length === 0) continue;
+          const dateStr = `${year}-${month}-${day}`;
+          const namesStr = names.slice(0, 10).join(', ') + (names.length > 10 ? '…' : '');
+          events.push({
+            id: `nameday-${dateStr}`,
+            date: dateStr,
+            type: 'nameday',
+            title: namesStr,
+            subtitle: 'Ονομαστικές Εορτές',
+            priority: 60,
+          });
+        }
+      }
+    }
+
+    // Moving namedays: { namedays: [ { names, celebration } ] } → compute date from Easter + parsed offset
+    if (movingRes.ok) {
+      const moving = await movingRes.json();
+      const list = moving?.namedays;
+      if (Array.isArray(list)) {
+        const easter = getOrthodoxEaster(year);
+        list.forEach((item, idx) => {
+          const offset = parseEasterOffsetFromCelebration(item.celebration);
+          if (offset === null) return;
+          const names = item.names;
+          if (!Array.isArray(names) || names.length === 0) return;
+          const d = new Date(easter);
+          d.setUTCDate(d.getUTCDate() + offset);
+          const dateStr = localDateKey(d);
+          const namesStr = names.slice(0, 10).join(', ') + (names.length > 10 ? '…' : '');
+          events.push({
+            id: `nameday-mov-${dateStr}-${idx}`,
+            date: dateStr,
+            type: 'nameday',
+            title: namesStr,
+            subtitle: 'Ονομαστικές Εορτές',
+            priority: 60,
+          });
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('Orthodox namedays fetch failed, using major events only:', e.message);
+  }
+
+  events.sort((a, b) => a.date.localeCompare(b.date) || b.priority - a.priority || (a.title || '').localeCompare(b.title || '', 'el'));
+  return events;
+}
+
 export default {
   async fetch(request, env) {
-    // 1. CORS Headers - Allow requests from your application
-    const corsHeaders = {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Control-Max-Age': '86400',
-    };
-
-    // 2. Handle Preflight (OPTIONS) requests immediately
     if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        status: 204,
-        headers: corsHeaders,
-      });
+      return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
 
     try {
-      // 3. Security Check
       const authHeader = request.headers.get('Authorization');
       const url = new URL(request.url);
 
@@ -285,206 +588,38 @@ export default {
         throw new Error('Server Configuration Error: R2_BUCKET binding is missing.');
       }
 
-      // SECURITY UPDATE:
-      // Allow public GET/HEAD access to images (for CORS/Canvas).
-      // Protect POST/DELETE (Mutations) and special routes like /price/silver.
       const isSilverRoute = url.pathname === '/price/silver';
       const isAdminRoute = url.pathname.startsWith('/admin/');
       const isAadeRoute = url.pathname.startsWith('/aade/');
       const isMutation = ['POST', 'DELETE', 'PUT', 'PATCH'].includes(request.method);
-      // HEAD is read-only, so we treat it like GET (public)
       const isProtected = isMutation || isSilverRoute || isAdminRoute || isAadeRoute;
 
       if (isProtected && (!authHeader || authHeader !== env.AUTH_KEY_SECRET)) {
-        return new Response('Unauthorized', { status: 403, headers: corsHeaders });
+        return new Response('Unauthorized', { status: 403, headers: CORS_HEADERS });
       }
 
       if (url.pathname.startsWith('/aade/')) {
-        return handleAadeRoute(request, env, corsHeaders, url);
+        return handleAadeRoute(request, env, CORS_HEADERS, url);
       }
 
-      // --- ADMIN ROUTES: SELLER MANAGEMENT ---
       if (isAdminRoute) {
-        // Requires SUPABASE_SERVICE_ROLE_KEY and SUPABASE_URL env secrets
-        if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
-          return new Response(JSON.stringify({ error: 'Missing Supabase admin configuration on worker.' }), {
-            status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
+        return handleAdminRoute(request, env, CORS_HEADERS, url);
+      }
 
-        const supabaseAdmin = async (path, options = {}) => {
-          const res = await fetch(`${env.SUPABASE_URL}${path}`, {
-            ...options,
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': env.SUPABASE_SERVICE_ROLE_KEY,
-              'Authorization': `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
-              ...(options.headers || {}),
-            },
-          });
-          const text = await res.text();
-          let json;
-          try { json = JSON.parse(text); } catch { json = text; }
-          return { ok: res.ok, status: res.status, data: json };
-        };
-
-        // POST /admin/create-seller  — Create a new seller auth user + profile
-        if (url.pathname === '/admin/create-seller' && request.method === 'POST') {
-          try {
-            const body = await request.json();
-            const { email, password, full_name, commission_percent } = body;
-            if (!email || !password || !full_name) {
-              return new Response(JSON.stringify({ error: 'Απαιτούνται email, password και full_name.' }), {
-                status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-              });
-            }
-
-            // 1. Create auth user via Supabase Admin API
-            const authRes = await supabaseAdmin('/auth/v1/admin/users', {
-              method: 'POST',
-              body: JSON.stringify({
-                email,
-                password,
-                email_confirm: true,
-                user_metadata: { full_name },
-              }),
-            });
-
-            if (!authRes.ok) {
-              const msg = authRes.data?.msg || authRes.data?.message || JSON.stringify(authRes.data);
-              return new Response(JSON.stringify({ error: `Σφάλμα δημιουργίας χρήστη: ${msg}` }), {
-                status: authRes.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-              });
-            }
-
-            const userId = authRes.data.id;
-
-            // 2. Insert / upsert profile row
-            const profileRes = await supabaseAdmin('/rest/v1/profiles', {
-              method: 'POST',
-              headers: { 'Prefer': 'resolution=merge-duplicates' },
-              body: JSON.stringify({
-                id: userId,
-                email,
-                full_name,
-                role: 'seller',
-                is_approved: true,
-                commission_percent: commission_percent ?? null,
-              }),
-            });
-
-            if (!profileRes.ok) {
-              return new Response(JSON.stringify({ error: 'Ο χρήστης δημιουργήθηκε αλλά το προφίλ απέτυχε.', details: profileRes.data }), {
-                status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-              });
-            }
-
-            return new Response(JSON.stringify({ id: userId, email, full_name, commission_percent: commission_percent ?? null }), {
-              status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
-          } catch (e) {
-            return new Response(JSON.stringify({ error: e.message }), {
-              status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
-          }
-        }
-
-        // POST /admin/update-seller  — Update seller profile + optional password reset
-        if (url.pathname === '/admin/update-seller' && request.method === 'POST') {
-          try {
-            const body = await request.json();
-            const { id, full_name, commission_percent, is_approved, new_password } = body;
-            if (!id) {
-              return new Response(JSON.stringify({ error: 'Απαιτείται id.' }), {
-                status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-              });
-            }
-
-            // Update profile via PostgREST
-            const profilePayload = {};
-            if (full_name !== undefined) profilePayload.full_name = full_name;
-            if (commission_percent !== undefined) profilePayload.commission_percent = commission_percent;
-            if (is_approved !== undefined) profilePayload.is_approved = is_approved;
-
-            if (Object.keys(profilePayload).length > 0) {
-              const profRes = await supabaseAdmin(`/rest/v1/profiles?id=eq.${id}`, {
-                method: 'PATCH',
-                headers: { 'Prefer': 'return=minimal' },
-                body: JSON.stringify(profilePayload),
-              });
-              if (!profRes.ok) {
-                return new Response(JSON.stringify({ error: 'Σφάλμα ενημέρωσης προφίλ.', details: profRes.data }), {
-                  status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-                });
-              }
-            }
-
-            // Optional: reset password
-            if (new_password) {
-              const pwRes = await supabaseAdmin(`/auth/v1/admin/users/${id}`, {
-                method: 'PUT',
-                body: JSON.stringify({ password: new_password }),
-              });
-              if (!pwRes.ok) {
-                return new Response(JSON.stringify({ error: 'Το προφίλ ενημερώθηκε αλλά η αλλαγή κωδικού απέτυχε.', details: pwRes.data }), {
-                  status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-                });
-              }
-            }
-
-            return new Response(JSON.stringify({ success: true }), {
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
-          } catch (e) {
-            return new Response(JSON.stringify({ error: e.message }), {
-              status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
-          }
-        }
-
-        // POST /admin/delete-seller  — Soft-delete (deactivate) a seller
-        if (url.pathname === '/admin/delete-seller' && request.method === 'POST') {
-          try {
-            const body = await request.json();
-            const { id } = body;
-            if (!id) {
-              return new Response(JSON.stringify({ error: 'Απαιτείται id.' }), {
-                status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-              });
-            }
-
-            // Soft-delete: set is_approved = false
-            const profRes = await supabaseAdmin(`/rest/v1/profiles?id=eq.${id}`, {
-              method: 'PATCH',
-              headers: { 'Prefer': 'return=minimal' },
-              body: JSON.stringify({ is_approved: false }),
-            });
-
-            if (!profRes.ok) {
-              return new Response(JSON.stringify({ error: 'Σφάλμα απενεργοποίησης πλασιέ.', details: profRes.data }), {
-                status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-              });
-            }
-
-            return new Response(JSON.stringify({ success: true }), {
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
-          } catch (e) {
-            return new Response(JSON.stringify({ error: e.message }), {
-              status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
-          }
-        }
-
-        return new Response(JSON.stringify({ error: 'Unknown admin route' }), {
-          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      // --- SPECIAL ROUTE: ORTHODOX CALENDAR (public GET) ---
+      if (url.pathname === '/orthodox-calendar' && request.method === 'GET') {
+        const yearParam = url.searchParams.get('year');
+        const year = Math.min(2100, Math.max(2000, parseInt(yearParam, 10) || new Date().getFullYear()));
+        const events = await getOrthodoxCalendarEventsForYear(year);
+        return new Response(JSON.stringify({ events }), {
+          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+          cf: { cacheTtl: 43200 }, // 12h cache
         });
       }
 
       // --- SPECIAL ROUTE: SILVER PRICE ---
       if (isSilverRoute) {
         try {
-          // Attempt 1: goldprice.org (Direct EUR)
           try {
             const response = await fetch('https://data-asg.goldprice.org/dbXRates/EUR', {
               headers: {
@@ -492,7 +627,7 @@ export default {
                 'Referer': 'https://goldprice.org/',
                 'Accept': 'application/json'
               },
-              cf: { cacheTtl: 300 } // Cache for 5 mins
+              cf: { cacheTtl: 300 }
             });
 
             if (response.ok) {
@@ -501,7 +636,7 @@ export default {
                 const silverOunceEur = data.items[0].xagPrice;
                 const silverGramEur = silverOunceEur / 31.1034768;
                 return new Response(JSON.stringify({ price: silverGramEur, source: 'goldprice.org' }), {
-                  headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                  headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
                 });
               }
             }
@@ -509,7 +644,6 @@ export default {
             console.error('GoldPrice.org failed:', e1.message);
           }
 
-          // Attempt 2: gold-api.com (USD) + er-api.com (Conversion)
           const [priceRes, rateRes] = await Promise.all([
             fetch('https://api.gold-api.com/price/XAG'),
             fetch('https://open.er-api.com/v6/latest/USD')
@@ -527,33 +661,29 @@ export default {
               const silverGramEur = silverOunceEur / 31.1034768;
 
               return new Response(JSON.stringify({ price: silverGramEur, source: 'gold-api+er-api' }), {
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
               });
             }
           }
 
           throw new Error('All silver price sources failed');
         } catch (e) {
-          return new Response(JSON.stringify({ error: e.message }), { status: 502, headers: corsHeaders });
+          return new Response(JSON.stringify({ error: e.message }), { status: 502, headers: CORS_HEADERS });
         }
       }
 
       // --- SPECIAL ROUTE: VAT / AFM LOOKUP (CORS Proxy) ---
-      // This route is PUBLIC (no auth) because it's a read-only lookup.
-      // The Worker proxies the request to avoid browser CORS restrictions.
       if (url.pathname === '/vat-lookup') {
         const afm = url.searchParams.get('afm');
         if (!afm || !/^\d{9}$/.test(afm)) {
           return new Response(JSON.stringify({ error: 'Invalid AFM: must be exactly 9 digits' }), {
             status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
           });
         }
 
-        // Helper: clean up "---" placeholder values the APIs sometimes return
         const cleanField = (val) => (val && val.trim() && val.trim() !== '---' ? val.trim() : null);
 
-        // Attempt 1: VIES REST API (EU official)
         try {
           const viesRes = await fetch('https://ec.europa.eu/taxation_customs/vies/rest-api/check-vat-number', {
             method: 'POST',
@@ -567,17 +697,15 @@ export default {
                 source: 'VIES',
                 name: cleanField(d.name),
                 address: cleanField(d.address),
-                // VIES does not expose phone/email in its REST response
                 phone: null,
                 email: null,
-              }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+              }), { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
             }
           }
         } catch (e) {
           console.warn('VIES lookup failed:', e.message);
         }
 
-        // Attempt 2: VATComply fallback (returns richer data when available)
         try {
           const vatRes = await fetch(`https://api.vatcomply.com/vat?vat_number=EL${afm}`, {
             headers: { 'Accept': 'application/json' },
@@ -591,42 +719,38 @@ export default {
                 address: cleanField(d.address),
                 phone: cleanField(d.phone),
                 email: cleanField(d.email),
-              }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+              }), { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
             }
           }
         } catch (e) {
           console.warn('VATComply lookup failed:', e.message);
         }
 
-        // Both APIs failed or returned no data
         return new Response(JSON.stringify({ error: 'Δεν βρέθηκαν στοιχεία για το ΑΦΜ αυτό.' }), {
           status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
         });
       }
 
-      // 5. Parse the Filename
-      // FIX: Handle root path requests gracefully to avoid "Missing filename" log noise
+      // --- Default: file path (root check) ---
       if (url.pathname === '/' || url.pathname === '') {
-        return new Response('Ilios Image Handler Active', { status: 200, headers: corsHeaders });
+        return new Response('Ilios Image Handler Active', { status: 200, headers: CORS_HEADERS });
       }
 
-      const key = decodeURIComponent(url.pathname.slice(1)); // Remove leading slash
+      const key = decodeURIComponent(url.pathname.slice(1));
 
       if (!key || key.trim() === '') {
-        return new Response('Missing filename', { status: 400, headers: corsHeaders });
+        return new Response('Missing filename', { status: 400, headers: CORS_HEADERS });
       }
 
-      // 6. Handle GET and HEAD (Download/Check)
-      // FIX: Added HEAD support so the Audit tool receives a 200 OK instead of 405
       if (request.method === 'GET' || request.method === 'HEAD') {
         const object = await env.R2_BUCKET.get(key);
 
         if (object === null) {
-          return new Response('Object Not Found', { status: 404, headers: corsHeaders });
+          return new Response('Object Not Found', { status: 404, headers: CORS_HEADERS });
         }
 
-        const headers = new Headers(corsHeaders);
+        const headers = new Headers(CORS_HEADERS);
         object.writeHttpMetadata(headers);
         headers.set('etag', object.httpEtag);
 
@@ -634,7 +758,6 @@ export default {
           headers.set('Content-Type', 'image/jpeg');
         }
 
-        // Return body for GET, null for HEAD
         const body = request.method === 'HEAD' ? null : object.body;
 
         return new Response(body, {
@@ -642,32 +765,30 @@ export default {
         });
       }
 
-      // 7. Handle Upload (POST)
       if (request.method === 'POST') {
         await env.R2_BUCKET.put(key, request.body, {
           httpMetadata: {
             contentType: request.headers.get('Content-Type') || 'image/jpeg',
-            cacheControl: 'public, max-age=31536000', // Cache for 1 year
+            cacheControl: 'public, max-age=31536000',
           },
         });
-        return new Response('Upload Successful', { status: 200, headers: corsHeaders });
+        return new Response('Upload Successful', { status: 200, headers: CORS_HEADERS });
       }
 
-      // 8. Handle Delete (DELETE)
       if (request.method === 'DELETE') {
         try {
           await env.R2_BUCKET.delete(key);
-          return new Response('File deleted successfully', { status: 200, headers: corsHeaders });
+          return new Response('File deleted successfully', { status: 200, headers: CORS_HEADERS });
         } catch (err) {
           console.error('Delete error:', err);
-          return new Response('Delete failed: ' + err.message, { status: 500, headers: corsHeaders });
+          return new Response('Delete failed: ' + err.message, { status: 500, headers: CORS_HEADERS });
         }
       }
 
-      return new Response('Method Not Allowed', { status: 405, headers: corsHeaders });
+      return new Response('Method Not Allowed', { status: 405, headers: CORS_HEADERS });
 
     } catch (err) {
-      return new Response(`Worker Error: ${err.message}`, { status: 500, headers: corsHeaders });
+      return new Response(`Worker Error: ${err.message}`, { status: 500, headers: CORS_HEADERS });
     }
   },
 };
