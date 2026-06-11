@@ -98,6 +98,14 @@ import {
   validateLegalDocument,
   vatRateToAadeCategory,
 } from '../utils/legalDocuments';
+import {
+  LEGAL_REMAINING_SOURCE_VALUE,
+  buildLegalLineSourceOptions,
+  buildLegalOrderPickerRows,
+  buildOrderWithRemainingItems,
+  getShipmentItemsForOrder,
+} from '../utils/legalOrderSources';
+import { formatOrderId } from '../utils/orderUtils';
 
 type LegalTab = 'new' | 'proformas' | 'archive' | 'sync' | 'delivery' | 'settings';
 type DocumentCreationSource = 'order' | 'manual';
@@ -374,10 +382,41 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
     [shipments, selectedOrderId]
   );
 
+  const orderShipmentItemsAll = useMemo(
+    () => getShipmentItemsForOrder(selectedOrderId, shipments, shipmentItems),
+    [selectedOrderId, shipments, shipmentItems]
+  );
+
+  const legalOrderPickerRows = useMemo(
+    () => buildLegalOrderPickerRows(orders),
+    [orders]
+  );
+
+  const selectedPickerRow = useMemo(
+    () => legalOrderPickerRows.find((row) => row.order.id === selectedOrderId) || null,
+    [legalOrderPickerRows, selectedOrderId]
+  );
+
+  const lineSourceOptions = useMemo(() => {
+    if (!selectedOrder) return [];
+    return buildLegalLineSourceOptions({
+      order: selectedOrder,
+      shipments: orderShipments,
+      shipmentItems: orderShipmentItemsAll,
+    });
+  }, [selectedOrder, orderShipments, orderShipmentItemsAll]);
+
+  const selectedLineSource = useMemo(
+    () => lineSourceOptions.find((option) => option.value === selectedShipmentId) || null,
+    [lineSourceOptions, selectedShipmentId]
+  );
+
   const selectedShipment = useMemo(
     () => orderShipments.find((shipment) => shipment.id === selectedShipmentId) || null,
     [orderShipments, selectedShipmentId]
   );
+
+  const canUseSelectedOrder = Boolean(selectedPickerRow?.selectable);
 
   const stats = useMemo(() => ({
     issued: legalDocuments.filter((document) => document.status === 'issued').length,
@@ -560,6 +599,28 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
       showToast('Επιλέξτε παραγγελία.', 'warning');
       return;
     }
+    if (!canUseSelectedOrder) {
+      showToast(selectedPickerRow?.hint || 'Η παραγγελία δεν έχει διαθέσιμα είδη για τιμολόγηση.', 'warning');
+      return;
+    }
+
+    if (selectedShipmentId === LEGAL_REMAINING_SOURCE_VALUE) {
+      const remainingOrder = buildOrderWithRemainingItems(selectedOrder, orderShipmentItemsAll);
+      if (!remainingOrder) {
+        showToast('Δεν υπάρχουν υπόλειπα είδη για αυτήν την παραγγελία.', 'warning');
+        return;
+      }
+      const document = buildLegalDocumentFromOrder({
+        order: remainingOrder,
+        customer: selectedCustomer,
+        products,
+        settings,
+        kind: documentKind,
+        userName,
+      });
+      setDraftBundle({ document, lines: document.lines || [] });
+      return;
+    }
 
     if (selectedShipment) {
       const selectedItems = shipmentItems.filter((item) => item.shipment_id === selectedShipment.id);
@@ -602,6 +663,10 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
     }
     if (!selectedOrder) {
       showToast('Επιλέξτε παραγγελία για το προτιμολόγιο.', 'warning');
+      return;
+    }
+    if (!canUseSelectedOrder) {
+      showToast(selectedPickerRow?.hint || 'Η παραγγελία δεν έχει διαθέσιμα είδη για προτιμολόγιο.', 'warning');
       return;
     }
     const proforma = buildProformaFromOrder({
@@ -1346,22 +1411,74 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
           </div>
           {creationSource === 'order' ? (
             <>
-              <SelectInput label="Παραγγελία" value={selectedOrderId} onChange={(value) => { setSelectedOrderId(value); setSelectedShipmentId(''); setDraftBundle(null); }}>
+              <SelectInput
+                label="Παραγγελία"
+                value={selectedOrderId}
+                onChange={(value) => { setSelectedOrderId(value); setSelectedShipmentId(''); setDraftBundle(null); }}
+                help="Εμφανίζει το πραγματικό ποσό τιμολόγησης από τα τρέχοντα είδη. Παραγγελίες που άδειασαν από μεταφορά υπόλοιπου δείχνουν πού μεταφέρθηκαν τα είδη."
+              >
                 <option value="">Επιλογή παραγγελίας</option>
-                {orders.map((order) => (
-                  <option key={order.id} value={order.id}>
-                    {order.customer_name} | {order.id} | {money(order.total_price)}
-                  </option>
-                ))}
+                {legalOrderPickerRows.some((row) => row.selectable) && (
+                  <optgroup label="Διαθέσιμες για τιμολόγηση">
+                    {legalOrderPickerRows.filter((row) => row.selectable).map((row) => (
+                      <option key={row.order.id} value={row.order.id}>{row.label}</option>
+                    ))}
+                  </optgroup>
+                )}
+                {legalOrderPickerRows.some((row) => !row.selectable) && (
+                  <optgroup label="Μεταφέρθηκαν σε νεότερη παραγγελία">
+                    {legalOrderPickerRows.filter((row) => !row.selectable).map((row) => (
+                      <option key={row.order.id} value={row.order.id} disabled>{row.label}</option>
+                    ))}
+                  </optgroup>
+                )}
               </SelectInput>
-              <SelectInput label="Μερική αποστολή" value={selectedShipmentId} onChange={(value) => { setSelectedShipmentId(value); setDraftBundle(null); }}>
-                <option value="">Όλη η παραγγελία</option>
-                {orderShipments.map((shipment) => (
-                  <option key={shipment.id} value={shipment.id}>
-                    ΔΑ #{shipment.shipment_number} | {new Date(shipment.shipped_at).toLocaleDateString('el-GR')}
-                  </option>
-                ))}
+              {selectedPickerRow?.hint ? (
+                <div className={`rounded-lg border px-3 py-2 text-xs font-medium leading-relaxed ${selectedPickerRow.selectable ? 'border-sky-200 bg-sky-50 text-sky-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+                  <div>{selectedPickerRow.hint}</div>
+                  {!selectedPickerRow.selectable && selectedPickerRow.redirectOrderId ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedOrderId(selectedPickerRow.redirectOrderId!);
+                        setSelectedShipmentId('');
+                        setDraftBundle(null);
+                      }}
+                      className="mt-2 inline-flex items-center gap-1 rounded-lg bg-white px-2.5 py-1 text-[11px] font-black text-amber-900 ring-1 ring-amber-200 hover:bg-amber-100"
+                    >
+                      Μετάβαση στη #{formatOrderId(selectedPickerRow.redirectOrderId)}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+              <SelectInput
+                label="Πηγή γραμμών"
+                value={selectedShipmentId}
+                onChange={(value) => { setSelectedShipmentId(value); setDraftBundle(null); }}
+                help="Επιλέξτε ολόκληρη την παραγγελία, μόνο τα υπόλοιπα είδη ή μια συγκεκριμένη μερική αποστολή (ΔΑ)."
+              >
+                {lineSourceOptions.some((option) => option.group === 'base') ? (
+                  <optgroup label="Παραγγελία">
+                    {lineSourceOptions.filter((option) => option.group === 'base').map((option) => (
+                      <option key={option.value || 'full'} value={option.value}>{option.label}</option>
+                    ))}
+                  </optgroup>
+                ) : (
+                  <option value="">Όλη η παραγγελία</option>
+                )}
+                {lineSourceOptions.some((option) => option.group === 'shipment') ? (
+                  <optgroup label="Μερικές αποστολές">
+                    {lineSourceOptions.filter((option) => option.group === 'shipment').map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </optgroup>
+                ) : null}
               </SelectInput>
+              {selectedLineSource?.description ? (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600">
+                  {selectedLineSource.description}
+                </div>
+              ) : null}
             </>
           ) : (
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-600">
@@ -1385,10 +1502,10 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
               <p className="mt-2 text-xs font-medium leading-relaxed text-slate-500">{kindHelpText[documentKind]}</p>
             ) : null}
           </div>
-          <ActionButton onClick={handleGenerateDraft} disabled={(creationSource === 'order' && !selectedOrder) || loadingOrders}>
+          <ActionButton onClick={handleGenerateDraft} disabled={(creationSource === 'order' && (!selectedOrder || !canUseSelectedOrder)) || loadingOrders}>
             {loadingOrders ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Δημιουργία
           </ActionButton>
-          <ActionButton variant="secondary" onClick={() => handleGenerateProforma()} disabled={(creationSource === 'order' && !selectedOrder) || loadingOrders}>
+          <ActionButton variant="secondary" onClick={() => handleGenerateProforma()} disabled={(creationSource === 'order' && (!selectedOrder || !canUseSelectedOrder)) || loadingOrders}>
             <FileText size={16} /> Προτιμολόγιο
           </ActionButton>
         </div>
@@ -1565,15 +1682,29 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
           <h2 className="font-black text-slate-900">Νέο προτιμολόγιο</h2>
         </div>
         <div className="grid gap-4 md:grid-cols-[1fr_auto_auto_auto] md:items-end">
-          <SelectInput label="Παραγγελία" value={selectedOrderId} onChange={(value) => { setSelectedOrderId(value); setSelectedShipmentId(''); }}>
+          <SelectInput
+            label="Παραγγελία"
+            value={selectedOrderId}
+            onChange={(value) => { setSelectedOrderId(value); setSelectedShipmentId(''); }}
+            help="Οι παραγγελίες που άδειασαν από μεταφορά υπόλοιπου εμφανίζονται ξεχωριστά με σύνδεση στη νεότερη παραγγελία."
+          >
             <option value="">Επιλογή παραγγελίας</option>
-            {orders.map((order) => (
-              <option key={order.id} value={order.id}>
-                {order.customer_name} | {order.id} | {money(order.total_price)}
-              </option>
-            ))}
+            {legalOrderPickerRows.some((row) => row.selectable) && (
+              <optgroup label="Διαθέσιμες για προτιμολόγιο">
+                {legalOrderPickerRows.filter((row) => row.selectable).map((row) => (
+                  <option key={row.order.id} value={row.order.id}>{row.label}</option>
+                ))}
+              </optgroup>
+            )}
+            {legalOrderPickerRows.some((row) => !row.selectable) && (
+              <optgroup label="Μεταφέρθηκαν σε νεότερη παραγγελία">
+                {legalOrderPickerRows.filter((row) => !row.selectable).map((row) => (
+                  <option key={row.order.id} value={row.order.id} disabled>{row.label}</option>
+                ))}
+              </optgroup>
+            )}
           </SelectInput>
-          <ActionButton onClick={() => handleGenerateProforma('order')} disabled={!selectedOrder || loadingOrders}>
+          <ActionButton onClick={() => handleGenerateProforma('order')} disabled={!selectedOrder || !canUseSelectedOrder || loadingOrders}>
             {loadingOrders ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Από παραγγελία
           </ActionButton>
           <ActionButton variant="secondary" onClick={() => handleGenerateProforma('manual')}>
