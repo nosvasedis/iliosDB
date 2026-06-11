@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
   Archive,
@@ -60,7 +61,7 @@ import {
   useVoidProformaDocument,
   useMarkProformaConverted,
 } from '../hooks/api/useLegalDocuments';
-import { legalRepository } from '../features/legal';
+import { legalKeys, legalRepository } from '../features/legal';
 import {
   applyLegalDocumentDeliveryToggle,
   buildDefaultDeliveryDetails,
@@ -80,6 +81,8 @@ import {
   AADE_VAT_CATEGORY_LINE_OPTIONS,
   AADE_VAT_CATEGORY_OPTIONS,
   DEFAULT_LEGAL_SETTINGS,
+  buildLegalNumberingAlignmentPlan,
+  formatLegalNumberingAlignmentMessage,
   getLegalDocumentDisplayNumber,
   isLegalDocumentEditable,
   LEGAL_DOCUMENT_KIND_LABELS,
@@ -291,6 +294,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
   const [deliveryPaneOpen, setDeliveryPaneOpen] = useState(false);
 
   const { showToast, confirm } = useUI();
+  const queryClient = useQueryClient();
   const { profile } = useAuth();
   const userName = profile?.full_name || profile?.email || null;
 
@@ -719,6 +723,51 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
     setActiveTab('new');
   };
 
+  const promptLegalNumberingAlignment = async (options?: { silentIfUpToDate?: boolean }) => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: legalKeys.documents() }),
+      queryClient.invalidateQueries({ queryKey: legalKeys.sequences() }),
+    ]);
+    const [documents, activeSequences] = await Promise.all([
+      legalRepository.getDocuments(),
+      legalRepository.getSequences(),
+    ]);
+    const plan = buildLegalNumberingAlignmentPlan(documents, activeSequences);
+
+    if (!plan.proposals.length) {
+      if (plan.warnings.length) {
+        showToast(plan.warnings[0], 'warning');
+      } else if (!options?.silentIfUpToDate) {
+        showToast('Η αρίθμηση είναι ήδη συγχρονισμένη με το Αρχείο.', 'info');
+      }
+      return;
+    }
+
+    const ok = await confirm({
+      title: 'Ευθυγράμμιση αρίθμησης',
+      message: formatLegalNumberingAlignmentMessage(plan),
+      confirmText: 'Ενημέρωση Επόμενου',
+      cancelText: 'Όχι τώρα',
+    });
+    if (!ok) return;
+
+    try {
+      await Promise.all(
+        plan.proposals.map((proposal) => {
+          const sequence = activeSequences.find((item) => item.id === proposal.sequenceId);
+          if (!sequence) return Promise.resolve();
+          return saveSequence.mutateAsync({ ...sequence, next_aa: proposal.proposedNextAa });
+        }),
+      );
+      showToast(
+        `Η αρίθμηση ενημερώθηκε: ${plan.proposals.map((proposal) => `${proposal.series} → ${proposal.proposedNextAa}`).join(', ')}.`,
+        'success',
+      );
+    } catch (error: any) {
+      showToast(error?.message || 'Δεν ενημερώθηκε η αρίθμηση.', 'error');
+    }
+  };
+
   const handleSyncTransmitted = async () => {
     if (!(await ensureAadeCredentialsReady())) return;
     try {
@@ -738,6 +787,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
       } else {
         showToast(`Συγχρονισμός ολοκληρώθηκε: ${result.imported_count} νέα, ${result.updated_count} ενημερώσεις.`, 'success');
       }
+      await promptLegalNumberingAlignment({ silentIfUpToDate: true });
     } catch (error: any) {
       showToast(error?.message || 'Ο συγχρονισμός AADE απέτυχε.', 'error');
     }
@@ -1700,7 +1750,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
           <h2 className="font-black text-slate-900">Συγχρονισμός παλιών παραστατικών</h2>
         </div>
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800">
-          Φέρνει παραστατικά που έχουν ήδη εκδοθεί ή ακυρωθεί με τα ίδια AADE credentials. Δεν καταναλώνει σειρές ή αρίθμηση του ERP.
+          Φέρνει παραστατικά που έχουν ήδη εκδοθεί ή ακυρωθεί με τα ίδια AADE credentials. Δεν καταναλώνει σειρές· μετά τον συγχρονισμό προτείνεται ευθυγράμμιση του «Επόμενου» με το Αρχείο.
         </div>
         <div className="mt-4 space-y-4">
           <TextInput label="Από ημερομηνία" type="date" value={syncDraft.dateFrom} onChange={(value) => setSyncDraft((current) => ({ ...current, dateFrom: value }))} help="Η εφαρμογή μετατρέπει αυτόματα σε μορφή ΑΑΔΕ (ηη/μμ/εεεε)." />
@@ -1986,7 +2036,15 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
         </section>
 
         <section className="rounded-lg border border-slate-200 bg-white p-5">
-          <h2 className="mb-4 font-black text-slate-900">Σειρές και αρίθμηση</h2>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-black text-slate-900">Σειρές και αρίθμηση</h2>
+            <ActionButton variant="secondary" onClick={() => void promptLegalNumberingAlignment()} disabled={saveSequence.isPending}>
+              <RefreshCw size={16} /> Ευθυγράμμιση με Αρχείο
+            </ActionButton>
+          </div>
+          <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-900">
+            Το «Επόμενο» ενημερώνεται μόνο με επιβεβαίωση, βάσει του μεγαλύτερου αριθμού στο Αρχείο (συμπεριλαμβανομένων συγχρονισμένων από PrismaNET). Ποτέ δεν μειώνεται αυτόματα.
+          </div>
           <div className="space-y-3">
             {sequences.map((sequence) => (
               <div key={sequence.id} className="grid gap-3 rounded-lg border border-slate-200 p-3 md:grid-cols-[1fr_120px_120px_120px_auto] md:items-end">

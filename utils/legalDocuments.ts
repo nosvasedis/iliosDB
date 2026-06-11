@@ -7,6 +7,7 @@ import {
   LegalDocument,
   LegalDocumentKind,
   LegalDocumentLine,
+  LegalNumberingSequence,
   LegalIncomeClassification,
   LegalParty,
   LegalPartyAddress,
@@ -1457,4 +1458,153 @@ export function canPrintLegalDocument(document: LegalDocument): boolean {
 export function getLegalDocumentDisplayNumber(document: Pick<LegalDocument, 'series' | 'aa' | 'id'>): string {
   if (document.series && document.aa) return `${document.series}-${document.aa}`;
   return document.id.slice(0, 8);
+}
+
+const GREEK_SERIES_CHAR_MAP: Record<string, string> = {
+  Α: 'A',
+  Β: 'B',
+  Ε: 'E',
+  Ζ: 'Z',
+  Η: 'H',
+  Ι: 'I',
+  Κ: 'K',
+  Μ: 'M',
+  Ν: 'N',
+  Ο: 'O',
+  Ρ: 'P',
+  Τ: 'T',
+  Υ: 'Y',
+  Χ: 'X',
+};
+
+/** Normalizes invoice series for comparison (e.g. ΤΙΜ vs TIM). */
+export function normalizeLegalSeriesKey(series: string | null | undefined): string {
+  return String(series || '')
+    .trim()
+    .toUpperCase()
+    .split('')
+    .map((char) => GREEK_SERIES_CHAR_MAP[char] || char)
+    .join('');
+}
+
+export function parseLegalDocumentAa(aa: string | null | undefined): number | null {
+  const digits = String(aa || '').trim().replace(/\D/g, '');
+  if (!digits) return null;
+  const parsed = Number.parseInt(digits, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+const LEGAL_NUMBERING_RELEVANT_STATUSES = new Set<LegalDocument['status']>([
+  'issued',
+  'cancelled',
+  'submitted',
+  'failed',
+]);
+
+export function isLegalDocumentNumberingRelevant(document: Pick<LegalDocument, 'status' | 'series' | 'aa'>): boolean {
+  if (!document.series || !document.aa) return false;
+  if (LEGAL_NUMBERING_RELEVANT_STATUSES.has(document.status)) return true;
+  return document.status === 'draft';
+}
+
+export interface LegalNumberingAlignmentProposal {
+  sequenceId: string;
+  documentKind: LegalDocumentKind;
+  series: string;
+  currentNextAa: number;
+  maxIssuedAa: number;
+  proposedNextAa: number;
+  documentCount: number;
+}
+
+export interface LegalNumberingAlignmentPlan {
+  proposals: LegalNumberingAlignmentProposal[];
+  warnings: string[];
+}
+
+export function buildLegalNumberingAlignmentPlan(
+  documents: LegalDocument[],
+  sequences: LegalNumberingSequence[],
+): LegalNumberingAlignmentPlan {
+  const warnings: string[] = [];
+  const proposals: LegalNumberingAlignmentProposal[] = [];
+  const numberingDocuments = documents.filter(isLegalDocumentNumberingRelevant);
+
+  for (const sequence of sequences.filter((item) => item.is_active)) {
+    const sequenceKey = normalizeLegalSeriesKey(sequence.series);
+    const matching = numberingDocuments.filter((document) =>
+      document.document_kind === sequence.document_kind
+      && normalizeLegalSeriesKey(document.series) === sequenceKey,
+    );
+
+    const otherSeries = new Map<string, number>();
+    numberingDocuments
+      .filter((document) =>
+        document.document_kind === sequence.document_kind
+        && normalizeLegalSeriesKey(document.series) !== sequenceKey,
+      )
+      .forEach((document) => {
+        const label = document.series || '—';
+        otherSeries.set(label, (otherSeries.get(label) || 0) + 1);
+      });
+
+    for (const [foreignSeries, count] of otherSeries.entries()) {
+      if (normalizeLegalSeriesKey(foreignSeries) === sequenceKey) continue;
+      warnings.push(
+        `Στο αρχείο υπάρχουν ${count} παραστατικά σειράς «${foreignSeries}» (${LEGAL_DOCUMENT_KIND_LABELS[sequence.document_kind]}), ενώ η ενεργή σειρά ERP είναι «${sequence.series}».`,
+      );
+    }
+
+    if (!matching.length) continue;
+
+    const maxIssuedAa = matching.reduce((max, document) => {
+      const parsed = parseLegalDocumentAa(document.aa);
+      return parsed && parsed > max ? parsed : max;
+    }, 0);
+
+    if (!maxIssuedAa) continue;
+
+    const proposedNextAa = maxIssuedAa + 1;
+    if (proposedNextAa <= sequence.next_aa) continue;
+
+    proposals.push({
+      sequenceId: sequence.id,
+      documentKind: sequence.document_kind,
+      series: sequence.series,
+      currentNextAa: sequence.next_aa,
+      maxIssuedAa,
+      proposedNextAa,
+      documentCount: matching.length,
+    });
+  }
+
+  return {
+    proposals,
+    warnings: Array.from(new Set(warnings)),
+  };
+}
+
+export function formatLegalNumberingAlignmentMessage(plan: LegalNumberingAlignmentPlan): string {
+  const lines: string[] = [
+    'Βρέθηκαν παραστατικά στο Αρχείο με μεγαλύτερη αρίθμηση από το τρέχον «Επόμενο».',
+    '',
+  ];
+
+  if (plan.warnings.length) {
+    lines.push('Προσοχή:');
+    plan.warnings.forEach((warning) => lines.push(`• ${warning}`));
+    lines.push('');
+  }
+
+  plan.proposals.forEach((proposal) => {
+    lines.push(
+      `${LEGAL_DOCUMENT_KIND_LABELS[proposal.documentKind]} · σειρά ${proposal.series}`,
+      `  Μέγιστος: ${proposal.series}-${proposal.maxIssuedAa} (${proposal.documentCount} εγγραφές)`,
+      `  Τρέχον Επόμενο: ${proposal.currentNextAa} → προτεινόμενο: ${proposal.proposedNextAa}`,
+      '',
+    );
+  });
+
+  lines.push('Να ενημερωθεί η αρίθμηση; Το «Επόμενο» δεν θα μειωθεί ποτέ αυτόματα.');
+  return lines.join('\n');
 }

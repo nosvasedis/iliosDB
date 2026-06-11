@@ -31,7 +31,12 @@ import {
   isValidGreekVatNumber,
   validateLegalDocument,
   vatRateToAadeCategory,
+  buildLegalNumberingAlignmentPlan,
+  formatLegalNumberingAlignmentMessage,
+  normalizeLegalSeriesKey,
+  parseLegalDocumentAa,
 } from '../../utils/legalDocuments';
+import type { LegalDocument, LegalNumberingSequence } from '../../types';
 
 const settings = {
   ...DEFAULT_LEGAL_SETTINGS,
@@ -624,5 +629,59 @@ describe('legal document helpers', () => {
       responseText: '<ResponseDoc><response><statusCode>ValidationError</statusCode><errors><error><message>Requested Invoice was not found</message></error></errors></response></ResponseDoc>',
       parsed: { statusCode: 'ValidationError', errors: ['Requested Invoice was not found'] },
     }, { documents: [], cancellations: [] })).toBe(true);
+  });
+
+  it('normalizes Greek and Latin invoice series equivalently', () => {
+    expect(normalizeLegalSeriesKey('ΤΙΜ')).toBe('TIM');
+    expect(normalizeLegalSeriesKey('tim')).toBe('TIM');
+    expect(normalizeLegalSeriesKey('ΤΙΜ ')).toBe('TIM');
+  });
+
+  it('parses legal document aa values', () => {
+    expect(parseLegalDocumentAa('44')).toBe(44);
+    expect(parseLegalDocumentAa('0044')).toBe(44);
+    expect(parseLegalDocumentAa('')).toBeNull();
+  });
+
+  it('proposes numbering alignment only when archive max exceeds next_aa', () => {
+    const sequences: LegalNumberingSequence[] = [{
+      id: 'seq-1',
+      document_kind: 'invoice',
+      aade_document_type: '1.1',
+      series: 'ΤΙΜ',
+      next_aa: 3,
+      is_active: true,
+    }];
+    const documents = [
+      { id: '1', document_kind: 'invoice', series: 'TIM', aa: '412', status: 'issued' },
+      { id: '2', document_kind: 'invoice', series: 'ΤΙΜ', aa: '2', status: 'issued' },
+      { id: '3', document_kind: 'invoice', series: 'ΤΙΜ', aa: '3', status: 'cancelled' },
+    ] as LegalDocument[];
+
+    const plan = buildLegalNumberingAlignmentPlan(documents, sequences);
+    expect(plan.proposals).toHaveLength(1);
+    expect(plan.proposals[0]).toMatchObject({
+      maxIssuedAa: 412,
+      proposedNextAa: 413,
+      currentNextAa: 3,
+      documentCount: 3,
+    });
+    expect(formatLegalNumberingAlignmentMessage(plan)).toContain('413');
+  });
+
+  it('skips alignment when next_aa is already ahead of archive', () => {
+    const sequences: LegalNumberingSequence[] = [{
+      id: 'seq-1',
+      document_kind: 'invoice',
+      aade_document_type: '1.1',
+      series: 'ΤΙΜ',
+      next_aa: 500,
+      is_active: true,
+    }];
+    const documents = [
+      { id: '1', document_kind: 'invoice', series: 'ΤΙΜ', aa: '412', status: 'issued' },
+    ] as LegalDocument[];
+
+    expect(buildLegalNumberingAlignmentPlan(documents, sequences).proposals).toHaveLength(0);
   });
 });
