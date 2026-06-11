@@ -5,6 +5,7 @@ import {
   DollarSign,
   Factory as FactoryIcon,
   FileBadge,
+  FileCheck2,
   FolderKanban as FolderKanbanIcon,
   Globe,
   LayoutDashboard,
@@ -46,6 +47,7 @@ export const adminNavSections: NavSection<AdminPage>[] = [
       { id: 'deliveries', icon: CalendarRange, label: 'Ημερολόγιο' },
       { id: 'orders', icon: ShoppingCart, label: 'Παραγγελίες' },
       { id: 'offers', icon: FileBadge, label: 'Προσφορές' },
+      { id: 'legal', icon: FileCheck2, label: 'Νόμιμα Παραστατικά' },
       { id: 'production', icon: FactoryIcon, label: 'Παραγωγή' },
       { id: 'customers', icon: Users, label: 'Πελάτες' },
       { id: 'suppliers', icon: Globe, label: 'Προμηθευτές' },
@@ -86,6 +88,7 @@ export const mobileAdminNavItems: SurfaceNavItem<MobileAdminPage>[] = [
   { id: 'registry', icon: DatabaseIcon, label: 'Μητρώο' },
   { id: 'production', icon: FactoryIcon, label: 'Παραγωγή' },
   { id: 'orders', icon: ShoppingCart, label: 'Παραγγελίες' },
+  { id: 'legal', icon: FileCheck2, label: 'Παραστατικά' },
   { id: 'customers', icon: Users, label: 'Πελάτες' },
   { id: 'menu', icon: Menu, label: 'Μενού' },
 ];

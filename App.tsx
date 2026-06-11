@@ -72,6 +72,7 @@ const PriceListPage = lazyPage(() => import('./components/PriceListPage'));
 const AnalyticsView = lazyPage(() => import('./components/AnalyticsView'));
 const OffersPage = lazyPage(() => import('./components/OffersPage'));
 const DeliveriesPage = lazyPage(() => import('./components/DeliveriesPage'));
+const LegalDocumentsPage = lazyPage(() => import('./components/LegalDocumentsPage'));
 
 
 const ContentLoader = () => (
@@ -171,8 +172,8 @@ function AppContent() {
     setPrintItems, setOrderToPrint, setRemainingOrderToPrint, setShipmentToPrint, setShipmentsToPrint, setOfferToPrint,
     setAggregatedPrintData, setPreparationPrintData,
     setTechnicianPrintData, setAssemblyPrintData, setPriceListPrintData, setAnalyticsPrintData,
-    setOrderAnalyticsData, setSupplierOrderToPrint, setStageBatchPrintData,
-    printItems, orderToPrint, remainingOrderToPrint, shipmentToPrint, shipmentsToPrint, offerToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData, orderAnalyticsData, supplierOrderToPrint, stageBatchPrintData
+    setOrderAnalyticsData, setSupplierOrderToPrint, setStageBatchPrintData, setLegalDocumentToPrint,
+    printItems, orderToPrint, remainingOrderToPrint, shipmentToPrint, shipmentsToPrint, offerToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData, orderAnalyticsData, supplierOrderToPrint, stageBatchPrintData, legalDocumentToPrint
   } = usePrint() || {}; // Handled gracefully if error
 
   const {
@@ -256,6 +257,7 @@ function AppContent() {
             orderAnalyticsData={orderAnalyticsData}
             photoCatalogPrintData={photoCatalogPrintData}
             stageBatchPrintData={stageBatchPrintData}
+            legalDocumentToPrint={legalDocumentToPrint}
             setPrintItems={setPrintItems}
             setOrderToPrint={setOrderToPrint}
             setRemainingOrderToPrint={setRemainingOrderToPrint}
@@ -272,6 +274,7 @@ function AppContent() {
             setOrderAnalyticsData={setOrderAnalyticsData}
             setPhotoCatalogPrintData={setPhotoCatalogPrintData}
             setStageBatchPrintData={setStageBatchPrintData}
+            setLegalDocumentToPrint={setLegalDocumentToPrint}
           />
           <EmployeeApp setPrintItems={setPrintItems} />
         </>
@@ -371,7 +374,7 @@ function AppContent() {
   // DESKTOP RENDERING (ADMIN)
   // This part runs only if role is 'admin' and !isMobile, or if isLocalMode is true
   const handleLogout = () => { localStorage.removeItem('ILIOS_LOCAL_MODE'); signOut(); };
-  const hiddenInLocalMode = new Set<AdminPage>(['deliveries', 'orders', 'offers', 'production', 'customers', 'suppliers']);
+  const hiddenInLocalMode = new Set<AdminPage>(['deliveries', 'orders', 'offers', 'production', 'customers', 'suppliers', 'legal']);
 
   const adminPageRegistry: Record<AdminPage, React.ReactNode> = {
     dashboard: <Dashboard products={products} settings={settings} onNavigate={handleNav} />,
@@ -406,6 +409,7 @@ function AppContent() {
     analytics: <AnalyticsView products={products} onBack={() => handleNav('dashboard')} onPrint={(data) => setAnalyticsPrintData({ ...data, title: 'Οικονομική Ανάλυση' })} />,
     offers: <OffersPage products={products} materials={materials} settings={settings} collections={collections} onPrintOffer={setOfferToPrint} />,
     deliveries: <DeliveriesPage pendingOrderId={pendingDeliveryOrderId} onConsumePendingOrderId={() => setPendingDeliveryOrderId(null)} onOpenOrder={() => handleNav('orders')} />,
+    legal: <LegalDocumentsPage products={products} onPrintLegalDocument={setLegalDocumentToPrint} />,
   };
 
   return (
@@ -434,6 +438,7 @@ function AppContent() {
         orderAnalyticsData={orderAnalyticsData}
         photoCatalogPrintData={photoCatalogPrintData}
         stageBatchPrintData={stageBatchPrintData}
+        legalDocumentToPrint={legalDocumentToPrint}
         setPrintItems={setPrintItems}
         setOrderToPrint={setOrderToPrint}
         setRemainingOrderToPrint={setRemainingOrderToPrint}
@@ -450,6 +455,7 @@ function AppContent() {
         setOrderAnalyticsData={setOrderAnalyticsData}
         setPhotoCatalogPrintData={setPhotoCatalogPrintData}
         setStageBatchPrintData={setStageBatchPrintData}
+        setLegalDocumentToPrint={setLegalDocumentToPrint}
       />
 
       <div id="app-container" className="flex h-screen overflow-hidden text-[#060b00] bg-slate-50 font-sans">

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
-import { Product, ProductVariant, Order, ProductionBatch, AggregatedData, Offer, SupplierOrder, AssemblyPrintData, StageBatchPrintData, OrderShipment, OrderShipmentItem } from '../types';
+import { Product, ProductVariant, Order, ProductionBatch, AggregatedData, Offer, SupplierOrder, AssemblyPrintData, StageBatchPrintData, OrderShipment, OrderShipmentItem, LegalDocument, LegalDocumentLine } from '../types';
 import { PriceListPrintData } from './PriceListPrintView';
 
 interface PrintItem {
@@ -41,6 +41,8 @@ interface PrintContextType {
     setOrderAnalyticsData: (data: { stats: any; order: Order } | null) => void;
     stageBatchPrintData: StageBatchPrintData | null;
     setStageBatchPrintData: (data: StageBatchPrintData | null) => void;
+    legalDocumentToPrint: { document: LegalDocument; lines: LegalDocumentLine[] } | null;
+    setLegalDocumentToPrint: (data: { document: LegalDocument; lines: LegalDocumentLine[] } | null) => void;
 }
 
 const PrintContext = createContext<PrintContextType | undefined>(undefined);
@@ -69,6 +71,7 @@ export const PrintProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [analyticsPrintData, setAnalyticsPrintData] = useState<any | null>(null);
     const [orderAnalyticsData, setOrderAnalyticsData] = useState<{ stats: any; order: Order } | null>(null);
     const [stageBatchPrintData, setStageBatchPrintData] = useState<StageBatchPrintData | null>(null);
+    const [legalDocumentToPrint, setLegalDocumentToPrint] = useState<{ document: LegalDocument; lines: LegalDocumentLine[] } | null>(null);
 
     return (
         <PrintContext.Provider
@@ -88,6 +91,7 @@ export const PrintProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 analyticsPrintData, setAnalyticsPrintData,
                 orderAnalyticsData, setOrderAnalyticsData,
                 stageBatchPrintData, setStageBatchPrintData,
+                legalDocumentToPrint, setLegalDocumentToPrint,
             }}
         >
             {children}

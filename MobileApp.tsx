@@ -19,6 +19,8 @@ import {
   ProductionBatch,
   StageBatchPrintData,
   SupplierOrder,
+  LegalDocument,
+  LegalDocumentLine,
 } from './types';
 import { useMaterials } from './hooks/api/useMaterials';
 import { useMolds } from './hooks/api/useMolds';
@@ -50,6 +52,7 @@ const MobileOffers = lazyMobilePage(() => import('./components/mobile/MobileOffe
 const MobileDeliveries = lazyMobilePage(() => import('./components/mobile/MobileDeliveries'));
 const MobileAnalytics = lazyMobilePage(() => import('./components/mobile/MobileAnalytics'));
 const MobileSellers = lazyMobilePage(() => import('./components/mobile/MobileSellersPage'));
+const LegalDocumentsPage = lazyMobilePage(() => import('./components/LegalDocumentsPage'));
 
 interface MobileAppProps {
   isOnline?: boolean;
@@ -84,6 +87,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
   const [orderAnalyticsData, setOrderAnalyticsData] = useState<{ stats: any; order: Order } | null>(null);
   const [photoCatalogPrintData, setPhotoCatalogPrintData] = useState<Product[] | null>(null);
   const [stageBatchPrintData, setStageBatchPrintData] = useState<StageBatchPrintData | null>(null);
+  const [legalDocumentToPrint, setLegalDocumentToPrint] = useState<{ document: LegalDocument; lines: LegalDocumentLine[] } | null>(null);
   const [printItems, setPrintItems] = useState<{ product: Product; variant?: ProductVariant; quantity: number; size?: string; format?: 'standard' | 'simple' | 'retail' }[]>([]);
   const [supplierOrderToPrint, setSupplierOrderToPrint] = useState<SupplierOrder | null>(null);
 
@@ -195,6 +199,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
     pricelist: <MobilePriceList onPrint={setPriceListPrintData} />,
     offers: <MobileOffers onPrintOffer={setOfferToPrint} />,
     analytics: <MobileAnalytics products={products} onPrint={(data) => setAnalyticsPrintData({ ...data, title: 'Οικονομική Ανάλυση' })} />,
+    legal: <LegalDocumentsPage products={products} onPrintLegalDocument={setLegalDocumentToPrint} />,
     sellers: <MobileSellers />,
   };
 
@@ -221,6 +226,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         orderAnalyticsData={orderAnalyticsData}
         photoCatalogPrintData={photoCatalogPrintData}
         stageBatchPrintData={stageBatchPrintData}
+        legalDocumentToPrint={legalDocumentToPrint}
         setPrintItems={setPrintItems as (items: []) => void}
         setOrderToPrint={setOrderToPrint}
         setRemainingOrderToPrint={setRemainingOrderToPrint}
@@ -237,6 +243,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         setOrderAnalyticsData={setOrderAnalyticsData}
         setPhotoCatalogPrintData={setPhotoCatalogPrintData}
         setStageBatchPrintData={setStageBatchPrintData}
+        setLegalDocumentToPrint={setLegalDocumentToPrint}
       />
 
       <MobileLayout

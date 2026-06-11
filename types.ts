@@ -616,6 +616,239 @@ export interface StageBatchPrintData {
   generatedAt: string;
 }
 
+export type LegalDocumentKind = 'invoice' | 'delivery_note' | 'invoice_delivery' | 'credit';
+export type AadeDocumentType = '1.1' | '9.3' | '5.1' | '5.2';
+export type LegalDocumentStatus = 'draft' | 'submitted' | 'issued' | 'failed' | 'cancelled';
+export type LegalEnvironment = 'dev' | 'prod';
+export type LegalSourceKind = 'order' | 'shipment' | 'manual';
+export type LegalDeliveryActorRole = 'issuer' | 'carrier' | 'receiver';
+export type LegalDeliveryEventType = 'register_transfer' | 'confirm_delivery' | 'failed_delivery' | 'reject_delivery' | 'status_poll';
+
+export interface AadeEnvironmentCredentialStatus {
+  userId: boolean;
+  subscriptionKey: boolean;
+  ready: boolean;
+}
+
+export interface AadeCredentialStatus {
+  dev: AadeEnvironmentCredentialStatus;
+  prod: AadeEnvironmentCredentialStatus;
+  workerCanStoreSecrets: boolean;
+  missingWorkerSecretManager: string[];
+  checkedAt?: string;
+}
+
+export interface AadeCredentialSavePayload {
+  environment: LegalEnvironment;
+  userId: string;
+  subscriptionKey: string;
+}
+
+export interface LegalPartyAddress {
+  street?: string | null;
+  number?: string | null;
+  postal_code?: string | null;
+  city?: string | null;
+}
+
+export interface LegalParty {
+  vat_number?: string | null;
+  country?: string;
+  branch?: number;
+  name?: string | null;
+  address?: LegalPartyAddress | null;
+  phone?: string | null;
+  email?: string | null;
+}
+
+export interface LegalIssuerSettings extends LegalParty {
+  business_name?: string | null;
+  activity?: string | null;
+}
+
+export interface LegalDeliveryDetails {
+  dispatch_date?: string | null;
+  dispatch_time?: string | null;
+  move_purpose?: number | null;
+  move_purpose_title?: string | null;
+  vehicle_number?: string | null;
+  loading_address?: LegalPartyAddress | null;
+  delivery_address?: LegalPartyAddress | null;
+  carrier_id?: string | null;
+  carrier_name?: string | null;
+  carrier_vat_number?: string | null;
+  carrier_vehicle_number?: string | null;
+  notes?: string | null;
+}
+
+export interface LegalTotals {
+  net: number;
+  vat: number;
+  gross: number;
+  quantity: number;
+}
+
+export interface LegalIncomeClassification {
+  classification_category: string;
+  classification_type?: string | null;
+  amount: number;
+}
+
+export interface LegalSettings {
+  id: string;
+  environment: LegalEnvironment;
+  issuer: LegalIssuerSettings;
+  default_payment_method: number;
+  default_vat_exemption_category?: number | null;
+  default_income_classification_category: string;
+  default_income_classification_type: string;
+  inhouse_income_classification_category: string;
+  inhouse_income_classification_type: string;
+  imported_income_classification_category: string;
+  imported_income_classification_type: string;
+  default_move_purpose: number;
+  loading_address?: LegalPartyAddress | null;
+  require_aade_credentials: boolean;
+  updated_at?: string;
+}
+
+export interface LegalNumberingSequence {
+  id: string;
+  document_kind: LegalDocumentKind;
+  aade_document_type: AadeDocumentType;
+  series: string;
+  next_aa: number;
+  is_active: boolean;
+  updated_at?: string;
+}
+
+export interface LegalCarrier {
+  id: string;
+  name: string;
+  vat_number?: string | null;
+  vehicle_number?: string | null;
+  phone?: string | null;
+  notes?: string | null;
+  is_default?: boolean;
+  created_at?: string;
+}
+
+export interface LegalDocumentLine {
+  id: string;
+  document_id: string;
+  line_number: number;
+  sku: string;
+  variant_suffix?: string | null;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  net_value: number;
+  vat_category: number;
+  vat_amount: number;
+  gross_value: number;
+  measurement_unit: number;
+  item_code?: string | null;
+  income_classification: LegalIncomeClassification;
+  source_order_line_key?: string | null;
+  line_id?: string | null;
+  created_at?: string;
+}
+
+export interface LegalDocument {
+  id: string;
+  order_id?: string | null;
+  shipment_id?: string | null;
+  source_kind: LegalSourceKind;
+  document_kind: LegalDocumentKind;
+  aade_document_type: AadeDocumentType;
+  status: LegalDocumentStatus;
+  series?: string | null;
+  aa?: string | null;
+  issue_date: string;
+  issuer: LegalIssuerSettings;
+  counterpart: LegalParty;
+  delivery?: LegalDeliveryDetails | null;
+  payment_method_code: number;
+  currency: string;
+  vat_rate?: number | null;
+  vat_exemption_category?: number | null;
+  revenue_classification: LegalIncomeClassification[];
+  totals: LegalTotals;
+  aade_uid?: string | null;
+  aade_mark?: string | null;
+  cancellation_mark?: string | null;
+  authentication_code?: string | null;
+  qr_url?: string | null;
+  last_error?: string | null;
+  raw_xml?: string | null;
+  locked_at?: string | null;
+  submitted_at?: string | null;
+  cancelled_at?: string | null;
+  printed_at?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  lines?: LegalDocumentLine[];
+}
+
+export interface LegalPayment {
+  id: string;
+  document_id: string;
+  payment_method_code: number;
+  amount: number;
+  payment_method_mark?: string | null;
+  submitted_at?: string | null;
+  created_at?: string;
+}
+
+export interface LegalTransmission {
+  id: string;
+  document_id?: string | null;
+  action: string;
+  endpoint: string;
+  environment: LegalEnvironment;
+  status: 'success' | 'failed';
+  request_payload?: string | null;
+  response_payload?: string | null;
+  error_message?: string | null;
+  created_at: string;
+}
+
+export interface LegalDeliveryEvent {
+  id: string;
+  document_id: string;
+  event_type: LegalDeliveryEventType;
+  aade_status?: string | null;
+  actor_role: LegalDeliveryActorRole;
+  event_payload?: Record<string, unknown> | null;
+  event_mark?: string | null;
+  created_by?: string | null;
+  created_at: string;
+}
+
+export interface LegalValidationIssue {
+  field: string;
+  severity: 'error' | 'warning';
+  message: string;
+}
+
+export interface AadeProxyResult {
+  ok: boolean;
+  status: number;
+  endpoint: string;
+  responseText: string;
+  parsed?: {
+    statusCode?: string;
+    invoiceUid?: string;
+    invoiceMark?: string;
+    classificationMark?: string;
+    cancellationMark?: string;
+    authenticationCode?: string;
+    qrUrl?: string;
+    errors?: string[];
+  };
+}
+
 // --- NEW SUPPLIER ORDER TYPES ---
 
 export type SupplierOrderType = 'Product' | 'Material';

@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --project tsconfig.json",
-    "check": "npm run typecheck && npm run build"
+    "check": "npm run typecheck && npm run build",
+    "deploy:worker": "wrangler deploy"
   },
   "engines": {
     "node": "24.x"
@@ -41,7 +42,8 @@
     "tailwindcss": "^3.4.3",
     "typescript": "^5.2.2",
     "vite": "^5.2.0",
-    "vitest": "^4.1.2"
+    "vitest": "^4.1.2",
+    "wrangler": "^4.99.0"
   },
   "overrides": {
     "rimraf": "^5.0.0",

@@ -6,7 +6,7 @@
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, HEAD, POST, DELETE, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Max-Age': '86400',
 };
@@ -15,6 +15,380 @@ const CORS_HEADERS = {
 const FIXED_NAMEDAYS_URL = 'https://raw.githubusercontent.com/stavros-melidoniotis/greek-namedays/master/fixed_namedays.json';
 const MOVING_NAMEDAYS_URL = 'https://raw.githubusercontent.com/stavros-melidoniotis/greek-namedays/master/moving_namedays.json';
 const GITHUB_FETCH_OPTS = { cf: { cacheTtl: 86400 } }; // 24h
+
+const AADE_BASE_URLS = {
+  dev: 'https://mydataapidev.aade.gr',
+  prod: 'https://mydatapi.aade.gr/myDATA',
+};
+
+function jsonResponse(data, status, corsHeaders = CORS_HEADERS) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+function xmlEscape(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function findXmlValue(xml, tag) {
+  const match = String(xml || '').match(new RegExp(`<(?:\\w+:)?${tag}>([\\s\\S]*?)</(?:\\w+:)?${tag}>`, 'i'));
+  return match?.[1]?.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').trim();
+}
+
+function parseAadeResponseXml(xml) {
+  const text = String(xml || '');
+  const errorMatches = Array.from(text.matchAll(/<(?:\w+:)?message>([\s\S]*?)<\/(?:\w+:)?message>/gi));
+  return {
+    statusCode: findXmlValue(text, 'statusCode'),
+    invoiceUid: findXmlValue(text, 'invoiceUid'),
+    invoiceMark: findXmlValue(text, 'invoiceMark'),
+    classificationMark: findXmlValue(text, 'classificationMark'),
+    cancellationMark: findXmlValue(text, 'cancellationMark'),
+    authenticationCode: findXmlValue(text, 'authenticationCode'),
+    qrUrl: findXmlValue(text, 'qrUrl'),
+    errors: errorMatches.map((m) => m[1].trim()).filter(Boolean),
+  };
+}
+
+function getAadeCredentials(env, environment) {
+  const suffix = environment === 'prod' ? '_PROD' : '_DEV';
+  return {
+    userId: env[`AADE_USER_ID${suffix}`] || env.AADE_USER_ID,
+    subscriptionKey: env[`AADE_SUBSCRIPTION_KEY${suffix}`] || env.AADE_SUBSCRIPTION_KEY,
+  };
+}
+
+const AADE_SECRET_NAMES = {
+  dev: { userId: 'AADE_USER_ID_DEV', subscriptionKey: 'AADE_SUBSCRIPTION_KEY_DEV' },
+  prod: { userId: 'AADE_USER_ID_PROD', subscriptionKey: 'AADE_SUBSCRIPTION_KEY_PROD' },
+};
+
+function getCloudflareSecretManager(env) {
+  const apiToken = env.CLOUDFLARE_API_TOKEN;
+  const accountId = env.CLOUDFLARE_ACCOUNT_ID;
+  const scriptName = env.CLOUDFLARE_SCRIPT_NAME || 'ilios-image-handler';
+  const missing = [];
+  if (!apiToken) missing.push('CLOUDFLARE_API_TOKEN');
+  if (!accountId) missing.push('CLOUDFLARE_ACCOUNT_ID');
+  return { apiToken, accountId, scriptName, missing };
+}
+
+function getCredentialPresence(env, environment) {
+  const credentials = getAadeCredentials(env, environment);
+  const userId = !!String(credentials.userId || '').trim();
+  const subscriptionKey = !!String(credentials.subscriptionKey || '').trim();
+  return { userId, subscriptionKey, ready: userId && subscriptionKey };
+}
+
+function getAadeCredentialStatus(env, optimisticEnvironment) {
+  const manager = getCloudflareSecretManager(env);
+  const status = {
+    dev: getCredentialPresence(env, 'dev'),
+    prod: getCredentialPresence(env, 'prod'),
+    workerCanStoreSecrets: manager.missing.length === 0,
+    missingWorkerSecretManager: manager.missing,
+    checkedAt: new Date().toISOString(),
+  };
+  if (optimisticEnvironment === 'dev' || optimisticEnvironment === 'prod') {
+    status[optimisticEnvironment] = { userId: true, subscriptionKey: true, ready: true };
+  }
+  return status;
+}
+
+async function putWorkerSecret(env, name, text) {
+  const manager = getCloudflareSecretManager(env);
+  if (manager.missing.length > 0) {
+    throw new Error(`Missing Cloudflare secret manager configuration: ${manager.missing.join(', ')}`);
+  }
+
+  const response = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(manager.accountId)}/workers/scripts/${encodeURIComponent(manager.scriptName)}/secrets`,
+    {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${manager.apiToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name, text, type: 'secret_text' }),
+    },
+  );
+  const body = await response.json().catch(async () => ({ success: false, errors: [{ message: await response.text() }] }));
+  if (!response.ok || body.success === false) {
+    const message = body?.errors?.map((error) => error.message).filter(Boolean).join('; ') || `Cloudflare secret update failed (${response.status})`;
+    throw new Error(message);
+  }
+  return body;
+}
+
+function buildEndpoint(environment, method, query) {
+  const base = AADE_BASE_URLS[environment] || AADE_BASE_URLS.dev;
+  const endpoint = new URL(`${base}/${method}`);
+  if (query) {
+    Object.entries(query).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') endpoint.searchParams.set(key, String(value));
+    });
+  }
+  return endpoint;
+}
+
+function buildDeliveryXml(rootName, payload) {
+  const mark = payload.mark || payload.invoiceMark || '';
+  const outcome = payload.failed ? 'FAILED' : 'DELIVERED';
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    `<${rootName}>`,
+    `<invoiceMark>${xmlEscape(mark)}</invoiceMark>`,
+    payload.outcome ? `<outcome>${xmlEscape(payload.outcome)}</outcome>` : '',
+    rootName === 'ConfirmDeliveryOutcomeRequest' ? `<deliveryOutcome>${outcome}</deliveryOutcome>` : '',
+    payload.groupId ? `<groupId>${xmlEscape(payload.groupId)}</groupId>` : '',
+    `</${rootName}>`,
+  ].join('');
+}
+
+function buildMockAadeResult(method) {
+  const now = Date.now();
+  const mark = String(now).slice(-12);
+  const uid = `MOCK-${mark}`;
+  if (method === 'CancelInvoice') {
+    return `<?xml version="1.0" encoding="UTF-8"?><ResponseDoc><response><index>1</index><cancellationMark>${mark}</cancellationMark><statusCode>Success</statusCode></response></ResponseDoc>`;
+  }
+  if (method === 'GetDeliveryNoteStatus') {
+    return `<?xml version="1.0" encoding="UTF-8"?><ResponseDoc><response><index>1</index><invoiceMark>${mark}</invoiceMark><statusCode>Success</statusCode><message>Delivery note status is available.</message></response></ResponseDoc>`;
+  }
+  return `<?xml version="1.0" encoding="UTF-8"?><ResponseDoc><response><index>1</index><invoiceUid>${uid}</invoiceUid><invoiceMark>${mark}</invoiceMark><authenticationCode>AUTH-${mark}</authenticationCode><qrUrl>https://www1.aade.gr/timologio/qr/${uid}</qrUrl><statusCode>Success</statusCode></response></ResponseDoc>`;
+}
+
+async function postAadeXml(env, environment, method, xml, query) {
+  const credentials = getAadeCredentials(env, environment);
+  const endpoint = buildEndpoint(environment, method, query);
+
+  if (env.AADE_MOCK_MODE === 'true') {
+    const responseText = buildMockAadeResult(method);
+    return {
+      ok: true,
+      status: 200,
+      endpoint: endpoint.toString(),
+      responseText,
+      parsed: parseAadeResponseXml(responseText),
+    };
+  }
+
+  if (!credentials.userId || !credentials.subscriptionKey) {
+    const responseText = '<ResponseDoc><response><statusCode>WorkerConfigError</statusCode><errors><error><message>AADE credentials are not configured on the Cloudflare Worker.</message></error></errors></response></ResponseDoc>';
+    return {
+      ok: false,
+      status: 500,
+      endpoint: endpoint.toString(),
+      responseText,
+      parsed: parseAadeResponseXml(responseText),
+    };
+  }
+
+  const response = await fetch(endpoint.toString(), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/xml; charset=utf-8',
+      'Accept': 'application/xml',
+      'aade-user-id': credentials.userId,
+      'Ocp-Apim-Subscription-Key': credentials.subscriptionKey,
+    },
+    body: xml || '',
+  });
+  const responseText = await response.text();
+  return {
+    ok: response.ok,
+    status: response.status,
+    endpoint: endpoint.toString(),
+    responseText,
+    parsed: parseAadeResponseXml(responseText),
+  };
+}
+
+async function handleAadeRoute(request, env, corsHeaders, url) {
+  if (url.pathname === '/aade/credential-status') {
+    if (!['GET', 'POST'].includes(request.method)) {
+      return jsonResponse({ error: 'Credential status requires GET or POST.' }, 405, corsHeaders);
+    }
+    return jsonResponse({ ok: true, status: getAadeCredentialStatus(env) }, 200, corsHeaders);
+  }
+
+  if (url.pathname === '/aade/configure-credentials') {
+    if (request.method !== 'POST') {
+      return jsonResponse({ error: 'Credential configuration requires POST.' }, 405, corsHeaders);
+    }
+    const payload = await request.json().catch(() => ({}));
+    const environment = payload.environment === 'prod' ? 'prod' : 'dev';
+    const userId = String(payload.userId || '').trim();
+    const subscriptionKey = String(payload.subscriptionKey || '').trim();
+    if (!userId || !subscriptionKey) {
+      return jsonResponse({ error: 'AADE user ID and subscription key are required.' }, 400, corsHeaders);
+    }
+
+    try {
+      const secretNames = AADE_SECRET_NAMES[environment];
+      await putWorkerSecret(env, secretNames.userId, userId);
+      await putWorkerSecret(env, secretNames.subscriptionKey, subscriptionKey);
+      return jsonResponse({ ok: true, status: getAadeCredentialStatus(env, environment) }, 200, corsHeaders);
+    } catch (error) {
+      return jsonResponse({ error: error?.message || 'AADE credential configuration failed.' }, 500, corsHeaders);
+    }
+  }
+
+  if (request.method !== 'POST') {
+    return jsonResponse({ error: 'AADE proxy routes require POST.' }, 405, corsHeaders);
+  }
+
+  const payload = await request.json().catch(() => ({}));
+  const environment = payload.environment === 'prod' ? 'prod' : 'dev';
+  const routeMap = {
+    '/aade/send-invoices': { method: 'SendInvoices', xml: payload.xml },
+    '/aade/cancel-invoice': { method: 'CancelInvoice', xml: '', query: { mark: payload.mark } },
+    '/aade/send-payments-method': { method: 'SendPaymentsMethod', xml: payload.xml },
+    '/aade/request-transmitted-docs': { method: 'RequestTransmittedDocs', xml: payload.xml || '', query: payload.query },
+    '/aade/register-transfer': { method: 'RegisterTransfer', xml: payload.xml || buildDeliveryXml('RegisterTransferRequest', payload) },
+    '/aade/confirm-delivery-outcome': { method: 'ConfirmDeliveryOutcome', xml: payload.xml || buildDeliveryXml('ConfirmDeliveryOutcomeRequest', payload) },
+    '/aade/get-delivery-note-status': { method: 'GetDeliveryNoteStatus', xml: payload.xml || buildDeliveryXml('GetDeliveryNoteStatusRequest', payload) },
+    '/aade/generate-group-qrcode': { method: 'GenerateGroupQRCode', xml: payload.xml || buildDeliveryXml('GenerateGroupQRCodeRequest', payload) },
+  };
+
+  const route = routeMap[url.pathname];
+  if (!route) return jsonResponse({ error: 'Unknown AADE proxy route.' }, 404, corsHeaders);
+
+  try {
+    const result = await postAadeXml(env, environment, route.method, route.xml, route.query);
+    return jsonResponse(result, result.ok ? 200 : 502, corsHeaders);
+  } catch (error) {
+    return jsonResponse({
+      ok: false,
+      status: 500,
+      endpoint: route.method,
+      responseText: '',
+      parsed: { statusCode: 'WorkerException', errors: [error?.message || 'AADE proxy failed.'] },
+    }, 500, corsHeaders);
+  }
+}
+
+async function handleAdminRoute(request, env, corsHeaders, url) {
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
+    return jsonResponse({ error: 'Missing Supabase admin configuration on worker.' }, 500, corsHeaders);
+  }
+
+  const supabaseAdmin = async (path, options = {}) => {
+    const response = await fetch(`${env.SUPABASE_URL}${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': env.SUPABASE_SERVICE_ROLE_KEY,
+        'Authorization': `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        ...(options.headers || {}),
+      },
+    });
+    const text = await response.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = text; }
+    return { ok: response.ok, status: response.status, data };
+  };
+
+  if (url.pathname === '/admin/create-seller' && request.method === 'POST') {
+    const body = await request.json();
+    const { email, password, full_name, commission_percent } = body;
+    if (!email || !password || !full_name) {
+      return jsonResponse({ error: 'Απαιτούνται email, password και full_name.' }, 400, corsHeaders);
+    }
+
+    const authRes = await supabaseAdmin('/auth/v1/admin/users', {
+      method: 'POST',
+      body: JSON.stringify({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { full_name },
+      }),
+    });
+    if (!authRes.ok) {
+      const msg = authRes.data?.msg || authRes.data?.message || JSON.stringify(authRes.data);
+      return jsonResponse({ error: `Σφάλμα δημιουργίας χρήστη: ${msg}` }, authRes.status, corsHeaders);
+    }
+
+    const userId = authRes.data.id;
+    const profileRes = await supabaseAdmin('/rest/v1/profiles', {
+      method: 'POST',
+      headers: { 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify({
+        id: userId,
+        email,
+        full_name,
+        role: 'seller',
+        is_approved: true,
+        commission_percent: commission_percent ?? null,
+      }),
+    });
+    if (!profileRes.ok) {
+      return jsonResponse({ error: 'Ο χρήστης δημιουργήθηκε αλλά το προφίλ απέτυχε.', details: profileRes.data }, 500, corsHeaders);
+    }
+    return jsonResponse({ id: userId, email, full_name, commission_percent: commission_percent ?? null }, 201, corsHeaders);
+  }
+
+  if (url.pathname === '/admin/update-seller' && request.method === 'POST') {
+    const body = await request.json();
+    const { id, full_name, commission_percent, is_approved, new_password } = body;
+    if (!id) return jsonResponse({ error: 'Απαιτείται id.' }, 400, corsHeaders);
+
+    const profilePayload = {};
+    if (full_name !== undefined) profilePayload.full_name = full_name;
+    if (commission_percent !== undefined) profilePayload.commission_percent = commission_percent;
+    if (is_approved !== undefined) profilePayload.is_approved = is_approved;
+
+    if (Object.keys(profilePayload).length > 0) {
+      const profileRes = await supabaseAdmin(`/rest/v1/profiles?id=eq.${id}`, {
+        method: 'PATCH',
+        headers: { 'Prefer': 'return=minimal' },
+        body: JSON.stringify(profilePayload),
+      });
+      if (!profileRes.ok) {
+        return jsonResponse({ error: 'Σφάλμα ενημέρωσης προφίλ.', details: profileRes.data }, 500, corsHeaders);
+      }
+    }
+
+    if (new_password) {
+      const passwordRes = await supabaseAdmin(`/auth/v1/admin/users/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ password: new_password }),
+      });
+      if (!passwordRes.ok) {
+        return jsonResponse({ error: 'Το προφίλ ενημερώθηκε αλλά η αλλαγή κωδικού απέτυχε.', details: passwordRes.data }, 500, corsHeaders);
+      }
+    }
+
+    return jsonResponse({ success: true }, 200, corsHeaders);
+  }
+
+  if (url.pathname === '/admin/delete-seller' && request.method === 'POST') {
+    const body = await request.json();
+    const { id } = body;
+    if (!id) return jsonResponse({ error: 'Απαιτείται id.' }, 400, corsHeaders);
+
+    const profileRes = await supabaseAdmin(`/rest/v1/profiles?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: { 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ is_approved: false }),
+    });
+    if (!profileRes.ok) {
+      return jsonResponse({ error: 'Σφάλμα απενεργοποίησης πλασιέ.', details: profileRes.data }, 500, corsHeaders);
+    }
+
+    return jsonResponse({ success: true }, 200, corsHeaders);
+  }
+
+  return jsonResponse({ error: 'Unknown admin route' }, 404, corsHeaders);
+}
 
 // Major Orthodox holidays (computed from Easter / fixed dates; no API for these)
 const ORTHODOX_RULES = [
@@ -207,19 +581,29 @@ export default {
     }
 
     try {
-      if (!env.R2_BUCKET) {
-        throw new Error('Server Configuration Error: R2_BUCKET binding is missing.');
-      }
-
       const authHeader = request.headers.get('Authorization');
       const url = new URL(request.url);
 
+      if (!env.R2_BUCKET && !url.pathname.startsWith('/aade/')) {
+        throw new Error('Server Configuration Error: R2_BUCKET binding is missing.');
+      }
+
       const isSilverRoute = url.pathname === '/price/silver';
-      const isMutation = ['POST', 'DELETE', 'PUT'].includes(request.method);
-      const isProtected = isMutation || isSilverRoute;
+      const isAdminRoute = url.pathname.startsWith('/admin/');
+      const isAadeRoute = url.pathname.startsWith('/aade/');
+      const isMutation = ['POST', 'DELETE', 'PUT', 'PATCH'].includes(request.method);
+      const isProtected = isMutation || isSilverRoute || isAdminRoute || isAadeRoute;
 
       if (isProtected && (!authHeader || authHeader !== env.AUTH_KEY_SECRET)) {
         return new Response('Unauthorized', { status: 403, headers: CORS_HEADERS });
+      }
+
+      if (url.pathname.startsWith('/aade/')) {
+        return handleAadeRoute(request, env, CORS_HEADERS, url);
+      }
+
+      if (isAdminRoute) {
+        return handleAdminRoute(request, env, CORS_HEADERS, url);
       }
 
       // --- SPECIAL ROUTE: ORTHODOX CALENDAR (public GET) ---

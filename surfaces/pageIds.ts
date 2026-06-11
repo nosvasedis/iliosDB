@@ -16,7 +16,8 @@ export type AdminPage =
   | 'pricelist'
   | 'analytics'
   | 'offers'
-  | 'deliveries';
+  | 'deliveries'
+  | 'legal';
 
 export type MobileAdminPage =
   | 'dashboard'
@@ -38,7 +39,8 @@ export type MobileAdminPage =
   | 'collections'
   | 'pricelist'
   | 'offers'
-  | 'analytics';
+  | 'analytics'
+  | 'legal';
 
 export type EmployeePage =
   | 'dashboard'

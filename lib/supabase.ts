@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, OrderItem, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, BatchStageHistoryEntry, SyncOfflineResult } from '../types';
+import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, OrderItem, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, BatchStageHistoryEntry, SyncOfflineResult, LegalSettings, LegalNumberingSequence, LegalCarrier, LegalDocument, LegalDocumentLine, LegalTransmission, LegalDeliveryEvent, AadeProxyResult, AadeCredentialStatus, AadeCredentialSavePayload } from '../types';
 import { INITIAL_SETTINGS, MOCK_MATERIALS, requiresAssemblyStage, requiresSettingStage } from '../constants';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { offlineDb } from './offlineDb';
@@ -18,6 +18,7 @@ import { buildInitialBatchHistoryEntry, canMoveBatchToStage as canMoveBatchToSta
 import { mapCatalogProductsWithRelations, mapProductsWithRelations, resolveProductImageUrl, attachSuppliersToProductRows } from '../features/products/mappers';
 import { getRegisteredQueryClient } from './queryClientRegistry';
 import { addReceivedSizeQuantity, resolveSupplierOrderProductReceiptTarget } from '../features/suppliers/receiptHelpers';
+import { buildAadeInvoiceXml, DEFAULT_LEGAL_SETTINGS, LEGAL_SETTINGS_ID, parseAadeResponseXml, validateLegalDocument } from '../utils/legalDocuments';
 
 // Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
 export const R2_PUBLIC_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
@@ -220,6 +221,16 @@ async function fetchWithTimeout(query: any, timeoutMs: number = 3000): Promise<a
     return Promise.race([query, timeoutPromise]);
 }
 
+async function parseWorkerJsonResponse(response: Response): Promise<any> {
+    const text = await response.text().catch(() => '');
+    if (!text) return {};
+    try {
+        return JSON.parse(text);
+    } catch {
+        return { error: text };
+    }
+}
+
 /** Stable pagination order — without this, newly inserted rows land on later pages and vanish when a page times out. */
 const TABLE_DEFAULT_ORDER: Record<string, (query: any) => any> = {
     products: (q) => q.order('sku'),
@@ -228,6 +239,10 @@ const TABLE_DEFAULT_ORDER: Record<string, (query: any) => any> = {
     product_molds: (q) => q.order('product_sku').order('mold_code'),
     product_collections: (q) => q.order('product_sku').order('collection_id'),
     product_stock: (q) => q.order('product_sku').order('variant_suffix', { nullsFirst: true }),
+    legal_documents: (q) => q.order('created_at', { ascending: false }),
+    legal_document_lines: (q) => q.order('line_number'),
+    legal_transmissions: (q) => q.order('created_at', { ascending: false }),
+    legal_delivery_events: (q) => q.order('created_at', { ascending: false }),
 };
 
 const TABLE_PAGE_TIMEOUT_MS: Record<string, number> = {
@@ -852,6 +867,372 @@ export const api = {
             // Re-throw with the original message so the UI can display it
             throw new Error(err.message || "Σφάλμα κατά την αναζήτηση ΑΦΜ.");
         }
+    },
+
+
+    getLegalSettings: async (): Promise<LegalSettings> => {
+        const rows = await fetchFullTable('legal_settings');
+        const row = (rows || []).find((item: any) => item.id === LEGAL_SETTINGS_ID) || rows?.[0];
+        if (!row) return { ...DEFAULT_LEGAL_SETTINGS };
+        return {
+            ...DEFAULT_LEGAL_SETTINGS,
+            ...row,
+            issuer: { ...DEFAULT_LEGAL_SETTINGS.issuer, ...(row.issuer || {}) },
+            loading_address: row.loading_address || DEFAULT_LEGAL_SETTINGS.loading_address,
+        } as LegalSettings;
+    },
+
+    saveLegalSettings: async (settings: LegalSettings): Promise<void> => {
+        await safeMutate('legal_settings', 'UPSERT', {
+            ...settings,
+            id: settings.id || LEGAL_SETTINGS_ID,
+            updated_at: new Date().toISOString(),
+        }, { onConflict: 'id', noSelect: true });
+    },
+
+    getLegalNumberingSequences: async (): Promise<LegalNumberingSequence[]> => {
+        const rows = await fetchFullTable('legal_numbering_sequences', '*', (q) => q.order('document_kind').order('series'));
+        return rows as LegalNumberingSequence[];
+    },
+
+    saveLegalNumberingSequence: async (sequence: LegalNumberingSequence): Promise<void> => {
+        await safeMutate('legal_numbering_sequences', 'UPSERT', {
+            ...sequence,
+            updated_at: new Date().toISOString(),
+        }, { onConflict: 'id', noSelect: true });
+    },
+
+    getLegalCarriers: async (): Promise<LegalCarrier[]> => {
+        const rows = await fetchFullTable('legal_carriers', '*', (q) => q.order('is_default', { ascending: false }).order('name'));
+        return rows as LegalCarrier[];
+    },
+
+    saveLegalCarrier: async (carrier: LegalCarrier): Promise<void> => {
+        await safeMutate('legal_carriers', 'UPSERT', carrier, { onConflict: 'id', noSelect: true });
+    },
+
+    getLegalDocuments: async (): Promise<LegalDocument[]> => {
+        const rows = await fetchFullTable('legal_documents', '*', (q) => q.order('created_at', { ascending: false }));
+        return rows as LegalDocument[];
+    },
+
+    getLegalDocumentLines: async (documentId: string): Promise<LegalDocumentLine[]> => {
+        const rows = await fetchRowsByFilter(
+            'legal_document_lines',
+            '*',
+            (q) => q.eq('document_id', documentId),
+            {
+                order: (q) => q.order('line_number', { ascending: true }),
+                localFilter: (row) => row.document_id === documentId,
+            }
+        );
+        return rows as LegalDocumentLine[];
+    },
+
+    getLegalTransmissions: async (documentId: string): Promise<LegalTransmission[]> => {
+        const rows = await fetchRowsByFilter(
+            'legal_transmissions',
+            '*',
+            (q) => q.eq('document_id', documentId),
+            {
+                order: (q) => q.order('created_at', { ascending: false }),
+                localFilter: (row) => row.document_id === documentId,
+            }
+        );
+        return rows as LegalTransmission[];
+    },
+
+    getLegalDeliveryEvents: async (documentId: string): Promise<LegalDeliveryEvent[]> => {
+        const rows = await fetchRowsByFilter(
+            'legal_delivery_events',
+            '*',
+            (q) => q.eq('document_id', documentId),
+            {
+                order: (q) => q.order('created_at', { ascending: false }),
+                localFilter: (row) => row.document_id === documentId,
+            }
+        );
+        return rows as LegalDeliveryEvent[];
+    },
+
+    saveLegalDraft: async (document: LegalDocument, lines: LegalDocumentLine[]): Promise<void> => {
+        if (document.status !== 'draft' && document.status !== 'failed') {
+            throw new Error('This legal document is locked and cannot be edited.');
+        }
+        const normalizedDocument: Record<string, unknown> = {
+            ...document,
+            updated_at: new Date().toISOString(),
+        };
+        delete normalizedDocument.lines;
+        await safeMutate('legal_documents', 'UPSERT', normalizedDocument, { onConflict: 'id', noSelect: true });
+        await safeMutate('legal_document_lines', 'DELETE', null, { match: { document_id: document.id } });
+        if (lines.length > 0) {
+            await safeMutate('legal_document_lines', 'INSERT', lines.map((line) => ({ ...line, document_id: document.id })), { noSelect: true });
+        }
+        await safeMutate('legal_audit_log', 'INSERT', {
+            document_id: document.id,
+            action: 'draft_saved',
+            user_name: document.created_by || null,
+            details: { document_kind: document.document_kind, source_kind: document.source_kind },
+        }, { noSelect: true });
+    },
+
+    submitLegalDocument: async (documentId: string, userName?: string | null): Promise<LegalDocument> => {
+        if (isLocalMode || !navigator.onLine) {
+            throw new Error('Legal issuance requires an online Supabase and AADE connection.');
+        }
+        const settings = await api.getLegalSettings();
+        const documents = await api.getLegalDocuments();
+        const existing = documents.find((item) => item.id === documentId);
+        if (!existing) throw new Error('Legal document not found.');
+        if (existing.status === 'issued') return existing;
+        if (existing.status === 'cancelled') throw new Error('This legal document is cancelled.');
+
+        const lines = await api.getLegalDocumentLines(documentId);
+        let document: LegalDocument = { ...existing, lines };
+        const issues = validateLegalDocument(document, lines).filter((issue) => issue.severity === 'error');
+        if (issues.length > 0) throw new Error(issues.map((issue) => issue.message).join('\n'));
+
+        if (!document.series || !document.aa) {
+            const sequences = await api.getLegalNumberingSequences();
+            const sequence = sequences.find((item) =>
+                item.is_active &&
+                item.document_kind === document.document_kind &&
+                item.aade_document_type === document.aade_document_type
+            );
+            if (!sequence) throw new Error('No active numbering sequence exists for this legal document type.');
+            const { data, error } = await supabase.rpc('allocate_legal_document_number', { p_sequence_id: sequence.id });
+            if (error) throw new Error(error.message);
+            const allocated = Array.isArray(data) ? data[0] : data;
+            document = { ...document, series: allocated?.series || sequence.series, aa: allocated?.aa || String(sequence.next_aa) };
+        }
+
+        const rawXml = buildAadeInvoiceXml(document, lines);
+        const submittedAt = new Date().toISOString();
+        const submitUpdate = await supabase.from('legal_documents').update({
+            status: 'submitted',
+            series: document.series,
+            aa: document.aa,
+            raw_xml: rawXml,
+            submitted_at: submittedAt,
+            updated_at: submittedAt,
+            last_error: null,
+        }).eq('id', document.id);
+        if (submitUpdate.error) throw new Error(submitUpdate.error.message);
+
+        let proxyResult: AadeProxyResult | null = null;
+        try {
+            proxyResult = await api.callAadeProxy('/aade/send-invoices', {
+                environment: settings.environment,
+                xml: rawXml,
+            });
+            const parsed = proxyResult.parsed || parseAadeResponseXml(proxyResult.responseText || '');
+            const success = proxyResult.ok && parsed.statusCode === 'Success' && !!parsed.invoiceMark;
+            await supabase.from('legal_transmissions').insert({
+                document_id: document.id,
+                action: 'send_invoices',
+                endpoint: proxyResult.endpoint,
+                environment: settings.environment,
+                status: success ? 'success' : 'failed',
+                request_payload: rawXml,
+                response_payload: proxyResult.responseText,
+                error_message: success ? null : (parsed.errors?.join('\n') || parsed.statusCode || `HTTP ${proxyResult.status}`),
+            });
+
+            if (!success) {
+                const message = parsed.errors?.join('\n') || parsed.statusCode || 'AADE rejected the document.';
+                await supabase.from('legal_documents').update({
+                    status: 'failed',
+                    last_error: message,
+                    updated_at: new Date().toISOString(),
+                }).eq('id', document.id);
+                throw new Error(message);
+            }
+
+            const issuedAt = new Date().toISOString();
+            const issuedDocument: LegalDocument = {
+                ...document,
+                status: 'issued',
+                raw_xml: rawXml,
+                aade_uid: parsed.invoiceUid || null,
+                aade_mark: parsed.invoiceMark || null,
+                authentication_code: parsed.authenticationCode || null,
+                qr_url: parsed.qrUrl || null,
+                submitted_at: submittedAt,
+                locked_at: issuedAt,
+                updated_at: issuedAt,
+                lines,
+            };
+            await supabase.from('legal_documents').update({
+                status: 'issued',
+                aade_uid: issuedDocument.aade_uid,
+                aade_mark: issuedDocument.aade_mark,
+                authentication_code: issuedDocument.authentication_code,
+                qr_url: issuedDocument.qr_url,
+                locked_at: issuedAt,
+                updated_at: issuedAt,
+                last_error: null,
+            }).eq('id', document.id);
+            await supabase.from('legal_audit_log').insert({
+                document_id: document.id,
+                action: 'issued',
+                user_name: userName || null,
+                details: { mark: issuedDocument.aade_mark, uid: issuedDocument.aade_uid },
+            });
+            return issuedDocument;
+        } catch (error: any) {
+            if (!proxyResult) {
+                await supabase.from('legal_transmissions').insert({
+                    document_id: document.id,
+                    action: 'send_invoices',
+                    endpoint: '/aade/send-invoices',
+                    environment: settings.environment,
+                    status: 'failed',
+                    request_payload: rawXml,
+                    response_payload: null,
+                    error_message: error?.message || 'AADE transmission failed',
+                });
+                await supabase.from('legal_documents').update({
+                    status: 'failed',
+                    last_error: error?.message || 'AADE transmission failed',
+                    updated_at: new Date().toISOString(),
+                }).eq('id', document.id);
+            }
+            throw error;
+        }
+    },
+
+    cancelLegalDocument: async (documentId: string, userName?: string | null): Promise<LegalDocument> => {
+        if (isLocalMode || !navigator.onLine) throw new Error('Cancellation requires an online connection.');
+        const settings = await api.getLegalSettings();
+        const documents = await api.getLegalDocuments();
+        const document = documents.find((item) => item.id === documentId);
+        if (!document) throw new Error('Legal document not found.');
+        if (document.status !== 'issued' || !document.aade_mark) {
+            throw new Error('Only an issued document with MARK can be cancelled.');
+        }
+
+        const result = await api.callAadeProxy('/aade/cancel-invoice', {
+            environment: settings.environment,
+            mark: document.aade_mark,
+        });
+        const parsed = result.parsed || parseAadeResponseXml(result.responseText || '');
+        const success = result.ok && parsed.statusCode === 'Success' && !!parsed.cancellationMark;
+        await supabase.from('legal_transmissions').insert({
+            document_id: document.id,
+            action: 'cancel_invoice',
+            endpoint: result.endpoint,
+            environment: settings.environment,
+            status: success ? 'success' : 'failed',
+            request_payload: JSON.stringify({ mark: document.aade_mark }),
+            response_payload: result.responseText,
+            error_message: success ? null : (parsed.errors?.join('\n') || parsed.statusCode || `HTTP ${result.status}`),
+        });
+        if (!success) throw new Error(parsed.errors?.join('\n') || parsed.statusCode || 'AADE rejected cancellation.');
+
+        const now = new Date().toISOString();
+        await supabase.from('legal_documents').update({
+            status: 'cancelled',
+            cancellation_mark: parsed.cancellationMark,
+            cancelled_at: now,
+            updated_at: now,
+        }).eq('id', document.id);
+        await supabase.from('legal_audit_log').insert({
+            document_id: document.id,
+            action: 'cancelled',
+            user_name: userName || null,
+            details: { cancellation_mark: parsed.cancellationMark },
+        });
+        return { ...document, status: 'cancelled', cancellation_mark: parsed.cancellationMark || null, cancelled_at: now, updated_at: now };
+    },
+
+    markLegalDocumentPrinted: async (documentId: string): Promise<void> => {
+        const now = new Date().toISOString();
+        await safeMutate('legal_documents', 'UPDATE', { printed_at: now, updated_at: now }, { match: { id: documentId }, noSelect: true });
+    },
+
+    registerLegalTransfer: async (documentId: string, userName?: string | null): Promise<void> => {
+        await api.sendLegalDeliveryEvent(documentId, 'register_transfer', '/aade/register-transfer', userName);
+    },
+
+    confirmLegalDelivery: async (documentId: string, userName?: string | null, failed = false): Promise<void> => {
+        await api.sendLegalDeliveryEvent(documentId, failed ? 'failed_delivery' : 'confirm_delivery', '/aade/confirm-delivery-outcome', userName, { failed });
+    },
+
+    pollLegalDeliveryStatus: async (documentId: string, userName?: string | null): Promise<void> => {
+        await api.sendLegalDeliveryEvent(documentId, 'status_poll', '/aade/get-delivery-note-status', userName);
+    },
+
+    sendLegalDeliveryEvent: async (documentId: string, eventType: LegalDeliveryEvent['event_type'], route: string, userName?: string | null, extraPayload?: Record<string, unknown>): Promise<void> => {
+        if (isLocalMode || !navigator.onLine) throw new Error('Delivery-note actions require an online connection.');
+        const settings = await api.getLegalSettings();
+        const documents = await api.getLegalDocuments();
+        const document = documents.find((item) => item.id === documentId);
+        if (!document || !document.aade_mark) throw new Error('The delivery document does not have MARK.');
+
+        const result = await api.callAadeProxy(route, {
+            environment: settings.environment,
+            mark: document.aade_mark,
+            document,
+            ...extraPayload,
+        });
+        const parsed = result.parsed || parseAadeResponseXml(result.responseText || '');
+        await supabase.from('legal_delivery_events').insert({
+            document_id: document.id,
+            event_type: eventType,
+            aade_status: parsed.statusCode || null,
+            actor_role: 'issuer',
+            event_payload: { response: result.responseText, ...extraPayload },
+            event_mark: parsed.invoiceMark || parsed.cancellationMark || null,
+            created_by: userName || null,
+        });
+        await supabase.from('legal_transmissions').insert({
+            document_id: document.id,
+            action: eventType,
+            endpoint: result.endpoint,
+            environment: settings.environment,
+            status: result.ok && (!parsed.statusCode || parsed.statusCode === 'Success') ? 'success' : 'failed',
+            request_payload: JSON.stringify({ mark: document.aade_mark, ...extraPayload }),
+            response_payload: result.responseText,
+            error_message: result.ok ? null : `HTTP ${result.status}`,
+        });
+    },
+
+    getAadeCredentialStatus: async (): Promise<AadeCredentialStatus> => {
+        if (!AUTH_KEY_SECRET) throw new Error('Worker Auth Key is missing from IliosERP setup.');
+        const response = await fetch(`${CLOUDFLARE_WORKER_URL}/aade/credential-status`, {
+            method: 'GET',
+            headers: { Authorization: AUTH_KEY_SECRET },
+        });
+        const data = await parseWorkerJsonResponse(response);
+        if (!response.ok) throw new Error(data?.error || `AADE credential status failed (${response.status}).`);
+        return (data?.status || data) as AadeCredentialStatus;
+    },
+
+    saveAadeCredentials: async (payload: AadeCredentialSavePayload): Promise<AadeCredentialStatus> => {
+        if (!AUTH_KEY_SECRET) throw new Error('Worker Auth Key is missing from IliosERP setup.');
+        const response = await fetch(`${CLOUDFLARE_WORKER_URL}/aade/configure-credentials`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: AUTH_KEY_SECRET },
+            body: JSON.stringify(payload),
+        });
+        const data = await parseWorkerJsonResponse(response);
+        if (!response.ok) throw new Error(data?.error || `AADE credential save failed (${response.status}).`);
+        return (data?.status || data) as AadeCredentialStatus;
+    },
+
+    callAadeProxy: async (route: string, payload: Record<string, unknown>): Promise<AadeProxyResult> => {
+        if (!AUTH_KEY_SECRET) throw new Error('Worker Auth Key is missing from IliosERP setup.');
+        const response = await fetch(`${CLOUDFLARE_WORKER_URL}${route}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: AUTH_KEY_SECRET },
+            body: JSON.stringify(payload),
+        });
+        const data = await response.json().catch(async () => {
+            const text = await response.text().catch(() => '');
+            return { ok: false, status: response.status, endpoint: route, responseText: text };
+        });
+        return data as AadeProxyResult;
     },
 
 
