@@ -866,6 +866,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
                   lineNumber: lines.length + 1,
                   settings: settingsDraft,
                   vatRate: current.vat_rate ?? 0.24,
+                  aadeDocumentType: current.aade_document_type,
                 }),
               ], settingsDraft))}>
                 <Plus size={16} /> Γραμμή

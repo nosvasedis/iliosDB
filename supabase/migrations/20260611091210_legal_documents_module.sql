@@ -161,7 +161,7 @@ VALUES
   ('invoice', '1.1', 'ΤΙΜ', 1),
   ('delivery_note', '9.3', 'ΔΑ', 1),
   ('invoice_delivery', '1.1', 'ΤΔΑ', 1),
-  ('credit', '5.1', 'ΠΙΣ', 1)
+  ('credit', '5.2', 'ΠΙΣ', 1)
 ON CONFLICT (document_kind, series) DO NOTHING;
 
 CREATE OR REPLACE FUNCTION public.allocate_legal_document_number(p_sequence_id uuid)

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Customer, Order, Product, ProductionType } from '../../types';
 import {
+  AADE_REVENUE_CLASSIFICATION_COMBINATIONS,
   AADE_VAT_CATEGORY_OPTIONS,
   buildAadeInvoiceXml,
   buildAadeTransmittedDocsQuery,
@@ -104,6 +105,8 @@ describe('legal document helpers', () => {
   it('lists official AADE payment and VAT appendix codes used by the editor', () => {
     expect(PAYMENT_METHOD_CODES).toEqual([5, 1, 2, 3, 4, 6, 7, 8]);
     expect(AADE_VAT_CATEGORY_OPTIONS.map((option) => option.category)).toEqual([1, 4, 2, 5, 3, 6, 9, 7, 8, 10]);
+    expect(AADE_REVENUE_CLASSIFICATION_COMBINATIONS['1.1']).toContainEqual(['category1_2', 'E3_561_001']);
+    expect(AADE_REVENUE_CLASSIFICATION_COMBINATIONS['9.3']).toEqual([['category3', '']]);
   });
 
   it('builds an invoice draft with totals and revenue classification', () => {
@@ -167,6 +170,27 @@ describe('legal document helpers', () => {
     expect(xml).toContain('<isDeliveryNote>true</isDeliveryNote>');
     expect(xml).toContain('<dispatchDate>');
     expect(xml).toContain('<itemDescr>Silver ring</itemDescr>');
+  });
+
+  it('uses the official non-E3 classification for delivery notes', () => {
+    const document = buildLegalDocumentFromOrder({
+      order: baseOrder,
+      customer,
+      products: [product],
+      settings,
+      kind: 'delivery_note',
+    });
+    const xml = buildAadeInvoiceXml({ ...document, series: 'DA', aa: '1' }, document.lines);
+    const errors = validateLegalDocument(document, document.lines).filter((issue) => issue.severity === 'error');
+
+    expect(document.aade_document_type).toBe('9.3');
+    expect(document.lines![0].income_classification).toMatchObject({
+      classification_category: 'category3',
+      classification_type: '',
+    });
+    expect(xml).toContain('<classificationCategory>category3</classificationCategory>');
+    expect(xml).not.toContain('<classificationType>');
+    expect(errors).toEqual([]);
   });
 
   it('parses AADE response XML and gates legal printing on MARK plus QR', () => {
@@ -266,6 +290,47 @@ describe('legal document helpers', () => {
 
     expect(issues.some((issue) => issue.field.includes('vat_category'))).toBe(true);
     expect(issues.some((issue) => issue.field.includes('measurement_unit'))).toBe(true);
+  });
+
+  it('rejects manual E3 combinations that are not allowed for the AADE document type', () => {
+    const document = buildLegalDocumentFromOrder({
+      order: baseOrder,
+      customer,
+      products: [product],
+      settings,
+      kind: 'invoice',
+    });
+
+    const issues = validateLegalDocument(document, [
+      {
+        ...document.lines![0],
+        income_classification: {
+          ...document.lines![0].income_classification,
+          classification_category: 'category1_1',
+          classification_type: 'E3_561_005',
+        },
+      },
+    ]);
+
+    expect(issues.some((issue) => issue.field.includes('classification'))).toBe(true);
+  });
+
+  it('defaults credits to the non-correlated 5.2 type and blocks unsupported correlated 5.1 drafts', () => {
+    const credit = buildLegalDocumentFromOrder({
+      order: baseOrder,
+      customer,
+      products: [product],
+      settings,
+      kind: 'credit',
+    });
+
+    expect(credit.aade_document_type).toBe('5.2');
+    expect(validateLegalDocument(credit, credit.lines).filter((issue) => issue.severity === 'error')).toEqual([]);
+
+    const correlatedCredit = { ...credit, aade_document_type: '5.1' as const };
+    expect(validateLegalDocument(correlatedCredit, correlatedCredit.lines).some((issue) =>
+      issue.field === 'aade_document_type'
+    )).toBe(true);
   });
 
   it('builds editable proformas that are printable but never AADE legal documents', () => {

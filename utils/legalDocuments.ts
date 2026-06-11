@@ -93,9 +93,80 @@ export const AADE_VAT_CATEGORY_OPTIONS = [
   { value: 0.04, category: 10, label: '4% αρ.31 ν.5057/2023' },
 ];
 
+export const AADE_REVENUE_CLASSIFICATION_COMBINATIONS: Partial<Record<AadeDocumentType, Array<[string, string]>>> = {
+  '1.1': [
+    ['category1_1', 'E3_561_001'],
+    ['category1_1', 'E3_561_002'],
+    ['category1_1', 'E3_561_007'],
+    ['category1_2', 'E3_561_001'],
+    ['category1_2', 'E3_561_002'],
+    ['category1_2', 'E3_561_007'],
+    ['category1_3', 'E3_561_001'],
+    ['category1_3', 'E3_561_002'],
+    ['category1_3', 'E3_561_007'],
+    ['category1_3', 'E3_563'],
+    ['category1_4', 'E3_880_001'],
+    ['category1_5', 'E3_561_007'],
+    ['category1_5', 'E3_562'],
+    ['category1_5', 'E3_563'],
+    ['category1_5', 'E3_564'],
+    ['category1_5', 'E3_565'],
+    ['category1_5', 'E3_566'],
+    ['category1_5', 'E3_567'],
+    ['category1_5', 'E3_568'],
+    ['category1_5', 'E3_570'],
+    ['category1_5', 'E3_561_002'],
+    ['category1_7', 'E3_881_001'],
+    ['category1_7', 'E3_881_003'],
+    ['category1_7', 'E3_881_004'],
+    ['category1_95', 'E3_596'],
+    ['category1_95', 'E3_597'],
+  ],
+  '5.2': [
+    ['category1_1', 'E3_561_001'],
+    ['category1_1', 'E3_561_002'],
+    ['category1_1', 'E3_561_005'],
+    ['category1_1', 'E3_561_006'],
+    ['category1_1', 'E3_561_007'],
+    ['category1_2', 'E3_561_001'],
+    ['category1_2', 'E3_561_002'],
+    ['category1_2', 'E3_561_005'],
+    ['category1_2', 'E3_561_006'],
+    ['category1_2', 'E3_561_007'],
+    ['category1_3', 'E3_561_001'],
+    ['category1_3', 'E3_561_002'],
+    ['category1_3', 'E3_561_005'],
+    ['category1_3', 'E3_561_006'],
+    ['category1_3', 'E3_561_007'],
+    ['category1_3', 'E3_563'],
+    ['category1_4', 'E3_880_001'],
+    ['category1_4', 'E3_880_003'],
+    ['category1_4', 'E3_880_004'],
+    ['category1_5', 'E3_561_005'],
+    ['category1_5', 'E3_561_006'],
+    ['category1_5', 'E3_561_007'],
+    ['category1_5', 'E3_562'],
+    ['category1_5', 'E3_563'],
+    ['category1_5', 'E3_564'],
+    ['category1_5', 'E3_565'],
+    ['category1_5', 'E3_566'],
+    ['category1_5', 'E3_567'],
+    ['category1_5', 'E3_568'],
+    ['category1_5', 'E3_570'],
+    ['category1_5', 'E3_561_002'],
+    ['category1_7', 'E3_881_001'],
+    ['category1_7', 'E3_881_003'],
+    ['category1_7', 'E3_881_004'],
+    ['category1_95', ''],
+  ],
+  '9.3': [
+    ['category3', ''],
+  ],
+};
+
 export function getAadeDocumentTypeForKind(kind: LegalDocumentKind): AadeDocumentType {
   if (kind === 'delivery_note') return '9.3';
-  if (kind === 'credit') return '5.1';
+  if (kind === 'credit') return '5.2';
   return '1.1';
 }
 
@@ -162,9 +233,32 @@ function getItemDescription(item: OrderItem | OrderShipmentItem, product?: Produ
   return variant?.description || product?.description || product?.category || item.sku;
 }
 
-function getIncomeClassification(product: Product | undefined, settings: LegalSettings, amount: number): LegalIncomeClassification {
+function normalizeIncomeClassificationForDocumentType(
+  documentType: AadeDocumentType | undefined,
+  item: LegalIncomeClassification,
+): LegalIncomeClassification {
+  if (documentType === '9.3') {
+    return {
+      classification_category: 'category3',
+      classification_type: '',
+      amount: item.amount,
+    };
+  }
+  return item;
+}
+
+function isAllowedIncomeClassification(documentType: AadeDocumentType, item: LegalIncomeClassification): boolean {
+  if (documentType === '5.1') return false;
+  const combinations = AADE_REVENUE_CLASSIFICATION_COMBINATIONS[documentType];
+  if (!combinations) return true;
+  const category = String(item.classification_category || '').trim();
+  const type = String(item.classification_type || '').trim();
+  return combinations.some(([allowedCategory, allowedType]) => allowedCategory === category && allowedType === type);
+}
+
+function getIncomeClassification(product: Product | undefined, settings: LegalSettings, amount: number, documentType?: AadeDocumentType): LegalIncomeClassification {
   const imported = product?.production_type === ProductionType.Imported;
-  return {
+  return normalizeIncomeClassificationForDocumentType(documentType, {
     classification_category: imported
       ? settings.imported_income_classification_category
       : settings.inhouse_income_classification_category,
@@ -172,7 +266,7 @@ function getIncomeClassification(product: Product | undefined, settings: LegalSe
       ? settings.imported_income_classification_type
       : settings.inhouse_income_classification_type,
     amount: roundMoney(amount),
-  };
+  });
 }
 
 export function computeLegalTotals(lines: Array<Pick<LegalDocumentLine, 'net_value' | 'vat_amount' | 'gross_value' | 'quantity'>>): LegalTotals {
@@ -218,6 +312,7 @@ function buildLinesFromOrderItems(params: {
   settings: LegalSettings;
   vatRate: number;
   discountPercent?: number;
+  aadeDocumentType?: AadeDocumentType;
 }): LegalDocumentLine[] {
   const vatCategory = vatRateToAadeCategory(params.vatRate);
   const discountFactor = 1 - ((params.discountPercent || 0) / 100);
@@ -227,7 +322,7 @@ function buildLinesFromOrderItems(params: {
     const unitPrice = Number((item as OrderItem).price_at_order ?? (item as OrderShipmentItem).price_at_order ?? 0);
     const netValue = roundMoney(unitPrice * item.quantity * discountFactor);
     const vatAmount = roundMoney(netValue * params.vatRate);
-    const incomeClassification = getIncomeClassification(product, params.settings, netValue);
+    const incomeClassification = getIncomeClassification(product, params.settings, netValue, params.aadeDocumentType);
     return {
       id: buildLineId(params.documentId, index),
       document_id: params.documentId,
@@ -259,6 +354,10 @@ function defaultIncomeClassification(settings: LegalSettings, amount: number): L
   };
 }
 
+function defaultIncomeClassificationForDocumentType(settings: LegalSettings, amount: number, documentType?: AadeDocumentType): LegalIncomeClassification {
+  return normalizeIncomeClassificationForDocumentType(documentType, defaultIncomeClassification(settings, amount));
+}
+
 function vatCategoryToRate(category: number, fallbackRate: number): number {
   if (category === 1) return 0.24;
   if (category === 4) return 0.17;
@@ -275,6 +374,7 @@ export function recalculateLegalLine(
   line: LegalDocumentLine,
   settings: LegalSettings,
   vatRate?: number | null,
+  aadeDocumentType?: AadeDocumentType,
 ): LegalDocumentLine {
   const preserveManualCategory = vatRate === undefined || vatRate === null;
   const manualCategory = Number(line.vat_category) || 1;
@@ -293,10 +393,10 @@ export function recalculateLegalLine(
     gross_value: roundMoney(netValue + vatAmount),
     measurement_unit: Number(line.measurement_unit) || 1,
     item_code: line.item_code || line.sku,
-    income_classification: {
-      ...(line.income_classification || defaultIncomeClassification(settings, netValue)),
+    income_classification: normalizeIncomeClassificationForDocumentType(aadeDocumentType, {
+      ...(line.income_classification || defaultIncomeClassificationForDocumentType(settings, netValue, aadeDocumentType)),
       amount: netValue,
-    },
+    }),
   };
 }
 
@@ -310,6 +410,7 @@ export function createManualLegalDocumentLine(params: {
   unitPrice?: number;
   vatRate?: number;
   itemCode?: string | null;
+  aadeDocumentType?: AadeDocumentType;
 }): LegalDocumentLine {
   const netValue = roundMoney((params.quantity || 1) * (params.unitPrice || 0));
   return recalculateLegalLine({
@@ -327,11 +428,11 @@ export function createManualLegalDocumentLine(params: {
     gross_value: roundMoney(netValue * (1 + (params.vatRate ?? 0.24))),
     measurement_unit: 1,
     item_code: params.itemCode || params.sku || 'MANUAL',
-    income_classification: defaultIncomeClassification(params.settings, netValue),
+    income_classification: defaultIncomeClassificationForDocumentType(params.settings, netValue, params.aadeDocumentType),
     source_order_line_key: null,
     line_id: null,
     created_at: new Date().toISOString(),
-  }, params.settings, params.vatRate ?? 0.24);
+  }, params.settings, params.vatRate ?? 0.24, params.aadeDocumentType);
 }
 
 export function recalculateLegalDocument(
@@ -344,7 +445,7 @@ export function recalculateLegalDocument(
       ...line,
       document_id: document.id,
       line_number: index + 1,
-    }, settings, undefined)
+    }, settings, undefined, document.aade_document_type)
   );
   const totals = computeLegalTotals(recalculatedLines);
   return {
@@ -462,7 +563,7 @@ export function convertProformaToLegalDraft(params: {
       document_id: id,
       line_number: index + 1,
       source_order_line_key: line.source_order_line_key || null,
-    }, params.settings, undefined)
+    }, params.settings, undefined, getAadeDocumentTypeForKind(params.kind))
   );
   const totals = computeLegalTotals(lines);
   const document: LegalDocument = {
@@ -527,6 +628,7 @@ export function buildLegalDocumentFromOrder(params: {
     settings: params.settings,
     vatRate,
     discountPercent: params.order.discount_percent || 0,
+    aadeDocumentType: getAadeDocumentTypeForKind(params.kind),
   });
   const totals = computeLegalTotals(lines);
   return {
@@ -575,6 +677,7 @@ export function buildLegalDocumentFromShipment(params: {
     settings: params.settings,
     vatRate,
     discountPercent: params.order.discount_percent || 0,
+    aadeDocumentType: getAadeDocumentTypeForKind(params.kind),
   });
   const totals = computeLegalTotals(lines);
   return {
@@ -641,6 +744,9 @@ export function validateLegalDocument(document: LegalDocument, lines: LegalDocum
   if (!lines.length) {
     issues.push({ field: 'lines', severity: 'error', message: 'Το παραστατικό δεν έχει γραμμές.' });
   }
+  if (document.aade_document_type === '5.1') {
+    issues.push({ field: 'aade_document_type', severity: 'error', message: 'Το 5.1 είναι συσχετιζόμενο πιστωτικό και απαιτεί σύνδεση με αρχικό παραστατικό/ΜΑΡΚ. Χρησιμοποιήστε 5.2 για μη συσχετιζόμενο πιστωτικό από αυτή την οθόνη.' });
+  }
 
   for (const line of lines) {
     if (line.quantity <= 0) issues.push({ field: `line.${line.line_number}.quantity`, severity: 'error', message: `Η γραμμή ${line.line_number} έχει μηδενική ποσότητα.` });
@@ -656,6 +762,9 @@ export function validateLegalDocument(document: LegalDocument, lines: LegalDocum
     }
     if (!line.income_classification?.classification_category) {
       issues.push({ field: `line.${line.line_number}.classification`, severity: 'error', message: `Η γραμμή ${line.line_number} δεν έχει χαρακτηρισμό εσόδου.` });
+    }
+    if (line.income_classification?.classification_category && !isAllowedIncomeClassification(document.aade_document_type, line.income_classification)) {
+      issues.push({ field: `line.${line.line_number}.classification`, severity: 'error', message: `Ο χαρακτηρισμός της γραμμής ${line.line_number} δεν επιτρέπεται για τύπο ΑΑΔΕ ${document.aade_document_type} σύμφωνα με τους επίσημους συνδυασμούς χαρακτηρισμών.` });
     }
   }
 
