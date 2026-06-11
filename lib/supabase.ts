@@ -1090,6 +1090,51 @@ export const api = {
         }, { match: { id: documentId }, noSelect: true });
     },
 
+    deleteProformaDocument: async (documentId: string, userName?: string | null): Promise<void> => {
+        const proformas = await api.getProformaDocuments();
+        const document = proformas.find((item) => item.id === documentId);
+        if (!document) throw new Error('Το προτιμολόγιο δεν βρέθηκε.');
+
+        await requireCloudMutation('proforma_document_lines', 'DELETE', null, { match: { proforma_id: documentId }, noSelect: true });
+        await requireCloudMutation('proforma_documents', 'DELETE', null, { match: { id: documentId }, noSelect: true });
+        await requireCloudMutation('legal_audit_log', 'INSERT', {
+            document_id: null,
+            action: 'proforma_deleted',
+            user_name: userName || null,
+            details: {
+                proforma_id: documentId,
+                series: document.series,
+                aa: document.aa,
+                status: document.status,
+            },
+        }, { noSelect: true });
+    },
+
+    deleteLegalDocument: async (documentId: string, userName?: string | null): Promise<void> => {
+        if (isLocalMode || !navigator.onLine) {
+            throw new Error('Η διαγραφή παραστατικών απαιτεί σύνδεση στο διαδίκτυο και στο Supabase.');
+        }
+        const documents = await api.getLegalDocuments();
+        const document = documents.find((item) => item.id === documentId);
+        if (!document) throw new Error('Το παραστατικό δεν βρέθηκε.');
+
+        await supabase.from('legal_transmissions').delete().eq('document_id', documentId);
+        await supabase.from('legal_audit_log').insert({
+            document_id: null,
+            action: 'document_deleted',
+            user_name: userName || null,
+            details: {
+                document_id: documentId,
+                series: document.series,
+                aa: document.aa,
+                status: document.status,
+                aade_mark: document.aade_mark,
+                document_kind: document.document_kind,
+            },
+        });
+        await requireCloudMutation('legal_documents', 'DELETE', null, { match: { id: documentId }, noSelect: true });
+    },
+
     markProformaConverted: async (proformaId: string, legalDocumentId: string): Promise<void> => {
         await requireCloudMutation('proforma_documents', 'UPDATE', {
             status: 'converted',
@@ -1184,6 +1229,8 @@ export const api = {
                     const documentId = existing?.id || crypto.randomUUID();
                     const now = new Date().toISOString();
                     const documentKind = getDocumentKindFromAadeType(transmitted.invoiceType as AadeDocumentType);
+                    const cancellation = parsed.cancellations.find((item) => item.invoiceMark === transmitted.mark);
+                    const isCancelled = !!cancellation || !!transmitted.cancelledByMark;
                     const lines: LegalDocumentLine[] = transmitted.lines.map((line) => {
                         const quantity = line.quantity || 1;
                         const netValue = roundMoney(line.netValue);
@@ -1219,7 +1266,7 @@ export const api = {
                         source_kind: 'aade_sync',
                         document_kind: documentKind,
                         aade_document_type: transmitted.invoiceType as AadeDocumentType,
-                        status: existing?.status === 'cancelled' ? 'cancelled' : 'issued',
+                        status: isCancelled ? 'cancelled' : 'issued',
                         series: transmitted.series || existing?.series || null,
                         aa: transmitted.aa || existing?.aa || null,
                         issue_date: transmitted.issueDate || existing?.issue_date || new Date().toISOString().slice(0, 10),
@@ -1249,14 +1296,16 @@ export const api = {
                         totals: transmitted.totals,
                         aade_uid: transmitted.uid || existing?.aade_uid || null,
                         aade_mark: transmitted.mark,
-                        cancellation_mark: existing?.cancellation_mark || null,
+                        cancellation_mark: cancellation?.cancellationMark || transmitted.cancelledByMark || existing?.cancellation_mark || null,
                         authentication_code: existing?.authentication_code || null,
                         qr_url: transmitted.qrUrl || existing?.qr_url || null,
                         last_error: null,
                         raw_xml: transmitted.rawXml,
                         locked_at: existing?.locked_at || now,
                         submitted_at: existing?.submitted_at || null,
-                        cancelled_at: existing?.cancelled_at || null,
+                        cancelled_at: isCancelled
+                            ? (cancellation?.cancellationDate || existing?.cancelled_at || now)
+                            : null,
                         printed_at: existing?.printed_at || null,
                         external_source: 'aade_sync',
                         synced_at: now,

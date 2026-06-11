@@ -397,9 +397,18 @@ function buildCounterpart(order: Order, customer?: Customer | null): LegalParty 
   };
 }
 
+/** Invoice/proforma line description: product category from Μητρώο (e.g. Δαχτυλίδι), not STX description. */
+export function getLegalProductLineDescription(
+  product?: Pick<Product, 'category' | 'sku'> | null,
+  fallbackSku?: string,
+): string {
+  const category = String(product?.category || '').trim();
+  if (category) return category;
+  return String(fallbackSku || product?.sku || '').trim() || '—';
+}
+
 function getItemDescription(item: OrderItem | OrderShipmentItem, product?: Product): string {
-  const variant = product?.variants?.find((v) => v.suffix === item.variant_suffix);
-  return variant?.description || product?.description || product?.category || item.sku;
+  return getLegalProductLineDescription(product, item.sku);
 }
 
 function normalizeIncomeClassificationForDocumentType(
@@ -453,7 +462,7 @@ export function getLegalCatalogLineDetails(
     sku: product.sku,
     variant_suffix: suffix,
     item_code: product.sku + (suffix || ''),
-    description: variant?.description || product.description || product.category || product.sku,
+    description: getLegalProductLineDescription(product),
     unit_price: unitPrice,
     income_classification: getIncomeClassification(product, settings, unitPrice, aadeDocumentType),
   };
@@ -1394,7 +1403,8 @@ function xmlNumber(value: string | undefined, fallback = 0): number {
 }
 
 export function parseTransmittedDocumentsXml(xml: string): AadeTransmittedDocsParseResult {
-  const invoiceBlocks = findXmlBlocks(xml, 'invoice');
+  const text = normalizeAadeResponseXml(xml);
+  const invoiceBlocks = findXmlBlocks(text, 'invoice');
   const documents = invoiceBlocks
     .map((invoice) => {
       const invoiceType = findFirstXmlValue(invoice, ['invoiceType']) || '';
@@ -1421,13 +1431,14 @@ export function parseTransmittedDocumentsXml(xml: string): AadeTransmittedDocsPa
       return {
         mark,
         uid: findFirstXmlValue(invoice, ['uid', 'invoiceUid']),
-        qrUrl: findXmlValue(invoice, 'qrUrl'),
+        qrUrl: findFirstXmlValue(invoice, ['qrUrl', 'qrCodeUrl']),
         series: findXmlValue(invoice, 'series'),
         aa: findXmlValue(invoice, 'aa'),
         issueDate: findXmlValue(invoice, 'issueDate'),
         invoiceType,
         issuerVat: findXmlValue(findXmlBlocks(invoice, 'issuer')[0] || '', 'vatNumber'),
         counterpartVat: findXmlValue(findXmlBlocks(invoice, 'counterpart')[0] || '', 'vatNumber'),
+        cancelledByMark: findXmlValue(invoice, 'cancelledByMark') || null,
         totals,
         lines,
         rawXml: invoice,
@@ -1435,7 +1446,7 @@ export function parseTransmittedDocumentsXml(xml: string): AadeTransmittedDocsPa
     })
     .filter((document) => !!document.mark && !!document.invoiceType);
 
-  const cancellations = findXmlBlocks(xml, 'cancelledInvoice')
+  const cancellations = findXmlBlocks(text, 'cancelledInvoice')
     .map((block) => ({
       invoiceMark: findFirstXmlValue(block, ['invoiceMark', 'mark']) || '',
       cancellationMark: findXmlValue(block, 'cancellationMark'),
@@ -1446,8 +1457,8 @@ export function parseTransmittedDocumentsXml(xml: string): AadeTransmittedDocsPa
   return {
     documents,
     cancellations,
-    nextPartitionKey: findFirstXmlValue(xml, ['nextPartitionKey']),
-    nextRowKey: findFirstXmlValue(xml, ['nextRowKey']),
+    nextPartitionKey: findFirstXmlValue(text, ['nextPartitionKey']),
+    nextRowKey: findFirstXmlValue(text, ['nextRowKey']),
   };
 }
 
@@ -1458,6 +1469,103 @@ export function canPrintLegalDocument(document: LegalDocument): boolean {
 export function getLegalDocumentDisplayNumber(document: Pick<LegalDocument, 'series' | 'aa' | 'id'>): string {
   if (document.series && document.aa) return `${document.series}-${document.aa}`;
   return document.id.slice(0, 8);
+}
+
+export interface LegalDocumentDeletePrompt {
+  title: string;
+  message: string;
+  confirmText: string;
+  cancelText: string;
+  isDestructive: boolean;
+}
+
+export function getLegalDocumentDeletePrompt(document: LegalDocument): LegalDocumentDeletePrompt {
+  const number = getLegalDocumentDisplayNumber(document);
+  const base = {
+    title: 'Διαγραφή παραστατικού',
+    confirmText: 'Οριστική διαγραφή',
+    cancelText: 'Πίσω',
+    isDestructive: true,
+  };
+
+  if (document.status === 'draft' || document.status === 'failed') {
+    return {
+      ...base,
+      message: [
+        `Να διαγραφεί οριστικά το ${number} από το Ilios;`,
+        '',
+        document.status === 'failed'
+          ? 'Πρόχειρο/αποτυχημένη υποβολή — δεν υπάρχει έγκυρο MARK στην ΑΑΔΕ ή η υποβολή απέτυχε.'
+          : 'Πρόχειρο μόνο στο ERP — δεν έχει σταλεί στη myDATA.',
+        'Η ενέργεια δεν αναιρείται.',
+      ].join('\n'),
+    };
+  }
+
+  if (document.status === 'submitted') {
+    return {
+      ...base,
+      message: [
+        `Να διαγραφεί οριστικά το ${number};`,
+        '',
+        'Το παραστατικό είναι σε κατάσταση «υποβλήθηκε» και μπορεί να έχει ήδη MARK στην ΑΑΔΕ.',
+        'Η διαγραφή αφαιρεί μόνο την εγγραφή από το Ilios — όχι από την ΑΑΔΕ.',
+        'Μπορεί να ξαναεμφανιστεί με συγχρονισμό.',
+      ].join('\n'),
+    };
+  }
+
+  if (document.status === 'issued') {
+    return {
+      ...base,
+      title: 'Διαγραφή εκδοθέντος παραστατικού',
+      message: [
+        `Προσοχή: το ${number} είναι ΕΚΔΟΘΕΝ στη myDATA.`,
+        document.aade_mark ? `MARK: ${document.aade_mark}` : '',
+        '',
+        'Η διαγραφή από το Ilios ΔΕΝ ακυρώνει το παραστατικό στην ΑΑΔΕ.',
+        'Το νόμιμο παραστατικό παραμένει ισχύον εκτός αν το έχετε ήδη ακυρώσει στη myDATA.',
+        'Μπορεί να ξαναεμφανιστεί στο Αρχείο μετά από συγχρονισμό.',
+        '',
+        'Προτείνεται πρώτα «Ακύρωση» στη myDATA και μετά διαγραφή για καθάρισμα αρχείου.',
+      ].filter(Boolean).join('\n'),
+    };
+  }
+
+  return {
+    ...base,
+    message: [
+      `Να διαγραφεί οριστικά το ${number} από το Ilios;`,
+      document.aade_mark ? `MARK: ${document.aade_mark}` : '',
+      document.status === 'cancelled'
+        ? 'Το παραστατικό είναι ακυρωμένο στην ΑΑΔΕ — η εγγραφή παραμένει στο ιστορικό της ΑΑΔΕ.'
+        : 'Η εγγραφή θα αφαιρεθεί μόνο από το ERP.',
+      'Μπορεί να ξαναεισαχθεί με συγχρονισμό από την ΑΑΔΕ.',
+      'Η ενέργεια δεν αναιρείται στο Ilios.',
+    ].filter(Boolean).join('\n'),
+  };
+}
+
+export function getProformaDeletePrompt(document: ProformaDocument): LegalDocumentDeletePrompt {
+  const number = getLegalDocumentDisplayNumber(document as LegalDocument);
+  const lines = [
+    `Να διαγραφεί οριστικά το προτιμολόγιο ${number};`,
+    '',
+    'Το προτιμολόγιο δεν είναι νόμιμο παραστατικό και δεν επηρεάζει την ΑΑΔΕ.',
+    'Η ενέργεια αφαιρεί την εγγραφή και τις γραμμές της από την εφαρμογή και τη βάση.',
+  ];
+
+  if (document.status === 'converted') {
+    lines.push('', 'Σημείωση: έχει συνδεθεί με τιμολόγιο — το τιμολόγιο δεν διαγράφεται.');
+  }
+
+  return {
+    title: 'Διαγραφή προτιμολογίου',
+    message: lines.join('\n'),
+    confirmText: 'Οριστική διαγραφή',
+    cancelText: 'Πίσω',
+    isDestructive: true,
+  };
 }
 
 const GREEK_SERIES_CHAR_MAP: Record<string, string> = {

@@ -121,6 +121,26 @@ export const useVoidProformaDocument = () => {
   });
 };
 
+export const useDeleteProformaDocument = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ documentId, userName }: { documentId: string; userName?: string | null }) =>
+      legalRepository.deleteProforma(documentId, userName),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: legalKeys.proformas() }),
+  });
+};
+
+export const useDeleteLegalDocument = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ documentId, userName }: { documentId: string; userName?: string | null }) =>
+      legalRepository.deleteDocument(documentId, userName),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: legalKeys.documents() });
+    },
+  });
+};
+
 export const useMarkProformaConverted = () => {
   const queryClient = useQueryClient();
   return useMutation({

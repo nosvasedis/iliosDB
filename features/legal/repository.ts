@@ -36,6 +36,10 @@ export const legalRepository = {
   saveProforma: (document: ProformaDocument, lines: ProformaDocumentLine[]): Promise<void> =>
     api.saveProformaDraft(document, lines),
   voidProforma: (documentId: string): Promise<void> => api.voidProformaDocument(documentId),
+  deleteProforma: (documentId: string, userName?: string | null): Promise<void> =>
+    api.deleteProformaDocument(documentId, userName),
+  deleteDocument: (documentId: string, userName?: string | null): Promise<void> =>
+    api.deleteLegalDocument(documentId, userName),
   markProformaConverted: (proformaId: string, legalDocumentId: string): Promise<void> =>
     api.markProformaConverted(proformaId, legalDocumentId),
   saveDraft: (document: LegalDocument, lines: LegalDocumentLine[]): Promise<void> => api.saveLegalDraft(document, lines),

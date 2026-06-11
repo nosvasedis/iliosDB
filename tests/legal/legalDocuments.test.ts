@@ -33,6 +33,8 @@ import {
   vatRateToAadeCategory,
   buildLegalNumberingAlignmentPlan,
   formatLegalNumberingAlignmentMessage,
+  getLegalDocumentDeletePrompt,
+  getLegalProductLineDescription,
   normalizeLegalSeriesKey,
   parseLegalDocumentAa,
 } from '../../utils/legalDocuments';
@@ -62,7 +64,7 @@ const customer: Customer = {
 const product: Product = {
   sku: 'RNG001',
   prefix: 'RNG',
-  category: 'Ring',
+  category: 'Δαχτυλίδι',
   description: 'Silver ring',
   gender: 'Unisex' as any,
   image_url: null,
@@ -132,6 +134,20 @@ describe('legal document helpers', () => {
       'E3_561_002',
       'E3_561_007',
     ]);
+  });
+
+  it('uses product category for legal line descriptions instead of registry description', () => {
+    const details = getLegalProductLineDescription(product);
+    expect(details).toBe('Δαχτυλίδι');
+
+    const document = buildLegalDocumentFromOrder({
+      order: baseOrder,
+      customer,
+      products: [product],
+      settings,
+      kind: 'invoice',
+    });
+    expect(document.lines[0]?.description).toBe('Δαχτυλίδι');
   });
 
   it('builds an invoice draft with totals and revenue classification', () => {
@@ -215,7 +231,7 @@ describe('legal document helpers', () => {
     expect(xml).toContain('<invoiceType>1.1</invoiceType>');
     expect(xml).toContain('<isDeliveryNote>true</isDeliveryNote>');
     expect(xml).toContain('<dispatchDate>');
-    expect(xml).toContain('<itemDescr>Silver ring</itemDescr>');
+    expect(xml).toContain('<itemDescr>Δαχτυλίδι</itemDescr>');
     expect(xml).toContain('<itemCode>RNG001</itemCode>');
     expect(xml.indexOf('<incomeClassification>')).toBeLessThan(xml.indexOf('<itemDescr>'));
     expect(xml.indexOf('<itemDescr>')).toBeLessThan(xml.indexOf('<itemCode>'));
@@ -521,6 +537,47 @@ describe('legal document helpers', () => {
     expect(row.document_id).toBe('doc-1');
   });
 
+  it('parses transmitted docs wrapped in AADE <string> serialization envelope', () => {
+    const parsed = parseTransmittedDocumentsXml(`<string xmlns="http://schemas.microsoft.com/2003/10/Serialization/">&lt;?xml version="1.0" encoding="utf-8"?&gt;
+&lt;RequestedDoc&gt;
+  &lt;invoicesDoc&gt;
+    &lt;invoice&gt;
+      &lt;uid&gt;UID-2&lt;/uid&gt;
+      &lt;mark&gt;400001964689732&lt;/mark&gt;
+      &lt;cancelledByMark&gt;400001964689778&lt;/cancelledByMark&gt;
+      &lt;invoiceHeader&gt;
+        &lt;series&gt;ΤΙΜ&lt;/series&gt;
+        &lt;aa&gt;2&lt;/aa&gt;
+        &lt;issueDate&gt;2026-06-11&lt;/issueDate&gt;
+        &lt;invoiceType&gt;1.1&lt;/invoiceType&gt;
+      &lt;/invoiceHeader&gt;
+      &lt;invoiceDetails&gt;
+        &lt;lineNumber&gt;1&lt;/lineNumber&gt;
+        &lt;netValue&gt;58&lt;/netValue&gt;
+        &lt;vatCategory&gt;1&lt;/vatCategory&gt;
+        &lt;vatAmount&gt;13.92&lt;/vatAmount&gt;
+      &lt;/invoiceDetails&gt;
+      &lt;invoiceSummary&gt;
+        &lt;totalNetValue&gt;58&lt;/totalNetValue&gt;
+        &lt;totalVatAmount&gt;13.92&lt;/totalVatAmount&gt;
+        &lt;totalGrossValue&gt;71.92&lt;/totalGrossValue&gt;
+      &lt;/invoiceSummary&gt;
+      &lt;qrCodeUrl&gt;https://example.test/qr/2&lt;/qrCodeUrl&gt;
+    &lt;/invoice&gt;
+  &lt;/invoicesDoc&gt;
+&lt;/RequestedDoc&gt;</string>`);
+
+    expect(parsed.documents).toHaveLength(1);
+    expect(parsed.documents[0]).toMatchObject({
+      mark: '400001964689732',
+      series: 'ΤΙΜ',
+      aa: '2',
+      invoiceType: '1.1',
+      cancelledByMark: '400001964689778',
+      qrUrl: 'https://example.test/qr/2',
+    });
+  });
+
   it('parses transmitted AADE documents, cancellation marks, and pagination keys', () => {
     const parsed = parseTransmittedDocumentsXml(`
       <RequestedDoc>
@@ -667,6 +724,19 @@ describe('legal document helpers', () => {
       documentCount: 3,
     });
     expect(formatLegalNumberingAlignmentMessage(plan)).toContain('413');
+  });
+
+  it('warns strongly before deleting issued legal documents', () => {
+    const prompt = getLegalDocumentDeletePrompt({
+      id: 'doc-1',
+      status: 'issued',
+      series: 'ΤΙΜ',
+      aa: '2',
+      aade_mark: '400001964689732',
+    } as LegalDocument);
+    expect(prompt.isDestructive).toBe(true);
+    expect(prompt.message).toContain('ΔΕΝ ακυρώνει');
+    expect(prompt.message).toContain('400001964689732');
   });
 
   it('skips alignment when next_aa is already ahead of archive', () => {

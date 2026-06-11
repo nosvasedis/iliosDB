@@ -59,6 +59,8 @@ import {
   useSyncTransmittedLegalDocuments,
   useClearLegalSyncRuns,
   useVoidProformaDocument,
+  useDeleteProformaDocument,
+  useDeleteLegalDocument,
   useMarkProformaConverted,
 } from '../hooks/api/useLegalDocuments';
 import { legalKeys, legalRepository } from '../features/legal';
@@ -83,7 +85,9 @@ import {
   DEFAULT_LEGAL_SETTINGS,
   buildLegalNumberingAlignmentPlan,
   formatLegalNumberingAlignmentMessage,
+  getLegalDocumentDeletePrompt,
   getLegalDocumentDisplayNumber,
+  getProformaDeletePrompt,
   isLegalDocumentEditable,
   LEGAL_DOCUMENT_KIND_LABELS,
   normalizeVatNumber,
@@ -317,6 +321,8 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
   const saveDraft = useSaveLegalDraft();
   const saveProforma = useSaveProformaDraft();
   const voidProforma = useVoidProformaDocument();
+  const deleteProforma = useDeleteProformaDocument();
+  const deleteLegalDocument = useDeleteLegalDocument();
   const markProformaConverted = useMarkProformaConverted();
   const syncTransmittedDocuments = useSyncTransmittedLegalDocuments();
   const clearSyncRuns = useClearLegalSyncRuns();
@@ -646,6 +652,61 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
       else showToast('Η εκτύπωση προτιμολογίων δεν είναι διαθέσιμη σε αυτή την προβολή.', 'warning');
     } catch (error: any) {
       showToast(error?.message || 'Δεν ήταν δυνατή η εκτύπωση προτιμολογίου.', 'error');
+    }
+  };
+
+  const handleDeleteProforma = async (document: ProformaDocument) => {
+    const prompt = getProformaDeletePrompt(document);
+    const ok = await confirm({
+      title: prompt.title,
+      message: prompt.message,
+      confirmText: prompt.confirmText,
+      cancelText: prompt.cancelText,
+      isDestructive: prompt.isDestructive,
+    });
+    if (!ok) return;
+    try {
+      await deleteProforma.mutateAsync({ documentId: document.id, userName });
+      if (proformaBundle?.document.id === document.id) setProformaBundle(null);
+      showToast('Το προτιμολόγιο διαγράφηκε οριστικά.', 'success');
+    } catch (error: any) {
+      showToast(error?.message || 'Δεν διαγράφηκε το προτιμολόγιο.', 'error');
+    }
+  };
+
+  const handleDeleteLegalDocument = async (document: LegalDocument) => {
+    const prompt = getLegalDocumentDeletePrompt(document);
+    const ok = await confirm({
+      title: prompt.title,
+      message: prompt.message,
+      confirmText: prompt.confirmText,
+      cancelText: prompt.cancelText,
+      isDestructive: prompt.isDestructive,
+    });
+    if (!ok) return;
+
+    if (document.status === 'issued') {
+      const confirmed = await confirm({
+        title: 'Τελική επιβεβαίωση',
+        message: [
+          `Το ${getLegalDocumentDisplayNumber(document)} παραμένει ισχύον στην ΑΑΔΕ.`,
+          document.aade_mark ? `MARK ${document.aade_mark} δεν ακυρώνεται με αυτή την ενέργεια.` : '',
+          '',
+          'Να αφαιρεθεί μόνο από το αρχείο του Ilios;',
+        ].filter(Boolean).join('\n'),
+        confirmText: 'Ναι, διαγραφή από Ilios',
+        cancelText: 'Όχι',
+        isDestructive: true,
+      });
+      if (!confirmed) return;
+    }
+
+    try {
+      await deleteLegalDocument.mutateAsync({ documentId: document.id, userName });
+      if (draftBundle?.document.id === document.id) setDraftBundle(null);
+      showToast('Το παραστατικό διαγράφηκε από το Ilios.', 'success');
+    } catch (error: any) {
+      showToast(error?.message || 'Δεν διαγράφηκε το παραστατικό.', 'error');
     }
   };
 
@@ -1634,6 +1695,13 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
                         <ActionButton variant="danger" onClick={() => void handleVoidProforma(document)} disabled={document.status !== 'draft'}>
                           <Ban size={16} /> Ακύρωση
                         </ActionButton>
+                        <ActionButton
+                          variant="danger"
+                          onClick={() => void handleDeleteProforma(document)}
+                          disabled={deleteProforma.isPending}
+                        >
+                          <Trash2 size={16} /> Διαγραφή
+                        </ActionButton>
                       </div>
                     </td>
                   </tr>
@@ -1680,9 +1748,17 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
           )}
           {document.status === 'issued' && (
             <ActionButton variant="danger" onClick={() => handleCancel(document)} disabled={cancelDocument.isPending}>
-              <Ban size={16} /> Ακύρωση
+              <Ban size={16} /> Ακύρωση myDATA
             </ActionButton>
           )}
+          <ActionButton
+            variant="danger"
+            onClick={() => void handleDeleteLegalDocument(document)}
+            disabled={deleteLegalDocument.isPending}
+            title="Οριστική διαγραφή από Ilios"
+          >
+            <Trash2 size={16} /> Διαγραφή
+          </ActionButton>
         </div>
       </td>
     </tr>
@@ -1692,7 +1768,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
     <div className="space-y-4">
       <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
         <span className="font-black">Αρχείο</span> — όλα τα πρόχειρα, εκδοθέντα και ακυρωμένα παραστατικά.
-        {' '}Εδώ βλέπετε MARK, QR και ενέργειες (εκτύπωση, ακύρωση, αποστολή).
+        {' '}Εδώ βλέπετε MARK, QR και ενέργειες (εκτύπωση, ακύρωση myDATA, διαγραφή από Ilios).
       </div>
     <section className="rounded-lg border border-slate-200 bg-white">
       <div className="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center md:justify-between">

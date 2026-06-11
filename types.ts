@@ -920,6 +920,7 @@ export interface AadeTransmittedDocument {
   invoiceType: AadeDocumentType | string;
   issuerVat?: string;
   counterpartVat?: string;
+  cancelledByMark?: string | null;
   totals: LegalTotals;
   lines: AadeTransmittedLine[];
   rawXml: string;
