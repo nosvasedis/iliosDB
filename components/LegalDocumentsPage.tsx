@@ -455,14 +455,6 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
   const applyCatalogToLegalLine = (lineId: string, selection: SkuProductSelection) => {
     updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((line) => {
       if (line.id !== lineId) return line;
-      if (selection.manual) {
-        return {
-          ...line,
-          sku: 'MANUAL',
-          variant_suffix: null,
-          item_code: line.item_code || 'MANUAL',
-        };
-      }
       const product = products.find((item) => item.sku === selection.sku);
       if (!product) {
         return {
@@ -482,14 +474,6 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
   const applyCatalogToProformaLine = (lineId: string, selection: SkuProductSelection) => {
     updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((line) => {
       if (line.id !== lineId) return line;
-      if (selection.manual) {
-        return {
-          ...line,
-          sku: 'MANUAL',
-          variant_suffix: null,
-          item_code: line.item_code || 'MANUAL',
-        };
-      }
       const product = products.find((item) => item.sku === selection.sku);
       if (!product) {
         return {

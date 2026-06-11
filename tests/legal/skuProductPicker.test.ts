@@ -97,22 +97,17 @@ const products = [
 
 describe('sku product picker search', () => {
   it('returns variant rows with suffix-specific prices', () => {
-    const options = searchSkuProductOptions(products, 'RNG001D', true, 8);
+    const options = searchSkuProductOptions(products, 'RNG001D', 8);
     const variant = options.find((option) => option.displaySku === 'RNG001DLE');
     expect(variant?.price).toBe(145);
     expect(variant?.variant_suffix).toBe('DLE');
-  });
-
-  it('exposes MANUAL when the query matches it', () => {
-    const options = searchSkuProductOptions(products, 'MA', true, 5);
-    expect(options.some((option) => option.sku === 'MANUAL')).toBe(true);
   });
 
   it('blocks bare master resolution when metal-finish variants exist', () => {
     expect(allowsBareMasterSkuResolution(products[2])).toBe(false);
     expect(isLustreOnlyProduct(products[2])).toBe(false);
     expect(resolveTypedSkuSelection('RNG020', products)).toBeNull();
-    const options = searchSkuProductOptions(products, 'RNG020', true, 12);
+    const options = searchSkuProductOptions(products, 'RNG020', 12);
     expect(options.some((option) => option.displaySku === 'RNG020' && option.variant_suffix === '')).toBe(true);
     expect(options.some((option) => option.displaySku === 'RNG020PDLE')).toBe(true);
   });

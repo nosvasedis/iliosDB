@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CornerDownLeft, ImageIcon, PenLine } from 'lucide-react';
+import { CornerDownLeft, ImageIcon } from 'lucide-react';
 import { Product } from '../../types';
 import SkuColorizedText from '../SkuColorizedText';
 import {
@@ -27,7 +27,6 @@ interface SkuProductPickerProps {
   className?: string;
   inputClassName?: string;
   placeholder?: string;
-  allowManual?: boolean;
   /** Inline thumbnail + single-row layout for dense tables */
   compact?: boolean;
 }
@@ -40,13 +39,14 @@ export default function SkuProductPicker({
   className = '',
   inputClassName = '',
   placeholder = 'Πληκτρολογήστε SKU...',
-  allowManual = true,
   compact = false,
 }: SkuProductPickerProps) {
   const { showToast } = useUI();
   const listboxId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const ignoreBlurUntilRef = useRef(0);
   const displayValue = formatSkuDisplayValue(sku, variantSuffix);
   const [inputValue, setInputValue] = useState(displayValue);
   const [open, setOpen] = useState(false);
@@ -58,8 +58,8 @@ export default function SkuProductPicker({
   }, [displayValue]);
 
   const options = useMemo(
-    () => searchSkuProductOptions(products, inputValue, allowManual),
-    [allowManual, inputValue, products],
+    () => searchSkuProductOptions(products, inputValue),
+    [inputValue, products],
   );
 
   const resolvedPreview = useMemo(
@@ -68,7 +68,7 @@ export default function SkuProductPicker({
   );
 
   const previewProduct = useMemo(() => {
-    if (!resolvedPreview || resolvedPreview.manual) return null;
+    if (!resolvedPreview?.sku) return null;
     return products.find((product) => product.sku === resolvedPreview.sku) || null;
   }, [products, resolvedPreview]);
 
@@ -107,6 +107,7 @@ export default function SkuProductPicker({
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
       if (containerRef.current?.contains(target)) return;
+      if (dropdownRef.current?.contains(target)) return;
       setOpen(false);
       setInputValue(displayValue);
     };
@@ -129,6 +130,7 @@ export default function SkuProductPicker({
   };
 
   const commitSelection = (selection: SkuProductSelection) => {
+    ignoreBlurUntilRef.current = Date.now() + 250;
     setInputValue(selection.displaySku);
     onSelect(selection);
     setOpen(false);
@@ -195,6 +197,7 @@ export default function SkuProductPicker({
 
   const handleBlur = () => {
     window.setTimeout(() => {
+      if (Date.now() < ignoreBlurUntilRef.current) return;
       if (!containerRef.current?.contains(document.activeElement)) {
         const term = inputValue.trim().toUpperCase();
         if (!term) {
@@ -204,17 +207,19 @@ export default function SkuProductPicker({
         }
         if (rejectInvalidMaster(term)) return;
         const resolved = resolveTypedSkuSelection(term, products);
-        if (resolved && (resolved.manual || findProductByScannedCode(term, products) || term !== displayValue.toUpperCase())) {
+        if (resolved && (findProductByScannedCode(term, products) || term !== displayValue.toUpperCase())) {
           commitSelection(resolved);
           return;
         }
         setOpen(false);
+        setInputValue(displayValue);
       }
     }, 120);
   };
 
   const dropdown = open ? (
     <div
+      ref={dropdownRef}
       id={listboxId}
       role="listbox"
       style={dropdownStyle}
@@ -222,7 +227,7 @@ export default function SkuProductPicker({
     >
       {options.length === 0 ? (
         <div className="px-3 py-2 text-xs font-medium text-slate-500">
-          Δεν βρέθηκε SKU. Enter για χειροκίνητη τιμή.
+          Δεν βρέθηκε SKU.
         </div>
       ) : options.map((option, index) => (
         <button
@@ -231,8 +236,10 @@ export default function SkuProductPicker({
           role="option"
           aria-selected={index === highlightIndex}
           onMouseEnter={() => setHighlightIndex(index)}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => commitSelection(selectionFromOption(option))}
+          onMouseDown={(event) => {
+            event.preventDefault();
+            commitSelection(selectionFromOption(option));
+          }}
           onContextMenu={(event) => {
             event.preventDefault();
             commitSelection(selectionFromOption(option));
@@ -243,11 +250,7 @@ export default function SkuProductPicker({
           title="Κλικ, Enter ή δεξί κλικ για συμπλήρωση γραμμής"
         >
           <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
-            {option.manual ? (
-              <div className="flex h-full w-full items-center justify-center text-slate-400">
-                <PenLine size={14} />
-              </div>
-            ) : option.product?.image_url ? (
+            {option.product?.image_url ? (
               <img src={option.product.image_url} alt="" className="h-full w-full object-cover" />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-slate-300">
@@ -257,15 +260,11 @@ export default function SkuProductPicker({
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-xs font-black leading-tight">
-              {option.manual ? (
-                <span className="font-mono">MANUAL</span>
-              ) : (
-                <SkuColorizedText
-                  sku={option.sku}
-                  suffix={option.variant_suffix || undefined}
-                  gender={option.product?.gender}
-                />
-              )}
+              <SkuColorizedText
+                sku={option.sku}
+                suffix={option.variant_suffix || undefined}
+                gender={option.product?.gender}
+              />
             </div>
             {option.hint ? <div className="truncate text-[11px] font-medium text-slate-500">{option.hint}</div> : null}
           </div>
@@ -321,10 +320,10 @@ export default function SkuProductPicker({
           aria-expanded={open}
           aria-controls={open ? listboxId : undefined}
           className={`w-full rounded-lg border border-slate-200 px-2 py-1 font-mono text-xs font-bold outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 ${
-            !open && previewProduct && resolvedPreview && !resolvedPreview.manual ? 'text-transparent caret-slate-800' : ''
+            !open && previewProduct && resolvedPreview?.sku ? 'text-transparent caret-slate-800' : ''
           } ${inputClassName}`}
         />
-        {!open && previewProduct && resolvedPreview && !resolvedPreview.manual ? (
+        {!open && previewProduct && resolvedPreview?.sku ? (
           <div className="pointer-events-none absolute inset-y-0 left-2 flex items-center">
             <SkuColorizedText
               sku={resolvedPreview.sku}

@@ -46,7 +46,6 @@ export interface SkuProductSelection {
   sku: string;
   variant_suffix: string | null;
   displaySku: string;
-  manual?: boolean;
 }
 
 export interface SkuPickerOption {
@@ -56,14 +55,13 @@ export interface SkuPickerOption {
   displaySku: string;
   hint?: string;
   price?: number;
-  manual?: boolean;
   product?: Product;
   variant?: ProductVariant;
 }
 
 export function formatSkuDisplayValue(sku: string, variantSuffix?: string | null): string {
-  if (sku === 'MANUAL') return 'MANUAL';
-  return `${sku}${variantSuffix || ''}`;
+  const master = !sku || sku === 'MANUAL' ? '' : sku;
+  return `${master}${variantSuffix || ''}`;
 }
 
 export function getCatalogUnitPrice(product: Product, variant?: ProductVariant | null): number {
@@ -82,17 +80,6 @@ function makeCatalogOption(product: Product, variant?: ProductVariant | null): S
     variant: variant || undefined,
     hint: variant?.description || product.description || product.category || undefined,
     price: getCatalogUnitPrice(product, variant),
-  };
-}
-
-function makeManualOption(): SkuPickerOption {
-  return {
-    key: 'manual',
-    sku: 'MANUAL',
-    variant_suffix: null,
-    displaySku: 'MANUAL',
-    hint: 'Χειροκίνητη γραμμή χωρίς προϊόν ERP',
-    manual: true,
   };
 }
 
@@ -115,7 +102,6 @@ function variantMatchesTerm(product: Product, variant: ProductVariant, term: str
 
 function rankOptions(term: string, options: SkuPickerOption[]): SkuPickerOption[] {
   return [...options].sort((left, right) => {
-    if (left.manual !== right.manual) return left.manual ? -1 : 1;
     const leftSku = left.displaySku.toUpperCase();
     const rightSku = right.displaySku.toUpperCase();
     if (leftSku === term) return -1;
@@ -128,7 +114,7 @@ function rankOptions(term: string, options: SkuPickerOption[]): SkuPickerOption[
   });
 }
 
-export function searchSkuProductOptions(products: Product[], query: string, allowManual = true, limit = 12): SkuPickerOption[] {
+export function searchSkuProductOptions(products: Product[], query: string, limit = 12): SkuPickerOption[] {
   const term = query.trim().toUpperCase();
   const seen = new Set<string>();
   const options: SkuPickerOption[] = [];
@@ -138,10 +124,6 @@ export function searchSkuProductOptions(products: Product[], query: string, allo
     seen.add(option.key);
     options.push(option);
   };
-
-  if (allowManual && (!term || 'MANUAL'.startsWith(term) || term.startsWith('MAN'))) {
-    push(makeManualOption());
-  }
 
   const catalogProducts = products.filter((product) => !product.is_component);
 
@@ -209,9 +191,6 @@ export function getSkuAutocompleteValue(term: string, options: SkuPickerOption[]
 }
 
 export function selectionFromOption(option: SkuPickerOption): SkuProductSelection {
-  if (option.manual) {
-    return { sku: 'MANUAL', variant_suffix: null, displaySku: 'MANUAL', manual: true };
-  }
   return {
     sku: option.sku,
     variant_suffix: option.variant_suffix,
@@ -225,9 +204,6 @@ export function resolveTypedSkuSelection(
 ): SkuProductSelection | null {
   const normalized = typed.trim().toUpperCase();
   if (!normalized) return null;
-  if (normalized === 'MANUAL') {
-    return { sku: 'MANUAL', variant_suffix: null, displaySku: 'MANUAL', manual: true };
-  }
 
   const catalogProducts = products.filter((product) => !product.is_component);
   const exact = findProductByScannedCode(normalized, catalogProducts);
