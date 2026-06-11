@@ -1,5 +1,46 @@
 import { Product, ProductVariant } from '../types';
-import { findProductByScannedCode } from './pricingEngine';
+import { findProductByScannedCode, getVariantComponents } from './pricingEngine';
+
+const METAL_FINISH_CODES = ['P', 'X', 'D', 'H'] as const;
+
+/** True when the variant uses a metal finish (Πατίνα / Επίχρυσο / Δίχρωμο / Πλατίνα). */
+export function variantHasMetalFinish(suffix: string, gender?: Product['gender']): boolean {
+  const { finish } = getVariantComponents(suffix, gender);
+  return METAL_FINISH_CODES.includes(finish.code as typeof METAL_FINISH_CODES[number]);
+}
+
+/** Product has only λουστρέ-family variants (no P/X/D/H metal finishes), per Μητρώο Κωδικών. */
+export function isLustreOnlyProduct(product: Product): boolean {
+  const variants = product.variants || [];
+  if (!variants.length) return true;
+  return variants.every((variant) => !variantHasMetalFinish(variant.suffix, product.gender));
+}
+
+/**
+ * Bare master SKU (empty suffix) may be resolved only for:
+ * - products without variants,
+ * - single λουστρέ variant,
+ * - lustre-only catalogs that include an explicit empty-suffix row.
+ */
+export function allowsBareMasterSkuResolution(product: Product): boolean {
+  const variants = product.variants || [];
+  if (!variants.length) return true;
+  if (variants.length === 1 && variants[0].suffix === '') return true;
+  if (!isLustreOnlyProduct(product)) return false;
+  return variants.some((variant) => variant.suffix === '');
+}
+
+function isBareMasterTerm(term: string, product: Product): boolean {
+  return term === product.sku.toUpperCase();
+}
+
+function catalogMatchIsAllowed(term: string, product: Product, variant?: ProductVariant | null): boolean {
+  const suffix = variant?.suffix ?? '';
+  if (isBareMasterTerm(term, product) || suffix === '') {
+    return allowsBareMasterSkuResolution(product);
+  }
+  return true;
+}
 
 export interface SkuProductSelection {
   sku: string;
@@ -117,7 +158,7 @@ export function searchSkuProductOptions(products: Product[], query: string, allo
   }
 
   const exact = findProductByScannedCode(term, catalogProducts);
-  if (exact?.product) {
+  if (exact?.product && catalogMatchIsAllowed(term, exact.product, exact.variant)) {
     push(makeCatalogOption(exact.product, exact.variant));
   }
 
@@ -136,9 +177,10 @@ export function searchSkuProductOptions(products: Product[], query: string, allo
     if (variants.length) {
       variants.forEach((variant) => {
         const full = `${product.sku}${variant.suffix || ''}`.toUpperCase();
-        if (full.startsWith(term) || term.startsWith(product.sku.toUpperCase())) {
-          push(makeCatalogOption(product, variant));
-        }
+        if (!full.startsWith(term) && !term.startsWith(product.sku.toUpperCase())) return;
+        if (!catalogMatchIsAllowed(full, product, variant) && isBareMasterTerm(term, product)) return;
+        if ((variant.suffix || '') === '' && !allowsBareMasterSkuResolution(product) && term === product.sku.toUpperCase()) return;
+        push(makeCatalogOption(product, variant));
       });
     } else {
       push(makeCatalogOption(product, null));
@@ -153,7 +195,7 @@ export function getSkuAutocompleteValue(term: string, options: SkuPickerOption[]
   if (!normalized) return null;
 
   const exact = findProductByScannedCode(normalized, products);
-  if (exact?.product) {
+  if (exact?.product && catalogMatchIsAllowed(normalized, exact.product, exact.variant)) {
     return exact.product.sku + (exact.variant?.suffix || '');
   }
 
@@ -187,8 +229,9 @@ export function resolveTypedSkuSelection(
     return { sku: 'MANUAL', variant_suffix: null, displaySku: 'MANUAL', manual: true };
   }
 
-  const exact = findProductByScannedCode(normalized, products.filter((product) => !product.is_component));
-  if (exact?.product) {
+  const catalogProducts = products.filter((product) => !product.is_component);
+  const exact = findProductByScannedCode(normalized, catalogProducts);
+  if (exact?.product && catalogMatchIsAllowed(normalized, exact.product, exact.variant)) {
     return {
       sku: exact.product.sku,
       variant_suffix: exact.variant?.suffix || null,
@@ -196,9 +239,21 @@ export function resolveTypedSkuSelection(
     };
   }
 
+  const bareMasterProduct = catalogProducts.find((product) => product.sku.toUpperCase() === normalized);
+  if (bareMasterProduct && !allowsBareMasterSkuResolution(bareMasterProduct)) {
+    return null;
+  }
+
   return {
     sku: normalized,
     variant_suffix: null,
     displaySku: normalized,
   };
+}
+
+export function getBareMasterSkuResolutionError(product: Product): string {
+  if (isLustreOnlyProduct(product)) {
+    return `Ο κωδικός ${product.sku} έχει λουστρέ παραλλαγές με πέτρα — επιλέξτε συγκεκριμένη παραλλαγή.`;
+  }
+  return `Ο κωδικός ${product.sku} έχει παραλλαγές μετάλλου — επιλέξτε συγκεκριμένη παραλλαγή (π.χ. ${product.sku}P…).`;
 }

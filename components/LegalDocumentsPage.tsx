@@ -75,6 +75,7 @@ import {
   getLegalCatalogLineDetails,
   AADE_INCOME_CATEGORY_OPTIONS,
   AADE_INCOME_TYPE_OPTIONS,
+  AADE_VAT_CATEGORY_LINE_OPTIONS,
   AADE_VAT_CATEGORY_OPTIONS,
   DEFAULT_LEGAL_SETTINGS,
   getLegalDocumentDisplayNumber,
@@ -114,6 +115,7 @@ const kindHelpText: Partial<Record<LegalDocumentKind, string>> = {
   credit: 'Πιστωτικό τιμολόγιο 5.2.',
 };
 const vatRateOptions = AADE_VAT_CATEGORY_OPTIONS;
+const vatLineOptions = AADE_VAT_CATEGORY_LINE_OPTIONS;
 const incomeCategoryOptions = AADE_INCOME_CATEGORY_OPTIONS;
 const incomeTypeOptions = AADE_INCOME_TYPE_OPTIONS;
 const proformaStatusLabel: Record<ProformaDocument['status'], string> = {
@@ -1015,8 +1017,8 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {draftBundle.lines.map((line, index) => (
-                  <tr key={line.id}>
-                    <td className="px-2 py-1.5 font-bold">{line.line_number}</td>
+                  <tr key={line.id} className="align-middle">
+                    <td className="whitespace-nowrap px-2 py-1.5 font-bold">{line.line_number}</td>
                     <td className="px-2 py-1.5">
                       <SkuProductPicker
                         sku={line.sku}
@@ -1024,6 +1026,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
                         products={products}
                         onSelect={(selection) => applyCatalogToLegalLine(line.id, selection)}
                         inputClassName="px-1.5 py-1"
+                        compact
                       />
                     </td>
                     <td className="px-2 py-1.5">
@@ -1037,8 +1040,8 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
                       <input type="number" step="0.01" value={line.unit_price} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, unit_price: Number(event.target.value) || 0 } : item), settingsDraft))} className="w-full rounded-lg border border-slate-200 px-1 py-1 text-right outline-none" />
                     </td>
                     <td className="px-2 py-1.5 text-right">
-                      <select value={line.vat_category} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, vat_category: Number(event.target.value) } : item), settingsDraft))} className="w-full rounded-lg border border-slate-200 px-1 py-1 text-right text-[10px] outline-none">
-                        {vatRateOptions.map((option) => <option key={option.category} value={option.category}>{option.label}</option>)}
+                      <select value={line.vat_category} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, vat_category: Number(event.target.value) } : item), settingsDraft))} className="w-full rounded-lg border border-slate-200 px-1 py-1 text-right text-[10px] outline-none" title="Κωδικός κατηγορίας ΦΠΑ myDATA (vatCategory)">
+                        {vatLineOptions.map((option) => <option key={option.category} value={option.category}>{option.label}</option>)}
                       </select>
                     </td>
                     <td className="px-2 py-1.5 text-right leading-tight">

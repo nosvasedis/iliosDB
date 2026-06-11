@@ -81,6 +81,7 @@ export const PAYMENT_METHOD_LABELS: Record<number, string> = {
 
 export const PAYMENT_METHOD_CODES = [5, 1, 2, 3, 4, 6, 7, 8];
 
+/** Official myDATA vatCategory codes — each code is distinct even when the rate matches (e.g. 6 vs 10). */
 export const AADE_VAT_CATEGORY_OPTIONS = [
   { value: 0.24, category: 1, label: '24%' },
   { value: 0.17, category: 4, label: '17%' },
@@ -93,6 +94,9 @@ export const AADE_VAT_CATEGORY_OPTIONS = [
   { value: 0, category: 8, label: 'Χωρίς ΦΠΑ - λογιστική εγγραφή' },
   { value: 0.04, category: 10, label: '4% αρ.31 ν.5057/2023' },
 ];
+
+/** Practical subset for invoice line rows (excludes category 8 — accounting entries, not sales invoices). */
+export const AADE_VAT_CATEGORY_LINE_OPTIONS = AADE_VAT_CATEGORY_OPTIONS.filter((option) => option.category !== 8);
 
 export const AADE_REVENUE_CLASSIFICATION_COMBINATIONS: Partial<Record<AadeDocumentType, Array<[string, string]>>> = {
   '1.1': [

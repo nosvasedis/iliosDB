@@ -4,7 +4,9 @@ import { CornerDownLeft, ImageIcon, PenLine } from 'lucide-react';
 import { Product } from '../../types';
 import SkuColorizedText from '../SkuColorizedText';
 import {
+  allowsBareMasterSkuResolution,
   formatSkuDisplayValue,
+  getBareMasterSkuResolutionError,
   getSkuAutocompleteValue,
   resolveTypedSkuSelection,
   searchSkuProductOptions,
@@ -12,6 +14,7 @@ import {
   SkuProductSelection,
 } from '../../utils/skuProductPicker';
 import { findProductByScannedCode, formatCurrency } from '../../utils/pricingEngine';
+import { useUI } from '../UIProvider';
 
 export type { SkuProductSelection } from '../../utils/skuProductPicker';
 export { searchSkuProductOptions } from '../../utils/skuProductPicker';
@@ -25,6 +28,8 @@ interface SkuProductPickerProps {
   inputClassName?: string;
   placeholder?: string;
   allowManual?: boolean;
+  /** Inline thumbnail + single-row layout for dense tables */
+  compact?: boolean;
 }
 
 export default function SkuProductPicker({
@@ -36,7 +41,9 @@ export default function SkuProductPicker({
   inputClassName = '',
   placeholder = 'Πληκτρολογήστε SKU...',
   allowManual = true,
+  compact = false,
 }: SkuProductPickerProps) {
+  const { showToast } = useUI();
   const listboxId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -107,6 +114,20 @@ export default function SkuProductPicker({
     return () => document.removeEventListener('mousedown', handlePointerDown);
   }, [displayValue, open]);
 
+  const rejectInvalidMaster = (term: string): boolean => {
+    const normalized = term.trim().toUpperCase();
+    if (!normalized) return false;
+    const catalogProducts = products.filter((product) => !product.is_component);
+    const bareMaster = catalogProducts.find((product) => product.sku.toUpperCase() === normalized);
+    if (bareMaster && !allowsBareMasterSkuResolution(bareMaster)) {
+      showToast(getBareMasterSkuResolutionError(bareMaster), 'warning');
+      setInputValue(displayValue);
+      setOpen(true);
+      return true;
+    }
+    return false;
+  };
+
   const commitSelection = (selection: SkuProductSelection) => {
     setInputValue(selection.displaySku);
     onSelect(selection);
@@ -160,6 +181,7 @@ export default function SkuProductPicker({
         commitSelection(selectionFromOption(options[highlightIndex] || options[0]));
         return;
       }
+      if (rejectInvalidMaster(inputValue)) return;
       const resolved = resolveTypedSkuSelection(inputValue, products);
       if (resolved) commitSelection(resolved);
       return;
@@ -180,6 +202,7 @@ export default function SkuProductPicker({
           setOpen(false);
           return;
         }
+        if (rejectInvalidMaster(term)) return;
         const resolved = resolveTypedSkuSelection(term, products);
         if (resolved && (resolved.manual || findProductByScannedCode(term, products) || term !== displayValue.toUpperCase())) {
           commitSelection(resolved);
@@ -260,9 +283,20 @@ export default function SkuProductPicker({
     </div>
   ) : null;
 
+  const inlineThumb = compact && !open && previewProduct?.image_url ? (
+    <div className="h-7 w-7 shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
+      <img src={previewProduct.image_url} alt="" className="h-full w-full object-cover" />
+    </div>
+  ) : compact && !open ? (
+    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-slate-100 text-slate-300">
+      <ImageIcon size={12} />
+    </div>
+  ) : null;
+
   return (
-    <div ref={containerRef} className={`relative min-w-[10rem] ${className}`}>
-      <div className="relative">
+    <div ref={containerRef} className={`${compact ? 'flex min-w-0 items-center gap-1.5' : 'relative min-w-[10rem]'} ${className}`}>
+      {inlineThumb}
+      <div className={`relative min-w-0 ${compact ? 'flex-1' : 'w-full'}`}>
         <input
           ref={inputRef}
           value={inputValue}
@@ -301,16 +335,6 @@ export default function SkuProductPicker({
           </div>
         ) : null}
       </div>
-      {!open && previewProduct?.image_url ? (
-        <div className="mt-1 flex items-center gap-2">
-          <div className="h-7 w-7 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
-            <img src={previewProduct.image_url} alt="" className="h-full w-full object-cover" />
-          </div>
-          <span className="truncate text-[10px] font-medium text-slate-500">
-            {previewProduct.description || previewProduct.category}
-          </span>
-        </div>
-      ) : null}
       {typeof document !== 'undefined' && dropdown ? createPortal(dropdown, document.body) : null}
     </div>
   );

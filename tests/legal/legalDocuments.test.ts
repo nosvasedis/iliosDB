@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Customer, Order, Product, ProductionType } from '../../types';
 import {
   AADE_REVENUE_CLASSIFICATION_COMBINATIONS,
+  AADE_VAT_CATEGORY_LINE_OPTIONS,
   AADE_VAT_CATEGORY_OPTIONS,
   applyLegalDocumentDeliveryToggle,
   buildAadeInvoiceXml,
@@ -111,6 +112,7 @@ describe('legal document helpers', () => {
   it('lists official AADE payment and VAT appendix codes used by the editor', () => {
     expect(PAYMENT_METHOD_CODES).toEqual([5, 1, 2, 3, 4, 6, 7, 8]);
     expect(AADE_VAT_CATEGORY_OPTIONS.map((option) => option.category)).toEqual([1, 4, 2, 5, 3, 6, 9, 7, 8, 10]);
+    expect(AADE_VAT_CATEGORY_LINE_OPTIONS.map((option) => option.category)).toEqual([1, 4, 2, 5, 3, 6, 9, 7, 10]);
     expect(AADE_REVENUE_CLASSIFICATION_COMBINATIONS['1.1']).toContainEqual(['category1_2', 'E3_561_001']);
     expect(AADE_REVENUE_CLASSIFICATION_COMBINATIONS['9.3']).toEqual([['category3', '']]);
   });
