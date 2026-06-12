@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Bell, Lightbulb, Plus, Trash2, X } from 'lucide-react';
+import { Bell, ChevronDown, Lightbulb, Plus, Trash2, X } from 'lucide-react';
 import { Customer, DeliveryHolidayAnchor, DeliveryPlanningMode, Order, OrderDeliveryPlan, OrderDeliveryReminder, OrderStatus } from '../../types';
 import { DELIVERY_ACTION_LABELS, DELIVERY_ACTION_COLORS, DELIVERY_HOLIDAY_LABELS, DELIVERY_MODE_LABELS, formatGreekShortDateTime, getOrderDisplayName, ORDER_STATUS_LABELS, REMINDER_ACTION_DROPDOWN_OPTIONS } from '../../utils/deliveryLabels';
-import { buildDefaultReminderDrafts, computeDeliveryPlanWindow } from '../../utils/deliveryScheduling';
+import { buildDefaultReminderDrafts, buildSingleCallReminder, computeDeliveryPlanWindow } from '../../utils/deliveryScheduling';
 import { analyzeDeliveryContext } from '../../utils/deliveryIntelligence';
 import { getHolidayPeriod } from '../../utils/orthodoxHoliday';
 
@@ -27,8 +27,12 @@ function toLocalInputValue(isoLike?: string | null) {
 
 export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, customers, selectedOrder, existingPlan, existingReminders = [], mobile = false }: Props) {
   const [orderId, setOrderId] = useState(selectedOrder?.id || existingPlan?.order_id || '');
-  const [mode, setMode] = useState<DeliveryPlanningMode>(existingPlan?.planning_mode || 'exact');
   const [targetAt, setTargetAt] = useState(toLocalInputValue(existingPlan?.target_at));
+  const [wantCallReminder, setWantCallReminder] = useState(false);
+  const [internalNotes, setInternalNotes] = useState(existingPlan?.internal_notes || '');
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  const [mode, setMode] = useState<DeliveryPlanningMode>(existingPlan?.planning_mode || 'exact');
   const [monthValue, setMonthValue] = useState(existingPlan?.window_start ? new Date(existingPlan.window_start).toISOString().slice(0, 7) : '');
   const [windowStart, setWindowStart] = useState(toLocalInputValue(existingPlan?.window_start));
   const [windowEnd, setWindowEnd] = useState(toLocalInputValue(existingPlan?.window_end));
@@ -36,14 +40,13 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
   const [holidayYear, setHolidayYear] = useState<number>(existingPlan?.holiday_year || new Date().getFullYear());
   const [holidayOffsetDays, setHolidayOffsetDays] = useState<number>(existingPlan?.holiday_offset_days || 0);
   const [contactPhoneOverride, setContactPhoneOverride] = useState(existingPlan?.contact_phone_override || '');
-  const [internalNotes, setInternalNotes] = useState(existingPlan?.internal_notes || '');
   const [reminders, setReminders] = useState<Array<{ id: string; trigger_at: string; action_type: OrderDeliveryReminder['action_type']; reason: string; source: OrderDeliveryReminder['source']; sort_order: number }>>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const order = useMemo(() => orders.find((candidate) => candidate.id === orderId) || null, [orders, orderId]);
   const customer = useMemo(() => customers.find((candidate) => candidate.id === order?.customer_id), [customers, order]);
   const intelligence = useMemo(() => order ? analyzeDeliveryContext(order, customer) : { suggestions: [], matchedKeywords: [], callReasons: [] }, [order, customer]);
-
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const topSuggestion = intelligence.suggestions[0] ?? null;
 
   const suggestedDrafts = useMemo(() => {
     let referenceDate = targetAt ? new Date(targetAt) : new Date();
@@ -64,48 +67,20 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
     return buildDefaultReminderDrafts(mode, referenceDate, computedWindowEnd);
   }, [mode, monthValue, targetAt, windowEnd, windowStart, holidayAnchor, holidayYear, holidayOffsetDays]);
 
-  /** Sensible default trigger for a new reminder: tied to plan target, never in the past. */
   const defaultReminderTrigger = useMemo(() => {
-    let planTarget: Date | null = targetAt ? new Date(targetAt) : null;
-    if (mode === 'month' && monthValue) {
-      const [y, m] = monthValue.split('-').map(Number);
-      planTarget = new Date(y, m - 1, 15, 9, 0, 0, 0);
-    } else if (mode === 'custom_period' && windowStart) {
-      planTarget = new Date(windowStart);
-    } else if (mode === 'holiday_anchor' && holidayAnchor && holidayYear != null) {
-      const period = getHolidayPeriod(holidayAnchor, holidayYear, holidayOffsetDays ?? 0);
-      planTarget = new Date(period.target);
-      planTarget.setHours(9, 0, 0, 0);
-    }
+    const planTarget = targetAt ? new Date(targetAt) : null;
     const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    const tomorrowStart = new Date(todayStart);
-    tomorrowStart.setDate(tomorrowStart.getDate() + 1);
-
-    let trigger: Date;
-    if (planTarget && planTarget.getTime() >= todayStart.getTime()) {
-      const dayBefore = new Date(planTarget);
-      dayBefore.setDate(dayBefore.getDate() - 1);
-      dayBefore.setHours(13, 0, 0, 0);
-      if (dayBefore.getTime() > now.getTime()) trigger = dayBefore;
-      else {
-        const sameDay = new Date(planTarget);
-        sameDay.setHours(9, 0, 0, 0);
-        trigger = sameDay.getTime() > now.getTime() ? sameDay : new Date(tomorrowStart.getTime() + 9 * 60 * 60 * 1000);
-      }
-    } else {
-      const tomorrow09 = new Date(tomorrowStart.getTime() + 9 * 60 * 60 * 1000);
-      trigger = tomorrow09.getTime() > now.getTime() ? tomorrow09 : new Date(now.getTime() + 60 * 60 * 1000);
-    }
-    if (trigger.getTime() <= now.getTime()) trigger = new Date(now.getTime() + 60 * 60 * 1000);
-    return toLocalInputValue(trigger.toISOString());
-  }, [mode, targetAt, monthValue, windowStart, holidayAnchor, holidayYear, holidayOffsetDays]);
+    const draft = buildSingleCallReminder(planTarget || now, now);
+    return toLocalInputValue(draft.trigger_at);
+  }, [targetAt]);
 
   useEffect(() => {
     if (!isOpen) return;
+    const isNonExact = existingPlan && existingPlan.planning_mode !== 'exact';
+    setAdvancedOpen(!!isNonExact || (existingReminders?.length ?? 0) > 1);
     setOrderId(selectedOrder?.id || existingPlan?.order_id || '');
-    setMode(existingPlan?.planning_mode || 'exact');
     setTargetAt(toLocalInputValue(existingPlan?.target_at));
+    setMode(existingPlan?.planning_mode || 'exact');
     setMonthValue(existingPlan?.window_start ? new Date(existingPlan.window_start).toISOString().slice(0, 7) : '');
     setWindowStart(toLocalInputValue(existingPlan?.window_start));
     setWindowEnd(toLocalInputValue(existingPlan?.window_end));
@@ -114,7 +89,11 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
     setHolidayOffsetDays(existingPlan?.holiday_offset_days || 0);
     setContactPhoneOverride(existingPlan?.contact_phone_override || '');
     setInternalNotes(existingPlan?.internal_notes || '');
-  }, [existingPlan, isOpen, selectedOrder]);
+    setWantCallReminder(
+      !isNonExact && (existingReminders?.length ?? 0) > 0
+        && existingReminders.some((r) => !r.completed_at)
+    );
+  }, [existingPlan, existingReminders, isOpen, selectedOrder]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -146,7 +125,7 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
     : 'fixed inset-0 z-[170] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4';
   const panelClasses = mobile
     ? 'w-full bg-white rounded-t-[2.5rem] p-5 pb-safe max-h-[92vh] overflow-y-auto animate-in slide-in-from-bottom-full duration-300'
-    : 'w-full max-w-4xl bg-white rounded-[2rem] shadow-2xl p-6 max-h-[92vh] overflow-y-auto animate-in zoom-in-95 duration-200';
+    : 'w-full max-w-2xl bg-white rounded-[2rem] shadow-2xl p-6 max-h-[92vh] overflow-y-auto animate-in zoom-in-95 duration-200';
 
   const handleAddReminder = () => {
     setReminders((prev) => [
@@ -176,36 +155,23 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
     ]);
   };
 
-  const handleAddAllSuggested = () => {
-    setReminders((prev) => [
-      ...prev,
-      ...suggestedDrafts.map((draft, i) => ({
-        id: crypto.randomUUID(),
-        trigger_at: toLocalInputValue(draft.trigger_at),
-        action_type: draft.action_type,
-        reason: draft.reason,
-        source: draft.source,
-        sort_order: prev.length + i
-      }))
-    ]);
-    setShowSuggestions(false);
-  };
-
   const handleSave = async () => {
     if (!order) return;
     const now = new Date().toISOString();
+    const useAdvanced = advancedOpen;
+    const effectiveMode = useAdvanced ? mode : 'exact';
 
     const basePlan: OrderDeliveryPlan = {
       id: existingPlan?.id || crypto.randomUUID(),
       order_id: order.id,
       plan_status: order.status === 'Delivered' ? 'completed' : order.status === 'Cancelled' ? 'cancelled' : 'active',
-      planning_mode: mode,
-      target_at: mode === 'exact' && targetAt ? new Date(targetAt).toISOString() : null,
-      window_start: mode === 'custom_period' && windowStart ? new Date(windowStart).toISOString() : mode === 'month' && monthValue ? new Date(`${monthValue}-01T09:00`).toISOString() : null,
-      window_end: mode === 'custom_period' && windowEnd ? new Date(windowEnd).toISOString() : null,
-      holiday_anchor: mode === 'holiday_anchor' ? holidayAnchor : null,
-      holiday_year: mode === 'holiday_anchor' ? holidayYear : null,
-      holiday_offset_days: mode === 'holiday_anchor' ? holidayOffsetDays : null,
+      planning_mode: effectiveMode,
+      target_at: effectiveMode === 'exact' && targetAt ? new Date(targetAt).toISOString() : null,
+      window_start: effectiveMode === 'custom_period' && windowStart ? new Date(windowStart).toISOString() : effectiveMode === 'month' && monthValue ? new Date(`${monthValue}-01T09:00`).toISOString() : null,
+      window_end: effectiveMode === 'custom_period' && windowEnd ? new Date(windowEnd).toISOString() : null,
+      holiday_anchor: effectiveMode === 'holiday_anchor' ? holidayAnchor : null,
+      holiday_year: effectiveMode === 'holiday_anchor' ? holidayYear : null,
+      holiday_offset_days: effectiveMode === 'holiday_anchor' ? holidayOffsetDays : null,
       contact_phone_override: contactPhoneOverride || null,
       internal_notes: internalNotes || null,
       snoozed_until: existingPlan?.snoozed_until || null,
@@ -225,7 +191,22 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
       window_end: computed.windowEnd || basePlan.window_end || null
     };
 
-    const finalReminders: OrderDeliveryReminder[] = reminders.map((reminder, index) => ({
+    let reminderSource = reminders;
+    if (!useAdvanced && wantCallReminder && targetAt) {
+      const draft = buildSingleCallReminder(new Date(targetAt));
+      reminderSource = [{
+        id: existingReminders[0]?.id || crypto.randomUUID(),
+        trigger_at: toLocalInputValue(draft.trigger_at),
+        action_type: draft.action_type,
+        reason: draft.reason,
+        source: draft.source,
+        sort_order: 0
+      }];
+    } else if (!useAdvanced) {
+      reminderSource = [];
+    }
+
+    const finalReminders: OrderDeliveryReminder[] = reminderSource.map((reminder, index) => ({
       id: reminder.id,
       plan_id: finalPlan.id,
       trigger_at: new Date(reminder.trigger_at).toISOString(),
@@ -233,11 +214,11 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
       reason: reminder.reason,
       sort_order: index,
       source: reminder.source,
-      acknowledged_at: null,
-      completed_at: null,
-      completion_note: null,
-      completed_by: null,
-      snoozed_until: null,
+      acknowledged_at: existingReminders.find((item) => item.id === reminder.id)?.acknowledged_at || null,
+      completed_at: existingReminders.find((item) => item.id === reminder.id)?.completed_at || null,
+      completion_note: existingReminders.find((item) => item.id === reminder.id)?.completion_note || null,
+      completed_by: existingReminders.find((item) => item.id === reminder.id)?.completed_by || null,
+      snoozed_until: existingReminders.find((item) => item.id === reminder.id)?.snoozed_until || null,
       created_at: existingReminders.find((item) => item.id === reminder.id)?.created_at || now,
       updated_at: now
     }));
@@ -259,206 +240,203 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
           </button>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-[1.35fr_1fr] gap-6">
-          <div className="space-y-5">
-            <div className="rounded-3xl border border-slate-100 bg-slate-50 p-4 space-y-4">
-              <div>
-                <label className="text-[11px] font-black uppercase tracking-wide text-slate-400 block mb-2">Παραγγελία</label>
-                <select value={orderId} onChange={(e) => setOrderId(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none">
-                  <option value="">Επιλέξτε παραγγελία</option>
-                  {orders.map((item) => (
-                    <option key={item.id} value={item.id}>{getOrderDisplayName(item)} · #{item.id.slice(-6)}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[11px] font-black uppercase tracking-wide text-slate-400 block mb-2">Τρόπος προγραμματισμού</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(Object.keys(DELIVERY_MODE_LABELS) as DeliveryPlanningMode[]).map((value) => (
-                    <button
-                      key={value}
-                      onClick={() => setMode(value)}
-                      className={`px-4 py-3 rounded-2xl text-xs font-black border transition-all ${
-                        mode === value ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-white text-slate-600 border-slate-200'
-                      }`}
-                    >
-                      {DELIVERY_MODE_LABELS[value]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {mode === 'exact' && <input type="datetime-local" value={targetAt} onChange={(e) => setTargetAt(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none" />}
-              {mode === 'month' && <input type="month" value={monthValue} onChange={(e) => setMonthValue(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none" />}
-
-              {mode === 'custom_period' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <input type="datetime-local" value={windowStart} onChange={(e) => setWindowStart(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none" />
-                  <input type="datetime-local" value={windowEnd} onChange={(e) => setWindowEnd(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none" />
-                </div>
-              )}
-
-              {mode === 'holiday_anchor' && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <select value={holidayAnchor} onChange={(e) => setHolidayAnchor(e.target.value as DeliveryHolidayAnchor)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none">
-                    {(Object.keys(DELIVERY_HOLIDAY_LABELS) as DeliveryHolidayAnchor[]).map((value) => (
-                      <option key={value} value={value}>{DELIVERY_HOLIDAY_LABELS[value]}</option>
-                    ))}
-                  </select>
-                  <input type="number" value={holidayYear} onChange={(e) => setHolidayYear(Number(e.target.value))} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none" />
-                  <input type="number" value={holidayOffsetDays} onChange={(e) => setHolidayOffsetDays(Number(e.target.value))} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none" />
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <input value={contactPhoneOverride} onChange={(e) => setContactPhoneOverride(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none" placeholder="Τηλέφωνο επικοινωνίας" />
-                <input value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none" placeholder="Εσωτερικές σημειώσεις" />
-              </div>
+        <div className="space-y-5">
+          <div className="rounded-3xl border border-slate-100 bg-slate-50 p-4 space-y-4">
+            <div>
+              <label className="text-[11px] font-black uppercase tracking-wide text-slate-400 block mb-2">Παραγγελία</label>
+              <select value={orderId} onChange={(e) => setOrderId(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none">
+                <option value="">Επιλέξτε παραγγελία</option>
+                {orders.map((item) => (
+                  <option key={item.id} value={item.id}>{getOrderDisplayName(item)} · #{item.id.slice(-6)}</option>
+                ))}
+              </select>
             </div>
 
-            <div className="rounded-3xl border border-slate-100 bg-slate-50 p-4">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Bell size={16} className="text-slate-500" />
-                  <h3 className="text-sm font-black uppercase tracking-wide text-slate-700">Υπενθυμίσεις</h3>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => setShowSuggestions((v) => !v)} className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-600 text-xs font-bold flex items-center gap-1.5">
-                    <Lightbulb size={14} /> Προτάσεις
-                  </button>
-                  <button type="button" onClick={handleAddReminder} className="px-3 py-2 rounded-xl bg-[#060b00] text-white text-xs font-bold flex items-center gap-1.5">
-                    <Plus size={14} /> Νέα
-                  </button>
-                </div>
-              </div>
+            {topSuggestion && !advancedOpen && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (topSuggestion.suggested_date) setTargetAt(toLocalInputValue(topSuggestion.suggested_date));
+                  if (topSuggestion.suggested_mode && topSuggestion.suggested_mode !== 'exact') {
+                    setMode(topSuggestion.suggested_mode);
+                    if (topSuggestion.suggested_holiday) setHolidayAnchor(topSuggestion.suggested_holiday);
+                    setAdvancedOpen(true);
+                  }
+                }}
+                className="w-full text-left rounded-2xl bg-white border border-amber-100 px-3 py-2 text-xs font-medium text-slate-600 flex items-center gap-2"
+              >
+                <Lightbulb size={14} className="text-amber-600 shrink-0" />
+                <span>{topSuggestion.label}{topSuggestion.description ? ` — ${topSuggestion.description}` : ''}</span>
+              </button>
+            )}
 
-              {showSuggestions && suggestedDrafts.length > 0 && (() => {
-                const byType = suggestedDrafts.reduce<Record<string, typeof suggestedDrafts>>((acc, draft) => {
-                  const k = draft.action_type;
-                  if (!acc[k]) acc[k] = [];
-                  acc[k].push(draft);
-                  return acc;
-                }, {});
-                const order: (keyof typeof byType)[] = ['internal_followup', 'call_client', 'message_client', 'confirm_ready', 'arrange_delivery'];
-                return (
-                  <div className="mb-4 p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
-                    <div className="text-xs font-black uppercase tracking-wide text-slate-600">Έξυπνες προτάσεις</div>
-                    {order.filter((k) => byType[k]?.length).map((actionType) => {
-                      const drafts = byType[actionType];
-                      const colors = DELIVERY_ACTION_COLORS[actionType];
-                      const label = DELIVERY_ACTION_LABELS[actionType];
-                      return (
-                        <div key={actionType} className="space-y-2">
-                          <div className={`text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-lg border w-fit ${colors.badge}`}>
-                            {label}
-                          </div>
-                          <ul className="space-y-1.5">
-                            {drafts!.map((draft, idx) => (
-                              <li key={idx} className="flex items-center justify-between gap-3 rounded-xl bg-white border border-slate-100 px-3 py-2">
-                                <div className="min-w-0">
-                                  <span className="text-sm font-bold text-slate-800">{formatGreekShortDateTime(draft.trigger_at)}</span>
-                                  <span className="text-xs text-slate-500 font-medium ml-1.5">— {draft.reason.slice(0, 42)}{draft.reason.length > 42 ? '…' : ''}</span>
-                                </div>
-                                <button type="button" onClick={() => handleAddSuggested(draft)} className="shrink-0 px-2.5 py-1.5 rounded-lg bg-[#060b00] text-white text-xs font-bold hover:opacity-90">
-                                  Προσθήκη
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      );
-                    })}
-                    <button type="button" onClick={handleAddAllSuggested} className="text-xs font-bold text-slate-600 underline hover:text-slate-800">
-                      Προσθήκη όλων
-                    </button>
-                  </div>
-                );
-              })()}
-
-              {reminders.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 p-6 text-center">
-                  <p className="text-sm text-slate-500 font-medium">Δεν έχετε υπενθυμίσεις. Προσθέστε μία χειροκίνητα ή επιλέξτε από τις προτάσεις πάνω.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {reminders.map((reminder) => {
-                    const colors = DELIVERY_ACTION_COLORS[reminder.action_type];
-                    return (
-                      <div key={reminder.id} className={`rounded-2xl border-l-4 ${colors.border} ${colors.bg} border border-slate-200/80 p-4 space-y-3`}>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase border ${colors.badge}`}>
-                            {DELIVERY_ACTION_LABELS[reminder.action_type]}
-                          </span>
-                          <button type="button" onClick={() => setReminders((prev) => prev.filter((item) => item.id !== reminder.id))} className="ml-auto w-10 h-10 rounded-xl bg-white/80 text-red-600 border border-red-100 flex items-center justify-center hover:bg-red-50">
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr] gap-3">
-                          <input type="datetime-local" value={reminder.trigger_at} onChange={(e) => setReminders((prev) => prev.map((item) => item.id === reminder.id ? { ...item, trigger_at: e.target.value } : item))} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold outline-none" />
-                          <select value={reminder.action_type === 'confirm_ready' || reminder.action_type === 'arrange_delivery' ? 'call_client' : reminder.action_type} onChange={(e) => setReminders((prev) => prev.map((item) => item.id === reminder.id ? { ...item, action_type: e.target.value as OrderDeliveryReminder['action_type'] } : item))} className={`rounded-xl border bg-white px-3 py-2.5 text-sm font-bold outline-none ${colors.text}`}>
-                            {REMINDER_ACTION_DROPDOWN_OPTIONS.map((opt) => (
-                              <option key={opt.value} value={opt.value}>{opt.label}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <input value={reminder.reason} onChange={(e) => setReminders((prev) => prev.map((item) => item.id === reminder.id ? { ...item, reason: e.target.value } : item))} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium outline-none placeholder:text-slate-400" placeholder={reminder.action_type === 'call_client' || reminder.action_type === 'confirm_ready' || reminder.action_type === 'arrange_delivery' ? 'Π.χ. Επιβεβαίωση ετοιμότητας, οργάνωση παράδοσης' : reminder.action_type === 'internal_followup' ? 'Π.χ. Έλεγχος προόδου παραγγελίας' : 'Λόγος υπενθύμισης'} />
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+            <div>
+              <label className="text-[11px] font-black uppercase tracking-wide text-slate-400 block mb-2">Ημερομηνία παράδοσης</label>
+              <input
+                type="datetime-local"
+                value={targetAt}
+                onChange={(e) => setTargetAt(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none"
+              />
             </div>
+
+            {!advancedOpen && (
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={wantCallReminder}
+                  onChange={(e) => setWantCallReminder(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300"
+                />
+                <span className="text-sm font-bold text-slate-700">Υπενθύμιση κλήσης πριν την παράδοση</span>
+              </label>
+            )}
+
+            <input
+              value={internalNotes}
+              onChange={(e) => setInternalNotes(e.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none"
+              placeholder="Σημειώσεις (προαιρετικά)"
+            />
           </div>
 
-          <div className="space-y-5">
-            <div className="rounded-3xl border border-slate-100 bg-slate-50 p-4">
-              <div className="text-sm font-black uppercase tracking-wide text-slate-700 mb-3">Έξυπνες προτάσεις</div>
-              <div className="space-y-3">
-                {intelligence.suggestions.length === 0 && (
-                  <div className="rounded-2xl bg-white border border-slate-200 p-4 text-sm text-slate-500 font-medium">
-                    Δεν βρέθηκαν αυτόματες προτάσεις από τις σημειώσεις της παραγγελίας.
+          <div className="rounded-3xl border border-slate-100 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setAdvancedOpen((v) => !v)}
+              className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-slate-50 text-sm font-black text-slate-700"
+            >
+              <span>Προχωρημένα</span>
+              <ChevronDown size={18} className={`transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {advancedOpen && (
+              <div className="p-4 space-y-4 border-t border-slate-100">
+                <div>
+                  <label className="text-[11px] font-black uppercase tracking-wide text-slate-400 block mb-2">Τρόπος προγραμματισμού</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(Object.keys(DELIVERY_MODE_LABELS) as DeliveryPlanningMode[]).map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setMode(value)}
+                        className={`px-3 py-2.5 rounded-2xl text-xs font-black border transition-all ${
+                          mode === value ? 'bg-[#060b00] text-white border-[#060b00]' : 'bg-white text-slate-600 border-slate-200'
+                        }`}
+                      >
+                        {DELIVERY_MODE_LABELS[value]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {mode === 'month' && (
+                  <input type="month" value={monthValue} onChange={(e) => setMonthValue(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none" />
+                )}
+
+                {mode === 'custom_period' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <input type="datetime-local" value={windowStart} onChange={(e) => setWindowStart(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none" />
+                    <input type="datetime-local" value={windowEnd} onChange={(e) => setWindowEnd(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none" />
                   </div>
                 )}
-                {intelligence.suggestions.map((suggestion) => (
-                  <button
-                    key={suggestion.id}
-                    onClick={() => {
-                      if (suggestion.suggested_mode) setMode(suggestion.suggested_mode);
-                      if (suggestion.suggested_holiday) setHolidayAnchor(suggestion.suggested_holiday);
-                      if (suggestion.suggested_date) setTargetAt(toLocalInputValue(suggestion.suggested_date));
-                    }}
-                    className="w-full text-left rounded-2xl bg-white border border-slate-200 p-4 hover:border-amber-200 hover:bg-amber-50 transition-all"
-                  >
-                    <div className="font-bold text-slate-800">{suggestion.label}</div>
-                    {suggestion.description && <div className="text-xs font-medium text-slate-500 mt-1">{suggestion.description}</div>}
-                  </button>
-                ))}
-              </div>
-            </div>
 
-            <div className="rounded-3xl border border-slate-100 bg-slate-50 p-4">
-              <div className="text-sm font-black uppercase tracking-wide text-slate-700 mb-3">Στοιχεία παραγγελίας</div>
-              {order ? (
-                <div className="space-y-2 text-sm text-slate-600 font-medium">
-                  <div><span className="font-black text-slate-800">Πελάτης:</span> {getOrderDisplayName(order)}</div>
-                  <div><span className="font-black text-slate-800">Τηλέφωνο:</span> {customer?.phone || order.customer_phone || 'Δεν υπάρχει'}</div>
-                  <div><span className="font-black text-slate-800">Κατάσταση:</span> {ORDER_STATUS_LABELS[order.status as OrderStatus] ?? order.status}</div>
-                  {order.notes && <div><span className="font-black text-slate-800">Σημειώσεις:</span> {order.notes}</div>}
+                {mode === 'holiday_anchor' && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <select value={holidayAnchor} onChange={(e) => setHolidayAnchor(e.target.value as DeliveryHolidayAnchor)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none">
+                      {(Object.keys(DELIVERY_HOLIDAY_LABELS) as DeliveryHolidayAnchor[]).map((value) => (
+                        <option key={value} value={value}>{DELIVERY_HOLIDAY_LABELS[value]}</option>
+                      ))}
+                    </select>
+                    <input type="number" value={holidayYear} onChange={(e) => setHolidayYear(Number(e.target.value))} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none" />
+                    <input type="number" value={holidayOffsetDays} onChange={(e) => setHolidayOffsetDays(Number(e.target.value))} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none" placeholder="Μετατόπιση ημερών" />
+                  </div>
+                )}
+
+                <input
+                  value={contactPhoneOverride}
+                  onChange={(e) => setContactPhoneOverride(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none"
+                  placeholder="Τηλέφωνο επικοινωνίας"
+                />
+
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Bell size={16} className="text-slate-500" />
+                      <h3 className="text-sm font-black uppercase tracking-wide text-slate-700">Υπενθυμίσεις</h3>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {suggestedDrafts.length > 0 && (
+                        <button type="button" onClick={() => setShowSuggestions((v) => !v)} className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-600 text-xs font-bold">
+                          Προτάσεις
+                        </button>
+                      )}
+                      <button type="button" onClick={handleAddReminder} className="px-3 py-2 rounded-xl bg-[#060b00] text-white text-xs font-bold flex items-center gap-1">
+                        <Plus size={14} /> Νέα
+                      </button>
+                    </div>
+                  </div>
+
+                  {showSuggestions && suggestedDrafts.length > 0 && (
+                    <div className="mb-3 p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                      {suggestedDrafts.map((draft, idx) => (
+                        <div key={idx} className="flex items-center justify-between gap-2 rounded-xl bg-white border border-slate-100 px-3 py-2">
+                          <span className="text-xs font-medium text-slate-600 truncate">
+                            {formatGreekShortDateTime(draft.trigger_at)} — {DELIVERY_ACTION_LABELS[draft.action_type]}
+                          </span>
+                          <button type="button" onClick={() => handleAddSuggested(draft)} className="shrink-0 px-2 py-1 rounded-lg bg-[#060b00] text-white text-xs font-bold">
+                            +
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {reminders.length === 0 ? (
+                    <p className="text-sm text-slate-500 font-medium">Χωρίς επιπλέον υπενθυμίσεις.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {reminders.map((reminder) => {
+                        const colors = DELIVERY_ACTION_COLORS[reminder.action_type];
+                        return (
+                          <div key={reminder.id} className={`rounded-2xl border-l-4 ${colors.border} ${colors.bg} border border-slate-200/80 p-3 space-y-2`}>
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase border ${colors.badge}`}>
+                                {DELIVERY_ACTION_LABELS[reminder.action_type]}
+                              </span>
+                              <button type="button" onClick={() => setReminders((prev) => prev.filter((item) => item.id !== reminder.id))} className="ml-auto w-8 h-8 rounded-lg bg-white/80 text-red-600 border border-red-100 flex items-center justify-center">
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                            <input type="datetime-local" value={reminder.trigger_at} onChange={(e) => setReminders((prev) => prev.map((item) => item.id === reminder.id ? { ...item, trigger_at: e.target.value } : item))} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold outline-none" />
+                            <select value={reminder.action_type === 'confirm_ready' || reminder.action_type === 'arrange_delivery' ? 'call_client' : reminder.action_type} onChange={(e) => setReminders((prev) => prev.map((item) => item.id === reminder.id ? { ...item, action_type: e.target.value as OrderDeliveryReminder['action_type'] } : item))} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold outline-none">
+                              {REMINDER_ACTION_DROPDOWN_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
+                            </select>
+                            <input value={reminder.reason} onChange={(e) => setReminders((prev) => prev.map((item) => item.id === reminder.id ? { ...item, reason: e.target.value } : item))} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium outline-none" placeholder="Λόγος υπενθύμισης" />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="rounded-2xl bg-white border border-slate-200 p-4 text-sm text-slate-500 font-medium">
-                  Επιλέξτε πρώτα παραγγελία.
-                </div>
-              )}
-            </div>
+
+                {order && (
+                  <div className="text-xs text-slate-500 font-medium pt-2 border-t border-slate-100">
+                    <span className="font-black text-slate-700">Πελάτης:</span> {getOrderDisplayName(order)} · {ORDER_STATUS_LABELS[order.status as OrderStatus] ?? order.status}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
         <div className="mt-6 flex flex-wrap gap-3 justify-end">
           <button onClick={onClose} className="px-5 py-3 rounded-2xl bg-white border border-slate-200 text-slate-600 font-bold text-sm">Ακύρωση</button>
-          <button onClick={handleSave} disabled={!orderId} className="px-5 py-3 rounded-2xl bg-[#060b00] text-white font-bold text-sm disabled:opacity-40">
-            Αποθήκευση πλάνου
+          <button onClick={handleSave} disabled={!orderId || !targetAt} className="px-5 py-3 rounded-2xl bg-[#060b00] text-white font-bold text-sm disabled:opacity-40">
+            Αποθήκευση
           </button>
         </div>
       </div>

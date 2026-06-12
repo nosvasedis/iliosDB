@@ -1,7 +1,7 @@
 import React from 'react';
 import { Search } from 'lucide-react';
 
-export type DeliveryFilterKey = 'all' | 'overdue' | 'today' | 'week' | 'month' | 'holiday' | 'call_needed' | 'completed';
+export type DeliveryFilterKey = 'all' | 'today' | 'overdue' | 'completed';
 
 interface Props {
   filter: DeliveryFilterKey;
@@ -12,12 +12,8 @@ interface Props {
 
 const FILTERS: Array<{ key: DeliveryFilterKey; label: string }> = [
   { key: 'all', label: 'Όλα' },
-  { key: 'overdue', label: 'Εκπρόθεσμα' },
   { key: 'today', label: 'Σήμερα' },
-  { key: 'week', label: '7 ημέρες' },
-  { key: 'month', label: 'Μήνας' },
-  { key: 'holiday', label: 'Γιορτές' },
-  { key: 'call_needed', label: 'Κλήση' },
+  { key: 'overdue', label: 'Εκπρόθεσμα' },
   { key: 'completed', label: 'Ολοκληρωμένα' }
 ];
 
@@ -29,7 +25,7 @@ export default function DeliveryFilters({ filter, search, onFilterChange, onSear
         <input
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Αναζήτηση πελάτη, παραγγελίας ή λόγου..."
+          placeholder="Αναζήτηση πελάτη ή παραγγελίας..."
           className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 outline-none focus:ring-2 focus:ring-amber-400/30 text-sm font-medium"
         />
       </div>

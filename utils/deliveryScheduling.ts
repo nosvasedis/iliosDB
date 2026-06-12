@@ -109,6 +109,63 @@ export function buildDefaultReminderDrafts(mode: DeliveryPlanningMode, reference
   return drafts;
 }
 
+export function buildSingleCallReminder(
+  deliveryDate: Date,
+  now = new Date()
+): Pick<OrderDeliveryReminder, 'action_type' | 'reason' | 'sort_order' | 'source' | 'trigger_at'> {
+  const dayBefore = new Date(deliveryDate);
+  dayBefore.setDate(dayBefore.getDate() - 1);
+  dayBefore.setHours(13, 0, 0, 0);
+
+  let trigger: Date;
+  if (dayBefore.getTime() > now.getTime()) {
+    trigger = dayBefore;
+  } else {
+    const sameMorning = new Date(deliveryDate);
+    sameMorning.setHours(9, 0, 0, 0);
+    trigger = sameMorning.getTime() > now.getTime()
+      ? sameMorning
+      : new Date(now.getTime() + 60 * 60 * 1000);
+  }
+
+  return {
+    action_type: 'call_client',
+    reason: 'Επιβεβαίωση ετοιμότητας, οργάνωση παράδοσης και κλήση πελάτη.',
+    sort_order: 0,
+    source: 'auto',
+    trigger_at: trigger.toISOString()
+  };
+}
+
+export interface DeliveryAttentionEntry {
+  item: EnrichedDeliveryItem;
+  reminder: OrderDeliveryReminder;
+  urgency: 'overdue' | 'today';
+}
+
+export function getAttentionItems(items: EnrichedDeliveryItem[], now = new Date()): DeliveryAttentionEntry[] {
+  const entries: DeliveryAttentionEntry[] = [];
+
+  items.forEach((item) => {
+    if (item.plan.plan_status !== 'active') return;
+    item.pending_reminders.forEach((reminder) => {
+      const urgency = getReminderUrgency(reminder, now);
+      if (urgency !== 'overdue' && urgency !== 'today') return;
+      entries.push({ item, reminder, urgency });
+    });
+  });
+
+  return entries.sort(
+    (a, b) => new Date(a.reminder.trigger_at).getTime() - new Date(b.reminder.trigger_at).getTime()
+  );
+}
+
+export function isItemDueToday(item: EnrichedDeliveryItem, now = new Date()): boolean {
+  if (item.urgency === 'today' || item.urgency === 'overdue') return true;
+  const target = new Date(item.target_date || item.window_start || item.plan.created_at).getTime();
+  return target >= startOfDay(now).getTime() && target <= endOfDay(now).getTime();
+}
+
 export function isReminderPending(reminder: OrderDeliveryReminder, now = new Date()): boolean {
   if (reminder.completed_at) return false;
   if (reminder.snoozed_until && new Date(reminder.snoozed_until).getTime() > now.getTime()) return false;

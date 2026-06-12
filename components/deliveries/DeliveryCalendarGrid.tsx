@@ -21,15 +21,19 @@ function dateKey(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function EventLine({ event, isSelected }: { event: CalendarDayEvent; isSelected: boolean }) {
-  const tone = event.type === 'major_event'
-    ? (isSelected ? 'bg-white/15 text-white' : 'bg-amber-50 text-amber-700 border border-amber-100')
-    : (isSelected ? 'bg-white/10 text-white/90' : 'bg-sky-50 text-sky-700 border border-sky-100');
+function EventDot({ events, isSelected }: { events: CalendarDayEvent[]; isSelected: boolean }) {
+  if (events.length === 0) return null;
+  const first = events[0];
+  const extra = events.length - 1;
+  const title = extra > 0 ? `${first.title} (+${extra})` : first.title;
 
   return (
-    <div className={`rounded-xl px-2 py-1 text-[10px] font-black truncate ${tone}`}>
-      {event.title}
-      {event.subtitle ? ` • ${event.subtitle}` : ''}
+    <div
+      className={`truncate text-[9px] font-bold leading-tight ${isSelected ? 'text-white/70' : 'text-slate-400'}`}
+      title={events.map((e) => e.title).join(', ')}
+    >
+      <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle ${isSelected ? 'bg-white/60' : 'bg-sky-300'}`} />
+      {title}
     </div>
   );
 }
@@ -185,8 +189,7 @@ export default function DeliveryCalendarGrid({ monthDate, items, majorEvents = [
           const isCurrentMonth = day.getMonth() === monthDate.getMonth();
           const isSelected = key === dateKey(selectedDate);
           const isToday = key === todayKey;
-          const visibleEvents = dayEvents.slice(0, 2);
-          const visibleItems = dayItems.slice(0, Math.max(0, 2 - visibleEvents.length));
+          const visibleItems = dayItems.slice(0, 2);
           const hiddenCount = Math.max(0, dayItems.length - visibleItems.length);
 
           return (
@@ -209,13 +212,11 @@ export default function DeliveryCalendarGrid({ monthDate, items, majorEvents = [
                   {isToday && isCurrentMonth && !isSelected && <span className="ml-1 text-[9px] font-bold uppercase text-amber-600">Σήμερα</span>}
                 </span>
               </div>
-              <div className="mt-3 space-y-1">
-                {visibleEvents.map((event) => (
-                  <EventLine key={event.id} event={event} isSelected={isSelected} />
-                ))}
+              <div className="mt-2 space-y-1">
                 {visibleItems.map((item) => (
                   <DeliveryPill key={item.plan.id} item={item} isSelected={isSelected} />
                 ))}
+                <EventDot events={dayEvents} isSelected={isSelected} />
                 {hiddenCount > 0 && (
                   <div className={`rounded-xl px-2 py-1 text-[10px] font-black ${isSelected ? 'bg-white/15 text-white/90' : 'bg-slate-200/60 text-slate-600'}`}>
                     +{hiddenCount} ακόμη
