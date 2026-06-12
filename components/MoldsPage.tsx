@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Mold } from '../types';
-import { Trash2, Plus, MapPin, Loader2, Search, X, Check, MoreHorizontal } from 'lucide-react';
+import { Trash2, Plus, MapPin, Loader2, Search, X, Check, MoreHorizontal, Puzzle } from 'lucide-react';
+import { filterMoldsByCategory, isLstxMold, MoldCategoryTab } from '../utils/moldCategories';
 import { supabase } from '../lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
@@ -121,6 +122,7 @@ export default function MoldsPage() {
     const { data: molds, isLoading } = useQuery<Mold[]>({ queryKey: ['molds'], queryFn: api.getMolds });
 
     const [searchTerm, setSearchTerm] = useState('');
+    const [moldTab, setMoldTab] = useState<MoldCategoryTab>('standard');
 
     // Modals / FAB
     const [isCreating, setIsCreating] = useState(false);
@@ -141,16 +143,30 @@ export default function MoldsPage() {
         return () => scrollContainer.removeEventListener('scroll', handleScroll);
     }, []);
 
-    const filteredMolds = useMemo(() => {
+    const categoryMolds = useMemo(() => {
         if (!molds) return [];
-        return molds
+        return filterMoldsByCategory(molds, moldTab);
+    }, [molds, moldTab]);
+
+    const filteredMolds = useMemo(() => {
+        return categoryMolds
             .filter(m => m.code.toUpperCase().includes(searchTerm.toUpperCase()) || m.description.toLowerCase().includes(searchTerm.toLowerCase()))
             .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' }));
-    }, [molds, searchTerm]);
+    }, [categoryMolds, searchTerm]);
+
+    const defaultMoldCode = moldTab === 'lstx' ? 'LSTX' : 'L';
 
     const handleCreate = async () => {
-        if (!newMold.code || newMold.code === 'L') {
+        if (!newMold.code || newMold.code === defaultMoldCode) {
             showToast("Ο Κωδικός είναι υποχρεωτικός και πρέπει να είναι συμπληρωμένος.", 'error');
+            return;
+        }
+        if (moldTab === 'lstx' && !isLstxMold(newMold.code)) {
+            showToast("Τα LSTX λάστιχα πρέπει να ξεκινούν με LSTX.", 'error');
+            return;
+        }
+        if (moldTab === 'standard' && isLstxMold(newMold.code)) {
+            showToast("Για LSTX λάστιχα χρησιμοποιήστε την καρτέλα LSTX.", 'error');
             return;
         }
 
@@ -159,7 +175,7 @@ export default function MoldsPage() {
             if (error) throw error;
 
             queryClient.invalidateQueries({ queryKey: ['molds'] });
-            setNewMold({ code: 'L', location: '', description: '', weight_g: 0 });
+            setNewMold({ code: defaultMoldCode, location: '', description: '', weight_g: 0 });
             setIsCreating(false);
             showToast("Το λάστιχο προστέθηκε.", 'success');
         } catch (e) {
@@ -217,14 +233,35 @@ export default function MoldsPage() {
                 subtitle="Οργάνωση καλουπιών παραγωγής."
                 tail={(
                     <div className="text-right">
-                        <div className="mb-1 text-xs font-bold uppercase tracking-widest text-slate-400">Συνολο Λαστιχων</div>
-                        <div className="text-2xl font-black text-amber-600">{molds?.length || 0}</div>
+                        <div className="mb-1 text-xs font-bold uppercase tracking-widest text-slate-400">
+                            {moldTab === 'lstx' ? 'LSTX' : 'Κανονικά'}
+                        </div>
+                        <div className={`text-2xl font-black ${moldTab === 'lstx' ? 'text-blue-600' : 'text-amber-600'}`}>
+                            {categoryMolds.length}
+                        </div>
                     </div>
                 )}
             />
 
             {/* CONTROLS */}
             <div className="flex items-center justify-between shrink-0 px-2">
+                <div className="flex items-center gap-4">
+                <div className="bg-white border border-slate-200 p-1 rounded-xl flex shadow-sm">
+                    <button
+                        type="button"
+                        onClick={() => { setMoldTab('standard'); setSearchTerm(''); }}
+                        className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${moldTab === 'standard' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        Κανονικά
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => { setMoldTab('lstx'); setSearchTerm(''); }}
+                        className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 ${moldTab === 'lstx' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <Puzzle size={12} /> LSTX
+                    </button>
+                </div>
                 <div className="bg-white border border-slate-200 p-1 rounded-xl flex items-center shadow-sm w-full md:w-80">
                     <Search size={16} className="ml-3 text-slate-400" />
                     <input
@@ -235,12 +272,16 @@ export default function MoldsPage() {
                     />
                     {searchTerm && <button onClick={() => setSearchTerm('')} className="mr-2 text-slate-400 hover:text-slate-600"><X size={14} /></button>}
                 </div>
+                </div>
 
                 <button
-                    onClick={() => setIsCreating(true)}
-                    className="bg-[#060b00] text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:bg-slate-800 transition-all hover:-translate-y-0.5"
+                    onClick={() => {
+                        setNewMold({ code: defaultMoldCode, location: '', description: '', weight_g: 0 });
+                        setIsCreating(true);
+                    }}
+                    className={`text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all hover:-translate-y-0.5 ${moldTab === 'lstx' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-[#060b00] hover:bg-slate-800'}`}
                 >
-                    <Plus size={18} /> Νέο Λάστιχο
+                    <Plus size={18} /> {moldTab === 'lstx' ? 'Νέο LSTX' : 'Νέο Λάστιχο'}
                 </button>
             </div>
 
@@ -260,7 +301,7 @@ export default function MoldsPage() {
                 ) : (
                     <div className="flex flex-col items-center justify-center h-64 text-slate-400">
                         <MapPin size={48} className="mb-4 opacity-20" />
-                        <p className="font-bold">Δεν βρέθηκαν λάστιχα.</p>
+                        <p className="font-bold">{moldTab === 'lstx' ? 'Δεν βρέθηκαν LSTX λάστιχα.' : 'Δεν βρέθηκαν λάστιχα.'}</p>
                     </div>
                 )}
             </div>
@@ -312,10 +353,13 @@ export default function MoldsPage() {
             {/* FLOATING ACTION BUTTON */}
             <div className={`fixed bottom-8 right-8 z-[100] transition-all duration-300 ${showFab ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
                 <button
-                    onClick={() => setIsCreating(true)}
-                    className="flex items-center justify-center gap-3 bg-[#060b00] text-white rounded-full font-bold shadow-2xl hover:bg-black transition-all duration-200 ease-in-out transform hover:-translate-y-1 hover:scale-105 h-16 w-16 sm:w-auto sm:h-auto sm:px-6 sm:py-4"
+                    onClick={() => {
+                        setNewMold({ code: defaultMoldCode, location: '', description: '', weight_g: 0 });
+                        setIsCreating(true);
+                    }}
+                    className={`flex items-center justify-center gap-3 text-white rounded-full font-bold shadow-2xl transition-all duration-200 ease-in-out transform hover:-translate-y-1 hover:scale-105 h-16 w-16 sm:w-auto sm:h-auto sm:px-6 sm:py-4 ${moldTab === 'lstx' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-[#060b00] hover:bg-black'}`}
                 >
-                    <Plus size={24} /> <span className="hidden sm:inline whitespace-nowrap">Νέο Λάστιχο</span>
+                    <Plus size={24} /> <span className="hidden sm:inline whitespace-nowrap">{moldTab === 'lstx' ? 'Νέο LSTX' : 'Νέο Λάστιχο'}</span>
                 </button>
             </div>
         </div>

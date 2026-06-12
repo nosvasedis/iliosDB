@@ -4,6 +4,7 @@ import { api, supabase } from '../../lib/supabase';
 import { Search, Gem, Box, MapPin, Plus, X, Save, Activity, Puzzle, Scroll, Palette, Filter, Calculator, Trash2, Layers } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { Material, MaterialType, Mold } from '../../types';
+import { filterMoldsByCategory, isLstxMold, MoldCategoryTab } from '../../utils/moldCategories';
 import { useUI } from '../UIProvider';
 import MobileScreenHeader, { MOBILE_HEADER_SURFACE } from './MobileScreenHeader';
 
@@ -27,6 +28,7 @@ export default function MobileResources() {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const [viewMode, setViewMode] = useState<'materials' | 'molds'>('materials');
+    const [moldTab, setMoldTab] = useState<MoldCategoryTab>('standard');
     
     // Material State
     const [activeTab, setActiveTab] = useState<MaterialType>(MaterialType.Stone);
@@ -56,13 +58,19 @@ export default function MobileResources() {
         }).sort((a,b) => a.name.localeCompare(b.name));
     }, [materials, activeTab, stoneSubFilter, search]);
 
-    const filteredMolds = useMemo(() => {
+    const categoryMolds = useMemo(() => {
         if (!molds) return [];
-        return molds.filter(m => 
-            m.code.toLowerCase().includes(search.toLowerCase()) || 
+        return filterMoldsByCategory(molds, moldTab);
+    }, [molds, moldTab]);
+
+    const filteredMolds = useMemo(() => {
+        return categoryMolds.filter(m =>
+            m.code.toLowerCase().includes(search.toLowerCase()) ||
             m.description.toLowerCase().includes(search.toLowerCase())
         );
-    }, [molds, search]);
+    }, [categoryMolds, search]);
+
+    const defaultMoldCode = moldTab === 'lstx' ? 'LSTX' : 'L';
 
     const handleEditMaterial = (m: Material) => {
         setEditingMaterial({ ...m });
@@ -110,7 +118,15 @@ export default function MobileResources() {
     
     // Mold Handlers
     const handleSaveMold = async () => {
-        if (!editingMold || !editingMold.code) return;
+        if (!editingMold || !editingMold.code || editingMold.code === defaultMoldCode) return;
+        if (moldTab === 'lstx' && !isLstxMold(editingMold.code)) {
+            showToast('Τα LSTX λάστιχα πρέπει να ξεκινούν με LSTX.', 'error');
+            return;
+        }
+        if (moldTab === 'standard' && isLstxMold(editingMold.code)) {
+            showToast('Για LSTX λάστιχα χρησιμοποιήστε την καρτέλα LSTX.', 'error');
+            return;
+        }
         try {
             if (isCreating) await supabase.from('molds').insert(editingMold);
             else await supabase.from('molds').update(editingMold).eq('code', editingMold.code);
@@ -148,7 +164,7 @@ export default function MobileResources() {
                             <button type="button" onClick={() => setViewMode('materials')} className={`rounded-lg px-4 py-2 text-xs font-bold transition-all ${viewMode === 'materials' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500'}`}>Υλικά</button>
                             <button type="button" onClick={() => setViewMode('molds')} className={`rounded-lg px-4 py-2 text-xs font-bold transition-all ${viewMode === 'molds' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500'}`}>Λάστιχα</button>
                         </div>
-                        <button type="button" onClick={() => viewMode === 'materials' ? handleNewMaterial() : (setEditingMold({ code: '', location: '', description: '' }), setIsCreating(true))} className="rounded-xl bg-[#060b00] p-2 text-white shadow-md active:scale-95">
+                        <button type="button" onClick={() => viewMode === 'materials' ? handleNewMaterial() : (setEditingMold({ code: defaultMoldCode, location: '', description: '' }), setIsCreating(true))} className={`rounded-xl p-2 text-white shadow-md active:scale-95 ${viewMode === 'molds' && moldTab === 'lstx' ? 'bg-blue-600' : 'bg-[#060b00]'}`}>
                             <Plus size={20} />
                         </button>
                     </div>
@@ -184,6 +200,12 @@ export default function MobileResources() {
                         <button onClick={() => setStoneSubFilter('strand')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${stoneSubFilter === 'strand' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Κορδόνι</button>
                     </div>
                 )}
+                {viewMode === 'molds' && (
+                    <div className="flex bg-slate-200 p-1 rounded-xl self-start">
+                        <button type="button" onClick={() => { setMoldTab('standard'); setSearch(''); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${moldTab === 'standard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Κανονικά</button>
+                        <button type="button" onClick={() => { setMoldTab('lstx'); setSearch(''); }} className={`flex items-center gap-1 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${moldTab === 'lstx' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500'}`}><Puzzle size={12} /> LSTX</button>
+                    </div>
+                )}
             </div>
 
             {/* List */}
@@ -213,7 +235,9 @@ export default function MobileResources() {
                 )) : filteredMolds.map(m => (
                     <div key={m.code} onClick={() => { setEditingMold(m); setIsCreating(false); }} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm active:scale-[0.98] transition-all flex justify-between items-center">
                         <div className="flex items-center gap-3">
-                             <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center font-black text-sm border border-amber-100">L</div>
+                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black text-sm border ${isLstxMold(m.code) ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                                 {isLstxMold(m.code) ? 'LX' : 'L'}
+                             </div>
                              <div>
                                  <div className="font-mono font-bold text-slate-800 text-lg">{m.code}</div>
                                  <div className="text-xs text-slate-500">{m.location}</div>

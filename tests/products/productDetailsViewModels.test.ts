@@ -91,4 +91,14 @@ describe('product details view models', () => {
     const available = getAvailableMolds(molds as any, [{ code: 'C-3' }], 'a');
     expect(available.map((mold) => mold.code)).toEqual(['A-1']);
   });
+
+  it('hides LSTX molds unless the search explicitly targets them', () => {
+    const molds = [
+      { code: 'L12', description: 'Κανονικό' },
+      { code: 'LSTX01', description: 'Ειδικό' },
+    ] as any[];
+
+    expect(getAvailableMolds(molds, [], '').map((mold) => mold.code)).toEqual(['L12']);
+    expect(getAvailableMolds(molds, [], 'LSTX').map((mold) => mold.code)).toEqual(['LSTX01']);
+  });
 });

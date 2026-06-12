@@ -18,6 +18,7 @@ import {
   getVariantComponents,
 } from '../../utils/pricingEngine';
 import { FINISH_CODES } from '../../constants';
+import { isLstxMold, shouldShowLstxInPicker } from '../../utils/moldCategories';
 
 export interface BuildCurrentTempProductInput {
   sku: string;
@@ -113,7 +114,10 @@ export function getVariantTypeInfo(suffix: string, gender: Gender) {
 export function getMoldSuggestions(molds: Mold[], selectedMolds: ProductMold[], sku: string, moldSearch: string) {
   const upperSku = sku.toUpperCase();
   const usedMoldCodes = new Set(selectedMolds.map((mold) => mold.code));
-  const availableMolds = molds.filter((mold) => !usedMoldCodes.has(mold.code));
+  const showLstx = shouldShowLstxInPicker(moldSearch);
+  const availableMolds = molds.filter(
+    (mold) => !usedMoldCodes.has(mold.code) && (showLstx || !isLstxMold(mold.code)),
+  );
 
   let suggestionKeyword: string | null = null;
   if (upperSku.startsWith('PN') || upperSku.startsWith('MN')) suggestionKeyword = 'κρίκος';

@@ -1,5 +1,6 @@
 import { Gender, LaborCost, Mold, PlatingType, Product, ProductVariant, ProductionType } from '../../types';
 import { calculateProductCost, estimateVariantCost, getIliosSuggestedPriceForProduct, getVariantComponents } from '../../utils/pricingEngine';
+import { isLstxMold, shouldShowLstxInPicker } from '../../utils/moldCategories';
 import { FINISH_CODES } from '../../constants';
 import { createDefaultLaborCost, getSecondaryWeightLabel as getSharedSecondaryWeightLabel } from './newProductHelpers';
 
@@ -155,8 +156,10 @@ export function getSmartVariantPreview(
 
 export function getAvailableMolds(allMolds: Mold[], selectedMolds: Array<{ code: string }>, moldSearch: string) {
   const usedCodes = new Set(selectedMolds.map((mold) => mold.code));
+  const showLstx = shouldShowLstxInPicker(moldSearch);
   return allMolds
     .filter((mold) => !usedCodes.has(mold.code))
+    .filter((mold) => showLstx || !isLstxMold(mold.code))
     .filter((mold) =>
       mold.code.includes(moldSearch.toUpperCase()) ||
       mold.description.toLowerCase().includes(moldSearch.toLowerCase())
