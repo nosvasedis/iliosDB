@@ -70,6 +70,7 @@ import { legalKeys, legalRepository } from '../features/legal';
 import {
   applyLegalDocumentDeliveryToggle,
   buildDefaultDeliveryDetails,
+  buildCounterpartFromCustomer,
   buildLegalDocumentFromOrder,
   buildLegalDocumentFromShipment,
   buildManualLegalDocument,
@@ -93,6 +94,8 @@ import {
   getProformaDeletePrompt,
   isLegalDocumentEditable,
   LEGAL_DOCUMENT_KIND_LABELS,
+  normalizeLegalDocumentAddresses,
+  normalizeProformaDocumentAddresses,
   normalizeVatNumber,
   PAYMENT_METHOD_CODES,
   PAYMENT_METHOD_LABELS,
@@ -539,15 +542,7 @@ export default function LegalDocumentsPage({
   const applyCustomerToDraft = (customerId: string, target: 'legal' | 'proforma') => {
     const customer = customers.find((item) => item.id === customerId);
     if (!customer) return;
-    const counterpart = {
-      vat_number: normalizeVatNumber(customer.vat_number),
-      country: 'GR',
-      branch: 0,
-      name: customer.full_name,
-      address: customer.address ? { street: customer.address, number: '', postal_code: '', city: '' } : null,
-      phone: customer.phone || null,
-      email: customer.email || null,
-    };
+    const counterpart = buildCounterpartFromCustomer(customer);
     if (target === 'legal') {
       updateDraftDocument((current) => ({
         ...current,
@@ -831,7 +826,7 @@ export default function LegalDocumentsPage({
   const handleEditProforma = async (document: ProformaDocument) => {
     try {
       const lines = await legalRepository.getProformaLines(document.id);
-      setProformaBundle(recalculateProforma({ ...document, lines }, lines, settingsDraft));
+      setProformaBundle(recalculateProforma(normalizeProformaDocumentAddresses({ ...document, lines }), lines, settingsDraft));
       setActiveTab('proformas');
     } catch (error: any) {
       showToast(error?.message || 'Δεν φορτώθηκε το προτιμολόγιο.', 'error');
@@ -1042,7 +1037,7 @@ export default function LegalDocumentsPage({
     }
     try {
       const lines = await legalRepository.getDocumentLines(document.id);
-      setDraftBundle(recalculateLegalDocument({ ...document, lines }, lines, settingsDraft));
+      setDraftBundle(recalculateLegalDocument(normalizeLegalDocumentAddresses({ ...document, lines }), lines, settingsDraft));
       setDocumentKind(document.document_kind);
       setSelectedOrderId(document.order_id || '');
       setSelectedShipmentId(document.shipment_id || '');

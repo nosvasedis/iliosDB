@@ -24,7 +24,7 @@ import {
     isInspectionModeActive,
 } from './inspectionMode';
 import { addReceivedSizeQuantity, resolveSupplierOrderProductReceiptTarget } from '../features/suppliers/receiptHelpers';
-import { buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, getAadeProxyErrorMessage, isEmptyTransmittedDocsResponse, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, parseAadeResponseXml, parseTransmittedDocumentsXml, roundMoney, serializeLegalDocumentForDb, serializeLegalDocumentLineForDb, validateLegalDocument } from '../utils/legalDocuments';
+import { buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, getAadeProxyErrorMessage, isEmptyTransmittedDocsResponse, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, parseAadeResponseXml, parseTransmittedDocumentsXml, roundMoney, serializeLegalDocumentForDb, serializeLegalDocumentLineForDb, serializeProformaDocumentForDb, validateLegalDocument } from '../utils/legalDocuments';
 
 // Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
 export const R2_PUBLIC_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
@@ -1095,13 +1095,10 @@ export const api = {
         if (document.status !== 'draft') {
             throw new Error('Το προτιμολόγιο είναι κλειδωμένο και δεν μπορεί να επεξεργαστεί.');
         }
-        const normalizedDocument: Record<string, unknown> = {
-            ...document,
+        const normalizedDocument = {
+            ...serializeProformaDocumentForDb(document),
             aade_mark: null,
-            updated_at: new Date().toISOString(),
         };
-        delete normalizedDocument.lines;
-        delete normalizedDocument.aade_mark;
         await safeMutate('proforma_documents', 'UPSERT', normalizedDocument, { onConflict: 'id', noSelect: true });
         await safeMutate('proforma_document_lines', 'DELETE', null, { match: { proforma_id: document.id } });
         if (lines.length > 0) {

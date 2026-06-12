@@ -359,9 +359,94 @@ export function isValidGreekVatNumber(value?: string | null): boolean {
   return expectedCheckDigit === Number(digits.charAt(8));
 }
 
-function parseAddress(address?: string | null): LegalPartyAddress | null {
+function collapseAddressWhitespace(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function parseStreetAndNumber(part: string): Pick<LegalPartyAddress, 'street' | 'number'> {
+  const trimmed = collapseAddressWhitespace(part);
+  if (!trimmed) return { street: '', number: '' };
+
+  const match = trimmed.match(/^(.+?)\s+(\d+(?:[Α-ΩA-Zα-ωa-z])?(?:\s*-\s*\d+(?:[Α-ΩA-Zα-ωa-z])?)?)$/u);
+  if (match) {
+    return {
+      street: match[1].trim(),
+      number: match[2].replace(/\s*-\s*/g, '-'),
+    };
+  }
+  return { street: trimmed, number: '' };
+}
+
+function parsePostalAndCity(part: string): Pick<LegalPartyAddress, 'postal_code' | 'city'> {
+  const trimmed = collapseAddressWhitespace(part.replace(/,/g, ' '));
+  if (!trimmed) return { postal_code: '', city: '' };
+
+  const match = trimmed.match(/^(\d{5})\s*[-–—]?\s*(.+)$/);
+  if (match) {
+    return { postal_code: match[1], city: match[2].trim() };
+  }
+  return { postal_code: '', city: trimmed };
+}
+
+function parseGreekAddressString(raw: string): LegalPartyAddress {
+  const cleaned = raw.replace(/\r\n/g, '\n').trim();
+  if (!cleaned) return { street: '', number: '', postal_code: '', city: '' };
+
+  const lines = cleaned.split('\n').map((line) => collapseAddressWhitespace(line)).filter(Boolean);
+  if (lines.length >= 2) {
+    const streetPart = parseStreetAndNumber(lines[0]);
+    const locationPart = parsePostalAndCity(lines.slice(1).join(' '));
+    if (locationPart.postal_code || locationPart.city) {
+      return { ...streetPart, ...locationPart };
+    }
+  }
+
+  const singleLine = collapseAddressWhitespace(cleaned.replace(/\n/g, ' ')).replace(/,/g, ' ');
+  const fullMatch = singleLine.match(/^(.+?)\s+(\d{5})\s*[-–—]?\s*(.+)$/);
+  if (fullMatch) {
+    const streetPart = parseStreetAndNumber(fullMatch[1]);
+    return {
+      ...streetPart,
+      postal_code: fullMatch[2],
+      city: fullMatch[3].trim(),
+    };
+  }
+
+  const streetOnly = parseStreetAndNumber(singleLine);
+  return { ...streetOnly, postal_code: '', city: '' };
+}
+
+/** Parses VIES/AFM-style Greek addresses into structured legal fields. */
+export function parseLegalPartyAddress(address?: string | LegalPartyAddress | null): LegalPartyAddress | null {
   if (!address) return null;
-  return { street: address, number: '', postal_code: '', city: '' };
+
+  if (typeof address === 'string') {
+    const parsed = parseGreekAddressString(address);
+    return parsed.street || parsed.postal_code || parsed.city ? parsed : null;
+  }
+
+  const { street, number, postal_code, city } = address;
+  const hasStructuredFields = Boolean(number || postal_code || city);
+  if (street && !hasStructuredFields) {
+    return parseGreekAddressString(street);
+  }
+  if (street && (!number || !postal_code || !city)) {
+    const reparsed = parseGreekAddressString(street);
+    if (reparsed.postal_code || reparsed.city) {
+      return {
+        street: reparsed.street || street,
+        number: number || reparsed.number || '',
+        postal_code: postal_code || reparsed.postal_code || '',
+        city: city || reparsed.city || '',
+      };
+    }
+  }
+  return {
+    street: street || '',
+    number: number || '',
+    postal_code: postal_code || '',
+    city: city || '',
+  };
 }
 
 function buildEmptyCounterpart(): LegalParty {
@@ -376,14 +461,14 @@ function buildEmptyCounterpart(): LegalParty {
   };
 }
 
-function buildCounterpartFromCustomer(customer?: Customer | null): LegalParty {
+export function buildCounterpartFromCustomer(customer?: Customer | null): LegalParty {
   if (!customer) return buildEmptyCounterpart();
   return {
     vat_number: normalizeVatNumber(customer.vat_number),
     country: 'GR',
     branch: 0,
     name: customer.full_name,
-    address: customer.address ? parseAddress(customer.address) : null,
+    address: customer.address ? parseLegalPartyAddress(customer.address) : null,
     phone: customer.phone || null,
     email: customer.email || null,
   };
@@ -835,9 +920,59 @@ export function canPrintProforma(proforma: ProformaDocument): boolean {
   return proforma.status !== 'void';
 }
 
+function normalizeLegalDocumentParty(document: Pick<LegalDocument, 'counterpart' | 'delivery'>) {
+  return {
+    counterpart: document.counterpart
+      ? {
+          ...document.counterpart,
+          address: parseLegalPartyAddress(document.counterpart.address ?? null),
+        }
+      : document.counterpart,
+    delivery: document.delivery
+      ? {
+          ...document.delivery,
+          loading_address: parseLegalPartyAddress(document.delivery.loading_address ?? null),
+          delivery_address: parseLegalPartyAddress(document.delivery.delivery_address ?? null),
+        }
+      : document.delivery,
+  };
+}
+
+export function normalizeLegalDocumentAddresses(document: LegalDocument): LegalDocument {
+  return { ...document, ...normalizeLegalDocumentParty(document) };
+}
+
+export function normalizeProformaDocumentAddresses(document: ProformaDocument): ProformaDocument {
+  return {
+    ...document,
+    counterpart: document.counterpart
+      ? {
+          ...document.counterpart,
+          address: parseLegalPartyAddress(document.counterpart.address ?? null),
+        }
+      : document.counterpart,
+  };
+}
+
 export function serializeLegalDocumentForDb(document: LegalDocument): Record<string, unknown> {
   const normalized: Record<string, unknown> = {
     ...document,
+    ...normalizeLegalDocumentParty(document),
+    updated_at: new Date().toISOString(),
+  };
+  delete normalized.lines;
+  return normalized;
+}
+
+export function serializeProformaDocumentForDb(document: ProformaDocument): Record<string, unknown> {
+  const normalized: Record<string, unknown> = {
+    ...document,
+    counterpart: document.counterpart
+      ? {
+          ...document.counterpart,
+          address: parseLegalPartyAddress(document.counterpart.address ?? null),
+        }
+      : document.counterpart,
     updated_at: new Date().toISOString(),
   };
   delete normalized.lines;
@@ -1041,7 +1176,7 @@ export function buildDefaultDeliveryDetails(settings: LegalSettings, customer?: 
     move_purpose: settings.default_move_purpose,
     vehicle_number: '',
     loading_address: settings.loading_address || settings.issuer.address || null,
-    delivery_address: customer?.address ? parseAddress(customer.address) : null,
+    delivery_address: customer?.address ? parseLegalPartyAddress(customer.address) : null,
     carrier_id: null,
     carrier_name: null,
     carrier_vat_number: null,

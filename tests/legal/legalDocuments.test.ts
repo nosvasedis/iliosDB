@@ -14,6 +14,7 @@ import {
   isEmptyTransmittedDocsResponse,
   toAadeQueryDate,
   buildLegalDocumentFromOrder,
+  buildCounterpartFromCustomer,
   buildManualLegalDocument,
   buildManualProforma,
   buildProformaFromOrder,
@@ -37,6 +38,7 @@ import {
   getLegalProductLineDescription,
   normalizeLegalSeriesKey,
   parseLegalDocumentAa,
+  parseLegalPartyAddress,
 } from '../../utils/legalDocuments';
 import type { LegalDocument, LegalNumberingSequence } from '../../types';
 
@@ -753,5 +755,50 @@ describe('legal document helpers', () => {
     ] as LegalDocument[];
 
     expect(buildLegalNumberingAlignmentPlan(documents, sequences).proposals).toHaveLength(0);
+  });
+
+  it('parses VIES-style Greek addresses into structured legal fields', () => {
+    expect(parseLegalPartyAddress('ΑΡΚΑΔΙΟΥ 88        74100 - ΡΕΘΥΜΝΟ')).toEqual({
+      street: 'ΑΡΚΑΔΙΟΥ',
+      number: '88',
+      postal_code: '74100',
+      city: 'ΡΕΘΥΜΝΟ',
+    });
+    expect(parseLegalPartyAddress('ΛΕΩΦΟΡΟΣ ΣΥΓΓΡΟΥ 190 17671 ΑΘΗΝΑ')).toEqual({
+      street: 'ΛΕΩΦΟΡΟΣ ΣΥΓΓΡΟΥ',
+      number: '190',
+      postal_code: '17671',
+      city: 'ΑΘΗΝΑ',
+    });
+    expect(parseLegalPartyAddress('ΑΡΚΑΔΙΟΥ 88\n74100 - ΡΕΘΥΜΝΟ')).toEqual({
+      street: 'ΑΡΚΑΔΙΟΥ',
+      number: '88',
+      postal_code: '74100',
+      city: 'ΡΕΘΥΜΝΟ',
+    });
+    expect(parseLegalPartyAddress({
+      street: 'ΑΡΚΑΔΙΟΥ 88 74100 - ΡΕΘΥΜΝΟ',
+      number: '',
+      postal_code: '',
+      city: '',
+    })).toEqual({
+      street: 'ΑΡΚΑΔΙΟΥ',
+      number: '88',
+      postal_code: '74100',
+      city: 'ΡΕΘΥΜΝΟ',
+    });
+  });
+
+  it('builds legal counterpart address from customer AFM lookup string', () => {
+    const counterpart = buildCounterpartFromCustomer({
+      ...customer,
+      address: 'ΑΡΚΑΔΙΟΥ 88        74100 - ΡΕΘΥΜΝΟ',
+    });
+    expect(counterpart.address).toEqual({
+      street: 'ΑΡΚΑΔΙΟΥ',
+      number: '88',
+      postal_code: '74100',
+      city: 'ΡΕΘΥΜΝΟ',
+    });
   });
 });
