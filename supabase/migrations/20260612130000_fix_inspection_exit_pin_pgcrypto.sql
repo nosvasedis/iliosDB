@@ -1,8 +1,5 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 
-ALTER TABLE public.legal_settings
-  ADD COLUMN IF NOT EXISTS inspection_exit_pin_hash text;
-
 CREATE OR REPLACE FUNCTION public.set_inspection_exit_pin(pin text)
 RETURNS void
 LANGUAGE plpgsql
@@ -50,23 +47,3 @@ BEGIN
   RETURN stored_hash = extensions.crypt(trim(pin), stored_hash);
 END;
 $$;
-
-CREATE OR REPLACE FUNCTION public.has_inspection_exit_pin()
-RETURNS boolean
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT COALESCE(
-    (
-      SELECT inspection_exit_pin_hash IS NOT NULL
-      FROM public.legal_settings
-      WHERE id = '00000000-0000-0000-0000-000000000091'
-    ),
-    false
-  );
-$$;
-
-GRANT EXECUTE ON FUNCTION public.set_inspection_exit_pin(text) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.verify_inspection_exit_pin(text) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.has_inspection_exit_pin() TO authenticated;
