@@ -110,13 +110,16 @@ import {
 } from '../utils/legalOrderSources';
 import { formatOrderId } from '../utils/orderUtils';
 
-type LegalTab = 'new' | 'proformas' | 'archive' | 'sync' | 'delivery' | 'settings';
+export type LegalTab = 'new' | 'proformas' | 'archive' | 'sync' | 'delivery' | 'settings';
 type DocumentCreationSource = 'order' | 'manual';
 
 interface LegalDocumentsPageProps {
   products: Product[];
   onPrintLegalDocument: (payload: { document: LegalDocument; lines: LegalDocumentLine[] } | null) => void;
   onPrintProforma?: (payload: { document: ProformaDocument; lines: ProformaDocumentLine[] } | null) => void;
+  presentation?: 'default' | 'inspection';
+  activeTab?: LegalTab;
+  onActiveTabChange?: (tab: LegalTab) => void;
 }
 
 const secondaryTabItems: Array<{ id: LegalTab; label: string; icon: LucideIcon }> = [
@@ -277,8 +280,22 @@ const ActionButton = ({
   );
 };
 
-export default function LegalDocumentsPage({ products, onPrintLegalDocument, onPrintProforma }: LegalDocumentsPageProps) {
-  const [activeTab, setActiveTab] = useState<LegalTab>('proformas');
+export default function LegalDocumentsPage({
+  products,
+  onPrintLegalDocument,
+  onPrintProforma,
+  presentation = 'default',
+  activeTab: activeTabProp,
+  onActiveTabChange,
+}: LegalDocumentsPageProps) {
+  const [internalActiveTab, setInternalActiveTab] = useState<LegalTab>('proformas');
+  const isControlledTab = activeTabProp !== undefined;
+  const activeTab = isControlledTab ? activeTabProp : internalActiveTab;
+  const setActiveTab = (tab: LegalTab) => {
+    if (!isControlledTab) setInternalActiveTab(tab);
+    onActiveTabChange?.(tab);
+  };
+  const isInspectionPresentation = presentation === 'inspection';
   const [selectedOrderId, setSelectedOrderId] = useState('');
   const [selectedShipmentId, setSelectedShipmentId] = useState('');
   const [documentKind, setDocumentKind] = useState<LegalDocumentKind>('invoice');
@@ -2389,66 +2406,72 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
     </div>
   );
 
+  const statsStrip = (
+    <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-700"><div className="text-[10px] font-black uppercase">Αποδεκτά</div><div className="text-lg font-black">{stats.issued}</div></div>
+      <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700"><div className="text-[10px] font-black uppercase">Σφάλματα</div><div className="text-lg font-black">{stats.failed}</div></div>
+      <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-700"><div className="text-[10px] font-black uppercase">Εκτυπώσιμα</div><div className="text-lg font-black">{stats.printable}</div></div>
+      <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sky-700"><div className="text-[10px] font-black uppercase">Προτιμολόγια</div><div className="text-lg font-black">{stats.proformas}</div></div>
+      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700"><div className="text-[10px] font-black uppercase">Περιβάλλον</div><div className="text-lg font-black">{settingsDraft.environment.toUpperCase()}</div></div>
+    </div>
+  );
+
   return (
     <div className="space-y-5">
-      <DesktopPageHeader
-        icon={FileCheck2}
-        title="Παραστατικά"
-        subtitle="Προτιμολόγια, τιμολόγια myDATA, αρχείο και εκτύπωση"
-        roundedClassName="rounded-lg"
-        tail={(
-          <div className="grid w-full grid-cols-2 gap-2 md:flex md:w-auto">
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-700"><div className="text-[10px] font-black uppercase">Αποδεκτά</div><div className="text-lg font-black">{stats.issued}</div></div>
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700"><div className="text-[10px] font-black uppercase">Σφάλματα</div><div className="text-lg font-black">{stats.failed}</div></div>
-            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-700"><div className="text-[10px] font-black uppercase">Εκτυπώσιμα</div><div className="text-lg font-black">{stats.printable}</div></div>
-            <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sky-700"><div className="text-[10px] font-black uppercase">Προτιμολόγια</div><div className="text-lg font-black">{stats.proformas}</div></div>
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700"><div className="text-[10px] font-black uppercase">Περιβάλλον</div><div className="text-lg font-black">{settingsDraft.environment.toUpperCase()}</div></div>
-          </div>
-        )}
-        below={(
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setActiveTab('proformas')}
-              className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-black transition ${activeTab === 'proformas' ? 'bg-[#060b00] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
-            >
-              <FileText size={16} /> Προτιμολόγια
-            </button>
-
-            <div className="inline-flex overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+      {isInspectionPresentation ? (
+        statsStrip
+      ) : (
+        <DesktopPageHeader
+          icon={FileCheck2}
+          title="Παραστατικά"
+          subtitle="Προτιμολόγια, τιμολόγια myDATA, αρχείο και εκτύπωση"
+          roundedClassName="rounded-lg"
+          tail={statsStrip}
+          below={(
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => setActiveTab('new')}
-                className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-black transition ${activeTab === 'new' ? 'bg-[#060b00] text-white' : 'text-slate-700 hover:bg-slate-200'}`}
+                onClick={() => setActiveTab('proformas')}
+                className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-black transition ${activeTab === 'proformas' ? 'bg-[#060b00] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
               >
-                <FileCheck2 size={16} /> Δημιουργία
+                <FileText size={16} /> Προτιμολόγια
               </button>
-              <span className="w-px self-stretch bg-slate-300" aria-hidden="true" />
-              <button
-                type="button"
-                onClick={() => setActiveTab('archive')}
-                className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-black transition ${activeTab === 'archive' ? 'bg-[#060b00] text-white' : 'text-slate-700 hover:bg-slate-200'}`}
-              >
-                <Archive size={16} /> Αρχείο
-              </button>
-            </div>
 
-            {secondaryTabItems.map((tab) => {
-              const Icon = tab.icon;
-              return (
+              <div className="inline-flex overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
                 <button
-                  key={tab.id}
                   type="button"
-                  onClick={() => (tab.id === 'settings' ? handleSettingsTabClick() : setActiveTab(tab.id))}
-                  className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-black transition ${activeTab === tab.id ? 'bg-[#060b00] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                  onClick={() => setActiveTab('new')}
+                  className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-black transition ${activeTab === 'new' ? 'bg-[#060b00] text-white' : 'text-slate-700 hover:bg-slate-200'}`}
                 >
-                  <Icon size={16} /> {tab.label}
+                  <FileCheck2 size={16} /> Δημιουργία
                 </button>
-              );
-            })}
-          </div>
-        )}
-      />
+                <span className="w-px self-stretch bg-slate-300" aria-hidden="true" />
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('archive')}
+                  className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-black transition ${activeTab === 'archive' ? 'bg-[#060b00] text-white' : 'text-slate-700 hover:bg-slate-200'}`}
+                >
+                  <Archive size={16} /> Αρχείο
+                </button>
+              </div>
+
+              {secondaryTabItems.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => (tab.id === 'settings' ? handleSettingsTabClick() : setActiveTab(tab.id))}
+                    className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-black transition ${activeTab === tab.id ? 'bg-[#060b00] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                  >
+                    <Icon size={16} /> {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        />
+      )}
 
       {activeTab === 'new' && renderNewTab()}
       {activeTab === 'proformas' && renderProformasTab()}

@@ -112,13 +112,3 @@ export function applyInspectionDocumentMetadata(): void {
   }
 }
 
-let consoleSilenced = false;
-
-export function silenceInspectionConsole(): void {
-  if (!isInspectionModeActive() || consoleSilenced) return;
-  consoleSilenced = true;
-  const noop = () => undefined;
-  console.log = noop;
-  console.debug = noop;
-  console.info = noop;
-}

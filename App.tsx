@@ -160,6 +160,17 @@ const NavItem = ({ icon, label, isActive, onClick, isCollapsed, badge }: { icon:
 );
 
 function AppContent() {
+  const { profile } = useAuth();
+  const isMobile = useIsMobile();
+
+  if (profile?.role === 'admin' && !isMobile && isInspectionModeActive()) {
+    return <InspectionModeShell />;
+  }
+
+  return <ErpAppContent />;
+}
+
+function ErpAppContent() {
   const isMobile = useIsMobile();
   const [activePage, setActivePage] = useState<AdminPage>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -301,10 +312,6 @@ function AppContent() {
 
   // 3. Admin Logic
   if (profile?.role === 'admin') {
-    if (!isMobile && isInspectionModeActive()) {
-      return <InspectionModeShell />;
-    }
-
     if (isMobile) {
       return (
         <Suspense fallback={<div className="h-screen w-full flex items-center justify-center bg-slate-50"><Loader2 size={40} className="animate-spin text-amber-500" /></div>}>
