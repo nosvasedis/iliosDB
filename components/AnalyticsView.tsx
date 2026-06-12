@@ -14,6 +14,7 @@ import {
   Award,
   BarChart3,
   Boxes,
+  ChevronDown,
   FileText,
   HelpCircle,
   Loader2,
@@ -86,6 +87,7 @@ function EmptyState({ text }: { text: string }) {
 
 export default function AnalyticsView({ products, onBack, onPrint }: Props) {
   const [periodMode, setPeriodMode] = useState<FinancePeriodMode>('current_year');
+  const [legalReconciliationOpen, setLegalReconciliationOpen] = useState(false);
   const { analytics: stats, isLoading: loading, isError: failed, error: loadError, refetch } = useFinanceAnalytics({
     products,
     period: { mode: periodMode },
@@ -290,22 +292,32 @@ export default function AnalyticsView({ products, onBack, onPrint }: Props) {
         </section>
       </div>
 
-      <section className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
-        <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+      <section className="rounded-3xl border border-slate-100 bg-white shadow-sm">
+        <button
+          type="button"
+          onClick={() => setLegalReconciliationOpen((open) => !open)}
+          aria-expanded={legalReconciliationOpen}
+          className="flex w-full items-center justify-between gap-4 p-6 text-left transition-colors hover:bg-slate-50/80"
+        >
           <div>
             <h3 className="flex items-center gap-2 text-lg font-black text-slate-900"><FileText size={20} className="text-indigo-600" /> {stats.labels.legalReconciliation}</h3>
             <p className="mt-1 text-xs font-semibold text-slate-500">Σύγκριση πραγματοποιημένων εσόδων με εκδοθέντα παραστατικά.</p>
           </div>
-          <div className={`rounded-2xl px-4 py-2 text-sm font-black ${Math.abs(stats.legal.netGap) < 0.01 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-            Διαφορά: {formatCurrency(stats.legal.netGap)}
+          <ChevronDown size={20} className={`shrink-0 text-slate-400 transition-transform ${legalReconciliationOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {legalReconciliationOpen && (
+          <div className="border-t border-slate-100 px-6 pb-6 pt-5">
+            <div className={`mb-5 inline-flex rounded-2xl px-4 py-2 text-sm font-black ${Math.abs(stats.legal.netGap) < 0.01 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+              Διαφορά: {formatCurrency(stats.legal.netGap)}
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+              <KpiCard label="Καθαρή αξία παραστατικών" value={formatCurrency(stats.legal.issuedNet)} helper={`${stats.legal.issuedCount} εκδοθέντα παραστατικά.`} icon={<FileText size={20} />} />
+              <KpiCard label="ΦΠΑ παραστατικών" value={formatCurrency(stats.legal.issuedVat)} helper="Σύνολο ΦΠΑ από τα εκδοθέντα παραστατικά." icon={<Scale size={20} />} />
+              <KpiCard label="Μικτή αξία παραστατικών" value={formatCurrency(stats.legal.issuedGross)} helper="Καθαρή αξία μαζί με ΦΠΑ." icon={<Wallet size={20} />} />
+              <KpiCard label="Πραγματοποιημένα έσοδα" value={formatCurrency(stats.totals.realizedNet)} helper="Λειτουργική εικόνα από αποστολές." icon={<Truck size={20} />} />
+            </div>
           </div>
-        </div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-          <KpiCard label="Καθαρή αξία παραστατικών" value={formatCurrency(stats.legal.issuedNet)} helper={`${stats.legal.issuedCount} εκδοθέντα παραστατικά.`} icon={<FileText size={20} />} />
-          <KpiCard label="ΦΠΑ παραστατικών" value={formatCurrency(stats.legal.issuedVat)} helper="Σύνολο ΦΠΑ από τα εκδοθέντα παραστατικά." icon={<Scale size={20} />} />
-          <KpiCard label="Μικτή αξία παραστατικών" value={formatCurrency(stats.legal.issuedGross)} helper="Καθαρή αξία μαζί με ΦΠΑ." icon={<Wallet size={20} />} />
-          <KpiCard label="Πραγματοποιημένα έσοδα" value={formatCurrency(stats.totals.realizedNet)} helper="Λειτουργική εικόνα από αποστολές." icon={<Truck size={20} />} />
-        </div>
+        )}
       </section>
     </div>
   );

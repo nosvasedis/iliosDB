@@ -617,41 +617,45 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
   const timeOrderMap = new Map<string, number>();
 
   realizedEvents.forEach((event) => {
-    const productRow = topProductsMap.get(event.sku) || {
-      sku: event.sku,
-      image: event.productImage,
-      revenue: 0,
-      estimatedCost: 0,
-      profit: 0,
-      margin: 0,
-      quantity: 0,
-    };
-    addRankingTotals(productRow, event);
-    topProductsMap.set(event.sku, productRow);
+    const isSpecialLine = isSpecialCreationSku(event.sku);
 
-    const collectionKey = event.collectionId === null ? 'none' : String(event.collectionId);
-    const collectionRow = topCollectionsMap.get(collectionKey) || {
-      id: event.collectionId,
-      name: event.collectionName,
-      revenue: 0,
-      estimatedCost: 0,
-      profit: 0,
-      margin: 0,
-      quantity: 0,
-    };
-    addRankingTotals(collectionRow, event);
-    topCollectionsMap.set(collectionKey, collectionRow);
+    if (!isSpecialLine) {
+      const productRow = topProductsMap.get(event.sku) || {
+        sku: event.sku,
+        image: event.productImage,
+        revenue: 0,
+        estimatedCost: 0,
+        profit: 0,
+        margin: 0,
+        quantity: 0,
+      };
+      addRankingTotals(productRow, event);
+      topProductsMap.set(event.sku, productRow);
 
-    const categoryRow = categoryMap.get(event.category) || {
-      name: event.category,
-      revenue: 0,
-      estimatedCost: 0,
-      profit: 0,
-      margin: 0,
-      quantity: 0,
-    };
-    addRankingTotals(categoryRow, event);
-    categoryMap.set(event.category, categoryRow);
+      const collectionKey = event.collectionId === null ? 'none' : String(event.collectionId);
+      const collectionRow = topCollectionsMap.get(collectionKey) || {
+        id: event.collectionId,
+        name: event.collectionName,
+        revenue: 0,
+        estimatedCost: 0,
+        profit: 0,
+        margin: 0,
+        quantity: 0,
+      };
+      addRankingTotals(collectionRow, event);
+      topCollectionsMap.set(collectionKey, collectionRow);
+
+      const categoryRow = categoryMap.get(event.category) || {
+        name: event.category,
+        revenue: 0,
+        estimatedCost: 0,
+        profit: 0,
+        margin: 0,
+        quantity: 0,
+      };
+      addRankingTotals(categoryRow, event);
+      categoryMap.set(event.category, categoryRow);
+    }
 
     const shouldRankCustomer = !(event.customerId === RETAIL_CUSTOMER_ID || event.customerName === RETAIL_CUSTOMER_NAME);
     if (shouldRankCustomer) {
@@ -768,8 +772,8 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
       realized: realizedEvents,
       backlog: backlogEvents,
     },
-    itemsBreakdown: realizedEvents,
-    backlogBreakdown: backlogEvents,
+    itemsBreakdown: realizedEvents.filter((event) => !isSpecialCreationSku(event.sku)),
+    backlogBreakdown: backlogEvents.filter((event) => !isSpecialCreationSku(event.sku)),
     topProducts: sortRankings(Array.from(topProductsMap.values())),
     topCollections: sortRankings(Array.from(topCollectionsMap.values())),
     topCustomers: Array.from(topCustomersMap.values())

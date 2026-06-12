@@ -327,4 +327,36 @@ describe('buildFinanceAnalytics', () => {
     expect(analytics.labels.estimatedCost).toBe('Εκτιμώμενο κόστος');
     expect(analytics.labels.legalReconciliation).toBe('Συμφωνία με παραστατικά');
   });
+
+  it('excludes SP special-creation lines from product, collection, and item listings but keeps them in totals', () => {
+    const analytics = buildFinanceAnalytics({
+      orders: [
+        order({
+          id: 'mixed-order',
+          status: OrderStatus.Delivered,
+          items: [
+            { sku: 'RING', quantity: 1, price_at_order: 100, line_id: 'line-ring' },
+            { sku: 'SP', quantity: 2, price_at_order: 250, line_id: 'line-sp-a' },
+          ],
+        }),
+      ],
+      shipments: [],
+      shipmentItems: [],
+      products: [product({ sku: 'RING', collections: [1] })],
+      materials,
+      settings,
+      collections: [{ id: 1, name: 'Άνοιξη' }],
+      sellers: [],
+      legalDocuments: [],
+      period: { mode: 'all_time' },
+      now: new Date('2026-06-12T10:00:00.000Z'),
+    });
+
+    expect(analytics.totals.realizedNet).toBe(600);
+    expect(analytics.topProducts.map((row) => row.sku)).toEqual(['RING']);
+    expect(analytics.topCollections.map((row) => row.name)).toEqual(['Άνοιξη']);
+    expect(analytics.categoryChartData.map((row) => row.name)).not.toContain('Ειδική δημιουργία');
+    expect(analytics.itemsBreakdown.map((row) => row.sku)).toEqual(['RING']);
+    expect(analytics.events.realized.some((row) => row.sku === 'SP')).toBe(true);
+  });
 });

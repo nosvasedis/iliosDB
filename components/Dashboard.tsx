@@ -21,7 +21,9 @@ import {
   Gem,
   HelpCircle,
   Eye,
-  EyeOff
+  EyeOff,
+  ChevronDown,
+  FileText,
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -78,6 +80,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
   const [showPendingRevenue, setShowPendingRevenue] = useState(false);
   const [silverOrderScope, setSilverOrderScope] = useState<SilverOrderScope>('active');
   const [financePeriodMode, setFinancePeriodMode] = useState<FinancePeriodMode>('current_year');
+  const [legalReconciliationOpen, setLegalReconciliationOpen] = useState(false);
 
   const { data: orders, isError: ordersError, error: ordersErr, refetch: refetchOrders } = useOrdersWithItems();
   const { data: batches, isError: batchesError, error: batchesErr, refetch: refetchBatches } = useQuery({
@@ -454,10 +457,34 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                   </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <KPICard title="Εκκρεμής αξία παραγγελιών" value={formatCurrency(stats.pendingRevenue)} subValue={`${stats.activeOrdersCount} ανοιχτές παραγγελίες`} icon={<Package/>} colorClass="text-indigo-600" hint="Καθαρή αξία τεμαχίων που δεν έχουν αποσταλεί ακόμη. Δεν μετράει στα έσοδα." />
-                  <KPICard title="Συμφωνία με παραστατικά" value={formatCurrency(stats.legalGap)} subValue={`Εκδόθηκαν ${formatCurrency(stats.legalIssuedNet)}`} icon={<Wallet/>} colorClass={Math.abs(stats.legalGap) < 0.01 ? 'text-emerald-600' : 'text-amber-600'} hint="Διαφορά ανάμεσα στα πραγματοποιημένα έσοδα και την καθαρή αξία εκδομένων παραστατικών." />
                   <KPICard title="Αξία αποθέματος (λιανική)" value={formatCurrency(stats.totalPotentialRevenue * 3)} icon={<Target/>} colorClass="text-purple-600" hint="Η συνολική αξία του αποθέματος σε τιμές λιανικής (εκτίμηση x3)." />
+              </div>
+
+              <div className="rounded-3xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+                  <button
+                      type="button"
+                      onClick={() => setLegalReconciliationOpen((open) => !open)}
+                      aria-expanded={legalReconciliationOpen}
+                      className="flex w-full items-center justify-between gap-4 p-6 text-left transition-colors hover:bg-slate-50/80"
+                  >
+                      <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-slate-100 text-slate-600 rounded-2xl flex items-center justify-center shrink-0">
+                              <FileText size={24}/>
+                          </div>
+                          <div>
+                              <div className="font-black text-slate-800 uppercase text-[10px] tracking-widest">Συμφωνία με παραστατικά</div>
+                              <div className="text-slate-500 text-xs mt-0.5">Σύγκριση πραγματοποιημένων εσόδων με εκδοθέντα παραστατικά.</div>
+                          </div>
+                      </div>
+                      <ChevronDown size={20} className={`shrink-0 text-slate-400 transition-transform ${legalReconciliationOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {legalReconciliationOpen && (
+                      <div className="border-t border-slate-100 px-6 pb-6">
+                          <KPICard title="Συμφωνία με παραστατικά" value={formatCurrency(stats.legalGap)} subValue={`Εκδόθηκαν ${formatCurrency(stats.legalIssuedNet)}`} icon={<Wallet/>} colorClass={Math.abs(stats.legalGap) < 0.01 ? 'text-emerald-600' : 'text-amber-600'} hint="Διαφορά ανάμεσα στα πραγματοποιημένα έσοδα και την καθαρή αξία εκδομένων παραστατικών." />
+                      </div>
+                  )}
               </div>
 
               <div className="bg-indigo-50 border border-indigo-100 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-4">

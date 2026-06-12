@@ -4,6 +4,7 @@ import {
   Award,
   BarChart3,
   Boxes,
+  ChevronDown,
   FileText,
   Loader2,
   Package,
@@ -73,6 +74,7 @@ function EmptyState({ text }: { text: string }) {
 
 export default function MobileAnalytics({ products, onPrint }: Props) {
   const [periodMode, setPeriodMode] = useState<FinancePeriodMode>('current_year');
+  const [legalReconciliationOpen, setLegalReconciliationOpen] = useState(false);
   const { analytics: stats, isLoading, isError, error, refetch } = useFinanceAnalytics({
     products,
     period: { mode: periodMode },
@@ -277,27 +279,39 @@ export default function MobileAnalytics({ products, onPrint }: Props) {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
+        <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <button
+            type="button"
+            onClick={() => setLegalReconciliationOpen((open) => !open)}
+            aria-expanded={legalReconciliationOpen}
+            className="flex w-full items-center justify-between gap-3 p-4 text-left"
+          >
             <h3 className="flex items-center gap-2 text-sm font-black text-slate-900"><Activity size={16} className="text-indigo-600" /> Συμφωνία με παραστατικά</h3>
-            <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${Math.abs(stats.legal.netGap) < 0.01 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-              Διαφορά {formatCurrency(stats.legal.netGap)}
-            </span>
-          </div>
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-2xl bg-slate-50 p-3">
-              <p className="text-[9px] font-bold uppercase text-slate-400">Καθαρά</p>
-              <p className="text-xs font-black text-slate-900">{formatCurrency(stats.legal.issuedNet)}</p>
+            <ChevronDown size={18} className={`shrink-0 text-slate-400 transition-transform ${legalReconciliationOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {legalReconciliationOpen && (
+            <div className="border-t border-slate-100 px-4 pb-4 pt-3">
+              <div className="mb-3 flex justify-end">
+                <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${Math.abs(stats.legal.netGap) < 0.01 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                  Διαφορά {formatCurrency(stats.legal.netGap)}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-2xl bg-slate-50 p-3">
+                  <p className="text-[9px] font-bold uppercase text-slate-400">Καθαρά</p>
+                  <p className="text-xs font-black text-slate-900">{formatCurrency(stats.legal.issuedNet)}</p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 p-3">
+                  <p className="text-[9px] font-bold uppercase text-slate-400">ΦΠΑ</p>
+                  <p className="text-xs font-black text-slate-900">{formatCurrency(stats.legal.issuedVat)}</p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 p-3">
+                  <p className="text-[9px] font-bold uppercase text-slate-400">Πλήθος</p>
+                  <p className="text-xs font-black text-slate-900">{stats.legal.issuedCount}</p>
+                </div>
+              </div>
             </div>
-            <div className="rounded-2xl bg-slate-50 p-3">
-              <p className="text-[9px] font-bold uppercase text-slate-400">ΦΠΑ</p>
-              <p className="text-xs font-black text-slate-900">{formatCurrency(stats.legal.issuedVat)}</p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 p-3">
-              <p className="text-[9px] font-bold uppercase text-slate-400">Πλήθος</p>
-              <p className="text-xs font-black text-slate-900">{stats.legal.issuedCount}</p>
-            </div>
-          </div>
+          )}
         </section>
       </div>
     </div>
