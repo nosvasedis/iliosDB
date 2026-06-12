@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -62,7 +62,10 @@ import {
   useDeleteProformaDocument,
   useDeleteLegalDocument,
   useMarkProformaConverted,
+  useInspectionExitPinStatus,
+  useSetInspectionExitPin,
 } from '../hooks/api/useLegalDocuments';
+import { isInspectionModeActive } from '../lib/inspectionMode';
 import { legalKeys, legalRepository } from '../features/legal';
 import {
   applyLegalDocumentDeliveryToggle,
@@ -307,6 +310,10 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
   const [credentialDraft, setCredentialDraft] = useState({ userId: '', subscriptionKey: '' });
   const [cloudflareBootstrapDraft, setCloudflareBootstrapDraft] = useState({ apiToken: '', accountId: '' });
   const [deliveryPaneOpen, setDeliveryPaneOpen] = useState(false);
+  const [showInspectionPinSection, setShowInspectionPinSection] = useState(false);
+  const [inspectionPinDraft, setInspectionPinDraft] = useState('');
+  const [inspectionPinConfirm, setInspectionPinConfirm] = useState('');
+  const settingsSecretClickRef = useRef({ count: 0, timer: null as ReturnType<typeof setTimeout> | null });
 
   const { showToast, confirm } = useUI();
   const queryClient = useQueryClient();
@@ -327,6 +334,8 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
 
   const saveSettings = useSaveLegalSettings();
   const saveAadeCredentials = useSaveAadeCredentials();
+  const { data: inspectionPinConfigured } = useInspectionExitPinStatus();
+  const setInspectionExitPin = useSetInspectionExitPin();
   const saveSequence = useSaveLegalSequence();
   const saveCarrier = useSaveLegalCarrier();
   const saveDraft = useSaveLegalDraft();
@@ -1089,6 +1098,41 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
       showToast('Ο μεταφορέας αποθηκεύτηκε.', 'success');
     } catch (error: any) {
       showToast(error?.message || 'Δεν αποθηκεύτηκε ο μεταφορέας.', 'error');
+    }
+  };
+
+  const handleSettingsTabClick = () => {
+    setActiveTab('settings');
+    if (isInspectionModeActive()) return;
+    settingsSecretClickRef.current.count += 1;
+    if (settingsSecretClickRef.current.timer) {
+      clearTimeout(settingsSecretClickRef.current.timer);
+    }
+    settingsSecretClickRef.current.timer = setTimeout(() => {
+      settingsSecretClickRef.current.count = 0;
+    }, 700);
+    if (settingsSecretClickRef.current.count >= 3) {
+      settingsSecretClickRef.current.count = 0;
+      setShowInspectionPinSection(true);
+    }
+  };
+
+  const handleSaveInspectionPin = async () => {
+    if (inspectionPinDraft.length < 4) {
+      showToast('Ο κωδικός πρέπει να έχει τουλάχιστον 4 χαρακτήρες.', 'warning');
+      return;
+    }
+    if (inspectionPinDraft !== inspectionPinConfirm) {
+      showToast('Οι κωδικοί δεν ταιριάζουν.', 'warning');
+      return;
+    }
+    try {
+      await setInspectionExitPin.mutateAsync(inspectionPinDraft);
+      setInspectionPinDraft('');
+      setInspectionPinConfirm('');
+      showToast('Ο κωδικός εξόδου αποθηκεύτηκε.', 'success');
+    } catch (error: any) {
+      showToast(error?.message || 'Δεν αποθηκεύτηκε ο κωδικός εξόδου.', 'error');
     }
   };
 
@@ -2303,6 +2347,45 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
           ))}
         </div>
       </section>
+
+      {showInspectionPinSection && !isInspectionModeActive() && (
+        <section className="rounded-lg border border-slate-200 bg-white p-5">
+          <div className="mb-4 flex items-center gap-2">
+            <KeyRound size={18} className="text-slate-600" />
+            <h2 className="font-black text-slate-900">Κωδικός εξόδου λειτουργίας ελέγχου</h2>
+          </div>
+          <p className="mb-4 text-sm text-slate-500">
+            Χρησιμοποιείται για επιστροφή στην πλήρη λειτουργία ERP μετά από κλείδωμα σε λειτουργία παραστατικών μόνο.
+          </p>
+          <div className="mb-3 text-xs font-bold text-slate-500">
+            Κατάσταση: {inspectionPinConfigured ? 'Ορισμένος' : 'Μη ορισμένος'}
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <TextInput
+              label="Νέος κωδικός"
+              type="password"
+              value={inspectionPinDraft}
+              onChange={setInspectionPinDraft}
+              help="Τουλάχιστον 4 χαρακτήρες."
+            />
+            <TextInput
+              label="Επιβεβαίωση κωδικού"
+              type="password"
+              value={inspectionPinConfirm}
+              onChange={setInspectionPinConfirm}
+            />
+          </div>
+          <div className="mt-4">
+            <ActionButton
+              onClick={() => void handleSaveInspectionPin()}
+              disabled={setInspectionExitPin.isPending || !inspectionPinDraft.trim()}
+            >
+              {setInspectionExitPin.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              Αποθήκευση κωδικού
+            </ActionButton>
+          </div>
+        </section>
+      )}
     </div>
   );
 
@@ -2356,7 +2439,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => (tab.id === 'settings' ? handleSettingsTabClick() : setActiveTab(tab.id))}
                   className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-black transition ${activeTab === tab.id ? 'bg-[#060b00] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
                 >
                   <Icon size={16} /> {tab.label}

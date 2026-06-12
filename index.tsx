@@ -13,6 +13,7 @@ import {
   isChunkLoadError,
   recoverFromChunkLoadError,
 } from './lib/chunkLoadRecovery';
+import { isInspectionModeActive } from './lib/inspectionMode';
 
 const PERSIST_CACHE_KEY = 'ilios-react-query-cache';
 const ONE_DAY_MS = 1000 * 60 * 60 * 24;
@@ -79,6 +80,9 @@ root.render(
         maxAge: ONE_DAY_MS,
         dehydrateOptions: {
           shouldDehydrateQuery: (query) => {
+            if (isInspectionModeActive()) {
+              return false;
+            }
             const key = query.queryKey[0];
             if (typeof key === 'string' && PERSISTED_QUERY_ROOT_KEYS.has(key)) {
               return true;

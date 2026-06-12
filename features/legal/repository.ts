@@ -54,4 +54,6 @@ export const legalRepository = {
     api.confirmLegalDelivery(documentId, userName, failed),
   pollDeliveryStatus: (documentId: string, userName?: string | null): Promise<void> =>
     api.pollLegalDeliveryStatus(documentId, userName),
+  hasInspectionExitPin: (): Promise<boolean> => api.hasInspectionExitPin(),
+  setInspectionExitPin: (pin: string): Promise<void> => api.setInspectionExitPin(pin),
 };

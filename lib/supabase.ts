@@ -17,6 +17,12 @@ import { buildTransferPlan } from '../features/orders/transferHelpers';
 import { buildInitialBatchHistoryEntry, canMoveBatchToStage as canMoveBatchToStageHelper } from '../features/production/supabaseHelpers';
 import { mapCatalogProductsWithRelations, mapProductsWithRelations, resolveProductImageUrl, attachSuppliersToProductRows } from '../features/products/mappers';
 import { getRegisteredQueryClient } from './queryClientRegistry';
+import {
+    assertInspectionRpcAllowed,
+    assertInspectionTableAllowed,
+    assertInspectionWorkerRouteAllowed,
+    isInspectionModeActive,
+} from './inspectionMode';
 import { addReceivedSizeQuantity, resolveSupplierOrderProductReceiptTarget } from '../features/suppliers/receiptHelpers';
 import { buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, getAadeProxyErrorMessage, isEmptyTransmittedDocsResponse, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, parseAadeResponseXml, parseTransmittedDocumentsXml, roundMoney, serializeLegalDocumentForDb, serializeLegalDocumentLineForDb, validateLegalDocument } from '../utils/legalDocuments';
 
@@ -41,10 +47,28 @@ export const GEMINI_API_KEY = envGeminiKey || getLocalStorageItem('VITE_GEMINI_A
 export const isLocalMode = getLocalStorageItem('ILIOS_LOCAL_MODE') === 'true';
 export const isConfigured = (!!SUPABASE_URL && !!SUPABASE_KEY) || isLocalMode;
 
-export const supabase = createClient(
+const rawSupabase = createClient(
     SUPABASE_URL || 'https://placeholder.supabase.co',
     SUPABASE_KEY || 'placeholder'
 );
+
+export const supabase = new Proxy(rawSupabase, {
+    get(target, prop, receiver) {
+        if (prop === 'from') {
+            return (tableName: string) => {
+                assertInspectionTableAllowed(tableName);
+                return target.from(tableName);
+            };
+        }
+        if (prop === 'rpc') {
+            return (fn: string, args?: Record<string, unknown>, options?: Record<string, unknown>) => {
+                assertInspectionRpcAllowed(fn);
+                return target.rpc(fn, args, options);
+            };
+        }
+        return Reflect.get(target, prop, receiver);
+    },
+});
 
 /**
  * SMART URL RESOLVER
@@ -297,6 +321,7 @@ async function safeMutate(
     data: any,
     options?: { match?: Record<string, any>, onConflict?: string, ignoreDuplicates?: boolean, noSelect?: boolean }
 ): Promise<{ data: any, error: any, queued: boolean, queueId?: number }> {
+    assertInspectionTableAllowed(tableName);
     const mutationData = method === 'DELETE'
         ? data
         : sanitizeMutationData(tableName, data, { preserveLightweightItems: method === 'UPDATE' });
@@ -427,6 +452,7 @@ async function requireCloudMutation(
 }
 
 async function fetchFullTable(tableName: string, select: string = '*', filter?: (query: any) => any): Promise<any[]> {
+    assertInspectionTableAllowed(tableName);
     const isFullRowSelect = select.trim() === '*';
     if (isLocalMode) {
         const localData = await offlineDb.getTable(tableName);
@@ -541,6 +567,7 @@ async function fetchRowsByFilter(
         localFilter?: (row: any) => boolean;
     },
 ): Promise<any> {
+    assertInspectionTableAllowed(tableName);
     if (isLocalMode || !navigator.onLine) {
         let rows = (await offlineDb.getTable(tableName)) || [];
         if (options?.localFilter) rows = rows.filter(options.localFilter);
@@ -918,12 +945,15 @@ export const api = {
 
 
     getLegalSettings: async (): Promise<LegalSettings> => {
-        const mapRow = (row: any): LegalSettings => ({
-            ...DEFAULT_LEGAL_SETTINGS,
-            ...row,
-            issuer: { ...DEFAULT_LEGAL_SETTINGS.issuer, ...(row.issuer || {}) },
-            loading_address: row.loading_address || DEFAULT_LEGAL_SETTINGS.loading_address,
-        } as LegalSettings);
+        const mapRow = (row: any): LegalSettings => {
+            const { inspection_exit_pin_hash: _pinHash, ...safeRow } = row || {};
+            return {
+                ...DEFAULT_LEGAL_SETTINGS,
+                ...safeRow,
+                issuer: { ...DEFAULT_LEGAL_SETTINGS.issuer, ...(safeRow.issuer || {}) },
+                loading_address: safeRow.loading_address || DEFAULT_LEGAL_SETTINGS.loading_address,
+            } as LegalSettings;
+        };
 
         if (isLocalMode) {
             const rows = await offlineDb.getTable('legal_settings');
@@ -1616,6 +1646,7 @@ export const api = {
     },
 
     getAadeCredentialStatus: async (): Promise<AadeCredentialStatus> => {
+        assertInspectionWorkerRouteAllowed('/aade/credential-status');
         if (!AUTH_KEY_SECRET) throw new Error('Λείπει το κλειδί Worker Auth από τη ρύθμιση του IliosERP.');
         const response = await fetch(`${CLOUDFLARE_WORKER_URL}/aade/credential-status`, {
             method: 'GET',
@@ -1627,6 +1658,7 @@ export const api = {
     },
 
     saveAadeCredentials: async (payload: AadeCredentialSavePayload): Promise<AadeCredentialStatus> => {
+        assertInspectionWorkerRouteAllowed('/aade/configure-credentials');
         if (!AUTH_KEY_SECRET) throw new Error('Λείπει το κλειδί Worker Auth από τη ρύθμιση του IliosERP.');
         const response = await fetch(`${CLOUDFLARE_WORKER_URL}/aade/configure-credentials`, {
             method: 'POST',
@@ -1638,7 +1670,28 @@ export const api = {
         return (data?.status || data) as AadeCredentialStatus;
     },
 
+    hasInspectionExitPin: async (): Promise<boolean> => {
+        if (isLocalMode) return false;
+        const { data, error } = await supabase.rpc('has_inspection_exit_pin');
+        if (error) throw new Error(error.message || 'Αποτυχία ελέγχου κωδικού εξόδου.');
+        return !!data;
+    },
+
+    setInspectionExitPin: async (pin: string): Promise<void> => {
+        if (isLocalMode) throw new Error('Η ρύθμιση κωδικού εξόδου απαιτεί cloud σύνδεση.');
+        const { error } = await supabase.rpc('set_inspection_exit_pin', { pin });
+        if (error) throw new Error(error.message || 'Αποτυχία αποθήκευσης κωδικού εξόδου.');
+    },
+
+    verifyInspectionExitPin: async (pin: string): Promise<boolean> => {
+        if (isLocalMode) return false;
+        const { data, error } = await supabase.rpc('verify_inspection_exit_pin', { pin });
+        if (error) throw new Error(error.message || 'Αποτυχία επαλήθευσης κωδικού.');
+        return !!data;
+    },
+
     callAadeProxy: async (route: string, payload: Record<string, unknown>): Promise<AadeProxyResult> => {
+        assertInspectionWorkerRouteAllowed(route);
         if (!AUTH_KEY_SECRET) throw new Error('Λείπει το κλειδί Worker Auth από τη ρύθμιση του IliosERP.');
         const response = await fetch(`${CLOUDFLARE_WORKER_URL}${route}`, {
             method: 'POST',
@@ -1836,6 +1889,29 @@ export const api = {
     },
 
     getProducts: async (): Promise<Product[]> => {
+        if (isInspectionModeActive()) {
+            const [prodData, varData] = await Promise.all([
+                fetchFullTable('products', '*', (q) => q.order('sku')),
+                fetchFullTable('product_variants', '*', (q) => q.order('product_sku').order('suffix')),
+            ]);
+            if (!prodData || prodData.length === 0) return [];
+            return mapProductsWithRelations(
+                prodData as any,
+                {
+                    variants: varData as any,
+                    recipes: [],
+                    molds: [],
+                    collections: [],
+                    stock: [],
+                },
+                {
+                    publicImageBaseUrl: R2_PUBLIC_URL,
+                    centralWarehouseId: SYSTEM_IDS.CENTRAL,
+                    showroomWarehouseId: SYSTEM_IDS.SHOWROOM,
+                },
+            );
+        }
+
         const [prodData, suppliersData] = await Promise.all([
             fetchFullTable('products', '*', (q) => q.order('sku')),
             fetchFullTable('suppliers', '*', (q) => q.order('name')),
@@ -1963,6 +2039,9 @@ export const api = {
 
     /** Fetches Orthodox calendar events for a year. Expects worker GET /orthodox-calendar?year=YYYY returning { events: CalendarDayEvent[] } or CalendarDayEvent[]; falls back to local generator on failure. */
     getOrthodoxCalendarEvents: async (year: number): Promise<CalendarDayEvent[]> => {
+        if (isInspectionModeActive()) {
+            return getOrthodoxCelebrationsForYear(year);
+        }
         try {
             const response = await fetch(`${CLOUDFLARE_WORKER_URL}/orthodox-calendar?year=${year}`);
             if (!response.ok) throw new Error(`Orthodox calendar fetch failed: ${response.status}`);
@@ -2096,6 +2175,7 @@ export const api = {
         return (data || []) as import('../types').UserProfile[];
     },
     createSeller: async (payload: { email: string; password: string; full_name: string; commission_percent?: number }): Promise<any> => {
+        assertInspectionWorkerRouteAllowed('/admin/create-seller');
         const res = await fetch(`${CLOUDFLARE_WORKER_URL}/admin/create-seller`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': AUTH_KEY_SECRET },
@@ -2106,6 +2186,7 @@ export const api = {
         return json;
     },
     updateSeller: async (payload: { id: string; full_name?: string; commission_percent?: number | null; is_approved?: boolean; new_password?: string }): Promise<void> => {
+        assertInspectionWorkerRouteAllowed('/admin/update-seller');
         const res = await fetch(`${CLOUDFLARE_WORKER_URL}/admin/update-seller`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': AUTH_KEY_SECRET },
@@ -2115,6 +2196,7 @@ export const api = {
         if (!res.ok) throw new Error(json.error || 'Σφάλμα ενημέρωσης πλασιέ');
     },
     deleteSeller: async (id: string): Promise<void> => {
+        assertInspectionWorkerRouteAllowed('/admin/delete-seller');
         const res = await fetch(`${CLOUDFLARE_WORKER_URL}/admin/delete-seller`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': AUTH_KEY_SECRET },
@@ -3477,6 +3559,15 @@ export const api = {
     },
 
     syncOfflineData: async (): Promise<SyncOfflineResult> => {
+        if (isInspectionModeActive()) {
+            return {
+                syncedCount: 0,
+                failedCount: 0,
+                remainingCount: 0,
+                wasQueueEmpty: true,
+            };
+        }
+
         if (isLocalMode) {
             const remainingCount = await offlineDb.getQueueCount();
             return {

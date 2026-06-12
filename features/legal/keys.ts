@@ -10,4 +10,5 @@ export const legalKeys = {
   syncRuns: () => ['legal_sync_runs'] as const,
   proformas: () => ['proforma_documents'] as const,
   proformaLines: (proformaId: string) => ['proforma_document_lines', proformaId] as const,
+  inspectionPin: () => ['inspection_exit_pin_status'] as const,
 };

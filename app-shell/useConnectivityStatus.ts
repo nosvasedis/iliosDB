@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, isLocalMode } from '../lib/supabase';
+import { isInspectionModeActive } from '../lib/inspectionMode';
 import { offlineDb } from '../lib/offlineDb';
 import { SyncOfflineResult } from '../types';
 
@@ -36,7 +37,7 @@ export function useConnectivityStatus(options: UseConnectivityStatusOptions = {}
   }, [onSyncCompleted]);
 
   const refreshQueue = useCallback(async () => {
-    if (isLocalMode) {
+    if (isLocalMode || isInspectionModeActive()) {
       setPendingItems([]);
       return [];
     }
@@ -46,7 +47,7 @@ export function useConnectivityStatus(options: UseConnectivityStatusOptions = {}
   }, []);
 
   const triggerSync = useCallback(async () => {
-    if (isLocalMode || syncingRef.current || !getInitialOnlineState()) return;
+    if (isLocalMode || isInspectionModeActive() || syncingRef.current || !getInitialOnlineState()) return;
     syncingRef.current = true;
     setIsSyncing(true);
     try {

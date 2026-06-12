@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, isLocalMode } from '../lib/supabase';
+import { isInspectionModeActive } from '../lib/inspectionMode';
 import { offlineDb } from '../lib/offlineDb';
 
 export type SyncStatus = 'online' | 'offline' | 'syncing' | 'pending' | 'error';
@@ -21,7 +22,7 @@ export function useOfflineSync(): OfflineSyncState {
 
     // Poll pending queue count every 5s
     const refreshPendingCount = useCallback(async () => {
-        if (isLocalMode) {
+        if (isLocalMode || isInspectionModeActive()) {
             setPendingCount(0);
             setSyncStatus('online');
             return;
@@ -38,7 +39,7 @@ export function useOfflineSync(): OfflineSyncState {
     }, []);
 
     const triggerSync = useCallback(async () => {
-        if (isLocalMode || isSyncing.current || !navigator.onLine) return;
+        if (isLocalMode || isInspectionModeActive() || isSyncing.current || !navigator.onLine) return;
         isSyncing.current = true;
         setSyncStatus('syncing');
         try {

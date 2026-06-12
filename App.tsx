@@ -47,6 +47,9 @@ import { useConnectivityStatus } from './app-shell/useConnectivityStatus';
 import { buildAggregatedPrintData } from './features/printing';
 import { adminFooterNavItems, adminNavSections, adminQuickActionNavItems, renderNavIcon } from './surfaces/navConfig';
 import type { AdminPage } from './surfaces/pageIds';
+import { isInspectionModeActive } from './lib/inspectionMode';
+import InspectionModeShell from './components/InspectionModeShell';
+import { InspectionModeProvider } from './components/InspectionModeProvider';
 
 const lazyPage = <T extends React.ComponentType<any>>(factory: () => Promise<{ default: T }>) =>
   lazyWithChunkRecovery(factory, import.meta.url);
@@ -298,6 +301,10 @@ function AppContent() {
 
   // 3. Admin Logic
   if (profile?.role === 'admin') {
+    if (!isMobile && isInspectionModeActive()) {
+      return <InspectionModeShell />;
+    }
+
     if (isMobile) {
       return (
         <Suspense fallback={<div className="h-screen w-full flex items-center justify-center bg-slate-50"><Loader2 size={40} className="animate-spin text-amber-500" /></div>}>
@@ -573,9 +580,11 @@ export default function App() {
   return (
     <AuthProvider>
       <AuthGuard>
-        <PrintProvider>
-          <AppContent />
-        </PrintProvider>
+        <InspectionModeProvider>
+          <PrintProvider>
+            <AppContent />
+          </PrintProvider>
+        </InspectionModeProvider>
       </AuthGuard>
     </AuthProvider>
   );

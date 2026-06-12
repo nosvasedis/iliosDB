@@ -229,3 +229,18 @@ export const usePollLegalDeliveryStatus = () => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: legalKeys.documents() }),
   });
 };
+
+export const useInspectionExitPinStatus = () =>
+  useQuery({
+    queryKey: legalKeys.inspectionPin(),
+    queryFn: legalRepository.hasInspectionExitPin,
+    retry: false,
+  });
+
+export const useSetInspectionExitPin = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (pin: string) => legalRepository.setInspectionExitPin(pin),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: legalKeys.inspectionPin() }),
+  });
+};

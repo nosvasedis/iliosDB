@@ -113,5 +113,35 @@ export const offlineDb = {
         tx.objectStore(STORE_NAME).clear();
         const tx2 = db.transaction(SYNC_STORE, 'readwrite');
         tx2.objectStore(SYNC_STORE).clear();
-    }
+    },
+
+    clearSyncQueue: async () => {
+        const db = await openDB();
+        const tx = db.transaction(SYNC_STORE, 'readwrite');
+        tx.objectStore(SYNC_STORE).clear();
+        return new Promise<void>((resolve, reject) => {
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    },
+
+    purgeTablesExcept: async (allowedTables: Set<string>) => {
+        const db = await openDB();
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        const keys = await new Promise<IDBValidKey[]>((resolve, reject) => {
+            const request = store.getAllKeys();
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+        for (const key of keys) {
+            if (typeof key === 'string' && !allowedTables.has(key)) {
+                store.delete(key);
+            }
+        }
+        return new Promise<void>((resolve, reject) => {
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    },
 };

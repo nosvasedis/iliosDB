@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { isLocalMode, supabase } from '../../lib/supabase';
+import { isInspectionModeActive } from '../../lib/inspectionMode';
+import { INSPECTION_REALTIME_TABLES } from '../../lib/inspectionAllowedTables';
 import {
   getRealtimeInvalidationDomainsForTable,
   invalidateRealtimeDomain,
@@ -60,6 +62,10 @@ export function useRealtimeInvalidation(): void {
   useEffect(() => {
     if (isLocalMode) return;
 
+    const realtimeTables = isInspectionModeActive()
+      ? [...INSPECTION_REALTIME_TABLES]
+      : [...CORE_REALTIME_TABLES];
+
     schedulerRef.current = createRealtimeInvalidationScheduler((domain, sourceTables) =>
       invalidateRealtimeDomain(queryClient, domain, sourceTables),
     );
@@ -79,9 +85,11 @@ export function useRealtimeInvalidation(): void {
     };
 
     const subscribe = () => {
-      let channel = supabase.channel(CHANNEL_NAME);
+      let channel = supabase.channel(
+        isInspectionModeActive() ? 'realtime:inspection-legal' : CHANNEL_NAME,
+      );
 
-      CORE_REALTIME_TABLES.forEach((table) => {
+      realtimeTables.forEach((table) => {
         channel = channel.on(
           'postgres_changes',
           { event: '*', schema: 'public', table },

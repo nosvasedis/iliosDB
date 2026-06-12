@@ -1,5 +1,6 @@
 import React from 'react';
 import { ProformaDocument, ProformaDocumentLine } from '../types';
+import { isInspectionModeActive } from '../lib/inspectionMode';
 import { getLegalDocumentDisplayNumber, PAYMENT_METHOD_LABELS } from '../utils/legalDocuments';
 import {
   LegalPrintCustomerBar,
@@ -79,7 +80,9 @@ const ProformaPrintView: React.FC<ProformaPrintViewProps> = ({ document, lines }
       />
 
       <LegalPrintFooter>
-        Προτιμολόγιο εσωτερικής χρήσης IliosERP. Για φορολογική ισχύ απαιτείται έκδοση τιμολογίου και διαβίβαση στη myDATA.
+        {isInspectionModeActive()
+          ? 'Προτιμολόγιο εσωτερικής χρήσης Συστήματος Παραστατικών. Για φορολογική ισχύ απαιτείται έκδοση τιμολογίου και διαβίβαση στη myDATA.'
+          : 'Προτιμολόγιο εσωτερικής χρήσης IliosERP. Για φορολογική ισχύ απαιτείται έκδοση τιμολογίου και διαβίβαση στη myDATA.'}
       </LegalPrintFooter>
     </LegalPrintPage>
   );
