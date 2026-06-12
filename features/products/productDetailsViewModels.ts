@@ -1,5 +1,5 @@
 import { Gender, LaborCost, Mold, PlatingType, Product, ProductVariant, ProductionType } from '../../types';
-import { calculateProductCost, estimateVariantCost, getIliosSuggestedPriceForProduct, getVariantComponents } from '../../utils/pricingEngine';
+import { analyzeSuffix, calculateProductCost, estimateVariantCost, getIliosSuggestedPriceForProduct, getVariantComponents } from '../../utils/pricingEngine';
 import { isLstxMold, shouldShowLstxInPicker } from '../../utils/moldCategories';
 import { FINISH_CODES } from '../../constants';
 import { createDefaultLaborCost, getSecondaryWeightLabel as getSharedSecondaryWeightLabel } from './newProductHelpers';
@@ -131,16 +131,12 @@ export function getSmartVariantPreview(
   settings: any,
   allMaterials: any[],
   allProducts: Product[],
+  options?: { allowEmpty?: boolean },
 ) {
-  if (!smartAddSuffix) return null;
-  const clean = smartAddSuffix.trim().toUpperCase();
-  const { finish, stone } = getVariantComponents(clean, editedProduct.gender);
-
-  let description = '';
-  if (['X', 'H', 'D', 'P'].includes(finish.code)) description = finish.name;
-  else description = 'Λουστρέ';
-
-  if (stone.name) description += ` - ${stone.name}`;
+  const trimmed = smartAddSuffix.trim();
+  if (!trimmed && !options?.allowEmpty) return null;
+  const clean = trimmed.toUpperCase();
+  const description = analyzeSuffix(clean, editedProduct.gender, editedProduct.plating_type) || clean;
 
   const est = estimateVariantCost(editedProduct, clean, settings, allMaterials, allProducts);
   const currentCostCalc = calculateProductCost(editedProduct, settings, allMaterials, allProducts);

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier, MaterialType } from '../types';
-import { calculateProductCost, calculateTechnicianCost, analyzeSku, analyzeSuffix, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal, getIliosSuggestedPriceForProduct } from '../utils/pricingEngine';
+import { calculateProductCost, calculateTechnicianCost, analyzeSku, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal, getIliosSuggestedPriceForProduct } from '../utils/pricingEngine';
 import { FINISH_CODES } from '../constants';
 import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag, Edit, Check, ArrowDownRight, RefreshCcw, Scale } from 'lucide-react';
 import { uploadProductImage, R2_PUBLIC_URL, AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL } from '../lib/supabase';
@@ -12,6 +12,7 @@ import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 import { useUI } from './UIProvider';
 import { useAuth } from './AuthContext';
 import SkuColorizedText from './SkuColorizedText';
+import SmartVariantAddPanel from './ProductDetails/SmartVariantAddPanel';
 import JsBarcode from 'jsbarcode';
 import BarcodeView from './BarcodeView';
 import { useSuppliers } from '../hooks/api/useSuppliers';
@@ -21,7 +22,6 @@ import {
     getAnalyticalCostingItems,
     getAvailableMolds,
     getProductDisplaySummary,
-    getSmartVariantPreview,
     getSortedFinishCodes,
     getSortedProductVariants,
     productsRepository,
@@ -605,10 +605,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
     const [isUploadingImage, setIsUploadingImage] = useState(false);
     const [isDeletingImage, setIsDeletingImage] = useState(false);
-    const [smartAddSuffix, setSmartAddSuffix] = useState('');
-    const [newVariantSuffix, setNewVariantSuffix] = useState('');
-    const [newVariantDesc, setNewVariantDesc] = useState('');
-    const [manualSuffixAnalysis, setManualSuffixAnalysis] = useState<string | null>(null);
     const [showConvertModal, setShowConvertModal] = useState(false);
 
     const TABS = useMemo(() => {
@@ -732,11 +728,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         editedProduct.supplier_cost,
         settings, allMaterials, allProducts
     ]);
-
-    // LIVE PREVIEW CALCULATOR FOR SMART ADD
-    const smartPreview = useMemo(() => {
-        return getSmartVariantPreview(editedProduct, smartAddSuffix, settings, allMaterials, allProducts);
-    }, [smartAddSuffix, editedProduct, settings, allMaterials, allProducts]);
 
     const currentCostCalc = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
     const masterCost = currentCostCalc.total;
@@ -957,33 +948,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         if (isSaving) return;
         setIsSaving(true);
         try {
-            let finalEditedProduct = { ...editedProduct };
-
-            if (finalEditedProduct.sku.startsWith('ST') && (finalEditedProduct.variants || []).some(v => v.suffix === 'H')) {
-                const hasLustreVariant = (finalEditedProduct.variants || []).some(v => v.suffix === '');
-                if (!hasLustreVariant) {
-                    const { total: estimatedCost } = estimateVariantCost(
-                        finalEditedProduct,
-                        '',
-                        settings,
-                        allMaterials,
-                        allProducts
-                    );
-                    const lustreDescription = analyzeSuffix('', finalEditedProduct.gender, finalEditedProduct.plating_type) || 'Λουστρέ';
-                    const newLustreVariant: ProductVariant = {
-                        suffix: '',
-                        description: lustreDescription,
-                        stock_qty: 0,
-                        active_price: parseFloat(estimatedCost.toFixed(2)),
-                        selling_price: finalEditedProduct.is_component ? 0 : finalEditedProduct.selling_price
-                    };
-                    finalEditedProduct = {
-                        ...finalEditedProduct,
-                        variants: [...(finalEditedProduct.variants || []), newLustreVariant]
-                    };
-                    showToast("Αυτόματη προσθήκη παραλλαγής Λουστρέ για ST κωδικό.", "info");
-                }
-            }
+            const finalEditedProduct = { ...editedProduct };
 
             const isComponent = finalEditedProduct.sku.toUpperCase().startsWith('STX');
             const currentCost = calculateProductCost(finalEditedProduct, settings, allMaterials, allProducts).total;
@@ -1166,78 +1131,12 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         }
     };
 
-    const handleSmartAdd = () => {
-        if (!smartAddSuffix.trim()) {
-            showToast("Παρακαλώ εισάγετε suffix (π.χ. P, X, BSU).", "error");
-            return;
-        }
-
-        // 1. Validation & Clean
-        const rawSuffix = smartAddSuffix.trim().toUpperCase();
-
-        // 2. Duplication Check
-        if ((editedProduct.variants || []).some(v => v.suffix === rawSuffix)) {
-            showToast('Αυτή η παραλλαγή υπάρχει ήδη.', 'info');
-            return;
-        }
-
-        // 3. Smart Preview Data (Re-calculate for final add)
-        // We already have smartPreview memo, but we need to capture current state
-        const { finish, stone } = getVariantComponents(rawSuffix, editedProduct.gender);
-
-        // Description Logic: Finish + Stone
-        let description = '';
-        if (['X', 'H', 'D', 'P'].includes(finish.code)) description = finish.name;
-        else description = 'Λουστρέ';
-
-        if (stone.name) description += ` - ${stone.name}`;
-
-        // Cost Estimation
-        const { total: estimatedCost } = estimateVariantCost(
-            editedProduct,
-            rawSuffix,
-            settings,
-            allMaterials,
-            allProducts
-        );
-
-        const newVariant: ProductVariant = {
-            suffix: rawSuffix,
-            description: description,
-            stock_qty: 0,
-            active_price: estimatedCost,
-            selling_price: editedProduct.is_component ? 0 : editedProduct.selling_price
-        };
-
-        setEditedProduct(prev => ({ ...prev, variants: [...(prev.variants || []), newVariant] }));
-        setSmartAddSuffix('');
-        showToast(`Παραλλαγή ${rawSuffix} προστέθηκε!`, 'success');
-    };
-
-    const handleManualAdd = () => {
-        if (!newVariantSuffix) { showToast("Το Suffix είναι υποχρεωτικό.", 'error'); return; }
-        const upperSuffix = newVariantSuffix.toUpperCase();
-        if ((editedProduct.variants || []).some(v => v.suffix === upperSuffix)) { showToast('Αυτό το Suffix υπάρχει ήδη.', 'info'); return; }
-
-        const { total: estimatedCost } = estimateVariantCost(
-            editedProduct,
-            upperSuffix,
-            settings,
-            allMaterials,
-            allProducts
-        );
-
-        const newVariant: ProductVariant = {
-            suffix: upperSuffix,
-            description: newVariantDesc || manualSuffixAnalysis || '',
-            stock_qty: 0,
-            active_price: estimatedCost,
-            selling_price: editedProduct.is_component ? 0 : editedProduct.selling_price
-        };
-        setEditedProduct(prev => ({ ...prev, variants: [...(prev.variants || []), newVariant] }));
-        setNewVariantSuffix('');
-        setNewVariantDesc('');
-        showToast(`Παραλλαγή ${upperSuffix} προστέθηκε με εκτιμώμενο κόστος ${estimatedCost}€.`, 'success');
+    const handleSmartAddVariants = (newVariants: ProductVariant[]) => {
+        if (!newVariants.length) return;
+        setEditedProduct(prev => ({
+            ...prev,
+            variants: [...(prev.variants || []), ...newVariants],
+        }));
     };
 
     const updateVariant = (index: number, field: keyof ProductVariant, value: any) => {
@@ -2314,107 +2213,15 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
                                 {activeTab === 'variants' && (
                                     <div className="space-y-5 animate-in fade-in">
-                                        {/* ── Section: Έξυπνη Προσθήκη ── */}
-                                        <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden">
-                                            <div className="absolute top-0 right-0 p-10 opacity-[0.03] pointer-events-none">
-                                                <Wand2 size={120} />
-                                            </div>
-
-                                            <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-3 mb-4 relative z-10">
-                                                <div className="p-1.5 bg-amber-100 rounded-lg"><Wand2 size={13} className="text-amber-600" /></div>
-                                                Έξυπνη Προσθήκη
-                                            </h4>
-
-                                            <div className="flex gap-2 mb-4 relative z-10">
-                                                <input
-                                                    type="text"
-                                                    placeholder="Εισάγετε Suffix (π.χ. P, X, BSU)..."
-                                                    value={smartAddSuffix}
-                                                    onChange={e => setSmartAddSuffix(e.target.value.toUpperCase())}
-                                                    className="flex-1 p-3 border border-slate-200 rounded-xl font-mono text-lg font-black uppercase bg-white shadow-sm focus:ring-2 focus:ring-amber-400/20 focus:border-amber-300 outline-none transition-all"
-                                                />
-                                                <button onClick={handleSmartAdd} disabled={!smartAddSuffix} className="bg-slate-900 text-white px-6 rounded-xl font-bold hover:bg-black transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:scale-100">
-                                                    <Plus size={24} />
-                                                </button>
-                                            </div>
-
-                                            {/* LIVE PREVIEW CARD */}
-                                            {smartPreview && (
-                                                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm animate-in slide-in-from-top-2 fade-in relative z-10">
-                                                    <div className="flex justify-between items-start mb-2">
-                                                        <div>
-                                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Πρόβλεψη Περιγραφής</div>
-                                                            <div className="font-bold text-slate-800 text-sm">{smartPreview.description}</div>
-                                                        </div>
-                                                        <div className="text-right">
-                                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Εκτίμηση Κόστους</div>
-                                                            <div className="font-black text-lg text-emerald-600">{formatCurrency(smartPreview.cost)}</div>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-mono">
-                                                        <span className="text-slate-500">Διαφορά από Master:</span>
-                                                        <span className={`font-bold ${smartPreview.diff > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
-                                                            {smartPreview.diff > 0 ? '+' : ''}{formatCurrency(smartPreview.diff)}
-                                                        </span>
-                                                    </div>
-
-                                                    {/* Breakdown Badges */}
-                                                    <div className="flex gap-1.5 mt-2 flex-wrap">
-                                                        {smartPreview.breakdown.details.plating_cost === 0 && (
-                                                            <span className="text-[9px] bg-slate-50 text-slate-500 px-2 py-0.5 rounded-md border border-slate-200 font-bold">No Plating</span>
-                                                        )}
-                                                        {smartPreview.breakdown.details.plating_cost > 0 && (
-                                                            <span className="text-[9px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-md border border-amber-100 font-bold">
-                                                                +{formatCurrency(smartPreview.breakdown.details.plating_cost)} Plating
-                                                            </span>
-                                                        )}
-                                                        {Math.abs(smartPreview.breakdown.details.stone_diff || 0) > 0.01 && (
-                                                            <span className="text-[9px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-100 font-bold">
-                                                                {smartPreview.breakdown.details.stone_diff > 0 ? '+' : ''}{formatCurrency(smartPreview.breakdown.details.stone_diff)} Stone Diff
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* ── Section: Χειροκίνητη Προσθήκη ── */}
-                                        <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/80 shadow-sm">
-                                            <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-3 mb-4">
-                                                <div className="p-1.5 bg-slate-200 rounded-lg"><Edit size={13} className="text-slate-600" /></div>
-                                                Χειροκίνητη Προσθήκη
-                                            </h4>
-                                            <div className="grid grid-cols-[100px_1fr_auto] gap-2 items-end">
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1.5 block">Suffix</label>
-                                                    <input
-                                                        type="text"
-                                                        value={newVariantSuffix}
-                                                        onChange={e => {
-                                                            const val = e.target.value.toUpperCase();
-                                                            setNewVariantSuffix(val);
-                                                            setManualSuffixAnalysis(analyzeSuffix(val, editedProduct.gender, editedProduct.plating_type));
-                                                        }}
-                                                        className="w-full p-2.5 border border-slate-200 rounded-xl font-mono text-sm font-bold uppercase bg-white focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1.5 block">Περιγραφή</label>
-                                                    <input
-                                                        type="text"
-                                                        value={newVariantDesc}
-                                                        onChange={e => setNewVariantDesc(e.target.value)}
-                                                        placeholder={manualSuffixAnalysis || "Περιγραφή..."}
-                                                        className="w-full p-2.5 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all"
-                                                    />
-                                                </div>
-                                                <button onClick={handleManualAdd} className="bg-white border border-slate-200 text-slate-600 p-2.5 rounded-xl hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-all shadow-sm">
-                                                    <Plus size={20} />
-                                                </button>
-                                            </div>
-                                            {manualSuffixAnalysis && <div className="text-[10px] text-blue-500 mt-2.5 ml-1 font-medium flex items-center gap-1"><Info size={10} /> Προτεινόμενη: {manualSuffixAnalysis}</div>}
-                                        </div>
+                                        <SmartVariantAddPanel
+                                            product={editedProduct}
+                                            settings={settings}
+                                            allMaterials={allMaterials}
+                                            allProducts={allProducts}
+                                            existingVariants={editedProduct.variants || []}
+                                            onAddVariants={handleSmartAddVariants}
+                                            showToast={showToast}
+                                        />
 
                                         {/* ── Section: Υπάρχουσες Παραλλαγές ── */}
                                         <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/80 shadow-sm">
