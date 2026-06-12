@@ -21,6 +21,7 @@ import {
   canPrintLegalDocument,
   canPrintProforma,
   convertProformaToLegalDraft,
+  isOfficialLegalDocumentPrint,
   serializeLegalDocumentLineForDb,
   createManualLegalDocumentLine,
   DEFAULT_LEGAL_SETTINGS,
@@ -308,7 +309,14 @@ describe('legal document helpers', () => {
       settings,
       kind: 'invoice',
     });
-    expect(canPrintLegalDocument(document)).toBe(false);
+    expect(canPrintLegalDocument(document)).toBe(true);
+    expect(isOfficialLegalDocumentPrint(document)).toBe(false);
+    expect(isOfficialLegalDocumentPrint({
+      ...document,
+      status: 'issued',
+      aade_mark: parsed.invoiceMark,
+      qr_url: parsed.qrUrl,
+    })).toBe(true);
     expect(canPrintLegalDocument({
       ...document,
       status: 'issued',

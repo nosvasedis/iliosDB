@@ -82,6 +82,7 @@ import {
   createManualLegalDocumentLine,
   documentIncludesDeliveryNote,
   getLegalCatalogLineDetails,
+  isOfficialLegalDocumentPrint,
   AADE_INCOME_CATEGORY_OPTIONS,
   AADE_INCOME_TYPE_OPTIONS,
   AADE_VAT_CATEGORY_LINE_OPTIONS,
@@ -1016,13 +1017,26 @@ export default function LegalDocumentsPage({
     setActiveTab('new');
   };
 
-  const handleRetry = async (document: LegalDocument) => {
+  const handleSubmitLegalDocument = async (document: LegalDocument) => {
     if (!(await ensureAadeCredentialsReady())) return;
     try {
+      const lines = await legalRepository.getDocumentLines(document.id);
+      const issues = validateLegalDocument(document, lines).filter((issue) => issue.severity === 'error');
+      if (issues.length > 0) {
+        showToast(issues[0].message, 'warning');
+        if (document.status === 'draft') {
+          await handleOpenLegalDocument(document);
+        }
+        return;
+      }
       const issued = await submitDocument.mutateAsync({ documentId: document.id, userName });
-      showToast(`Επιτυχής αποστολή με MARK ${issued.aade_mark}.`, 'success');
+      const successMessage = document.status === 'failed'
+        ? `Επιτυχής αποστολή με MARK ${issued.aade_mark}.`
+        : `Αποδοχή myDATA με MARK ${issued.aade_mark}.`;
+      showToast(successMessage, 'success');
     } catch (error: any) {
-      showToast(error?.message || 'Η επανάληψη απέτυχε.', 'error');
+      const fallback = document.status === 'failed' ? 'Η επανάληψη απέτυχε.' : 'Η υποβολή απέτυχε.';
+      showToast(error?.message || fallback, 'error');
     }
   };
 
@@ -1046,13 +1060,20 @@ export default function LegalDocumentsPage({
 
   const handlePrint = async (document: LegalDocument) => {
     if (!canPrintLegalDocument(document)) {
-      showToast('Η εκτύπωση ενεργοποιείται μόνο μετά από MARK και QR.', 'warning');
+      showToast(
+        document.status === 'submitted'
+          ? 'Η εκτύπωση είναι διαθέσιμη μετά την αποδοχή από την ΑΑΔΕ.'
+          : 'Το παραστατικό δεν είναι εκτυπώσιμο.',
+        'warning',
+      );
       return;
     }
     try {
       const lines = await legalRepository.getDocumentLines(document.id);
       onPrintLegalDocument({ document: { ...document, lines }, lines });
-      await markPrinted.mutateAsync(document.id);
+      if (isOfficialLegalDocumentPrint(document)) {
+        await markPrinted.mutateAsync(document.id);
+      }
     } catch (error: any) {
       showToast(error?.message || 'Δεν ήταν δυνατή η εκτύπωση.', 'error');
     }
@@ -1462,6 +1483,12 @@ export default function LegalDocumentsPage({
             <ActionButton variant="secondary" onClick={handleSaveDraft} disabled={!draftBundle || saveDraft.isPending}>
               {saveDraft.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Αποθήκευση πρόχειρου
             </ActionButton>
+            {draftBundle && canPrintLegalDocument(draftBundle.document) && (
+              <ActionButton variant="secondary" onClick={() => void handlePrint(draftBundle.document)}>
+                <Printer size={16} />
+                {isOfficialLegalDocumentPrint(draftBundle.document) ? 'Εκτύπωση' : 'Εκτύπωση πρόχειρου'}
+              </ActionButton>
+            )}
             <ActionButton onClick={handleSubmitDraft} disabled={!draftBundle || validationErrors.length > 0 || submitDocument.isPending || saveDraft.isPending}>
               {submitDocument.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Υποβολή στη myDATA
             </ActionButton>
@@ -1926,15 +1953,25 @@ export default function LegalDocumentsPage({
       <td className="px-4 py-3 text-right font-black">{money(document.totals.gross)}</td>
       <td className="px-4 py-3">
         <div className="flex flex-wrap justify-end gap-2">
-          <ActionButton variant="secondary" onClick={() => handlePrint(document)} disabled={!canPrintLegalDocument(document)}>
-            <Printer size={16} /> Εκτύπωση
+          <ActionButton
+            variant="secondary"
+            onClick={() => handlePrint(document)}
+            disabled={!canPrintLegalDocument(document)}
+            title={isOfficialLegalDocumentPrint(document) ? 'Εκτύπωση νόμιμου παραστατικού με MARK/QR' : 'Πρόχειρη εκτύπωση χωρίς MARK/QR'}
+          >
+            <Printer size={16} /> {isOfficialLegalDocumentPrint(document) ? 'Εκτύπωση' : 'Εκτύπωση πρόχειρου'}
           </ActionButton>
           <ActionButton variant="secondary" onClick={() => void handleOpenLegalDocument(document)}>
             <Edit3 size={16} /> Άνοιγμα
           </ActionButton>
-          {(document.status === 'failed' || document.status === 'draft') && (
-            <ActionButton variant="quiet" onClick={() => handleRetry(document)} disabled={submitDocument.isPending}>
-              <RefreshCw size={16} /> Επανάληψη
+          {document.status === 'draft' && (
+            <ActionButton onClick={() => void handleSubmitLegalDocument(document)} disabled={submitDocument.isPending}>
+              {submitDocument.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Υποβολή στη myDATA
+            </ActionButton>
+          )}
+          {document.status === 'failed' && (
+            <ActionButton variant="quiet" onClick={() => void handleSubmitLegalDocument(document)} disabled={submitDocument.isPending}>
+              {submitDocument.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Επανάληψη
             </ActionButton>
           )}
           {document.status === 'issued' && (

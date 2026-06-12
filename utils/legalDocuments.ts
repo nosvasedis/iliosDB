@@ -1597,8 +1597,15 @@ export function parseTransmittedDocumentsXml(xml: string): AadeTransmittedDocsPa
   };
 }
 
-export function canPrintLegalDocument(document: LegalDocument): boolean {
+export function isOfficialLegalDocumentPrint(document: LegalDocument): boolean {
   return document.status === 'issued' && !!document.aade_mark && !!document.qr_url;
+}
+
+export function canPrintLegalDocument(document: LegalDocument): boolean {
+  if (document.status === 'submitted') return false;
+  if (isOfficialLegalDocumentPrint(document)) return true;
+  if (document.status === 'cancelled') return !!document.aade_mark;
+  return document.status === 'draft' || document.status === 'failed';
 }
 
 export function getLegalDocumentDisplayNumber(document: Pick<LegalDocument, 'series' | 'aa' | 'id'>): string {

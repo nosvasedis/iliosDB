@@ -3,6 +3,7 @@ import { LegalDocument, LegalDocumentLine } from '../types';
 import {
   formatAadeIncomeCategoryLabel,
   formatAadeIncomeTypeLabel,
+  isOfficialLegalDocumentPrint,
   LEGAL_DOCUMENT_KIND_LABELS,
   PAYMENT_METHOD_LABELS,
 } from '../utils/legalDocuments';
@@ -30,6 +31,8 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
     .map((item) => `${formatAadeIncomeCategoryLabel(item.classification_category)} · ${formatAadeIncomeTypeLabel(item.classification_type)} ${formatPrintMoney(item.amount, document.currency)}`)
     .join(', ');
 
+  const isOfficialPrint = isOfficialLegalDocumentPrint(document);
+
   return (
     <LegalPrintPage>
       <LegalPrintHeader
@@ -41,8 +44,18 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
           <span className="inline-flex rounded border border-red-300 bg-red-50 px-2 py-1 text-[10px] font-bold text-red-700">
             ΑΚΥΡΩΜΕΝΟ · MARK {document.cancellation_mark || '-'}
           </span>
+        ) : !isOfficialPrint ? (
+          <span className="inline-flex rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-amber-950">
+            Πρόχειρο — όχι νόμιμο παραστατικό
+          </span>
         ) : undefined}
       />
+
+      {!isOfficialPrint && (
+        <section className="legal-print-break-inside mb-3 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-center text-[9px] font-bold leading-snug text-amber-950">
+          Δεν έχει διαβιβαστεί στη myDATA · χωρίς MARK, UID ή QR ΑΑΔΕ · δεν αντικαθιστά εκδοθέν τιμολόγιο
+        </section>
+      )}
 
       <LegalPrintCustomerBar
         issuer={document.issuer}
@@ -75,8 +88,9 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
       />
 
       <LegalPrintFooter>
-        Το παρόν εκτυπώνεται από το IliosERP μετά από επιτυχή διαβίβαση στη myDATA.
-        Το QR και το MARK επιβεβαιώνουν την καταχώρηση στην ΑΑΔΕ.
+        {isOfficialPrint
+          ? 'Το παρόν εκτυπώνεται από το IliosERP μετά από επιτυχή διαβίβαση στη myDATA. Το QR και το MARK επιβεβαιώνουν την καταχώρηση στην ΑΑΔΕ.'
+          : 'Πρόχειρη εκτύπωση εσωτερικής χρήσης IliosERP. Για φορολογική ισχύ απαιτείται υποβολή και αποδοχή στη myDATA.'}
       </LegalPrintFooter>
     </LegalPrintPage>
   );
