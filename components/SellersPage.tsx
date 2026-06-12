@@ -5,6 +5,8 @@ import { api } from '../lib/supabase';
 import { useOrdersList } from '../hooks/api/useOrders';
 import { useUI } from './UIProvider';
 import { useSellers, sellerKeys } from '../hooks/api/useSellers';
+import { useProducts } from '../hooks/api/useProducts';
+import { useFinanceAnalytics } from '../hooks/api/useFinanceAnalytics';
 import { UserProfile, Order, OrderStatus } from '../types';
 import { formatCurrency } from '../utils/pricingEngine';
 import DesktopPageHeader from './DesktopPageHeader';
@@ -25,6 +27,8 @@ interface SellerStats {
   cancelledOrders: number;
   totalRevenue: number;
   totalCommission: number;
+  pendingRevenue: number;
+  pendingCommission: number;
   avgOrderValue: number;
   avgCommissionRate: number;
   last30DaysOrders: number;
@@ -32,22 +36,40 @@ interface SellerStats {
   prev30DaysRevenue: number;
   recentOrders: Order[];
   ordersByStatus: Record<string, number>;
+  realizedByOrder: Record<string, { revenue: number; commission: number; pendingRevenue: number; pendingCommission: number }>;
 }
 
-function computeSellerStats(sellerId: string, orders: Order[]): SellerStats {
+function computeSellerStats(sellerId: string, orders: Order[], financeStats?: any): SellerStats {
   const sellerOrders = orders.filter(o => o.seller_id === sellerId);
   const nonCancelled = sellerOrders.filter(o => o.status !== OrderStatus.Cancelled);
   const now = Date.now();
   const _30d = 30 * 24 * 60 * 60 * 1000;
 
-  const last30 = nonCancelled.filter(o => now - new Date(o.created_at).getTime() < _30d);
-  const prev30 = nonCancelled.filter(o => {
-    const t = now - new Date(o.created_at).getTime();
+  const realizedEvents = (financeStats?.events?.realized || []).filter((event: any) => event.sellerId === sellerId);
+  const backlogEvents = (financeStats?.events?.backlog || []).filter((event: any) => event.sellerId === sellerId);
+  const realizedOrderIds = new Set(realizedEvents.map((event: any) => event.orderId));
+  const totalRevenue = realizedEvents.reduce((sum: number, event: any) => sum + event.net, 0);
+  const totalCommission = realizedEvents.reduce((sum: number, event: any) => sum + (event.net * ((event.sellerCommissionPercent || 0) / 100)), 0);
+  const pendingRevenue = backlogEvents.reduce((sum: number, event: any) => sum + event.net, 0);
+  const pendingCommission = backlogEvents.reduce((sum: number, event: any) => sum + (event.net * ((event.sellerCommissionPercent || 0) / 100)), 0);
+  const last30Events = realizedEvents.filter((event: any) => now - new Date(event.date).getTime() < _30d);
+  const prev30Events = realizedEvents.filter((event: any) => {
+    const t = now - new Date(event.date).getTime();
     return t >= _30d && t < _30d * 2;
   });
-
-  const totalRevenue = nonCancelled.reduce((s, o) => s + (o.total_price || 0), 0);
-  const totalCommission = nonCancelled.reduce((s, o) => s + ((o.total_price || 0) * (o.seller_commission_percent ?? 0) / 100), 0);
+  const realizedByOrder: SellerStats['realizedByOrder'] = {};
+  [...realizedEvents, ...backlogEvents].forEach((event: any) => {
+    const row = realizedByOrder[event.orderId] || { revenue: 0, commission: 0, pendingRevenue: 0, pendingCommission: 0 };
+    const commission = event.net * ((event.sellerCommissionPercent || 0) / 100);
+    if (event.source === 'backlog') {
+      row.pendingRevenue += event.net;
+      row.pendingCommission += commission;
+    } else {
+      row.revenue += event.net;
+      row.commission += commission;
+    }
+    realizedByOrder[event.orderId] = row;
+  });
 
   const statusCounts: Record<string, number> = {};
   sellerOrders.forEach(o => { statusCounts[o.status] = (statusCounts[o.status] || 0) + 1; });
@@ -59,13 +81,16 @@ function computeSellerStats(sellerId: string, orders: Order[]): SellerStats {
     cancelledOrders: sellerOrders.filter(o => o.status === OrderStatus.Cancelled).length,
     totalRevenue,
     totalCommission,
-    avgOrderValue: nonCancelled.length ? totalRevenue / nonCancelled.length : 0,
-    avgCommissionRate: nonCancelled.length ? (nonCancelled.reduce((s, o) => s + (o.seller_commission_percent ?? 0), 0) / nonCancelled.length) : 0,
-    last30DaysOrders: last30.length,
-    last30DaysRevenue: last30.reduce((s, o) => s + (o.total_price || 0), 0),
-    prev30DaysRevenue: prev30.reduce((s, o) => s + (o.total_price || 0), 0),
-    recentOrders: sellerOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 8),
+    pendingRevenue,
+    pendingCommission,
+    avgOrderValue: realizedOrderIds.size ? totalRevenue / realizedOrderIds.size : 0,
+    avgCommissionRate: totalRevenue > 0 ? (totalCommission / totalRevenue) * 100 : (nonCancelled.length ? (nonCancelled.reduce((s, o) => s + (o.seller_commission_percent ?? 0), 0) / nonCancelled.length) : 0),
+    last30DaysOrders: new Set(last30Events.map((event: any) => event.orderId)).size,
+    last30DaysRevenue: last30Events.reduce((sum: number, event: any) => sum + event.net, 0),
+    prev30DaysRevenue: prev30Events.reduce((sum: number, event: any) => sum + event.net, 0),
+    recentOrders: [...sellerOrders].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 8),
     ordersByStatus: statusCounts,
+    realizedByOrder,
   };
 }
 
@@ -92,6 +117,11 @@ export default function SellersPage() {
   const { showToast, confirm } = useUI();
   const { data: sellers, isLoading } = useSellers();
   const { data: orders } = useOrdersList();
+  const { data: products } = useProducts();
+  const { analytics: financeStats, isLoading: financeLoading } = useFinanceAnalytics({
+    products: products || [],
+    period: { mode: 'all_time' },
+  });
 
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -107,17 +137,19 @@ export default function SellersPage() {
     if (!orders || !sellers) return null;
     const sellerIds = new Set(sellers.map(s => s.id));
     const sellerOrders = orders.filter(o => o.seller_id && sellerIds.has(o.seller_id) && o.status !== OrderStatus.Cancelled);
-    const totalRevenue = sellerOrders.reduce((s, o) => s + (o.total_price || 0), 0);
-    const totalCommission = sellerOrders.reduce((s, o) => s + ((o.total_price || 0) * (o.seller_commission_percent ?? 0) / 100), 0);
-    return { totalOrders: sellerOrders.length, totalRevenue, totalCommission, activeSellers: sellers.filter(s => s.is_approved).length };
-  }, [orders, sellers]);
+    const financeSellers = (financeStats?.topSellers || []).filter((row: any) => sellerIds.has(row.id));
+    const totalRevenue = financeSellers.reduce((sum: number, row: any) => sum + row.revenue, 0);
+    const totalCommission = financeSellers.reduce((sum: number, row: any) => sum + row.earnedCommission, 0);
+    const pendingCommission = financeSellers.reduce((sum: number, row: any) => sum + row.pendingCommission, 0);
+    return { totalOrders: sellerOrders.length, totalRevenue, totalCommission, pendingCommission, activeSellers: sellers.filter(s => s.is_approved).length };
+  }, [financeStats, orders, sellers]);
 
   const sellerStatsMap = useMemo(() => {
     if (!orders || !sellers) return new Map<string, SellerStats>();
     const map = new Map<string, SellerStats>();
-    sellers.forEach(s => map.set(s.id, computeSellerStats(s.id, orders)));
+    sellers.forEach(s => map.set(s.id, computeSellerStats(s.id, orders, financeStats)));
     return map;
-  }, [orders, sellers]);
+  }, [financeStats, orders, sellers]);
 
   const filteredSellers = useMemo(() => {
     if (!sellers) return [];
@@ -180,7 +212,7 @@ export default function SellersPage() {
 
   const detailStats = detailSeller ? sellerStatsMap.get(detailSeller.id) : null;
 
-  if (isLoading) {
+  if (isLoading || financeLoading || !financeStats) {
     return (
       <div className="p-6">
         <DesktopPageHeader icon={UserCheck} title="Πλασιέ" subtitle="Διαχείριση πωλητών" />
@@ -220,11 +252,12 @@ export default function SellersPage() {
 
       {/* ── Global Summary Cards ── */}
       {globalStats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <SummaryCard label="Ενεργοί Πλασιέ" value={String(globalStats.activeSellers)} icon={<UserCheck size={20} />} color="sky" />
           <SummaryCard label="Σύνολο Παραγγελιών" value={String(globalStats.totalOrders)} icon={<ShoppingCart size={20} />} color="violet" />
-          <SummaryCard label="Συνολικά Έσοδα" value={formatCurrency(globalStats.totalRevenue)} icon={<DollarSign size={20} />} color="emerald" />
-          <SummaryCard label="Συνολικές Προμήθειες" value={formatCurrency(globalStats.totalCommission)} icon={<Percent size={20} />} color="amber" />
+          <SummaryCard label="Πραγματοποιημένα έσοδα" value={formatCurrency(globalStats.totalRevenue)} icon={<DollarSign size={20} />} color="emerald" />
+          <SummaryCard label="Κερδισμένες προμήθειες" value={formatCurrency(globalStats.totalCommission)} icon={<Percent size={20} />} color="amber" />
+          <SummaryCard label="Εκκρεμείς προμήθειες" value={formatCurrency(globalStats.pendingCommission)} icon={<Clock size={20} />} color="violet" />
         </div>
       )}
 
@@ -299,9 +332,9 @@ export default function SellersPage() {
               {/* KPI Grid */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <KpiCard label="Παραγγελίες" value={String(detailStats.totalOrders)} sub={`${detailStats.activeOrders} ενεργές`} color="sky" />
-                <KpiCard label="Έσοδα" value={formatCurrency(detailStats.totalRevenue)} sub={`Μ.Ο. ${formatCurrency(detailStats.avgOrderValue)}`} color="emerald" />
-                <KpiCard label="Προμήθειες" value={formatCurrency(detailStats.totalCommission)} sub={`Μ.Ο. ${detailStats.avgCommissionRate.toFixed(1)}%`} color="amber" />
-                <KpiCard label="Παραδόσεις" value={String(detailStats.deliveredOrders)} sub={`${detailStats.cancelledOrders} ακυρώσεις`} color="violet" />
+                <KpiCard label="Πραγματοποιημένα έσοδα" value={formatCurrency(detailStats.totalRevenue)} sub={`Μ.Ο. ${formatCurrency(detailStats.avgOrderValue)}`} color="emerald" />
+                <KpiCard label="Κερδισμένες προμήθειες" value={formatCurrency(detailStats.totalCommission)} sub={`${detailStats.avgCommissionRate.toFixed(1)}% στα έσοδα`} color="amber" />
+                <KpiCard label="Εκκρεμείς προμήθειες" value={formatCurrency(detailStats.pendingCommission)} sub={`${formatCurrency(detailStats.pendingRevenue)} εκκρεμής αξία`} color="violet" />
               </div>
 
               {/* 30-day Trend */}
@@ -310,7 +343,7 @@ export default function SellersPage() {
                   <div>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Τελευταίες 30 Ημέρες</p>
                     <p className="text-xl font-black text-slate-800 mt-1">{formatCurrency(detailStats.last30DaysRevenue)}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{detailStats.last30DaysOrders} παραγγελίες</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{detailStats.last30DaysOrders} παραγγελίες με αποστολή</p>
                   </div>
                   <TrendBadge current={detailStats.last30DaysRevenue} previous={detailStats.prev30DaysRevenue} />
                 </div>
@@ -334,19 +367,19 @@ export default function SellersPage() {
 
               {/* Commission Summary */}
               <div className="bg-amber-50/50 rounded-xl border border-amber-100 p-4">
-                <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-2">Σύνοψη Προμηθειών</p>
+                <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-2">Σύνοψη προμηθειών</p>
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <p className="text-xs text-amber-600/70">Συνολικά</p>
+                    <p className="text-xs text-amber-600/70">Κερδισμένες</p>
                     <p className="text-lg font-black text-amber-700">{formatCurrency(detailStats.totalCommission)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-amber-600/70">Μ.Ο. Ποσοστό</p>
-                    <p className="text-lg font-black text-amber-700">{detailStats.avgCommissionRate.toFixed(1)}%</p>
+                    <p className="text-xs text-amber-600/70">Εκκρεμείς</p>
+                    <p className="text-lg font-black text-amber-700">{formatCurrency(detailStats.pendingCommission)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-amber-600/70">Μ.Ο. / Παραγγελία</p>
-                    <p className="text-lg font-black text-amber-700">{formatCurrency(detailStats.totalOrders > 0 ? detailStats.totalCommission / detailStats.totalOrders : 0)}</p>
+                    <p className="text-xs text-amber-600/70">Ποσοστό στα έσοδα</p>
+                    <p className="text-lg font-black text-amber-700">{detailStats.avgCommissionRate.toFixed(1)}%</p>
                   </div>
                 </div>
               </div>
@@ -356,21 +389,26 @@ export default function SellersPage() {
                 <div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Πρόσφατες Παραγγελίες</p>
                   <div className="space-y-2">
-                    {detailStats.recentOrders.map(order => (
-                      <div key={order.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-4 py-2.5 border border-slate-100">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className={`h-2 w-2 rounded-full shrink-0 ${order.status === OrderStatus.Delivered ? 'bg-green-500' : order.status === OrderStatus.Cancelled ? 'bg-red-400' : 'bg-sky-500'}`} />
-                          <div className="min-w-0">
-                            <p className="text-sm font-bold text-slate-700 truncate">{order.customer_name}</p>
-                            <p className="text-[10px] text-slate-400">{new Date(order.created_at).toLocaleDateString('el-GR')}</p>
+                    {detailStats.recentOrders.map(order => {
+                      const orderFinance = detailStats.realizedByOrder[order.id] || { revenue: 0, commission: 0, pendingRevenue: 0, pendingCommission: 0 };
+                      return (
+                        <div key={order.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-4 py-2.5 border border-slate-100">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={`h-2 w-2 rounded-full shrink-0 ${order.status === OrderStatus.Delivered ? 'bg-green-500' : order.status === OrderStatus.Cancelled ? 'bg-red-400' : 'bg-sky-500'}`} />
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-slate-700 truncate">{order.customer_name}</p>
+                              <p className="text-[10px] text-slate-400">{new Date(order.created_at).toLocaleDateString('el-GR')}</p>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0 ml-3">
+                            <p className="text-sm font-black text-slate-700">{formatCurrency(orderFinance.revenue)}</p>
+                            <p className="text-[10px] text-amber-600 font-bold">
+                              {formatCurrency(orderFinance.commission)} κερδ. · {formatCurrency(orderFinance.pendingCommission)} εκκρ.
+                            </p>
                           </div>
                         </div>
-                        <div className="text-right shrink-0 ml-3">
-                          <p className="text-sm font-black text-slate-700">{formatCurrency(order.total_price)}</p>
-                          <p className="text-[10px] text-amber-600 font-bold">{formatCurrency((order.total_price || 0) * (order.seller_commission_percent ?? 0) / 100)} προμ.</p>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -536,11 +574,11 @@ function SellerCard({ seller, stats, onEdit, onToggle, onDetail, inactive }: { s
             <p className="text-sm font-black text-slate-700">{stats.totalOrders}</p>
           </div>
           <div className="bg-emerald-50/60 rounded-lg p-2 text-center">
-            <p className="text-[10px] text-emerald-600 font-bold">Έσοδα</p>
+            <p className="text-[10px] text-emerald-600 font-bold">Πραγμ. έσοδα</p>
             <p className="text-sm font-black text-emerald-700">{formatCurrency(stats.totalRevenue)}</p>
           </div>
           <div className="bg-amber-50/60 rounded-lg p-2 text-center">
-            <p className="text-[10px] text-amber-600 font-bold">Προμήθειες</p>
+            <p className="text-[10px] text-amber-600 font-bold">Κερδισμ.</p>
             <p className="text-sm font-black text-amber-700">{formatCurrency(stats.totalCommission)}</p>
           </div>
         </div>

@@ -1,35 +1,110 @@
 import React, { useMemo } from 'react';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { APP_LOGO } from '../constants';
-import { Wallet, Tag, Target, Coins, Hammer, Box, AlertTriangle, Weight } from 'lucide-react';
+import { AlertTriangle, Box, Coins, Hammer, Package, Target, Truck, Wallet, Weight } from 'lucide-react';
 import { formatOrderId } from '../utils/orderUtils';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
 import { printPageMarginWithBaseTop } from '../utils/printPageStyles';
 
 interface Props {
-    stats: any; // Result from calculateBusinessStats
+    stats: any;
     orderId: string;
     customerName: string;
     date: string;
     silverPrice: number;
 }
 
-export default function OrderFinancialReport({ stats, orderId, customerName, date, silverPrice }: Props) {
-    if (!stats) return null;
-    const sortedItemsBreakdown = useMemo(
-        () => sortBySkuKey(stats.itemsBreakdown || [], (item: any) => buildSkuKey(item.sku, item.variant)),
-        [stats.itemsBreakdown]
-    );
-    const hasOverriddenPrices = sortedItemsBreakdown.some((item: any) => item.priceOverride);
+function percent(value: number) {
+    return `${formatDecimal(value || 0, 1)}%`;
+}
 
-    // Calculate percentages for the cost bar
-    const silverPct = (stats.costBreakdown.silver / stats.totalCost) * 100;
-    const laborPct = (stats.costBreakdown.labor / stats.totalCost) * 100;
-    const matPct = (stats.costBreakdown.materials / stats.totalCost) * 100;
-    const orderWeightGrams = (stats.silverSoldKg || 0) * 1000;
+function safeWidth(value: number, total: number) {
+    if (!total || total <= 0) return '0%';
+    return `${Math.max(4, Math.min(100, (value / total) * 100))}%`;
+}
+
+function Kpi({ label, value, helper }: { label: string; value: string; helper: string }) {
+    return (
+        <div className="rounded-xl border border-slate-200 bg-white p-3 text-center">
+            <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">{label}</p>
+            <p className="mt-1 text-lg font-black text-slate-900">{value}</p>
+            <p className="mt-1 text-[8px] font-semibold leading-snug text-slate-500">{helper}</p>
+        </div>
+    );
+}
+
+function LineTable({ title, rows, empty, backlog = false }: { title: string; rows: any[]; empty: string; backlog?: boolean }) {
+    return (
+        <div className="break-avoid overflow-hidden rounded-xl border border-slate-200">
+            <div className={`border-b border-slate-200 px-4 py-2 ${backlog ? 'bg-indigo-50' : 'bg-emerald-50'}`}>
+                <h3 className={`text-[9px] font-black uppercase tracking-widest ${backlog ? 'text-indigo-700' : 'text-emerald-700'}`}>{title}</h3>
+            </div>
+            {rows.length > 0 ? (
+                <table className="w-full text-xs">
+                    <thead>
+                        <tr className="border-b border-slate-200 bg-white text-[8px] uppercase tracking-wider text-slate-400">
+                            <th className="text-left">SKU</th>
+                            <th className="text-center">Ποσ.</th>
+                            <th className="text-right">Καθαρή αξία</th>
+                            <th className="text-right">Κόστος</th>
+                            <th className="text-right">Κέρδος</th>
+                            <th className="text-right">Περιθώριο</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.map((item, index) => (
+                            <tr key={`${title}-${item.sku}-${item.variantSuffix || ''}-${index}`} className="border-b border-slate-50 last:border-0">
+                                <td className="py-1.5 font-bold text-slate-800">
+                                    {item.sku}
+                                    {item.variantSuffix && <span className="ml-1 rounded bg-slate-100 px-1 text-[9px] text-slate-500">{item.variantSuffix}</span>}
+                                    {item.priceOverride && <span className="ml-1 font-black text-amber-700">*</span>}
+                                </td>
+                                <td className="py-1.5 text-center">{item.quantity}</td>
+                                <td className="py-1.5 text-right font-mono">{formatCurrency(item.net)}</td>
+                                <td className="py-1.5 text-right font-mono text-slate-500">{formatCurrency(item.estimatedCost)}</td>
+                                <td className="py-1.5 text-right font-mono font-bold text-emerald-600">{formatCurrency(item.profit)}</td>
+                                <td className="py-1.5 text-right font-black">{percent(item.margin)}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            ) : (
+                <p className="px-4 py-6 text-center text-[10px] font-semibold text-slate-400">{empty}</p>
+            )}
+        </div>
+    );
+}
+
+export default function OrderFinancialReport({ stats, orderId, customerName, date, silverPrice }: Props) {
+    const shippedRows = useMemo(
+        () => sortBySkuKey(stats?.itemsBreakdown || [], (item: any) => buildSkuKey(item.sku, item.variantSuffix || item.variant)),
+        [stats?.itemsBreakdown]
+    );
+    const backlogRows = useMemo(
+        () => sortBySkuKey(stats?.backlogBreakdown || [], (item: any) => buildSkuKey(item.sku, item.variantSuffix || item.variant)),
+        [stats?.backlogBreakdown]
+    );
+
+    if (!stats) return null;
+
+    const totals = stats.totals || {};
+    const realizedNet = totals.realizedNet ?? stats.totalRevenue ?? 0;
+    const realizedGross = totals.realizedGross ?? realizedNet;
+    const estimatedCost = totals.estimatedCost ?? stats.totalCost ?? 0;
+    const estimatedProfit = totals.estimatedProfit ?? stats.totalProfit ?? 0;
+    const margin = totals.margin ?? stats.avgMargin ?? 0;
+    const backlogNet = totals.backlogNet ?? 0;
+    const backlogGross = totals.backlogGross ?? 0;
+    const bookedNet = realizedNet + backlogNet;
+    const bookedGross = realizedGross + backlogGross;
+    const shippedPieces = totals.shippedPieces ?? stats.totalItems ?? 0;
+    const backlogPieces = totals.backlogPieces ?? 0;
+    const costBreakdown = stats.costBreakdown || { silver: 0, labor: 0, materials: 0 };
+    const orderWeightGrams = totals.silverWeightGrams ?? ((stats.silverSoldKg || 0) * 1000);
+    const hasOverriddenPrices = [...shippedRows, ...backlogRows].some((item: any) => item.priceOverride);
 
     return (
-        <div className="bg-white text-slate-900 font-sans w-[210mm] min-h-[297mm] p-8 mx-auto page-break-after-always relative flex flex-col">
+        <div className="page-break-after-always relative mx-auto flex min-h-[297mm] w-[210mm] flex-col bg-white p-8 font-sans text-slate-900">
             <style>{`
                 @page { size: A4; margin: 10mm 15mm; }
                 ${printPageMarginWithBaseTop('10mm')}
@@ -37,165 +112,123 @@ export default function OrderFinancialReport({ stats, orderId, customerName, dat
                 table { border-collapse: collapse; width: 100%; }
                 th, td { padding: 6px 8px; }
             `}</style>
-            
-            {/* HEADER */}
-            <div className="flex justify-between items-end border-b-2 border-slate-900 pb-4 mb-6 shrink-0">
+
+            <div className="mb-6 flex items-end justify-between border-b-2 border-slate-900 pb-4">
                 <div className="flex items-center gap-4">
                     <img src={APP_LOGO} alt="Ilios" className="h-10 w-auto object-contain" />
-                    <div className="flex flex-col border-l-2 border-slate-200 pl-4">
-                         <h1 className="text-xl font-black text-slate-900 uppercase tracking-tighter leading-none">Οικονομικη Αναλυση</h1>
-                         <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">Order Job Costing</p>
+                    <div className="border-l-2 border-slate-200 pl-4">
+                        <h1 className="text-xl font-black uppercase leading-none tracking-tight text-slate-900">Οικονομική ανάλυση παραγγελίας</h1>
+                        <p className="mt-1 text-[9px] font-black uppercase tracking-widest text-slate-500">Αποσταλμένα · Εκκρεμή · Σύνολο κράτησης</p>
                     </div>
                 </div>
                 <div className="text-right">
-                    <div className="flex items-center justify-end gap-2 mb-1">
-                        <span className="text-[9px] text-slate-400 uppercase font-bold tracking-widest">Εντολη</span>
-                        <span className="font-mono font-bold text-sm bg-slate-100 px-2 rounded">#{formatOrderId(orderId)}</span>
+                    <div className="mb-1 flex items-center justify-end gap-2">
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Εντολή</span>
+                        <span className="rounded bg-slate-100 px-2 font-mono text-sm font-bold">#{formatOrderId(orderId)}</span>
                     </div>
                     <div className="flex items-center justify-end gap-2">
-                         <span className="text-[9px] text-slate-400 uppercase font-bold tracking-widest">Πελατης</span>
-                         <span className="font-bold text-sm">{customerName}</span>
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Πελάτης</span>
+                        <span className="text-sm font-bold">{customerName}</span>
                     </div>
-                    <div className="flex items-center justify-end gap-2 mt-1">
-                        <div className="flex items-center gap-2 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 inline-flex">
+                    <div className="mt-1 flex items-center justify-end gap-2">
+                        <div className="inline-flex items-center gap-2 rounded border border-slate-100 bg-slate-50 px-1.5 py-0.5">
                             <Coins size={10} className="text-slate-400"/>
-                            <span className="text-[8px] text-slate-500 uppercase font-bold tracking-wider">Τιμη Ασημιου</span> 
-                            <span className="font-mono font-black text-slate-900 text-[10px]">{formatDecimal(silverPrice, 2)} €/g</span>
+                            <span className="text-[8px] font-bold uppercase tracking-wider text-slate-500">Τιμή ασημιού</span>
+                            <span className="font-mono text-[10px] font-black text-slate-900">{formatDecimal(silverPrice, 2)} €/g</span>
                         </div>
-                        <div className="flex items-center gap-2 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 inline-flex">
+                        <div className="inline-flex items-center gap-2 rounded border border-slate-100 bg-slate-50 px-1.5 py-0.5">
                             <Weight size={10} className="text-slate-400"/>
-                            <span className="text-[8px] text-slate-500 uppercase font-bold tracking-wider">Βαρος</span>
-                            <span className="font-mono font-black text-slate-900 text-[10px]">{formatDecimal(orderWeightGrams, 1)} g</span>
+                            <span className="text-[8px] font-bold uppercase tracking-wider text-slate-500">Βάρος</span>
+                            <span className="font-mono text-[10px] font-black text-slate-900">{formatDecimal(orderWeightGrams, 1)} g</span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* EXECUTIVE SUMMARY */}
-            <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 mb-8 break-avoid shadow-sm">
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <Target size={12}/> Οικονομική Επισκόπηση
-                </h3>
-                
-                <div className="grid grid-cols-4 gap-6 text-center divide-x divide-slate-200">
-                    <div>
-                        <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Έσοδα (Χωρίς ΦΠΑ)</p>
-                        <p className="text-2xl font-black text-slate-900">{formatCurrency(stats.totalRevenue)}</p>
+            <div className="mb-6 grid grid-cols-4 gap-3 break-avoid">
+                <Kpi label="Πραγματοποιημένα έσοδα" value={formatCurrency(realizedNet)} helper={`${shippedPieces} τεμ. έχουν αποσταλεί, χωρίς ΦΠΑ.`} />
+                <Kpi label="Εκκρεμής αξία" value={formatCurrency(backlogNet)} helper={`${backlogPieces} τεμ. μένουν για αποστολή.`} />
+                <Kpi label="Μικτό κέρδος" value={formatCurrency(estimatedProfit)} helper={`Περιθώριο ${percent(margin)} στα αποσταλμένα.`} />
+                <Kpi label="Σύνολο παραγγελίας" value={formatCurrency(bookedNet)} helper={`Μικτή αξία ${formatCurrency(bookedGross)}.`} />
+            </div>
+
+            <div className="mb-6 grid grid-cols-3 gap-4 break-avoid">
+                <div className="rounded-xl border border-slate-200 p-3">
+                    <div className="mb-2 flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-slate-500">
+                        <Truck size={12} /> Απόδοση αποστολών
                     </div>
-                    <div>
-                        <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Κόστος Παραγωγής</p>
-                        <p className="text-2xl font-black text-slate-600">{formatCurrency(stats.totalCost)}</p>
+                    <p className="text-[10px] font-semibold leading-snug text-slate-600">
+                        Μετρά μόνο όσα έχουν αποσταλεί ή παραδοθεί. Η ημερομηνία αναφοράς είναι η ημερομηνία αποστολής.
+                    </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 p-3">
+                    <div className="mb-2 flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-slate-500">
+                        <Package size={12} /> Υπόλοιπο παραγγελίας
                     </div>
-                    <div>
-                        <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Καθαρό Κέρδος</p>
-                        <p className="text-2xl font-black text-emerald-600">{formatCurrency(stats.totalProfit)}</p>
+                    <p className="text-[10px] font-semibold leading-snug text-slate-600">
+                        Η εκκρεμής αξία δεν προστίθεται στα έσοδα μέχρι να φύγουν τα τεμάχια.
+                    </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 p-3">
+                    <div className="mb-2 flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-slate-500">
+                        <Target size={12} /> Βάση κόστους
                     </div>
-                    <div>
-                        <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Περιθώριο (Margin)</p>
-                        <p className={`text-2xl font-black ${stats.avgMargin < 30 ? 'text-red-500' : 'text-slate-800'}`}>
-                            {stats.avgMargin.toFixed(1)}%
-                        </p>
-                    </div>
+                    <p className="text-[10px] font-semibold leading-snug text-slate-600">
+                        Το κόστος είναι εκτίμηση από προϊόν, υλικά, εργασία και την καλύτερη διαθέσιμη τιμή ασημιού.
+                    </p>
                 </div>
             </div>
 
-            {/* COST BREAKDOWN VISUAL */}
-            <div className="mb-8 break-avoid">
-                 <div className="flex justify-between items-end mb-2">
-                    <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1">
-                        <Wallet size={12}/> Δομή Κόστους
+            <div className="mb-6 break-avoid">
+                <div className="mb-2 flex items-end justify-between">
+                    <h3 className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                        <Wallet size={12}/> Δομή κόστους αποσταλμένων
                     </h3>
-                    <span className="text-[9px] font-mono font-bold text-slate-400">Σύνολο: {formatCurrency(stats.totalCost)}</span>
-                 </div>
-                
-                <div className="flex h-6 w-full rounded-lg overflow-hidden text-[9px] font-bold text-white uppercase text-center leading-6 mb-3">
-                    <div className="bg-slate-500 flex items-center justify-center border-r border-white/20" style={{ width: `${silverPct}%` }}></div>
-                    <div className="bg-blue-500 flex items-center justify-center border-r border-white/20" style={{ width: `${laborPct}%` }}></div>
-                    <div className="bg-purple-500 flex items-center justify-center" style={{ width: `${matPct}%` }}></div>
+                    <span className="font-mono text-[9px] font-bold text-slate-400">Σύνολο: {formatCurrency(estimatedCost)}</span>
                 </div>
-                
+                <div className="mb-3 flex h-6 w-full overflow-hidden rounded-lg text-center text-[9px] font-bold uppercase leading-6 text-white">
+                    <div className="bg-slate-500" style={{ width: safeWidth(costBreakdown.silver, estimatedCost) }}></div>
+                    <div className="bg-blue-500" style={{ width: safeWidth(costBreakdown.labor, estimatedCost) }}></div>
+                    <div className="bg-purple-500" style={{ width: safeWidth(costBreakdown.materials, estimatedCost) }}></div>
+                </div>
                 <div className="grid grid-cols-3 gap-4">
-                    <div className="flex items-center gap-3 p-2 border border-slate-100 rounded-lg">
-                        <div className="p-1.5 bg-slate-100 rounded text-slate-600"><Coins size={14}/></div>
-                        <div>
-                            <div className="text-[8px] font-bold text-slate-400 uppercase">Ασημι</div>
-                            <div className="font-mono font-bold text-xs">{formatCurrency(stats.costBreakdown.silver)}</div>
-                        </div>
+                    <div className="flex items-center gap-3 rounded-lg border border-slate-100 p-2">
+                        <div className="rounded bg-slate-100 p-1.5 text-slate-600"><Coins size={14}/></div>
+                        <div><div className="text-[8px] font-bold uppercase text-slate-400">Ασήμι</div><div className="font-mono text-xs font-bold">{formatCurrency(costBreakdown.silver)}</div></div>
                     </div>
-                    <div className="flex items-center gap-3 p-2 border border-slate-100 rounded-lg">
-                        <div className="p-1.5 bg-blue-50 rounded text-blue-600"><Hammer size={14}/></div>
-                        <div>
-                            <div className="text-[8px] font-bold text-blue-400 uppercase">Εργατικα</div>
-                            <div className="font-mono font-bold text-xs">{formatCurrency(stats.costBreakdown.labor)}</div>
-                        </div>
+                    <div className="flex items-center gap-3 rounded-lg border border-slate-100 p-2">
+                        <div className="rounded bg-blue-50 p-1.5 text-blue-600"><Hammer size={14}/></div>
+                        <div><div className="text-[8px] font-bold uppercase text-blue-400">Εργασία</div><div className="font-mono text-xs font-bold">{formatCurrency(costBreakdown.labor)}</div></div>
                     </div>
-                    <div className="flex items-center gap-3 p-2 border border-slate-100 rounded-lg">
-                        <div className="p-1.5 bg-purple-50 rounded text-purple-600"><Box size={14}/></div>
-                        <div>
-                            <div className="text-[8px] font-bold text-purple-400 uppercase">Υλικα</div>
-                            <div className="font-mono font-bold text-xs">{formatCurrency(stats.costBreakdown.materials)}</div>
-                        </div>
+                    <div className="flex items-center gap-3 rounded-lg border border-slate-100 p-2">
+                        <div className="rounded bg-purple-50 p-1.5 text-purple-600"><Box size={14}/></div>
+                        <div><div className="text-[8px] font-bold uppercase text-purple-400">Υλικά</div><div className="font-mono text-xs font-bold">{formatCurrency(costBreakdown.materials)}</div></div>
                     </div>
                 </div>
             </div>
 
-            {/* ITEMIZED TABLE */}
-            <div className="flex-1">
-                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-200">
-                    <Tag size={14} className="text-slate-400"/>
-                    <h3 className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Αναλυση ανα Ειδος</h3>
+            <div className="space-y-5">
+                <LineTable title="Αποσταλμένη απόδοση" rows={shippedRows} empty="Δεν υπάρχουν αποστολές για αυτή την παραγγελία." />
+                <LineTable title="Υπόλοιπο προς αποστολή" rows={backlogRows} empty="Δεν υπάρχει εκκρεμές υπόλοιπο για αυτή την παραγγελία." backlog />
+            </div>
+
+            {stats.costWarnings?.length > 0 && (
+                <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[9px] font-semibold text-amber-800 break-avoid">
+                    <div className="mb-1 flex items-center gap-1 font-black"><AlertTriangle size={11} /> Σημείωση κόστους</div>
+                    {stats.costWarnings.slice(0, 4).join(' · ')}
                 </div>
+            )}
 
-                <table className="w-full text-xs">
-                    <thead>
-                        <tr className="bg-slate-100 text-slate-500 text-[8px] uppercase tracking-wider">
-                            <th className="text-left font-bold pl-4 rounded-l-lg py-2">Κωδικος</th>
-                            <th className="text-center py-2">Ποσ.</th>
-                            <th className="text-right py-2">Συνολ. Πωλ.</th>
-                            <th className="text-right text-slate-400 py-2">Συνολ. Κοστος</th>
-                            <th className="text-right font-bold text-emerald-600 py-2">Κερδος</th>
-                            <th className="text-right pr-4 rounded-r-lg py-2">Margin</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {sortedItemsBreakdown.map((item: any, idx: number) => {
-                            const isLowMargin = item.margin < 30;
-                            return (
-                                <tr key={idx} className="break-inside-avoid">
-                                    <td className="font-bold text-slate-800 pl-4 py-2.5">
-                                        {item.sku}
-                                        {item.variant && <span className="text-[9px] text-slate-500 ml-1 font-normal bg-slate-50 border border-slate-200 px-1 rounded">{item.variant}</span>}
-                                        {item.priceOverride && <span className="text-amber-700 ml-1 font-black">*</span>}
-                                    </td>
-                                    <td className="text-center py-2.5 font-medium">{item.quantity}</td>
-                                    <td className="text-right font-mono py-2.5 font-bold">{formatCurrency(item.revenue)}</td>
-                                    <td className="text-right font-mono text-slate-500 py-2.5">{formatCurrency(item.cost)}</td>
-                                    <td className="text-right font-mono font-bold text-emerald-600 py-2.5">{formatCurrency(item.profit)}</td>
-                                    <td className="text-right font-black pr-4 py-2.5">
-                                        <div className="flex items-center justify-end gap-1">
-                                            {isLowMargin && <AlertTriangle size={10} className="text-red-500"/>}
-                                            <span className={`px-1.5 py-0.5 rounded text-[9px] ${isLowMargin ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700'}`}>
-                                                {item.margin.toFixed(0)}%
-                                            </span>
-                                        </div>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-            </div>
-
-            {/* FOOTER */}
-            <div className="mt-auto pt-4 border-t border-slate-200 flex justify-between items-center text-[8px] text-slate-400 uppercase tracking-widest font-bold">
-                <span>Business Intelligence Report</span>
-                <span>{date} • {new Date().toLocaleTimeString()}</span>
-            </div>
             {hasOverriddenPrices && (
-                <div className="pt-1 text-[8px] text-amber-700 font-bold uppercase tracking-wide">
+                <div className="pt-3 text-[8px] font-bold uppercase tracking-wide text-amber-700">
                     * Γραμμή με τιμή πώλησης κατ' εξαίρεση για τη συγκεκριμένη παραγγελία.
                 </div>
             )}
+
+            <div className="mt-auto flex items-center justify-between border-t border-slate-200 pt-4 text-[8px] font-bold uppercase tracking-widest text-slate-400">
+                <span>Οικονομική αναφορά παραγγελίας</span>
+                <span>{date} · {new Date().toLocaleTimeString('el-GR')}</span>
+            </div>
         </div>
     );
 }

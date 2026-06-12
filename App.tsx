@@ -27,6 +27,7 @@ import { useMaterials } from './hooks/api/useMaterials';
 import { useMolds } from './hooks/api/useMolds';
 import { useSettings } from './hooks/api/useSettings';
 import { useCollections } from './hooks/api/useCollections';
+import { useAllShipmentItems, useAllShipments } from './hooks/api/useOrders';
 
 import AuthScreen, { PendingApprovalScreen } from './components/AuthScreen';
 import { calculateBusinessStats } from './utils/businessAnalytics';
@@ -222,6 +223,8 @@ function AppContent() {
   const { data: molds, isLoading: loadingMolds } = useMolds();
   const { data: products, isLoading: loadingProducts } = useProducts();
   const { data: collections, isLoading: loadingCollections } = useCollections();
+  const { data: allShipments } = useAllShipments();
+  const { data: allShipmentItems } = useAllShipmentItems();
 
 
 
@@ -361,9 +364,20 @@ function AppContent() {
 
   const handlePrintOrderAnalytics = (order: Order) => {
     if (!products || !materials || !settings) return;
+    if (!allShipments || !allShipmentItems) {
+      showToast('Τα στοιχεία αποστολών φορτώνονται ακόμη. Δοκιμάστε ξανά σε λίγο.', 'info');
+      return;
+    }
 
-    // Calculate Stats Specifically for this order
-    const stats = calculateBusinessStats([order], products, materials, settings);
+    const orderShipments = allShipments.filter((shipment) => shipment.order_id === order.id);
+    const orderShipmentIds = new Set(orderShipments.map((shipment) => shipment.id));
+    const orderShipmentItems = allShipmentItems.filter((item) => orderShipmentIds.has(item.shipment_id));
+    const stats = calculateBusinessStats([order], products, materials, settings, {
+      shipments: orderShipments,
+      shipmentItems: orderShipmentItems,
+      collections,
+      period: { mode: 'all_time' },
+    });
 
     if (stats) {
       // Use the specific Order Analytics Component

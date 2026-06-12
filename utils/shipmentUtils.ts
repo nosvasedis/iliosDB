@@ -92,7 +92,7 @@ export function getReadyToShipItems(
 
 /** Compute the financial value of a shipment (subtotal, discount, net, VAT, total). */
 export function computeShipmentValue(
-  items: OrderShipmentItem[],
+  items: Array<Pick<OrderShipmentItem, 'price_at_order' | 'quantity'>>,
   vatRate: number,
   discountPercent: number
 ): { subtotal: number; discountAmount: number; netAmount: number; vatAmount: number; grandTotal: number } {

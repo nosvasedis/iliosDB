@@ -30,6 +30,7 @@ import { useProducts } from './hooks/api/useProducts';
 import { useSettings } from './hooks/api/useSettings';
 import { useWarehouses } from './hooks/api/useWarehouses';
 import { PriceListPrintData } from './components/PriceListPrintView';
+import { useAllShipmentItems, useAllShipments } from './hooks/api/useOrders';
 
 const lazyMobilePage = <T extends React.ComponentType<any>>(factory: () => Promise<{ default: T }>) =>
   lazyWithChunkRecovery(factory, import.meta.url);
@@ -99,6 +100,8 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
   const { data: warehouses } = useWarehouses();
   const { data: materials } = useMaterials();
   const { data: molds } = useMolds();
+  const { data: allShipments } = useAllShipments();
+  const { data: allShipmentItems } = useAllShipmentItems();
 
   const handlePrintAggregated = (batches: ProductionBatch[], orderDetails?: { orderId: string; customerName: string }) => {
     const aggregatedData = buildAggregatedPrintData(batches, products, materials, settings, {
@@ -126,7 +129,15 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
 
   const handlePrintOrderAnalytics = (order: Order) => {
     if (!products || !materials || !settings) return;
-    const stats = calculateBusinessStats([order], products, materials, settings);
+    if (!allShipments || !allShipmentItems) return;
+    const orderShipments = allShipments.filter((shipment) => shipment.order_id === order.id);
+    const orderShipmentIds = new Set(orderShipments.map((shipment) => shipment.id));
+    const orderShipmentItems = allShipmentItems.filter((item) => orderShipmentIds.has(item.shipment_id));
+    const stats = calculateBusinessStats([order], products, materials, settings, {
+      shipments: orderShipments,
+      shipmentItems: orderShipmentItems,
+      period: { mode: 'all_time' },
+    });
     if (stats) {
       setOrderAnalyticsData({ stats, order });
     }

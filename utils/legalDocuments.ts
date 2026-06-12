@@ -1547,7 +1547,7 @@ export function getLegalDocumentDeletePrompt(document: LegalDocument): LegalDocu
 }
 
 export function getProformaDeletePrompt(document: ProformaDocument): LegalDocumentDeletePrompt {
-  const number = getLegalDocumentDisplayNumber(document as LegalDocument);
+  const number = getLegalDocumentDisplayNumber(document);
   const lines = [
     `Να διαγραφεί οριστικά το προτιμολόγιο ${number};`,
     '',

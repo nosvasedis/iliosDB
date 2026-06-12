@@ -246,12 +246,14 @@ const ActionButton = ({
   disabled,
   variant = 'primary',
   type = 'button',
+  title,
 }: {
   children: React.ReactNode;
   onClick?: () => void;
   disabled?: boolean;
   variant?: 'primary' | 'secondary' | 'danger' | 'quiet';
   type?: 'button' | 'submit';
+  title?: string;
 }) => {
   const classes = {
     primary: 'bg-[#060b00] text-white hover:bg-emerald-900 disabled:bg-slate-300',
@@ -264,6 +266,7 @@ const ActionButton = ({
       type={type}
       onClick={onClick}
       disabled={disabled}
+      title={title}
       className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-black transition active:scale-[0.98] disabled:cursor-not-allowed ${classes[variant]}`}
     >
       {children}
@@ -479,7 +482,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
         ? legalDocumentById.get(document.converted_legal_document_id)
         : null;
       return [
-        getLegalDocumentDisplayNumber(document as LegalDocument),
+        getLegalDocumentDisplayNumber(document),
         document.counterpart.name,
         document.counterpart.vat_number,
         document.notes,
@@ -1790,7 +1793,7 @@ export default function LegalDocumentsPage({ products, onPrintLegalDocument, onP
                 return (
                   <tr key={document.id} className="border-b border-slate-100 bg-white align-top">
                     <td className="px-4 py-3">
-                      <div className="font-black text-slate-900">{getLegalDocumentDisplayNumber(document as LegalDocument)}</div>
+                      <div className="font-black text-slate-900">{getLegalDocumentDisplayNumber(document)}</div>
                       <div className="text-xs font-bold text-sky-700">Δεν αποστέλλεται στη myDATA</div>
                       {document.issue_date && <div className="mt-1 text-xs text-slate-500">{document.issue_date}</div>}
                     </td>

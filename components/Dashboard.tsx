@@ -41,6 +41,9 @@ import { productionKeys, productionRepository } from '../features/production';
 import { useOrdersWithItems } from '../hooks/api/useOrders';
 import { getProductionStageLabel } from '../utils/productionStages';
 import DesktopPageHeader from './DesktopPageHeader';
+import FinancePeriodSelector from './FinancePeriodSelector';
+import { useFinanceAnalytics } from '../hooks/api/useFinanceAnalytics';
+import { FinancePeriodMode } from '../utils/financeAnalytics';
 
 interface Props {
   products: Product[];
@@ -65,7 +68,7 @@ type SilverOrderScope = 'active' | 'delivered' | 'all_non_cancelled';
 
 const SILVER_SCOPE_LABELS: Record<SilverOrderScope, string> = {
     active: 'Ενεργές παραγγελίες',
-    delivered: 'Παραδομένες',
+    delivered: 'Αποσταλμένα περιόδου',
     all_non_cancelled: 'Όλες εκτός ακυρωμένων',
 };
 
@@ -74,11 +77,17 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
   const [categoryGenderFilter, setCategoryGenderFilter] = useState<'All' | Gender>('All');
   const [showPendingRevenue, setShowPendingRevenue] = useState(false);
   const [silverOrderScope, setSilverOrderScope] = useState<SilverOrderScope>('active');
+  const [financePeriodMode, setFinancePeriodMode] = useState<FinancePeriodMode>('current_year');
 
   const { data: orders, isError: ordersError, error: ordersErr, refetch: refetchOrders } = useOrdersWithItems();
   const { data: batches, isError: batchesError, error: batchesErr, refetch: refetchBatches } = useQuery({
     queryKey: productionKeys.batches(),
     queryFn: productionRepository.getProductionBatches,
+  });
+  const { analytics: financeStats } = useFinanceAnalytics({
+    products,
+    settings,
+    period: { mode: financePeriodMode },
   });
 
   if (ordersError || batchesError) {
@@ -122,7 +131,6 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
     const marginPercent = totalPotentialRevenue > 0 ? (potentialMargin / totalPotentialRevenue) * 100 : 0;
 
     const activeOrders = orders?.filter(o => o.status === OrderStatus.Pending || o.status === OrderStatus.InProduction || o.status === OrderStatus.Ready || o.status === OrderStatus.PartiallyDelivered) || [];
-    const completedOrders = orders?.filter(o => o.status === OrderStatus.Delivered) || [];
     const allNonCancelledOrders = orders?.filter(o => o.status !== OrderStatus.Cancelled) || [];
     const activeBatches = batches?.filter(b => b.current_stage !== ProductionStage.Ready) || [];
 
@@ -138,19 +146,28 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
             }, 0);
         }, 0);
     
-    let silverSold = 0;
     let stonesSold = 0;
-    completedOrders.forEach(o => {
+    financeStats?.events.realized.forEach(event => {
+        const p = products.find(prod => prod.sku === event.sku);
+        if (p) {
+            p.recipe.forEach(ri => {
+               if (ri.type === 'raw') stonesSold += (ri.quantity * event.quantity);
+            });
+        }
+    });
+    if (!financeStats) {
+      const completedOrders = orders?.filter(o => o.status === OrderStatus.Delivered) || [];
+      completedOrders.forEach(o => {
         o.items.forEach(i => {
             const p = products.find(prod => prod.sku === i.sku);
             if (p) {
-                silverSold += (p.weight_g * i.quantity);
                 p.recipe.forEach(ri => {
                    if (ri.type === 'raw') stonesSold += (ri.quantity * i.quantity);
                 });
             }
         });
-    });
+      });
+    }
 
     const stockValueBySku = products
         .filter(p => !p.is_component)
@@ -174,46 +191,6 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
         .sort((a, b) => b.value - a.value)
         .slice(0, 5);
 
-    // LIVE REVENUE CALCULATION (Net, Discounted, Current Prices)
-    const calculateLiveNetRevenue = (orderList: Order[]) => {
-        return orderList.reduce((totalAcc, o) => {
-            // Calculate raw item value based on CURRENT Registry prices
-            const orderRawValue = o.items.reduce((itemAcc, item) => {
-                const product = products.find(p => p.sku === item.sku);
-                let currentPrice = 0;
-                
-                if (product) {
-                     if (item.variant_suffix) {
-                         const v = product.variants?.find(v => v.suffix === item.variant_suffix);
-                         currentPrice = v?.selling_price || 0;
-                     } else {
-                         currentPrice = product.selling_price;
-                     }
-                }
-                
-                // Fallback to order price if product not found (deleted?)
-                if (currentPrice === 0) currentPrice = item.price_at_order;
-                
-                return itemAcc + (currentPrice * item.quantity);
-            }, 0);
-
-            // Apply Discount
-            const discountFactor = 1 - ((o.discount_percent || 0) / 100);
-            return totalAcc + (orderRawValue * discountFactor);
-        }, 0);
-    };
-
-    // Historical Revenue (Completed Orders - Use saved price)
-    const calculateHistoricalRevenue = (orderList: Order[]) => {
-        return orderList.reduce((acc, o) => {
-             // Net = Total / (1 + VAT)
-             // FIX: Correctly check for 0% VAT rate by avoiding the || operator which treats 0 as false
-             const activeVat = o.vat_rate !== undefined ? o.vat_rate : 0.24;
-             const net = o.total_price / (1 + activeVat);
-             return acc + net;
-        }, 0);
-    };
-
     return {
         totalStockQty,
         totalCostValue,
@@ -221,23 +198,31 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
         totalSilverWeight,
         potentialMargin,
         marginPercent,
-        activeOrdersCount: activeOrders.length,
+        activeOrdersCount: financeStats?.totals.activeOrderCount ?? activeOrders.length,
         inHouseSilverUsed: {
             active: calculateInHouseSilverGrams(activeOrders),
-            delivered: calculateInHouseSilverGrams(completedOrders),
+            delivered: financeStats?.totals.silverWeightGrams ?? 0,
             all_non_cancelled: calculateInHouseSilverGrams(allNonCancelledOrders),
         },
-        // Use LIVE calculation for Pending to reflect price hikes
-        pendingRevenue: calculateLiveNetRevenue(activeOrders), 
-        // Use Historical calculation for Delivered to reflect actual invoices
-        totalRevenue: calculateHistoricalRevenue(completedOrders),
+        pendingRevenue: financeStats?.totals.backlogNet ?? 0,
+        totalRevenue: financeStats?.totals.realizedNet ?? 0,
+        realizedGross: financeStats?.totals.realizedGross ?? 0,
+        realizedVat: financeStats?.totals.vat ?? 0,
+        realizedDiscount: financeStats?.totals.discount ?? 0,
+        financeCost: financeStats?.totals.estimatedCost ?? 0,
+        financeProfit: financeStats?.totals.estimatedProfit ?? 0,
+        financeMargin: financeStats?.totals.margin ?? 0,
+        shippedPieces: financeStats?.totals.shippedPieces ?? 0,
+        backlogPieces: financeStats?.totals.backlogPieces ?? 0,
+        legalGap: financeStats?.legal.netGap ?? 0,
+        legalIssuedNet: financeStats?.legal.issuedNet ?? 0,
         activeBatchesCount: activeBatches.length,
         totalItemsInProduction: activeBatches.reduce((acc, b) => acc + b.quantity, 0),
         topStockValue: stockValueBySku,
-        silverSold: silverSold / 1000,
+        silverSold: financeStats?.totals.silverWeightKg ?? 0,
         stonesSold
     };
-  }, [products, orders, batches]);
+  }, [products, orders, batches, financeStats]);
 
   const categoryData = useMemo(() => {
       const counts: Record<string, number> = {};
@@ -293,6 +278,8 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
         title="Πίνακας Ελέγχου"
         subtitle="Έξυπνη επισκόπηση και ανάλυση κερδοφορίας της επιχείρησης."
         tail={(
+          <div className="flex flex-wrap items-center justify-end gap-3">
+          <FinancePeriodSelector value={financePeriodMode} onChange={setFinancePeriodMode} />
           <div className="flex overflow-x-auto rounded-2xl border border-slate-100 bg-white p-1.5 shadow-sm scrollbar-hide">
             {[
               { id: 'overview', label: 'Επισκόπηση', icon: Activity },
@@ -316,6 +303,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
               </button>
             ))}
           </div>
+          </div>
         )}
       />
 
@@ -331,7 +319,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                       </div>
                       <div>
                           <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 cursor-help">
-                            Εκκρεμής Τζίρος
+                            Εκκρεμής αξία
                             <HelpCircle size={12} className="text-slate-300 group-hover:text-slate-500 transition-colors pointer-events-none" />
                           </p>
                           <div className="flex items-center gap-2">
@@ -347,7 +335,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                       </div>
                       <div className="mt-4">
                           <div className="text-xs font-bold px-2 py-1 rounded-full bg-slate-50 inline-flex items-center gap-1 text-blue-600">
-                              {stats.activeOrdersCount} Παραγγελίες
+                              {stats.activeOrdersCount} ανοιχτές παραγγελίες · {stats.backlogPieces} τεμ.
                           </div>
                       </div>
                   </div>
@@ -429,9 +417,9 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       {activeTab === 'financials' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <KPICard title="Συνολικά Έσοδα" value={formatCurrency(stats.totalRevenue)} icon={<DollarSign/>} colorClass="text-emerald-600" hint="Ο συνολικός τζίρος από όλες τις ολοκληρωμένες παραγγελίες." />
-                  <KPICard title="Εκτιμώμενο Κέρδος" value={formatCurrency(stats.potentialMargin)} subValue={`${stats.marginPercent.toFixed(1)}% Περιθώριο`} icon={<TrendingUp/>} colorClass="text-blue-600" hint="Το μεικτό κέρδος μετά την αφαίρεση του κόστους παραγωγής (Μέταλλο + Εργατικά + Υλικά)." />
-                  <KPICard title="Αξία Αποθέματος (Retail)" value={formatCurrency(stats.totalPotentialRevenue * 3)} icon={<Target/>} colorClass="text-purple-600" hint="Η συνολική αξία του αποθέματος σε τιμές λιανικής (εκτίμηση x3)." />
+                  <KPICard title="Πραγματοποιημένα έσοδα" value={formatCurrency(stats.totalRevenue)} subValue={`${stats.shippedPieces} τεμ. απεστάλησαν`} icon={<DollarSign/>} colorClass="text-emerald-600" hint="Καθαρή αξία που έχει αποσταλεί ή παραδοθεί, μετά την έκπτωση και χωρίς ΦΠΑ." />
+                  <KPICard title="Εκτιμώμενο μικτό κέρδος" value={formatCurrency(stats.financeProfit)} subValue={`${stats.financeMargin.toFixed(1)}% Περιθώριο`} icon={<TrendingUp/>} colorClass="text-blue-600" hint="Πραγματοποιημένα έσοδα μείον εκτιμώμενο κόστος παραγωγής." />
+                  <KPICard title="Εκτιμώμενο κόστος" value={formatCurrency(stats.financeCost)} subValue={`ΦΠΑ ${formatCurrency(stats.realizedVat)}`} icon={<Scale/>} colorClass="text-slate-600" hint="Κόστος για όσα έχουν αποσταλεί στην επιλεγμένη περίοδο. Το ΦΠΑ εμφανίζεται ξεχωριστά." />
               </div>
 
               <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 flex flex-col md:flex-row md:items-center justify-between gap-5">
@@ -464,6 +452,12 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                           {formatDecimal(stats.inHouseSilverUsed[silverOrderScope], 1)} g
                       </div>
                   </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <KPICard title="Εκκρεμής αξία παραγγελιών" value={formatCurrency(stats.pendingRevenue)} subValue={`${stats.activeOrdersCount} ανοιχτές παραγγελίες`} icon={<Package/>} colorClass="text-indigo-600" hint="Καθαρή αξία τεμαχίων που δεν έχουν αποσταλεί ακόμη. Δεν μετράει στα έσοδα." />
+                  <KPICard title="Συμφωνία με παραστατικά" value={formatCurrency(stats.legalGap)} subValue={`Εκδόθηκαν ${formatCurrency(stats.legalIssuedNet)}`} icon={<Wallet/>} colorClass={Math.abs(stats.legalGap) < 0.01 ? 'text-emerald-600' : 'text-amber-600'} hint="Διαφορά ανάμεσα στα πραγματοποιημένα έσοδα και την καθαρή αξία εκδομένων παραστατικών." />
+                  <KPICard title="Αξία αποθέματος (λιανική)" value={formatCurrency(stats.totalPotentialRevenue * 3)} icon={<Target/>} colorClass="text-purple-600" hint="Η συνολική αξία του αποθέματος σε τιμές λιανικής (εκτίμηση x3)." />
               </div>
 
               <div className="bg-indigo-50 border border-indigo-100 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-4">

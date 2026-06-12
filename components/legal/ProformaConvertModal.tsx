@@ -33,7 +33,7 @@ export default function ProformaConvertModal({
 }: ProformaConvertModalProps) {
   if (!isOpen || !proforma) return null;
 
-  const proformaNumber = getLegalDocumentDisplayNumber(proforma as LegalDocument);
+  const proformaNumber = getLegalDocumentDisplayNumber(proforma);
   const invoiceNumber = createdDocument ? getLegalDocumentDisplayNumber(createdDocument) : '—';
 
   return ReactDOM.createPortal(

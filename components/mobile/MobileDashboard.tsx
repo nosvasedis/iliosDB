@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Product, GlobalSettings, OrderStatus, Order } from '../../types';
+import { Product, GlobalSettings, OrderStatus } from '../../types';
 import { Activity, Factory, Coins, Plus, ScanBarcode, Zap, Package, ShoppingCart, Users, ScrollText, Settings, Clock, CheckCircle, Truck, XCircle, AlertCircle, PackageCheck, Eye, EyeOff } from 'lucide-react';
 import MobileScreenHeader from './MobileScreenHeader';
 import { formatCurrency, formatDecimal } from '../../utils/pricingEngine';
@@ -9,6 +9,7 @@ import { productionKeys, productionRepository } from '../../features/production'
 import { APP_ICON_ONLY } from '../../constants';
 import { useAuth } from '../AuthContext';
 import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
+import { useFinanceAnalytics } from '../../hooks/api/useFinanceAnalytics';
 
 interface Props {
     products: Product[];
@@ -51,6 +52,11 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
         queryKey: productionKeys.batches(),
         queryFn: productionRepository.getProductionBatches,
     });
+    const { analytics: financeStats } = useFinanceAnalytics({
+        products,
+        settings,
+        period: { mode: 'current_year' },
+    });
     const { profile } = useAuth();
     const [showPendingRevenue, setShowPendingRevenue] = useState(false);
 
@@ -59,31 +65,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
         const stockValue = products.reduce((acc, p) => acc + (p.active_price * p.stock_qty), 0);
 
         // Active Orders
-        const activeOrders = orders?.filter(o => o.status === OrderStatus.Pending || o.status === OrderStatus.InProduction || o.status === OrderStatus.Ready) || [];
-
-        // Calculate Net Revenue for Pending orders using LIVE registry prices
-        const pendingRevenue = activeOrders.reduce((totalAcc, o) => {
-            // Calculate raw value from CURRENT Product Prices
-            const rawOrderValue = o.items.reduce((itemAcc, item) => {
-                const product = products.find(p => p.sku === item.sku);
-                let currentPrice = 0;
-                if (product) {
-                    if (item.variant_suffix) {
-                        const v = product.variants?.find(v => v.suffix === item.variant_suffix);
-                        currentPrice = v?.selling_price || 0;
-                    } else {
-                        currentPrice = product.selling_price;
-                    }
-                }
-                if (currentPrice === 0) currentPrice = item.price_at_order; // Fallback
-                return itemAcc + (currentPrice * item.quantity);
-            }, 0);
-
-            // Apply discount and strip VAT (implicitly stripped because we sum base prices)
-            // Note: Registry prices ARE Wholesale, so we only apply discount factor.
-            const discountFactor = 1 - ((o.discount_percent || 0) / 100);
-            return totalAcc + (rawOrderValue * discountFactor);
-        }, 0);
+        const activeOrders = orders?.filter(o => o.status === OrderStatus.Pending || o.status === OrderStatus.InProduction || o.status === OrderStatus.Ready || o.status === OrderStatus.PartiallyDelivered) || [];
 
         // Production
         const activeBatches = batches?.filter(b => b.current_stage !== 'Ready') || [];
@@ -100,13 +82,15 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
 
         return {
             stockValue,
-            pendingRevenue,
-            activeOrdersCount: activeOrders.length,
+            pendingRevenue: financeStats?.totals.backlogNet ?? 0,
+            realizedRevenue: financeStats?.totals.realizedNet ?? 0,
+            shippedPieces: financeStats?.totals.shippedPieces ?? 0,
+            activeOrdersCount: financeStats?.totals.activeOrderCount ?? activeOrders.length,
             activeBatchesCount: activeBatches.length,
             delayedBatches,
             recentOrders: activeRecentOrders
         };
-    }, [products, orders, batches]);
+    }, [products, orders, batches, financeStats]);
 
     return (
         <div className="min-h-screen bg-slate-50 pb-28">
@@ -129,7 +113,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
                             <div className="p-1.5 bg-white/20 rounded-lg backdrop-blur-sm text-current">
                                 <Activity size={16} />
                             </div>
-                            <span className="text-[10px] font-black uppercase tracking-wider opacity-80 text-white">Εκκρεμής Τζίρος</span>
+                            <span className="text-[10px] font-black uppercase tracking-wider opacity-80 text-white">Εκκρεμής αξία</span>
                         </div>
                         <div className="relative z-10">
                             <div className="flex items-center gap-2">
@@ -142,10 +126,18 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
                                     {showPendingRevenue ? <EyeOff size={16} /> : <Eye size={16} />}
                                 </button>
                             </div>
-                            <div className="text-[10px] font-medium opacity-70 text-white">{stats.activeOrdersCount} Ενεργές Παραγγελίες</div>
+                            <div className="text-[10px] font-medium opacity-70 text-white">{stats.activeOrdersCount} ανοιχτές παραγγελίες</div>
                         </div>
                     </div>
                 </div>
+                <StatCard
+                    title="Έσοδα έτους"
+                    value={formatCurrency(stats.realizedRevenue)}
+                    sub={`${stats.shippedPieces} τεμ. απεστάλησαν`}
+                    icon={<Truck />}
+                    bg="bg-emerald-50 border border-emerald-100"
+                    text="text-emerald-900"
+                />
                 <StatCard
                     title="Παραγωγη"
                     value={stats.activeBatchesCount.toString()}
