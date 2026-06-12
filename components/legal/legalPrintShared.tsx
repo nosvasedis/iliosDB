@@ -33,10 +33,25 @@ export const LEGAL_PRINT_CSS = `
   @media print {
     .legal-print-page {
       width: 210mm !important;
-      min-height: 297mm !important;
+      min-height: auto !important;
       box-shadow: none !important;
     }
     .legal-print-break-inside {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .legal-print-lines-table {
+      break-inside: auto;
+      page-break-inside: auto;
+    }
+    .legal-print-lines-table table {
+      break-inside: auto;
+      page-break-inside: auto;
+    }
+    .legal-print-lines-table thead {
+      display: table-header-group;
+    }
+    .legal-print-lines-table tbody tr {
       break-inside: avoid;
       page-break-inside: avoid;
     }
@@ -80,7 +95,7 @@ export const getVatCategoryLabel = (category: number) =>
 /** Page shell — mirrors OrderInvoiceView layout (no watermark wrapper). */
 export function LegalPrintPage({ children }: { children: React.ReactNode }) {
   return (
-    <div className="legal-print-page relative mx-auto flex min-h-[297mm] w-[210mm] flex-col bg-white p-6 font-sans text-black shadow-lg print:p-6 print:shadow-none page-break-after-always">
+    <div className="legal-print-page relative mx-auto flex min-h-[297mm] w-[210mm] flex-col bg-white p-6 font-sans text-black shadow-lg print:min-h-0 print:p-6 print:shadow-none page-break-after-always">
       <style>{LEGAL_PRINT_CSS}</style>
       {children}
     </div>
@@ -273,7 +288,7 @@ export function LegalPrintAadePanel(props: {
 
 export function LegalPrintLinesTable({ lines, currency }: { lines: LegalDocumentLine[]; currency?: string }) {
   return (
-    <section className="legal-print-break-inside mb-3 min-h-0 flex-1">
+    <section className="legal-print-lines-table mb-3">
       <table className="w-full border-collapse text-[9px]">
         <thead>
           <tr className="border-b-2 border-slate-800 text-left text-[8px] font-black uppercase tracking-wider text-slate-800">
@@ -289,7 +304,7 @@ export function LegalPrintLinesTable({ lines, currency }: { lines: LegalDocument
         </thead>
         <tbody>
           {lines.map((line) => (
-            <tr key={line.id} className="legal-print-break-inside border-b border-slate-100 align-top">
+            <tr key={line.id} className="border-b border-slate-100 align-top">
               <td className="px-1 py-1 tabular-nums text-slate-400">{line.line_number}</td>
               <td className="px-1 py-1 font-mono text-[8px] font-bold text-slate-900">
                 {line.item_code || `${line.sku}${line.variant_suffix || ''}`}

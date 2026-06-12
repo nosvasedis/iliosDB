@@ -113,8 +113,9 @@ import {
 } from '../utils/legalOrderSources';
 import { formatOrderId } from '../utils/orderUtils';
 
-export type LegalTab = 'new' | 'proformas' | 'archive' | 'sync' | 'delivery' | 'settings';
+export type LegalTab = 'new' | 'archive' | 'sync' | 'delivery' | 'settings';
 type DocumentCreationSource = 'order' | 'manual';
+type CreationDocumentType = LegalDocumentKind | 'proforma';
 
 interface LegalDocumentsPageProps {
   products: Product[];
@@ -131,13 +132,28 @@ const secondaryTabItems: Array<{ id: LegalTab; label: string; icon: LucideIcon }
   { id: 'settings', label: 'Τεχνικές ρυθμίσεις', icon: Settings },
 ];
 
-const kindItems: LegalDocumentKind[] = ['invoice', 'delivery_note', 'credit'];
-
-const kindHelpText: Partial<Record<LegalDocumentKind, string>> = {
-  invoice: 'Τιμολόγιο 1.1 χωρίς δελτίο διακίνησης — το συνηθισμένο για B2B πωλήσεις.',
-  delivery_note: 'Αυτόνομο δελτίο αποστολής 9.3 με υποχρεωτικά στοιχεία διακίνησης.',
-  credit: 'Πιστωτικό τιμολόγιο 5.2.',
-};
+const creationTypeItems: Array<{ id: CreationDocumentType; label: string; help: string }> = [
+  {
+    id: 'invoice',
+    label: 'Τιμολόγιο',
+    help: 'Τιμολόγιο 1.1 χωρίς δελτίο διακίνησης — το συνηθισμένο για B2B πωλήσεις.',
+  },
+  {
+    id: 'delivery_note',
+    label: 'Δελτίο αποστολής',
+    help: 'Αυτόνομο δελτίο αποστολής 9.3 με υποχρεωτικά στοιχεία διακίνησης.',
+  },
+  {
+    id: 'credit',
+    label: 'Πιστωτικό',
+    help: 'Πιστωτικό τιμολόγιο 5.2.',
+  },
+  {
+    id: 'proforma',
+    label: 'Προτιμολόγιο',
+    help: 'Εμπορικό/ενημερωτικό έγγραφο μόνο. Δεν είναι νόμιμο παραστατικό, δεν παίρνει MARK και δεν αποστέλλεται στη myDATA.',
+  },
+];
 const vatRateOptions = AADE_VAT_CATEGORY_OPTIONS;
 const vatLineOptions = AADE_VAT_CATEGORY_LINE_OPTIONS;
 const incomeCategoryOptions = AADE_INCOME_CATEGORY_OPTIONS;
@@ -291,7 +307,7 @@ export default function LegalDocumentsPage({
   activeTab: activeTabProp,
   onActiveTabChange,
 }: LegalDocumentsPageProps) {
-  const [internalActiveTab, setInternalActiveTab] = useState<LegalTab>('proformas');
+  const [internalActiveTab, setInternalActiveTab] = useState<LegalTab>('new');
   const isControlledTab = activeTabProp !== undefined;
   const activeTab = isControlledTab ? activeTabProp : internalActiveTab;
   const setActiveTab = (tab: LegalTab) => {
@@ -301,7 +317,7 @@ export default function LegalDocumentsPage({
   const isInspectionPresentation = presentation === 'inspection';
   const [selectedOrderId, setSelectedOrderId] = useState('');
   const [selectedShipmentId, setSelectedShipmentId] = useState('');
-  const [documentKind, setDocumentKind] = useState<LegalDocumentKind>('invoice');
+  const [creationDocumentType, setCreationDocumentType] = useState<CreationDocumentType>('invoice');
   const [creationSource, setCreationSource] = useState<DocumentCreationSource>('order');
   const [draftBundle, setDraftBundle] = useState<{ document: LegalDocument; lines: LegalDocumentLine[] } | null>(null);
   const [proformaBundle, setProformaBundle] = useState<{ document: ProformaDocument; lines: ProformaDocumentLine[] } | null>(null);
@@ -613,7 +629,12 @@ export default function LegalDocumentsPage({
   };
 
   const handleGenerateDraft = () => {
+    if (creationDocumentType === 'proforma') {
+      handleGenerateProforma();
+      return;
+    }
     const settings = legalSettings || settingsDraft;
+    const documentKind = creationDocumentType;
     if (creationSource === 'manual') {
       const document = buildManualLegalDocument({
         settings,
@@ -621,6 +642,7 @@ export default function LegalDocumentsPage({
         userName,
         customer: selectedCustomer,
       });
+      setProformaBundle(null);
       setDraftBundle({ document, lines: document.lines || [] });
       return;
     }
@@ -648,6 +670,7 @@ export default function LegalDocumentsPage({
         kind: documentKind,
         userName,
       });
+      setProformaBundle(null);
       setDraftBundle({ document, lines: document.lines || [] });
       return;
     }
@@ -664,6 +687,7 @@ export default function LegalDocumentsPage({
         kind: documentKind,
         userName,
       });
+      setProformaBundle(null);
       setDraftBundle({ document, lines: document.lines || [] });
       return;
     }
@@ -676,11 +700,14 @@ export default function LegalDocumentsPage({
       kind: documentKind,
       userName,
     });
+    setProformaBundle(null);
     setDraftBundle({ document, lines: document.lines || [] });
   };
 
   const handleGenerateProforma = (source: DocumentCreationSource = creationSource) => {
     const settings = legalSettings || settingsDraft;
+    setCreationDocumentType('proforma');
+    setDraftBundle(null);
     if (source === 'manual') {
       const proforma = buildManualProforma({
         settings,
@@ -688,7 +715,6 @@ export default function LegalDocumentsPage({
         customer: selectedCustomer,
       });
       setProformaBundle({ document: proforma, lines: proforma.lines || [] });
-      setActiveTab('proformas');
       return;
     }
     if (!selectedOrder) {
@@ -707,7 +733,6 @@ export default function LegalDocumentsPage({
       userName,
     });
     setProformaBundle({ document: proforma, lines: proforma.lines || [] });
-    setActiveTab('proformas');
   };
 
   const handleSaveDraft = async () => {
@@ -827,7 +852,9 @@ export default function LegalDocumentsPage({
     try {
       const lines = await legalRepository.getProformaLines(document.id);
       setProformaBundle(recalculateProforma(normalizeProformaDocumentAddresses({ ...document, lines }), lines, settingsDraft));
-      setActiveTab('proformas');
+      setCreationDocumentType('proforma');
+      setDraftBundle(null);
+      setActiveTab('new');
     } catch (error: any) {
       showToast(error?.message || 'Δεν φορτώθηκε το προτιμολόγιο.', 'error');
     }
@@ -863,6 +890,7 @@ export default function LegalDocumentsPage({
         await markProformaConverted.mutateAsync({ proformaId: proforma.id, legalDocumentId: draft.document.id });
       }
       setDraftBundle(draft);
+      setCreationDocumentType('invoice');
       if (proformaBundle?.document.id === proforma.id) setProformaBundle(null);
       setConvertModal((current) => ({ ...current, step: 'success', createdDocument: draft.document, error: null }));
     } catch (error: any) {
@@ -1038,7 +1066,8 @@ export default function LegalDocumentsPage({
     try {
       const lines = await legalRepository.getDocumentLines(document.id);
       setDraftBundle(recalculateLegalDocument(normalizeLegalDocumentAddresses({ ...document, lines }), lines, settingsDraft));
-      setDocumentKind(document.document_kind);
+      setCreationDocumentType(document.document_kind);
+      setProformaBundle(null);
       setSelectedOrderId(document.order_id || '');
       setSelectedShipmentId(document.shipment_id || '');
       setActiveTab('new');
@@ -1442,10 +1471,14 @@ export default function LegalDocumentsPage({
     );
   };
 
-  const renderNewTab = () => (
+  const renderNewTab = () => {
+    const selectedCreationType = creationTypeItems.find((item) => item.id === creationDocumentType) || creationTypeItems[0];
+    const isProformaWorkspace = Boolean(proformaBundle) || (creationDocumentType === 'proforma' && !draftBundle);
+
+    return (
     <div className="space-y-4">
       <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
-        <span className="font-black">Δημιουργία</span> — νέο πρόχειρο παραστατικό, έλεγχος και υποβολή στη myDATA.
+        <span className="font-black">Δημιουργία</span> — νέο πρόχειρο τιμολόγιο, προτιμολόγιο, έλεγχος και υποβολή στη myDATA.
         {' '}Μετά την έκδοση, το παραστατικό μεταφέρεται αυτόματα στο <span className="font-black">Αρχείο</span>.
       </div>
       <div className="grid gap-5 lg:grid-cols-[minmax(250px,290px)_minmax(0,1fr)]">
@@ -1460,14 +1493,14 @@ export default function LegalDocumentsPage({
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => { setCreationSource('order'); setDraftBundle(null); }}
+                onClick={() => { setCreationSource('order'); setDraftBundle(null); setProformaBundle(null); }}
                 className={`rounded-lg border px-3 py-2 text-left text-sm font-black transition ${creationSource === 'order' ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
               >
                 Από παραγγελία
               </button>
               <button
                 type="button"
-                onClick={() => { setCreationSource('manual'); setSelectedShipmentId(''); setDraftBundle(null); }}
+                onClick={() => { setCreationSource('manual'); setSelectedShipmentId(''); setDraftBundle(null); setProformaBundle(null); }}
                 className={`rounded-lg border px-3 py-2 text-left text-sm font-black transition ${creationSource === 'manual' ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
               >
                 Χειροκίνητα
@@ -1479,7 +1512,7 @@ export default function LegalDocumentsPage({
               <SelectInput
                 label="Παραγγελία"
                 value={selectedOrderId}
-                onChange={(value) => { setSelectedOrderId(value); setSelectedShipmentId(''); setDraftBundle(null); }}
+                onChange={(value) => { setSelectedOrderId(value); setSelectedShipmentId(''); setDraftBundle(null); setProformaBundle(null); }}
                 help="Εμφανίζει το πραγματικό ποσό τιμολόγησης από τα τρέχοντα είδη. Παραγγελίες που άδειασαν από μεταφορά υπόλοιπου δείχνουν πού μεταφέρθηκαν τα είδη."
               >
                 <option value="">Επιλογή παραγγελίας</option>
@@ -1508,6 +1541,7 @@ export default function LegalDocumentsPage({
                         setSelectedOrderId(selectedPickerRow.redirectOrderId!);
                         setSelectedShipmentId('');
                         setDraftBundle(null);
+                        setProformaBundle(null);
                       }}
                       className="mt-2 inline-flex items-center gap-1 rounded-lg bg-white px-2.5 py-1 text-[11px] font-black text-amber-900 ring-1 ring-amber-200 hover:bg-amber-100"
                     >
@@ -1519,7 +1553,7 @@ export default function LegalDocumentsPage({
               <SelectInput
                 label="Πηγή γραμμών"
                 value={selectedShipmentId}
-                onChange={(value) => { setSelectedShipmentId(value); setDraftBundle(null); }}
+                onChange={(value) => { setSelectedShipmentId(value); setDraftBundle(null); setProformaBundle(null); }}
                 help="Επιλέξτε ολόκληρη την παραγγελία, μόνο τα υπόλοιπα είδη ή μια συγκεκριμένη μερική αποστολή (ΔΑ)."
               >
                 {lineSourceOptions.some((option) => option.group === 'base') ? (
@@ -1547,42 +1581,47 @@ export default function LegalDocumentsPage({
             </>
           ) : (
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-600">
-              Ξεκινάτε κενό παραστατικό. Συμπληρώστε πελάτη, γραμμές και στοιχεία χειροκίνητα στον επεξεργαστή.
+              {creationDocumentType === 'proforma'
+                ? 'Ξεκινάτε κενό προτιμολόγιο. Συμπληρώστε πελάτη, γραμμές και σημειώσεις χειροκίνητα στον επεξεργαστή.'
+                : 'Ξεκινάτε κενό παραστατικό. Συμπληρώστε πελάτη, γραμμές και στοιχεία χειροκίνητα στον επεξεργαστή.'}
             </div>
           )}
           <div>
             <span className="block text-[11px] font-black uppercase tracking-wide text-slate-500 mb-2">Τύπος</span>
             <div className="grid gap-2">
-              {kindItems.map((kind) => (
+              {creationTypeItems.map((item) => (
                 <button
-                  key={kind}
-                  onClick={() => { setDocumentKind(kind); setDraftBundle(null); }}
-                  className={`rounded-lg border px-3 py-2 text-left text-sm font-black transition ${documentKind === kind ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                  key={item.id}
+                  type="button"
+                  onClick={() => { setCreationDocumentType(item.id); setDraftBundle(null); setProformaBundle(null); }}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm font-black transition ${creationDocumentType === item.id ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                 >
-                  {LEGAL_DOCUMENT_KIND_LABELS[kind]}
+                  {item.label}
                 </button>
               ))}
             </div>
-            {kindHelpText[documentKind] ? (
-              <p className="mt-2 text-xs font-medium leading-relaxed text-slate-500">{kindHelpText[documentKind]}</p>
+            {selectedCreationType.help ? (
+              <p className="mt-2 text-xs font-medium leading-relaxed text-slate-500">{selectedCreationType.help}</p>
             ) : null}
           </div>
           <ActionButton onClick={handleGenerateDraft} disabled={(creationSource === 'order' && (!selectedOrder || !canUseSelectedOrder)) || loadingOrders}>
             {loadingOrders ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Δημιουργία
           </ActionButton>
-          <ActionButton variant="secondary" onClick={() => handleGenerateProforma()} disabled={(creationSource === 'order' && (!selectedOrder || !canUseSelectedOrder)) || loadingOrders}>
-            <FileText size={16} /> Προτιμολόγιο
-          </ActionButton>
         </div>
       </section>
 
       <div className="min-w-0 space-y-4">
-        {renderDraftEditor()}
-        {renderValidation()}
+        {isProformaWorkspace ? renderProformaEditor() : (
+          <>
+            {renderDraftEditor()}
+            {renderValidation()}
+          </>
+        )}
       </div>
     </div>
     </div>
-  );
+    );
+  };
 
   const renderProformaEditor = () => {
     if (!proformaBundle) {
@@ -1590,7 +1629,7 @@ export default function LegalDocumentsPage({
         <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
           <FileText size={36} className="mx-auto mb-3 text-slate-300" />
           <div className="font-black text-slate-700">Δεν έχει ανοιχτεί προτιμολόγιο</div>
-          <div className="mt-1 text-sm">Δημιουργήστε από παραγγελία, ξεκινήστε κενό χειροκίνητο προτιμολόγιο ή ανοίξτε παλιότερο από τη λίστα.</div>
+          <div className="mt-1 text-sm">Επιλέξτε «Προτιμολόγιο» ως τύπο και πατήστε Δημιουργία, ή ανοίξτε παλιότερο από το Αρχείο.</div>
         </div>
       );
     }
@@ -1739,175 +1778,131 @@ export default function LegalDocumentsPage({
     );
   };
 
-  const renderProformasTab = () => (
-    <div className="space-y-5">
-      <section className="rounded-lg border border-slate-200 bg-white p-5">
-        <div className="mb-4 flex items-center gap-2">
-          <FileText size={18} className="text-sky-600" />
-          <h2 className="font-black text-slate-900">Νέο προτιμολόγιο</h2>
-        </div>
-        <div className="grid gap-4 md:grid-cols-[1fr_auto_auto_auto] md:items-end">
-          <SelectInput
-            label="Παραγγελία"
-            value={selectedOrderId}
-            onChange={(value) => { setSelectedOrderId(value); setSelectedShipmentId(''); }}
-            help="Οι παραγγελίες που άδειασαν από μεταφορά υπόλοιπου εμφανίζονται ξεχωριστά με σύνδεση στη νεότερη παραγγελία."
-          >
-            <option value="">Επιλογή παραγγελίας</option>
-            {legalOrderPickerRows.some((row) => row.selectable) && (
-              <optgroup label="Διαθέσιμες για προτιμολόγιο">
-                {legalOrderPickerRows.filter((row) => row.selectable).map((row) => (
-                  <option key={row.order.id} value={row.order.id}>{row.label}</option>
-                ))}
-              </optgroup>
-            )}
-            {legalOrderPickerRows.some((row) => !row.selectable) && (
-              <optgroup label="Μεταφέρθηκαν σε νεότερη παραγγελία">
-                {legalOrderPickerRows.filter((row) => !row.selectable).map((row) => (
-                  <option key={row.order.id} value={row.order.id} disabled>{row.label}</option>
-                ))}
-              </optgroup>
-            )}
-          </SelectInput>
-          <ActionButton onClick={() => handleGenerateProforma('order')} disabled={!selectedOrder || !canUseSelectedOrder || loadingOrders}>
-            {loadingOrders ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Από παραγγελία
-          </ActionButton>
-          <ActionButton variant="secondary" onClick={() => handleGenerateProforma('manual')}>
-            <Plus size={16} /> Κενό προτιμολόγιο
-          </ActionButton>
-          <ActionButton variant="quiet" onClick={() => setProformaBundle(null)} disabled={!proformaBundle}>
-            Καθαρισμός
-          </ActionButton>
-        </div>
-      </section>
-
-      {renderProformaEditor()}
-
-      <section className="rounded-lg border border-slate-200 bg-white">
-        <div className="flex flex-col gap-4 border-b border-slate-100 p-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="font-black text-slate-900">Αρχείο προτιμολογίων</h2>
-              <div className="text-sm font-medium text-slate-500">{filteredProformas.length} από {proformas.length} εγγραφές</div>
-            </div>
-            <label className="relative w-full md:max-w-sm">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                value={proformaSearch}
-                onChange={(event) => setProformaSearch(event.target.value)}
-                placeholder="Αναζήτηση προτιμολογίων ή τιμολογίου"
-                className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm font-medium outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
-              />
-            </label>
+  const renderProformaArchiveSection = () => (
+    <section className="rounded-lg border border-slate-200 bg-white">
+      <div className="flex flex-col gap-4 border-b border-slate-100 p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="font-black text-slate-900">Αρχείο προτιμολογίων</h2>
+            <div className="text-sm font-medium text-slate-500">{filteredProformas.length} από {proformas.length} εγγραφές</div>
           </div>
-          <div className="grid gap-2 sm:grid-cols-4">
-            {([
-              ['all', 'Όλα', proformaArchiveStats.all, 'border-slate-200 bg-slate-50 text-slate-700'],
-              ['draft', 'Πρόχειρα', proformaArchiveStats.draft, 'border-sky-200 bg-sky-50 text-sky-700'],
-              ['converted', 'Μετατράπηκαν', proformaArchiveStats.converted, 'border-emerald-200 bg-emerald-50 text-emerald-700'],
-              ['void', 'Ακυρωμένα', proformaArchiveStats.void, 'border-slate-200 bg-slate-100 text-slate-500'],
-            ] as const).map(([id, label, count, className]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setProformaStatusFilter(id)}
-                className={`rounded-xl border px-3 py-2 text-left transition ${proformaStatusFilter === id ? 'ring-2 ring-sky-300' : 'hover:brightness-95'} ${className}`}
-              >
-                <div className="text-[10px] font-black uppercase tracking-wide">{label}</div>
-                <div className="text-xl font-black">{count}</div>
-              </button>
-            ))}
-          </div>
+          <label className="relative w-full md:max-w-sm">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              value={proformaSearch}
+              onChange={(event) => setProformaSearch(event.target.value)}
+              placeholder="Αναζήτηση προτιμολογίων ή τιμολογίου"
+              className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm font-medium outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+            />
+          </label>
         </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500">
+        <div className="grid gap-2 sm:grid-cols-4">
+          {([
+            ['all', 'Όλα', proformaArchiveStats.all, 'border-slate-200 bg-slate-50 text-slate-700'],
+            ['draft', 'Πρόχειρα', proformaArchiveStats.draft, 'border-sky-200 bg-sky-50 text-sky-700'],
+            ['converted', 'Μετατράπηκαν', proformaArchiveStats.converted, 'border-emerald-200 bg-emerald-50 text-emerald-700'],
+            ['void', 'Ακυρωμένα', proformaArchiveStats.void, 'border-slate-200 bg-slate-100 text-slate-500'],
+          ] as const).map(([id, label, count, className]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setProformaStatusFilter(id)}
+              className={`rounded-xl border px-3 py-2 text-left transition ${proformaStatusFilter === id ? 'ring-2 ring-sky-300' : 'hover:brightness-95'} ${className}`}
+            >
+              <div className="text-[10px] font-black uppercase tracking-wide">{label}</div>
+              <div className="text-xl font-black">{count}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead className="bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="px-4 py-3">Προτιμολόγιο</th>
+              <th className="px-4 py-3">Πελάτης</th>
+              <th className="px-4 py-3">Κατάσταση</th>
+              <th className="px-4 py-3">Σύνδεση</th>
+              <th className="px-4 py-3 text-right">Αξία</th>
+              <th className="px-4 py-3 text-right">Ενέργειες</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loadingProformas ? (
+              <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-500"><Loader2 size={24} className="mx-auto animate-spin" /></td></tr>
+            ) : filteredProformas.length === 0 ? (
               <tr>
-                <th className="px-4 py-3">Προτιμολόγιο</th>
-                <th className="px-4 py-3">Πελάτης</th>
-                <th className="px-4 py-3">Κατάσταση</th>
-                <th className="px-4 py-3">Σύνδεση</th>
-                <th className="px-4 py-3 text-right">Αξία</th>
-                <th className="px-4 py-3 text-right">Ενέργειες</th>
+                <td colSpan={6} className="px-4 py-10 text-center text-slate-500">
+                  {proformas.length === 0
+                    ? 'Δεν υπάρχουν προτιμολόγια. Δημιουργήστε ένα από την καρτέλα Δημιουργία.'
+                    : 'Δεν βρέθηκαν προτιμολόγια με τα τρέχοντα φίλτρα.'}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {loadingProformas ? (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-500"><Loader2 size={24} className="mx-auto animate-spin" /></td></tr>
-              ) : filteredProformas.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-slate-500">
-                    {proformas.length === 0
-                      ? 'Δεν υπάρχουν προτιμολόγια. Δημιουργήστε ένα από παραγγελία ή κενό πρότυπο.'
-                      : 'Δεν βρέθηκαν προτιμολόγια με τα τρέχοντα φίλτρα.'}
+            ) : filteredProformas.map((document) => {
+              const linkedInvoice = document.converted_legal_document_id
+                ? legalDocumentById.get(document.converted_legal_document_id)
+                : null;
+              return (
+                <tr key={document.id} className="border-b border-slate-100 bg-white align-top">
+                  <td className="px-4 py-3">
+                    <div className="font-black text-slate-900">{getLegalDocumentDisplayNumber(document)}</div>
+                    <div className="text-xs font-bold text-sky-700">Δεν αποστέλλεται στη myDATA</div>
+                    {document.issue_date && <div className="mt-1 text-xs text-slate-500">{document.issue_date}</div>}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="font-bold text-slate-800">{document.counterpart.name || '-'}</div>
+                    <div className="text-xs font-mono text-slate-500">ΑΦΜ {document.counterpart.vat_number || '-'}</div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex rounded-lg border px-2 py-1 text-xs font-black ${proformaStatusClass[document.status]}`}>{proformaStatusLabel[document.status]}</span>
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    {linkedInvoice ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleOpenLegalDocument(linkedInvoice)}
+                        className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-left text-xs font-black text-emerald-800 hover:bg-emerald-100"
+                      >
+                        {getLegalDocumentDisplayNumber(linkedInvoice)}
+                        <div className="font-medium text-emerald-600">{statusLabel[linkedInvoice.status]}</div>
+                      </button>
+                    ) : document.status === 'draft' ? (
+                      <span className="text-xs font-medium text-slate-400">Έτοιμο για μετατροπή</span>
+                    ) : (
+                      <span className="text-xs font-medium text-slate-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right font-black">{money(document.totals.gross)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <ActionButton variant="secondary" onClick={() => void handleEditProforma(document)} disabled={document.status === 'void'}>
+                        <Edit3 size={16} /> Άνοιγμα
+                      </ActionButton>
+                      <ActionButton variant="secondary" onClick={() => void handlePrintProforma(document)} disabled={!canPrintProforma(document)}>
+                        <Printer size={16} /> Εκτύπωση
+                      </ActionButton>
+                      <ActionButton variant="secondary" onClick={() => void openConvertModal(document)} disabled={document.status !== 'draft' || saveDraft.isPending}>
+                        <Copy size={16} /> Μετατροπή
+                      </ActionButton>
+                      <ActionButton variant="danger" onClick={() => void handleVoidProforma(document)} disabled={document.status !== 'draft'}>
+                        <Ban size={16} /> Ακύρωση
+                      </ActionButton>
+                      <ActionButton
+                        variant="danger"
+                        onClick={() => void handleDeleteProforma(document)}
+                        disabled={deleteProforma.isPending}
+                      >
+                        <Trash2 size={16} /> Διαγραφή
+                      </ActionButton>
+                    </div>
                   </td>
                 </tr>
-              ) : filteredProformas.map((document) => {
-                const linkedInvoice = document.converted_legal_document_id
-                  ? legalDocumentById.get(document.converted_legal_document_id)
-                  : null;
-                return (
-                  <tr key={document.id} className="border-b border-slate-100 bg-white align-top">
-                    <td className="px-4 py-3">
-                      <div className="font-black text-slate-900">{getLegalDocumentDisplayNumber(document)}</div>
-                      <div className="text-xs font-bold text-sky-700">Δεν αποστέλλεται στη myDATA</div>
-                      {document.issue_date && <div className="mt-1 text-xs text-slate-500">{document.issue_date}</div>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="font-bold text-slate-800">{document.counterpart.name || '-'}</div>
-                      <div className="text-xs font-mono text-slate-500">ΑΦΜ {document.counterpart.vat_number || '-'}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex rounded-lg border px-2 py-1 text-xs font-black ${proformaStatusClass[document.status]}`}>{proformaStatusLabel[document.status]}</span>
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      {linkedInvoice ? (
-                        <button
-                          type="button"
-                          onClick={() => void handleOpenLegalDocument(linkedInvoice)}
-                          className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-left text-xs font-black text-emerald-800 hover:bg-emerald-100"
-                        >
-                          {getLegalDocumentDisplayNumber(linkedInvoice)}
-                          <div className="font-medium text-emerald-600">{statusLabel[linkedInvoice.status]}</div>
-                        </button>
-                      ) : document.status === 'draft' ? (
-                        <span className="text-xs font-medium text-slate-400">Έτοιμο για μετατροπή</span>
-                      ) : (
-                        <span className="text-xs font-medium text-slate-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right font-black">{money(document.totals.gross)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <ActionButton variant="secondary" onClick={() => void handleEditProforma(document)} disabled={document.status === 'void'}>
-                          <Edit3 size={16} /> Άνοιγμα
-                        </ActionButton>
-                        <ActionButton variant="secondary" onClick={() => void handlePrintProforma(document)} disabled={!canPrintProforma(document)}>
-                          <Printer size={16} /> Εκτύπωση
-                        </ActionButton>
-                        <ActionButton variant="secondary" onClick={() => void openConvertModal(document)} disabled={document.status !== 'draft' || saveDraft.isPending}>
-                          <Copy size={16} /> Μετατροπή
-                        </ActionButton>
-                        <ActionButton variant="danger" onClick={() => void handleVoidProforma(document)} disabled={document.status !== 'draft'}>
-                          <Ban size={16} /> Ακύρωση
-                        </ActionButton>
-                        <ActionButton
-                          variant="danger"
-                          onClick={() => void handleDeleteProforma(document)}
-                          disabled={deleteProforma.isPending}
-                        >
-                          <Trash2 size={16} /> Διαγραφή
-                        </ActionButton>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </div>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 
   const renderDocumentRow = (document: LegalDocument) => (
@@ -1963,7 +1958,7 @@ export default function LegalDocumentsPage({
   const renderArchiveTab = () => (
     <div className="space-y-4">
       <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
-        <span className="font-black">Αρχείο</span> — όλα τα πρόχειρα, εκδοθέντα και ακυρωμένα παραστατικά.
+        <span className="font-black">Αρχείο</span> — όλα τα πρόχειρα, εκδοθέντα και ακυρωμένα παραστατικά και προτιμολόγια.
         {' '}Εδώ βλέπετε MARK, QR και ενέργειες (εκτύπωση, ακύρωση myDATA, διαγραφή από Ilios).
       </div>
     <section className="rounded-lg border border-slate-200 bg-white">
@@ -1973,7 +1968,7 @@ export default function LegalDocumentsPage({
           <div className="text-sm font-medium text-slate-500">{filteredArchive.length} εγγραφές</div>
         </div>
         <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center md:w-auto">
-          <ActionButton onClick={() => { setDraftBundle(null); setActiveTab('new'); }}>
+          <ActionButton onClick={() => { setDraftBundle(null); setProformaBundle(null); setActiveTab('new'); }}>
             <Plus size={16} /> Νέο παραστατικό
           </ActionButton>
         <label className="relative w-full sm:min-w-[14rem] md:max-w-sm">
@@ -2011,6 +2006,7 @@ export default function LegalDocumentsPage({
         </table>
       </div>
     </section>
+    {renderProformaArchiveSection()}
     </div>
   );
 
@@ -2424,14 +2420,6 @@ export default function LegalDocumentsPage({
           tail={statsStrip}
           below={(
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveTab('proformas')}
-                className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-black transition ${activeTab === 'proformas' ? 'bg-[#060b00] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
-              >
-                <FileText size={16} /> Προτιμολόγια
-              </button>
-
               <div className="inline-flex overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
                 <button
                   type="button"
@@ -2469,7 +2457,6 @@ export default function LegalDocumentsPage({
       )}
 
       {activeTab === 'new' && renderNewTab()}
-      {activeTab === 'proformas' && renderProformasTab()}
       {activeTab === 'archive' && renderArchiveTab()}
       {activeTab === 'sync' && renderSyncTab()}
       {activeTab === 'delivery' && renderDeliveryTab()}

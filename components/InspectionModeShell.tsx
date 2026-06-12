@@ -5,7 +5,6 @@ import {
   ChevronRight,
   Cloud,
   FileCheck2,
-  FileText,
   Loader2,
   RefreshCw,
   Settings,
@@ -31,7 +30,6 @@ const LegalDocumentsPage = lazyWithChunkRecovery(
 );
 
 const inspectionNavItems: Array<{ id: LegalTab; label: string; icon: LucideIcon }> = [
-  { id: 'proformas', label: 'Προτιμολόγια', icon: FileText },
   { id: 'new', label: 'Δημιουργία παραστατικού', icon: FileCheck2 },
   { id: 'archive', label: 'Αρχείο', icon: Archive },
   { id: 'sync', label: 'Συγχρονισμός ΑΑΔΕ', icon: RefreshCw },
@@ -40,7 +38,6 @@ const inspectionNavItems: Array<{ id: LegalTab; label: string; icon: LucideIcon 
 ];
 
 const tabTitles: Record<LegalTab, string> = {
-  proformas: 'Προτιμολόγια',
   new: 'Δημιουργία παραστατικού',
   archive: 'Αρχείο παραστατικών',
   sync: 'Συγχρονισμός με myDATA',
@@ -90,7 +87,7 @@ const ContentLoader = () => (
 );
 
 const InspectionModeShell: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<LegalTab>('proformas');
+  const [activeTab, setActiveTab] = useState<LegalTab>('new');
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { data: products, isLoading: loadingProducts, isError: productsError } = useProducts();
   const { data: legalSettings } = useLegalSettings();
