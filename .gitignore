@@ -61,5 +61,8 @@ jspm_packages/
 # Reasonix agent files
 .reasonix/
 
+# CodeGraph local index (database, cache, logs)
+.codegraph/
+
 # Local verification scratch files
 tmp/
