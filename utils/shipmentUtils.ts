@@ -112,3 +112,58 @@ export function computeTotalShippedValue(
 ): number {
   return computeShipmentValue(shipmentItems, vatRate, discountPercent).grandTotal;
 }
+
+export interface ItemShipmentAllocation {
+  shipmentId: string;
+  shipmentNumber: number;
+  quantity: number;
+  shippedAt: string;
+}
+
+/** Per-shipment breakdown for a single order line (by item identity key). */
+export function getItemShipmentAllocations(
+  key: string,
+  shipments: OrderShipment[],
+  shipmentItems: OrderShipmentItem[]
+): ItemShipmentAllocation[] {
+  const shipmentById = new Map(shipments.map((shipment) => [shipment.id, shipment]));
+  const allocations: ItemShipmentAllocation[] = [];
+
+  for (const item of shipmentItems) {
+    const itemIdentityKey = itemKey(
+      item.sku,
+      item.variant_suffix,
+      item.size_info,
+      item.cord_color,
+      item.enamel_color,
+      item.line_id
+    );
+    if (itemIdentityKey !== key) continue;
+
+    const shipment = shipmentById.get(item.shipment_id);
+    if (!shipment) continue;
+
+    allocations.push({
+      shipmentId: shipment.id,
+      shipmentNumber: shipment.shipment_number,
+      quantity: item.quantity,
+      shippedAt: shipment.shipped_at,
+    });
+  }
+
+  return allocations.sort((a, b) => a.shipmentNumber - b.shipmentNumber);
+}
+
+export type ItemFulfillmentKind = 'remaining' | 'in_production' | 'partially_delivered' | 'fully_delivered';
+
+/** Classify how an order line is covered when nothing remains to send to production. */
+export function getItemFulfillmentKind(input: {
+  quantity: number;
+  shippedQty: number;
+  remainingQty: number;
+}): ItemFulfillmentKind {
+  if (input.remainingQty > 0) return 'remaining';
+  if (input.shippedQty >= input.quantity) return 'fully_delivered';
+  if (input.shippedQty > 0) return 'partially_delivered';
+  return 'in_production';
+}

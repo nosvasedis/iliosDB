@@ -9,7 +9,7 @@ import SkuColorizedText from './SkuColorizedText';
 import { useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { groupBatchesByShipment } from '../utils/orderReadiness';
-import { getShippedQuantities, itemKey } from '../utils/shipmentUtils';
+import { getShippedQuantities, getItemShipmentAllocations, getItemFulfillmentKind, itemKey } from '../utils/shipmentUtils';
 import { getProductOptionColorLabel } from '../utils/xrOptions';
 import BatchHistoryModal from './BatchHistoryModal';
 import { PRODUCTION_STAGES } from '../utils/productionStages';
@@ -215,12 +215,15 @@ export default function ProductionSendModal({ order: orderProp, products, materi
         () => getShippedQuantities(shipmentSnapshot?.items || []),
         [shipmentSnapshot]
     );
+    const orderShipments = shipmentSnapshot?.shipments || [];
+    const orderShipmentItems = shipmentSnapshot?.items || [];
 
     const rows = useMemo(() => {
         const mapped = order.items.map((item, index) => {
             const product = products.find(p => p.sku === item.sku);
             const key = itemKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color, item.line_id);
             const shippedQty = shippedQuantities.get(key) || 0;
+            const shipmentAllocations = getItemShipmentAllocations(key, orderShipments, orderShipmentItems);
             const relevantBatches = existingBatches.filter(b =>
                 buildOrderItemIdentityKey(b) === buildOrderItemIdentityKey(item)
             ).sort((a, b) => {
@@ -232,6 +235,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
             const sentTotal = readyQty + inProgressQty;
             const openOrderQty = Math.max(0, item.quantity - shippedQty);
             const remainingQty = Math.max(0, openOrderQty - sentTotal);
+            const fulfillmentKind = getItemFulfillmentKind({ quantity: item.quantity, shippedQty, remainingQty });
 
             return {
                 ...item,
@@ -241,7 +245,9 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                 gender: isSpecialCreationSku(item.sku) ? getSpecialCreationProductStub().gender : (product?.gender || 'Unknown'),
                 collectionId: isSpecialCreationSku(item.sku) ? undefined : product?.collections?.[0],
                 price: item.price_at_order,
-                originalIndex: index
+                originalIndex: index,
+                shipmentAllocations,
+                fulfillmentKind,
             } as RowItem;
         });
         return mapped.sort((a, b) => {
@@ -249,7 +255,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
             const skuB = b.sku + (b.variant_suffix || '');
             return skuA.localeCompare(skuB, undefined, { numeric: true });
         });
-    }, [order.items, existingBatches, products, shippedQuantities]);
+    }, [order.items, existingBatches, products, shippedQuantities, orderShipments, orderShipmentItems]);
 
     const totalRemaining = useMemo(() => rows.reduce((s, r) => s + r.remainingQty, 0), [rows]);
     const shipmentHistory = useMemo(() => groupBatchesByShipment(existingBatches), [existingBatches]);

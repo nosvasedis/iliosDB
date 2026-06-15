@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Product, ProductionBatch, ProductionStage, Gender, OrderItem, ProductionTimingStatus } from '../../types';
 import {
-    ImageIcon, Hash, CheckCircle, Minus, Plus,
+    ImageIcon, Hash, Minus, Plus,
     RefreshCw, StickyNote, Merge, ChevronDown
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
@@ -12,6 +12,8 @@ import { groupProductionBatchesByStage } from '../../features/production/workflo
 import { buildOrderItemIdentityKey } from '../../features/orders/printHelpers';
 import { BatchRow } from './BatchRow';
 import { STAGES } from './stageConstants';
+import { ItemFulfillmentBadge } from './ItemFulfillmentBadge';
+import { ItemFulfillmentKind, ItemShipmentAllocation } from '../../utils/shipmentUtils';
 
 export interface RowItem extends OrderItem {
     shippedQty: number;
@@ -25,6 +27,8 @@ export interface RowItem extends OrderItem {
     collectionId?: number;
     price: number;
     originalIndex: number;
+    shipmentAllocations: ItemShipmentAllocation[];
+    fulfillmentKind: ItemFulfillmentKind;
 }
 
 interface BatchItemCardProps {
@@ -80,6 +84,15 @@ export const BatchItemCard = React.memo(function BatchItemCard({
     const originalIndex = row.originalIndex;
     const isFullySent = row.remainingQty === 0;
     const hasBatches = row.batchDetails.length > 0;
+    const inProductionQty = row.inProgressQty + row.readyQty;
+
+    const cardBorderClass = (() => {
+        if (!isFullySent) return 'border-slate-200 hover:border-slate-300';
+        if (row.fulfillmentKind === 'fully_delivered') return 'border-emerald-200 bg-emerald-50/20';
+        if (row.fulfillmentKind === 'partially_delivered') return 'border-amber-200 bg-amber-50/20';
+        if (row.fulfillmentKind === 'in_production') return 'border-blue-100';
+        return isFullySent && !hasBatches ? 'border-slate-100 opacity-60' : 'border-emerald-100';
+    })();
 
     const [batchSectionOpen, setBatchSectionOpen] = useState(true);
 
@@ -93,7 +106,7 @@ export const BatchItemCard = React.memo(function BatchItemCard({
     [batchesByStage]);
 
     return (
-        <div className={`bg-white rounded-2xl border transition-all shadow-sm ${isFullySent && !hasBatches ? 'border-slate-100 opacity-60' : isFullySent ? 'border-emerald-100' : 'border-slate-200 hover:border-slate-300'}`}>
+        <div className={`bg-white rounded-2xl border transition-all shadow-sm ${cardBorderClass}`}>
             {/* TOP: Item Info & Send Controls */}
             <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-3 p-3">
                 <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -168,11 +181,15 @@ export const BatchItemCard = React.memo(function BatchItemCard({
                     </div>
                 </div>
 
-                {/* Send Controls */}
+                {/* Send Controls / Fulfillment status */}
                 {isFullySent ? (
-                    <div className="px-2.5 py-1 bg-slate-50 rounded-lg text-[10px] font-bold text-slate-500 border border-slate-100 whitespace-nowrap flex items-center gap-1 self-start">
-                        <CheckCircle size={11} /> Δεν απομένουν
-                    </div>
+                    <ItemFulfillmentBadge
+                        kind={row.fulfillmentKind}
+                        shippedQty={row.shippedQty}
+                        quantity={row.quantity}
+                        shipmentAllocations={row.shipmentAllocations}
+                        inProductionQty={inProductionQty}
+                    />
                 ) : (
                     <div className="flex flex-col items-start xl:items-end gap-0.5 shrink-0">
                         <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Προς Αποστ. (Max: {row.remainingQty})</div>
