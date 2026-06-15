@@ -2721,10 +2721,21 @@ export const api = {
     updateBatchStage: async (id: string, stage: ProductionStage, userName?: string, pendingDispatch?: boolean): Promise<void> => {
         const now = new Date().toISOString();
         const currentBatch = await getBatchSnapshot(id);
-        if (!currentBatch) return;
-        if (!canMoveBatchToStageHelper(currentBatch, stage)) return;
+        if (!currentBatch) {
+            throw new Error('Η παρτίδα δεν βρέθηκε.');
+        }
+        if (!canMoveBatchToStageHelper(currentBatch, stage)) {
+            throw new Error('Η παρτίδα δεν μπορεί να μετακινηθεί στο επιλεγμένο στάδιο.');
+        }
 
         const updatePayload: Record<string, any> = { current_stage: stage, updated_at: now };
+        if (
+            stage === ProductionStage.Assembly
+            && !isSpecialCreationSku(currentBatch.sku)
+            && requiresAssemblyStage(currentBatch.sku)
+        ) {
+            updatePayload.requires_assembly = true;
+        }
         // Auto-flag pending_dispatch when entering Polishing (Τεχνίτης)
         if (stage === ProductionStage.Polishing) {
             updatePayload.pending_dispatch = pendingDispatch ?? true;
@@ -3270,6 +3281,7 @@ export const api = {
                             priority: 'Normal',
                             type: 'Νέα',
                             requires_setting: hasZircons,
+                            requires_assembly: requiresAssemblyStage(item.sku),
                             created_at: batchCreatedAt,
                             updated_at: nowUpdated
                         });

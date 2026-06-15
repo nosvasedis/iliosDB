@@ -139,7 +139,10 @@ export function getNextProductionStage(currentStage: ProductionStage, batch: Pro
   if (stages[nextIndex] === ProductionStage.Setting && !batch.requires_setting && !requiresSettingStage(batch.sku)) {
     nextIndex++;
   }
-  if (stages[nextIndex] === ProductionStage.Assembly && !batch.requires_assembly) {
+  if (
+    stages[nextIndex] === ProductionStage.Assembly
+    && (isSpecialCreationSku(batch.sku) || (!batch.requires_assembly && !requiresAssemblyStage(batch.sku)))
+  ) {
     nextIndex++;
   }
 

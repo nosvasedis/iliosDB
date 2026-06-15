@@ -50,5 +50,29 @@ describe('production supabase helpers', () => {
       requires_assembly: false,
       product_details: { production_type: ProductionType.Imported } as any,
     }, ProductionStage.AwaitingDelivery)).toBe(false);
+
+    expect(canMoveBatchToStage({
+      id: 'b3',
+      sku: 'SK201',
+      quantity: 1,
+      current_stage: ProductionStage.Polishing,
+      created_at: '2024-01-01T00:00:00.000Z',
+      updated_at: '2024-01-01T00:00:00.000Z',
+      priority: 'Normal',
+      requires_setting: false,
+      requires_assembly: false,
+    }, ProductionStage.Assembly)).toBe(true);
+
+    expect(canMoveBatchToStage({
+      id: 'b4',
+      sku: 'PN1',
+      quantity: 1,
+      current_stage: ProductionStage.Polishing,
+      created_at: '2024-01-01T00:00:00.000Z',
+      updated_at: '2024-01-01T00:00:00.000Z',
+      priority: 'Normal',
+      requires_setting: false,
+      requires_assembly: false,
+    }, ProductionStage.Assembly)).toBe(false);
   });
 });

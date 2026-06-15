@@ -1,4 +1,6 @@
 import { BatchStageHistoryEntry, EnhancedProductionBatch, ProductionBatch, ProductionStage } from '../../types';
+import { requiresAssemblyStage } from '../../constants';
+import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 import { getProductionTimingStatusClasses } from '../../utils/productionTiming';
 
 export const STAGE_BUTTON_COLOR_KEYS = {
@@ -37,7 +39,9 @@ export function getStageColorKey(stageId: ProductionStage): StageColorKey {
 
 export function isStageNotRequired(batch: ProductionBatch, stage: ProductionStage): boolean {
   if (stage === ProductionStage.Setting) return !batch.requires_setting;
-  if (stage === ProductionStage.Assembly) return !batch.requires_assembly;
+  if (stage === ProductionStage.Assembly) {
+    return isSpecialCreationSku(batch.sku) || (!batch.requires_assembly && !requiresAssemblyStage(batch.sku));
+  }
   return false;
 }
 
