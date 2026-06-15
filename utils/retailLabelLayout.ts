@@ -1,9 +1,13 @@
-/** Non-printable tail width on retail (λιανική) labels. */
-export const RETAIL_LABEL_TAIL_WIDTH_MM = 35;
-/** Shift QR/SKU block right within the printable area (~1–1.5 cm). */
-export const RETAIL_LEFT_PANE_OFFSET_MM = 12;
+/**
+ * Fixed physical layout for λιανική labels (positions from the label's left edge).
+ * Left pane (QR + SKU) starts at 36.5 mm; right pane starts at 57 mm.
+ */
+export const RETAIL_LEFT_PANE_START_MM = 36.5;
+export const RETAIL_RIGHT_PANE_START_MM = 57;
+/** Screen preview only — non-printable tail region on physical stock. */
+export const RETAIL_TAIL_GUIDE_WIDTH_MM = 35;
 /** Safety margin so fitted stone text is not clipped at print time. */
-export const RETAIL_STONE_WIDTH_SAFETY_MM = 1.2;
+export const RETAIL_STONE_WIDTH_SAFETY_MM = 0.8;
 
 export interface RetailStoneTextFit {
     fontSize: number;
@@ -12,11 +16,12 @@ export interface RetailStoneTextFit {
 }
 
 export interface RetailLabelMetrics {
-    printableWidthMm: number;
-    halfColumnWidthMm: number;
-    leftPaneOffsetMm: number;
-    leftColumnWidthMm: number;
-    rightColumnWidthMm: number;
+    labelWidthMm: number;
+    labelHeightMm: number;
+    leftPaneStartMm: number;
+    rightPaneStartMm: number;
+    leftPaneWidthMm: number;
+    rightPaneWidthMm: number;
     rightColumnMaxWidthMm: number;
     brandFontMm: number;
     priceFontMm: number;
@@ -44,7 +49,6 @@ export function fitRetailStoneLabelText(
 ): RetailStoneTextFit {
     const minFont = 1.2;
     const maxFont = 2.2;
-    // Greek bold text prints wider than Latin — use a conservative estimate.
     const charWidthFactor = 0.62;
     const spaceWidthFactor = 0.32;
 
@@ -126,7 +130,7 @@ export function fitRetailStoneLabelText(
     return { fontSize: minFont, lineHeight: 0.95, allowWrap: true };
 }
 
-/** Derive printable regions and font sizes from configured retail label dimensions. */
+/** Derive pane geometry and font sizes from configured retail label dimensions. */
 export function getRetailLabelMetrics({
     labelWidthMm,
     labelHeightMm,
@@ -134,13 +138,14 @@ export function getRetailLabelMetrics({
     showPrice,
     hasSize,
 }: RetailLabelMetricsInput): RetailLabelMetrics {
-    const printableWidthMm = Math.max(20, labelWidthMm - RETAIL_LABEL_TAIL_WIDTH_MM);
-    const halfColumnWidthMm = printableWidthMm / 2;
-    const rightColumnWidthMm = halfColumnWidthMm;
-    const rightColumnPaddingMm = 1.5;
+    const leftPaneStartMm = RETAIL_LEFT_PANE_START_MM;
+    const rightPaneStartMm = RETAIL_RIGHT_PANE_START_MM;
+    const leftPaneWidthMm = rightPaneStartMm - leftPaneStartMm;
+    const rightPaneWidthMm = Math.max(8, labelWidthMm - rightPaneStartMm);
+    const rightColumnPaddingMm = 0.5;
     const rightColumnMaxWidthMm = Math.max(
-        8,
-        rightColumnWidthMm - rightColumnPaddingMm - RETAIL_STONE_WIDTH_SAFETY_MM,
+        6,
+        rightPaneWidthMm - rightColumnPaddingMm - RETAIL_STONE_WIDTH_SAFETY_MM,
     );
     const blockGapMm = 0.5;
 
@@ -156,15 +161,6 @@ export function getRetailLabelMetrics({
     const suffixFontMm = Math.min(2.0, skuFontMm * 0.9);
     const qrSizeMm = Math.min(7.5, Math.max(5, labelHeightMm * 0.72));
     const qrMarginTopMm = Math.max(0, (labelHeightMm - qrSizeMm) * 0.25);
-    const minLeftColumnMm = qrSizeMm + 2.5;
-    const leftPaneOffsetMm = Math.min(
-        RETAIL_LEFT_PANE_OFFSET_MM,
-        Math.max(0, printableWidthMm - rightColumnWidthMm - minLeftColumnMm),
-    );
-    const leftColumnWidthMm = Math.max(
-        minLeftColumnMm,
-        printableWidthMm - leftPaneOffsetMm - rightColumnWidthMm,
-    );
 
     let reservedHeightMm = blockGapMm;
     if (hasStone) reservedHeightMm += blockGapMm;
@@ -177,11 +173,12 @@ export function getRetailLabelMetrics({
         : 0;
 
     return {
-        printableWidthMm,
-        halfColumnWidthMm,
-        leftPaneOffsetMm,
-        leftColumnWidthMm,
-        rightColumnWidthMm,
+        labelWidthMm,
+        labelHeightMm,
+        leftPaneStartMm,
+        rightPaneStartMm,
+        leftPaneWidthMm,
+        rightPaneWidthMm,
         rightColumnMaxWidthMm,
         brandFontMm,
         priceFontMm,

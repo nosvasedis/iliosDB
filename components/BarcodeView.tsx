@@ -3,7 +3,7 @@ import QRCode from 'qrcode';
 import { Product, ProductVariant } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES, INITIAL_SETTINGS } from '../constants';
 import { transliterateForBarcode, getVariantComponents, formatCurrency, getLabelDisplayPrice } from '../utils/pricingEngine';
-import { fitRetailStoneLabelText, getRetailLabelMetrics } from '../utils/retailLabelLayout';
+import { fitRetailStoneLabelText, getRetailLabelMetrics, RETAIL_TAIL_GUIDE_WIDTH_MM } from '../utils/retailLabelLayout';
 import { SIZED_PREFIXES } from '../utils/sizing';
 
 interface Props {
@@ -163,99 +163,107 @@ const BarcodeView: React.FC<Props> = ({
         const suffixStr = variant?.suffix || '';
         
         return (
-            <div className="label-container" style={{ ...containerStyle, flexDirection: 'row', justifyContent: 'flex-start', padding: 0 }}>
-                {/* Non-printable tail (left) */}
-                <div className="print:hidden border-r border-dashed border-slate-300 bg-slate-50 flex items-center justify-center" style={{ width: '35mm', height: '100%', flexShrink: 0 }}>
+            <div className="label-container" style={{ ...containerStyle, position: 'relative', padding: 0 }}>
+                {/* Screen-only guide for the non-printable tail (0–35 mm) */}
+                <div
+                    className="print:hidden border-r border-dashed border-slate-300 bg-slate-50 flex items-center justify-center"
+                    style={{ position: 'absolute', left: 0, top: 0, width: `${RETAIL_TAIL_GUIDE_WIDTH_MM}mm`, height: '100%', pointerEvents: 'none' }}
+                >
                     <span className="text-[8px] text-slate-300 font-bold uppercase -rotate-90">Tail</span>
                 </div>
-                <div className="hidden print:block" style={{ width: '35mm', height: '100%', flexShrink: 0 }}></div>
 
-                {/* Printable area: label width minus 35mm tail */}
-                <div style={{ width: `${retailMetrics.printableWidthMm}mm`, height: '100%', display: 'flex', flexShrink: 0, position: 'relative' }}>
-                    
-                    {/* Left Section (QR + SKU) — shifted right, right column stays fixed */}
-                    <div style={{
-                        marginLeft: `${retailMetrics.leftPaneOffsetMm}mm`,
-                        width: `${retailMetrics.leftColumnWidthMm}mm`,
-                        height: '100%',
-                        display: 'flex',
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'flex-start',
-                        paddingLeft: '0.5mm',
-                        paddingRight: '0.5mm',
-                        overflow: 'hidden',
-                        boxSizing: 'border-box',
-                        flexShrink: 0,
-                    }}>
-                         <div style={{ flexShrink: 0, marginRight: '0.5mm', height: '100%', display: 'flex', alignItems: 'center' }}>
-                            {qrDataUrl && <img src={qrDataUrl} style={{ height: `${retailMetrics.qrSizeMm}mm`, width: `${retailMetrics.qrSizeMm}mm`, display: 'block', imageRendering: 'pixelated', marginTop: `${retailMetrics.qrMarginTopMm}mm` }} alt="QR" />}
-                         </div>
-                         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start' }}>
-                             <span className="font-black block uppercase leading-none" style={{ fontSize: `${retailMetrics.skuFontMm}mm` }}>
-                                {skuMaster}
-                            </span>
-                            {suffixStr && (
-                                <span className="font-black block uppercase leading-none mt-[0.5mm]" style={{ fontSize: `${retailMetrics.suffixFontMm}mm` }}>
-                                    {suffixStr}
-                                </span>
-                            )}
-                         </div>
+                {/* Left pane: QR + SKU — always starts at 36.5 mm */}
+                <div style={{
+                    position: 'absolute',
+                    left: `${retailMetrics.leftPaneStartMm}mm`,
+                    top: 0,
+                    width: `${retailMetrics.leftPaneWidthMm}mm`,
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'flex-start',
+                    boxSizing: 'border-box',
+                    overflow: 'hidden',
+                }}>
+                    <div style={{ flexShrink: 0, marginRight: '0.5mm', height: '100%', display: 'flex', alignItems: 'center' }}>
+                        {qrDataUrl && (
+                            <img
+                                src={qrDataUrl}
+                                style={{
+                                    height: `${retailMetrics.qrSizeMm}mm`,
+                                    width: `${retailMetrics.qrSizeMm}mm`,
+                                    display: 'block',
+                                    imageRendering: 'pixelated',
+                                    marginTop: `${retailMetrics.qrMarginTopMm}mm`,
+                                }}
+                                alt="QR"
+                            />
+                        )}
                     </div>
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start' }}>
+                        <span className="font-black block uppercase leading-none" style={{ fontSize: `${retailMetrics.skuFontMm}mm` }}>
+                            {skuMaster}
+                        </span>
+                        {suffixStr && (
+                            <span className="font-black block uppercase leading-none mt-[0.5mm]" style={{ fontSize: `${retailMetrics.suffixFontMm}mm` }}>
+                                {suffixStr}
+                            </span>
+                        )}
+                    </div>
+                </div>
 
-                    {/* Right Section (Stone + Brand + Size) — fixed width, left-aligned stack */}
+                {/* Right pane: stone + ILIOS + price — always starts at 57 mm */}
+                <div style={{
+                    position: 'absolute',
+                    left: `${retailMetrics.rightPaneStartMm}mm`,
+                    top: 0,
+                    width: `${retailMetrics.rightPaneWidthMm}mm`,
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    justifyContent: 'center',
+                    boxSizing: 'border-box',
+                    overflow: 'visible',
+                }}>
                     <div style={{
-                        width: `${retailMetrics.rightColumnWidthMm}mm`,
-                        height: '100%',
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'flex-start',
-                        justifyContent: 'center',
-                        paddingLeft: '0.5mm',
-                        paddingRight: '1mm',
-                        boxSizing: 'border-box',
-                        flexShrink: 0,
-                        overflow: 'visible',
+                        width: `${retailMetrics.rightColumnMaxWidthMm}mm`,
+                        maxWidth: `${retailMetrics.rightColumnMaxWidthMm}mm`,
                     }}>
-                        <div style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'flex-start',
-                            width: `${retailMetrics.rightColumnMaxWidthMm}mm`,
-                            maxWidth: `${retailMetrics.rightColumnMaxWidthMm}mm`,
-                        }}>
-                            {stoneName && stoneFit && (
-                                <div
-                                    style={{
-                                        fontWeight: 'bold',
-                                        lineHeight: stoneFit.lineHeight,
-                                        fontSize: `${stoneFit.fontSize}mm`,
-                                        whiteSpace: stoneFit.allowWrap ? 'normal' : 'nowrap',
-                                        overflowWrap: stoneFit.allowWrap ? 'normal' : 'normal',
-                                        wordBreak: 'normal',
-                                        width: `${retailMetrics.rightColumnMaxWidthMm}mm`,
-                                        maxWidth: `${retailMetrics.rightColumnMaxWidthMm}mm`,
-                                        marginTop: `${retailMetrics.blockGapMm}mm`,
-                                        boxSizing: 'border-box',
-                                    }}
-                                >
-                                    {stoneName}
-                                </div>
-                            )}
-                            <div className="font-black tracking-[0.05em] text-black uppercase leading-none" style={{ fontSize: `${retailMetrics.brandFontMm}mm`, marginTop: `${retailMetrics.blockGapMm}mm` }}>
-                                ILIOS
+                        {stoneName && stoneFit && (
+                            <div
+                                style={{
+                                    fontWeight: 'bold',
+                                    lineHeight: stoneFit.lineHeight,
+                                    fontSize: `${stoneFit.fontSize}mm`,
+                                    whiteSpace: stoneFit.allowWrap ? 'normal' : 'nowrap',
+                                    wordBreak: 'normal',
+                                    width: `${retailMetrics.rightColumnMaxWidthMm}mm`,
+                                    maxWidth: `${retailMetrics.rightColumnMaxWidthMm}mm`,
+                                    marginTop: `${retailMetrics.blockGapMm}mm`,
+                                    boxSizing: 'border-box',
+                                }}
+                            >
+                                {stoneName}
                             </div>
-                            {showPrice && formattedPrice && (
-                                <div className="font-black text-black leading-none" style={{ fontSize: `${retailMetrics.priceFontMm}mm`, marginTop: `${retailMetrics.blockGapMm}mm`, whiteSpace: 'nowrap' }}>
-                                    {formattedPrice}
-                                </div>
-                            )}
-                            {size && (
-                                <div className="px-1 rounded-[1px] text-[1.8mm] font-bold leading-none border border-black text-black" style={{ marginTop: `${retailMetrics.blockGapMm}mm` }}>
-                                    {size}
-                                </div>
-                            )}
+                        )}
+                        <div className="font-black tracking-[0.05em] text-black uppercase leading-none" style={{ fontSize: `${retailMetrics.brandFontMm}mm`, marginTop: `${retailMetrics.blockGapMm}mm` }}>
+                            ILIOS
                         </div>
+                        {showPrice && formattedPrice && (
+                            <div className="font-black text-black leading-none" style={{ fontSize: `${retailMetrics.priceFontMm}mm`, marginTop: `${retailMetrics.blockGapMm}mm`, whiteSpace: 'nowrap' }}>
+                                {formattedPrice}
+                            </div>
+                        )}
+                        {size && (
+                            <div className="px-1 rounded-[1px] text-[1.8mm] font-bold leading-none border border-black text-black" style={{ marginTop: `${retailMetrics.blockGapMm}mm` }}>
+                                {size}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

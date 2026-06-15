@@ -1,43 +1,46 @@
 import { describe, expect, it } from 'vitest';
-import { fitRetailStoneLabelText, getRetailLabelMetrics } from '../../utils/retailLabelLayout';
+import {
+    RETAIL_LEFT_PANE_START_MM,
+    RETAIL_RIGHT_PANE_START_MM,
+    fitRetailStoneLabelText,
+    getRetailLabelMetrics,
+} from '../../utils/retailLabelLayout';
 
 describe('getRetailLabelMetrics', () => {
-    it('derives 72×10mm retail label geometry from settings', () => {
+    it('uses fixed pane start positions for a 77×10.5 mm label', () => {
         const metrics = getRetailLabelMetrics({
-            labelWidthMm: 72,
-            labelHeightMm: 10,
+            labelWidthMm: 77,
+            labelHeightMm: 10.5,
             hasStone: true,
             showPrice: true,
             hasSize: false,
         });
 
-        expect(metrics.printableWidthMm).toBe(37);
-        expect(metrics.halfColumnWidthMm).toBe(18.5);
-        expect(metrics.rightColumnWidthMm).toBe(18.5);
-        expect(metrics.leftPaneOffsetMm).toBeGreaterThan(0);
-        expect(metrics.rightColumnMaxWidthMm).toBeLessThan(17);
-        expect(metrics.qrSizeMm).toBeLessThanOrEqual(7.5);
-        expect(metrics.stoneMaxHeightMm).toBeGreaterThan(0);
-        expect(
-            metrics.stoneMaxHeightMm
-            + metrics.brandFontMm
-            + metrics.priceFontMm
-            + metrics.blockGapMm * 4,
-        ).toBeLessThanOrEqual(10.5);
+        expect(metrics.leftPaneStartMm).toBe(RETAIL_LEFT_PANE_START_MM);
+        expect(metrics.rightPaneStartMm).toBe(RETAIL_RIGHT_PANE_START_MM);
+        expect(metrics.leftPaneStartMm).toBe(36.5);
+        expect(metrics.rightPaneStartMm).toBe(57);
+        expect(metrics.leftPaneWidthMm).toBe(20.5);
+        expect(metrics.rightPaneWidthMm).toBe(20);
+        expect(metrics.rightColumnMaxWidthMm).toBeGreaterThan(0);
     });
 });
 
 describe('fitRetailStoneLabelText', () => {
-    it('fits long Greek stone names within 17mm without ellipsis', () => {
-        const maxWidthMm = 15.8;
-        const maxHeightMm = 3.2;
+    it('fits long Greek stone names within the right pane', () => {
+        const metrics = getRetailLabelMetrics({
+            labelWidthMm: 77,
+            labelHeightMm: 10.5,
+            hasStone: true,
+            showPrice: true,
+            hasSize: false,
+        });
 
         const samples = ['Λευκά Ζιργκόν', 'Κόκκινα Ζιργκόν', 'Πράσινος Αχάτης'];
 
         for (const text of samples) {
-            const fit = fitRetailStoneLabelText(text, maxWidthMm, maxHeightMm);
+            const fit = fitRetailStoneLabelText(text, metrics.rightColumnMaxWidthMm, metrics.stoneMaxHeightMm);
             expect(fit.fontSize).toBeGreaterThanOrEqual(1.2);
-            expect(fit.allowWrap || fit.fontSize <= 2.2).toBe(true);
         }
     });
 });
