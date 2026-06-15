@@ -200,10 +200,14 @@ const BarcodeView: React.FC<Props> = ({
                                 {stoneName}
                             </div>
                         )}
-                        {/* Brand or price (mutually exclusive on retail labels) */}
                         <div className="font-black tracking-[0.05em] text-black uppercase leading-none mt-[0.5mm]" style={{ fontSize: '2.0mm' }}>
-                            {showPrice && formattedPrice ? formattedPrice : 'ILIOS'}
+                            ILIOS
                         </div>
+                        {showPrice && formattedPrice && (
+                            <div className="font-black text-black leading-none mt-[0.5mm]" style={{ fontSize: '1.8mm', whiteSpace: 'nowrap' }}>
+                                {formattedPrice}
+                            </div>
+                        )}
                         {size && (
                             <div className="mt-[0.5mm] px-1 rounded-[1px] text-[1.8mm] font-bold leading-none border border-black text-black">
                                 {size}
