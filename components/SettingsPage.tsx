@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState, useRef } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { GlobalSettings, Product } from '../types';
 import { Save, TrendingUp, Loader2, Settings as SettingsIcon, Info, Shield, Key, Download, FileJson, FileText, Database, ShieldAlert, RefreshCw, Trash2, HardDrive, Upload, Tag, Activity, AlertTriangle, Clock, Image as ImageIcon, X, Search, Play, CheckSquare } from 'lucide-react';
 import { supabase, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, GEMINI_API_KEY, api } from '../lib/supabase';
@@ -12,6 +12,7 @@ import { formatDecimal } from '../utils/pricingEngine';
 import { convertToCSV, downloadFile, downloadBlob, flattenForCSV } from '../utils/exportUtils';
 import { BACKUP_TABLE_REGISTRY, BackupProgress, validateBackup } from '../lib/backupConfig';
 import DesktopPageHeader from './DesktopPageHeader';
+import { useSettings } from '../hooks/api/useSettings';
 import { compressImage } from '../utils/imageHelpers';
 
 const IMAGE_OPTIMIZATION_BATCH_SIZE = 100;
@@ -35,11 +36,15 @@ type ImageOptimizationHistoryEntry = {
 export default function SettingsPage() {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
-    const settingsData = queryClient.getQueryData<GlobalSettings>(['settings']);
+    const { data: settingsData, isLoading: loadingSettings } = useSettings();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const [settings, setSettings] = useState<GlobalSettings | null>(settingsData || null);
+    const [settings, setSettings] = useState<GlobalSettings | null>(null);
     const [localGeminiKey, setLocalGeminiKey] = useState(GEMINI_API_KEY);
+
+    useEffect(() => {
+        if (settingsData) setSettings(settingsData);
+    }, [settingsData]);
 
     const [isLoadingPrice, setIsLoadingPrice] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -76,7 +81,7 @@ export default function SettingsPage() {
         return filtered.slice(0, 200);
     }, [imageOptimizationFilter, imageOptimizationPreview]);
 
-    if (!settings) {
+    if (loadingSettings || !settings) {
         return <div className="p-8 text-center text-slate-400">Φόρτωση ρυθμίσεων...</div>;
     }
 
@@ -120,7 +125,7 @@ export default function SettingsPage() {
                 setTimeout(() => window.location.reload(), 1000);
                 return;
             }
-            queryClient.setQueryData(['settings'], settings);
+            await queryClient.invalidateQueries({ queryKey: ['settings'] });
             showToast("Οι ρυθμίσεις αποθηκεύτηκαν.", 'success');
         } catch (err) {
             showToast("Σφάλμα κατά την αποθήκευση.", 'error');
@@ -673,11 +678,11 @@ export default function SettingsPage() {
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Φάρδος</label>
-                                    <input type="number" value={settings.retail_barcode_width_mm || 40} onChange={(e) => setSettings({ ...settings, retail_barcode_width_mm: parseInt(e.target.value) })} className="w-full p-2 border rounded-lg font-mono text-sm" />
+                                    <input type="number" value={settings.retail_barcode_width_mm} onChange={(e) => setSettings({ ...settings, retail_barcode_width_mm: parseInt(e.target.value) })} className="w-full p-2 border rounded-lg font-mono text-sm" />
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Ύψος</label>
-                                    <input type="number" value={settings.retail_barcode_height_mm || 20} onChange={(e) => setSettings({ ...settings, retail_barcode_height_mm: parseInt(e.target.value) })} className="w-full p-2 border rounded-lg font-mono text-sm" />
+                                    <input type="number" value={settings.retail_barcode_height_mm} onChange={(e) => setSettings({ ...settings, retail_barcode_height_mm: parseInt(e.target.value) })} className="w-full p-2 border rounded-lg font-mono text-sm" />
                                 </div>
                             </div>
                         </div>

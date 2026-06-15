@@ -3,70 +3,8 @@ import QRCode from 'qrcode';
 import { Product, ProductVariant } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES, INITIAL_SETTINGS } from '../constants';
 import { transliterateForBarcode, getVariantComponents, formatCurrency, getLabelDisplayPrice } from '../utils/pricingEngine';
+import { fitRetailStoneLabelText, getRetailLabelMetrics } from '../utils/retailLabelLayout';
 import { SIZED_PREFIXES } from '../utils/sizing';
-
-interface RetailStoneTextFit {
-    fontSize: number;
-    lineHeight: number;
-    allowWrap: boolean;
-}
-
-/** Scale retail-label stone description to fit without ellipsis truncation. */
-function fitRetailStoneLabelText(
-    text: string,
-    maxWidthMm: number,
-    maxHeightMm: number,
-): RetailStoneTextFit {
-    const minFont = 1.3;
-    const maxFont = 2.2;
-    const charWidthFactor = 0.52;
-    const spaceWidthFactor = 0.28;
-
-    const estimateTextWidth = (value: string, fontSize: number) =>
-        [...value].reduce((width, char) => (
-            width + (char === ' ' ? fontSize * spaceWidthFactor : fontSize * charWidthFactor)
-        ), 0);
-
-    const countWrappedLines = (words: string[], fontSize: number) => {
-        if (words.length === 0) return 1;
-        let lines = 1;
-        let currentWidth = 0;
-        for (const word of words) {
-            const wordWidth = estimateTextWidth(word, fontSize);
-            if (currentWidth > 0 && currentWidth + fontSize * spaceWidthFactor + wordWidth > maxWidthMm) {
-                lines += 1;
-                currentWidth = wordWidth;
-            } else {
-                currentWidth = currentWidth > 0
-                    ? currentWidth + fontSize * spaceWidthFactor + wordWidth
-                    : wordWidth;
-            }
-        }
-        return lines;
-    };
-
-    for (let fontSize = maxFont; fontSize >= minFont; fontSize -= 0.1) {
-        if (estimateTextWidth(text, fontSize) <= maxWidthMm) {
-            return { fontSize: parseFloat(fontSize.toFixed(1)), lineHeight: 0.9, allowWrap: false };
-        }
-    }
-
-    const words = text.split(/\s+/).filter(Boolean);
-    const longestWord = words.reduce((max, word) => Math.max(max, word.length), 0);
-
-    for (let fontSize = maxFont; fontSize >= minFont; fontSize -= 0.1) {
-        const longestWordWidth = longestWord * fontSize * charWidthFactor;
-        if (longestWordWidth > maxWidthMm) continue;
-
-        const lineCount = countWrappedLines(words, fontSize);
-        const totalHeight = lineCount * fontSize * 0.95;
-        if (totalHeight <= maxHeightMm) {
-            return { fontSize: parseFloat(fontSize.toFixed(1)), lineHeight: 0.95, allowWrap: true };
-        }
-    }
-
-    return { fontSize: minFont, lineHeight: 0.95, allowWrap: true };
-}
 
 interface Props {
     product: Product;
@@ -95,9 +33,12 @@ const BarcodeView: React.FC<Props> = ({
     const suffix = variant?.suffix || '';
     const finalSku = `${baseSku}${suffix}`;
 
-    // Safety fallback for retail width if settings are missing/old
-    const activeWidth = format === 'retail' && width < 50 ? INITIAL_SETTINGS.retail_barcode_width_mm : width;
-    const activeHeight = format === 'retail' && height > 15 ? INITIAL_SETTINGS.retail_barcode_height_mm : height;
+    const activeWidth = width > 0
+        ? width
+        : (format === 'retail' ? INITIAL_SETTINGS.retail_barcode_width_mm : INITIAL_SETTINGS.barcode_width_mm);
+    const activeHeight = height > 0
+        ? height
+        : (format === 'retail' ? INITIAL_SETTINGS.retail_barcode_height_mm : INITIAL_SETTINGS.barcode_height_mm);
 
     // Smart Stone Detection Logic
     const stoneName = useMemo(() => {
@@ -207,10 +148,15 @@ const BarcodeView: React.FC<Props> = ({
     }
 
     if (format === 'retail') {
-        const rightColumnMaxWidthMm = Math.max(10, (activeWidth - 35) / 2 - 1.5);
-        const stoneMaxHeightMm = Math.max(3, activeHeight * 0.38);
+        const retailMetrics = getRetailLabelMetrics({
+            labelWidthMm: activeWidth,
+            labelHeightMm: activeHeight,
+            hasStone: Boolean(stoneName),
+            showPrice: Boolean(showPrice && formattedPrice),
+            hasSize: Boolean(size),
+        });
         const stoneFit = stoneName
-            ? fitRetailStoneLabelText(stoneName, rightColumnMaxWidthMm, stoneMaxHeightMm)
+            ? fitRetailStoneLabelText(stoneName, retailMetrics.rightColumnMaxWidthMm, retailMetrics.stoneMaxHeightMm)
             : null;
 
         const skuMaster = product.sku;
@@ -218,26 +164,26 @@ const BarcodeView: React.FC<Props> = ({
         
         return (
             <div className="label-container" style={{ ...containerStyle, flexDirection: 'row', justifyContent: 'flex-start', padding: 0 }}>
-                {/* 3.5cm Tail (Left) */}
+                {/* Non-printable tail (left) */}
                 <div className="print:hidden border-r border-dashed border-slate-300 bg-slate-50 flex items-center justify-center" style={{ width: '35mm', height: '100%', flexShrink: 0 }}>
                     <span className="text-[8px] text-slate-300 font-bold uppercase -rotate-90">Tail</span>
                 </div>
                 <div className="hidden print:block" style={{ width: '35mm', height: '100%', flexShrink: 0 }}></div>
 
-                {/* Printable Area (~3.7cm remaining) */}
-                <div style={{ flex: 1, height: '100%', display: 'flex' }}>
+                {/* Printable area: label width minus 35mm tail */}
+                <div style={{ width: `${retailMetrics.printableWidthMm}mm`, height: '100%', display: 'flex', flexShrink: 0 }}>
                     
                     {/* Left Section (QR + SKU) */}
-                    <div style={{ width: '50%', height: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingLeft: '0.5mm', paddingRight: '0.5mm', overflow: 'hidden' }}>
+                    <div style={{ width: `${retailMetrics.halfColumnWidthMm}mm`, height: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingLeft: '0.5mm', paddingRight: '0.5mm', overflow: 'hidden', boxSizing: 'border-box' }}>
                          <div style={{ flexShrink: 0, marginRight: '0.5mm', height: '100%', display: 'flex', alignItems: 'center' }}>
-                            {qrDataUrl && <img src={qrDataUrl} style={{ height: '7.5mm', width: '7.5mm', display: 'block', imageRendering: 'pixelated', marginTop: '1.5mm' }} alt="QR" />}
+                            {qrDataUrl && <img src={qrDataUrl} style={{ height: `${retailMetrics.qrSizeMm}mm`, width: `${retailMetrics.qrSizeMm}mm`, display: 'block', imageRendering: 'pixelated', marginTop: `${retailMetrics.qrMarginTopMm}mm` }} alt="QR" />}
                          </div>
                          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start' }}>
-                             <span className="font-black block uppercase leading-none" style={{ fontSize: '2.2mm' }}>
+                             <span className="font-black block uppercase leading-none" style={{ fontSize: `${retailMetrics.skuFontMm}mm` }}>
                                 {skuMaster}
                             </span>
                             {suffixStr && (
-                                <span className="font-black block uppercase leading-none mt-[0.5mm]" style={{ fontSize: '2.0mm' }}>
+                                <span className="font-black block uppercase leading-none mt-[0.5mm]" style={{ fontSize: `${retailMetrics.suffixFontMm}mm` }}>
                                     {suffixStr}
                                 </span>
                             )}
@@ -245,8 +191,8 @@ const BarcodeView: React.FC<Props> = ({
                     </div>
 
                     {/* Right Section (Stone + Brand + Size) — grouped so stone aligns with ILIOS */}
-                    <div style={{ width: '50%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingLeft: '0.5mm', paddingRight: '1mm', overflow: 'hidden' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', maxWidth: `${rightColumnMaxWidthMm}mm` }}>
+                    <div style={{ width: `${retailMetrics.halfColumnWidthMm}mm`, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingLeft: '0.5mm', paddingRight: '1mm', overflow: 'hidden', boxSizing: 'border-box' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', maxWidth: `${retailMetrics.rightColumnMaxWidthMm}mm` }}>
                             {stoneName && stoneFit && (
                                 <div
                                     style={{
@@ -255,23 +201,23 @@ const BarcodeView: React.FC<Props> = ({
                                         fontSize: `${stoneFit.fontSize}mm`,
                                         whiteSpace: stoneFit.allowWrap ? 'normal' : 'nowrap',
                                         wordBreak: stoneFit.allowWrap ? 'break-word' : 'normal',
-                                        maxWidth: `${rightColumnMaxWidthMm}mm`,
-                                        marginTop: '0.5mm',
+                                        maxWidth: `${retailMetrics.rightColumnMaxWidthMm}mm`,
+                                        marginTop: `${retailMetrics.blockGapMm}mm`,
                                     }}
                                 >
                                     {stoneName}
                                 </div>
                             )}
-                            <div className="font-black tracking-[0.05em] text-black uppercase leading-none mt-[0.5mm]" style={{ fontSize: '2.5mm' }}>
+                            <div className="font-black tracking-[0.05em] text-black uppercase leading-none" style={{ fontSize: `${retailMetrics.brandFontMm}mm`, marginTop: `${retailMetrics.blockGapMm}mm` }}>
                                 ILIOS
                             </div>
                             {showPrice && formattedPrice && (
-                                <div className="font-black text-black leading-none mt-[0.5mm]" style={{ fontSize: '2.3mm', whiteSpace: 'nowrap' }}>
+                                <div className="font-black text-black leading-none" style={{ fontSize: `${retailMetrics.priceFontMm}mm`, marginTop: `${retailMetrics.blockGapMm}mm`, whiteSpace: 'nowrap' }}>
                                     {formattedPrice}
                                 </div>
                             )}
                             {size && (
-                                <div className="mt-[0.5mm] px-1 rounded-[1px] text-[1.8mm] font-bold leading-none border border-black text-black">
+                                <div className="px-1 rounded-[1px] text-[1.8mm] font-bold leading-none border border-black text-black" style={{ marginTop: `${retailMetrics.blockGapMm}mm` }}>
                                     {size}
                                 </div>
                             )}

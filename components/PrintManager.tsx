@@ -16,6 +16,7 @@ import PhotoCatalogPrintView from './PhotoCatalogPrintView';
 import StageBatchPrintView from './StageBatchPrintView';
 import LegalDocumentPrintView from './LegalDocumentPrintView';
 import ProformaPrintView from './ProformaPrintView';
+import { INITIAL_SETTINGS } from '../constants';
 import { transliterateForBarcode } from '../utils/pricingEngine';
 import {
     buildPrintIframeOnloadScript,
@@ -349,8 +350,8 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                                 key={`${idx}`}
                                 product={item.product}
                                 variant={item.variant}
-                                width={item.format === 'retail' ? (settings.retail_barcode_width_mm || 40) : settings.barcode_width_mm}
-                                height={item.format === 'retail' ? (settings.retail_barcode_height_mm || 20) : settings.barcode_height_mm}
+                                width={item.format === 'retail' ? (settings.retail_barcode_width_mm || INITIAL_SETTINGS.retail_barcode_width_mm) : settings.barcode_width_mm}
+                                height={item.format === 'retail' ? (settings.retail_barcode_height_mm || INITIAL_SETTINGS.retail_barcode_height_mm) : settings.barcode_height_mm}
                                 format={item.format}
                                 size={item.size}
                                 showPrice={item.showPrice}

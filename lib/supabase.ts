@@ -251,6 +251,37 @@ async function fetchWithTimeout(query: any, timeoutMs: number = 3000): Promise<a
     return Promise.race([query, timeoutPromise]);
 }
 
+function readSettingsNumber(
+    value: unknown,
+    localValue: number | undefined,
+    fallback: number,
+): number {
+    if (value !== null && value !== undefined && value !== '') {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+    }
+    if (localValue !== null && localValue !== undefined) {
+        const parsed = Number(localValue);
+        if (Number.isFinite(parsed)) return parsed;
+    }
+    return fallback;
+}
+
+function mergeGlobalSettingsFromDb(
+    data: Record<string, unknown>,
+    local: GlobalSettings | null,
+): GlobalSettings {
+    return {
+        silver_price_gram: Number(data.silver_price_gram),
+        loss_percentage: Number(data.loss_percentage),
+        barcode_width_mm: readSettingsNumber(data.barcode_width_mm, local?.barcode_width_mm, INITIAL_SETTINGS.barcode_width_mm),
+        barcode_height_mm: readSettingsNumber(data.barcode_height_mm, local?.barcode_height_mm, INITIAL_SETTINGS.barcode_height_mm),
+        retail_barcode_width_mm: readSettingsNumber(data.retail_barcode_width_mm, local?.retail_barcode_width_mm, INITIAL_SETTINGS.retail_barcode_width_mm),
+        retail_barcode_height_mm: readSettingsNumber(data.retail_barcode_height_mm, local?.retail_barcode_height_mm, INITIAL_SETTINGS.retail_barcode_height_mm),
+        last_calc_silver_price: Number(data.last_calc_silver_price ?? local?.last_calc_silver_price ?? 1.00),
+    };
+}
+
 async function parseWorkerJsonResponse(response: Response): Promise<any> {
     const text = await response.text().catch(() => '');
     if (!text) return {};
@@ -1705,32 +1736,36 @@ export const api = {
 
     getSettings: async (): Promise<GlobalSettings> => {
         const local = await offlineDb.getTable('global_settings');
-        if (isLocalMode) return (local && local.length > 0) ? local[0] : { ...INITIAL_SETTINGS, last_calc_silver_price: 1.00 };
+        const localSettings = (local && local.length > 0) ? local[0] as GlobalSettings : null;
+
+        if (isLocalMode) {
+            return localSettings
+                ? { ...INITIAL_SETTINGS, ...localSettings }
+                : { ...INITIAL_SETTINGS, last_calc_silver_price: 1.00 };
+        }
+
         try {
             const { data, error } = await fetchWithTimeout(supabase.from('global_settings').select('*').single(), 3000);
             if (error || !data) throw new Error('Data Error');
-            const settings = {
-                silver_price_gram: Number(data.silver_price_gram),
-                loss_percentage: Number(data.loss_percentage),
-                barcode_width_mm: Number(data.barcode_width_mm) || INITIAL_SETTINGS.barcode_width_mm,
-                barcode_height_mm: Number(data.barcode_height_mm) || INITIAL_SETTINGS.barcode_height_mm,
-                retail_barcode_width_mm: Number(data.retail_barcode_width_mm) || INITIAL_SETTINGS.retail_barcode_width_mm,
-                retail_barcode_height_mm: Number(data.retail_barcode_height_mm) || INITIAL_SETTINGS.retail_barcode_height_mm,
-                last_calc_silver_price: Number(data.last_calc_silver_price || 1.00)
-            };
-            offlineDb.saveTable('global_settings', [settings]);
+            const settings = mergeGlobalSettingsFromDb(data, localSettings);
+            await offlineDb.saveTable('global_settings', [settings]);
             return settings;
         } catch (e) {
-            return (local && local.length > 0) ? local[0] : { ...INITIAL_SETTINGS, last_calc_silver_price: 1.00 };
+            if (localSettings) {
+                return { ...INITIAL_SETTINGS, ...localSettings };
+            }
+            return { ...INITIAL_SETTINGS, last_calc_silver_price: 1.00 };
         }
     },
 
     updateSettings: async (settings: GlobalSettings): Promise<void> => {
-        // Use UPSERT on ID 1
         const payload = { ...settings, id: 1 };
-        await safeMutate('global_settings', 'UPSERT', payload, { onConflict: 'id' });
-        // Update local mirror immediately to ensure persistence across reloads even if offline sync is pending
+        // Mirror locally first so reload keeps user values even if cloud sync is pending.
         await offlineDb.saveTable('global_settings', [settings]);
+        const result = await safeMutate('global_settings', 'UPSERT', payload, { onConflict: 'id' });
+        if (result.error && !result.queued) {
+            throw result.error;
+        }
     },
 
     getMaterials: async (): Promise<Material[]> => {
