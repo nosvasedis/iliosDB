@@ -18,7 +18,7 @@ GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@4.4.168/build/pdf.wor
 interface Props {
     allProducts: Product[];
     allCollections: Collection[];
-    setPrintItems: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
+    setPrintItems: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail', showPrice?: boolean, priceTier?: 'wholesale' | 'retail' }[]) => void;
     onPrintPhotoCatalog: (products: Product[]) => void;
     skusText: string;
     setSkusText: (text: string) => void;
@@ -67,6 +67,15 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
     // Persistent Settings
     const [labelFormat, setLabelFormat] = useState<'standard' | 'retail'>(() => {
         return (localStorage.getItem('batch_print_format') as 'standard' | 'retail') || 'standard';
+    });
+    const [showPrice, setShowPrice] = useState(() => {
+        const saved = localStorage.getItem('batch_print_show_price');
+        if (saved !== null) return saved === 'true';
+        const format = (localStorage.getItem('batch_print_format') as 'standard' | 'retail') || 'standard';
+        return format === 'standard';
+    });
+    const [priceTier, setPriceTier] = useState<'wholesale' | 'retail'>(() => {
+        return (localStorage.getItem('batch_print_price_tier') as 'wholesale' | 'retail') || 'wholesale';
     });
     const [targetWarehouse, setTargetWarehouse] = useState(() => {
         return localStorage.getItem('batch_print_target_warehouse') || SYSTEM_IDS.SHOWROOM;
@@ -151,6 +160,8 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
 
     // Persist changes
     useEffect(() => { localStorage.setItem('batch_print_format', labelFormat); }, [labelFormat]);
+    useEffect(() => { localStorage.setItem('batch_print_show_price', String(showPrice)); }, [showPrice]);
+    useEffect(() => { localStorage.setItem('batch_print_price_tier', priceTier); }, [priceTier]);
     useEffect(() => { localStorage.setItem('batch_print_target_warehouse', targetWarehouse); }, [targetWarehouse]);
     useEffect(() => { localStorage.setItem('batch_print_logs', JSON.stringify(actionLogs)); }, [actionLogs]);
 
@@ -238,7 +249,9 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
             product: i.product,
             variant: i.variant,
             quantity: i.quantity,
-            format: labelFormat
+            format: labelFormat,
+            showPrice,
+            priceTier,
         }));
 
         setTimeout(() => {
@@ -846,6 +859,44 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                 >
                                     <ShoppingBag size={14} /> Λιανική
                                 </button>
+                            </div>
+
+                            <div className="mt-4 space-y-3">
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Εμφάνιση τιμής</label>
+                                    <div className="flex gap-2 bg-slate-50 p-1 rounded-xl">
+                                        <button
+                                            onClick={() => setShowPrice(true)}
+                                            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${showPrice ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            Ναι
+                                        </button>
+                                        <button
+                                            onClick={() => setShowPrice(false)}
+                                            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${!showPrice ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            Όχι
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className={!showPrice ? 'opacity-40 pointer-events-none' : ''}>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Τιμή ετικέτας</label>
+                                    <div className="flex gap-2 bg-slate-50 p-1 rounded-xl">
+                                        <button
+                                            onClick={() => setPriceTier('wholesale')}
+                                            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${priceTier === 'wholesale' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            <Tag size={12} /> Χονδρική
+                                        </button>
+                                        <button
+                                            onClick={() => setPriceTier('retail')}
+                                            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${priceTier === 'retail' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            <ShoppingBag size={12} /> Λιανική ×3
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 

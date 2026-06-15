@@ -50,7 +50,18 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
     const [queue, setQueue] = useState<QueueItem[]>([]);
     const [showScanner, setShowScanner] = useState(false);
     const [viewMode, setViewMode] = useState<'list' | 'preview'>('list');
-    const [printFormat, setPrintFormat] = useState<'standard' | 'retail'>('standard');
+    const [printFormat, setPrintFormat] = useState<'standard' | 'retail'>(() => {
+        return (localStorage.getItem('batch_print_format') as 'standard' | 'retail') || 'standard';
+    });
+    const [showPrice, setShowPrice] = useState(() => {
+        const saved = localStorage.getItem('batch_print_show_price');
+        if (saved !== null) return saved === 'true';
+        const format = (localStorage.getItem('batch_print_format') as 'standard' | 'retail') || 'standard';
+        return format === 'standard';
+    });
+    const [priceTier, setPriceTier] = useState<'wholesale' | 'retail'>(() => {
+        return (localStorage.getItem('batch_print_price_tier') as 'wholesale' | 'retail') || 'wholesale';
+    });
     const [activeTab, setActiveTab] = useState<'labels' | 'catalog'>('labels');
     const [catalogSearch, setCatalogSearch] = useState('');
     const [catalogOnlyWithImage, setCatalogOnlyWithImage] = useState(false);
@@ -62,6 +73,10 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
     const [activeMaster, setActiveMaster] = useState<Product | null>(null);
     const [qty, setQty] = useState(1);
     const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => { localStorage.setItem('batch_print_format', printFormat); }, [printFormat]);
+    useEffect(() => { localStorage.setItem('batch_print_show_price', String(showPrice)); }, [showPrice]);
+    useEffect(() => { localStorage.setItem('batch_print_price_tier', priceTier); }, [priceTier]);
 
     const catalogProducts = useMemo(() => {
         return (products || [])
@@ -378,6 +393,8 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                                     width={printFormat === 'retail' ? (settings.retail_barcode_width_mm || 72) : settings.barcode_width_mm} 
                                     height={printFormat === 'retail' ? (settings.retail_barcode_height_mm || 10) : settings.barcode_height_mm} 
                                     format={printFormat}
+                                    showPrice={showPrice}
+                                    priceTier={priceTier}
                                 />
                             </div>
                         ))}
@@ -641,22 +658,54 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
             )}
 
             <div className="flex justify-between items-center mb-4">
-                <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
-                    <button 
-                        onClick={() => setPrintFormat('standard')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${printFormat === 'standard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
-                    >
-                        <Tag size={14}/> Χονδρ.
-                    </button>
-                    <button 
-                        onClick={() => setPrintFormat('retail')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${printFormat === 'retail' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}
-                    >
-                        <ShoppingBag size={14}/> Λιαν.
-                    </button>
+                <div className="flex flex-col gap-2 flex-1">
+                    <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
+                        <button 
+                            onClick={() => setPrintFormat('standard')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${printFormat === 'standard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+                        >
+                            <Tag size={14}/> Χονδρ.
+                        </button>
+                        <button 
+                            onClick={() => setPrintFormat('retail')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${printFormat === 'retail' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}
+                        >
+                            <ShoppingBag size={14}/> Λιαν.
+                        </button>
+                    </div>
+
+                    <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
+                        <button
+                            onClick={() => setShowPrice(true)}
+                            className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all ${showPrice ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+                        >
+                            Τιμή: Ναι
+                        </button>
+                        <button
+                            onClick={() => setShowPrice(false)}
+                            className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all ${!showPrice ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+                        >
+                            Τιμή: Όχι
+                        </button>
+                    </div>
+
+                    <div className={`flex gap-2 bg-slate-100 p-1 rounded-xl ${!showPrice ? 'opacity-40 pointer-events-none' : ''}`}>
+                        <button
+                            onClick={() => setPriceTier('wholesale')}
+                            className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all ${priceTier === 'wholesale' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+                        >
+                            Χονδρική
+                        </button>
+                        <button
+                            onClick={() => setPriceTier('retail')}
+                            className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all ${priceTier === 'retail' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}
+                        >
+                            Λιανική ×3
+                        </button>
+                    </div>
                 </div>
                 
-                <div className="flex gap-2">
+                <div className="flex gap-2 ml-2">
                     <button onClick={clearQueue} disabled={queue.length===0} className="p-2 bg-red-50 text-red-600 rounded-lg disabled:opacity-50"><Trash2 size={18}/></button>
                 </div>
             </div>

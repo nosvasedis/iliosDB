@@ -38,6 +38,11 @@ export const codifyPrice = (price: number): string => {
     return `1${cents}9`;
 };
 
+export const RETAIL_LABEL_PRICE_MULTIPLIER = 3;
+
+export const getLabelDisplayPrice = (wholesale: number, tier: 'wholesale' | 'retail'): number =>
+    tier === 'retail' ? wholesale * RETAIL_LABEL_PRICE_MULTIPLIER : wholesale;
+
 /**
  * Calculates the Ilios Standard Suggested Wholesale Price.
  * Formula: (Non-Metal Costs * 2) + Metal Cost + (2€ * Total Weight)

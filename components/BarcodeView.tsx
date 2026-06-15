@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import QRCode from 'qrcode';
 import { Product, ProductVariant } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES, INITIAL_SETTINGS } from '../constants';
-import { transliterateForBarcode, getVariantComponents, formatCurrency } from '../utils/pricingEngine';
+import { transliterateForBarcode, getVariantComponents, formatCurrency, getLabelDisplayPrice } from '../utils/pricingEngine';
 import { SIZED_PREFIXES } from '../utils/sizing';
 
 interface Props {
@@ -12,9 +12,20 @@ interface Props {
     height: number;
     format?: 'standard' | 'simple' | 'retail';
     size?: string;
+    showPrice?: boolean;
+    priceTier?: 'wholesale' | 'retail';
 }
 
-const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format = 'standard', size }) => {
+const BarcodeView: React.FC<Props> = ({
+    product,
+    variant,
+    width,
+    height,
+    format = 'standard',
+    size,
+    showPrice: showPriceProp,
+    priceTier: priceTierProp,
+}) => {
     const [qrDataUrl, setQrDataUrl] = useState<string>('');
 
     const baseSku = product?.sku || '';
@@ -54,6 +65,10 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
     }, [product, variant, suffix]);
 
     const wholesalePrice = variant?.selling_price ?? product?.selling_price ?? 0;
+    const showPrice = showPriceProp ?? format !== 'retail';
+    const priceTier = priceTierProp ?? 'wholesale';
+    const displayPrice = getLabelDisplayPrice(wholesalePrice, priceTier);
+    const formattedPrice = displayPrice > 0 ? formatCurrency(displayPrice) : '';
 
     useEffect(() => {
         if (finalSku) {
@@ -185,9 +200,9 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                                 {stoneName}
                             </div>
                         )}
-                        {/* Brand name displayed where price used to be */}
+                        {/* Brand or price (mutually exclusive on retail labels) */}
                         <div className="font-black tracking-[0.05em] text-black uppercase leading-none mt-[0.5mm]" style={{ fontSize: '2.0mm' }}>
-                            ILIOS
+                            {showPrice && formattedPrice ? formattedPrice : 'ILIOS'}
                         </div>
                         {size && (
                             <div className="mt-[0.5mm] px-1 rounded-[1px] text-[1.8mm] font-bold leading-none border border-black text-black">
@@ -200,7 +215,7 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
         );
     }
 
-    // Standard Wholesale Format (Wholesale Price Hidden)
+    // Standard Wholesale Format
     return (
         <div className="label-container" style={{ ...containerStyle, padding: '0.6mm 0.8mm' }}>
             <div className="w-full text-center leading-none">
@@ -223,7 +238,7 @@ const BarcodeView: React.FC<Props> = ({ product, variant, width, height, format 
                     ILIOS
                 </span>
                 <span className="font-black text-black flex-1 text-center" style={{ fontSize: `${brandFontSize * 0.85}mm`, whiteSpace: 'nowrap' }}>
-                    {wholesalePrice > 0 ? formatCurrency(wholesalePrice) : ''}
+                    {showPrice && formattedPrice ? formattedPrice : ''}
                 </span>
                  <span className="font-black text-black flex-1 text-right" style={{ fontSize: `${brandFontSize * 0.85}mm` }}>925°</span>
             </div>

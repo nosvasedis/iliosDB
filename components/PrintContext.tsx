@@ -8,6 +8,8 @@ interface PrintItem {
     quantity: number;
     size?: string;
     format?: 'standard' | 'simple' | 'retail';
+    showPrice?: boolean;
+    priceTier?: 'wholesale' | 'retail';
 }
 
 interface PrintContextType {
