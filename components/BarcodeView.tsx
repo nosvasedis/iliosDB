@@ -171,10 +171,23 @@ const BarcodeView: React.FC<Props> = ({
                 <div className="hidden print:block" style={{ width: '35mm', height: '100%', flexShrink: 0 }}></div>
 
                 {/* Printable area: label width minus 35mm tail */}
-                <div style={{ width: `${retailMetrics.printableWidthMm}mm`, height: '100%', display: 'flex', flexShrink: 0 }}>
+                <div style={{ width: `${retailMetrics.printableWidthMm}mm`, height: '100%', display: 'flex', flexShrink: 0, position: 'relative' }}>
                     
-                    {/* Left Section (QR + SKU) */}
-                    <div style={{ width: `${retailMetrics.halfColumnWidthMm}mm`, height: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingLeft: '0.5mm', paddingRight: '0.5mm', overflow: 'hidden', boxSizing: 'border-box' }}>
+                    {/* Left Section (QR + SKU) — shifted right, right column stays fixed */}
+                    <div style={{
+                        marginLeft: `${retailMetrics.leftPaneOffsetMm}mm`,
+                        width: `${retailMetrics.leftColumnWidthMm}mm`,
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'flex-start',
+                        paddingLeft: '0.5mm',
+                        paddingRight: '0.5mm',
+                        overflow: 'hidden',
+                        boxSizing: 'border-box',
+                        flexShrink: 0,
+                    }}>
                          <div style={{ flexShrink: 0, marginRight: '0.5mm', height: '100%', display: 'flex', alignItems: 'center' }}>
                             {qrDataUrl && <img src={qrDataUrl} style={{ height: `${retailMetrics.qrSizeMm}mm`, width: `${retailMetrics.qrSizeMm}mm`, display: 'block', imageRendering: 'pixelated', marginTop: `${retailMetrics.qrMarginTopMm}mm` }} alt="QR" />}
                          </div>
@@ -190,9 +203,27 @@ const BarcodeView: React.FC<Props> = ({
                          </div>
                     </div>
 
-                    {/* Right Section (Stone + Brand + Size) — grouped so stone aligns with ILIOS */}
-                    <div style={{ width: `${retailMetrics.halfColumnWidthMm}mm`, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingLeft: '0.5mm', paddingRight: '1mm', overflow: 'hidden', boxSizing: 'border-box' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', maxWidth: `${retailMetrics.rightColumnMaxWidthMm}mm` }}>
+                    {/* Right Section (Stone + Brand + Size) — fixed width, left-aligned stack */}
+                    <div style={{
+                        width: `${retailMetrics.rightColumnWidthMm}mm`,
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-start',
+                        justifyContent: 'center',
+                        paddingLeft: '0.5mm',
+                        paddingRight: '1mm',
+                        boxSizing: 'border-box',
+                        flexShrink: 0,
+                        overflow: 'visible',
+                    }}>
+                        <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'flex-start',
+                            width: `${retailMetrics.rightColumnMaxWidthMm}mm`,
+                            maxWidth: `${retailMetrics.rightColumnMaxWidthMm}mm`,
+                        }}>
                             {stoneName && stoneFit && (
                                 <div
                                     style={{
@@ -200,9 +231,12 @@ const BarcodeView: React.FC<Props> = ({
                                         lineHeight: stoneFit.lineHeight,
                                         fontSize: `${stoneFit.fontSize}mm`,
                                         whiteSpace: stoneFit.allowWrap ? 'normal' : 'nowrap',
-                                        wordBreak: stoneFit.allowWrap ? 'break-word' : 'normal',
+                                        overflowWrap: stoneFit.allowWrap ? 'normal' : 'normal',
+                                        wordBreak: 'normal',
+                                        width: `${retailMetrics.rightColumnMaxWidthMm}mm`,
                                         maxWidth: `${retailMetrics.rightColumnMaxWidthMm}mm`,
                                         marginTop: `${retailMetrics.blockGapMm}mm`,
+                                        boxSizing: 'border-box',
                                     }}
                                 >
                                     {stoneName}

@@ -1,5 +1,9 @@
 /** Non-printable tail width on retail (λιανική) labels. */
 export const RETAIL_LABEL_TAIL_WIDTH_MM = 35;
+/** Shift QR/SKU block right within the printable area (~1–1.5 cm). */
+export const RETAIL_LEFT_PANE_OFFSET_MM = 12;
+/** Safety margin so fitted stone text is not clipped at print time. */
+export const RETAIL_STONE_WIDTH_SAFETY_MM = 1.2;
 
 export interface RetailStoneTextFit {
     fontSize: number;
@@ -10,6 +14,9 @@ export interface RetailStoneTextFit {
 export interface RetailLabelMetrics {
     printableWidthMm: number;
     halfColumnWidthMm: number;
+    leftPaneOffsetMm: number;
+    leftColumnWidthMm: number;
+    rightColumnWidthMm: number;
     rightColumnMaxWidthMm: number;
     brandFontMm: number;
     priceFontMm: number;
@@ -37,8 +44,9 @@ export function fitRetailStoneLabelText(
 ): RetailStoneTextFit {
     const minFont = 1.2;
     const maxFont = 2.2;
-    const charWidthFactor = 0.56;
-    const spaceWidthFactor = 0.3;
+    // Greek bold text prints wider than Latin — use a conservative estimate.
+    const charWidthFactor = 0.62;
+    const spaceWidthFactor = 0.32;
 
     const estimateTextWidth = (value: string, fontSize: number) =>
         [...value].reduce((width, char) => (
@@ -63,6 +71,37 @@ export function fitRetailStoneLabelText(
         return lines;
     };
 
+    const buildWrappedLines = (words: string[], fontSize: number): string[] => {
+        if (words.length === 0) return [''];
+        const lines: string[] = [];
+        let currentLine: string[] = [];
+        let currentWidth = 0;
+
+        for (const word of words) {
+            const wordWidth = estimateTextWidth(word, fontSize);
+            const nextWidth = currentLine.length > 0
+                ? currentWidth + fontSize * spaceWidthFactor + wordWidth
+                : wordWidth;
+
+            if (currentLine.length > 0 && nextWidth > maxWidthMm) {
+                lines.push(currentLine.join(' '));
+                currentLine = [word];
+                currentWidth = wordWidth;
+            } else {
+                currentLine.push(word);
+                currentWidth = nextWidth;
+            }
+        }
+
+        if (currentLine.length > 0) lines.push(currentLine.join(' '));
+        return lines;
+    };
+
+    const wrappedLinesFit = (words: string[], fontSize: number) => {
+        const lines = buildWrappedLines(words, fontSize);
+        return lines.every((line) => estimateTextWidth(line, fontSize) <= maxWidthMm);
+    };
+
     for (let fontSize = maxFont; fontSize >= minFont; fontSize -= 0.1) {
         if (estimateTextWidth(text, fontSize) <= maxWidthMm) {
             return { fontSize: parseFloat(fontSize.toFixed(1)), lineHeight: 0.9, allowWrap: false };
@@ -75,6 +114,7 @@ export function fitRetailStoneLabelText(
     for (let fontSize = maxFont; fontSize >= minFont; fontSize -= 0.1) {
         const longestWordWidth = longestWord * fontSize * charWidthFactor;
         if (longestWordWidth > maxWidthMm) continue;
+        if (!wrappedLinesFit(words, fontSize)) continue;
 
         const lineCount = countWrappedLines(words, fontSize);
         const totalHeight = lineCount * fontSize * 0.95;
@@ -96,8 +136,12 @@ export function getRetailLabelMetrics({
 }: RetailLabelMetricsInput): RetailLabelMetrics {
     const printableWidthMm = Math.max(20, labelWidthMm - RETAIL_LABEL_TAIL_WIDTH_MM);
     const halfColumnWidthMm = printableWidthMm / 2;
+    const rightColumnWidthMm = halfColumnWidthMm;
     const rightColumnPaddingMm = 1.5;
-    const rightColumnMaxWidthMm = Math.max(8, halfColumnWidthMm - rightColumnPaddingMm);
+    const rightColumnMaxWidthMm = Math.max(
+        8,
+        rightColumnWidthMm - rightColumnPaddingMm - RETAIL_STONE_WIDTH_SAFETY_MM,
+    );
     const blockGapMm = 0.5;
 
     let brandFontMm = Math.min(2.5, Math.max(1.8, labelHeightMm * 0.25));
@@ -112,6 +156,15 @@ export function getRetailLabelMetrics({
     const suffixFontMm = Math.min(2.0, skuFontMm * 0.9);
     const qrSizeMm = Math.min(7.5, Math.max(5, labelHeightMm * 0.72));
     const qrMarginTopMm = Math.max(0, (labelHeightMm - qrSizeMm) * 0.25);
+    const minLeftColumnMm = qrSizeMm + 2.5;
+    const leftPaneOffsetMm = Math.min(
+        RETAIL_LEFT_PANE_OFFSET_MM,
+        Math.max(0, printableWidthMm - rightColumnWidthMm - minLeftColumnMm),
+    );
+    const leftColumnWidthMm = Math.max(
+        minLeftColumnMm,
+        printableWidthMm - leftPaneOffsetMm - rightColumnWidthMm,
+    );
 
     let reservedHeightMm = blockGapMm;
     if (hasStone) reservedHeightMm += blockGapMm;
@@ -126,6 +179,9 @@ export function getRetailLabelMetrics({
     return {
         printableWidthMm,
         halfColumnWidthMm,
+        leftPaneOffsetMm,
+        leftColumnWidthMm,
+        rightColumnWidthMm,
         rightColumnMaxWidthMm,
         brandFontMm,
         priceFontMm,

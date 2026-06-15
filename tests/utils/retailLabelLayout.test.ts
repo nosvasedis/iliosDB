@@ -13,7 +13,9 @@ describe('getRetailLabelMetrics', () => {
 
         expect(metrics.printableWidthMm).toBe(37);
         expect(metrics.halfColumnWidthMm).toBe(18.5);
-        expect(metrics.rightColumnMaxWidthMm).toBe(17);
+        expect(metrics.rightColumnWidthMm).toBe(18.5);
+        expect(metrics.leftPaneOffsetMm).toBeGreaterThan(0);
+        expect(metrics.rightColumnMaxWidthMm).toBeLessThan(17);
         expect(metrics.qrSizeMm).toBeLessThanOrEqual(7.5);
         expect(metrics.stoneMaxHeightMm).toBeGreaterThan(0);
         expect(
@@ -27,7 +29,7 @@ describe('getRetailLabelMetrics', () => {
 
 describe('fitRetailStoneLabelText', () => {
     it('fits long Greek stone names within 17mm without ellipsis', () => {
-        const maxWidthMm = 17;
+        const maxWidthMm = 15.8;
         const maxHeightMm = 3.2;
 
         const samples = ['Λευκά Ζιργκόν', 'Κόκκινα Ζιργκόν', 'Πράσινος Αχάτης'];
