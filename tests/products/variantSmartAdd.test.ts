@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Gender, PlatingType } from '../../types';
+import { Gender } from '../../types';
 import {
   buildSmartAddSuffixPlan,
   buildVariantSuffixFromFinishAndStone,
@@ -16,19 +16,32 @@ describe('variantSmartAdd', () => {
     expect(men.some((stone) => stone.code === 'CO')).toBe(false);
   });
 
-  it('builds lustre and finish stone suffixes', () => {
-    expect(buildVariantSuffixFromFinishAndStone('', 'TG', PlatingType.None)).toBe('TG');
-    expect(buildVariantSuffixFromFinishAndStone('X', 'TG', PlatingType.None)).toBe('XTG');
-    expect(buildVariantSuffixFromFinishAndStone('X', 'TG', PlatingType.GoldPlated)).toBe('TG');
+  it('builds lustre and metal-finish stone suffixes regardless of master plating', () => {
+    expect(buildVariantSuffixFromFinishAndStone('', 'TG')).toBe('TG');
+    expect(buildVariantSuffixFromFinishAndStone('X', 'TG')).toBe('XTG');
+    expect(buildVariantSuffixFromFinishAndStone('X', 'AZM')).toBe('XAZM');
+    expect(buildVariantSuffixFromFinishAndStone('P', 'AZM')).toBe('PAZM');
+    expect(buildVariantSuffixFromFinishAndStone('X', '')).toBe('X');
+  });
+
+  it('allows any finish on gold-plated masters when editing the registry', () => {
+    const existing = new Set<string>();
+    const plan = buildSmartAddSuffixPlan(['', 'P', 'X'], 'AZM', existing);
+
+    expect(plan).toEqual([
+      { suffix: 'AZM', skippedDuplicate: false },
+      { suffix: 'PAZM', skippedDuplicate: false },
+      { suffix: 'XAZM', skippedDuplicate: false },
+    ]);
   });
 
   it('plans batch suffixes and skips duplicates', () => {
     const existing = new Set(['', 'XTG']);
-    const plan = buildSmartAddSuffixPlan(['', 'X'], 'TG', PlatingType.None, existing);
+    const plan = buildSmartAddSuffixPlan(['', 'X'], 'TG', existing);
 
     expect(plan).toEqual([
-      { suffix: '', skippedIncompatible: false, skippedDuplicate: true },
-      { suffix: 'XTG', skippedIncompatible: false, skippedDuplicate: true },
+      { suffix: 'TG', skippedDuplicate: false },
+      { suffix: 'XTG', skippedDuplicate: true },
     ]);
   });
 });

@@ -67,12 +67,12 @@ export default function SmartVariantAddPanel({
   }, [stoneCatalog, stoneSuffix]);
 
   const addPlan = useMemo(
-    () => buildSmartAddSuffixPlan(selectedFinishes, stoneSuffix, product.plating_type, existingSuffixSet),
-    [selectedFinishes, stoneSuffix, product.plating_type, existingSuffixSet],
+    () => buildSmartAddSuffixPlan(selectedFinishes, stoneSuffix, existingSuffixSet),
+    [selectedFinishes, stoneSuffix, existingSuffixSet],
   );
 
   const pendingSuffixes = addPlan
-    .filter((entry) => !entry.skippedIncompatible && !entry.skippedDuplicate && entry.suffix !== undefined)
+    .filter((entry) => !entry.skippedDuplicate)
     .map((entry) => entry.suffix);
 
   const singlePendingSuffix = pendingSuffixes.length === 1 ? pendingSuffixes[0] : null;
@@ -181,8 +181,6 @@ export default function SmartVariantAddPanel({
           : `Προστέθηκαν ${result.addedCount} παραλλαγές`,
         'success',
       );
-    } else if (result.skippedIncompatible > 0) {
-      showToast('Δεν προστέθηκαν παραλλαγές — μη συμβατά φινιρίσματα με το master plating.', 'info');
     } else {
       showToast('Δεν προστέθηκαν νέες παραλλαγές (ίσως υπάρχουν ήδη).', 'info');
     }
