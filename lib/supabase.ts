@@ -15,6 +15,15 @@ import { buildOrderShipmentItemKey, buildStockDeductionEntries, checkStockForOrd
 import { planShipmentBatchRestores } from '../features/orders/shipmentRevertHelpers';
 import { buildTransferPlan } from '../features/orders/transferHelpers';
 import { buildInitialBatchHistoryEntry, canMoveBatchToStage as canMoveBatchToStageHelper } from '../features/production/supabaseHelpers';
+import {
+    bindProductionLineIds,
+    buildNaturalKeyDemandCount,
+    demandKeyForItem,
+    planLineIdIdentityMorphs,
+    planSameSkuIdentitySubstitutions,
+    supplyKeyForBatch,
+    type ReconcileCatalogItem,
+} from '../features/production/orderBatchReconcile';
 import { mapCatalogProductsWithRelations, mapProductsWithRelations, resolveProductImageUrl, attachSuppliersToProductRows } from '../features/products/mappers';
 import { getRegisteredQueryClient } from './queryClientRegistry';
 import {
@@ -723,6 +732,113 @@ async function getOrderSnapshot(orderId: string): Promise<Order | null> {
         (query) => query.eq('id', orderId),
         { single: true, localFilter: (row) => row.id === orderId },
     ) as Promise<Order | null>;
+}
+
+function buildBatchInsertFromOrderItem(
+    orderId: string,
+    item: ReconcileCatalogItem,
+    quantity: number,
+    product: Product | undefined,
+    allMaterials: Material[],
+    createdAt: string,
+): Record<string, unknown> | null {
+    const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
+    const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
+    const nowUpdated = new Date().toISOString();
+
+    if (isSpecialCreationSku(item.sku)) {
+        return {
+            id: crypto.randomUUID(),
+            order_id: orderId,
+            sku: item.sku,
+            variant_suffix: item.variant_suffix || null,
+            quantity,
+            current_stage: ProductionStage.Waxing,
+            size_info: item.size_info || null,
+            cord_color: item.cord_color || null,
+            enamel_color: item.enamel_color || null,
+            notes: item.notes || null,
+            line_id: item.line_id ?? null,
+            priority: 'Normal',
+            type: 'Νέα',
+            requires_setting: false,
+            requires_assembly: false,
+            created_at: createdAt,
+            updated_at: nowUpdated,
+        };
+    }
+
+    if (!product) return null;
+
+    const suffix = item.variant_suffix || '';
+    const stone = getVariantComponents(suffix, product.gender).stone;
+    const hasZirconsFromSuffix = stone?.code && ZIRCON_CODES.includes(stone.code) && !NON_ZIRCON_STONE_CODES.includes(stone.code);
+    const hasZirconsFromRecipe = product.recipe.some((r: RecipeItem) => {
+        if (r.type !== 'raw') return false;
+        const material = allMaterials.find((m) => m.id === r.id);
+        return material?.type === MaterialType.Stone && ZIRCON_CODES.some((code) => material.name.includes(code));
+    });
+    const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe || requiresSettingStage(item.sku);
+    const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
+
+    return {
+        id: crypto.randomUUID(),
+        order_id: orderId,
+        sku: item.sku,
+        variant_suffix: item.variant_suffix || null,
+        quantity,
+        current_stage: stage,
+        size_info: item.size_info || null,
+        cord_color: item.cord_color || null,
+        enamel_color: item.enamel_color || null,
+        notes: item.notes || null,
+        line_id: item.line_id ?? null,
+        priority: 'Normal',
+        type: 'Νέα',
+        requires_setting: hasZircons,
+        requires_assembly: requiresAssemblyStage(item.sku),
+        created_at: createdAt,
+        updated_at: nowUpdated,
+    };
+}
+
+function buildBatchIdentityPayloadFromOrderItem(
+    item: ReconcileCatalogItem,
+    product: Product | undefined,
+    allMaterials: Material[],
+): Record<string, unknown> {
+    const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
+    const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
+    const payload: Record<string, unknown> = {
+        sku: item.sku,
+        variant_suffix: item.variant_suffix || null,
+        size_info: item.size_info || null,
+        cord_color: item.cord_color || null,
+        enamel_color: item.enamel_color || null,
+        notes: item.notes ?? null,
+        line_id: item.line_id ?? null,
+        updated_at: new Date().toISOString(),
+    };
+
+    if (isSpecialCreationSku(item.sku)) {
+        payload.requires_setting = false;
+        payload.requires_assembly = false;
+        return payload;
+    }
+
+    if (!product) return payload;
+
+    const suffix = item.variant_suffix || '';
+    const stone = getVariantComponents(suffix, product.gender).stone;
+    const hasZirconsFromSuffix = stone?.code && ZIRCON_CODES.includes(stone.code) && !NON_ZIRCON_STONE_CODES.includes(stone.code);
+    const hasZirconsFromRecipe = product.recipe.some((r: RecipeItem) => {
+        if (r.type !== 'raw') return false;
+        const material = allMaterials.find((m) => m.id === r.id);
+        return material?.type === MaterialType.Stone && ZIRCON_CODES.some((code) => material.name.includes(code));
+    });
+    payload.requires_setting = hasZirconsFromSuffix || hasZirconsFromRecipe || requiresSettingStage(item.sku);
+    payload.requires_assembly = requiresAssemblyStage(item.sku);
+    return payload;
 }
 
 async function restoreStockForBatch(batch: ProductionBatch): Promise<void> {
@@ -3090,282 +3206,282 @@ export const api = {
         isNewPart?: boolean,
         deps?: { products?: Product[]; materials?: Material[] },
     ): Promise<void> => {
-        try {
-            // 1. Fetch existing batches
-            let existingBatches: any[] = [];
-            if (isLocalMode) {
-                const local = await offlineDb.getTable('production_batches');
-                existingBatches = local?.filter(b => b.order_id === order.id) || [];
-            } else {
-                const { data } = await supabase.from('production_batches').select('*').eq('order_id', order.id);
-                existingBatches = data || [];
-            }
+        // 1. Fetch existing batches
+        let existingBatches: ProductionBatch[] = [];
+        if (isLocalMode) {
+            const local = await offlineDb.getTable('production_batches');
+            existingBatches = (local?.filter((b) => b.order_id === order.id) || []) as ProductionBatch[];
+        } else {
+            const { data } = await supabase.from('production_batches').select('*').eq('order_id', order.id);
+            existingBatches = (data || []) as ProductionBatch[];
+        }
 
-            if (existingBatches.length === 0 && order.status !== OrderStatus.InProduction && order.status !== OrderStatus.Ready) {
-                // If no batches exist and we aren't "In Production", do nothing
-                return;
-            }
+        if (existingBatches.length === 0 && order.status !== OrderStatus.InProduction && order.status !== OrderStatus.Ready) {
+            return;
+        }
 
-            // 2. Fetch dependencies (prefer in-memory React Query cache)
-            const allProducts = deps?.products ?? (await getCachedProducts()) ?? await api.getProducts();
-            const allMaterials = deps?.materials ?? (await getCachedMaterials()) ?? await api.getMaterials();
-            const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
-            const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
+        const allProducts = deps?.products ?? (await getCachedProducts()) ?? await api.getProducts();
+        const allMaterials = deps?.materials ?? (await getCachedMaterials()) ?? await api.getMaterials();
 
-            // 3. Define "Natural Key" for matching: SKU + Variant + Size + extra XR options (catalog — no line_id)
-            const getNaturalKey = (
-                sku: string,
-                variant: string | null | undefined,
-                size: string | null | undefined,
-                cordColor?: string | null,
-                enamelColor?: string | null
-            ) => buildItemIdentityKey({
-                sku: sku.toUpperCase(),
-                variant_suffix: (variant || '').toUpperCase(),
-                size_info: (size || '').toUpperCase(),
-                cord_color: ((cordColor || '').toLowerCase() || null) as any,
-                enamel_color: ((enamelColor || '').toLowerCase() || null) as any
-            });
-
-            // Pre-scan: count how many demand entries share each natural key.
-            // When count > 1 the entries differ only by notes, so notes must be
-            // part of the reconciliation key to keep them separate.
-            const naturalKeyDemandCount: Record<string, number> = {};
-            order.items.forEach((item: any) => {
-                if (isSpecialCreationSku(item.sku)) return;
-                const nk = getNaturalKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color);
-                naturalKeyDemandCount[nk] = (naturalKeyDemandCount[nk] || 0) + 1;
-            });
-
-            const demandKeyForItem = (item: any) => {
-                if (item.line_id || isSpecialCreationSku(item.sku)) {
-                    return buildItemIdentityKey({
-                        sku: (item.sku || '').toUpperCase(),
-                        variant_suffix: (item.variant_suffix || '').toUpperCase(),
-                        size_info: (item.size_info || '').toUpperCase(),
-                        cord_color: ((item.cord_color || '').toLowerCase() || null) as any,
-                        enamel_color: ((item.enamel_color || '').toLowerCase() || null) as any,
-                        line_id: item.line_id ?? null
-                    });
-                }
-                const nk = getNaturalKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color);
-                // Only include notes in the key when there are multiple demand entries
-                // for this natural key (i.e., same SKU+variant+size but different notes).
-                return naturalKeyDemandCount[nk] > 1 ? nk + '::' + (item.notes || '') : nk;
-            };
-
-            const supplyKeyForBatch = (b: any) => {
-                if (b.line_id || isSpecialCreationSku(b.sku)) {
-                    return buildItemIdentityKey({
-                        sku: (b.sku || '').toUpperCase(),
-                        variant_suffix: (b.variant_suffix || '').toUpperCase(),
-                        size_info: (b.size_info || '').toUpperCase(),
-                        cord_color: ((b.cord_color || '').toLowerCase() || null) as any,
-                        enamel_color: ((b.enamel_color || '').toLowerCase() || null) as any,
-                        line_id: b.line_id ?? null
-                    });
-                }
-                const nk = getNaturalKey(b.sku, b.variant_suffix, b.size_info, b.cord_color, b.enamel_color);
-                // Mirror the demand key logic: include notes only for collision natural keys.
-                return naturalKeyDemandCount[nk] > 1 ? nk + '::' + (b.notes || '') : nk;
-            };
-
-            // 3.5. For PartiallyDelivered orders, fetch shipped quantities so we don't
-            // re-create batches for items that have already been shipped to the client.
-            let shippedByDemandKey: Record<string, number> = {};
-            if (order.status === OrderStatus.PartiallyDelivered) {
-                const shipmentSnapshot = await getOrderShipmentsSnapshot(order.id);
-                for (const si of shipmentSnapshot.items) {
-                    const key = demandKeyForItem(si);
-                    shippedByDemandKey[key] = (shippedByDemandKey[key] || 0) + si.quantity;
-                }
-            }
-
-            // 4. Map Demand (What the order says NOW) — includes SP (ειδική δημιουργία) per line_id
-            //    For PartiallyDelivered orders, demand is reduced by already-shipped quantities.
-            const demandMap: Record<string, { qty: number, item: any }> = {};
-            order.items.forEach(item => {
-                const key = demandKeyForItem(item);
-                if (!demandMap[key]) demandMap[key] = { qty: 0, item };
-                demandMap[key].qty += item.quantity;
-            });
-            // Subtract already-shipped quantities so reconciliation doesn't create phantom batches
-            for (const key of Object.keys(shippedByDemandKey)) {
-                if (demandMap[key]) {
-                    demandMap[key].qty = Math.max(0, demandMap[key].qty - shippedByDemandKey[key]);
-                }
-            }
-
-            // 5. Map Supply (What batches currently exist)
-            const supplyMap: Record<string, ProductionBatch[]> = {};
-            existingBatches.forEach((b: any) => {
-                const key = supplyKeyForBatch(b);
-                if (!supplyMap[key]) supplyMap[key] = [];
-                supplyMap[key].push(b);
-            });
-
-            // 6. RECONCILE: Iterate all unique keys; collect batch inserts, surplus ops, and metadata syncs
-            // When isNewPart===false (adjustment), new batches inherit the earliest existing created_at
-            // so groupBatchesByShipment keeps them in the same time-bucket (no phantom split).
-            const batchCreatedAt = (isNewPart === false && existingBatches.length > 0)
-                ? existingBatches.reduce(
-                    (earliest: string, b: any) => (b.created_at < earliest ? b.created_at : earliest),
-                    existingBatches[0].created_at as string
-                  )
-                : new Date().toISOString();
-
-            const allKeys = new Set([...Object.keys(demandMap), ...Object.keys(supplyMap)]);
-            const batchesToInsert: any[] = [];
-            const batchIdsToDelete: string[] = [];
-            const batchUpdates: { id: string; quantity: number; updated_at: string; notes?: string | null; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null; line_id?: string | null }[] = [];
-            const batchMetadataUpdates: { id: string; notes: string | null; size_info: string | null; cord_color: string | null; enamel_color: string | null; line_id: string | null; updated_at: string }[] = [];
-
-            for (const key of allKeys) {
-                const targetQty = demandMap[key]?.qty || 0;
-                const existingList = supplyMap[key] || [];
-                const currentQty = existingList.reduce((s, b) => s + b.quantity, 0);
-                const demandItem = demandMap[key]?.item;
-
-                // CASE A: Deficit (Need more items) — collect rows for one bulk insert
-                if (targetQty > currentQty) {
-                    const diff = targetQty - currentQty;
-                    const { item } = demandMap[key];
-                    const product = allProducts.find(p => p.sku === item.sku);
-
-                    if (isSpecialCreationSku(item.sku)) {
-                        const nowUpdated = new Date().toISOString();
-                        batchesToInsert.push({
-                            id: crypto.randomUUID(),
-                            order_id: order.id,
-                            sku: item.sku,
-                            variant_suffix: item.variant_suffix || null,
-                            quantity: diff,
-                            current_stage: ProductionStage.Waxing,
-                            size_info: item.size_info || null,
-                            cord_color: item.cord_color || null,
-                            enamel_color: item.enamel_color || null,
-                            notes: item.notes || null,
-                            line_id: item.line_id ?? null,
-                            priority: 'Normal',
-                            type: 'Νέα',
-                            requires_setting: false,
-                            requires_assembly: false,
-                            created_at: batchCreatedAt,
-                            updated_at: nowUpdated
-                        });
-                    } else if (product) {
-                        const suffix = item.variant_suffix || '';
-                        const stone = getVariantComponents(suffix, product.gender).stone;
-                        const hasZirconsFromSuffix = stone?.code && ZIRCON_CODES.includes(stone.code) && !NON_ZIRCON_STONE_CODES.includes(stone.code);
-                        const hasZirconsFromRecipe = product.recipe.some((r: any) => {
-                            if (r.type !== 'raw') return false;
-                            const material = allMaterials.find(m => m.id === r.id);
-                            return material?.type === MaterialType.Stone && ZIRCON_CODES.some(code => material.name.includes(code));
-                        });
-                        const hasZircons = hasZirconsFromSuffix || hasZirconsFromRecipe || requiresSettingStage(item.sku);
-
-                        const stage = product.production_type === ProductionType.Imported ? ProductionStage.AwaitingDelivery : ProductionStage.Waxing;
-                        const nowUpdated = new Date().toISOString();
-                        batchesToInsert.push({
-                            id: crypto.randomUUID(),
-                            order_id: order.id,
-                            sku: item.sku,
-                            variant_suffix: item.variant_suffix || null,
-                            quantity: diff,
-                            current_stage: stage,
-                            size_info: item.size_info || null,
-                            cord_color: item.cord_color || null,
-                            enamel_color: item.enamel_color || null,
-                            notes: item.notes || null,
-                            line_id: item.line_id ?? null,
-                            priority: 'Normal',
-                            type: 'Νέα',
-                            requires_setting: hasZircons,
-                            requires_assembly: requiresAssemblyStage(item.sku),
-                            created_at: batchCreatedAt,
-                            updated_at: nowUpdated
-                        });
-                    }
-                }
-                // CASE B: Surplus — collect ids to delete and payloads to update (same order: earliest stage first)
-                else if (currentQty > targetQty) {
-                    let surplus = currentQty - targetQty;
-                    const sortedSupply = [...existingList].sort((a, b) => {
-                        const stages = Object.values(ProductionStage);
-                        return stages.indexOf(a.current_stage) - stages.indexOf(b.current_stage);
-                    });
-
-                    for (const batch of sortedSupply) {
-                        if (surplus <= 0) break;
-                        if (batch.quantity <= surplus) {
-                            batchIdsToDelete.push(batch.id);
-                            surplus -= batch.quantity;
-                        } else {
-                            const now = new Date().toISOString();
-                            batchUpdates.push({
-                                id: batch.id,
-                                quantity: batch.quantity - surplus,
-                                updated_at: now,
-                                // Only push order notes when they exist; otherwise preserve the batch-level note
-                                notes: demandItem ? (demandItem.notes != null ? demandItem.notes : (batch.notes ?? null)) : undefined,
-                                size_info: demandItem ? (demandItem.size_info ?? null) : undefined,
-                                cord_color: demandItem ? (demandItem.cord_color ?? null) : undefined,
-                                enamel_color: demandItem ? (demandItem.enamel_color ?? null) : undefined,
-                                line_id: demandItem ? (demandItem.line_id ?? null) : undefined
-                            });
-                            surplus = 0;
-                        }
-                    }
-                }
-                // CASE C: Exact match — sync metadata from order so re-edits are reflected.
-                // Notes are only overwritten when the order line actually carries notes; otherwise
-                // any note added directly in Παραγωγή is preserved.
-                if (targetQty === currentQty && demandItem && existingList.length > 0) {
-                    const now = new Date().toISOString();
-                    const size_info = demandItem.size_info ?? null;
-                    const cord_color = demandItem.cord_color ?? null;
-                    const enamel_color = demandItem.enamel_color ?? null;
-                    const line_id = demandItem.line_id ?? null;
-                    for (const b of existingList) {
-                        const notes = demandItem.notes != null ? demandItem.notes : (b.notes ?? null);
-                        batchMetadataUpdates.push({ id: b.id, notes, size_info, cord_color, enamel_color, line_id, updated_at: now });
-                    }
-                }
-            }
-
-            // Apply deficit: single bulk insert
-            if (batchesToInsert.length > 0) {
-                await safeMutate('production_batches', 'INSERT', batchesToInsert);
-                await safeMutate(
-                    'batch_stage_history',
-                    'INSERT',
-                    batchesToInsert.map((batch) => buildInitialBatchHistoryEntry(batch)),
-                    { noSelect: true }
+        // 2. Bind stable line_id values between order rows and legacy batches.
+        const lineBinding = bindProductionLineIds(order.items, existingBatches);
+        let workingOrder = order;
+        if (
+            lineBinding.batchLineIdUpdates.length > 0 ||
+            lineBinding.items.some((item, index) => item.line_id !== order.items[index]?.line_id)
+        ) {
+            workingOrder = { ...order, items: lineBinding.items };
+            await safeMutate('orders', 'UPDATE', { items: lineBinding.items }, { match: { id: order.id }, noSelect: true });
+            if (lineBinding.batchLineIdUpdates.length > 0) {
+                const now = new Date().toISOString();
+                await Promise.all(
+                    lineBinding.batchLineIdUpdates.map((update) =>
+                        safeMutate('production_batches', 'UPDATE', { line_id: update.line_id, updated_at: now }, { match: { id: update.batchId }, noSelect: true })
+                    ),
                 );
+                existingBatches = existingBatches.map((batch) => {
+                    const update = lineBinding.batchLineIdUpdates.find((entry) => entry.batchId === batch.id);
+                    return update ? { ...batch, line_id: update.line_id } : batch;
+                });
             }
-            // Apply surplus: parallel deletes and parallel updates (behavior unchanged)
-            if (batchIdsToDelete.length > 0) {
-                await Promise.all(batchIdsToDelete.map(id => api.deleteProductionBatch(id)));
+        }
+
+        // 3. For PartiallyDelivered orders, subtract already-shipped quantities from demand.
+        let shippedByDemandKey: Record<string, number> = {};
+        if (workingOrder.status === OrderStatus.PartiallyDelivered) {
+            const shipmentSnapshot = await getOrderShipmentsSnapshot(workingOrder.id);
+            const naturalKeyDemandCount = buildNaturalKeyDemandCount(workingOrder.items);
+            const keyOptions = { naturalKeyDemandCount };
+            for (const shippedItem of shipmentSnapshot.items) {
+                const key = demandKeyForItem(shippedItem, keyOptions);
+                shippedByDemandKey[key] = (shippedByDemandKey[key] || 0) + shippedItem.quantity;
             }
-            if (batchUpdates.length > 0) {
-                await Promise.all(batchUpdates.map(u => {
-                    const payload: any = { quantity: u.quantity, updated_at: u.updated_at };
-                    if (u.notes !== undefined) payload.notes = u.notes;
-                    if (u.size_info !== undefined) payload.size_info = u.size_info;
-                    if (u.cord_color !== undefined) payload.cord_color = u.cord_color;
-                    if (u.enamel_color !== undefined) payload.enamel_color = u.enamel_color;
-                    if (u.line_id !== undefined) payload.line_id = u.line_id;
-                    return safeMutate('production_batches', 'UPDATE', payload, { match: { id: u.id } });
-                }));
+        }
+
+        // 4. Morph existing batches when catalog identity changes on the same logical line.
+        // Skip morphing when the user explicitly chose "Νέο Τμήμα" — they want a separate batch group.
+        const lineIdMorphs = isNewPart === true
+            ? []
+            : planLineIdIdentityMorphs(workingOrder.items, existingBatches);
+        const batchesForSubstitution = existingBatches.filter(
+            (batch) => !lineIdMorphs.some((morph) => morph.batchId === batch.id),
+        );
+        const substitutionMorphs = isNewPart === true
+            ? []
+            : planSameSkuIdentitySubstitutions(
+                workingOrder.items,
+                batchesForSubstitution,
+                shippedByDemandKey,
+            );
+        const morphedBatchIds = new Set([
+            ...lineIdMorphs.map((morph) => morph.batchId),
+            ...substitutionMorphs.flatMap((morph) => morph.batchIds),
+        ]);
+
+        if (lineIdMorphs.length > 0 || substitutionMorphs.length > 0) {
+            await Promise.all([
+                ...lineIdMorphs.map((morph) => {
+                    const product = allProducts.find((entry) => entry.sku === morph.item.sku);
+                    const payload = buildBatchIdentityPayloadFromOrderItem(morph.item, product, allMaterials);
+                    return safeMutate('production_batches', 'UPDATE', payload, { match: { id: morph.batchId }, noSelect: true });
+                }),
+                ...substitutionMorphs.flatMap((morph) => {
+                    const product = allProducts.find((entry) => entry.sku === morph.item.sku);
+                    const payload = buildBatchIdentityPayloadFromOrderItem(morph.item, product, allMaterials);
+                    return morph.batchIds.map((batchId) =>
+                        safeMutate('production_batches', 'UPDATE', payload, { match: { id: batchId }, noSelect: true })
+                    );
+                }),
+            ]);
+            existingBatches = existingBatches.map((batch) => {
+                const lineMorph = lineIdMorphs.find((morph) => morph.batchId === batch.id);
+                if (lineMorph) {
+                    const product = allProducts.find((entry) => entry.sku === lineMorph.item.sku);
+                    return { ...batch, ...buildBatchIdentityPayloadFromOrderItem(lineMorph.item, product, allMaterials) } as ProductionBatch;
+                }
+                const substitution = substitutionMorphs.find((morph) => morph.batchIds.includes(batch.id));
+                if (substitution) {
+                    const product = allProducts.find((entry) => entry.sku === substitution.item.sku);
+                    return { ...batch, ...buildBatchIdentityPayloadFromOrderItem(substitution.item, product, allMaterials) } as ProductionBatch;
+                }
+                return batch;
+            });
+        }
+
+        const batchesForReconcile = existingBatches;
+        const naturalKeyDemandCount = buildNaturalKeyDemandCount(workingOrder.items);
+        const keyOptions = { naturalKeyDemandCount };
+
+        const demandMap: Record<string, { qty: number; item: ReconcileCatalogItem }> = {};
+        for (const item of workingOrder.items) {
+            const key = demandKeyForItem(item, keyOptions);
+            if (!demandMap[key]) demandMap[key] = { qty: 0, item };
+            demandMap[key].qty += item.quantity;
+        }
+        for (const key of Object.keys(shippedByDemandKey)) {
+            if (demandMap[key]) {
+                demandMap[key].qty = Math.max(0, demandMap[key].qty - shippedByDemandKey[key]);
             }
-            // Sync notes/size_info when qty matches so order re-edits (notes, size) are reflected
-            if (batchMetadataUpdates.length > 0) {
-                await Promise.all(batchMetadataUpdates.map(u =>
-                    safeMutate('production_batches', 'UPDATE', { notes: u.notes, size_info: u.size_info, cord_color: u.cord_color, enamel_color: u.enamel_color, line_id: u.line_id, updated_at: u.updated_at }, { match: { id: u.id } })
-                ));
+        }
+
+        const supplyMap: Record<string, ProductionBatch[]> = {};
+        for (const batch of batchesForReconcile) {
+            const key = supplyKeyForBatch(batch, keyOptions);
+            if (!supplyMap[key]) supplyMap[key] = [];
+            supplyMap[key].push(batch);
+        }
+
+        const batchCreatedAt = (isNewPart === false && existingBatches.length > 0)
+            ? existingBatches.reduce(
+                (earliest, batch) => (batch.created_at < earliest ? batch.created_at : earliest),
+                existingBatches[0].created_at as string,
+            )
+            : new Date().toISOString();
+
+        const allKeys = new Set([...Object.keys(demandMap), ...Object.keys(supplyMap)]);
+        const batchesToInsert: Record<string, unknown>[] = [];
+        const batchIdsToDelete: string[] = [];
+        const stockBatchesToRestore: ProductionBatch[] = [];
+        const batchUpdates: {
+            id: string;
+            quantity: number;
+            updated_at: string;
+            notes?: string | null;
+            size_info?: string | null;
+            cord_color?: string | null;
+            enamel_color?: string | null;
+            line_id?: string | null;
+        }[] = [];
+        const batchMetadataUpdates: {
+            id: string;
+            notes: string | null;
+            size_info: string | null;
+            cord_color: string | null;
+            enamel_color: string | null;
+            line_id: string | null;
+            updated_at: string;
+        }[] = [];
+
+        for (const key of allKeys) {
+            const targetQty = demandMap[key]?.qty || 0;
+            const existingList = supplyMap[key] || [];
+            const currentQty = existingList.reduce((sum, batch) => sum + batch.quantity, 0);
+            const demandItem = demandMap[key]?.item;
+
+            if (targetQty > currentQty) {
+                const diff = targetQty - currentQty;
+                const product = allProducts.find((entry) => entry.sku === demandItem.sku);
+                const insertRow = buildBatchInsertFromOrderItem(
+                    workingOrder.id,
+                    demandItem,
+                    diff,
+                    product,
+                    allMaterials,
+                    batchCreatedAt,
+                );
+                if (insertRow) batchesToInsert.push(insertRow);
+            } else if (currentQty > targetQty) {
+                let surplus = currentQty - targetQty;
+                const sortedSupply = [...existingList].sort((a, b) => {
+                    const stages = Object.values(ProductionStage);
+                    return stages.indexOf(a.current_stage) - stages.indexOf(b.current_stage);
+                });
+
+                for (const batch of sortedSupply) {
+                    if (surplus <= 0) break;
+                    if (batch.quantity <= surplus) {
+                        batchIdsToDelete.push(batch.id);
+                        if (batch.type === 'Από Stock') stockBatchesToRestore.push(batch);
+                        surplus -= batch.quantity;
+                    } else {
+                        const now = new Date().toISOString();
+                        batchUpdates.push({
+                            id: batch.id,
+                            quantity: batch.quantity - surplus,
+                            updated_at: now,
+                            notes: demandItem ? (demandItem.notes != null ? demandItem.notes : (batch.notes ?? null)) : undefined,
+                            size_info: demandItem ? (demandItem.size_info ?? null) : undefined,
+                            cord_color: demandItem ? (demandItem.cord_color ?? null) : undefined,
+                            enamel_color: demandItem ? (demandItem.enamel_color ?? null) : undefined,
+                            line_id: demandItem ? (demandItem.line_id ?? null) : undefined,
+                        });
+                        surplus = 0;
+                    }
+                }
             }
-        } catch (err) {
-            console.error("Batch Reconciliation Failed:", err);
+
+            if (targetQty === currentQty && demandItem && existingList.length > 0) {
+                const now = new Date().toISOString();
+                const size_info = demandItem.size_info ?? null;
+                const cord_color = demandItem.cord_color ?? null;
+                const enamel_color = demandItem.enamel_color ?? null;
+                const line_id = demandItem.line_id ?? null;
+                for (const batch of existingList) {
+                    const notes = demandItem.notes != null ? demandItem.notes : (batch.notes ?? null);
+                    batchMetadataUpdates.push({ id: batch.id, notes, size_info, cord_color, enamel_color, line_id, updated_at: now });
+                }
+            }
+        }
+
+        let changed = lineBinding.batchLineIdUpdates.length > 0 || morphedBatchIds.size > 0;
+
+        if (batchIdsToDelete.length > 0) {
+            changed = true;
+            for (const batch of stockBatchesToRestore) {
+                await restoreStockForBatch(batch);
+            }
+            await Promise.all(
+                batchIdsToDelete.map((id) =>
+                    safeMutate('production_batches', 'DELETE', null, { match: { id }, noSelect: true })
+                ),
+            );
+        }
+
+        if (batchUpdates.length > 0) {
+            changed = true;
+            await Promise.all(batchUpdates.map((update) => {
+                const payload: Record<string, unknown> = { quantity: update.quantity, updated_at: update.updated_at };
+                if (update.notes !== undefined) payload.notes = update.notes;
+                if (update.size_info !== undefined) payload.size_info = update.size_info;
+                if (update.cord_color !== undefined) payload.cord_color = update.cord_color;
+                if (update.enamel_color !== undefined) payload.enamel_color = update.enamel_color;
+                if (update.line_id !== undefined) payload.line_id = update.line_id;
+                return safeMutate('production_batches', 'UPDATE', payload, { match: { id: update.id }, noSelect: true });
+            }));
+        }
+
+        if (batchMetadataUpdates.length > 0) {
+            changed = true;
+            await Promise.all(batchMetadataUpdates.map((update) =>
+                safeMutate(
+                    'production_batches',
+                    'UPDATE',
+                    {
+                        notes: update.notes,
+                        size_info: update.size_info,
+                        cord_color: update.cord_color,
+                        enamel_color: update.enamel_color,
+                        line_id: update.line_id,
+                        updated_at: update.updated_at,
+                    },
+                    { match: { id: update.id }, noSelect: true },
+                )
+            ));
+        }
+
+        if (batchesToInsert.length > 0) {
+            changed = true;
+            await safeMutate('production_batches', 'INSERT', batchesToInsert);
+            await safeMutate(
+                'batch_stage_history',
+                'INSERT',
+                batchesToInsert.map((batch) => buildInitialBatchHistoryEntry(batch as ProductionBatch)),
+                { noSelect: true },
+            );
+        }
+
+        if (changed) {
+            await syncOrderStatusAfterBatchChange(workingOrder.id);
         }
     },
 
