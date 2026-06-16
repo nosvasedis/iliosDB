@@ -1,6 +1,6 @@
 import { Gender, Product, ProductVariant } from '../../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN } from '../../constants';
-import { analyzeSuffix, estimateVariantCost } from '../../utils/pricingEngine';
+import { analyzeSuffix, estimateVariantCost, getIliosSuggestedPriceForProduct } from '../../utils/pricingEngine';
 
 export interface StoneCatalogEntry {
   code: string;
@@ -62,6 +62,23 @@ export function buildSmartAddSuffixPlan(
   });
 }
 
+export function getSmartAddVariantSellingPrice(
+  product: Product,
+  suffix: string,
+  settings: any,
+  allMaterials: any[],
+  allProducts: Product[],
+): number {
+  if (product.is_component) return 0;
+  return getIliosSuggestedPriceForProduct(
+    product,
+    suffix,
+    settings,
+    allMaterials,
+    allProducts,
+  );
+}
+
 export function createVariantsFromSmartAdd(params: {
   product: Product;
   selectedFinishes: string[];
@@ -110,7 +127,14 @@ export function createVariantsFromSmartAdd(params: {
           : autoDescription,
       stock_qty: 0,
       active_price: estimatedCost,
-      selling_price: params.product.is_component ? 0 : params.product.selling_price,
+      selling_price: getSmartAddVariantSellingPrice(
+        params.product,
+        entry.suffix,
+        params.settings,
+        params.allMaterials,
+        params.allProducts,
+      ),
+      selling_price_manual_override: false,
     });
     existing.add(entry.suffix);
   });

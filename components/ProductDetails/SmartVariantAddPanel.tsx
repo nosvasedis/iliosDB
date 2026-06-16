@@ -8,6 +8,7 @@ import { getStoneChipStyle } from '../../features/products/registryStoneChipStyl
 import {
   buildSmartAddSuffixPlan,
   createVariantsFromSmartAdd,
+  getSmartAddVariantSellingPrice,
   getStoneCatalogForGender,
 } from '../../features/products/variantSmartAdd';
 import { getSmartVariantPreview } from '../../features/products/productDetailsViewModels';
@@ -151,7 +152,14 @@ export default function SmartVariantAddPanel({
           description,
           stock_qty: 0,
           active_price: estimatedCost,
-          selling_price: product.is_component ? 0 : product.selling_price,
+          selling_price: getSmartAddVariantSellingPrice(
+            product,
+            rawSuffix,
+            settings,
+            allMaterials,
+            allProducts,
+          ),
+          selling_price_manual_override: false,
         },
       ]);
       setAdvancedSuffix('');
