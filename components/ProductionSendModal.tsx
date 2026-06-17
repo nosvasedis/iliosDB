@@ -212,8 +212,8 @@ export default function ProductionSendModal({ order: orderProp, products, materi
     }, [activeStagePopup, existingBatches, polishingPopupTab]);
 
     const shippedQuantities = useMemo(
-        () => getShippedQuantities(shipmentSnapshot?.items || []),
-        [shipmentSnapshot]
+        () => getShippedQuantities(shipmentSnapshot?.items || [], order.items),
+        [shipmentSnapshot, order.items]
     );
     const orderShipments = shipmentSnapshot?.shipments || [];
     const orderShipmentItems = shipmentSnapshot?.items || [];

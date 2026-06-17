@@ -12,7 +12,7 @@ import {
   UserProfile,
 } from '../types';
 import { calculateProductCost, estimateVariantCost } from './pricingEngine';
-import { itemKey } from './shipmentUtils';
+import { getShippedQuantitiesForOrderLines, itemKey } from '../utils/shipmentUtils';
 import { isSpecialCreationSku } from './specialCreationSku';
 
 const RETAIL_CUSTOMER_ID = '00000000-0000-0000-0000-000000000003';
@@ -436,14 +436,8 @@ function getShippedQuantityMap(
   shipmentItems: OrderShipmentItem[],
 ): Map<string, number> {
   const shipmentIds = new Set(shipments.filter((shipment) => shipment.order_id === order.id).map((shipment) => shipment.id));
-  const shipped = new Map<string, number>();
-  shipmentItems
-    .filter((item) => shipmentIds.has(item.shipment_id))
-    .forEach((item) => {
-      const key = itemKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color, item.line_id);
-      shipped.set(key, (shipped.get(key) || 0) + item.quantity);
-    });
-  return shipped;
+  const filteredItems = shipmentItems.filter((item) => shipmentIds.has(item.shipment_id));
+  return getShippedQuantitiesForOrderLines(order.items, filteredItems);
 }
 
 export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnalytics {

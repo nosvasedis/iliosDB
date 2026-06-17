@@ -256,7 +256,7 @@ export function buildTransferPlan(
   //
   //     We reconstruct from the original OrderItem objects (preserving notes,
   //     price_override, etc.) with quantities overridden to the actual shipped amount.
-  const shippedQtyMap = getShippedQuantities(snapshotA.items);
+  const shippedQtyMap = getShippedQuantities(snapshotA.items, orderA.items);
   const shippedOnlyOrderAItems: OrderItem[] = [];
   for (const item of orderA.items) {
     const key = itemIdentityKey(item);

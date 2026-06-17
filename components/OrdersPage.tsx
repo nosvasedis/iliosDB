@@ -32,6 +32,7 @@ import { useCollections } from '../hooks/api/useCollections';
 import { useAllShipmentItems, useAllShipments, useCustomers, useOrderShipmentsForOrder, useOrdersWithItems } from '../hooks/api/useOrders';
 import { useProductionBatches } from '../hooks/api/useProductionBatches';
 import { ordersRepository } from '../features/orders';
+import { getShippedQuantitiesForOrderLines, itemKey } from '../utils/shipmentUtils';
 import DesktopPageHeader from './DesktopPageHeader';
 import { SellerPicker } from './OrderBuilder/SellerPicker';
 import { productionRepository } from '../features/production';
@@ -1304,22 +1305,20 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
 
         // For PartiallyDelivered orders, subtract already-shipped quantities
         // so we don't re-send items that have already been delivered to the client.
-        const shippedQtyByKey = new Map<string, number>();
+        let shippedByLine = new Map<string, number>();
         if (order.status === OrderStatus.PartiallyDelivered) {
             try {
                 const snapshot = await ordersRepository.getShipmentsForOrder(order.id);
-                for (const si of snapshot.items) {
-                    const key = [si.sku, si.variant_suffix || '', si.size_info || '', si.cord_color || '', si.enamel_color || '', si.line_id || ''].join('|');
-                    shippedQtyByKey.set(key, (shippedQtyByKey.get(key) || 0) + si.quantity);
-                }
+                shippedByLine = getShippedQuantitiesForOrderLines(order.items, snapshot.items);
             } catch { /* proceed without shipped data */ }
         }
 
         const itemsToSend = order.items
             .map(item => {
                 const key = [item.sku, item.variant_suffix || '', item.size_info || '', item.cord_color || '', item.enamel_color || '', item.line_id || ''].join('|');
+                const lineKey = itemKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color, item.line_id);
                 const alreadyInProduction = inProductionQtyByKey.get(key) || 0;
-                const alreadyShipped = shippedQtyByKey.get(key) || 0;
+                const alreadyShipped = shippedByLine.get(lineKey) || 0;
                 const qty = Math.max(0, item.quantity - alreadyShipped - alreadyInProduction);
                 return {
                     sku: item.sku,

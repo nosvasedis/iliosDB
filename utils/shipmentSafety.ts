@@ -1,5 +1,6 @@
 import { Order, OrderDeliveryPlan, OrderShipmentItem, ProductionBatch, ProductionStage } from '../types';
 import { buildItemIdentityKey, ItemIdentityLike } from './itemIdentity';
+import { getShippedQuantitiesForOrderLines } from './shipmentUtils';
 
 export type ShipmentSafetySeverity = 'error' | 'warning';
 
@@ -116,8 +117,7 @@ export function getRemainingQuantityLines(
   shipmentItems: OrderShipmentItem[],
   batches: ProductionBatch[],
 ): QuantityLine[] {
-  const shipped = new Map<string, number>();
-  shipmentItems.forEach((item) => addToMap(shipped, keyFor(item), quantity(item.quantity)));
+  const shipped = getShippedQuantitiesForOrderLines(order.items, shipmentItems);
 
   const ready = getReadyQuantityMap(order.id, batches);
   const lines: QuantityLine[] = [];

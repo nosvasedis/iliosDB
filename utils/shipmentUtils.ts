@@ -1,6 +1,12 @@
 
-import { Order, OrderShipment, OrderShipmentItem, ProductionBatch, ProductionStage } from '../types';
+import { Order, OrderItem, OrderShipment, OrderShipmentItem, ProductionBatch, ProductionStage } from '../types';
+import { catalogIdentityMatches } from '../features/production/orderBatchReconcile';
 import { buildItemIdentityKey } from './itemIdentity';
+
+type OrderLineForShipment = Pick<
+  OrderItem,
+  'sku' | 'variant_suffix' | 'size_info' | 'cord_color' | 'enamel_color' | 'line_id' | 'quantity'
+>;
 
 /** Natural key for matching order items / batches / shipment items. */
 export function itemKey(
@@ -21,8 +27,80 @@ export function itemKey(
   });
 }
 
-/** Build a map of total shipped quantities per (sku::variant::size) across all shipments. */
-export function getShippedQuantities(shipmentItems: OrderShipmentItem[]): Map<string, number> {
+/**
+ * Allocate shipped quantities onto order line keys (includes line_id).
+ * Legacy shipment rows often lack line_id — match FIFO by catalog identity.
+ */
+export function getShippedQuantitiesForOrderLines(
+  orderItems: OrderLineForShipment[],
+  shipmentItems: OrderShipmentItem[],
+): Map<string, number> {
+  const shipped = new Map<string, number>();
+  const remainingCapacity = new Map<string, number>();
+
+  for (const item of orderItems) {
+    const key = itemKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color, item.line_id);
+    remainingCapacity.set(key, (remainingCapacity.get(key) || 0) + (item.quantity || 0));
+    if (!shipped.has(key)) shipped.set(key, 0);
+  }
+
+  const allocateToLine = (key: string, qty: number): number => {
+    const available = remainingCapacity.get(key) || 0;
+    if (available <= 0 || qty <= 0) return 0;
+    const allocated = Math.min(qty, available);
+    shipped.set(key, (shipped.get(key) || 0) + allocated);
+    remainingCapacity.set(key, available - allocated);
+    return allocated;
+  };
+
+  for (const shipmentItem of shipmentItems) {
+    let remaining = shipmentItem.quantity || 0;
+
+    if (shipmentItem.line_id) {
+      const exactKey = itemKey(
+        shipmentItem.sku,
+        shipmentItem.variant_suffix,
+        shipmentItem.size_info,
+        shipmentItem.cord_color,
+        shipmentItem.enamel_color,
+        shipmentItem.line_id,
+      );
+      remaining -= allocateToLine(exactKey, remaining);
+    }
+
+    while (remaining > 0) {
+      let allocatedThisPass = 0;
+      for (const orderItem of orderItems) {
+        if (remaining <= 0) break;
+        if (!catalogIdentityMatches(shipmentItem, orderItem)) continue;
+        const key = itemKey(
+          orderItem.sku,
+          orderItem.variant_suffix,
+          orderItem.size_info,
+          orderItem.cord_color,
+          orderItem.enamel_color,
+          orderItem.line_id,
+        );
+        const allocated = allocateToLine(key, remaining);
+        allocatedThisPass += allocated;
+        remaining -= allocated;
+      }
+      if (allocatedThisPass === 0) break;
+    }
+  }
+
+  return shipped;
+}
+
+/** Build a map of total shipped quantities keyed like order lines (with line_id when present). */
+export function getShippedQuantities(
+  shipmentItems: OrderShipmentItem[],
+  orderItems?: OrderLineForShipment[],
+): Map<string, number> {
+  if (orderItems && orderItems.length > 0) {
+    return getShippedQuantitiesForOrderLines(orderItems, shipmentItems);
+  }
+
   const map = new Map<string, number>();
   for (const item of shipmentItems) {
     const key = itemKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color, item.line_id);
@@ -36,7 +114,7 @@ export function getRemainingOrderItems(
   order: Order,
   shipmentItems: OrderShipmentItem[]
 ): Array<{ sku: string; variant_suffix?: string; size_info?: string; cord_color?: string | null; enamel_color?: string | null; quantity: number; price_at_order: number; line_id?: string | null }> {
-  const shipped = getShippedQuantities(shipmentItems);
+  const shipped = getShippedQuantitiesForOrderLines(orderItems, shipmentItems);
   const orderItems = Array.isArray(order.items) ? order.items : [];
   const remaining: Array<{ sku: string; variant_suffix?: string; size_info?: string; cord_color?: string | null; enamel_color?: string | null; quantity: number; price_at_order: number; line_id?: string | null }> = [];
 
