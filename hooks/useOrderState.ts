@@ -24,6 +24,12 @@ import {
     type SuggestionRankContext,
 } from '../features/orders/smartSkuSuggestions';
 import { dispatchLiveActivity } from './useLiveActivity';
+import {
+    allowsNewProductionPartOrderEdit,
+    orderNeedsProductionEditDialog,
+    PRODUCTION_EDIT_CHOICE_MESSAGE,
+    PRODUCTION_EDIT_NEW_PART_HINT,
+} from '../features/production/orderProductionEdit';
 
 const DRAFT_ORDER_KEY = 'ilios_desktop_draft_order';
 
@@ -1013,6 +1019,8 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             const composedNotes = isRetailOrder ? composeNotesWithRetailClient(orderNotes, retailClientLabel) : orderNotes;
 
             if (initialOrder) {
+                let isNewPart: boolean | undefined = undefined;
+                const itemsWithLineIds = assignMissingOrderLineIds(selectedItems);
                 const updatedOrder: Order = {
                     ...initialOrder,
                     customer_id: effectiveCustomerId,
@@ -1021,7 +1029,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                     seller_id: selectedSellerId || undefined,
                     seller_name: selectedSellerName || undefined,
                     seller_commission_percent: selectedSellerId ? (sellerCommissionPercent ?? null) : null,
-                    items: assignMissingOrderLineIds(selectedItems),
+                    items: itemsWithLineIds,
                     total_price: grandTotal,
                     vat_rate: vatRate,
                     discount_percent: discountPercent,
@@ -1030,22 +1038,19 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                     price_change_log: priceChangeLog.length > 0 ? priceChangeLog : undefined,
                 };
 
-                let isNewPart: boolean | undefined = undefined;
-                const isInProduction =
-                    initialOrder.status === OrderStatus.InProduction ||
-                    initialOrder.status === OrderStatus.Ready;
-
-                if (isInProduction) {
+                if (orderNeedsProductionEditDialog(initialOrder.status)) {
+                    const allowsNewPart = allowsNewProductionPartOrderEdit(initialOrder, updatedOrder);
                     const choice = await confirm({
                         title: 'Τύπος Αλλαγής',
-                        message:
-                            'Αυτές οι αλλαγές αποτελούν νέο τμήμα παραγγελίας ή είναι τροποποιήσεις του υπάρχοντος τμήματος;',
+                        message: allowsNewPart
+                            ? PRODUCTION_EDIT_CHOICE_MESSAGE
+                            : `${PRODUCTION_EDIT_CHOICE_MESSAGE} ${PRODUCTION_EDIT_NEW_PART_HINT}`,
                         confirmText: 'Νέο Τμήμα',
                         thirdOptionText: 'Τροποποίηση',
                         cancelText: 'Ακύρωση',
+                        confirmDisabled: !allowsNewPart,
                     });
                     if (choice === null) {
-                        // User cancelled — abort the save
                         setIsSaving(false);
                         return;
                     }

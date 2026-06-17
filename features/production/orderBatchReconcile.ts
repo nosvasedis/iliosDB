@@ -1,4 +1,4 @@
-import { OrderItem, ProductionBatch, ProductionStage } from '../../types';
+import { OrderItem, OrderShipmentItem, ProductionBatch, ProductionStage } from '../../types';
 import { buildItemIdentityKey } from '../../utils/itemIdentity';
 import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 
@@ -69,6 +69,67 @@ export function supplyKeyForBatch(batch: ProductionBatch, options: ReconcileKeyO
   return options.naturalKeyDemandCount[naturalKey] > 1 ? `${naturalKey}::${batch.notes || ''}` : naturalKey;
 }
 
+export type ShippedCatalogItem = Pick<
+  OrderShipmentItem,
+  'sku' | 'variant_suffix' | 'size_info' | 'cord_color' | 'enamel_color' | 'quantity' | 'line_id'
+>;
+
+/**
+ * Map shipped quantities onto reconcile demand keys.
+ * Legacy shipment rows often lack line_id; allocate FIFO to matching order lines.
+ */
+export function buildShippedByDemandKey(
+  orderItems: ReconcileCatalogItem[],
+  shipmentItems: ShippedCatalogItem[],
+): Record<string, number> {
+  const naturalKeyDemandCount = buildNaturalKeyDemandCount(orderItems);
+  const keyOptions: ReconcileKeyOptions = { naturalKeyDemandCount };
+
+  const demandRemaining = new Map<string, number>();
+  for (const item of orderItems) {
+    const key = demandKeyForItem(item, keyOptions);
+    demandRemaining.set(key, (demandRemaining.get(key) || 0) + item.quantity);
+  }
+
+  const shippedByDemandKey: Record<string, number> = {};
+
+  const allocateToKey = (key: string, qty: number): number => {
+    const available = demandRemaining.get(key) || 0;
+    if (available <= 0 || qty <= 0) return 0;
+    const allocated = Math.min(qty, available);
+    shippedByDemandKey[key] = (shippedByDemandKey[key] || 0) + allocated;
+    demandRemaining.set(key, available - allocated);
+    return allocated;
+  };
+
+  for (const shipped of shipmentItems) {
+    let remaining = shipped.quantity;
+
+    if (shipped.line_id) {
+      const exactLine = orderItems.find((item) => item.line_id === shipped.line_id);
+      if (exactLine) {
+        const key = demandKeyForItem(exactLine, keyOptions);
+        remaining -= allocateToKey(key, remaining);
+      }
+    }
+
+    while (remaining > 0) {
+      let allocatedThisPass = 0;
+      for (const item of orderItems) {
+        if (remaining <= 0) break;
+        if (!catalogIdentityMatches(shipped, item)) continue;
+        const key = demandKeyForItem(item, keyOptions);
+        const allocated = allocateToKey(key, remaining);
+        allocatedThisPass += allocated;
+        remaining -= allocated;
+      }
+      if (allocatedThisPass === 0) break;
+    }
+  }
+
+  return shippedByDemandKey;
+}
+
 export function buildNaturalKeyDemandCount(items: ReconcileCatalogItem[]): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const item of items) {
@@ -126,7 +187,7 @@ export type BatchIdentitySubstitution = {
   quantity: number;
 };
 
-function catalogIdentityMatches(
+export function catalogIdentityMatches(
   batch: Pick<ProductionBatch, 'sku' | 'variant_suffix' | 'size_info' | 'cord_color' | 'enamel_color'>,
   item: ReconcileCatalogItem,
 ): boolean {

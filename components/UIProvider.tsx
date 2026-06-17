@@ -15,6 +15,7 @@ interface ConfirmOptions {
   confirmText?: string;
   cancelText?: string;
   thirdOptionText?: string;
+  confirmDisabled?: boolean;
   isDestructive?: boolean;
 }
 
@@ -138,10 +139,13 @@ export const UIProvider = ({ children }: { children?: ReactNode }) => {
               )}
               <button
                 onClick={() => handleConfirm(true)}
+                disabled={confirmState.options.confirmDisabled}
                 className={`
                   px-5 py-2.5 rounded-xl text-white font-medium shadow-lg transition-transform active:scale-95 flex items-center gap-2
-                  ${confirmState.options.isDestructive 
-                    ? 'bg-gradient-to-r from-red-500 to-red-600 shadow-red-200 hover:from-red-600 hover:to-red-700' 
+                  ${confirmState.options.confirmDisabled
+                    ? 'bg-slate-300 text-slate-500 shadow-none cursor-not-allowed active:scale-100'
+                    : confirmState.options.isDestructive
+                    ? 'bg-gradient-to-r from-red-500 to-red-600 shadow-red-200 hover:from-red-600 hover:to-red-700'
                     : 'bg-gradient-to-r from-slate-800 to-slate-900 shadow-slate-300 hover:from-slate-700 hover:to-slate-800'}
                 `}
               >

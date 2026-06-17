@@ -27,6 +27,12 @@ import { useCollections } from '../../hooks/api/useCollections';
 import { useCustomers } from '../../hooks/api/useOrders';
 import { ordersRepository } from '../../features/orders';
 import {
+    allowsNewProductionPartOrderEdit,
+    orderNeedsProductionEditDialog,
+    PRODUCTION_EDIT_CHOICE_MESSAGE,
+    PRODUCTION_EDIT_NEW_PART_HINT,
+} from '../../features/production/orderProductionEdit';
+import {
     buildMobileOrderBuilderCustomerSuggestions,
     buildMobileOrderBuilderEditFinishOptions,
     buildMobileOrderBuilderEditStoneOptions,
@@ -531,6 +537,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         const effectiveCustomerName = isRetailOrder ? RETAIL_CUSTOMER_NAME : customerNameVal;
         const effectiveCustomerPhone = isRetailOrder ? '' : customerPhoneVal;
         const composedNotes = isRetailOrder ? composeNotesWithRetailClient(orderNotes, retailClientLabel) : orderNotes;
+        const itemsWithLineIds = assignMissingOrderLineIds(items);
         const orderPayload: Order = {
             id: initialOrder?.id || generateOrderId(),
             customer_name: effectiveCustomerName,
@@ -539,7 +546,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             seller_id: mobSelectedSellerId || ((attachSeller || isSeller) ? (profile?.id ?? user?.id) : undefined),
             seller_name: mobSelectedSellerName || ((attachSeller || isSeller) ? (profile?.full_name || user?.email || undefined) : undefined),
             seller_commission_percent: mobSelectedSellerId ? mobSellerCommissionPercent : undefined,
-            items: assignMissingOrderLineIds(items),
+            items: itemsWithLineIds,
             total_price: grandTotal,
             vat_rate: vatRateVal,
             discount_percent: discountPercent,
@@ -550,18 +557,18 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         };
         if (initialOrder) {
             let isNewPart: boolean | undefined = undefined;
-            const isInProduction =
-                initialOrder.status === OrderStatus.InProduction ||
-                initialOrder.status === OrderStatus.Ready;
 
-            if (isInProduction) {
+            if (orderNeedsProductionEditDialog(initialOrder.status)) {
+                const allowsNewPart = allowsNewProductionPartOrderEdit(initialOrder, orderPayload);
                 const choice = await confirm({
                     title: 'Τύπος Αλλαγής',
-                    message:
-                        'Αυτές οι αλλαγές αποτελούν νέο τμήμα παραγγελίας ή είναι τροποποιήσεις του υπάρχοντος τμήματος;',
+                    message: allowsNewPart
+                        ? PRODUCTION_EDIT_CHOICE_MESSAGE
+                        : `${PRODUCTION_EDIT_CHOICE_MESSAGE} ${PRODUCTION_EDIT_NEW_PART_HINT}`,
                     confirmText: 'Νέο Τμήμα',
                     thirdOptionText: 'Τροποποίηση',
                     cancelText: 'Ακύρωση',
+                    confirmDisabled: !allowsNewPart,
                 });
                 if (choice === null) return;
                 isNewPart = choice === true;

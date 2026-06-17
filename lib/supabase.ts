@@ -11,6 +11,7 @@ import { buildItemIdentityKey } from '../utils/itemIdentity';
 import { formatShipmentIssueLine, hasBlockingShipmentIssues, validateReadyMatchesRemainingForTransfer, validateShipmentRequest } from '../utils/shipmentSafety';
 import { isSpecialCreationSku } from '../utils/specialCreationSku';
 import { assignMissingOrderLineIds } from '../utils/orderItemMatch';
+import { orderNeedsProductionEditDialog } from '../features/production/orderProductionEdit';
 import { buildOrderShipmentItemKey, buildStockDeductionEntries, checkStockForOrderItems as checkStockForOrderItemsHelper, getOrderShipmentsSnapshotFromTables } from '../features/orders/supabaseHelpers';
 import { planShipmentBatchRestores } from '../features/orders/shipmentRevertHelpers';
 import { buildTransferPlan } from '../features/orders/transferHelpers';
@@ -18,6 +19,7 @@ import { buildInitialBatchHistoryEntry, canMoveBatchToStage as canMoveBatchToSta
 import {
     bindProductionLineIds,
     buildNaturalKeyDemandCount,
+    buildShippedByDemandKey,
     demandKeyForItem,
     planLineIdIdentityMorphs,
     planSameSkuIdentitySubstitutions,
@@ -2824,9 +2826,10 @@ export const api = {
         const normalizedOrder = { ...o, items: assignMissingOrderLineIds(o.items) };
         await safeMutate('orders', 'UPDATE', normalizedOrder, { match: { id: normalizedOrder.id }, noSelect: true });
 
-        // Smart Reconciliation: If order is in production, sync items to batches
-        // We ALWAYS reconcile now if batches exist to avoid the "4 items instead of 2" issue
-        await api.reconcileOrderBatches(normalizedOrder, isNewPart);
+        const reconcileIsNewPart = isNewPart ?? (
+            orderNeedsProductionEditDialog(normalizedOrder.status) ? false : undefined
+        );
+        await api.reconcileOrderBatches(normalizedOrder, reconcileIsNewPart);
     },
 
     deleteOrder: async (id: string): Promise<void> => {
@@ -3216,7 +3219,12 @@ export const api = {
             existingBatches = (data || []) as ProductionBatch[];
         }
 
-        if (existingBatches.length === 0 && order.status !== OrderStatus.InProduction && order.status !== OrderStatus.Ready) {
+        if (
+            existingBatches.length === 0
+            && order.status !== OrderStatus.InProduction
+            && order.status !== OrderStatus.Ready
+            && order.status !== OrderStatus.PartiallyDelivered
+        ) {
             return;
         }
 
@@ -3250,12 +3258,7 @@ export const api = {
         let shippedByDemandKey: Record<string, number> = {};
         if (workingOrder.status === OrderStatus.PartiallyDelivered) {
             const shipmentSnapshot = await getOrderShipmentsSnapshot(workingOrder.id);
-            const naturalKeyDemandCount = buildNaturalKeyDemandCount(workingOrder.items);
-            const keyOptions = { naturalKeyDemandCount };
-            for (const shippedItem of shipmentSnapshot.items) {
-                const key = demandKeyForItem(shippedItem, keyOptions);
-                shippedByDemandKey[key] = (shippedByDemandKey[key] || 0) + shippedItem.quantity;
-            }
+            shippedByDemandKey = buildShippedByDemandKey(workingOrder.items, shipmentSnapshot.items);
         }
 
         // 4. Morph existing batches when catalog identity changes on the same logical line.
