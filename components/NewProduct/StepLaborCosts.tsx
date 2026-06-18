@@ -3,8 +3,8 @@ import { Hammer, Flame, Crown, Coins, Users } from 'lucide-react';
 import { useNewProductState } from '../../hooks/useNewProductState';
 import { LaborCostCard } from '../ProductRegistry/LaborCostCard';
 import { LaborCostFormulaRow } from '../ProductRegistry/LaborCostFormulaRow';
+import { TechnicianLaborFormulaRow } from '../ProductRegistry/TechnicianLaborFormulaRow';
 import {
-    TECHNICIAN_TIER_HINT,
     applyFormulaRateChange,
     applyFormulaTotalChange,
     getCastingFormulaLine,
@@ -15,7 +15,8 @@ import {
     syncSecondaryWeightFromPlatingDBasis,
     type LaborFormulaField,
 } from '../../utils/laborFormula';
-import { LaborCost } from '../../types';
+import { shouldUseSplitTechnicianCost, hasMixedTechnicianVariants } from '../../utils/pricingEngine';
+import { Gender, LaborCost } from '../../types';
 
 interface Props {
     formState: ReturnType<typeof useNewProductState>;
@@ -29,14 +30,22 @@ export const StepLaborCosts: React.FC<Props> = ({ formState, allProducts }) => {
         secondary_weight_g: state.secondaryWeight,
         is_component: state.isSTX,
         recipe: state.recipe,
-    }), [state.weight, state.secondaryWeight, state.isSTX, state.recipe]);
+        plating_type: state.plating,
+        gender: state.gender || Gender.Unisex,
+        variants: state.variants,
+    }), [state.weight, state.secondaryWeight, state.isSTX, state.recipe, state.plating, state.gender, state.variants]);
+
+    const useSplitTechnician = useMemo(
+        () => shouldUseSplitTechnicianCost(productLike),
+        [productLike.plating_type, productLike.gender, productLike.variants],
+    );
+    const hasMixedTechnician = useMemo(
+        () => hasMixedTechnicianVariants(productLike as import('../../types').Product),
+        [productLike.plating_type, productLike.gender, productLike.variants],
+    );
 
     const castingFormula = useMemo(
         () => getCastingFormulaLine(state.labor, productLike),
-        [state.labor, productLike],
-    );
-    const technicianFormula = useMemo(
-        () => getTechnicianFormulaLine(state.labor, productLike),
         [state.labor, productLike],
     );
     const platingXFormula = useMemo(
@@ -101,25 +110,24 @@ export const StepLaborCosts: React.FC<Props> = ({ formState, allProducts }) => {
                         value={state.labor.setter_cost}
                         onChange={val => setters.setLabor({ ...state.labor, setter_cost: val })}
                     />
-                    <LaborCostFormulaRow
+                    <TechnicianLaborFormulaRow
                         icon={<Hammer size={14} />}
-                        label="Τεχνίτης (€)"
-                        rate={technicianFormula.rate}
-                        weightBasis={technicianFormula.weightBasis}
-                        total={technicianFormula.total}
-                        isOverridden={technicianFormula.isOverridden}
-                        onRateChange={(r) => handleFormulaRateChange('technician', r, technicianFormula.weightBasis)}
+                        labor={state.labor}
+                        product={productLike}
+                        useSplitTechnician={useSplitTechnician}
+                        hasMixedTechnician={hasMixedTechnician}
+                        onRateChange={(r, basis) => handleFormulaRateChange('technician', r, basis)}
                         onWeightChange={(w) => {
+                            const { rate } = getTechnicianFormulaLine(state.labor, productLike, useSplitTechnician);
                             if (state.isSTX) {
-                                patchLabor(applyFormulaRateChange('technician', technicianFormula.rate, w), { weight: w });
+                                patchLabor(applyFormulaRateChange('technician', rate, w), { weight: w });
                             } else {
                                 const weight = syncPrimaryWeightFromTotalBasis(productLike, w);
-                                patchLabor(applyFormulaRateChange('technician', technicianFormula.rate, w), { weight });
+                                patchLabor(applyFormulaRateChange('technician', rate, w), { weight });
                             }
                         }}
                         onTotalChange={(t) => handleFormulaTotalChange('technician', t)}
                         onToggleOverride={() => toggleOverride('technician')}
-                        hint={!technicianFormula.isOverridden ? TECHNICIAN_TIER_HINT : undefined}
                     />
                     <LaborCostFormulaRow
                         icon={<Coins size={14} />}

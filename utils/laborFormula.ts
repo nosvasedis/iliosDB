@@ -80,18 +80,50 @@ export function resolveCastingCost(
   return getCastingWeightBasis(product) * DEFAULT_CASTING_RATE;
 }
 
+export function calculateSplitTechnicianCost(
+  product: Pick<Product, 'weight_g' | 'secondary_weight_g'>,
+): number {
+  const totalWeight = getTotalWeight(product);
+  const primaryRate = getTechnicianRateForWeight(totalWeight);
+  return parseFloat((
+    product.weight_g * primaryRate +
+    calculateTechnicianCostFromWeight(product.secondary_weight_g || 0)
+  ).toFixed(4));
+}
+
+export const SPLIT_TECHNICIAN_HINT =
+  'Δίχρωμο / D: κύριο βάρος × κλιμάκωση(συνολικού) + δευτερεύον × κλιμάκωση(δευτερεύοντος)';
+
+export const MIXED_TECHNICIAN_VARIANT_HINT =
+  '‹ › μεταξύ κανόνων παραλλαγής. Το πεδίο Εργατικά (master) αποθηκεύει την τιμή D.';
+
+export const TECHNICIAN_LUMP_VARIANT_HINT =
+  'Ίδιος κανόνας που χρησιμοποιεί το estimateVariantCost για παραλλαγές Λουστρέ / P / X / H.';
+
+export const TECHNICIAN_D_VARIANT_HINT =
+  'Ίδιος κανόνας που χρησιμοποιεί το estimateVariantCost για παραλλαγές D.';
+
+export const TECHNICIAN_VARIANT_RULE_BADGE = 'κανόνας παραλλαγής';
+
+export const TECHNICIAN_MASTER_BADGE = 'master';
+
 /**
- * Resolve technician cost — master path (no variant finish).
+ * Resolve technician cost — master / product-level (Εργατικά auto-fill & master cost).
+ * Uses D split when useSplitTechnician=true (TwoTone master or any D variant).
  */
 export function resolveTechnicianCostMaster(
   labor: Partial<LaborCost>,
   product: Pick<Product, 'weight_g' | 'secondary_weight_g' | 'is_component'>,
+  useSplitTechnician = false,
 ): number {
   if (labor.technician_cost_manual_override) {
     return labor.technician_cost || 0;
   }
   if (product.is_component) {
     return product.weight_g * STX_TECHNICIAN_RATE;
+  }
+  if (useSplitTechnician) {
+    return calculateSplitTechnicianCost(product);
   }
   return calculateTechnicianCostFromWeight(getTotalWeight(product));
 }
@@ -112,11 +144,7 @@ export function resolveTechnicianCostVariant(
   }
   const totalWeight = getTotalWeight(product);
   if (variantContext.finishCode === 'D') {
-    const primaryRate = getTechnicianRateForWeight(totalWeight);
-    return (
-      product.weight_g * primaryRate +
-      calculateTechnicianCostFromWeight(product.secondary_weight_g || 0)
-    );
+    return calculateSplitTechnicianCost(product);
   }
   return calculateTechnicianCostFromWeight(totalWeight);
 }
@@ -135,6 +163,7 @@ export interface LaborFormulaLine {
   total: number;
   defaultRate: number;
   isOverridden: boolean;
+  usesSplitTechnician?: boolean;
 }
 
 export function getCastingFormulaLine(
@@ -156,6 +185,7 @@ export function getCastingFormulaLine(
 export function getTechnicianFormulaLine(
   labor: LaborCost,
   product: Pick<Product, 'weight_g' | 'secondary_weight_g' | 'is_component'>,
+  useSplitTechnician = false,
 ): LaborFormulaLine {
   const weightBasis = product.is_component ? product.weight_g : getTotalWeight(product);
   const isOverridden = !!labor.technician_cost_manual_override;
@@ -166,11 +196,45 @@ export function getTechnicianFormulaLine(
     ? labor.technician_cost || 0
     : product.is_component
       ? product.weight_g * STX_TECHNICIAN_RATE
-      : calculateTechnicianCostFromWeight(weightBasis);
+      : useSplitTechnician
+        ? calculateSplitTechnicianCost(product)
+        : calculateTechnicianCostFromWeight(weightBasis);
   const rate = isOverridden
     ? deriveRateFromTotal(labor.technician_cost || 0, weightBasis, defaultRate)
-    : defaultRate;
-  return { rate, weightBasis, total, defaultRate, isOverridden };
+    : useSplitTechnician && weightBasis > 0 && !product.is_component
+      ? parseFloat((total / weightBasis).toFixed(4))
+      : defaultRate;
+  return {
+    rate,
+    weightBasis,
+    total,
+    defaultRate,
+    isOverridden,
+    usesSplitTechnician: useSplitTechnician && !product.is_component,
+  };
+}
+
+/** Auto technician formula per finish — mirrors resolveTechnicianCostVariant (no manual lock). */
+export function getTechnicianAutoLineForFinish(
+  product: Pick<Product, 'weight_g' | 'secondary_weight_g' | 'is_component'>,
+  finishCode: string,
+): LaborFormulaLine {
+  const useSplit = finishCode === 'D';
+  const emptyLabor = {
+    technician_cost: 0,
+    technician_cost_manual_override: false,
+  } as LaborCost;
+  return getTechnicianFormulaLine(emptyLabor, product, useSplit);
+}
+
+export function getTechnicianSplitDetailHint(
+  product: Pick<Product, 'weight_g' | 'secondary_weight_g'>,
+): string {
+  const total = getTotalWeight(product);
+  const primaryRate = getTechnicianRateForWeight(total);
+  const sec = product.secondary_weight_g || 0;
+  const secCost = calculateTechnicianCostFromWeight(sec);
+  return `${product.weight_g}g×${primaryRate.toFixed(2)} + ${sec}g×${sec > 0 ? getTechnicianRateForWeight(sec).toFixed(2) : '0'}`;
 }
 
 export function getPlatingXFormulaLine(
@@ -211,6 +275,7 @@ export function getPlatingDFormulaLine(
 export function computeAutoLaborCosts(
   product: Product,
   allProducts: Product[],
+  useSplitTechnician = false,
 ): Partial<LaborCost> {
   const labor = product.labor;
   const updates: Partial<LaborCost> = {};
@@ -224,7 +289,9 @@ export function computeAutoLaborCosts(
   if (!labor.technician_cost_manual_override) {
     updates.technician_cost = product.is_component
       ? parseFloat((product.weight_g * STX_TECHNICIAN_RATE).toFixed(4))
-      : parseFloat(calculateTechnicianCostFromWeight(getTotalWeight(product)).toFixed(4));
+      : useSplitTechnician
+        ? calculateSplitTechnicianCost(product)
+        : parseFloat(calculateTechnicianCostFromWeight(getTotalWeight(product)).toFixed(4));
   }
 
   if (!labor.plating_cost_x_manual_override) {

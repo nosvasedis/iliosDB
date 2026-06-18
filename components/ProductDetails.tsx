@@ -2,10 +2,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier, MaterialType } from '../types';
-import { calculateProductCost, analyzeSku, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal, getIliosSuggestedPriceForProduct } from '../utils/pricingEngine';
+import { calculateProductCost, analyzeSku, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal, getIliosSuggestedPriceForProduct, shouldUseSplitTechnicianCost, hasMixedTechnicianVariants } from '../utils/pricingEngine';
 import {
     DEFAULT_PLATING_RATE,
-    TECHNICIAN_TIER_HINT,
     applyFormulaRateChange,
     applyFormulaTotalChange,
     computeAutoLaborCosts,
@@ -19,6 +18,7 @@ import {
     type LaborFormulaField,
 } from '../utils/laborFormula';
 import { LaborCostFormulaRow } from './ProductRegistry/LaborCostFormulaRow';
+import { TechnicianLaborFormulaRow } from './ProductRegistry/TechnicianLaborFormulaRow';
 import { FINISH_CODES } from '../constants';
 import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag, Edit, Check, ArrowDownRight, RefreshCcw, Scale } from 'lucide-react';
 import { uploadProductImage, R2_PUBLIC_URL, AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL } from '../lib/supabase';
@@ -658,7 +658,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             };
 
             if (prev.production_type === ProductionType.InHouse) {
-                mergeLabor(computeAutoLaborCosts(prev, allProducts));
+                mergeLabor(computeAutoLaborCosts(prev, allProducts, shouldUseSplitTechnicianCost(prev)));
             } else if (prev.production_type === ProductionType.Imported) {
                 if (!prev.labor.plating_cost_x_manual_override && prev.labor.plating_cost_x === 0) {
                     mergeLabor({ plating_cost_x: DEFAULT_PLATING_RATE });
@@ -677,6 +677,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         editedProduct.recipe,
         editedProduct.production_type,
         editedProduct.is_component,
+        editedProduct.plating_type,
+        editedProduct.gender,
+        editedProduct.variants?.length,
+        editedProduct.variants,
         editedProduct.labor.casting_cost_manual_override,
         editedProduct.labor.technician_cost_manual_override,
         editedProduct.labor.plating_cost_x_manual_override,
@@ -1230,13 +1234,22 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         return getAnalyticalCostingItems(hasVariants, sortedVariantsList, product.sku, editedProduct, settings, allMaterials, allProducts, currentCostCalc);
     }, [hasVariants, sortedVariantsList, product.sku, editedProduct, settings, allMaterials, allProducts, currentCostCalc]);
 
+    const useSplitTechnician = useMemo(
+        () => shouldUseSplitTechnicianCost(editedProduct),
+        [editedProduct.plating_type, editedProduct.gender, editedProduct.variants],
+    );
+    const hasMixedTechnician = useMemo(
+        () => hasMixedTechnicianVariants(editedProduct),
+        [editedProduct.plating_type, editedProduct.gender, editedProduct.variants],
+    );
+
     const castingFormula = useMemo(
         () => getCastingFormulaLine(editedProduct.labor, editedProduct),
         [editedProduct.labor, editedProduct.weight_g, editedProduct.secondary_weight_g, editedProduct.is_component],
     );
     const technicianFormula = useMemo(
-        () => getTechnicianFormulaLine(editedProduct.labor, editedProduct),
-        [editedProduct.labor, editedProduct.weight_g, editedProduct.secondary_weight_g, editedProduct.is_component],
+        () => getTechnicianFormulaLine(editedProduct.labor, editedProduct, useSplitTechnician),
+        [editedProduct.labor, editedProduct.weight_g, editedProduct.secondary_weight_g, editedProduct.is_component, useSplitTechnician],
     );
     const platingXFormula = useMemo(
         () => getPlatingXFormulaLine(editedProduct.labor, editedProduct, allProducts),
@@ -2253,18 +2266,16 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                     hint={editedProduct.is_component ? 'Εξάρτημα STX — χωρίς χυτήριο' : 'Από συνολικό βάρος (βασικό + δευτερεύον)'}
                                                 />
                                                 <LaborCostInput label="Καρφωτής (€)" value={editedProduct.labor.setter_cost} onChange={v => setEditedProduct({ ...editedProduct, labor: { ...editedProduct.labor, setter_cost: v } })} icon={<Gem size={14} />} />
-                                                <LaborCostFormulaRow
+                                                <TechnicianLaborFormulaRow
                                                     icon={<Hammer size={14} />}
-                                                    label="Τεχνίτης (€)"
-                                                    rate={technicianFormula.rate}
-                                                    weightBasis={technicianFormula.weightBasis}
-                                                    total={technicianFormula.total}
-                                                    isOverridden={technicianFormula.isOverridden}
-                                                    onRateChange={(r) => handleFormulaRateChange('technician', r, technicianFormula.weightBasis)}
+                                                    labor={editedProduct.labor}
+                                                    product={editedProduct}
+                                                    useSplitTechnician={useSplitTechnician}
+                                                    hasMixedTechnician={hasMixedTechnician}
+                                                    onRateChange={(r, basis) => handleFormulaRateChange('technician', r, basis)}
                                                     onWeightChange={handleTechnicianWeightChange}
                                                     onTotalChange={(t) => handleFormulaTotalChange('technician', t)}
                                                     onToggleOverride={() => handleFormulaToggleOverride('technician')}
-                                                    hint={!technicianFormula.isOverridden ? TECHNICIAN_TIER_HINT : undefined}
                                                 />
                                                 <LaborCostFormulaRow
                                                     icon={<Coins size={14} />}

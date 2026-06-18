@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, ProductVariant, ProductionType, Mold, ProductMold } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, estimateVariantCost } from '../utils/pricingEngine';
 import { DEFAULT_PLATING_RATE, computeAutoLaborCosts, getPlatingDWeightBasis } from '../utils/laborFormula';
+import { shouldUseSplitTechnicianCost } from '../utils/pricingEngine';
 import { compressImage, createImagePreviewUrl } from '../utils/imageHelpers';
 import { getSteps } from '../components/ProductRegistry/constants';
 import { useQueryClient } from '@tanstack/react-query';
@@ -193,12 +194,15 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
     useEffect(() => { if (isSTX) { setSellingPrice(0); setNewVariantPrice(0); } }, [isSTX]);
     useEffect(() => {
         if (productionType === ProductionType.InHouse) {
-            const tempProduct = buildCurrentTempProduct({
+            const tempProduct = {
+                ...buildCurrentTempProduct({
                 sku, detectedMasterSku, category, gender, imagePreview, weight, secondaryWeight,
                 plating, productionType, supplierId, supplierSku, supplierCost, sellingPrice,
                 selectedMolds, isSTX, stxDescription, recipe, labor,
-            });
-            const auto = computeAutoLaborCosts(tempProduct, products);
+            }),
+                variants,
+            };
+            const auto = computeAutoLaborCosts(tempProduct, products, shouldUseSplitTechnicianCost(tempProduct));
             setLabor(prev => {
                 let changed = false;
                 const next = { ...prev };
@@ -235,7 +239,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
                 return changed ? next : prev;
             });
         }
-    }, [weight, secondaryWeight, recipe, products, productionType, isSTX, labor.casting_cost_manual_override, labor.technician_cost_manual_override, labor.plating_cost_x_manual_override, labor.plating_cost_d_manual_override]);
+    }, [weight, secondaryWeight, recipe, products, productionType, isSTX, plating, gender, variants, labor.casting_cost_manual_override, labor.technician_cost_manual_override, labor.plating_cost_x_manual_override, labor.plating_cost_d_manual_override]);
 
     useEffect(() => {
         if (newVariantSuffix) {
@@ -244,7 +248,8 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
         }
     }, [newVariantSuffix, gender, plating]);
 
-    const currentTempProduct: Product = useMemo(() => buildCurrentTempProduct({
+    const currentTempProduct: Product = useMemo(() => ({
+        ...buildCurrentTempProduct({
         sku,
         detectedMasterSku,
         category,
@@ -263,7 +268,9 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
         stxDescription,
         recipe,
         labor,
-    }), [sku, detectedMasterSku, category, gender, imagePreview, weight, secondaryWeight, plating, productionType, supplierId, supplierSku, supplierCost, sellingPrice, selectedMolds, isSTX, stxDescription, recipe, labor]);
+    }),
+        variants,
+    }), [sku, detectedMasterSku, category, gender, imagePreview, weight, secondaryWeight, plating, productionType, supplierId, supplierSku, supplierCost, sellingPrice, selectedMolds, isSTX, stxDescription, recipe, labor, variants]);
 
     useEffect(() => {
         if (!settings) return;

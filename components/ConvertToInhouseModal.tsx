@@ -8,6 +8,7 @@ import {
     getVariantComponents,
     formatCurrency,
     formatDecimal,
+    shouldUseSplitTechnicianCost,
 } from '../utils/pricingEngine';
 import {
     DEFAULT_CASTING_RATE,
@@ -53,7 +54,7 @@ export function computeInhouseConversion(
             plating_cost_d_manual_override: false,
         },
     };
-    const autoLabor = computeAutoLaborCosts(laborSeed, allProducts);
+    const autoLabor = computeAutoLaborCosts(laborSeed, allProducts, shouldUseSplitTechnicianCost(laborSeed));
 
     const newProduct: Product = {
         ...product,

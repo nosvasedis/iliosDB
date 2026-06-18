@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Gender, PlatingType, ProductionType } from '../../types';
-import { analyzeSuffix, calculateProductCost, estimateVariantCost, getVariantComponents } from '../../utils/pricingEngine';
+import { analyzeSuffix, calculateProductCost, estimateVariantCost, getVariantComponents, shouldUseSplitTechnicianCost, hasMixedTechnicianVariants, getTechnicianCarouselSlides } from '../../utils/pricingEngine';
 import { DEFAULT_CASTING_RATE, resolveCastingCost } from '../../utils/laborFormula';
 
 const baseSettings = { silver_price_gram: 2.5 } as any;
@@ -83,6 +83,76 @@ describe('imported to in-house conversion labor', () => {
     // 5g total → tier 0.70 (≤8.2g) → 3.50€ — not primary-only 3g × 1.30 = 3.90€
     expect(newProduct.labor.technician_cost).toBeCloseTo(3.5, 2);
     expect(newProduct.labor.casting_cost).toBeCloseTo(5 * DEFAULT_CASTING_RATE, 2);
+  });
+});
+
+describe('conditional D-split technician (master vs variant)', () => {
+  const weights = { weight_g: 3, secondary_weight_g: 2 };
+
+  it('uses lump sum when only L/P/λουστρέ variants (no D, not TwoTone)', () => {
+    const product = makeInHouseProduct({
+      ...weights,
+      variants: [{ suffix: 'P', description: 'Patina', selling_price: 0 }],
+    });
+    expect(shouldUseSplitTechnicianCost(product)).toBe(false);
+    const { breakdown } = calculateProductCost(product, baseSettings, [], []);
+    expect(breakdown.details.technician_cost).toBeCloseTo(3.5, 2);
+  });
+
+  it('uses D split when plating is TwoTone', () => {
+    const product = makeInHouseProduct({
+      ...weights,
+      plating_type: PlatingType.TwoTone,
+      labor: { ...makeInHouseProduct().labor, plating_cost_d: 1.2 },
+    });
+    expect(shouldUseSplitTechnicianCost(product)).toBe(true);
+    const { breakdown } = calculateProductCost(product, baseSettings, [], []);
+    expect(breakdown.details.technician_cost).toBeCloseTo(4.7, 2);
+  });
+
+  it('uses D split on master when any D variant exists', () => {
+    const product = makeInHouseProduct({
+      ...weights,
+      variants: [
+        { suffix: 'DSB', description: 'D', selling_price: 0 },
+        { suffix: 'P', description: 'P', selling_price: 0 },
+      ],
+    });
+    expect(shouldUseSplitTechnicianCost(product)).toBe(true);
+    expect(hasMixedTechnicianVariants(product)).toBe(true);
+    const { breakdown } = calculateProductCost(product, baseSettings, [], []);
+    expect(breakdown.details.technician_cost).toBeCloseTo(4.7, 2);
+  });
+
+  it('variant estimates: D uses split, P uses lump sum on mixed SKU', () => {
+    const product = makeInHouseProduct({
+      ...weights,
+      variants: [
+        { suffix: 'DSB', description: 'D', selling_price: 0 },
+        { suffix: 'P', description: 'P', selling_price: 0 },
+      ],
+    });
+    const dEst = estimateVariantCost(product, 'DSB', baseSettings, [], []);
+    const pEst = estimateVariantCost(product, 'P', baseSettings, [], []);
+    expect(dEst.breakdown.details.technician_cost).toBeCloseTo(4.7, 2);
+    expect(pEst.breakdown.details.technician_cost).toBeCloseTo(3.5, 2);
+  });
+
+  it('groups standard finishes then D for mixed carousel', () => {
+    const product = makeInHouseProduct({
+      variants: [
+        { suffix: 'P', description: 'P', selling_price: 0 },
+        { suffix: 'DSB', description: 'D', selling_price: 0 },
+        { suffix: 'TG', description: 'L', selling_price: 0 },
+      ],
+    });
+    const slides = getTechnicianCarouselSlides(product);
+    expect(slides).toHaveLength(2);
+    expect(slides[0].id).toBe('standard');
+    expect(slides[0].variantFinishCodes).toEqual(['', 'P']);
+    expect(slides[0].finishCode).toBe('Λ·P');
+    expect(slides[1].id).toBe('d');
+    expect(slides[1].isMasterStoredRule).toBe(true);
   });
 });
 
