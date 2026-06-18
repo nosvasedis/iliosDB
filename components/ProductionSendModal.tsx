@@ -8,7 +8,7 @@ import { formatCurrency } from '../utils/pricingEngine';
 import SkuColorizedText from './SkuColorizedText';
 import { useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { groupBatchesByShipment } from '../utils/orderReadiness';
+import { groupBatchesByShipment, isOrderReady } from '../utils/orderReadiness';
 import { getShippedQuantities, getItemShipmentAllocations, getItemFulfillmentKind, itemKey } from '../utils/shipmentUtils';
 import { getProductOptionColorLabel } from '../utils/xrOptions';
 import BatchHistoryModal from './BatchHistoryModal';
@@ -46,6 +46,9 @@ interface Props {
     onPrintAggregated?: (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => void;
     onPrintStageBatches?: (data: StageBatchPrintData) => void;
     onBack?: () => void;
+    /** Opens shipment flow; `full` when every remaining piece is Ready, otherwise `partial`. */
+    onShipmentRequest?: (mode: 'partial' | 'full') => void;
+    /** @deprecated Use onShipmentRequest */
     onPartialShipment?: () => void;
     onPrintShipment?: (payload: { order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] }) => void;
     userName?: string;
@@ -53,7 +56,7 @@ interface Props {
 
 // ─── MAIN COMPONENT ─────────────────────────────────────────────────────────
 
-export default function ProductionSendModal({ order: orderProp, products, materials, existingBatches, collections, onClose, onOrderUpdated, onPrintAggregated, onPrintStageBatches, onBack, onPartialShipment, onPrintShipment, userName = 'Σύστημα' }: Props) {
+export default function ProductionSendModal({ order: orderProp, products, materials, existingBatches, collections, onClose, onOrderUpdated, onPrintAggregated, onPrintStageBatches, onBack, onShipmentRequest, onPartialShipment, onPrintShipment, userName = 'Σύστημα' }: Props) {
     const { showToast, confirm } = useUI();
     const queryClient = useQueryClient();
     const [order, setOrder] = useState(orderProp);
@@ -189,7 +192,11 @@ export default function ProductionSendModal({ order: orderProp, products, materi
 
     const totalInProduction = useMemo(() => existingBatches.reduce((sum, b) => sum + b.quantity, 0), [existingBatches]);
     const readyCount = useMemo(() => existingBatches.filter(b => b.current_stage === ProductionStage.Ready).reduce((sum, b) => sum + b.quantity, 0), [existingBatches]);
-    const canPartialShip = readyCount > 0 && order.status !== OrderStatus.Delivered && order.status !== OrderStatus.Cancelled && !!onPartialShipment;
+    const isFullyReadyToShip = useMemo(() => isOrderReady(order, existingBatches), [order, existingBatches]);
+    const canShipReady = readyCount > 0
+        && order.status !== OrderStatus.Delivered
+        && order.status !== OrderStatus.Cancelled
+        && (!!onShipmentRequest || !!onPartialShipment);
 
     // Popup Batches
     const popupBatches = useMemo(() => {
@@ -1263,17 +1270,32 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                         {/* History/Shipments */}
                         <div className="flex-1 overflow-y-auto p-3 bg-slate-50 border-t border-slate-900 space-y-4">
 
-                            {canPartialShip && (
+                            {canShipReady && (
                                 <button
-                                    onClick={() => void requestClose(onPartialShipment)}
-                                    className="w-full text-left p-3 rounded-xl flex items-center gap-3 font-bold bg-amber-50 border-2 border-amber-300 text-amber-800 hover:bg-amber-100 transition-colors shadow-sm"
+                                    onClick={() => {
+                                        const mode = isFullyReadyToShip ? 'full' : 'partial';
+                                        if (onShipmentRequest) {
+                                            void requestClose(() => onShipmentRequest(mode));
+                                        } else if (onPartialShipment) {
+                                            void requestClose(onPartialShipment);
+                                        }
+                                    }}
+                                    className={`w-full text-left p-3 rounded-xl flex items-center gap-3 font-bold border-2 transition-colors shadow-sm ${
+                                        isFullyReadyToShip
+                                            ? 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100'
+                                            : 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100'
+                                    }`}
                                 >
                                     <Truck size={16} className="shrink-0" />
                                     <div className="flex-1 min-w-0">
-                                        <div className="text-xs font-black">Μερική Αποστολή</div>
-                                        <div className="text-[10px] font-medium text-amber-600">{readyCount} τεμ. έτοιμα</div>
+                                        <div className="text-xs font-black">{isFullyReadyToShip ? 'Αποστολή' : 'Μερική Αποστολή'}</div>
+                                        <div className={`text-[10px] font-medium ${isFullyReadyToShip ? 'text-emerald-600' : 'text-amber-600'}`}>
+                                            {isFullyReadyToShip
+                                                ? `Όλα τα ${readyCount} τεμ. έτοιμα · ολοκλήρωση παραγγελίας`
+                                                : `${readyCount} τεμ. έτοιμα`}
+                                        </div>
                                     </div>
-                                    <Send size={12} className="shrink-0 text-amber-500" />
+                                    <Send size={12} className={`shrink-0 ${isFullyReadyToShip ? 'text-emerald-500' : 'text-amber-500'}`} />
                                 </button>
                             )}
 

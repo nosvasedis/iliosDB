@@ -15,7 +15,7 @@ import ProductionSendModal from './ProductionSendModal';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
 import { buildInProductionCollapsedProgressSegments, buildPartialDeliveryProgressSegments, groupBatchesByShipment, getShipmentReadiness, isOrderReady } from '../utils/orderReadiness';
 import { OrderListProgressBar } from './orders/OrderListProgressBar';
-import ShipmentCreationModal from './deliveries/ShipmentCreationModal';
+import ShipmentCreationModal, { ShipmentCreationVariant } from './deliveries/ShipmentCreationModal';
 import ShipmentUndoConfirmationModal from './deliveries/ShipmentUndoConfirmationModal';
 import { invalidateAndRefetchAfterShipmentChange, invalidateOrdersAndBatches } from '../lib/queryInvalidation';
 import { buildPartialOrderFromBatches, buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildShipmentPrintPayloads, buildSyntheticAggregatedBatches, getShipmentStageBreakdown, getShipmentSummary, getShipmentValue, buildOrderRevisions, orderMatchesSearch, estimateOrderListRowHeight, canOfferRemainingTransfer } from '../features/orders';
@@ -993,6 +993,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     const [productionModalOrder, setProductionModalOrder] = useState<Order | null>(null);
     const [showPartSelector, setShowPartSelector] = useState(false);
     const [shipmentModalOrder, setShipmentModalOrder] = useState<Order | null>(null);
+    const [shipmentModalVariant, setShipmentModalVariant] = useState<ShipmentCreationVariant>('partial');
     const [shipmentUndoRequest, setShipmentUndoRequest] = useState<{ order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] } | null>(null);
     const [isUndoingShipment, setIsUndoingShipment] = useState(false);
     const [showTagsManager, setShowTagsManager] = useState(false);
@@ -1041,14 +1042,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         return null;
     }, [showToast]);
 
-    const openShipmentModal = useCallback(async (order: Order) => {
-        const fullOrder = await ensureFullOrderItems(order);
-        if (!fullOrder) return;
-        setShipmentModalOrder(fullOrder);
-        setManagingOrder(null);
-        setProductionModalOrder(null);
-    }, [ensureFullOrderItems]);
-
     const productsMap = useMemo(() => new Map(products.map(product => [product.sku, product])), [products]);
     const materialsMap = useMemo(() => new Map(materials.map(material => [material.id, material])), [materials]);
 
@@ -1082,6 +1075,19 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         });
         return map;
     }, [enrichedBatches]);
+
+    const openShipmentModal = useCallback(async (order: Order, variant: ShipmentCreationVariant = 'partial') => {
+        const fullOrder = await ensureFullOrderItems(order);
+        if (!fullOrder) return;
+        const resolvedVariant: ShipmentCreationVariant =
+            variant === 'full' || isOrderReady(fullOrder, batchesByOrderId.get(fullOrder.id) || [])
+                ? 'full'
+                : 'partial';
+        setShipmentModalVariant(resolvedVariant);
+        setShipmentModalOrder(fullOrder);
+        setManagingOrder(null);
+        setProductionModalOrder(null);
+    }, [ensureFullOrderItems, batchesByOrderId]);
 
     const orderMetaById = useMemo(() => {
         const map = new Map<string, { isReady: boolean; retailClientLabel: string; readinessPercent: number }>();
@@ -1439,25 +1445,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     };
 
     // --- NEW ACTIONS ---
-    const handleCompleteOrder = async (order: Order) => {
-        const yes = await confirm({
-            title: 'Ολοκλήρωση Παραγγελίας',
-            message: 'Η παραγγελία θα σημειωθεί ως "Παραδόθηκε" (Delivered) και τα τεμάχια θα αφαιρεθούν από τη Ροή Παραγωγής. Συνέχεια;',
-            confirmText: 'Ολοκλήρωση & Παράδοση'
-        });
-        if (yes) {
-            try {
-                await ordersRepository.updateOrderStatus(order.id, OrderStatus.Delivered);
-                await auditRepository.logAction(profile?.full_name || 'System', 'Ολοκλήρωση Παραγγελίας', { order_id: order.id, customer: order.customer_name });
-                void invalidateOrdersAndBatches(queryClient);
-                if (managingOrder?.id === order.id) setManagingOrder(null);
-                showToast("Η παραγγελία ολοκληρώθηκε επιτυχώς!", "success");
-            } catch (e) {
-                showToast("Σφάλμα ολοκλήρωσης.", "error");
-            }
-        }
-    };
-
     const handleReopenCompletedOrderToReady = async (order: Order) => {
         const yes = await confirm({
             title: 'Επαναφορά σε Έτοιμα',
@@ -1499,7 +1486,13 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                 allBatches: batches || []
             });
             await invalidateAndRefetchAfterShipmentChange(queryClient, order.id);
-            showToast(`Αποστολή ${items.reduce((s, i) => s + i.quantity, 0)} τεμαχίων καταχωρήθηκε.`, 'success');
+            const shippedQty = items.reduce((s, i) => s + i.quantity, 0);
+            showToast(
+                shipmentModalVariant === 'full'
+                    ? 'Η παραγγελία ολοκληρώθηκε και καταχωρήθηκε η αποστολή επιτυχώς.'
+                    : `Αποστολή ${shippedQty} τεμαχίων καταχωρήθηκε.`,
+                'success'
+            );
             setShipmentModalOrder(null);
         } catch (e: any) {
             showToast(e?.message || 'Σφάλμα κατά την αποστολή.', 'error');
@@ -1886,12 +1879,12 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                 )}
                                                 {ready && order.status !== OrderStatus.Delivered && (
                                                     <button
-                                                        onClick={(e) => { e.stopPropagation(); handleCompleteOrder(order); }}
+                                                        onClick={(e) => { e.stopPropagation(); void openShipmentModal(order, 'full'); }}
                                                         className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-black text-emerald-700 shadow-sm ring-1 ring-white/80 transition-all hover:-translate-y-px hover:bg-emerald-100 hover:shadow-md"
-                                                        title="Έτοιμη για Ολοκλήρωση"
+                                                        title="Έτοιμη για Αποστολή"
                                                     >
-                                                        <CheckCircle size={14} />
-                                                        Έτοιμο
+                                                        <Truck size={14} />
+                                                        Αποστολή
                                                         <span className="rounded-full bg-emerald-600 px-1.5 py-0.5 text-[9px] leading-none text-white">100%</span>
                                                     </button>
                                                 )}
@@ -2103,16 +2096,16 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
 
                             {(orderMetaById.get(managingOrder.id)?.isReady || false) && managingOrder.status !== OrderStatus.Delivered && (
                                 <button
-                                    onClick={() => handleCompleteOrder(managingOrder)}
+                                    onClick={() => { void openShipmentModal(managingOrder, 'full'); setShowWorkflowActions(false); }}
                                     className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100"
                                 >
-                                    <CheckSquare size={18} /> Ολοκλήρωση & Παράδοση
+                                    <Truck size={18} /> Αποστολή ({managingShipmentReadiness?.ready_qty ?? 0} τεμ. έτοιμα)
                                 </button>
                             )}
 
                             {managingShipmentReadiness?.is_partially_ready && managingOrder.status !== OrderStatus.Delivered && managingOrder.status !== OrderStatus.Cancelled && (
                                 <button
-                                    onClick={() => { void openShipmentModal(managingOrder); }}
+                                    onClick={() => { void openShipmentModal(managingOrder, 'partial'); setShowWorkflowActions(false); }}
                                     className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors"
                                 >
                                     <Truck size={18} /> Μερική Αποστολή ({managingShipmentReadiness.ready_qty}/{managingShipmentReadiness.total_qty} τεμ. έτοιμα)
@@ -2288,8 +2281,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                     userName={profile?.full_name || 'Σύστημα'}
                     onPrintAggregated={onPrintAggregated}
                     onPrintShipment={onPrintShipment}
-                    onPartialShipment={() => {
-                        void openShipmentModal(productionModalOrder);
+                    onShipmentRequest={(mode) => {
+                        void openShipmentModal(productionModalOrder, mode);
                     }}
                 />
             )}
@@ -2300,6 +2293,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                     batches={enrichedBatches}
                     products={products}
                     deliveryPlanId={null}
+                    variant={shipmentModalVariant}
                     userName={profile?.full_name || 'System'}
                     onConfirm={handleConfirmShipmentFromOrders}
                     onClose={() => setShipmentModalOrder(null)}

@@ -230,8 +230,8 @@ describe('buildFinanceAnalytics', () => {
       now: new Date('2026-06-12T10:00:00.000Z'),
     });
 
-    expect(analytics.itemsBreakdown[0].estimatedCost).toBeCloseTo(8.9);
-    expect(analytics.itemsBreakdown[0].profit).toBeCloseTo(41.1);
+    expect(analytics.itemsBreakdown[0].estimatedCost).toBeCloseTo(9.2);
+    expect(analytics.itemsBreakdown[0].profit).toBeCloseTo(40.8);
   });
 
   it('calculates seller earned commission from shipped net value and pending commission from backlog', () => {

@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender, ProductVariant, Order, AssemblyPrintData, AssemblyPrintRow, StageBatchPrintData } from '../types';
+import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender, ProductVariant, Order, OrderStatus, AssemblyPrintData, AssemblyPrintRow, StageBatchPrintData, OrderShipment, OrderShipmentItem } from '../types';
 import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, ArrowUp, ArrowDown, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, Users, StickyNote, Hash, Save, Edit, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList, Grid, Maximize2, Minimize2 } from 'lucide-react';
 import { useUI } from './UIProvider';
 import DesktopPageHeader from './DesktopPageHeader';
@@ -10,6 +10,7 @@ import { useAuth } from './AuthContext';
 import SkuColorizedText from './SkuColorizedText';
 import BatchBuildModal from './BatchBuildModal';
 import ProductionSendModal from './ProductionSendModal';
+import ShipmentCreationModal, { ShipmentCreationVariant } from './deliveries/ShipmentCreationModal';
 import BatchHistoryModal from './BatchHistoryModal';
 import ProductionHealthPanel from './production/ProductionHealthPanel';
 import { getVariantComponents } from '../utils/pricingEngine';
@@ -21,7 +22,7 @@ import { requiresAssemblyStage } from '../constants';
 import { isSpecialCreationSku } from '../utils/specialCreationSku';
 import ProductionMoldRequirementsModal from './ProductionMoldRequirementsModal';
 import { buildProductionAlertGroups } from './production/productionAlerts';
-import { invalidateOrdersAndBatches, invalidateProductionBatches } from '../lib/queryInvalidation';
+import { invalidateOrdersAndBatches, invalidateProductionBatches, invalidateAndRefetchAfterShipmentChange } from '../lib/queryInvalidation';
 import { PRODUCTION_STAGES, getProductionStageLabel, getProductionStageShortLabel } from '../utils/productionStages';
 import { StageOnHoldMiniStrip } from './production/StageOnHoldMiniStrip';
 import ProductionBatchFinder from './production/ProductionBatchFinder';
@@ -34,6 +35,7 @@ import {
 } from '../features/production/selectors';
 import { useCollections } from '../hooks/api/useCollections';
 import { useProductionBoardOrders } from '../hooks/api/useOrders';
+import { ordersRepository } from '../features/orders';
 import { useProductionBoardBatches, useProductionBoardBatchStageHistoryEntries } from '../hooks/api/useProductionBatches';
 import { productionKeys, productionRepository } from '../features/production';
 import { auditRepository } from '../features/audit';
@@ -2302,6 +2304,8 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     const [sortOrder, setSortOrder] = useState<'alpha' | 'newest' | 'oldest'>('alpha');
     const [quickPickerOpen, setQuickPickerOpen] = useState(false);
     const [quickManageOrder, setQuickManageOrder] = useState<Order | null>(null);
+    const [shipmentModalOrder, setShipmentModalOrder] = useState<Order | null>(null);
+    const [shipmentModalVariant, setShipmentModalVariant] = useState<ShipmentCreationVariant>('partial');
 
     // Batch History Modal State
     const [historyModalBatch, setHistoryModalBatch] = useState<ProductionBatch | null>(null);
@@ -2349,6 +2353,61 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     );
 
     const batchesByOrderId = useMemo(() => buildBatchesByOrderId(enhancedBatches), [enhancedBatches]);
+
+    const openShipmentModal = useCallback(async (order: Order, variant: ShipmentCreationVariant) => {
+        let fullOrder = order;
+        if (!Array.isArray(fullOrder.items) || (fullOrder.items.length === 0 && Number(fullOrder.item_count ?? 0) > 0)) {
+            try {
+                const fresh = await ordersRepository.getOrderById(order.id);
+                if (fresh && Array.isArray(fresh.items) && !(fresh.items.length === 0 && Number(fresh.item_count ?? 0) > 0)) {
+                    fullOrder = fresh;
+                } else {
+                    showToast('Τα στοιχεία της παραγγελίας φορτώνουν ακόμα. Δοκιμάστε ξανά.', 'error');
+                    return;
+                }
+            } catch {
+                showToast('Τα στοιχεία της παραγγελίας φορτώνουν ακόμα. Δοκιμάστε ξανά.', 'error');
+                return;
+            }
+        }
+        setShipmentModalVariant(variant);
+        setShipmentModalOrder(fullOrder);
+        setQuickManageOrder(null);
+    }, [showToast]);
+
+    const handleConfirmShipmentFromProduction = useCallback(async (
+        items: Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: Order['items'][number]['cord_color']; enamel_color?: Order['items'][number]['enamel_color']; quantity: number; price_at_order: number; line_id?: string | null }>,
+        notes: string | null
+    ) => {
+        if (!shipmentModalOrder) return;
+        const order = shipmentModalOrder;
+        if (!Array.isArray(order.items) || order.items.length === 0) {
+            showToast('Τα στοιχεία της παραγγελίας δεν είναι διαθέσιμα.', 'error');
+            throw new Error('Order items are not loaded.');
+        }
+        try {
+            await ordersRepository.createPartialShipment({
+                orderId: order.id,
+                orderItems: order.items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, quantity: i.quantity, price_at_order: i.price_at_order, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color, line_id: i.line_id || null })),
+                items: items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color, quantity: i.quantity, price_at_order: i.price_at_order, line_id: i.line_id || null })),
+                shippedBy: profile?.full_name || 'System',
+                deliveryPlanId: null,
+                notes,
+                allBatches: batches || []
+            });
+            await invalidateAndRefetchAfterShipmentChange(queryClient, order.id);
+            showToast(
+                shipmentModalVariant === 'full'
+                    ? 'Η παραγγελία ολοκληρώθηκε και καταχωρήθηκε η αποστολή επιτυχώς.'
+                    : `Αποστολή ${items.reduce((s, i) => s + i.quantity, 0)} τεμαχίων καταχωρήθηκε.`,
+                'success'
+            );
+            setShipmentModalOrder(null);
+        } catch (e: any) {
+            showToast(e?.message || 'Σφάλμα κατά την αποστολή.', 'error');
+            throw e;
+        }
+    }, [batches, profile?.full_name, queryClient, shipmentModalOrder, shipmentModalVariant, showToast]);
 
     const activeProductionNotes = useMemo(
         () => buildActiveProductionNotes(orders, batchesByOrderId),
@@ -3680,6 +3739,22 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                     onPrintAggregated={onPrintAggregated}
                     onPrintStageBatches={onPrintStageBatches}
                     onBack={() => setQuickManageOrder(null)}
+                    onShipmentRequest={(mode) => {
+                        void openShipmentModal(quickManageOrder, mode);
+                    }}
+                />
+            )}
+
+            {shipmentModalOrder && (
+                <ShipmentCreationModal
+                    order={shipmentModalOrder}
+                    batches={enhancedBatches}
+                    products={products}
+                    deliveryPlanId={null}
+                    variant={shipmentModalVariant}
+                    userName={profile?.full_name || 'System'}
+                    onConfirm={handleConfirmShipmentFromProduction}
+                    onClose={() => setShipmentModalOrder(null)}
                 />
             )}
 

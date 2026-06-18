@@ -2,7 +2,23 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier, MaterialType } from '../types';
-import { calculateProductCost, calculateTechnicianCost, analyzeSku, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal, getIliosSuggestedPriceForProduct } from '../utils/pricingEngine';
+import { calculateProductCost, analyzeSku, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal, getIliosSuggestedPriceForProduct } from '../utils/pricingEngine';
+import {
+    DEFAULT_PLATING_RATE,
+    TECHNICIAN_TIER_HINT,
+    applyFormulaRateChange,
+    applyFormulaTotalChange,
+    computeAutoLaborCosts,
+    getCastingFormulaLine,
+    getPlatingDFormulaLine,
+    getPlatingDWeightBasis,
+    getPlatingXFormulaLine,
+    syncPrimaryWeightFromTotalBasis,
+    syncSecondaryWeightFromPlatingDBasis,
+    getTechnicianFormulaLine,
+    type LaborFormulaField,
+} from '../utils/laborFormula';
+import { LaborCostFormulaRow } from './ProductRegistry/LaborCostFormulaRow';
 import { FINISH_CODES } from '../constants';
 import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag, Edit, Check, ArrowDownRight, RefreshCcw, Scale } from 'lucide-react';
 import { uploadProductImage, R2_PUBLIC_URL, AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL } from '../lib/supabase';
@@ -627,64 +643,46 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     }, [product]);
 
     useEffect(() => {
-        if (editedProduct.production_type === ProductionType.InHouse && !editedProduct.labor.technician_cost_manual_override) {
-            const techCost = calculateTechnicianCost(editedProduct.weight_g);
-            setEditedProduct(prev => ({
-                ...prev,
-                labor: { ...prev.labor, technician_cost: techCost }
-            }));
-        }
-    }, [editedProduct.weight_g, editedProduct.labor.technician_cost_manual_override, editedProduct.production_type]);
+        setEditedProduct(prev => {
+            let labor = { ...prev.labor };
+            let changed = false;
 
-    useEffect(() => {
-        if (editedProduct.production_type === ProductionType.InHouse && !editedProduct.labor.casting_cost_manual_override) {
-            const baseCastingCost = editedProduct.weight_g * 0.15;
-            const secondaryCastingCost = (editedProduct.secondary_weight_g || 0) * 0.15;
-            const castCost = baseCastingCost + secondaryCastingCost;
-            setEditedProduct(prev => ({
-                ...prev,
-                labor: { ...prev.labor, casting_cost: castCost }
-            }));
-        }
-    }, [editedProduct.weight_g, editedProduct.secondary_weight_g, editedProduct.production_type, editedProduct.labor.casting_cost_manual_override]);
-
-    useEffect(() => {
-        if (!editedProduct.labor.plating_cost_x_manual_override) {
-            if (editedProduct.production_type === ProductionType.Imported) {
-                if (editedProduct.labor.plating_cost_x === 0) {
-                    setEditedProduct(prev => ({ ...prev, labor: { ...prev.labor, plating_cost_x: 0.60 } }));
-                }
-            } else {
-                let totalPlatingWeight = editedProduct.weight_g;
-                editedProduct.recipe.forEach(item => {
-                    if (item.type === 'component') {
-                        const subProduct = allProducts.find(p => p.sku === item.sku);
-                        if (subProduct) {
-                            totalPlatingWeight += (subProduct.weight_g * item.quantity);
-                        }
+            const mergeLabor = (updates: Partial<LaborCost>) => {
+                for (const [key, val] of Object.entries(updates)) {
+                    const k = key as keyof LaborCost;
+                    if (labor[k] !== val) {
+                        (labor as Record<string, unknown>)[k] = val;
+                        changed = true;
                     }
-                });
-                const costX = parseFloat((totalPlatingWeight * 0.60).toFixed(2));
-                setEditedProduct(prev => ({ ...prev, labor: { ...prev.labor, plating_cost_x: costX } }));
+                }
+            };
+
+            if (prev.production_type === ProductionType.InHouse) {
+                mergeLabor(computeAutoLaborCosts(prev, allProducts));
+            } else if (prev.production_type === ProductionType.Imported) {
+                if (!prev.labor.plating_cost_x_manual_override && prev.labor.plating_cost_x === 0) {
+                    mergeLabor({ plating_cost_x: DEFAULT_PLATING_RATE });
+                }
+                if (!prev.labor.plating_cost_d_manual_override) {
+                    const dWeight = getPlatingDWeightBasis(prev, allProducts);
+                    mergeLabor({ plating_cost_d: parseFloat((dWeight * DEFAULT_PLATING_RATE).toFixed(2)) });
+                }
             }
-        }
-    }, [editedProduct.weight_g, editedProduct.recipe, allProducts, editedProduct.labor.plating_cost_x_manual_override, editedProduct.production_type]);
 
-    useEffect(() => {
-        if (!editedProduct.labor.plating_cost_d_manual_override) {
-            let totalSecondaryWeight = editedProduct.secondary_weight_g || 0;
-            editedProduct.recipe.forEach(item => {
-                if (item.type === 'component') {
-                    const subProduct = allProducts.find(p => p.sku === item.sku);
-                    if (subProduct) {
-                        totalSecondaryWeight += ((subProduct.secondary_weight_g || 0) * item.quantity);
-                    }
-                }
-            });
-            const costD = parseFloat((totalSecondaryWeight * 0.60).toFixed(2));
-            setEditedProduct(prev => ({ ...prev, labor: { ...prev.labor, plating_cost_d: costD } }));
-        }
-    }, [editedProduct.secondary_weight_g, editedProduct.recipe, allProducts, editedProduct.labor.plating_cost_d_manual_override]);
+            return changed ? { ...prev, labor } : prev;
+        });
+    }, [
+        editedProduct.weight_g,
+        editedProduct.secondary_weight_g,
+        editedProduct.recipe,
+        editedProduct.production_type,
+        editedProduct.is_component,
+        editedProduct.labor.casting_cost_manual_override,
+        editedProduct.labor.technician_cost_manual_override,
+        editedProduct.labor.plating_cost_x_manual_override,
+        editedProduct.labor.plating_cost_d_manual_override,
+        allProducts,
+    ]);
 
     useEffect(() => {
         setEditedProduct(prev => {
@@ -1231,6 +1229,92 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     const analyticalCostingItems = useMemo(() => {
         return getAnalyticalCostingItems(hasVariants, sortedVariantsList, product.sku, editedProduct, settings, allMaterials, allProducts, currentCostCalc);
     }, [hasVariants, sortedVariantsList, product.sku, editedProduct, settings, allMaterials, allProducts, currentCostCalc]);
+
+    const castingFormula = useMemo(
+        () => getCastingFormulaLine(editedProduct.labor, editedProduct),
+        [editedProduct.labor, editedProduct.weight_g, editedProduct.secondary_weight_g, editedProduct.is_component],
+    );
+    const technicianFormula = useMemo(
+        () => getTechnicianFormulaLine(editedProduct.labor, editedProduct),
+        [editedProduct.labor, editedProduct.weight_g, editedProduct.secondary_weight_g, editedProduct.is_component],
+    );
+    const platingXFormula = useMemo(
+        () => getPlatingXFormulaLine(editedProduct.labor, editedProduct, allProducts),
+        [editedProduct.labor, editedProduct.weight_g, editedProduct.recipe, allProducts],
+    );
+    const platingDFormula = useMemo(
+        () => getPlatingDFormulaLine(editedProduct.labor, editedProduct, allProducts),
+        [editedProduct.labor, editedProduct.secondary_weight_g, editedProduct.recipe, allProducts],
+    );
+
+    const patchLaborFormula = (
+        field: LaborFormulaField,
+        patch: Partial<LaborCost>,
+        productPatch?: Partial<Product>,
+    ) => {
+        setEditedProduct(prev => ({
+            ...prev,
+            ...productPatch,
+            labor: { ...prev.labor, ...patch },
+        }));
+    };
+
+    const handleFormulaRateChange = (field: LaborFormulaField, rate: number, weightBasis: number) => {
+        patchLaborFormula(field, applyFormulaRateChange(field, rate, weightBasis));
+    };
+
+    const handleFormulaTotalChange = (field: LaborFormulaField, total: number) => {
+        patchLaborFormula(field, applyFormulaTotalChange(field, total));
+    };
+
+    const handleFormulaToggleOverride = (field: LaborFormulaField) => {
+        const overrideKeys: Record<LaborFormulaField, keyof LaborCost> = {
+            casting: 'casting_cost_manual_override',
+            technician: 'technician_cost_manual_override',
+            plating_x: 'plating_cost_x_manual_override',
+            plating_d: 'plating_cost_d_manual_override',
+        };
+        const key = overrideKeys[field];
+        patchLaborFormula(field, { [key]: !editedProduct.labor[key] } as Partial<LaborCost>);
+    };
+
+    const handleCastingWeightChange = (newBasis: number) => {
+        const weight_g = syncPrimaryWeightFromTotalBasis(editedProduct, newBasis);
+        const rate = castingFormula.rate;
+        patchLaborFormula(
+            'casting',
+            applyFormulaRateChange('casting', rate, newBasis),
+            { weight_g },
+        );
+    };
+
+    const handleTechnicianWeightChange = (newBasis: number) => {
+        if (editedProduct.is_component) {
+            patchLaborFormula(
+                'technician',
+                applyFormulaRateChange('technician', technicianFormula.rate, newBasis),
+                { weight_g: newBasis },
+            );
+        } else {
+            const weight_g = syncPrimaryWeightFromTotalBasis(editedProduct, newBasis);
+            patchLaborFormula(
+                'technician',
+                applyFormulaRateChange('technician', technicianFormula.rate, newBasis),
+                { weight_g },
+            );
+        }
+    };
+
+    const handlePlatingXWeightChange = (_newBasis: number) => { /* weight basis includes recipe — read-only */ };
+
+    const handlePlatingDWeightChange = (newBasis: number) => {
+        const secondary_weight_g = syncSecondaryWeightFromPlatingDBasis(editedProduct, allProducts, newBasis);
+        patchLaborFormula(
+            'plating_d',
+            applyFormulaRateChange('plating_d', platingDFormula.rate, newBasis),
+            { secondary_weight_g },
+        );
+    };
 
     const handleRenameSku = async () => {
         if (!tempSku || tempSku === product.sku) {
@@ -2155,11 +2239,60 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                 Εισαγωγή Κόστους Εργατικών
                                             </h4>
                                             <div className="space-y-2">
-                                                <LaborCostInput label="Χυτήριο (€)" value={editedProduct.labor.casting_cost} onChange={v => setEditedProduct({ ...editedProduct, labor: { ...editedProduct.labor, casting_cost: v } })} override={editedProduct.labor.casting_cost_manual_override} onToggleOverride={() => setEditedProduct(p => ({ ...p, labor: { ...p.labor, casting_cost_manual_override: !p.labor.casting_cost_manual_override } }))} icon={<Flame size={14} />} />
+                                                <LaborCostFormulaRow
+                                                    icon={<Flame size={14} />}
+                                                    label="Χυτήριο (€)"
+                                                    rate={castingFormula.rate}
+                                                    weightBasis={castingFormula.weightBasis}
+                                                    total={castingFormula.total}
+                                                    isOverridden={castingFormula.isOverridden}
+                                                    onRateChange={(r) => handleFormulaRateChange('casting', r, castingFormula.weightBasis)}
+                                                    onWeightChange={handleCastingWeightChange}
+                                                    onTotalChange={(t) => handleFormulaTotalChange('casting', t)}
+                                                    onToggleOverride={() => handleFormulaToggleOverride('casting')}
+                                                    hint={editedProduct.is_component ? 'Εξάρτημα STX — χωρίς χυτήριο' : 'Από συνολικό βάρος (βασικό + δευτερεύον)'}
+                                                />
                                                 <LaborCostInput label="Καρφωτής (€)" value={editedProduct.labor.setter_cost} onChange={v => setEditedProduct({ ...editedProduct, labor: { ...editedProduct.labor, setter_cost: v } })} icon={<Gem size={14} />} />
-                                                <LaborCostInput label="Τεχνίτης (€)" value={editedProduct.labor.technician_cost} onChange={v => setEditedProduct({ ...editedProduct, labor: { ...editedProduct.labor, technician_cost: v } })} override={editedProduct.labor.technician_cost_manual_override} onToggleOverride={() => setEditedProduct(p => ({ ...p, labor: { ...p.labor, technician_cost_manual_override: !p.labor.technician_cost_manual_override } }))} icon={<Hammer size={14} />} />
-                                                <LaborCostInput label="Επιμετάλλωση X/H (€)" value={editedProduct.labor.plating_cost_x} onChange={v => setEditedProduct({ ...editedProduct, labor: { ...editedProduct.labor, plating_cost_x: v } })} override={editedProduct.labor.plating_cost_x_manual_override} onToggleOverride={() => setEditedProduct(p => ({ ...p, labor: { ...p.labor, plating_cost_x_manual_override: !p.labor.plating_cost_x_manual_override } }))} icon={<Coins size={14} />} />
-                                                <LaborCostInput label="Επιμετάλλωση D (€)" value={editedProduct.labor.plating_cost_d} onChange={v => setEditedProduct({ ...editedProduct, labor: { ...editedProduct.labor, plating_cost_d: v } })} override={editedProduct.labor.plating_cost_d_manual_override} onToggleOverride={() => setEditedProduct(p => ({ ...p, labor: { ...p.labor, plating_cost_d_manual_override: !p.labor.plating_cost_d_manual_override } }))} icon={<Coins size={14} />} />
+                                                <LaborCostFormulaRow
+                                                    icon={<Hammer size={14} />}
+                                                    label="Τεχνίτης (€)"
+                                                    rate={technicianFormula.rate}
+                                                    weightBasis={technicianFormula.weightBasis}
+                                                    total={technicianFormula.total}
+                                                    isOverridden={technicianFormula.isOverridden}
+                                                    onRateChange={(r) => handleFormulaRateChange('technician', r, technicianFormula.weightBasis)}
+                                                    onWeightChange={handleTechnicianWeightChange}
+                                                    onTotalChange={(t) => handleFormulaTotalChange('technician', t)}
+                                                    onToggleOverride={() => handleFormulaToggleOverride('technician')}
+                                                    hint={!technicianFormula.isOverridden ? TECHNICIAN_TIER_HINT : undefined}
+                                                />
+                                                <LaborCostFormulaRow
+                                                    icon={<Coins size={14} />}
+                                                    label="Επιμετάλλωση X/H (€)"
+                                                    rate={platingXFormula.rate}
+                                                    weightBasis={platingXFormula.weightBasis}
+                                                    total={platingXFormula.total}
+                                                    isOverridden={platingXFormula.isOverridden}
+                                                    onRateChange={(r) => handleFormulaRateChange('plating_x', r, platingXFormula.weightBasis)}
+                                                    onWeightChange={handlePlatingXWeightChange}
+                                                    onTotalChange={(t) => handleFormulaTotalChange('plating_x', t)}
+                                                    onToggleOverride={() => handleFormulaToggleOverride('plating_x')}
+                                                    weightReadOnly
+                                                    hint="Από συνολικό βάρος (βασικό + εξαρτήματα συνταγής)"
+                                                />
+                                                <LaborCostFormulaRow
+                                                    icon={<Coins size={14} />}
+                                                    label="Επιμετάλλωση D (€)"
+                                                    rate={platingDFormula.rate}
+                                                    weightBasis={platingDFormula.weightBasis}
+                                                    total={platingDFormula.total}
+                                                    isOverridden={platingDFormula.isOverridden}
+                                                    onRateChange={(r) => handleFormulaRateChange('plating_d', r, platingDFormula.weightBasis)}
+                                                    onWeightChange={handlePlatingDWeightChange}
+                                                    onTotalChange={(t) => handleFormulaTotalChange('plating_d', t)}
+                                                    onToggleOverride={() => handleFormulaToggleOverride('plating_d')}
+                                                    hint="Από δευτερεύον βάρος (+ εξαρτήματα συνταγής)"
+                                                />
                                                 <LaborCostInput label="Φασόν/Έξτρα (€)" value={editedProduct.labor.subcontract_cost} onChange={v => setEditedProduct({ ...editedProduct, labor: { ...editedProduct.labor, subcontract_cost: v } })} icon={<Users size={14} />} />
                                             </div>
                                         </div>

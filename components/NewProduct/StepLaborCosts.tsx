@@ -1,29 +1,99 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Hammer, Flame, Crown, Coins, Users } from 'lucide-react';
 import { useNewProductState } from '../../hooks/useNewProductState';
 import { LaborCostCard } from '../ProductRegistry/LaborCostCard';
+import { LaborCostFormulaRow } from '../ProductRegistry/LaborCostFormulaRow';
+import {
+    TECHNICIAN_TIER_HINT,
+    applyFormulaRateChange,
+    applyFormulaTotalChange,
+    getCastingFormulaLine,
+    getPlatingDFormulaLine,
+    getPlatingXFormulaLine,
+    getTechnicianFormulaLine,
+    syncPrimaryWeightFromTotalBasis,
+    syncSecondaryWeightFromPlatingDBasis,
+    type LaborFormulaField,
+} from '../../utils/laborFormula';
+import { LaborCost } from '../../types';
 
 interface Props {
     formState: ReturnType<typeof useNewProductState>;
+    allProducts: import('../../types').Product[];
 }
 
-export const StepLaborCosts: React.FC<Props> = ({ formState }) => {
+export const StepLaborCosts: React.FC<Props> = ({ formState, allProducts }) => {
     const { state, setters } = formState;
+    const productLike = useMemo(() => ({
+        weight_g: state.weight,
+        secondary_weight_g: state.secondaryWeight,
+        is_component: state.isSTX,
+        recipe: state.recipe,
+    }), [state.weight, state.secondaryWeight, state.isSTX, state.recipe]);
+
+    const castingFormula = useMemo(
+        () => getCastingFormulaLine(state.labor, productLike),
+        [state.labor, productLike],
+    );
+    const technicianFormula = useMemo(
+        () => getTechnicianFormulaLine(state.labor, productLike),
+        [state.labor, productLike],
+    );
+    const platingXFormula = useMemo(
+        () => getPlatingXFormulaLine(state.labor, productLike, allProducts),
+        [state.labor, productLike, allProducts],
+    );
+    const platingDFormula = useMemo(
+        () => getPlatingDFormulaLine(state.labor, productLike, allProducts),
+        [state.labor, productLike, allProducts],
+    );
+
+    const patchLabor = (patch: Partial<LaborCost>, weightPatch?: { weight?: number; secondaryWeight?: number }) => {
+        setters.setLabor({ ...state.labor, ...patch });
+        if (weightPatch?.weight !== undefined) setters.setWeight(weightPatch.weight);
+        if (weightPatch?.secondaryWeight !== undefined) setters.setSecondaryWeight(weightPatch.secondaryWeight);
+    };
+
+    const handleFormulaRateChange = (field: LaborFormulaField, rate: number, weightBasis: number) => {
+        patchLabor(applyFormulaRateChange(field, rate, weightBasis));
+    };
+
+    const handleFormulaTotalChange = (field: LaborFormulaField, total: number) => {
+        patchLabor(applyFormulaTotalChange(field, total));
+    };
+
+    const toggleOverride = (field: LaborFormulaField) => {
+        const keys: Record<LaborFormulaField, keyof LaborCost> = {
+            casting: 'casting_cost_manual_override',
+            technician: 'technician_cost_manual_override',
+            plating_x: 'plating_cost_x_manual_override',
+            plating_d: 'plating_cost_d_manual_override',
+        };
+        const key = keys[field];
+        patchLabor({ [key]: !state.labor[key] } as Partial<LaborCost>);
+    };
 
     return (
         <div className="space-y-6 animate-in slide-in-from-right duration-300">
             <h3 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-4">3. Εργατικά</h3>
             <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
                 <h4 className="text-base font-bold text-slate-600 mb-4 flex items-center gap-2"><Hammer size={18} /> Κόστη Εργατικών</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <LaborCostCard
+                <div className="space-y-2">
+                    <LaborCostFormulaRow
                         icon={<Flame size={14} />}
                         label="Χυτήριο (€)"
-                        value={state.labor.casting_cost}
-                        onChange={val => setters.setLabor({ ...state.labor, casting_cost: val })}
-                        isOverridden={state.labor.casting_cost_manual_override}
-                        onToggleOverride={() => setters.setLabor({ ...state.labor, casting_cost_manual_override: !state.labor.casting_cost_manual_override })}
-                        hint="Από Συνολικό Βάρος"
+                        rate={castingFormula.rate}
+                        weightBasis={castingFormula.weightBasis}
+                        total={castingFormula.total}
+                        isOverridden={castingFormula.isOverridden}
+                        onRateChange={(r) => handleFormulaRateChange('casting', r, castingFormula.weightBasis)}
+                        onWeightChange={(w) => {
+                            const weight = syncPrimaryWeightFromTotalBasis(productLike, w);
+                            patchLabor(applyFormulaRateChange('casting', castingFormula.rate, w), { weight });
+                        }}
+                        onTotalChange={(t) => handleFormulaTotalChange('casting', t)}
+                        onToggleOverride={() => toggleOverride('casting')}
+                        hint={state.isSTX ? 'Εξάρτημα STX — χωρίς χυτήριο' : 'Από συνολικό βάρος'}
                     />
                     <LaborCostCard
                         icon={<Crown size={14} />}
@@ -31,31 +101,55 @@ export const StepLaborCosts: React.FC<Props> = ({ formState }) => {
                         value={state.labor.setter_cost}
                         onChange={val => setters.setLabor({ ...state.labor, setter_cost: val })}
                     />
-                    <LaborCostCard
+                    <LaborCostFormulaRow
                         icon={<Hammer size={14} />}
                         label="Τεχνίτης (€)"
-                        value={state.labor.technician_cost}
-                        onChange={val => setters.setLabor({ ...state.labor, technician_cost: val })}
-                        isOverridden={state.labor.technician_cost_manual_override}
-                        onToggleOverride={() => setters.setLabor({ ...state.labor, technician_cost_manual_override: !state.labor.technician_cost_manual_override })}
+                        rate={technicianFormula.rate}
+                        weightBasis={technicianFormula.weightBasis}
+                        total={technicianFormula.total}
+                        isOverridden={technicianFormula.isOverridden}
+                        onRateChange={(r) => handleFormulaRateChange('technician', r, technicianFormula.weightBasis)}
+                        onWeightChange={(w) => {
+                            if (state.isSTX) {
+                                patchLabor(applyFormulaRateChange('technician', technicianFormula.rate, w), { weight: w });
+                            } else {
+                                const weight = syncPrimaryWeightFromTotalBasis(productLike, w);
+                                patchLabor(applyFormulaRateChange('technician', technicianFormula.rate, w), { weight });
+                            }
+                        }}
+                        onTotalChange={(t) => handleFormulaTotalChange('technician', t)}
+                        onToggleOverride={() => toggleOverride('technician')}
+                        hint={!technicianFormula.isOverridden ? TECHNICIAN_TIER_HINT : undefined}
                     />
-                    <LaborCostCard
+                    <LaborCostFormulaRow
                         icon={<Coins size={14} />}
                         label="Επιμετάλλωση X/H (€)"
-                        value={state.labor.plating_cost_x}
-                        onChange={val => setters.setLabor({ ...state.labor, plating_cost_x: val })}
-                        isOverridden={state.labor.plating_cost_x_manual_override}
-                        onToggleOverride={() => setters.setLabor({ ...state.labor, plating_cost_x_manual_override: !state.labor.plating_cost_x_manual_override })}
-                        hint="Από Συνολικό Βάρος (Βασικό+Comp+Sec)"
+                        rate={platingXFormula.rate}
+                        weightBasis={platingXFormula.weightBasis}
+                        total={platingXFormula.total}
+                        isOverridden={platingXFormula.isOverridden}
+                        onRateChange={(r) => handleFormulaRateChange('plating_x', r, platingXFormula.weightBasis)}
+                        onWeightChange={() => {}}
+                        onTotalChange={(t) => handleFormulaTotalChange('plating_x', t)}
+                        onToggleOverride={() => toggleOverride('plating_x')}
+                        weightReadOnly
+                        hint="Από συνολικό βάρος (βασικό + εξαρτήματα)"
                     />
-                    <LaborCostCard
+                    <LaborCostFormulaRow
                         icon={<Coins size={14} />}
                         label="Επιμετάλλωση D (€)"
-                        value={state.labor.plating_cost_d}
-                        onChange={val => setters.setLabor({ ...state.labor, plating_cost_d: val })}
-                        isOverridden={state.labor.plating_cost_d_manual_override}
-                        onToggleOverride={() => setters.setLabor({ ...state.labor, plating_cost_d_manual_override: !state.labor.plating_cost_d_manual_override })}
-                        hint="Από Β' Βάρος"
+                        rate={platingDFormula.rate}
+                        weightBasis={platingDFormula.weightBasis}
+                        total={platingDFormula.total}
+                        isOverridden={platingDFormula.isOverridden}
+                        onRateChange={(r) => handleFormulaRateChange('plating_d', r, platingDFormula.weightBasis)}
+                        onWeightChange={(w) => {
+                            const secondaryWeight = syncSecondaryWeightFromPlatingDBasis(productLike, allProducts, w);
+                            patchLabor(applyFormulaRateChange('plating_d', platingDFormula.rate, w), { secondaryWeight });
+                        }}
+                        onTotalChange={(t) => handleFormulaTotalChange('plating_d', t)}
+                        onToggleOverride={() => toggleOverride('plating_d')}
+                        hint="Από δευτερεύον βάρος"
                     />
                     <LaborCostCard
                         icon={<Users size={14} />}

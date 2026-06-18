@@ -45,7 +45,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel, 
             case 2:
                 return <StepRecipe formState={formState} materials={materials} products={products} settings={settings} />;
             case 3:
-                if (state.productionType === ProductionType.InHouse) return <StepLaborCosts formState={formState} />;
+                if (state.productionType === ProductionType.InHouse) return <StepLaborCosts formState={formState} allProducts={products} />;
                 return <StepVariants formState={formState} settings={settings} materials={materials} products={products} />;
             case 4:
                 if (state.productionType === ProductionType.InHouse) return <StepVariants formState={formState} settings={settings} materials={materials} products={products} />;

@@ -11,6 +11,7 @@ import {
     formatCurrency,
     formatDecimal,
 } from '../utils/pricingEngine';
+import { DEFAULT_CASTING_RATE, DEFAULT_PLATING_RATE } from '../utils/laborFormula';
 import { AlertTriangle, X, ArrowRight, CheckCircle, Info, Hammer, Coins, Gem, Box, Activity, Flame, Sparkles } from 'lucide-react';
 
 interface Props {
@@ -38,11 +39,9 @@ function computeInhouseConversion(
     // --- Calculate new InHouse labor values ---
     // Technician: useEffect uses weight_g only, but engine recalculates from totalWeight when override=false — match useEffect stored value
     const newTechnicianCost = calculateTechnicianCost(w);
-    const newCastingCost = parseFloat(((w * 0.15) + (sw * 0.15)).toFixed(4));
-    // plating_cost_x useEffect: totalPlatingWeight = weight_g + recipe component weights (recipe empty → weight_g only)
-    const newPlatingX = parseFloat((w * 0.60).toFixed(2));
-    // plating_cost_d useEffect: totalSecondaryWeight = secondary_weight_g + recipe component secondary weights (recipe empty → secondary_weight_g only)
-    const newPlatingD = parseFloat((sw * 0.60).toFixed(2));
+    const newCastingCost = parseFloat(((w + sw) * DEFAULT_CASTING_RATE).toFixed(4));
+    const newPlatingX = parseFloat((w * DEFAULT_PLATING_RATE).toFixed(2));
+    const newPlatingD = parseFloat((sw * DEFAULT_PLATING_RATE).toFixed(2));
 
     const newProduct: Product = {
         ...product,

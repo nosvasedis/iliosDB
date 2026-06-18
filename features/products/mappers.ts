@@ -77,6 +77,7 @@ type RawProductRow = {
   labor_technician_manual_override?: boolean | null;
   labor_plating_x_manual_override?: boolean | null;
   labor_plating_d_manual_override?: boolean | null;
+  labor_casting_manual_override?: boolean | null;
   selling_price_manual_override?: boolean | null;
 };
 
@@ -252,6 +253,7 @@ function mapProductRow(
       plating_cost_d: Number(row.labor_plating_d || 0),
       subcontract_cost: Number(row.labor_subcontract || 0),
       stone_setting_cost: Number(row.labor_stone_setting || 0),
+      casting_cost_manual_override: !!row.labor_casting_manual_override,
       technician_cost_manual_override: !!row.labor_technician_manual_override,
       plating_cost_x_manual_override: !!row.labor_plating_x_manual_override,
       plating_cost_d_manual_override: !!row.labor_plating_d_manual_override,

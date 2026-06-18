@@ -1,5 +1,12 @@
 import { Product, GlobalSettings, Material, PlatingType, Gender, ProductVariant, ProductionType, RecipeItem, LaborCost } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants';
+import {
+    DEFAULT_CASTING_RATE,
+    calculateTechnicianCostFromWeight,
+    resolveCastingCost,
+    resolveTechnicianCostMaster,
+    resolveTechnicianCostVariant,
+} from './laborFormula';
 
 /**
  * Formats a number to a string with a comma decimal separator.
@@ -59,20 +66,8 @@ export const calculateSuggestedWholesalePrice = (
     return roundPrice(suggestedPrice);
 };
 
-export const calculateTechnicianCost = (weight_g: number): number => {
-    let cost = 0;
-    if (weight_g <= 0) return 0;
-    if (weight_g <= 2.2) {
-        cost = weight_g * 1.30;
-    } else if (weight_g <= 4.2) {
-        cost = weight_g * 0.90;
-    } else if (weight_g <= 8.2) {
-        cost = weight_g * 0.70;
-    } else {
-        cost = weight_g * 0.50;
-    }
-    return cost;
-};
+export const calculateTechnicianCost = (weight_g: number): number =>
+    calculateTechnicianCostFromWeight(weight_g);
 
 export const calculatePlatingCost = (weight_g: number, plating_type: PlatingType): number => {
     if (plating_type === PlatingType.GoldPlated || plating_type === PlatingType.Platinum) {
@@ -124,7 +119,7 @@ export const analyzeSupplierValue = (
     });
 
     const intrinsicValue = silverCost + materialCost;
-    const estCasting = weight * 0.15;
+    const estCasting = weight * DEFAULT_CASTING_RATE;
     const estTechnician = calculateTechnicianCost(weight);
     const estPlating = (reportedLabor.plating_cost_x > 0 || reportedLabor.plating_cost_d > 0)
         ? calculatePlatingCost(weight, PlatingType.GoldPlated)
@@ -251,8 +246,8 @@ export const calculateProductCost = (
     });
 
     const labor: Partial<LaborCost> = product.labor || {};
-    let technicianCost = labor.technician_cost_manual_override ? (labor.technician_cost || 0) : (product.is_component ? product.weight_g * 0.50 : calculateTechnicianCost(totalWeight));
-    let castingCost = labor.casting_cost_manual_override ? (labor.casting_cost || 0) : (product.is_component ? 0 : totalWeight * 0.15);
+    const technicianCost = resolveTechnicianCostMaster(labor, product);
+    const castingCost = resolveCastingCost(labor, product);
 
     // Master calculation determines plating based on its own type
     let platingCost = 0;
@@ -640,8 +635,8 @@ export const estimateVariantCost = (
         }
     });
 
-    let technicianCost = labor.technician_cost_manual_override ? (labor.technician_cost || 0) : (finish.code === 'D' ? (masterProduct.weight_g * (totalWeight <= 2.2 ? 1.3 : (totalWeight <= 4.2 ? 0.9 : (totalWeight <= 8.2 ? 0.7 : 0.5)))) + calculateTechnicianCost(masterProduct.secondary_weight_g || 0) : calculateTechnicianCost(totalWeight));
-    const castingCost = totalWeight * 0.15;
+    const technicianCost = resolveTechnicianCostVariant(labor, masterProduct, { finishCode: finish.code });
+    const castingCost = resolveCastingCost(labor, masterProduct);
 
     let platingLabor = 0;
 

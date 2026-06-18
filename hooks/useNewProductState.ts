@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, ProductVariant, ProductionType, Mold, ProductMold } from '../types';
-import { parseSku, calculateProductCost, analyzeSku, calculateTechnicianCost, estimateVariantCost } from '../utils/pricingEngine';
+import { parseSku, calculateProductCost, analyzeSku, estimateVariantCost } from '../utils/pricingEngine';
+import { DEFAULT_PLATING_RATE, computeAutoLaborCosts, getPlatingDWeightBasis } from '../utils/laborFormula';
 import { compressImage, createImagePreviewUrl } from '../utils/imageHelpers';
 import { getSteps } from '../components/ProductRegistry/constants';
 import { useQueryClient } from '@tanstack/react-query';
@@ -190,19 +191,51 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
     useEffect(() => { if (detectedSuffix && !variants.some(v => v.suffix === detectedSuffix)) { setNewVariantSuffix(detectedSuffix); setNewVariantDesc(detectedVariantDesc); } }, [detectedSuffix, detectedVariantDesc, variants]);
     useEffect(() => { setNewVariantPrice(sellingPrice); }, [sellingPrice]);
     useEffect(() => { if (isSTX) { setSellingPrice(0); setNewVariantPrice(0); } }, [isSTX]);
-    useEffect(() => { if (productionType === ProductionType.InHouse && !labor.technician_cost_manual_override) setLabor(prev => ({ ...prev, technician_cost: isSTX ? weight * 0.50 : calculateTechnicianCost(weight) })); }, [weight, labor.technician_cost_manual_override, productionType, isSTX]);
-    useEffect(() => { if (productionType === ProductionType.InHouse && !labor.casting_cost_manual_override) setLabor(prev => ({ ...prev, casting_cost: isSTX ? 0 : (weight + secondaryWeight) * 0.15 })); }, [weight, secondaryWeight, productionType, isSTX, labor.casting_cost_manual_override]);
     useEffect(() => {
-        if (!labor.plating_cost_x_manual_override) {
-            if (productionType === ProductionType.Imported) { if (labor.plating_cost_x === 0) setLabor(prev => ({ ...prev, plating_cost_x: 0.60 })); }
-            else {
-                let total = weight + secondaryWeight;
-                recipe.forEach(item => { if (item.type === 'component') { const sub = products.find(p => p.sku === item.sku); if (sub) total += sub.weight_g * item.quantity; } });
-                setLabor(prev => ({ ...prev, plating_cost_x: parseFloat((total * 0.60).toFixed(2)) }));
-            }
+        if (productionType === ProductionType.InHouse) {
+            const tempProduct = buildCurrentTempProduct({
+                sku, detectedMasterSku, category, gender, imagePreview, weight, secondaryWeight,
+                plating, productionType, supplierId, supplierSku, supplierCost, sellingPrice,
+                selectedMolds, isSTX, stxDescription, recipe, labor,
+            });
+            const auto = computeAutoLaborCosts(tempProduct, products);
+            setLabor(prev => {
+                let changed = false;
+                const next = { ...prev };
+                for (const [key, val] of Object.entries(auto)) {
+                    const k = key as keyof LaborCost;
+                    if (next[k] !== val) {
+                        (next as Record<string, unknown>)[k] = val;
+                        changed = true;
+                    }
+                }
+                return changed ? next : prev;
+            });
+        } else if (productionType === ProductionType.Imported) {
+            setLabor(prev => {
+                let next = prev;
+                let changed = false;
+                if (!prev.plating_cost_x_manual_override && prev.plating_cost_x === 0) {
+                    next = { ...next, plating_cost_x: DEFAULT_PLATING_RATE };
+                    changed = true;
+                }
+                if (!prev.plating_cost_d_manual_override) {
+                    const tempProduct = buildCurrentTempProduct({
+                        sku, detectedMasterSku, category, gender, imagePreview, weight, secondaryWeight,
+                        plating, productionType, supplierId, supplierSku, supplierCost, sellingPrice,
+                        selectedMolds, isSTX, stxDescription, recipe, labor: prev,
+                    });
+                    const dWeight = getPlatingDWeightBasis(tempProduct, products);
+                    const costD = parseFloat((dWeight * DEFAULT_PLATING_RATE).toFixed(2));
+                    if (prev.plating_cost_d !== costD) {
+                        next = { ...next, plating_cost_d: costD };
+                        changed = true;
+                    }
+                }
+                return changed ? next : prev;
+            });
         }
-    }, [weight, secondaryWeight, recipe, products, labor.plating_cost_x_manual_override, productionType]);
-    useEffect(() => { if (!labor.plating_cost_d_manual_override) { let total = secondaryWeight || 0; recipe.forEach(item => { if (item.type === 'component') { const sub = products.find(p => p.sku === item.sku); if (sub) total += ((sub.secondary_weight_g || 0) * item.quantity); } }); setLabor(prev => ({ ...prev, plating_cost_d: parseFloat((total * 0.60).toFixed(2)) })); } }, [secondaryWeight, recipe, products, labor.plating_cost_d_manual_override]);
+    }, [weight, secondaryWeight, recipe, products, productionType, isSTX, labor.casting_cost_manual_override, labor.technician_cost_manual_override, labor.plating_cost_x_manual_override, labor.plating_cost_d_manual_override]);
 
     useEffect(() => {
         if (newVariantSuffix) {

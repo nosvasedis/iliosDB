@@ -11,17 +11,22 @@ import { getProductOptionColorLabel } from '../../utils/xrOptions';
 import { api } from '../../lib/supabase';
 import SkuColorizedText from '../SkuColorizedText';
 
+export type ShipmentCreationVariant = 'partial' | 'full';
+
 interface Props {
   order: Order;
   batches: ProductionBatch[];
   products: Product[];
   deliveryPlanId?: string | null;
   userName: string;
+  /** partial = user picks ready qty; full = entire remaining order is shipped and completed */
+  variant?: ShipmentCreationVariant;
   onConfirm: (items: Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: OrderShipmentItem['cord_color']; enamel_color?: OrderShipmentItem['enamel_color']; quantity: number; price_at_order: number; line_id?: string | null }>, notes: string | null) => Promise<void>;
   onClose: () => void;
 }
 
-export default function ShipmentCreationModal({ order, batches, products, deliveryPlanId, userName, onConfirm, onClose }: Props) {
+export default function ShipmentCreationModal({ order, batches, products, deliveryPlanId, userName, variant = 'partial', onConfirm, onClose }: Props) {
+  const isFullOrderShipment = variant === 'full';
   const orderItems = useMemo(() => Array.isArray(order.items) ? order.items : [], [order.items]);
   const readyItems = useMemo(() => getReadyToShipItems(order.id, batches), [order.id, batches]);
   const getItemIdentityKey = (item: { sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null; line_id?: string | null }) =>
@@ -77,6 +82,11 @@ export default function ShipmentCreationModal({ order, batches, products, delive
   }, [readyItems, searchTerm, products]);
 
   const totalReadyQty = useMemo(() => readyItems.reduce((acc, i) => acc + i.quantity, 0), [readyItems]);
+
+  const displayReadyItems = useMemo(
+    () => (isFullOrderShipment ? readyItems : filteredReadyItems),
+    [isFullOrderShipment, readyItems, filteredReadyItems]
+  );
 
   const adjustQty = (key: string, delta: number) => {
     setShipQtys(prev => {
@@ -138,7 +148,7 @@ export default function ShipmentCreationModal({ order, batches, products, delive
     readyItems
       .map(item => {
         const key = getItemIdentityKey(item);
-        const qty = shipQtys[key] || 0;
+        const qty = isFullOrderShipment ? item.quantity : (shipQtys[key] || 0);
         if (qty <= 0) return null;
         return {
           id: '',
@@ -154,7 +164,7 @@ export default function ShipmentCreationModal({ order, batches, products, delive
         };
       })
       .filter(Boolean) as OrderShipmentItem[],
-    [readyItems, shipQtys, orderItems]
+    [readyItems, shipQtys, orderItems, isFullOrderShipment]
   );
 
   const vatRate = order.vat_rate !== undefined ? order.vat_rate : 0.24;
@@ -205,16 +215,16 @@ export default function ShipmentCreationModal({ order, batches, products, delive
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="relative shrink-0 overflow-hidden border-b border-amber-100/80">
-          <div className="absolute inset-0 bg-gradient-to-br from-amber-50 via-white to-emerald-50/60" />
+        <div className={`relative shrink-0 overflow-hidden border-b ${isFullOrderShipment ? 'border-emerald-100/80' : 'border-amber-100/80'}`}>
+          <div className={`absolute inset-0 bg-gradient-to-br ${isFullOrderShipment ? 'from-emerald-50 via-white to-emerald-50/60' : 'from-amber-50 via-white to-emerald-50/60'}`} />
           <div className="relative p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                  <span className="flex items-center justify-center w-9 h-9 rounded-2xl bg-amber-500 text-white shadow-md shadow-amber-200">
-                    <Truck size={18} />
+                  <span className={`flex items-center justify-center w-9 h-9 rounded-2xl text-white shadow-md ${isFullOrderShipment ? 'bg-emerald-600 shadow-emerald-200' : 'bg-amber-500 shadow-amber-200'}`}>
+                    {isFullOrderShipment ? <CheckCircle2 size={18} /> : <Truck size={18} />}
                   </span>
-                  Αποστολή Ετοίμων
+                  {isFullOrderShipment ? 'Αποστολή Παραγγελίας' : 'Μερική Αποστολή'}
                 </h2>
                 <p className="text-sm text-slate-600 mt-2 font-medium">
                   Παραγγελία <span className="font-black text-slate-900">{formatOrderId(order.id)}</span>
@@ -226,6 +236,11 @@ export default function ShipmentCreationModal({ order, batches, products, delive
                     <Sparkles size={12} />
                     {readyItems.length} γραμμ{readyItems.length !== 1 ? 'ές' : 'ή'} · {totalReadyQty} τεμ. έτοιμα
                   </span>
+                  {isFullOrderShipment && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 text-white px-3 py-1 text-[11px] font-black">
+                      Ολοκλήρωση παραγγελίας μετά την επιβεβαίωση
+                    </span>
+                  )}
                 </div>
               </div>
               <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/80 transition-colors border border-transparent hover:border-slate-200">
@@ -237,39 +252,48 @@ export default function ShipmentCreationModal({ order, batches, products, delive
 
         {/* Search + quick actions */}
         <div className="px-6 py-4 border-b border-slate-100 shrink-0 space-y-3 bg-slate-50/60">
-          <div className="relative">
-            <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={searchInput}
-              onChange={e => setSearchInput(e.target.value)}
-              placeholder="Αναζήτηση SKU, πέτρας, φινιρίσματος, μεγέθους..."
-              className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200 bg-white outline-none focus:ring-2 focus:ring-amber-400/30 text-sm font-medium text-slate-700 placeholder:text-slate-400 shadow-sm"
-            />
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-xs font-bold text-slate-500">
-              {searchTerm
-                ? `${filteredReadyItems.length} από ${readyItems.length} γραμμές`
-                : `${readyItems.length} γραμμές προς επιλογή`}
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={shipAllVisible}
-                className="px-3 py-1.5 rounded-xl text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors"
-              >
-                Όλα
-              </button>
-              <button
-                type="button"
-                onClick={clearAllVisible}
-                className="px-3 py-1.5 rounded-xl text-[11px] font-black bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 transition-colors"
-              >
-                Καμία
-              </button>
-            </div>
-          </div>
+          {!isFullOrderShipment && (
+            <>
+              <div className="relative">
+                <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={e => setSearchInput(e.target.value)}
+                  placeholder="Αναζήτηση SKU, πέτρας, φινιρίσματος, μεγέθους..."
+                  className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200 bg-white outline-none focus:ring-2 focus:ring-amber-400/30 text-sm font-medium text-slate-700 placeholder:text-slate-400 shadow-sm"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-bold text-slate-500">
+                  {searchTerm
+                    ? `${filteredReadyItems.length} από ${readyItems.length} γραμμές`
+                    : `${readyItems.length} γραμμές προς επιλογή`}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={shipAllVisible}
+                    className="px-3 py-1.5 rounded-xl text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                  >
+                    Όλα
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearAllVisible}
+                    className="px-3 py-1.5 rounded-xl text-[11px] font-black bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 transition-colors"
+                  >
+                    Καμία
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+          {isFullOrderShipment && (
+            <p className="text-xs font-bold text-slate-600">
+              Όλα τα τεμάχια της παραγγελίας είναι στα Έτοιμα. Ελέγξτε τις γραμμές και τις τιμές πριν την οριστική αποστολή.
+            </p>
+          )}
         </div>
 
         {/* Items */}
@@ -297,26 +321,29 @@ export default function ShipmentCreationModal({ order, batches, products, delive
               )}
             </div>
           )}
-          {filteredReadyItems.length === 0 ? (
+          {displayReadyItems.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center">
               <Search size={32} className="mx-auto text-slate-300 mb-3" />
               <p className="text-sm font-black text-slate-700">Δεν βρέθηκαν τεμάχια</p>
               <p className="text-xs text-slate-500 mt-1">Δοκιμάστε άλλο SKU, πέτρα ή φινίρισμα.</p>
             </div>
-          ) : filteredReadyItems.map(item => {
+          ) : displayReadyItems.map(item => {
             const key = getItemIdentityKey(item);
-            const qty = shipQtys[key] || 0;
+            const qty = isFullOrderShipment ? item.quantity : (shipQtys[key] || 0);
             const product = products.find(p => p.sku === item.sku);
             const { finish, stone } = getVariantComponents(item.variant_suffix ?? '', product?.gender);
             const price = getPrice(item.sku, item.variant_suffix, item.size_info, item.cord_color as OrderShipmentItem['cord_color'], item.enamel_color as OrderShipmentItem['enamel_color'], item.line_id || null);
             const isSelected = qty > 0;
+            const lineTotal = price * qty;
 
             return (
               <div
                 key={key}
                 className={`flex items-center gap-4 rounded-2xl border p-4 transition-all shadow-sm ${
                   isSelected
-                    ? 'border-amber-200 bg-white ring-1 ring-amber-100'
+                    ? isFullOrderShipment
+                      ? 'border-emerald-200 bg-white ring-1 ring-emerald-100'
+                      : 'border-amber-200 bg-white ring-1 ring-amber-100'
                     : 'border-slate-200 bg-white/80 opacity-75 hover:opacity-100 hover:border-slate-300'
                 }`}
               >
@@ -376,31 +403,42 @@ export default function ShipmentCreationModal({ order, batches, products, delive
                     <span className="text-[10px] font-mono text-slate-500">
                       {formatCurrency(price)}/τεμ.
                     </span>
+                    {isFullOrderShipment && qty > 0 && (
+                      <span className="text-[10px] font-black text-slate-800">
+                        Σύνολο γραμμής: {formatCurrency(lineTotal)}
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                {/* Quantity stepper */}
-                <div className={`flex items-center gap-1.5 shrink-0 rounded-xl border p-1 ${isSelected ? 'border-amber-200 bg-amber-50/50' : 'border-slate-200 bg-slate-50'}`}>
-                  <button
-                    type="button"
-                    onClick={() => adjustQty(key, -1)}
-                    disabled={qty <= 0}
-                    className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center hover:bg-slate-50 disabled:opacity-30 transition-colors"
-                  >
-                    <Minus size={14} />
-                  </button>
-                  <span className={`w-8 text-center font-black tabular-nums ${isSelected ? 'text-amber-700' : 'text-slate-500'}`}>
-                    {qty}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => adjustQty(key, 1)}
-                    disabled={qty >= item.quantity}
-                    className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center hover:bg-slate-50 disabled:opacity-30 transition-colors"
-                  >
-                    <Plus size={14} />
-                  </button>
-                </div>
+                {isFullOrderShipment ? (
+                  <div className="shrink-0 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-center">
+                    <div className="text-[9px] font-black uppercase tracking-wide text-emerald-600">Ποσότητα</div>
+                    <div className="text-lg font-black text-emerald-800 tabular-nums">{qty}</div>
+                  </div>
+                ) : (
+                  <div className={`flex items-center gap-1.5 shrink-0 rounded-xl border p-1 ${isSelected ? 'border-amber-200 bg-amber-50/50' : 'border-slate-200 bg-slate-50'}`}>
+                    <button
+                      type="button"
+                      onClick={() => adjustQty(key, -1)}
+                      disabled={qty <= 0}
+                      className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center hover:bg-slate-50 disabled:opacity-30 transition-colors"
+                    >
+                      <Minus size={14} />
+                    </button>
+                    <span className={`w-8 text-center font-black tabular-nums ${isSelected ? 'text-amber-700' : 'text-slate-500'}`}>
+                      {qty}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => adjustQty(key, 1)}
+                      disabled={qty >= item.quantity}
+                      className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center hover:bg-slate-50 disabled:opacity-30 transition-colors"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -421,10 +459,10 @@ export default function ShipmentCreationModal({ order, batches, products, delive
         </div>
 
         {/* Footer with financials + confirm */}
-        <div className="p-6 border-t border-slate-100 shrink-0 space-y-4 bg-gradient-to-t from-amber-50/40 to-white">
+        <div className={`p-6 border-t border-slate-100 shrink-0 space-y-4 bg-gradient-to-t ${isFullOrderShipment ? 'from-emerald-50/40' : 'from-amber-50/40'} to-white`}>
           {/* Financial summary */}
           <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
-            <span className="text-slate-500">Υποσύνολο αποστολής</span>
+            <span className="text-slate-500">{isFullOrderShipment ? 'Υποσύνολο παραγγελίας' : 'Υποσύνολο αποστολής'}</span>
             <span className="text-right font-bold text-slate-900">{formatCurrency(financials.subtotal)}</span>
             {discountPercent > 0 && (
               <>
@@ -438,24 +476,28 @@ export default function ShipmentCreationModal({ order, batches, products, delive
                 <span className="text-right font-bold text-slate-700">{formatCurrency(financials.vatAmount)}</span>
               </>
             )}
-            <span className="text-slate-900 font-black border-t border-slate-200 pt-1">Σύνολο αποστολής</span>
+            <span className="text-slate-900 font-black border-t border-slate-200 pt-1">{isFullOrderShipment ? 'Σύνολο παραγγελίας' : 'Σύνολο αποστολής'}</span>
             <span className="text-right font-black text-slate-900 border-t border-slate-200 pt-1">{formatCurrency(financials.grandTotal)}</span>
           </div>
 
           {/* Actions */}
           <div className="flex items-center justify-between">
             <span className="text-sm text-slate-500">
-              {totalShippingQty} τεμάχι{totalShippingQty !== 1 ? 'α' : 'ο'} προς αποστολή
+              {totalShippingQty} τεμάχι{totalShippingQty !== 1 ? 'α' : 'ο'} {isFullOrderShipment ? 'προς ολοκληρωτική αποστολή' : 'προς αποστολή'}
             </span>
             <div className="flex gap-3">
               <button onClick={onClose} className="px-5 py-3 rounded-2xl border border-slate-200 text-slate-700 font-bold text-sm">Ακύρωση</button>
               <button
                 onClick={handleConfirm}
                 disabled={totalShippingQty === 0 || loading}
-                className="px-6 py-3 rounded-2xl bg-amber-500 text-white font-black text-sm flex items-center gap-2 disabled:opacity-40 hover:bg-amber-600 transition-colors shadow-md shadow-amber-200/60"
+                className={`px-6 py-3 rounded-2xl text-white font-black text-sm flex items-center gap-2 disabled:opacity-40 transition-colors shadow-md ${
+                  isFullOrderShipment
+                    ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200/60'
+                    : 'bg-amber-500 hover:bg-amber-600 shadow-amber-200/60'
+                }`}
               >
-                {loading ? <span className="animate-spin">⏳</span> : <Truck size={16} />}
-                Επιβεβαίωση Αποστολής
+                {loading ? <span className="animate-spin">⏳</span> : isFullOrderShipment ? <CheckCircle2 size={16} /> : <Truck size={16} />}
+                {isFullOrderShipment ? 'Ολοκλήρωση & Αποστολή' : 'Επιβεβαίωση Αποστολής'}
               </button>
             </div>
           </div>
