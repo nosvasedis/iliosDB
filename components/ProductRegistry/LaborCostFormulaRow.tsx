@@ -21,6 +21,7 @@ export interface LaborCostFormulaRowProps {
   readOnly?: boolean;
   /** Shown after label — e.g. finish name from header variant selection. */
   contextLabel?: string;
+  footer?: React.ReactNode;
 }
 
 export const LaborCostFormulaRow: React.FC<LaborCostFormulaRowProps> = React.memo(({
@@ -39,6 +40,7 @@ export const LaborCostFormulaRow: React.FC<LaborCostFormulaRowProps> = React.mem
   weightReadOnly = false,
   readOnly = false,
   contextLabel,
+  footer,
 }) => {
   const parseNum = (raw: string) => parseFloat(raw.replace(',', '.')) || 0;
   const inputsDisabled = readOnly;
@@ -113,6 +115,11 @@ export const LaborCostFormulaRow: React.FC<LaborCostFormulaRowProps> = React.mem
         <p className="text-[10px] text-amber-600/80 mt-2">
           Σύνολο: {formatCurrency(total)} ({formatDecimal(rate, 2)} × {formatDecimal(weightBasis, 2)}{weightUnit})
         </p>
+      )}
+      {footer && (
+        <div className="mt-2 pt-2 border-t border-slate-100">
+          {footer}
+        </div>
       )}
     </div>
   );

@@ -5,12 +5,13 @@ import {
   getTechnicianAutoLineForFinish,
   getTechnicianFormulaLine,
   getTechnicianSplitDetailHint,
+  getTotalWeight,
   SPLIT_TECHNICIAN_HINT,
-  TECHNICIAN_TIER_HINT,
   type LaborFormulaLine,
 } from '../../utils/laborFormula';
 import { getVariantComponents } from '../../utils/pricingEngine';
 import { LaborCostFormulaRow } from './LaborCostFormulaRow';
+import { TechnicianTierScale } from './TechnicianTierScale';
 
 type TechnicianProduct = Pick<
   Product,
@@ -79,8 +80,16 @@ export const TechnicianLaborFormulaRow: React.FC<TechnicianLaborFormulaRowProps>
     if (useSplitTechnician) {
       return `${SPLIT_TECHNICIAN_HINT} · ${getTechnicianSplitDetailHint(product)}`;
     }
-    return TECHNICIAN_TIER_HINT;
+    return undefined;
   }, [line.isOverridden, readOnly, product, useSplitTechnician]);
+
+  const showTierScale = !product.is_component;
+  const tierPrimaryWeight = useSplitTechnician && !readOnly
+    ? getTotalWeight(product)
+    : line.weightBasis;
+  const tierSecondaryWeight = useSplitTechnician && !readOnly
+    ? (product.secondary_weight_g || 0)
+    : 0;
 
   return (
     <LaborCostFormulaRow
@@ -97,6 +106,13 @@ export const TechnicianLaborFormulaRow: React.FC<TechnicianLaborFormulaRowProps>
       onTotalChange={onTotalChange}
       onToggleOverride={onToggleOverride}
       hint={hint}
+      footer={showTierScale ? (
+        <TechnicianTierScale
+          primaryWeightG={tierPrimaryWeight}
+          secondaryWeightG={tierSecondaryWeight}
+          compact
+        />
+      ) : undefined}
     />
   );
 };
