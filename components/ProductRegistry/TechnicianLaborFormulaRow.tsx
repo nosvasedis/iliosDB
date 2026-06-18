@@ -1,19 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
+import { FINISH_CODES } from '../../constants';
 import { LaborCost, Product } from '../../types';
 import {
   getTechnicianAutoLineForFinish,
   getTechnicianFormulaLine,
   getTechnicianSplitDetailHint,
-  MIXED_TECHNICIAN_VARIANT_HINT,
   SPLIT_TECHNICIAN_HINT,
-  TECHNICIAN_D_VARIANT_HINT,
-  TECHNICIAN_LUMP_VARIANT_HINT,
-  TECHNICIAN_MASTER_BADGE,
   TECHNICIAN_TIER_HINT,
-  TECHNICIAN_VARIANT_RULE_BADGE,
   type LaborFormulaLine,
 } from '../../utils/laborFormula';
-import { getTechnicianCarouselSlides, type TechnicianCarouselSlide } from '../../utils/pricingEngine';
+import { getVariantComponents } from '../../utils/pricingEngine';
 import { LaborCostFormulaRow } from './LaborCostFormulaRow';
 
 type TechnicianProduct = Pick<
@@ -27,36 +23,16 @@ export interface TechnicianLaborFormulaRowProps {
   product: TechnicianProduct;
   useSplitTechnician: boolean;
   hasMixedTechnician: boolean;
+  /** Active variant from product header pager — drives which technician rule is shown. */
+  selectedVariantSuffix?: string | null;
   onRateChange: (rate: number, weightBasis: number) => void;
   onWeightChange: (weight: number) => void;
   onTotalChange: (total: number) => void;
   onToggleOverride: () => void;
 }
 
-function lineForSlide(
-  slide: TechnicianCarouselSlide,
-  labor: LaborCost,
-  product: TechnicianProduct,
-  useSplitTechnician: boolean,
-  masterLine: LaborFormulaLine,
-): LaborFormulaLine {
-  if (slide.isMasterStoredRule) {
-    return masterLine;
-  }
-  // Standard lump — same formula for Λουστρέ / P / X / H (resolveTechnicianCostVariant non-D path).
-  return getTechnicianAutoLineForFinish(product, 'P');
-}
-
-function hintForSlide(
-  slide: TechnicianCarouselSlide,
-  isOverridden: boolean,
-  product: TechnicianProduct,
-): string | undefined {
-  if (slide.isMasterStoredRule && isOverridden) return undefined;
-  if (slide.id === 'standard') {
-    return TECHNICIAN_LUMP_VARIANT_HINT;
-  }
-  return `${TECHNICIAN_D_VARIANT_HINT} · ${MIXED_TECHNICIAN_VARIANT_HINT} · ${getTechnicianSplitDetailHint(product)}`;
+function finishLabel(code: string): string {
+  return FINISH_CODES[code] ?? code;
 }
 
 export const TechnicianLaborFormulaRow: React.FC<TechnicianLaborFormulaRowProps> = ({
@@ -65,80 +41,62 @@ export const TechnicianLaborFormulaRow: React.FC<TechnicianLaborFormulaRowProps>
   product,
   useSplitTechnician,
   hasMixedTechnician,
+  selectedVariantSuffix = null,
   onRateChange,
   onWeightChange,
   onTotalChange,
   onToggleOverride,
 }) => {
-  const slides = useMemo(
-    () => getTechnicianCarouselSlides(product),
-    [product.gender, product.variants],
-  );
-
-  const showCarousel = hasMixedTechnician && !product.is_component && slides.length > 1;
-  const [carouselIndex, setCarouselIndex] = useState(0);
-
-  useEffect(() => {
-    setCarouselIndex(0);
-  }, [slides.map((s) => s.id).join('|')]);
-
   const masterLine = useMemo(
     () => getTechnicianFormulaLine(labor, product, useSplitTechnician),
     [labor, product, useSplitTechnician],
   );
 
-  if (!showCarousel) {
-    const hint = product.is_component
-      ? undefined
-      : useSplitTechnician
-        ? `${SPLIT_TECHNICIAN_HINT}${masterLine.usesSplitTechnician ? ` · ${getTechnicianSplitDetailHint(product)}` : ''}`
-        : TECHNICIAN_TIER_HINT;
+  const selectedFinishCode = useMemo(() => {
+    if (selectedVariantSuffix == null) return null;
+    return getVariantComponents(selectedVariantSuffix, product.gender).finish.code;
+  }, [selectedVariantSuffix, product.gender]);
 
-    return (
-      <LaborCostFormulaRow
-        icon={icon}
-        label="Τεχνίτης (€)"
-        rate={masterLine.rate}
-        weightBasis={masterLine.weightBasis}
-        total={masterLine.total}
-        isOverridden={masterLine.isOverridden}
-        onRateChange={(r) => onRateChange(r, masterLine.weightBasis)}
-        onWeightChange={onWeightChange}
-        onTotalChange={onTotalChange}
-        onToggleOverride={onToggleOverride}
-        hint={masterLine.isOverridden ? undefined : hint}
-      />
-    );
+  const showVariantRule = hasMixedTechnician
+    && !product.is_component
+    && selectedVariantSuffix != null
+    && selectedFinishCode !== 'D';
+
+  let line: LaborFormulaLine = masterLine;
+  let readOnly = false;
+  let contextLabel: string | undefined;
+
+  if (showVariantRule) {
+    line = getTechnicianAutoLineForFinish(product, selectedFinishCode ?? 'P');
+    readOnly = true;
+    contextLabel = finishLabel(selectedFinishCode ?? '');
   }
 
-  const safeIndex = carouselIndex % slides.length;
-  const slide = slides[safeIndex];
-  const isMasterSlide = slide.isMasterStoredRule;
-  const line = lineForSlide(slide, labor, product, useSplitTechnician, masterLine);
+  const hint = useMemo(() => {
+    if (line.isOverridden && !readOnly) return undefined;
+    if (product.is_component) return undefined;
+    if (readOnly) return undefined;
+    if (useSplitTechnician) {
+      return `${SPLIT_TECHNICIAN_HINT} · ${getTechnicianSplitDetailHint(product)}`;
+    }
+    return TECHNICIAN_TIER_HINT;
+  }, [line.isOverridden, readOnly, product, useSplitTechnician]);
 
   return (
     <LaborCostFormulaRow
       icon={icon}
       label="Τεχνίτης (€)"
+      contextLabel={contextLabel}
       rate={line.rate}
       weightBasis={line.weightBasis}
       total={line.total}
-      isOverridden={isMasterSlide ? line.isOverridden : false}
-      readOnly={!isMasterSlide}
-      statusBadge={isMasterSlide ? TECHNICIAN_MASTER_BADGE : TECHNICIAN_VARIANT_RULE_BADGE}
-      carousel={{
-        finishLabel: slide.finishLabel,
-        finishCode: slide.finishCode,
-        index: safeIndex,
-        total: slides.length,
-        onPrev: () => setCarouselIndex((i) => (i - 1 + slides.length) % slides.length),
-        onNext: () => setCarouselIndex((i) => (i + 1) % slides.length),
-      }}
+      isOverridden={readOnly ? false : line.isOverridden}
+      readOnly={readOnly}
       onRateChange={(r) => onRateChange(r, line.weightBasis)}
       onWeightChange={onWeightChange}
       onTotalChange={onTotalChange}
       onToggleOverride={onToggleOverride}
-      hint={hintForSlide(slide, line.isOverridden, product)}
+      hint={hint}
     />
   );
 };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Gender, PlatingType, ProductionType } from '../../types';
-import { analyzeSuffix, calculateProductCost, estimateVariantCost, getVariantComponents, shouldUseSplitTechnicianCost, hasMixedTechnicianVariants, getTechnicianCarouselSlides } from '../../utils/pricingEngine';
+import { analyzeSuffix, calculateProductCost, estimateVariantCost, getVariantComponents, shouldUseSplitTechnicianCost, hasMixedTechnicianVariants } from '../../utils/pricingEngine';
 import { DEFAULT_CASTING_RATE, resolveCastingCost } from '../../utils/laborFormula';
 
 const baseSettings = { silver_price_gram: 2.5 } as any;
@@ -136,23 +136,6 @@ describe('conditional D-split technician (master vs variant)', () => {
     const pEst = estimateVariantCost(product, 'P', baseSettings, [], []);
     expect(dEst.breakdown.details.technician_cost).toBeCloseTo(4.7, 2);
     expect(pEst.breakdown.details.technician_cost).toBeCloseTo(3.5, 2);
-  });
-
-  it('groups standard finishes then D for mixed carousel', () => {
-    const product = makeInHouseProduct({
-      variants: [
-        { suffix: 'P', description: 'P', selling_price: 0 },
-        { suffix: 'DSB', description: 'D', selling_price: 0 },
-        { suffix: 'TG', description: 'L', selling_price: 0 },
-      ],
-    });
-    const slides = getTechnicianCarouselSlides(product);
-    expect(slides).toHaveLength(2);
-    expect(slides[0].id).toBe('standard');
-    expect(slides[0].variantFinishCodes).toEqual(['', 'P']);
-    expect(slides[0].finishCode).toBe('Λ·P');
-    expect(slides[1].id).toBe('d');
-    expect(slides[1].isMasterStoredRule).toBe(true);
   });
 });
 

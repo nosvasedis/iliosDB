@@ -2272,6 +2272,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                     product={editedProduct}
                                                     useSplitTechnician={useSplitTechnician}
                                                     hasMixedTechnician={hasMixedTechnician}
+                                                    selectedVariantSuffix={currentViewVariant?.suffix ?? null}
                                                     onRateChange={(r, basis) => handleFormulaRateChange('technician', r, basis)}
                                                     onWeightChange={handleTechnicianWeightChange}
                                                     onTotalChange={(t) => handleFormulaTotalChange('technician', t)}

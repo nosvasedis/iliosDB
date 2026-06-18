@@ -94,19 +94,6 @@ export function calculateSplitTechnicianCost(
 export const SPLIT_TECHNICIAN_HINT =
   'Δίχρωμο / D: κύριο βάρος × κλιμάκωση(συνολικού) + δευτερεύον × κλιμάκωση(δευτερεύοντος)';
 
-export const MIXED_TECHNICIAN_VARIANT_HINT =
-  '‹ › μεταξύ κανόνων παραλλαγής. Το πεδίο Εργατικά (master) αποθηκεύει την τιμή D.';
-
-export const TECHNICIAN_LUMP_VARIANT_HINT =
-  'Ίδιος κανόνας που χρησιμοποιεί το estimateVariantCost για παραλλαγές Λουστρέ / P / X / H.';
-
-export const TECHNICIAN_D_VARIANT_HINT =
-  'Ίδιος κανόνας που χρησιμοποιεί το estimateVariantCost για παραλλαγές D.';
-
-export const TECHNICIAN_VARIANT_RULE_BADGE = 'κανόνας παραλλαγής';
-
-export const TECHNICIAN_MASTER_BADGE = 'master';
-
 /**
  * Resolve technician cost — master / product-level (Εργατικά auto-fill & master cost).
  * Uses D split when useSplitTechnician=true (TwoTone master or any D variant).

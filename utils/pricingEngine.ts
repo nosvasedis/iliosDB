@@ -476,53 +476,6 @@ export function hasMixedTechnicianVariants(product: Product): boolean {
     return hasD && hasNonD;
 }
 
-export type TechnicianCarouselSlideId = 'standard' | 'd';
-
-export interface TechnicianCarouselSlide {
-    id: TechnicianCarouselSlideId;
-    finishLabel: string;
-    finishCode: string;
-    variantFinishCodes: string[];
-    /** Stored labor.technician_cost / master cost auto-fill uses D rule when mixed. */
-    isMasterStoredRule: boolean;
-}
-
-const STANDARD_FINISH_ORDER = ['', 'P', 'X', 'H'] as const;
-
-/**
- * Mixed SKU carousel: standard lump (Λουστρέ + P/X/H) first, then D.
- * Only returns slides when both groups exist on the product.
- */
-export function getTechnicianCarouselSlides(
-    product: Pick<Product, 'gender' | 'variants'>,
-): TechnicianCarouselSlide[] {
-    const codes = new Set<string>();
-    for (const v of product.variants || []) {
-        codes.add(getVariantComponents(v.suffix, product.gender).finish.code);
-    }
-
-    const standardCodes = STANDARD_FINISH_ORDER.filter((c) => codes.has(c));
-    const hasD = codes.has('D');
-    if (standardCodes.length === 0 || !hasD) return [];
-
-    return [
-        {
-            id: 'standard',
-            finishLabel: standardCodes.map((c) => FINISH_CODES[c] || c).join(' · '),
-            finishCode: standardCodes.map((c) => (c === '' ? 'Λ' : c)).join('·'),
-            variantFinishCodes: [...standardCodes],
-            isMasterStoredRule: false,
-        },
-        {
-            id: 'd',
-            finishLabel: FINISH_CODES['D'],
-            finishCode: 'D',
-            variantFinishCodes: ['D'],
-            isMasterStoredRule: true,
-        },
-    ];
-}
-
 /**
  * Finish + stone codes for UI (order lines, labels). For Λουστρέ (no P/X/D/H finish), stored
  * suffixes may include a leading "BAS" before the stone segment (e.g. BASTG → show TG only).

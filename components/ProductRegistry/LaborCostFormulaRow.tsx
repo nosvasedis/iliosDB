@@ -1,5 +1,5 @@
 import React from 'react';
-import { Lock, Unlock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Lock, Unlock } from 'lucide-react';
 import { formatDecimal, formatCurrency } from '../../utils/pricingEngine';
 
 export interface LaborCostFormulaRowProps {
@@ -17,19 +17,10 @@ export interface LaborCostFormulaRowProps {
   hint?: string;
   /** When true, weight input is read-only (e.g. derived from recipe). */
   weightReadOnly?: boolean;
-  /** Read-only preview row (no lock / inputs disabled). */
+  /** Read-only row (e.g. technician rule for selected non-D variant). */
   readOnly?: boolean;
-  /** Compact ‹ finish › switcher in the header. */
-  carousel?: {
-    finishLabel: string;
-    finishCode: string;
-    index: number;
-    total: number;
-    onPrev: () => void;
-    onNext: () => void;
-  };
-  /** Extra badge next to auto/manual (e.g. master, προεπισκόπηση). */
-  statusBadge?: string;
+  /** Shown after label — e.g. finish name from header variant selection. */
+  contextLabel?: string;
 }
 
 export const LaborCostFormulaRow: React.FC<LaborCostFormulaRowProps> = React.memo(({
@@ -47,8 +38,7 @@ export const LaborCostFormulaRow: React.FC<LaborCostFormulaRowProps> = React.mem
   hint,
   weightReadOnly = false,
   readOnly = false,
-  carousel,
-  statusBadge,
+  contextLabel,
 }) => {
   const parseNum = (raw: string) => parseFloat(raw.replace(',', '.')) || 0;
   const inputsDisabled = readOnly;
@@ -59,56 +49,26 @@ export const LaborCostFormulaRow: React.FC<LaborCostFormulaRowProps> = React.mem
         <span className="text-sm text-slate-600 font-medium flex items-center gap-2 min-w-0">
           <span className="text-slate-400 group-hover:text-slate-500 transition-colors shrink-0">{icon}</span>
           <span className="truncate">{label}</span>
-          {carousel && (
-            <span className="inline-flex items-center gap-0.5 shrink-0 ml-0.5">
-              <button
-                type="button"
-                onClick={carousel.onPrev}
-                className="p-0.5 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                aria-label="Προηγούμενο φινίρισμα"
-              >
-                <ChevronLeft size={14} />
-              </button>
-              <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500 whitespace-nowrap min-w-[4.5rem] text-center">
-                {carousel.finishLabel}
-                {carousel.finishCode ? ` (${carousel.finishCode})` : ''}
-              </span>
-              <button
-                type="button"
-                onClick={carousel.onNext}
-                className="p-0.5 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                aria-label="Επόμενο φινίρισμα"
-              >
-                <ChevronRight size={14} />
-              </button>
-              <span className="text-[9px] text-slate-300 font-medium tabular-nums">{carousel.index + 1}/{carousel.total}</span>
+          {contextLabel && (
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide shrink-0">
+              · {contextLabel}
             </span>
           )}
         </span>
         {!readOnly && (
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            type="button"
-            onClick={onToggleOverride}
-            title={isOverridden ? 'Επιστροφή σε αυτόματο υπολογισμό' : 'Χειροκίνητη επεξεργασία'}
-            className={`p-1 rounded-md transition-all ${isOverridden ? 'text-amber-500 bg-amber-50 hover:bg-amber-100' : 'text-slate-300 hover:text-amber-500 hover:bg-amber-50'}`}
-          >
-            {isOverridden ? <Unlock size={14} /> : <Lock size={14} />}
-          </button>
-          <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${isOverridden ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-400'}`}>
-            {isOverridden ? 'χειροκίνητο' : 'αυτόματο'}
-          </span>
-          {statusBadge && (
-            <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600">
-              {statusBadge}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={onToggleOverride}
+              title={isOverridden ? 'Επιστροφή σε αυτόματο υπολογισμό' : 'Χειροκίνητη επεξεργασία'}
+              className={`p-1 rounded-md transition-all ${isOverridden ? 'text-amber-500 bg-amber-50 hover:bg-amber-100' : 'text-slate-300 hover:text-amber-500 hover:bg-amber-50'}`}
+            >
+              {isOverridden ? <Unlock size={14} /> : <Lock size={14} />}
+            </button>
+            <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${isOverridden ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-400'}`}>
+              {isOverridden ? 'χειροκίνητο' : 'αυτόματο'}
             </span>
-          )}
-        </div>
-        )}
-        {readOnly && (
-          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-400 shrink-0">
-            {statusBadge || 'προεπισκόπηση'}
-          </span>
+          </div>
         )}
       </div>
 
@@ -131,7 +91,7 @@ export const LaborCostFormulaRow: React.FC<LaborCostFormulaRowProps> = React.mem
             disabled={inputsDisabled && !weightReadOnly}
             onChange={weightReadOnly || inputsDisabled ? undefined : (e) => onWeightChange(parseNum(e.target.value))}
             className={`w-[4.5rem] text-center border rounded-lg p-1.5 outline-none transition-all ${weightReadOnly || inputsDisabled ? 'bg-slate-50/80 border-slate-100 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-700 focus:ring-2 focus:ring-amber-500/10 focus:border-amber-400'} ${!weightReadOnly && !inputsDisabled && isOverridden ? 'font-bold' : ''}`}
-        />
+          />
           <span className="text-[10px] text-slate-400 font-bold">{weightUnit}</span>
         </div>
         <span className="text-slate-400 font-bold px-0.5">=</span>
