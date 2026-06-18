@@ -66,6 +66,26 @@ describe('casting cost at 0.30 €/g default', () => {
   });
 });
 
+describe('imported to in-house conversion labor', () => {
+  it('uses total weight for technician on conversion preview', async () => {
+    const { computeInhouseConversion } = await import('../../components/ConvertToInhouseModal');
+    const imported = makeInHouseProduct({
+      production_type: ProductionType.Imported,
+      weight_g: 3,
+      secondary_weight_g: 2,
+      labor: {
+        ...makeInHouseProduct().labor,
+        technician_cost: 0.5,
+        plating_cost_x: 0.6,
+      },
+    });
+    const { newProduct } = computeInhouseConversion(imported, baseSettings, [], []);
+    // 5g total → tier 0.70 (≤8.2g) → 3.50€ — not primary-only 3g × 1.30 = 3.90€
+    expect(newProduct.labor.technician_cost).toBeCloseTo(3.5, 2);
+    expect(newProduct.labor.casting_cost).toBeCloseTo(5 * DEFAULT_CASTING_RATE, 2);
+  });
+});
+
 describe('Swiss Blue stone code (SB)', () => {
   it('parses XSB suffix as finish X with stone SB', () => {
     const { stone, finish } = getVariantComponents('XSB', Gender.Women);

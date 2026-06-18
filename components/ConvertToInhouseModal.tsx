@@ -3,15 +3,17 @@ import { createPortal } from 'react-dom';
 import { Product, GlobalSettings, Material, ProductionType, PlatingType } from '../types';
 import {
     calculateProductCost,
-    calculateTechnicianCost,
     estimateVariantCost,
     getIliosSuggestedPriceForProduct,
     getVariantComponents,
-    calculateSuggestedWholesalePrice,
     formatCurrency,
     formatDecimal,
 } from '../utils/pricingEngine';
-import { DEFAULT_CASTING_RATE, DEFAULT_PLATING_RATE } from '../utils/laborFormula';
+import {
+    DEFAULT_CASTING_RATE,
+    DEFAULT_PLATING_RATE,
+    computeAutoLaborCosts,
+} from '../utils/laborFormula';
 import { AlertTriangle, X, ArrowRight, CheckCircle, Info, Hammer, Coins, Gem, Box, Activity, Flame, Sparkles } from 'lucide-react';
 
 interface Props {
@@ -24,7 +26,7 @@ interface Props {
 }
 
 /** Pure function: builds the converted InHouse product and computes all cost previews. */
-function computeInhouseConversion(
+export function computeInhouseConversion(
     product: Product,
     settings: GlobalSettings,
     allMaterials: Material[],
@@ -33,15 +35,25 @@ function computeInhouseConversion(
     if (product.production_type !== ProductionType.Imported) {
         throw new Error('computeInhouseConversion called on a non-Imported product');
     }
-    const w = product.weight_g;
-    const sw = product.secondary_weight_g || 0;
-
-    // --- Calculate new InHouse labor values ---
-    // Technician: useEffect uses weight_g only, but engine recalculates from totalWeight when override=false — match useEffect stored value
-    const newTechnicianCost = calculateTechnicianCost(w);
-    const newCastingCost = parseFloat(((w + sw) * DEFAULT_CASTING_RATE).toFixed(4));
-    const newPlatingX = parseFloat((w * DEFAULT_PLATING_RATE).toFixed(2));
-    const newPlatingD = parseFloat((sw * DEFAULT_PLATING_RATE).toFixed(2));
+    const laborSeed: Product = {
+        ...product,
+        production_type: ProductionType.InHouse,
+        recipe: [],
+        labor: {
+            casting_cost: 0,
+            setter_cost: 0,
+            technician_cost: 0,
+            stone_setting_cost: 0,
+            plating_cost_x: 0,
+            plating_cost_d: 0,
+            subcontract_cost: product.labor.subcontract_cost || 0,
+            casting_cost_manual_override: false,
+            technician_cost_manual_override: false,
+            plating_cost_x_manual_override: false,
+            plating_cost_d_manual_override: false,
+        },
+    };
+    const autoLabor = computeAutoLaborCosts(laborSeed, allProducts);
 
     const newProduct: Product = {
         ...product,
@@ -51,17 +63,17 @@ function computeInhouseConversion(
         supplier_sku: undefined,
         supplier_cost: undefined,
         supplier_details: undefined,
-        // Reset labor to InHouse auto-calculated values
+        // Reset labor to InHouse auto-calculated values (same rules as ProductDetails / engine)
         labor: {
-            casting_cost: newCastingCost,
+            casting_cost: autoLabor.casting_cost ?? 0,
             casting_cost_manual_override: false,
             setter_cost: 0,
-            technician_cost: newTechnicianCost,
+            technician_cost: autoLabor.technician_cost ?? 0,
             technician_cost_manual_override: false,
             stone_setting_cost: 0,
-            plating_cost_x: newPlatingX,
+            plating_cost_x: autoLabor.plating_cost_x ?? 0,
             plating_cost_x_manual_override: false,
-            plating_cost_d: newPlatingD,
+            plating_cost_d: autoLabor.plating_cost_d ?? 0,
             plating_cost_d_manual_override: false,
             subcontract_cost: product.labor.subcontract_cost || 0,
         },
@@ -270,8 +282,8 @@ export default function ConvertToInhouseModal({ product, settings, allMaterials,
                         </div>
                         <div className="space-y-1.5">
                             <CostRow label="Ασήμι" oldVal={oldSilver} newVal={newSilver} sub={`${formatDecimal(product.weight_g + (product.secondary_weight_g || 0))}g`} />
-                            <CostRow label="Χύτευση" oldVal={oldCasting} newVal={newCasting} sub={`${formatDecimal(product.weight_g + (product.secondary_weight_g || 0))}g × 0,15`} />
-                            <CostRow label="Τεχνίτης" oldVal={oldTech} newVal={newTech} sub={`Κλιμακωτή χρέωση`} />
+                            <CostRow label="Χύτευση" oldVal={oldCasting} newVal={newCasting} sub={`${formatDecimal(totalWeight)}g × ${formatDecimal(DEFAULT_CASTING_RATE)}`} />
+                            <CostRow label="Τεχνίτης" oldVal={oldTech} newVal={newTech} sub={`${formatDecimal(totalWeight)}g · κλιμακωτή χρέωση`} />
                             <CostRow label="Καρφωτικά" oldVal={oldStone} newVal={0} sub="→ 0 (Ιδιοπαραγωγή)" />
                             <CostRow label="Τεχνίτης Καρφ." oldVal={oldSetter} newVal={newSetter} sub="Προσθήκη από καρτέλα Εργατικά" />
                             <CostRow
@@ -287,7 +299,7 @@ export default function ConvertToInhouseModal({ product, settings, allMaterials,
                                                     <div className="min-w-0">
                                                         <div className="text-xs font-bold text-amber-800">Επιμετάλλωση Χ/Η</div>
                                                         <div className="text-[11px] text-amber-700/80">
-                                                            Εισαγωγή: {formatDecimal(totalWeight)}g × {formatDecimal(product.labor.plating_cost_x || 0)} • Ιδιοπαραγωγή: {formatDecimal(product.weight_g)}g × 0,60
+                                                            Εισαγωγή: {formatDecimal(totalWeight)}g × {formatDecimal(product.labor.plating_cost_x || 0)} • Ιδιοπαραγωγή: {formatDecimal(product.weight_g)}g × {formatDecimal(DEFAULT_PLATING_RATE)}
                                                         </div>
                                                     </div>
                                                     <div className="shrink-0 text-right">
@@ -301,7 +313,7 @@ export default function ConvertToInhouseModal({ product, settings, allMaterials,
                                                     <div className="min-w-0">
                                                         <div className="text-xs font-bold text-purple-800">Επιμετάλλωση D</div>
                                                         <div className="text-[11px] text-purple-700/80">
-                                                            Εισαγωγή: αποθηκευμένο συνολικό κόστος • Ιδιοπαραγωγή: {formatDecimal(product.secondary_weight_g || 0)}g × 0,60
+                                                            Εισαγωγή: αποθηκευμένο συνολικό κόστος • Ιδιοπαραγωγή: {formatDecimal(product.secondary_weight_g || 0)}g × {formatDecimal(DEFAULT_PLATING_RATE)}
                                                         </div>
                                                     </div>
                                                     <div className="shrink-0 text-right">
@@ -392,7 +404,7 @@ export default function ConvertToInhouseModal({ product, settings, allMaterials,
                             <ul className="text-xs text-emerald-700 mt-1 space-y-0.5 list-disc list-inside">
                                 <li>Ο τύπος γίνεται <strong>Ιδιοπαραγωγή</strong> — εμφανίζονται οι καρτέλες Συνταγή & Εργατικά</li>
                                 <li>Εργατικά τεχνίτη υπολογίζονται αυτόματα με κλιμακωτή χρέωση βάσει βάρους</li>
-                                <li>Χύτευση: <strong>{formatDecimal(product.weight_g + (product.secondary_weight_g || 0))}g × 0,15 = {formatCurrency(newCasting)}</strong></li>
+                                <li>Χύτευση: <strong>{formatDecimal(totalWeight)}g × {formatDecimal(DEFAULT_CASTING_RATE)} = {formatCurrency(newCasting)}</strong></li>
                                 <li>Καρφωτικά μηδενίζονται — προσθέστε χειροκίνητα από καρτέλα <strong>Εργατικά</strong></li>
                                 <li>Η αλλαγή δεν αποθηκεύεται μέχρι να πατήσετε <strong>Αποθήκευση</strong></li>
                             </ul>
