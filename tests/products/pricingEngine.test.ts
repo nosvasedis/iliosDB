@@ -38,12 +38,12 @@ const makeInHouseProduct = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 } as any);
 
-describe('casting cost at 0.30 €/g default', () => {
-  it('calculates master casting as weight × 0.30', () => {
+describe('casting cost at 0.15 €/g default', () => {
+  it('calculates master casting as weight × 0.15', () => {
     const product = makeInHouseProduct();
     const { breakdown } = calculateProductCost(product, baseSettings, [], []);
     expect(breakdown.details.casting_cost).toBeCloseTo(1.1 * DEFAULT_CASTING_RATE, 4);
-    expect(breakdown.details.casting_cost).toBeCloseTo(0.33, 4);
+    expect(breakdown.details.casting_cost).toBeCloseTo(0.165, 4);
   });
 
   it('uses manual casting override on master and variant', () => {

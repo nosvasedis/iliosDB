@@ -1,6 +1,6 @@
 import { LaborCost, Product, RecipeItem } from '../types';
 
-export const DEFAULT_CASTING_RATE = 0.30;
+export const DEFAULT_CASTING_RATE = 0.15;
 export const DEFAULT_PLATING_RATE = 0.60;
 export const STX_TECHNICIAN_RATE = 0.50;
 
