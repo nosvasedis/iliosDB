@@ -114,8 +114,8 @@ export function getRemainingOrderItems(
   order: Order,
   shipmentItems: OrderShipmentItem[]
 ): Array<{ sku: string; variant_suffix?: string; size_info?: string; cord_color?: string | null; enamel_color?: string | null; quantity: number; price_at_order: number; line_id?: string | null }> {
-  const shipped = getShippedQuantitiesForOrderLines(orderItems, shipmentItems);
   const orderItems = Array.isArray(order.items) ? order.items : [];
+  const shipped = getShippedQuantitiesForOrderLines(orderItems, shipmentItems);
   const remaining: Array<{ sku: string; variant_suffix?: string; size_info?: string; cord_color?: string | null; enamel_color?: string | null; quantity: number; price_at_order: number; line_id?: string | null }> = [];
 
   for (const item of orderItems) {
