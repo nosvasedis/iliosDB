@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Product, GlobalSettings, OrderStatus } from '../../types';
-import { Activity, Factory, Coins, Plus, ScanBarcode, Zap, Package, ShoppingCart, Users, ScrollText, Settings, Clock, CheckCircle, Truck, XCircle, AlertCircle, PackageCheck, Eye, EyeOff } from 'lucide-react';
+import { Activity, Factory, Coins, Plus, ScanBarcode, Zap, Package, ShoppingCart, Users, ScrollText, Settings, CheckCircle, Truck, Eye, EyeOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import MobileScreenHeader from './MobileScreenHeader';
 import { formatCurrency, formatDecimal } from '../../utils/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
@@ -27,24 +27,95 @@ const QuickAction = ({ icon, label, color, onClick }: { icon: React.ReactNode, l
     </button>
 );
 
-const StatCard = ({ title, value, sub, icon, bg, text }: { title: string, value: string, sub?: string, icon: any, bg: string, text: string }) => (
-    <div className={`p-5 rounded-2xl ${bg} flex flex-col justify-between h-32 relative overflow-hidden shadow-sm`}>
-        <div className="absolute right-0 top-0 p-4 opacity-10 transform scale-150 origin-top-right">
-            {React.cloneElement(icon, { size: 48 })}
-        </div>
-        <div className="flex items-center gap-2 mb-2 relative z-10">
-            {/* Fixed syntax error: properly closed className string */}
-            <div className="p-1.5 bg-white/20 rounded-lg backdrop-blur-sm text-current">
-                {React.cloneElement(icon, { size: 16 })}
+type StatSlide = {
+    id: string;
+    title: string;
+    value: string;
+    sub?: string;
+    icon: React.ElementType;
+    bg: string;
+    text: string;
+    blurValue?: boolean;
+    showEyeToggle?: boolean;
+    isValueVisible?: boolean;
+    onToggleVisibility?: () => void;
+};
+
+const StatCarousel = ({
+    slides,
+    activeIndex,
+    onPrev,
+    onNext,
+}: {
+    slides: StatSlide[];
+    activeIndex: number;
+    onPrev: () => void;
+    onNext: () => void;
+}) => {
+    const slide = slides[activeIndex];
+    const Icon = slide.icon;
+
+    return (
+        <div className={`p-5 pb-6 rounded-2xl ${slide.bg} flex flex-col justify-between h-32 relative overflow-hidden shadow-sm transition-colors duration-300`}>
+            <div className="absolute right-0 top-0 p-4 opacity-10 transform scale-150 origin-top-right pointer-events-none">
+                <Icon size={48} className={slide.text} />
             </div>
-            <span className={`text-[10px] font-black uppercase tracking-wider opacity-80 ${text}`}>{title}</span>
+
+            <div className="flex items-center justify-between gap-2 relative z-10">
+                <div className="flex items-center gap-2 min-w-0">
+                    <div className="p-1.5 bg-white/20 rounded-lg backdrop-blur-sm shrink-0">
+                        <Icon size={16} className={slide.text} />
+                    </div>
+                    <span className={`text-[10px] font-black uppercase tracking-wider opacity-80 truncate ${slide.text}`}>{slide.title}</span>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                    <button
+                        type="button"
+                        onClick={onPrev}
+                        className="p-1 rounded-lg hover:bg-white/10 transition-colors opacity-60 hover:opacity-100"
+                        aria-label="Προηγούμενο"
+                    >
+                        <ChevronLeft size={18} className={slide.text} />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onNext}
+                        className="p-1 rounded-lg hover:bg-white/10 transition-colors opacity-60 hover:opacity-100"
+                        aria-label="Επόμενο"
+                    >
+                        <ChevronRight size={18} className={slide.text} />
+                    </button>
+                </div>
+            </div>
+
+            <div className="relative z-10">
+                <div className="flex items-center gap-2">
+                    <div className={`text-2xl font-black ${slide.text} ${slide.blurValue ? 'blur-lg select-none' : ''}`}>{slide.value}</div>
+                    {slide.showEyeToggle && slide.onToggleVisibility && (
+                        <button
+                            type="button"
+                            onClick={slide.onToggleVisibility}
+                            className="p-1.5 rounded-lg hover:bg-white/10 transition-colors opacity-60 hover:opacity-100"
+                            title={slide.isValueVisible ? 'Απόκρυψη' : 'Εμφάνιση'}
+                        >
+                            {slide.isValueVisible ? <EyeOff size={16} className={slide.text} /> : <Eye size={16} className={slide.text} />}
+                        </button>
+                    )}
+                </div>
+                {slide.sub && <div className={`text-[10px] font-medium opacity-70 ${slide.text}`}>{slide.sub}</div>}
+            </div>
+
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10">
+                {slides.map((s, i) => (
+                    <div
+                        key={s.id}
+                        className={`h-1 rounded-full transition-all duration-300 ${i === activeIndex ? 'w-4 bg-white/80' : 'w-1.5 bg-white/30'}`}
+                    />
+                ))}
+            </div>
         </div>
-        <div className="relative z-10">
-            <div className={`text-2xl font-black ${text}`}>{value}</div>
-            {sub && <div className={`text-[10px] font-medium opacity-70 ${text}`}>{sub}</div>}
-        </div>
-    </div>
-);
+    );
+};
 
 export default function MobileDashboard({ products, settings, onNavigate }: Props) {
     const { data: orders } = useOrdersWithItems();
@@ -59,6 +130,8 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
     });
     const { profile } = useAuth();
     const [showPendingRevenue, setShowPendingRevenue] = useState(false);
+    const [showYearRevenue, setShowYearRevenue] = useState(false);
+    const [statSlideIndex, setStatSlideIndex] = useState(0);
 
     const stats = useMemo(() => {
         // Inventory Value (Approx)
@@ -92,6 +165,56 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
         };
     }, [products, orders, batches, financeStats]);
 
+    const statSlides: StatSlide[] = useMemo(() => [
+        {
+            id: 'pending',
+            title: 'Εκκρεμής αξία',
+            value: formatCurrency(stats.pendingRevenue),
+            sub: `${stats.activeOrdersCount} ανοιχτές παραγγελίες`,
+            icon: Activity,
+            bg: 'bg-slate-900',
+            text: 'text-white',
+            blurValue: !showPendingRevenue,
+            showEyeToggle: true,
+            isValueVisible: showPendingRevenue,
+            onToggleVisibility: () => setShowPendingRevenue(v => !v),
+        },
+        {
+            id: 'revenue',
+            title: 'Έσοδα έτους',
+            value: formatCurrency(stats.realizedRevenue),
+            sub: `${stats.shippedPieces} τεμ. απεστάλησαν`,
+            icon: Truck,
+            bg: 'bg-emerald-600',
+            text: 'text-white',
+            blurValue: !showYearRevenue,
+            showEyeToggle: true,
+            isValueVisible: showYearRevenue,
+            onToggleVisibility: () => setShowYearRevenue(v => !v),
+        },
+        {
+            id: 'production',
+            title: 'Παραγωγή',
+            value: stats.activeBatchesCount.toString(),
+            sub: stats.delayedBatches > 0 ? `${stats.delayedBatches} καθυστερήσεις` : 'Ομαλή ροή',
+            icon: Factory,
+            bg: 'bg-amber-500',
+            text: 'text-white',
+        },
+        {
+            id: 'silver',
+            title: 'Ασήμι',
+            value: `${formatDecimal(settings.silver_price_gram, 2)}€`,
+            sub: 'Τρέχουσα Τιμή',
+            icon: Coins,
+            bg: 'bg-indigo-600',
+            text: 'text-white',
+        },
+    ], [stats, settings.silver_price_gram, showPendingRevenue, showYearRevenue]);
+
+    const goToPrevStat = () => setStatSlideIndex(i => (i - 1 + statSlides.length) % statSlides.length);
+    const goToNextStat = () => setStatSlideIndex(i => (i + 1) % statSlides.length);
+
     return (
         <div className="min-h-screen bg-slate-50 pb-28">
             <MobileScreenHeader
@@ -102,59 +225,12 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
             />
 
             <div className="space-y-6 p-5 pt-4">
-            {/* Main Stats Grid */}
-            <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                    <div className="p-5 rounded-2xl bg-slate-900 flex flex-col justify-between h-32 relative overflow-hidden shadow-sm">
-                        <div className="absolute right-0 top-0 p-4 opacity-10 transform scale-150 origin-top-right">
-                            <Activity size={48} />
-                        </div>
-                        <div className="flex items-center gap-2 mb-2 relative z-10">
-                            <div className="p-1.5 bg-white/20 rounded-lg backdrop-blur-sm text-current">
-                                <Activity size={16} />
-                            </div>
-                            <span className="text-[10px] font-black uppercase tracking-wider opacity-80 text-white">Εκκρεμής αξία</span>
-                        </div>
-                        <div className="relative z-10">
-                            <div className="flex items-center gap-2">
-                                <div className={`text-2xl font-black text-white ${!showPendingRevenue ? 'blur-lg select-none' : ''}`}>{formatCurrency(stats.pendingRevenue)}</div>
-                                <button 
-                                    onClick={() => setShowPendingRevenue(!showPendingRevenue)}
-                                    className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/60 hover:text-white"
-                                    title={showPendingRevenue ? 'Απόκρυψη' : 'Εμφάνιση'}
-                                >
-                                    {showPendingRevenue ? <EyeOff size={16} /> : <Eye size={16} />}
-                                </button>
-                            </div>
-                            <div className="text-[10px] font-medium opacity-70 text-white">{stats.activeOrdersCount} ανοιχτές παραγγελίες</div>
-                        </div>
-                    </div>
-                </div>
-                <StatCard
-                    title="Έσοδα έτους"
-                    value={formatCurrency(stats.realizedRevenue)}
-                    sub={`${stats.shippedPieces} τεμ. απεστάλησαν`}
-                    icon={<Truck />}
-                    bg="bg-emerald-50 border border-emerald-100"
-                    text="text-emerald-900"
-                />
-                <StatCard
-                    title="Παραγωγη"
-                    value={stats.activeBatchesCount.toString()}
-                    sub={stats.delayedBatches > 0 ? `${stats.delayedBatches} καθυστερήσεις` : 'Ομαλή ροή'}
-                    icon={<Factory />}
-                    bg="bg-white border border-slate-100"
-                    text="text-slate-800"
-                />
-                <StatCard
-                    title="Ασημι"
-                    value={`${formatDecimal(settings.silver_price_gram, 2)}€`}
-                    sub="Τρέχουσα Τιμή"
-                    icon={<Coins />}
-                    bg="bg-white border border-slate-100"
-                    text="text-slate-800"
-                />
-            </div>
+            <StatCarousel
+                slides={statSlides}
+                activeIndex={statSlideIndex}
+                onPrev={goToPrevStat}
+                onNext={goToNextStat}
+            />
 
             {/* Quick Actions Grid */}
             <div>
