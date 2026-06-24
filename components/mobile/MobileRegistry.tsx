@@ -343,47 +343,52 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
             />
 
             <div className="flex min-h-0 flex-1 flex-col px-4">
-            <div className="mb-3 mt-3 flex shrink-0 gap-2">
-                <div className="relative flex-1 min-w-0">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                    <input
-                        type="text"
-                        placeholder={showStxOnly ? 'Αναζήτηση STX ή κατηγορίας...' : 'Κωδικός, κατηγορία...'}
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-full pl-10 pr-3 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/25 focus:border-emerald-500 shadow-sm font-medium text-sm"
-                    />
+            <div className="mb-3 mt-3 flex shrink-0 flex-col gap-2">
+                <div className="flex gap-2">
+                    <div className="relative min-w-0 flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <input
+                            type="text"
+                            placeholder={showStxOnly ? 'Αναζήτηση STX ή κατηγορίας...' : 'Κωδικός, κατηγορία...'}
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-3 text-sm font-medium shadow-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/25"
+                        />
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setShowScanner(true)}
+                        className="shrink-0 rounded-xl border border-slate-200 bg-white p-3 text-slate-600 shadow-sm transition-transform active:scale-95"
+                        aria-label="Σάρωση barcode"
+                    >
+                        <Camera size={20} />
+                    </button>
                 </div>
-                <RegistrySortSelect
-                    value={sortBy}
-                    onChange={setSortBy}
-                    compact
-                    className="shrink-0 w-[7.5rem]"
-                />
-                <button
-                    type="button"
-                    onClick={() => setShowFilterSheet(true)}
-                    className={`shrink-0 flex items-center gap-2 px-4 py-3 rounded-xl border font-bold text-sm transition-all ${
-                        activeFilterCount > 0
-                            ? 'bg-[#060b00] text-white border-[#060b00] shadow-md'
-                            : 'bg-white text-slate-600 border-slate-200'
-                    }`}
-                >
-                    <Filter size={18} />
-                    <span className="text-sm">Φίλτρα</span>
-                    {activeFilterCount > 0 && (
-                        <span className="flex items-center justify-center min-w-[1.25rem] h-5 px-1 text-[10px] bg-emerald-500 text-white rounded-full font-black">
-                            {activeFilterCount}
-                        </span>
-                    )}
-                </button>
-                <button
-                    type="button"
-                    onClick={() => setShowScanner(true)}
-                    className="shrink-0 bg-white text-slate-600 border border-slate-200 p-3 rounded-xl shadow-sm active:scale-95 transition-transform"
-                >
-                    <Camera size={20} />
-                </button>
+                <div className="flex gap-2">
+                    <RegistrySortSelect
+                        value={sortBy}
+                        onChange={setSortBy}
+                        compact
+                        className="min-w-0 flex-1"
+                    />
+                    <button
+                        type="button"
+                        onClick={() => setShowFilterSheet(true)}
+                        className={`flex shrink-0 items-center gap-2 rounded-xl border px-4 py-3 text-sm font-bold transition-all ${
+                            activeFilterCount > 0
+                                ? 'border-[#060b00] bg-[#060b00] text-white shadow-md'
+                                : 'border-slate-200 bg-white text-slate-600'
+                        }`}
+                    >
+                        <Filter size={18} />
+                        <span>Φίλτρα</span>
+                        {activeFilterCount > 0 && (
+                            <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-black text-white">
+                                {activeFilterCount}
+                            </span>
+                        )}
+                    </button>
+                </div>
             </div>
 
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-2 shrink-0">Γρήγορη κατηγορία</p>

@@ -688,7 +688,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                             <RegistrySortSelect
                                 value={sortBy}
                                 onChange={setSortBy}
-                                className="flex-1 md:flex-none md:min-w-[13rem]"
+                                className="flex-1 md:w-44"
                             />
                             <button type="button" onClick={() => setShowFiltersSidebar(true)} className={`relative flex flex-1 items-center justify-center gap-2 rounded-xl border px-6 py-3 text-sm font-bold transition-all md:flex-none ${(filterCategory !== 'All' || filterGender !== 'All' || subFilters.stone !== 'all' || subFilters.plating !== 'all') ? 'border-black bg-[#060b00] text-white shadow-md' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
                                 <Filter size={18} />
