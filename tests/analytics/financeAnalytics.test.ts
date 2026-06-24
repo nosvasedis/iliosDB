@@ -230,8 +230,63 @@ describe('buildFinanceAnalytics', () => {
       now: new Date('2026-06-12T10:00:00.000Z'),
     });
 
-    expect(analytics.itemsBreakdown[0].estimatedCost).toBeCloseTo(9.2);
-    expect(analytics.itemsBreakdown[0].profit).toBeCloseTo(40.8);
+    const line = analytics.itemsBreakdown[0];
+    // Suffix "X" is finish (Επίχρυσο), not a stone code — recipe uses base material cost (1€), not variant_prices.X (4€).
+    expect(line.estimatedCost).toBeCloseTo(8.9);
+    expect(line.profit).toBeCloseTo(41.1);
+    expect(line.costBreakdown).toMatchObject({
+      silver: 2,
+      materials: 1,
+      labor: 5.9, // casting 0.3 + technician 2.6 + plating 3
+    });
+  });
+
+  it('aggregates topVariants separately per sku and variant suffix', () => {
+    const analytics = buildFinanceAnalytics({
+      orders: [
+        order({
+          id: 'variant-order',
+          status: OrderStatus.PartiallyDelivered,
+          items: [
+            { sku: 'VAR', variant_suffix: 'X', quantity: 2, price_at_order: 50 },
+            { sku: 'VAR', variant_suffix: 'P', quantity: 1, price_at_order: 40 },
+          ],
+        }),
+      ],
+      shipments: [shipment({ id: 'variant-ship', order_id: 'variant-order' })],
+      shipmentItems: [
+        shipmentItem({ shipment_id: 'variant-ship', sku: 'VAR', variant_suffix: 'X', quantity: 2, price_at_order: 50 }),
+        shipmentItem({ shipment_id: 'variant-ship', sku: 'VAR', variant_suffix: 'P', quantity: 1, price_at_order: 40 }),
+      ],
+      products: [
+        product({
+          sku: 'VAR',
+          variants: [
+            { suffix: 'X', description: 'Επίχρυσο', stock_qty: 0, selling_price: 50 },
+            { suffix: 'P', description: 'Πατίνα', stock_qty: 0, selling_price: 40 },
+          ],
+        }),
+      ],
+      materials,
+      settings,
+      collections: [],
+      sellers: [],
+      legalDocuments: [],
+      period: { mode: 'all_time' },
+      now: new Date('2026-06-12T10:00:00.000Z'),
+    });
+
+    expect(analytics.topVariants).toHaveLength(2);
+    expect(analytics.topVariants.find((row) => row.variantSuffix === 'X')).toMatchObject({
+      sku: 'VAR',
+      quantity: 2,
+      revenue: 100,
+    });
+    expect(analytics.topVariants.find((row) => row.variantSuffix === 'P')).toMatchObject({
+      sku: 'VAR',
+      quantity: 1,
+      revenue: 40,
+    });
   });
 
   it('calculates seller earned commission from shipped net value and pending commission from backlog', () => {

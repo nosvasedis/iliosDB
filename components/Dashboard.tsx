@@ -8,13 +8,11 @@ import {
   DollarSign, 
   Factory, 
   Activity, 
-  PieChart, 
   BarChart3, 
   Coins, 
   Wallet, 
   Scale, 
   Target, 
-  Filter,
   Trophy,
   ShoppingBag,
   Crown,
@@ -31,9 +29,6 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer, 
-  PieChart as RePieChart, 
-  Pie, 
-  Cell, 
 } from 'recharts';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
@@ -43,6 +38,15 @@ import { getProductionStageLabel } from '../utils/productionStages';
 import DesktopPageHeader from './DesktopPageHeader';
 import FinancePeriodSelector from './FinancePeriodSelector';
 import DashboardStatCarousel, { type DashboardStatSlide } from './dashboard/DashboardStatCarousel';
+import DashboardSalesAnalysisCarousel, { PANEL_COUNT } from './dashboard/DashboardSalesAnalysisCarousel';
+import {
+  buildCategoryChartData,
+  buildCollectionChartData,
+  buildGenderChartData,
+  buildFinishChartData,
+  buildTopVariantRows,
+  buildTopCustomerRows,
+} from '../features/dashboard/dashboardAnalysisViewModels';
 import { useFinanceAnalytics } from '../hooks/api/useFinanceAnalytics';
 import { FinancePeriodMode, isWithinFinancePeriod } from '../utils/financeAnalytics';
 
@@ -87,6 +91,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
   const [showRealizedRevenue, setShowRealizedRevenue] = useState(false);
   const [showEstimatedProfit, setShowEstimatedProfit] = useState(false);
   const [statSlideIndex, setStatSlideIndex] = useState(0);
+  const [analysisSlideIndex, setAnalysisSlideIndex] = useState(0);
   const [silverOrderScope, setSilverOrderScope] = useState<SilverOrderScope>('active');
   const [financePeriodMode, setFinancePeriodMode] = useState<FinancePeriodMode>('current_year');
   const [legalReconciliationOpen, setLegalReconciliationOpen] = useState(false);
@@ -239,16 +244,41 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
 
   const categoryData = useMemo(() => {
       if (!financeStats) return [];
-      const counts: Record<string, number> = {};
-      financeStats.events.realized.forEach(event => {
-          const product = products.find(p => p.sku === event.sku);
-          if (product?.is_component) return;
-          if (categoryGenderFilter !== 'All' && product && product.gender !== categoryGenderFilter) return;
-          const cat = (event.category || product?.category || 'Άλλο').split(' ')[0];
-          counts[cat] = (counts[cat] || 0) + event.quantity;
-      });
-      return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 8);
+      return buildCategoryChartData(
+        financeStats.events.realized,
+        products,
+        categoryGenderFilter,
+      );
   }, [financeStats, products, categoryGenderFilter]);
+
+  const collectionChartData = useMemo(() => {
+      if (!financeStats) return [];
+      return buildCollectionChartData(financeStats.topCollections);
+  }, [financeStats]);
+
+  const genderChartData = useMemo(() => {
+      if (!financeStats) return [];
+      return buildGenderChartData(financeStats.events.realized, products);
+  }, [financeStats, products]);
+
+  const finishChartData = useMemo(() => {
+      if (!financeStats) return [];
+      return buildFinishChartData(financeStats.events.realized, products);
+  }, [financeStats, products]);
+
+  const topVariantRows = useMemo(() => {
+      if (!financeStats) return [];
+      return buildTopVariantRows(financeStats.topVariants, products);
+  }, [financeStats, products]);
+
+  const topCustomerRows = useMemo(() => {
+      if (!financeStats) return [];
+      return buildTopCustomerRows(financeStats.topCustomers);
+  }, [financeStats]);
+
+  const collectionRankings = useMemo(() => {
+      return (financeStats?.topCollections ?? []).slice(0, 8);
+  }, [financeStats?.topCollections]);
 
   const productionStageData = useMemo(() => {
       if (!batches) return [];
@@ -320,6 +350,8 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
 
   const goToPrevStat = () => setStatSlideIndex((i) => (i - 1 + overviewStatSlides.length) % overviewStatSlides.length);
   const goToNextStat = () => setStatSlideIndex((i) => (i + 1) % overviewStatSlides.length);
+  const goToPrevAnalysis = () => setAnalysisSlideIndex((i) => (i - 1 + PANEL_COUNT) % PANEL_COUNT);
+  const goToNextAnalysis = () => setAnalysisSlideIndex((i) => (i + 1) % PANEL_COUNT);
 
   const KPICard = ({ title, value, subValue, icon, colorClass, hint }: { title: string, value: string, subValue?: string, icon: React.ReactNode, colorClass: string, hint?: string }) => (
       <div 
@@ -393,53 +425,23 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                   <p className="text-sm font-medium text-slate-500">{periodLabel}</p>
                 </div>
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div className="lg:col-span-2 bg-white p-8 rounded-3xl border border-slate-200/80 shadow-sm">
-                      <div className="flex justify-between items-center mb-6">
-                          <h3 className="font-bold text-slate-800 text-xl flex items-center gap-2">
-                              <PieChart size={20} className="text-blue-500"/> Πωλήσεις ανά Κατηγορία
-                          </h3>
-                          <div className="relative">
-                              <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
-                              <select 
-                                  value={categoryGenderFilter} 
-                                  onChange={(e) => setCategoryGenderFilter(e.target.value as any)}
-                                  className="bg-slate-50 border border-slate-200 text-slate-600 text-xs font-bold rounded-lg py-2 pl-7 pr-3 outline-none cursor-pointer hover:border-blue-300 transition-all appearance-none"
-                              >
-                                  <option value="All">Όλα τα Φύλα</option>
-                                  <option value={Gender.Women}>Γυναικεία</option>
-                                  <option value={Gender.Men}>Ανδρικά</option>
-                                  <option value={Gender.Unisex}>Unisex</option>
-                              </select>
-                          </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                          <div className="h-64">
-                              <ResponsiveContainer width="100%" height="100%">
-                                  <RePieChart>
-                                      <Pie data={categoryData} innerRadius={0} outerRadius={80} dataKey="value" stroke="white" strokeWidth={2}>
-                                          {categoryData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                                      </Pie>
-                                      <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}} />
-                                  </RePieChart>
-                              </ResponsiveContainer>
-                          </div>
-                          <div className="space-y-2">
-                              {categoryData.map((item, idx) => (
-                                  <div key={item.name} className="flex items-center justify-between text-sm">
-                                      <div className="flex items-center gap-2">
-                                          <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: COLORS[idx % COLORS.length]}}></div>
-                                          <span className="font-bold text-slate-600">{item.name}</span>
-                                      </div>
-                                      <span className="font-black text-slate-400">{item.value}</span>
-                                  </div>
-                              ))}
-                              {categoryData.length === 0 && (
-                                <div className="py-8 text-center text-sm italic text-slate-400">
-                                  Δεν βρέθηκαν πωλήσεις για {periodLabel.toLowerCase()}.
-                                </div>
-                              )}
-                          </div>
-                      </div>
+                  <div className="lg:col-span-2">
+                      <DashboardSalesAnalysisCarousel
+                        activeIndex={analysisSlideIndex}
+                        onPrev={goToPrevAnalysis}
+                        onNext={goToNextAnalysis}
+                        categoryData={categoryData}
+                        collectionData={collectionChartData}
+                        collectionRankings={collectionRankings}
+                        genderData={genderChartData}
+                        finishData={finishChartData}
+                        topVariants={topVariantRows}
+                        topCustomers={topCustomerRows}
+                        categoryGenderFilter={categoryGenderFilter}
+                        onCategoryGenderFilterChange={setCategoryGenderFilter}
+                        periodLabel={periodLabel}
+                        colors={COLORS}
+                      />
                   </div>
 
                   <div className="bg-gradient-to-br from-[#060b00] to-emerald-900 p-8 rounded-3xl text-white shadow-sm border border-slate-200/10 flex flex-col justify-center gap-6 relative overflow-hidden">

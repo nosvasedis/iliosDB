@@ -116,6 +116,13 @@ export interface FinanceProductRanking extends FinanceRankingBase {
   image: string | null;
 }
 
+export interface FinanceVariantRanking extends FinanceRankingBase {
+  sku: string;
+  variantSuffix: string;
+  image: string | null;
+  category: string;
+}
+
 export interface FinanceCollectionRanking extends FinanceRankingBase {
   id: number | null;
   name: string;
@@ -183,6 +190,7 @@ export interface FinanceAnalytics {
   itemsBreakdown: FinanceLineEvent[];
   backlogBreakdown: FinanceLineEvent[];
   topProducts: FinanceProductRanking[];
+  topVariants: FinanceVariantRanking[];
   topCollections: FinanceCollectionRanking[];
   topCustomers: FinanceCustomerRanking[];
   topSellers: FinanceSellerRanking[];
@@ -603,6 +611,7 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
   );
 
   const topProductsMap = new Map<string, FinanceProductRanking>();
+  const topVariantsMap = new Map<string, FinanceVariantRanking>();
   const topCollectionsMap = new Map<string, FinanceCollectionRanking>();
   const topCustomersMap = new Map<string, FinanceCustomerRanking>();
   const topSellersMap = new Map<string, FinanceSellerRanking>();
@@ -625,6 +634,21 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
       };
       addRankingTotals(productRow, event);
       topProductsMap.set(event.sku, productRow);
+
+      const variantKey = `${event.sku}::${event.variantSuffix || ''}`;
+      const variantRow = topVariantsMap.get(variantKey) || {
+        sku: event.sku,
+        variantSuffix: event.variantSuffix || '',
+        image: event.productImage,
+        category: event.category,
+        revenue: 0,
+        estimatedCost: 0,
+        profit: 0,
+        margin: 0,
+        quantity: 0,
+      };
+      addRankingTotals(variantRow, event);
+      topVariantsMap.set(variantKey, variantRow);
 
       const collectionKey = event.collectionId === null ? 'none' : String(event.collectionId);
       const collectionRow = topCollectionsMap.get(collectionKey) || {
@@ -769,6 +793,7 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
     itemsBreakdown: realizedEvents.filter((event) => !isSpecialCreationSku(event.sku)),
     backlogBreakdown: backlogEvents.filter((event) => !isSpecialCreationSku(event.sku)),
     topProducts: sortRankings(Array.from(topProductsMap.values())),
+    topVariants: sortRankings(Array.from(topVariantsMap.values())),
     topCollections: sortRankings(Array.from(topCollectionsMap.values())),
     topCustomers: Array.from(topCustomersMap.values())
       .map((item) => ({ ...item, revenue: roundMoney(item.revenue) }))
