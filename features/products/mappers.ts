@@ -286,7 +286,7 @@ export function mapProductsWithRelations(
     moldsMap: buildMoldsMap(relations.molds),
     collectionsMap: buildCollectionsMap(relations.collections),
   };
-  return rows.map((row) => mapProductRow(row, context, maps, { includeRecipes: true, includeMolds: true, includeCreatedAt: false }));
+  return rows.map((row) => mapProductRow(row, context, maps, { includeRecipes: true, includeMolds: true, includeCreatedAt: true }));
 }
 
 export function mapCatalogProductsWithRelations(

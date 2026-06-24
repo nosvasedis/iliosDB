@@ -135,6 +135,30 @@ function compareRegistrySku(a: Product, b: Product): number {
   return a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' });
 }
 
+/** Effective wholesale price for one variant (same rule as registry table rows). */
+export function getVariantSellingPrice(product: Product, variant: ProductVariant): number {
+  return variant.selling_price || product.selling_price || 0;
+}
+
+/** Mean selling price across all variants; master price when the SKU has no variants. */
+export function getProductAverageSellingPrice(product: Product): number {
+  const variants = product.variants || [];
+  if (variants.length === 0) {
+    return product.selling_price || 0;
+  }
+  const total = variants.reduce(
+    (sum, variant) => sum + getVariantSellingPrice(product, variant),
+    0,
+  );
+  return total / variants.length;
+}
+
+export function getProductCreatedAtMs(product: Product): number {
+  if (!product.created_at) return 0;
+  const ms = new Date(product.created_at).getTime();
+  return Number.isFinite(ms) ? ms : 0;
+}
+
 export function filterRegistryProducts(
   searchableProducts: RegistrySearchableProduct[],
   filters: ProductRegistryFilters,
@@ -181,19 +205,19 @@ export function filterRegistryProducts(
       case 'sku_desc':
         return compareRegistrySku(b, a);
       case 'created_desc':
-        return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+        return getProductCreatedAtMs(b) - getProductCreatedAtMs(a);
       case 'created_asc':
-        return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+        return getProductCreatedAtMs(a) - getProductCreatedAtMs(b);
       case 'category_asc': {
         const categoryCompare = a.category.localeCompare(b.category, undefined, { sensitivity: 'base' });
         return categoryCompare !== 0 ? categoryCompare : compareRegistrySku(a, b);
       }
       case 'price_desc': {
-        const priceDiff = (b.selling_price || 0) - (a.selling_price || 0);
+        const priceDiff = getProductAverageSellingPrice(b) - getProductAverageSellingPrice(a);
         return priceDiff !== 0 ? priceDiff : compareRegistrySku(a, b);
       }
       case 'price_asc': {
-        const priceDiff = (a.selling_price || 0) - (b.selling_price || 0);
+        const priceDiff = getProductAverageSellingPrice(a) - getProductAverageSellingPrice(b);
         return priceDiff !== 0 ? priceDiff : compareRegistrySku(a, b);
       }
       case 'sku_asc':

@@ -6,6 +6,7 @@ import {
   filterRegistryProducts,
   getAvailableRegistryStones,
   getGroupedProductCategories,
+  getProductAverageSellingPrice,
 } from '../../features/products/productRegistryViewModels';
 
 const makeProduct = (overrides: Partial<Product>): Product =>
@@ -114,11 +115,30 @@ describe('product registry view models', () => {
     expect(map.get('K10X')?.variant?.suffix).toBe('X');
   });
 
-  it('sorts registry products by sku descending, category, and price', () => {
+  it('sorts registry products by sku descending, category, price average, and created date', () => {
     const products = [
-      makeProduct({ sku: 'B20', category: 'Δαχτυλίδι', selling_price: 50 }),
-      makeProduct({ sku: 'A10', category: 'Βραχιόλι', selling_price: 100 }),
-      makeProduct({ sku: 'C5', category: 'Βραχιόλι', selling_price: 25 }),
+      makeProduct({
+        sku: 'B20',
+        category: 'Δαχτυλίδι',
+        selling_price: 10,
+        variants: [
+          { suffix: 'P', description: 'Patina', stock_qty: 1, selling_price: 40 },
+          { suffix: 'X', description: 'Gold', stock_qty: 1, selling_price: 60 },
+        ],
+        created_at: '2024-03-01T00:00:00.000Z',
+      }),
+      makeProduct({
+        sku: 'A10',
+        category: 'Βραχιόλι',
+        selling_price: 100,
+        created_at: '2024-01-01T00:00:00.000Z',
+      }),
+      makeProduct({
+        sku: 'C5',
+        category: 'Βραχιόλι',
+        selling_price: 25,
+        created_at: '2024-06-01T00:00:00.000Z',
+      }),
     ];
     const searchable = buildSearchableProducts(products, new Set());
     const baseFilters = {
@@ -131,6 +151,8 @@ describe('product registry view models', () => {
       collection: 'all',
     };
 
+    expect(getProductAverageSellingPrice(products[0])).toBe(50);
+
     expect(
       filterRegistryProducts(searchable, { ...baseFilters, sortBy: 'sku_desc' }).map((p) => p.sku),
     ).toEqual(['C5', 'B20', 'A10']);
@@ -141,6 +163,14 @@ describe('product registry view models', () => {
 
     expect(
       filterRegistryProducts(searchable, { ...baseFilters, sortBy: 'price_desc' }).map((p) => p.sku),
+    ).toEqual(['A10', 'B20', 'C5']);
+
+    expect(
+      filterRegistryProducts(searchable, { ...baseFilters, sortBy: 'created_desc' }).map((p) => p.sku),
+    ).toEqual(['C5', 'B20', 'A10']);
+
+    expect(
+      filterRegistryProducts(searchable, { ...baseFilters, sortBy: 'created_asc' }).map((p) => p.sku),
     ).toEqual(['A10', 'B20', 'C5']);
   });
 });

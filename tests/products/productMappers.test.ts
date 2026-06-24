@@ -75,6 +75,7 @@ describe('product mappers', () => {
     expect(products[0].variants?.[0].location_stock.central).toBe(3);
     expect(products[0].labor.casting_cost_manual_override).toBe(true);
     expect(products[0].labor.casting_cost).toBe(1);
+    expect(products[0].created_at).toBe(new Date(0).toISOString());
   });
 
   it('maps catalog rows without heavy relations but keeps stable fallback fields', () => {
