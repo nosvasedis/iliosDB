@@ -28,6 +28,8 @@ import {
     getAvailableRegistryStones,
     getGroupedProductCategories,
     getStoneChipStyle,
+    RegistrySortSelect,
+    type RegistrySortMode,
 } from '../features/products';
 
 interface Props {
@@ -330,7 +332,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
         collection: 'all',     // 'all' | collectionId string
     });
 
-    const [sortBy, setSortBy] = useState<'sku' | 'created_at'>('sku');
+    const [sortBy, setSortBy] = useState<RegistrySortMode>('sku_asc');
 
     const [showFiltersSidebar, setShowFiltersSidebar] = useState(false);
     const [showPrintModal, setShowPrintModal] = useState(false);
@@ -683,6 +685,11 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                             <input type="text" placeholder="Αναζήτηση Κωδικού (π.χ. K14300) ή Κατηγορίας..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 font-medium text-slate-900 outline-none transition-all focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/20" />
                         </div>
                         <div className="flex w-full gap-2 md:w-auto">
+                            <RegistrySortSelect
+                                value={sortBy}
+                                onChange={setSortBy}
+                                className="flex-1 md:flex-none md:min-w-[13rem]"
+                            />
                             <button type="button" onClick={() => setShowFiltersSidebar(true)} className={`relative flex flex-1 items-center justify-center gap-2 rounded-xl border px-6 py-3 text-sm font-bold transition-all md:flex-none ${(filterCategory !== 'All' || filterGender !== 'All' || subFilters.stone !== 'all' || subFilters.plating !== 'all') ? 'border-black bg-[#060b00] text-white shadow-md' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
                                 <Filter size={18} />
                                 <span>Φίλτρα</span>
@@ -1187,28 +1194,6 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                 </div>
                             )}
 
-                            {/* ── Ταξινόμηση ── */}
-                            <div className="space-y-3">
-                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1"><List size={14} /> Ταξινόμηση</label>
-                                <div className="flex gap-2">
-                                    {[
-                                        { label: 'Κωδικός', value: 'sku' },
-                                        { label: 'Ημερομηνία Δημιουργίας', value: 'created_at' },
-                                    ].map(f => (
-                                        <button
-                                            key={f.value}
-                                            onClick={() => setSortBy(f.value as 'sku' | 'created_at')}
-                                            className={`flex-1 px-4 py-2.5 rounded-xl font-bold text-sm transition-all border ${sortBy === f.value
-                                                ? 'bg-[#060b00] text-white border-black'
-                                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                                                }`}
-                                        >
-                                            {f.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
                             {/* ── Συλλογή ── */}
                             {!showStxOnly && collections && collections.length > 0 && (
                                 <div className="space-y-3">
@@ -1235,7 +1220,6 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                     setFilterGender('All');
                                     setFilterCategory('All');
                                     setSubFilters({ stone: 'all', plating: 'all', productionType: 'all', collection: 'all' });
-                                    setSortBy('sku');
                                 }}
                                 className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-colors"
                             >

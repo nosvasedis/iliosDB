@@ -79,7 +79,7 @@ describe('product registry view models', () => {
       plating: 'all',
       productionType: 'all',
       collection: 'all',
-      sortBy: 'sku',
+      sortBy: 'sku_asc',
     });
 
     expect(filtered.map((product) => product.sku)).toEqual(['A2', 'A10']);
@@ -92,7 +92,7 @@ describe('product registry view models', () => {
       plating: 'all',
       productionType: 'all',
       collection: '7',
-      sortBy: 'sku',
+      sortBy: 'sku_asc',
     });
 
     expect(filteredByCollection.map((product) => product.sku)).toEqual(['A10']);
@@ -112,5 +112,35 @@ describe('product registry view models', () => {
     expect(map.get('K10')?.product.sku).toBe('K10');
     expect(map.get('K10P')?.variant?.suffix).toBe('P');
     expect(map.get('K10X')?.variant?.suffix).toBe('X');
+  });
+
+  it('sorts registry products by sku descending, category, and price', () => {
+    const products = [
+      makeProduct({ sku: 'B20', category: 'Δαχτυλίδι', selling_price: 50 }),
+      makeProduct({ sku: 'A10', category: 'Βραχιόλι', selling_price: 100 }),
+      makeProduct({ sku: 'C5', category: 'Βραχιόλι', selling_price: 25 }),
+    ];
+    const searchable = buildSearchableProducts(products, new Set());
+    const baseFilters = {
+      category: 'All',
+      gender: 'All' as const,
+      searchTerm: '',
+      stone: 'all',
+      plating: 'all',
+      productionType: 'all',
+      collection: 'all',
+    };
+
+    expect(
+      filterRegistryProducts(searchable, { ...baseFilters, sortBy: 'sku_desc' }).map((p) => p.sku),
+    ).toEqual(['C5', 'B20', 'A10']);
+
+    expect(
+      filterRegistryProducts(searchable, { ...baseFilters, sortBy: 'category_asc' }).map((p) => p.sku),
+    ).toEqual(['A10', 'C5', 'B20']);
+
+    expect(
+      filterRegistryProducts(searchable, { ...baseFilters, sortBy: 'price_desc' }).map((p) => p.sku),
+    ).toEqual(['A10', 'B20', 'C5']);
   });
 });

@@ -20,8 +20,10 @@ export const INITIAL_SETTINGS: GlobalSettings = {
 // Stone Codes Dictionaries
 export const STONE_CODES_WOMEN: Record<string, string> = {
   'CO': 'Κόπερ',
+  'COMG': 'Κόπερ + Μαργαριτάρι',
   'PCO': 'Πράσινο Κόπερ',
   'MCO': 'Μωβ Κόπερ',
+  'MG': 'Μαργαριτάρι',
   'PAX': 'Πράσινος Αχάτης',
   'MAX': 'Μπλε Αχάτης',
   'KAX': 'Κόκκινος Αχάτης',

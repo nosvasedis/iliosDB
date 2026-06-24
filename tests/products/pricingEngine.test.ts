@@ -174,3 +174,38 @@ describe('Azurite-Malachite stone code (AZM)', () => {
     expect(description).toContain('Αζουρίτης - Μαλαχίτης');
   });
 });
+
+describe('Pearl stone codes (MG, COMG)', () => {
+  it('parses MG suffix as lustre with stone MG', () => {
+    const { stone, finish } = getVariantComponents('MG', Gender.Women);
+    expect(stone.code).toBe('MG');
+    expect(stone.name).toBe('Μαργαριτάρι');
+    expect(finish.code).toBe('');
+  });
+
+  it('parses XMG suffix as finish X with stone MG', () => {
+    const { stone, finish } = getVariantComponents('XMG', Gender.Women);
+    expect(stone.code).toBe('MG');
+    expect(stone.name).toBe('Μαργαριτάρι');
+    expect(finish.code).toBe('X');
+  });
+
+  it('parses COMG suffix as lustre with stone COMG', () => {
+    const { stone, finish } = getVariantComponents('COMG', Gender.Women);
+    expect(stone.code).toBe('COMG');
+    expect(stone.name).toBe('Κόπερ + Μαργαριτάρι');
+    expect(finish.code).toBe('');
+  });
+
+  it('parses PCOMG suffix as finish P with stone COMG (not CO)', () => {
+    const { stone, finish } = getVariantComponents('PCOMG', Gender.Women);
+    expect(stone.code).toBe('COMG');
+    expect(stone.name).toBe('Κόπερ + Μαργαριτάρι');
+    expect(finish.code).toBe('P');
+  });
+
+  it('generates Μαργαριτάρι in auto variant description for MG', () => {
+    const description = analyzeSuffix('MG', Gender.Women);
+    expect(description).toContain('Μαργαριτάρι');
+  });
+});

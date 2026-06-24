@@ -22,7 +22,6 @@ import {
     Factory,
     ShoppingBag,
     FolderOpen,
-    List,
 } from 'lucide-react';
 import { formatCurrency, findProductByScannedCode } from '../../utils/pricingEngine';
 import { useUI } from '../UIProvider';
@@ -36,6 +35,8 @@ import {
     getAvailableRegistryStones,
     getGroupedProductCategories,
     getStoneChipStyle,
+    RegistrySortSelect,
+    type RegistrySortMode,
 } from '../../features/products';
 
 interface Props {
@@ -203,9 +204,8 @@ function countActiveRegistryFilters(params: {
     filterCategory: string;
     filterGender: 'All' | Gender;
     subFilters: { stone: string; plating: string; productionType: string; collection: string };
-    sortBy: 'sku' | 'created_at';
 }) {
-    const { showStxOnly, filterCategory, filterGender, subFilters, sortBy } = params;
+    const { showStxOnly, filterCategory, filterGender, subFilters } = params;
     let n = 0;
     if (filterCategory !== 'All') n++;
     if (!showStxOnly && filterGender !== 'All') n++;
@@ -213,7 +213,6 @@ function countActiveRegistryFilters(params: {
     if (subFilters.plating !== 'all') n++;
     if (!showStxOnly && subFilters.productionType !== 'all') n++;
     if (!showStxOnly && subFilters.collection !== 'all') n++;
-    if (sortBy !== 'sku') n++;
     return n;
 }
 
@@ -235,7 +234,7 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
         productionType: 'all',
         collection: 'all',
     });
-    const [sortBy, setSortBy] = useState<'sku' | 'created_at'>('sku');
+    const [sortBy, setSortBy] = useState<RegistrySortMode>('sku_asc');
 
     const [displayLimit, setDisplayLimit] = useState(50);
 
@@ -285,7 +284,6 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
         filterCategory,
         filterGender,
         subFilters,
-        sortBy,
     });
 
     const quickCategoryLabels = useMemo(() => {
@@ -311,7 +309,6 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
         setFilterGender('All');
         setFilterCategory('All');
         setSubFilters({ stone: 'all', plating: 'all', productionType: 'all', collection: 'all' });
-        setSortBy('sku');
     };
 
     const stoneQuickActive =
@@ -357,6 +354,12 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
                         className="w-full pl-10 pr-3 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/25 focus:border-emerald-500 shadow-sm font-medium text-sm"
                     />
                 </div>
+                <RegistrySortSelect
+                    value={sortBy}
+                    onChange={setSortBy}
+                    compact
+                    className="shrink-0 w-[7.5rem]"
+                />
                 <button
                     type="button"
                     onClick={() => setShowFilterSheet(true)}
@@ -625,32 +628,6 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
                                     </div>
                                 </div>
                             )}
-
-                            <div className="space-y-2">
-                                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-                                    <List size={14} />
-                                    Ταξινόμηση
-                                </label>
-                                <div className="flex gap-2">
-                                    {[
-                                        { label: 'Κωδικός', value: 'sku' as const },
-                                        { label: 'Ημ/νία δημιουργίας', value: 'created_at' as const },
-                                    ].map((f) => (
-                                        <button
-                                            key={f.value}
-                                            type="button"
-                                            onClick={() => setSortBy(f.value)}
-                                            className={`flex-1 px-3 py-2.5 rounded-xl font-bold text-xs transition-all border ${
-                                                sortBy === f.value
-                                                    ? 'bg-[#060b00] text-white border-black'
-                                                    : 'bg-white text-slate-600 border-slate-200'
-                                            }`}
-                                        >
-                                            {f.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
 
                             {!showStxOnly && collections && collections.length > 0 && (
                                 <div className="space-y-2">

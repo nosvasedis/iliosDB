@@ -11,6 +11,8 @@ export const STONE_CHIP_STYLES: Record<string, { bg: string; text: string; dot: 
   MAX: { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-400' },
   KAX: { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-400' },
   CO: { bg: 'bg-teal-50', text: 'text-teal-800', dot: 'bg-teal-400' },
+  COMG: { bg: 'bg-teal-50', text: 'text-rose-400', dot: 'bg-teal-400' },
+  MG: { bg: 'bg-rose-50', text: 'text-rose-300', dot: 'bg-rose-200' },
   PCO: { bg: 'bg-emerald-50', text: 'text-emerald-800', dot: 'bg-emerald-500' },
   MCO: { bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-400' },
   TPR: { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-400' },

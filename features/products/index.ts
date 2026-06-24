@@ -4,6 +4,7 @@ export * from './newProductHelpers';
 export * from './mappers';
 export * from './productRegistryViewModels';
 export * from './registryStoneChipStyles';
+export { default as RegistrySortSelect } from './RegistrySortSelect';
 export {
   buildEditableProduct,
   buildVariantFinishGroups,

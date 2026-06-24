@@ -17,6 +17,25 @@ export interface RegistrySearchableProduct {
   hasStoneInRecipe: boolean;
 }
 
+export type RegistrySortMode =
+  | 'sku_asc'
+  | 'sku_desc'
+  | 'created_desc'
+  | 'created_asc'
+  | 'category_asc'
+  | 'price_desc'
+  | 'price_asc';
+
+export const REGISTRY_SORT_OPTIONS: Array<{ id: RegistrySortMode; label: string; helper: string }> = [
+  { id: 'sku_asc', label: 'Κωδικός', helper: 'Α→Ω' },
+  { id: 'sku_desc', label: 'Κωδικός', helper: 'Ω→Α' },
+  { id: 'created_desc', label: 'Νεότερα', helper: 'Πρώτα' },
+  { id: 'created_asc', label: 'Παλαιότερα', helper: 'Πρώτα' },
+  { id: 'category_asc', label: 'Κατηγορία', helper: 'Α→Ω' },
+  { id: 'price_desc', label: 'Τιμή', helper: 'Υψηλ→Χαμηλ' },
+  { id: 'price_asc', label: 'Τιμή', helper: 'Χαμηλ→Υψηλ' },
+];
+
 export interface ProductRegistryFilters {
   category: string;
   gender: 'All' | Gender;
@@ -25,7 +44,7 @@ export interface ProductRegistryFilters {
   plating: string;
   productionType: string;
   collection: string;
-  sortBy: 'sku' | 'created_at';
+  sortBy: RegistrySortMode;
 }
 
 export interface ProductRegistryTableVariant {
@@ -112,6 +131,10 @@ export function getAvailableRegistryStones(
   return Array.from(stoneMap.values()).sort((a, b) => b.count - a.count);
 }
 
+function compareRegistrySku(a: Product, b: Product): number {
+  return a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' });
+}
+
 export function filterRegistryProducts(
   searchableProducts: RegistrySearchableProduct[],
   filters: ProductRegistryFilters,
@@ -154,10 +177,29 @@ export function filterRegistryProducts(
   }).map(({ product }) => product);
 
   return filtered.sort((a, b) => {
-    if (filters.sortBy === 'created_at') {
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    switch (filters.sortBy) {
+      case 'sku_desc':
+        return compareRegistrySku(b, a);
+      case 'created_desc':
+        return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+      case 'created_asc':
+        return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+      case 'category_asc': {
+        const categoryCompare = a.category.localeCompare(b.category, undefined, { sensitivity: 'base' });
+        return categoryCompare !== 0 ? categoryCompare : compareRegistrySku(a, b);
+      }
+      case 'price_desc': {
+        const priceDiff = (b.selling_price || 0) - (a.selling_price || 0);
+        return priceDiff !== 0 ? priceDiff : compareRegistrySku(a, b);
+      }
+      case 'price_asc': {
+        const priceDiff = (a.selling_price || 0) - (b.selling_price || 0);
+        return priceDiff !== 0 ? priceDiff : compareRegistrySku(a, b);
+      }
+      case 'sku_asc':
+      default:
+        return compareRegistrySku(a, b);
     }
-    return a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' });
   });
 }
 

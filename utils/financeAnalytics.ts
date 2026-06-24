@@ -271,7 +271,7 @@ export const FINANCE_PERIOD_OPTIONS: Array<{ mode: FinancePeriodMode; label: str
   { mode: 'all_time', label: 'Όλα' },
 ];
 
-function isWithinPeriod(dateValue: string | undefined, period: ResolvedFinancePeriod): boolean {
+export function isWithinFinancePeriod(dateValue: string | undefined, period: ResolvedFinancePeriod): boolean {
   if (!period.start || !period.end) return true;
   if (!dateValue) return false;
   const time = new Date(dateValue).getTime();
@@ -491,7 +491,7 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
           materialsMap,
           sellerById,
         });
-        if (isWithinPeriod(event.date, period)) realizedEvents.push(event);
+        if (isWithinFinancePeriod(event.date, period)) realizedEvents.push(event);
       });
 
       if (order.status === OrderStatus.Delivered && orderShipments.length === 0) {
@@ -512,7 +512,7 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
             materialsMap,
             sellerById,
           });
-          if (isWithinPeriod(event.date, period)) realizedEvents.push(event);
+          if (isWithinFinancePeriod(event.date, period)) realizedEvents.push(event);
         });
       }
 
@@ -720,7 +720,7 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
   });
 
   const legalDocuments = input.legalDocuments || [];
-  const issuedLegal = legalDocuments.filter((document) => document.status === 'issued' && isWithinPeriod(document.issue_date || document.created_at, period));
+  const issuedLegal = legalDocuments.filter((document) => document.status === 'issued' && isWithinFinancePeriod(document.issue_date || document.created_at, period));
   const legal: FinanceLegalReconciliation = {
     issuedNet: roundMoney(issuedLegal.reduce((sum, document) => sum + (document.totals?.net || 0), 0)),
     issuedVat: roundMoney(issuedLegal.reduce((sum, document) => sum + (document.totals?.vat || 0), 0)),

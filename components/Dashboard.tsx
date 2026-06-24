@@ -4,7 +4,6 @@ import {
   TrendingUp, 
   Package, 
   AlertTriangle, 
-  Layers, 
   ArrowUpRight, 
   DollarSign, 
   Factory, 
@@ -17,6 +16,7 @@ import {
   Target, 
   Filter,
   Trophy,
+  ShoppingBag,
   Crown,
   Gem,
   HelpCircle,
@@ -45,7 +45,7 @@ import { getProductionStageLabel } from '../utils/productionStages';
 import DesktopPageHeader from './DesktopPageHeader';
 import FinancePeriodSelector from './FinancePeriodSelector';
 import { useFinanceAnalytics } from '../hooks/api/useFinanceAnalytics';
-import { FinancePeriodMode } from '../utils/financeAnalytics';
+import { FinancePeriodMode, isWithinFinancePeriod } from '../utils/financeAnalytics';
 
 interface Props {
   products: Product[];
@@ -92,6 +92,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
     settings,
     period: { mode: financePeriodMode },
   });
+  const periodLabel = financeStats?.period.label ?? 'την επιλεγμένη περίοδο';
 
   if (ordersError || batchesError) {
     const err = ordersErr || batchesErr;
@@ -228,26 +229,34 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
   }, [products, orders, batches, financeStats]);
 
   const categoryData = useMemo(() => {
+      if (!financeStats) return [];
       const counts: Record<string, number> = {};
-      products.filter(p => !p.is_component).forEach(p => {
-          if (categoryGenderFilter !== 'All' && p.gender !== categoryGenderFilter) return;
-          const cat = p.category.split(' ')[0]; 
-          counts[cat] = (counts[cat] || 0) + 1;
+      financeStats.events.realized.forEach(event => {
+          const product = products.find(p => p.sku === event.sku);
+          if (product?.is_component) return;
+          if (categoryGenderFilter !== 'All' && product && product.gender !== categoryGenderFilter) return;
+          const cat = (event.category || product?.category || 'Άλλο').split(' ')[0];
+          counts[cat] = (counts[cat] || 0) + event.quantity;
       });
       return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 8);
-  }, [products, categoryGenderFilter]);
+  }, [financeStats, products, categoryGenderFilter]);
 
   const productionStageData = useMemo(() => {
       if (!batches) return [];
+      const period = financeStats?.period;
       const stages: Record<string, number> = {};
       batches.forEach(b => {
-          if (b.current_stage !== ProductionStage.Ready) {
-              const label = STAGE_LABELS[b.current_stage] || b.current_stage;
-              stages[label] = (stages[label] || 0) + b.quantity;
-          }
+          if (b.current_stage === ProductionStage.Ready) return;
+          if (period && !isWithinFinancePeriod(b.created_at, period)) return;
+          const label = STAGE_LABELS[b.current_stage] || b.current_stage;
+          stages[label] = (stages[label] || 0) + b.quantity;
       });
       return Object.entries(stages).map(([name, value]) => ({ name, value }));
-  }, [batches]);
+  }, [batches, financeStats?.period]);
+
+  const topSoldProducts = useMemo(() => {
+      return (financeStats?.topProducts ?? []).slice(0, 5);
+  }, [financeStats?.topProducts]);
 
   const KPICard = ({ title, value, subValue, icon, colorClass, hint }: { title: string, value: string, subValue?: string, icon: React.ReactNode, colorClass: string, hint?: string }) => (
       <div 
@@ -279,7 +288,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       <DesktopPageHeader
         icon={Activity}
         title="Πίνακας Ελέγχου"
-        subtitle="Έξυπνη επισκόπηση και ανάλυση κερδοφορίας της επιχείρησης."
+        subtitle={`Έξυπνη επισκόπηση και ανάλυση κερδοφορίας για ${periodLabel.toLowerCase()}.`}
         tail={(
           <div className="flex flex-wrap items-center justify-end gap-3">
           <FinancePeriodSelector value={financePeriodMode} onChange={setFinancePeriodMode} />
@@ -313,7 +322,8 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       {activeTab === 'overview' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <KPICard title="Αξία Αποθήκης" value={formatCurrency(stats.totalCostValue)} subValue={`${stats.totalStockQty} Τεμάχια`} icon={<Wallet />} colorClass="text-emerald-600" hint="Η συνολική αξία κόστους των προϊόντων που βρίσκονται στην αποθήκη." />
+                  <KPICard title="Πραγματοποιημένα έσοδα" value={formatCurrency(stats.totalRevenue)} subValue={`${stats.shippedPieces} τεμ. απεστάλησαν`} icon={<DollarSign />} colorClass="text-emerald-600" hint={`Καθαρή αξία αποστολών για ${periodLabel.toLowerCase()}.`} />
+                  <KPICard title="Εκτιμώμενο κέρδος" value={formatCurrency(stats.financeProfit)} subValue={`${stats.financeMargin.toFixed(1)}% περιθώριο`} icon={<TrendingUp />} colorClass="text-blue-600" hint={`Μικτό κέρδος για ${periodLabel.toLowerCase()}.`} />
                   <div 
                     className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative overflow-hidden group"
                   >
@@ -342,15 +352,14 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                           </div>
                       </div>
                   </div>
-                  <KPICard title="Σε Παραγωγή" value={stats.totalItemsInProduction.toString()} icon={<Factory />} colorClass="text-amber-600" hint="Συνολικά τεμάχια που βρίσκονται αυτή τη στιγμή στα διάφορα στάδια της παραγωγής." />
-                  <KPICard title="Τιμή Ασημιού" value={`${formatDecimal(settings.silver_price_gram, 3)} €/g`} subValue="Τρέχουσα Αγορά" icon={<Coins />} colorClass="text-slate-600" hint="Η τρέχουσα τιμή αγοράς του ασημιού ανά γραμμάριο." />
+                  <KPICard title="Σε Παραγωγή" value={stats.totalItemsInProduction.toString()} subValue={`${stats.activeBatchesCount} παρτίδες ενεργές`} icon={<Factory />} colorClass="text-amber-600" hint="Τρέχουσα παραγωγή (όχι φιλτραρισμένη ανά περίοδο)." />
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   <div className="lg:col-span-2 bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
                       <div className="flex justify-between items-center mb-6">
                           <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-                              <PieChart size={20} className="text-blue-500"/> Κατανομή Κατηγοριών
+                              <PieChart size={20} className="text-blue-500"/> Πωλήσεις ανά Κατηγορία
                           </h3>
                           <div className="relative">
                               <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
@@ -387,7 +396,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                                       <span className="font-black text-slate-400">{item.value}</span>
                                   </div>
                               ))}
-                              {categoryData.length === 0 && <div className="text-slate-400 text-xs italic">Δεν βρέθηκαν δεδομένα for αυτή την επιλογή.</div>}
+                              {categoryData.length === 0 && <div className="text-slate-400 text-xs italic">Δεν βρέθηκαν πωλήσεις για {periodLabel.toLowerCase()}.</div>}
                           </div>
                       </div>
                   </div>
@@ -396,21 +405,21 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                         <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mt-10 blur-2xl"></div>
                         
                         <div className="text-center relative z-10">
-                            <p className="text-emerald-200/60 text-[10px] font-bold uppercase tracking-widest mb-2">Κεφάλαιο σε Μέταλλο</p>
-                            <h3 className="text-4xl font-black tracking-tight">{formatDecimal(stats.totalSilverWeight / 1000, 2)} <span className="text-lg opacity-40 font-medium">kg</span></h3>
+                            <p className="text-emerald-200/60 text-[10px] font-bold uppercase tracking-widest mb-2">Ασήμι Πωληθέν</p>
+                            <h3 className="text-4xl font-black tracking-tight">{stats.silverSold.toFixed(3)} <span className="text-lg opacity-40 font-medium">kg</span></h3>
                             <div className="bg-emerald-500/20 rounded-xl py-2 px-4 mt-4 inline-block border border-emerald-500/30">
-                                <p className="text-emerald-300 font-bold text-lg">≈ {formatCurrency(stats.totalSilverWeight * settings.silver_price_gram)}</p>
+                                <p className="text-emerald-300 font-bold text-lg">≈ {formatCurrency(stats.silverSold * 1000 * settings.silver_price_gram)}</p>
                             </div>
                         </div>
 
                         <div className="h-px bg-white/10 w-full"></div>
 
-                        <div className="text-center relative z-10" title="Η συνολική αξία πώλησης (χονδρική) αν πουληθεί όλο το υπάρχον στοκ.">
+                        <div className="text-center relative z-10">
                             <p className="text-emerald-200/60 text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center justify-center gap-1 cursor-help">
-                                Δυνητικός Τζίρος <HelpCircle size={10} />
+                                Πέτρες & Υλικά <HelpCircle size={10} />
                             </p>
-                            <h3 className="text-3xl font-black tracking-tight text-amber-400">{formatCurrency(stats.totalPotentialRevenue)}</h3>
-                            <p className="text-emerald-200/40 text-[10px] mt-1 italic">Αν πουληθεί όλο το στοκ (Χονδρική)</p>
+                            <h3 className="text-3xl font-black tracking-tight text-amber-400">{stats.stonesSold} <span className="text-lg opacity-40 font-medium">τμχ</span></h3>
+                            <p className="text-emerald-200/40 text-[10px] mt-1 italic">Από πωληθέντα είδη ({periodLabel.toLowerCase()})</p>
                         </div>
                   </div>
               </div>
@@ -569,9 +578,12 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       {activeTab === 'production' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
               <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-                  <h3 className="font-bold text-slate-800 mb-8 flex items-center gap-2">
-                      <Factory size={20} className="text-amber-500" /> Φόρτος Εργασίας ανά Στάδιο
-                  </h3>
+                  <div className="mb-8 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                      <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                          <Factory size={20} className="text-amber-500" /> Φόρτος Εργασίας ανά Στάδιο
+                      </h3>
+                      <p className="text-xs font-semibold text-slate-500">Παρτίδες που ξεκίνησαν {periodLabel.toLowerCase()}.</p>
+                  </div>
                   <div className="h-80">
                       <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={productionStageData}>
@@ -590,10 +602,31 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       {activeTab === 'inventory' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <KPICard title="Σύνολο Κωδικών" value={products.length.toString()} icon={<Layers/>} colorClass="text-slate-600" />
-                  <KPICard title="Σύνολο Τεμαχίων" value={stats.totalStockQty.toString()} icon={<Package/>} colorClass="text-blue-600" />
-                  <KPICard title="Κόστος Αποθέματος" value={formatCurrency(stats.totalCostValue)} icon={<Scale/>} colorClass="text-amber-600" />
-                  <KPICard title="Μέταλλο σε Στοκ" value={`${formatDecimal(stats.totalSilverWeight, 0)}g`} icon={<Coins/>} colorClass="text-slate-500" />
+                  <KPICard title="Τεμάχια Πωληθέντα" value={stats.shippedPieces.toString()} subValue={periodLabel} icon={<ShoppingBag/>} colorClass="text-emerald-600" hint={`Συνολικά τεμάχια που αποστάλθηκαν ${periodLabel.toLowerCase()}.`} />
+                  <KPICard title="Έσοδα Περιόδου" value={formatCurrency(stats.totalRevenue)} subValue={`${stats.financeMargin.toFixed(1)}% περιθώριο`} icon={<DollarSign/>} colorClass="text-blue-600" hint={`Πραγματοποιημένα έσοδα για ${periodLabel.toLowerCase()}.`} />
+                  <KPICard title="Τρέχον Απόθεμα" value={stats.totalStockQty.toString()} subValue={`${products.length} κωδικοί`} icon={<Package/>} colorClass="text-slate-600" hint="Συνολικά τεμάχια στην αποθήκη αυτή τη στιγμή." />
+                  <KPICard title="Αξία Αποθέματος" value={formatCurrency(stats.totalCostValue)} subValue={`${formatDecimal(stats.totalSilverWeight, 0)}g ασήμι`} icon={<Scale/>} colorClass="text-amber-600" hint="Τρέχουσα αξία κόστους αποθέματος." />
+              </div>
+
+              <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+                  <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
+                      <Trophy size={20} className="text-emerald-500" /> Κορυφαία Πωλήσεις ({periodLabel})
+                  </h3>
+                  <div className="space-y-4">
+                      {topSoldProducts.map((item) => (
+                          <div key={item.sku} className="flex items-center justify-between p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100">
+                              <div>
+                                  <div className="font-bold text-slate-800">{item.sku}</div>
+                                  <div className="text-[10px] text-slate-500">{item.quantity} τμχ</div>
+                              </div>
+                              <div className="text-right">
+                                  <div className="font-black text-emerald-700">{formatCurrency(item.revenue)}</div>
+                                  <div className="text-[10px] text-slate-400 font-bold">{item.margin.toFixed(1)}% περιθώριο</div>
+                              </div>
+                          </div>
+                      ))}
+                      {topSoldProducts.length === 0 && <div className="text-slate-400 text-sm text-center py-4">Δεν βρέθηκαν πωλήσεις για {periodLabel.toLowerCase()}.</div>}
+                  </div>
               </div>
 
               <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
