@@ -1,4 +1,4 @@
-import { Gender, Product } from '../../types';
+import { Gender, Product, Collection } from '../../types';
 import {
   FinanceCollectionRanking,
   FinanceCustomerRanking,
@@ -117,4 +117,94 @@ export function buildTopCustomerRows(
   limit = 8,
 ): FinanceCustomerRanking[] {
   return topCustomers.slice(0, limit);
+}
+
+export type EnrichedVariantAnalyticsRow = DashboardVariantRow & {
+  rank: number;
+  finishCode: string;
+  finishName: string;
+  stoneCode: string;
+  stoneName: string;
+  collectionLabel: string;
+  quantityShare: number;
+  peakShare: number;
+  avgUnitRevenue: number;
+  fullSku: string;
+};
+
+export type VariantAnalyticsSort = 'quantity' | 'revenue' | 'profit' | 'margin';
+
+export function buildEnrichedVariantAnalyticsRows(
+  topVariants: FinanceVariantRanking[],
+  products: Product[],
+  collections: Collection[],
+  limit = 100,
+): EnrichedVariantAnalyticsRow[] {
+  const bySku = productMap(products);
+  const collectionById = new Map(collections.map((c) => [c.id, c.name]));
+  const sorted = [...topVariants].sort((a, b) => b.quantity - a.quantity).slice(0, limit);
+  const topQty = sorted[0]?.quantity ?? 1;
+  const totalQty = sorted.reduce((sum, row) => sum + row.quantity, 0);
+
+  return sorted.map((row, index) => {
+    const product = bySku.get(row.sku);
+    const gender = product?.gender;
+    const suffix = (row.variantSuffix || '').toUpperCase();
+    const { finish, stone } = getVariantComponents(suffix, gender);
+    const collectionLabel =
+      (product?.collections || [])
+        .map((id) => collectionById.get(id))
+        .filter(Boolean)
+        .join(' · ') || '—';
+
+    return {
+      ...row,
+      variantSuffix: suffix,
+      gender,
+      rank: index + 1,
+      finishCode: finish.code,
+      finishName: finish.name || 'Λουστρέ',
+      stoneCode: stone.code,
+      stoneName: stone.name || '—',
+      collectionLabel,
+      quantityShare: totalQty > 0 ? (row.quantity / totalQty) * 100 : 0,
+      peakShare: topQty > 0 ? (row.quantity / topQty) * 100 : 0,
+      avgUnitRevenue: row.quantity > 0 ? row.revenue / row.quantity : 0,
+      fullSku: row.sku + suffix,
+    };
+  });
+}
+
+export function filterAndSortEnrichedVariants(
+  rows: EnrichedVariantAnalyticsRow[],
+  query: string,
+  sort: VariantAnalyticsSort,
+): EnrichedVariantAnalyticsRow[] {
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? rows.filter((row) => {
+        const haystack = [
+          row.sku,
+          row.variantSuffix,
+          row.fullSku,
+          row.category,
+          row.finishName,
+          row.stoneName,
+          row.collectionLabel,
+        ]
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(q);
+      })
+    : rows;
+
+  const sorted = [...filtered];
+  sorted.sort((a, b) => {
+    if (sort === 'revenue') return b.revenue - a.revenue;
+    if (sort === 'profit') return b.profit - a.profit;
+    if (sort === 'margin') return b.margin - a.margin;
+    return b.quantity - a.quantity;
+  });
+
+  return sorted.map((row, index) => ({ ...row, rank: index + 1 }));
 }

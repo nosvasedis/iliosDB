@@ -289,6 +289,69 @@ describe('buildFinanceAnalytics', () => {
     });
   });
 
+  it('merges variant suffixes regardless of case', () => {
+    const analytics = buildFinanceAnalytics({
+      orders: [
+        order({
+          id: 'case-order',
+          status: OrderStatus.PartiallyDelivered,
+          items: [
+            { sku: 'VAR', variant_suffix: 'xtg', quantity: 2, price_at_order: 50, line_id: 'line-a' },
+            { sku: 'VAR', variant_suffix: 'XTG', quantity: 3, price_at_order: 50, line_id: 'line-b' },
+          ],
+        }),
+      ],
+      shipments: [shipment({ id: 'case-ship', order_id: 'case-order' })],
+      shipmentItems: [
+        shipmentItem({ shipment_id: 'case-ship', sku: 'VAR', variant_suffix: 'xtg', quantity: 2, price_at_order: 50, line_id: 'line-a' }),
+        shipmentItem({ shipment_id: 'case-ship', sku: 'VAR', variant_suffix: 'XTG', quantity: 3, price_at_order: 50, line_id: 'line-b' }),
+      ],
+      products: [product({ sku: 'VAR', variants: [{ suffix: 'XTG', description: '', stock_qty: 0, selling_price: 50 }] })],
+      materials,
+      settings,
+      collections: [],
+      sellers: [],
+      legalDocuments: [],
+      period: { mode: 'all_time' },
+      now: new Date('2026-06-12T10:00:00.000Z'),
+    });
+
+    expect(analytics.topVariants).toHaveLength(1);
+    expect(analytics.topVariants[0]).toMatchObject({ variantSuffix: 'XTG', quantity: 5, revenue: 250 });
+  });
+
+  it('resolves full sku lines without variant_suffix into proper variant buckets', () => {
+    const analytics = buildFinanceAnalytics({
+      orders: [
+        order({
+          id: 'full-sku-order',
+          status: OrderStatus.PartiallyDelivered,
+          items: [{ sku: 'RN045XTG', quantity: 2, price_at_order: 40 }],
+        }),
+      ],
+      shipments: [shipment({ id: 'full-sku-ship', order_id: 'full-sku-order' })],
+      shipmentItems: [
+        shipmentItem({ shipment_id: 'full-sku-ship', sku: 'RN045XTG', quantity: 2, price_at_order: 40 }),
+      ],
+      products: [
+        product({
+          sku: 'RN045',
+          variants: [{ suffix: 'XTG', description: '', stock_qty: 0, selling_price: 40 }],
+        }),
+      ],
+      materials,
+      settings,
+      collections: [],
+      sellers: [],
+      legalDocuments: [],
+      period: { mode: 'all_time' },
+      now: new Date('2026-06-12T10:00:00.000Z'),
+    });
+
+    expect(analytics.topVariants).toHaveLength(1);
+    expect(analytics.topVariants[0]).toMatchObject({ sku: 'RN045', variantSuffix: 'XTG', quantity: 2 });
+  });
+
   it('calculates seller earned commission from shipped net value and pending commission from backlog', () => {
     const analytics = buildFinanceAnalytics({
       orders: [

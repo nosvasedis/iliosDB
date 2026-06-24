@@ -39,6 +39,8 @@ import DesktopPageHeader from './DesktopPageHeader';
 import FinancePeriodSelector from './FinancePeriodSelector';
 import DashboardStatCarousel, { type DashboardStatSlide } from './dashboard/DashboardStatCarousel';
 import DashboardSalesAnalysisCarousel, { PANEL_COUNT } from './dashboard/DashboardSalesAnalysisCarousel';
+import TopVariantsAnalyticsModal from './dashboard/TopVariantsAnalyticsModal';
+import { useCollections } from '../hooks/api/useCollections';
 import {
   buildCategoryChartData,
   buildCollectionChartData,
@@ -46,6 +48,7 @@ import {
   buildFinishChartData,
   buildTopVariantRows,
   buildTopCustomerRows,
+  buildEnrichedVariantAnalyticsRows,
 } from '../features/dashboard/dashboardAnalysisViewModels';
 import { useFinanceAnalytics } from '../hooks/api/useFinanceAnalytics';
 import { FinancePeriodMode, isWithinFinancePeriod } from '../utils/financeAnalytics';
@@ -92,6 +95,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
   const [showEstimatedProfit, setShowEstimatedProfit] = useState(false);
   const [statSlideIndex, setStatSlideIndex] = useState(0);
   const [analysisSlideIndex, setAnalysisSlideIndex] = useState(0);
+  const [topVariantsModalOpen, setTopVariantsModalOpen] = useState(false);
   const [silverOrderScope, setSilverOrderScope] = useState<SilverOrderScope>('active');
   const [financePeriodMode, setFinancePeriodMode] = useState<FinancePeriodMode>('current_year');
   const [legalReconciliationOpen, setLegalReconciliationOpen] = useState(false);
@@ -101,6 +105,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
     queryKey: productionKeys.batches(),
     queryFn: productionRepository.getProductionBatches,
   });
+  const { data: collections } = useCollections();
   const { analytics: financeStats } = useFinanceAnalytics({
     products,
     settings,
@@ -270,6 +275,16 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       if (!financeStats) return [];
       return buildTopVariantRows(financeStats.topVariants, products);
   }, [financeStats, products]);
+
+  const enrichedVariantRows = useMemo(() => {
+      if (!financeStats) return [];
+      return buildEnrichedVariantAnalyticsRows(
+        financeStats.topVariants,
+        products,
+        collections || [],
+        100,
+      );
+  }, [financeStats, products, collections]);
 
   const topCustomerRows = useMemo(() => {
       if (!financeStats) return [];
@@ -441,6 +456,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                         onCategoryGenderFilterChange={setCategoryGenderFilter}
                         periodLabel={periodLabel}
                         colors={COLORS}
+                        onOpenTopVariants={() => setTopVariantsModalOpen(true)}
                       />
                   </div>
 
@@ -467,6 +483,16 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                   </div>
               </div>
               </div>
+
+              {topVariantsModalOpen && (
+                <TopVariantsAnalyticsModal
+                  rows={enrichedVariantRows}
+                  periodLabel={periodLabel}
+                  shippedPieces={stats.shippedPieces}
+                  onClose={() => setTopVariantsModalOpen(false)}
+                  onOpenRegistry={onNavigate ? () => { setTopVariantsModalOpen(false); onNavigate('registry'); } : undefined}
+                />
+              )}
           </div>
       )}
 

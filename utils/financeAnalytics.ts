@@ -14,6 +14,7 @@ import {
 import { calculateProductCost, estimateVariantCost } from './pricingEngine';
 import { getShippedQuantitiesForOrderLines, itemKey } from '../utils/shipmentUtils';
 import { isSpecialCreationSku } from './specialCreationSku';
+import { resolveFinanceLineSku, variantRankingKey, normalizeVariantSuffix } from './financeLineSku';
 
 const RETAIL_CUSTOMER_ID = '00000000-0000-0000-0000-000000000003';
 const RETAIL_CUSTOMER_NAME = 'Λιανική';
@@ -374,16 +375,32 @@ function buildLineEvent(params: {
   const net = subtotal - discount;
   const vat = net * vatRate;
   const gross = net + vat;
-  const unitCost = getProductUnitCost({ product, variantSuffix: item.variant_suffix, order, settings, materials, products, productsMap, materialsMap });
+
+  const resolvedSku = resolveFinanceLineSku(item, products, productsMap);
+  const effectiveProduct = resolvedSku.product ?? product;
+  const effectiveVariantSuffix = resolvedSku.variantSuffix || null;
+
+  const unitCost = getProductUnitCost({
+    product: effectiveProduct,
+    variantSuffix: effectiveVariantSuffix,
+    order,
+    settings,
+    materials,
+    products,
+    productsMap,
+    materialsMap,
+  });
   const estimatedCost = unitCost.total * quantity;
   const profit = net - estimatedCost;
   const seller = order.seller_id ? sellerById.get(order.seller_id) : undefined;
   const sellerCommissionPercent = clampPercent(order.seller_commission_percent ?? seller?.commission_percent ?? 0);
-  const productCollections = product?.collections || [];
+  const productCollections = effectiveProduct?.collections || product?.collections || [];
   const collectionId = productCollections.length > 0 ? productCollections[0] : null;
   const collectionName = collectionId !== null ? (collectionById.get(collectionId)?.name || 'Χωρίς όνομα') : 'Χωρίς συλλογή';
-  const category = isSpecialCreationSku(item.sku) ? 'Ειδική δημιουργία' : (product?.category || 'Χωρίς προϊόν');
-  const silverWeight = ((product?.weight_g || 0) + (product?.secondary_weight_g || 0)) * quantity;
+  const category = isSpecialCreationSku(resolvedSku.masterSku)
+    ? 'Ειδική δημιουργία'
+    : (effectiveProduct?.category || product?.category || 'Χωρίς προϊόν');
+  const silverWeight = ((effectiveProduct?.weight_g || product?.weight_g || 0) + (effectiveProduct?.secondary_weight_g || product?.secondary_weight_g || 0)) * quantity;
 
   return {
     source,
@@ -396,8 +413,8 @@ function buildLineEvent(params: {
     sellerId: order.seller_id || null,
     sellerName: order.seller_name || seller?.full_name || null,
     sellerCommissionPercent,
-    sku: item.sku,
-    variantSuffix: item.variant_suffix ?? null,
+    sku: resolvedSku.masterSku,
+    variantSuffix: effectiveVariantSuffix,
     quantity,
     unitPrice: Number(item.price_at_order || 0),
     subtotal,
@@ -412,7 +429,7 @@ function buildLineEvent(params: {
     category,
     collectionId,
     collectionName,
-    productImage: product?.image_url || null,
+    productImage: effectiveProduct?.image_url || product?.image_url || null,
     silverWeight,
     costBreakdown: {
       silver: unitCost.breakdown.silver * quantity,
@@ -420,7 +437,7 @@ function buildLineEvent(params: {
       materials: unitCost.breakdown.materials * quantity,
     },
     priceOverride: Boolean(item.price_override),
-    costWarning: unitCost.warning ? `${item.sku}: ${unitCost.warning}` : undefined,
+    costWarning: unitCost.warning ? `${resolvedSku.masterSku}: ${unitCost.warning}` : undefined,
   };
 }
 
@@ -635,10 +652,10 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
       addRankingTotals(productRow, event);
       topProductsMap.set(event.sku, productRow);
 
-      const variantKey = `${event.sku}::${event.variantSuffix || ''}`;
+      const variantKey = variantRankingKey(event.sku, event.variantSuffix || '');
       const variantRow = topVariantsMap.get(variantKey) || {
         sku: event.sku,
-        variantSuffix: event.variantSuffix || '',
+        variantSuffix: normalizeVariantSuffix(event.variantSuffix),
         image: event.productImage,
         category: event.category,
         revenue: 0,

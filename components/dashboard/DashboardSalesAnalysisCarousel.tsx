@@ -9,6 +9,7 @@ import {
   Users,
   Sparkles,
   UserCheck,
+  ArrowUpRight,
 } from 'lucide-react';
 import {
   PieChart as RePieChart,
@@ -49,6 +50,7 @@ interface Props {
   onCategoryGenderFilterChange: (value: 'All' | Gender) => void;
   periodLabel: string;
   colors: string[];
+  onOpenTopVariants?: () => void;
 }
 
 function PiePanel({
@@ -112,6 +114,7 @@ export default function DashboardSalesAnalysisCarousel({
   onCategoryGenderFilterChange,
   periodLabel,
   colors,
+  onOpenTopVariants,
 }: Props) {
   const panel = PANELS[activeIndex];
   const Icon = panel.icon;
@@ -171,27 +174,40 @@ export default function DashboardSalesAnalysisCarousel({
     if (panel.type === 'variants') {
       if (topVariants.length === 0) return emptyMessage;
       return (
-        <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-          {topVariants.map((item, index) => (
-            <div
-              key={`${item.sku}::${item.variantSuffix}`}
-              className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3"
+        <div className="space-y-3">
+          <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+            {topVariants.map((item, index) => (
+              <div
+                key={`${item.sku}::${item.variantSuffix}`}
+                className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3 transition-colors hover:bg-slate-100/80"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="shrink-0 text-xs font-black text-slate-400">#{index + 1}</span>
+                  <SkuColorizedText
+                    sku={item.sku}
+                    suffix={item.variantSuffix}
+                    gender={item.gender}
+                    className="text-sm"
+                  />
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-sm font-black text-slate-800">{item.quantity} τεμ.</p>
+                  <p className="text-xs font-semibold text-slate-400">{formatCurrency(item.revenue)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          {onOpenTopVariants && (
+            <button
+              type="button"
+              onClick={onOpenTopVariants}
+              className="group flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-3 text-sm font-black text-emerald-800 transition-all hover:border-emerald-300 hover:shadow-md hover:shadow-emerald-100 active:scale-[0.99]"
             >
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="shrink-0 text-xs font-black text-slate-400">#{index + 1}</span>
-                <SkuColorizedText
-                  sku={item.sku}
-                  suffix={item.variantSuffix}
-                  gender={item.gender}
-                  className="text-sm"
-                />
-              </div>
-              <div className="shrink-0 text-right">
-                <p className="text-sm font-black text-slate-800">{item.quantity} τεμ.</p>
-                <p className="text-xs font-semibold text-slate-400">{formatCurrency(item.revenue)}</p>
-              </div>
-            </div>
-          ))}
+              <Trophy size={16} className="transition-transform group-hover:scale-110" />
+              Πλήρης ανάλυση (Top 100)
+              <ArrowUpRight size={16} className="opacity-60 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+            </button>
+          )}
         </div>
       );
     }
