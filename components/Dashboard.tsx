@@ -20,8 +20,6 @@ import {
   Crown,
   Gem,
   HelpCircle,
-  Eye,
-  EyeOff,
   ChevronDown,
   FileText,
 } from 'lucide-react';
@@ -44,6 +42,7 @@ import { useOrdersWithItems } from '../hooks/api/useOrders';
 import { getProductionStageLabel } from '../utils/productionStages';
 import DesktopPageHeader from './DesktopPageHeader';
 import FinancePeriodSelector from './FinancePeriodSelector';
+import DashboardStatCarousel, { type DashboardStatSlide } from './dashboard/DashboardStatCarousel';
 import { useFinanceAnalytics } from '../hooks/api/useFinanceAnalytics';
 import { FinancePeriodMode, isWithinFinancePeriod } from '../utils/financeAnalytics';
 
@@ -74,10 +73,20 @@ const SILVER_SCOPE_LABELS: Record<SilverOrderScope, string> = {
     all_non_cancelled: 'Όλες εκτός ακυρωμένων',
 };
 
+const DASHBOARD_TABS = [
+  { id: 'overview' as const, label: 'Επισκόπηση', icon: Activity },
+  { id: 'financials' as const, label: 'Οικονομικά', icon: DollarSign },
+  { id: 'production' as const, label: 'Παραγωγή', icon: Factory },
+  { id: 'inventory' as const, label: 'Αποθήκη', icon: Package },
+];
+
 export default function Dashboard({ products, settings, onNavigate }: Props) {
   const [activeTab, setActiveTab] = useState<'overview' | 'financials' | 'production' | 'inventory'>('overview');
   const [categoryGenderFilter, setCategoryGenderFilter] = useState<'All' | Gender>('All');
   const [showPendingRevenue, setShowPendingRevenue] = useState(false);
+  const [showRealizedRevenue, setShowRealizedRevenue] = useState(false);
+  const [showEstimatedProfit, setShowEstimatedProfit] = useState(false);
+  const [statSlideIndex, setStatSlideIndex] = useState(0);
   const [silverOrderScope, setSilverOrderScope] = useState<SilverOrderScope>('active');
   const [financePeriodMode, setFinancePeriodMode] = useState<FinancePeriodMode>('current_year');
   const [legalReconciliationOpen, setLegalReconciliationOpen] = useState(false);
@@ -258,6 +267,60 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       return (financeStats?.topProducts ?? []).slice(0, 5);
   }, [financeStats?.topProducts]);
 
+  const overviewStatSlides: DashboardStatSlide[] = useMemo(() => [
+    {
+      id: 'revenue',
+      title: 'Πραγματοποιημένα έσοδα',
+      value: formatCurrency(stats.totalRevenue),
+      sub: `${stats.shippedPieces} τεμ. απεστάλησαν`,
+      icon: DollarSign,
+      bg: 'bg-emerald-600',
+      text: 'text-white',
+      blurValue: !showRealizedRevenue,
+      showEyeToggle: true,
+      isValueVisible: showRealizedRevenue,
+      onToggleVisibility: () => setShowRealizedRevenue((v) => !v),
+    },
+    {
+      id: 'profit',
+      title: 'Εκτιμώμενο κέρδος',
+      value: formatCurrency(stats.financeProfit),
+      sub: `${stats.financeMargin.toFixed(1)}% περιθώριο`,
+      icon: TrendingUp,
+      bg: 'bg-blue-600',
+      text: 'text-white',
+      blurValue: !showEstimatedProfit,
+      showEyeToggle: true,
+      isValueVisible: showEstimatedProfit,
+      onToggleVisibility: () => setShowEstimatedProfit((v) => !v),
+    },
+    {
+      id: 'pending',
+      title: 'Εκκρεμής αξία',
+      value: formatCurrency(stats.pendingRevenue),
+      sub: `${stats.activeOrdersCount} ανοιχτές παραγγελίες · ${stats.backlogPieces} τεμ.`,
+      icon: Activity,
+      bg: 'bg-slate-900',
+      text: 'text-white',
+      blurValue: !showPendingRevenue,
+      showEyeToggle: true,
+      isValueVisible: showPendingRevenue,
+      onToggleVisibility: () => setShowPendingRevenue((v) => !v),
+    },
+    {
+      id: 'production',
+      title: 'Σε Παραγωγή',
+      value: stats.totalItemsInProduction.toString(),
+      sub: `${stats.activeBatchesCount} παρτίδες ενεργές`,
+      icon: Factory,
+      bg: 'bg-amber-500',
+      text: 'text-white',
+    },
+  ], [stats, showRealizedRevenue, showEstimatedProfit, showPendingRevenue]);
+
+  const goToPrevStat = () => setStatSlideIndex((i) => (i - 1 + overviewStatSlides.length) % overviewStatSlides.length);
+  const goToNextStat = () => setStatSlideIndex((i) => (i + 1) % overviewStatSlides.length);
+
   const KPICard = ({ title, value, subValue, icon, colorClass, hint }: { title: string, value: string, subValue?: string, icon: React.ReactNode, colorClass: string, hint?: string }) => (
       <div 
         className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative overflow-hidden group"
@@ -284,81 +347,55 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
   );
 
   return (
-    <div className="space-y-8 pb-12">
+    <div className="flex flex-col space-y-6">
       <DesktopPageHeader
         icon={Activity}
         title="Πίνακας Ελέγχου"
         subtitle={`Έξυπνη επισκόπηση και ανάλυση κερδοφορίας για ${periodLabel.toLowerCase()}.`}
+        tailClassName="flex w-full min-w-0 flex-1 flex-wrap items-center gap-3 lg:ml-auto lg:max-w-none lg:justify-end"
         tail={(
-          <div className="flex flex-wrap items-center justify-end gap-3">
-          <FinancePeriodSelector value={financePeriodMode} onChange={setFinancePeriodMode} />
-          <div className="flex overflow-x-auto rounded-2xl border border-slate-100 bg-white p-1.5 shadow-sm scrollbar-hide">
-            {[
-              { id: 'overview', label: 'Επισκόπηση', icon: Activity },
-              { id: 'financials', label: 'Οικονομικά', icon: DollarSign },
-              { id: 'production', label: 'Παραγωγή', icon: Factory },
-              { id: 'inventory', label: 'Αποθήκη', icon: Package },
-            ].map(tab => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                className={`
-                        flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold transition-all
-                        ${activeTab === tab.id
-                    ? 'bg-[#060b00] text-white shadow-md'
-                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}
-                    `}
-              >
-                <tab.icon size={16} />
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          <div className="flex flex-wrap gap-3">
+            <FinancePeriodSelector value={financePeriodMode} onChange={setFinancePeriodMode} />
+            <div className="flex rounded-xl bg-slate-100 p-1">
+              {DASHBOARD_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-bold transition-all ${
+                    activeTab === tab.id
+                      ? 'bg-white text-emerald-700 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <tab.icon size={16} />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       />
 
       {activeTab === 'overview' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <KPICard title="Πραγματοποιημένα έσοδα" value={formatCurrency(stats.totalRevenue)} subValue={`${stats.shippedPieces} τεμ. απεστάλησαν`} icon={<DollarSign />} colorClass="text-emerald-600" hint={`Καθαρή αξία αποστολών για ${periodLabel.toLowerCase()}.`} />
-                  <KPICard title="Εκτιμώμενο κέρδος" value={formatCurrency(stats.financeProfit)} subValue={`${stats.financeMargin.toFixed(1)}% περιθώριο`} icon={<TrendingUp />} colorClass="text-blue-600" hint={`Μικτό κέρδος για ${periodLabel.toLowerCase()}.`} />
-                  <div 
-                    className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all relative overflow-hidden group"
-                  >
-                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500 text-blue-600">
-                          <Activity size={64} />
-                      </div>
-                      <div>
-                          <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 cursor-help">
-                            Εκκρεμής αξία
-                            <HelpCircle size={12} className="text-slate-300 group-hover:text-slate-500 transition-colors pointer-events-none" />
-                          </p>
-                          <div className="flex items-center gap-2">
-                            <h3 className={`text-3xl font-black text-slate-800 tracking-tight ${!showPendingRevenue ? 'blur-lg select-none' : ''}`}>{formatCurrency(stats.pendingRevenue)}</h3>
-                            <button 
-                              onClick={() => setShowPendingRevenue(!showPendingRevenue)}
-                              className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors text-slate-400 hover:text-slate-600"
-                              title={showPendingRevenue ? 'Απόκρυψη' : 'Εμφάνιση'}
-                            >
-                              {showPendingRevenue ? <EyeOff size={18} /> : <Eye size={18} />}
-                            </button>
-                          </div>
-                      </div>
-                      <div className="mt-4">
-                          <div className="text-xs font-bold px-2 py-1 rounded-full bg-slate-50 inline-flex items-center gap-1 text-blue-600">
-                              {stats.activeOrdersCount} ανοιχτές παραγγελίες · {stats.backlogPieces} τεμ.
-                          </div>
-                      </div>
-                  </div>
-                  <KPICard title="Σε Παραγωγή" value={stats.totalItemsInProduction.toString()} subValue={`${stats.activeBatchesCount} παρτίδες ενεργές`} icon={<Factory />} colorClass="text-amber-600" hint="Τρέχουσα παραγωγή (όχι φιλτραρισμένη ανά περίοδο)." />
-              </div>
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <DashboardStatCarousel
+                variant="desktop"
+                slides={overviewStatSlides}
+                activeIndex={statSlideIndex}
+                onPrev={goToPrevStat}
+                onNext={goToNextStat}
+              />
 
+              <div>
+                <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                  <h2 className="text-lg font-bold text-slate-800">Ανάλυση περιόδου</h2>
+                  <p className="text-sm font-medium text-slate-500">{periodLabel}</p>
+                </div>
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div className="lg:col-span-2 bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+                  <div className="lg:col-span-2 bg-white p-8 rounded-3xl border border-slate-200/80 shadow-sm">
                       <div className="flex justify-between items-center mb-6">
-                          <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                          <h3 className="font-bold text-slate-800 text-xl flex items-center gap-2">
                               <PieChart size={20} className="text-blue-500"/> Πωλήσεις ανά Κατηγορία
                           </h3>
                           <div className="relative">
@@ -396,18 +433,22 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                                       <span className="font-black text-slate-400">{item.value}</span>
                                   </div>
                               ))}
-                              {categoryData.length === 0 && <div className="text-slate-400 text-xs italic">Δεν βρέθηκαν πωλήσεις για {periodLabel.toLowerCase()}.</div>}
+                              {categoryData.length === 0 && (
+                                <div className="py-8 text-center text-sm italic text-slate-400">
+                                  Δεν βρέθηκαν πωλήσεις για {periodLabel.toLowerCase()}.
+                                </div>
+                              )}
                           </div>
                       </div>
                   </div>
 
-                  <div className="bg-gradient-to-br from-[#060b00] to-emerald-900 p-8 rounded-3xl text-white shadow-xl flex flex-col justify-center gap-8 relative overflow-hidden">
+                  <div className="bg-gradient-to-br from-[#060b00] to-emerald-900 p-8 rounded-3xl text-white shadow-sm border border-slate-200/10 flex flex-col justify-center gap-6 relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mt-10 blur-2xl"></div>
                         
                         <div className="text-center relative z-10">
                             <p className="text-emerald-200/60 text-[10px] font-bold uppercase tracking-widest mb-2">Ασήμι Πωληθέν</p>
                             <h3 className="text-4xl font-black tracking-tight">{stats.silverSold.toFixed(3)} <span className="text-lg opacity-40 font-medium">kg</span></h3>
-                            <div className="bg-emerald-500/20 rounded-xl py-2 px-4 mt-4 inline-block border border-emerald-500/30">
+                            <div className="bg-emerald-500/20 rounded-xl py-2 px-4 mt-3 inline-block border border-emerald-500/30">
                                 <p className="text-emerald-300 font-bold text-lg">≈ {formatCurrency(stats.silverSold * 1000 * settings.silver_price_gram)}</p>
                             </div>
                         </div>
@@ -422,6 +463,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                             <p className="text-emerald-200/40 text-[10px] mt-1 italic">Από πωληθέντα είδη ({periodLabel.toLowerCase()})</p>
                         </div>
                   </div>
+              </div>
               </div>
           </div>
       )}
