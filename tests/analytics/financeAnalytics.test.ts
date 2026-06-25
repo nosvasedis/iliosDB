@@ -477,4 +477,85 @@ describe('buildFinanceAnalytics', () => {
     expect(analytics.itemsBreakdown.map((row) => row.sku)).toEqual(['RING']);
     expect(analytics.events.realized.some((row) => row.sku === 'SP')).toBe(true);
   });
+
+  it('dedupes identical realized shipment rows (duplicate shipment_item records)', () => {
+    const analytics = buildFinanceAnalytics({
+      orders: [
+        order({
+          id: 'order-dup',
+          customer_name: 'Gallery',
+          items: [{ sku: 'SKU1', variant_suffix: 'X', quantity: 2, price_at_order: 17.1, line_id: 'line-1' }],
+        }),
+      ],
+      shipments: [shipment({ id: 'ship-dup', order_id: 'order-dup', shipment_number: 1, shipped_at: '2026-04-22T10:00:00.000Z' })],
+      shipmentItems: [
+        shipmentItem({ id: 'si-1', shipment_id: 'ship-dup', sku: 'SKU1', variant_suffix: 'X', quantity: 2, price_at_order: 17.1, line_id: 'line-1' }),
+        shipmentItem({ id: 'si-2', shipment_id: 'ship-dup', sku: 'SKU1', variant_suffix: 'X', quantity: 2, price_at_order: 17.1, line_id: 'line-1' }),
+      ],
+      products: [product({ sku: 'SKU1' })],
+      materials,
+      settings,
+      period: { mode: 'all_time' },
+      now: new Date('2026-06-12T10:00:00.000Z'),
+    });
+
+    expect(analytics.events.realized).toHaveLength(1);
+    expect(analytics.totals.shippedPieces).toBe(2);
+    expect(analytics.events.realized[0].lineId).toBe('line-1');
+  });
+
+  it('uses current order seller on all shipment lines after assignment', () => {
+    const analytics = buildFinanceAnalytics({
+      orders: [
+        order({
+          id: 'order-seller',
+          customer_name: 'Gallery',
+          seller_id: 'seller-alex',
+          seller_name: 'Αλέξανδρος Παπαϊωαννίδης',
+          seller_commission_percent: 10,
+          items: [{ sku: 'SKU1', variant_suffix: 'X', quantity: 2, price_at_order: 17.1, line_id: 'line-1' }],
+        }),
+      ],
+      shipments: [shipment({ id: 'ship-1', order_id: 'order-seller', shipment_number: 500, shipped_at: '2026-04-22T10:00:00.000Z' })],
+      shipmentItems: [
+        shipmentItem({ shipment_id: 'ship-1', sku: 'SKU1', variant_suffix: 'X', quantity: 2, price_at_order: 17.1, line_id: 'line-1' }),
+      ],
+      products: [product({ sku: 'SKU1' })],
+      materials,
+      settings,
+      sellers: [{ id: 'seller-alex', email: 'alex@test.com', full_name: 'Αλέξανδρος Παπαϊωαννίδης', is_approved: true, role: 'seller', commission_percent: 8 }],
+      period: { mode: 'all_time' },
+      now: new Date('2026-06-12T10:00:00.000Z'),
+    });
+
+    expect(analytics.events.realized).toHaveLength(1);
+    expect(analytics.events.realized[0]).toMatchObject({
+      sellerId: 'seller-alex',
+      sellerName: 'Αλέξανδρος Παπαϊωαννίδης',
+      sellerCommissionPercent: 10,
+      quantity: 2,
+    });
+  });
+
+  it('resolves seller name from profile when order seller_name is missing', () => {
+    const analytics = buildFinanceAnalytics({
+      orders: [
+        order({
+          id: 'order-no-name',
+          seller_id: 'seller-alex',
+          items: [{ sku: 'SKU1', quantity: 1, price_at_order: 100, line_id: 'line-1' }],
+        }),
+      ],
+      shipments: [shipment({ id: 'ship-1', order_id: 'order-no-name' })],
+      shipmentItems: [shipmentItem({ shipment_id: 'ship-1', sku: 'SKU1', quantity: 1, price_at_order: 100, line_id: 'line-1' })],
+      products: [product({ sku: 'SKU1' })],
+      materials,
+      settings,
+      sellers: [{ id: 'seller-alex', email: 'alex@test.com', full_name: 'Αλέξανδρος Παπαϊωαννίδης', is_approved: true, role: 'seller' }],
+      period: { mode: 'all_time' },
+      now: new Date('2026-06-12T10:00:00.000Z'),
+    });
+
+    expect(analytics.events.realized[0].sellerName).toBe('Αλέξανδρος Παπαϊωαννίδης');
+  });
 });

@@ -15,6 +15,7 @@ import { calculateProductCost, estimateVariantCost } from './pricingEngine';
 import { getShippedQuantitiesForOrderLines, itemKey } from '../utils/shipmentUtils';
 import { isSpecialCreationSku } from './specialCreationSku';
 import { resolveFinanceLineSku, variantRankingKey, normalizeVariantSuffix } from './financeLineSku';
+import { resolveOrderSeller } from './orderSeller';
 
 const RETAIL_CUSTOMER_ID = '00000000-0000-0000-0000-000000000003';
 const RETAIL_CUSTOMER_NAME = 'Λιανική';
@@ -81,6 +82,8 @@ export interface FinanceLineEvent {
   };
   priceOverride: boolean;
   costWarning?: string;
+  /** Order line id when sourced from shipment/order item (helps distinguish twin lines). */
+  lineId?: string | null;
 }
 
 export interface FinanceTotals {
@@ -392,8 +395,7 @@ function buildLineEvent(params: {
   });
   const estimatedCost = unitCost.total * quantity;
   const profit = net - estimatedCost;
-  const seller = order.seller_id ? sellerById.get(order.seller_id) : undefined;
-  const sellerCommissionPercent = clampPercent(order.seller_commission_percent ?? seller?.commission_percent ?? 0);
+  const { sellerId, sellerName, sellerCommissionPercent } = resolveOrderSeller(order, sellerById);
   const productCollections = effectiveProduct?.collections || product?.collections || [];
   const collectionId = productCollections.length > 0 ? productCollections[0] : null;
   const collectionName = collectionId !== null ? (collectionById.get(collectionId)?.name || 'Χωρίς όνομα') : 'Χωρίς συλλογή';
@@ -410,8 +412,8 @@ function buildLineEvent(params: {
     date,
     customerId: order.customer_id || null,
     customerName: order.customer_name,
-    sellerId: order.seller_id || null,
-    sellerName: order.seller_name || seller?.full_name || null,
+    sellerId,
+    sellerName,
     sellerCommissionPercent,
     sku: resolvedSku.masterSku,
     variantSuffix: effectiveVariantSuffix,
@@ -438,7 +440,40 @@ function buildLineEvent(params: {
     },
     priceOverride: Boolean(item.price_override),
     costWarning: unitCost.warning ? `${resolvedSku.masterSku}: ${unitCost.warning}` : undefined,
+    lineId: item.line_id || null,
   };
+}
+
+/** Fingerprint for byte-identical finance rows (duplicate shipment_item rows, etc.). */
+export function financeEventDedupKey(event: FinanceLineEvent): string {
+  return [
+    event.source,
+    event.orderId,
+    event.shipmentId ?? '',
+    event.shipmentNumber ?? '',
+    event.lineId ?? '',
+    event.sku,
+    event.variantSuffix ?? '',
+    event.quantity,
+    event.unitPrice,
+    event.net,
+    event.profit,
+    event.date,
+    event.customerId ?? event.customerName,
+    event.sellerId ?? '',
+  ].join('\0');
+}
+
+export function dedupeIdenticalFinanceEvents(events: FinanceLineEvent[]): FinanceLineEvent[] {
+  const seen = new Set<string>();
+  const deduped: FinanceLineEvent[] = [];
+  events.forEach((event) => {
+    const key = financeEventDedupKey(event);
+    if (seen.has(key)) return;
+    seen.add(key);
+    deduped.push(event);
+  });
+  return deduped;
 }
 
 function addRankingTotals<T extends FinanceRankingBase>(target: T, event: FinanceLineEvent) {
@@ -566,7 +601,9 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
       });
     });
 
-  const totals = realizedEvents.reduce<FinanceTotals>(
+  const dedupedRealizedEvents = dedupeIdenticalFinanceEvents(realizedEvents);
+
+  const totals = dedupedRealizedEvents.reduce<FinanceTotals>(
     (acc, event) => {
       acc.realizedNet += event.net;
       acc.realizedGross += event.gross;
@@ -609,7 +646,7 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
     backlogOrderIds.add(event.orderId);
   });
 
-  const realizedOrderIds = new Set(realizedEvents.map((event) => event.orderId));
+  const realizedOrderIds = new Set(dedupedRealizedEvents.map((event) => event.orderId));
   totals.realizedOrderCount = realizedOrderIds.size;
   totals.activeOrderCount = backlogOrderIds.size;
   totals.averageOrderValue = totals.realizedOrderCount > 0 ? totals.realizedNet / totals.realizedOrderCount : 0;
@@ -617,7 +654,7 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
   totals.margin = totals.realizedNet > 0 ? (totals.estimatedProfit / totals.realizedNet) * 100 : 0;
   totals.silverWeightKg = totals.silverWeightGrams / 1000;
 
-  const costBreakdown = realizedEvents.reduce(
+  const costBreakdown = dedupedRealizedEvents.reduce(
     (acc, event) => {
       acc.silver += event.costBreakdown.silver;
       acc.labor += event.costBreakdown.labor;
@@ -636,7 +673,7 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
   const timeMap = new Map<string, FinanceTimePoint>();
   const timeOrderMap = new Map<string, number>();
 
-  realizedEvents.forEach((event) => {
+  dedupedRealizedEvents.forEach((event) => {
     const isSpecialLine = isSpecialCreationSku(event.sku);
 
     if (!isSpecialLine) {
@@ -754,10 +791,10 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
     topSellersMap.set(event.sellerId, sellerRow);
   });
 
-  realizedEvents.forEach((event) => {
+  dedupedRealizedEvents.forEach((event) => {
     const customerKey = event.customerId || event.customerName;
     const customerRow = topCustomersMap.get(customerKey);
-    if (customerRow) customerRow.orders = new Set(realizedEvents.filter((row) => (row.customerId || row.customerName) === customerKey).map((row) => row.orderId)).size;
+    if (customerRow) customerRow.orders = new Set(dedupedRealizedEvents.filter((row) => (row.customerId || row.customerName) === customerKey).map((row) => row.orderId)).size;
   });
 
   const legalDocuments = input.legalDocuments || [];
@@ -791,7 +828,7 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
     silverWeightKg: totals.silverWeightKg,
   };
 
-  const costWarnings = Array.from(new Set([...realizedEvents, ...backlogEvents].map((event) => event.costWarning).filter((warning): warning is string => Boolean(warning))));
+  const costWarnings = Array.from(new Set([...dedupedRealizedEvents, ...backlogEvents].map((event) => event.costWarning).filter((warning): warning is string => Boolean(warning))));
 
   return {
     period,
@@ -804,10 +841,10 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
     },
     legal,
     events: {
-      realized: realizedEvents,
+      realized: dedupedRealizedEvents,
       backlog: backlogEvents,
     },
-    itemsBreakdown: realizedEvents.filter((event) => !isSpecialCreationSku(event.sku)),
+    itemsBreakdown: dedupedRealizedEvents.filter((event) => !isSpecialCreationSku(event.sku)),
     backlogBreakdown: backlogEvents.filter((event) => !isSpecialCreationSku(event.sku)),
     topProducts: sortRankings(Array.from(topProductsMap.values())),
     topVariants: sortRankings(Array.from(topVariantsMap.values())),

@@ -26,6 +26,7 @@ import { getTagColor } from '../../features/orders/tagColors';
 import { OrdersFilterPanel, OrderFilters, DEFAULT_FILTERS, countActiveFilters } from '../orders/OrdersFilterPanel';
 import { useTagColorOverrides } from '../../hooks/api/useTagColorOverrides';
 import { invalidateOrdersAndBatches } from '../../lib/queryInvalidation';
+import { withResolvedOrderSeller } from '../../utils/orderSeller';
 import { PRODUCTION_STAGE_COLORS, getProductionStageLabel } from '../../utils/deliveryLabels';
 import { buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildShipmentPrintPayloads, buildSyntheticAggregatedBatches, buildOrderRevisions, orderMatchesSearch, canOfferRemainingTransfer } from '../../features/orders';
 import DebouncedSearchInput from '../orders/DebouncedSearchInput';
@@ -1723,13 +1724,13 @@ export default function MobileOrders({
                         <button
                             onClick={async () => {
                                 try {
-                                    const seller = sellers?.find(s => s.id === assignSellerId);
-                                    await api.updateOrder({
+                                    const updated = withResolvedOrderSeller({
                                         ...sellerAssignOrder,
                                         seller_id: assignSellerId || undefined,
-                                        seller_name: assignSellerName || seller?.full_name || undefined,
+                                        seller_name: assignSellerName || undefined,
                                         seller_commission_percent: assignCommission ?? null,
-                                    });
+                                    }, sellers);
+                                    await api.updateOrder(updated);
                                     invalidateOrdersAndBatches(queryClient);
                                     showToast('Ο πλασιέ ανατέθηκε.', 'success');
                                     setSellerAssignOrder(null);

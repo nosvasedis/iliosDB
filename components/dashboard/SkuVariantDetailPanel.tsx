@@ -129,10 +129,15 @@ export default function SkuVariantDetailPanel({ detail, gender, onSelectVariant 
     `${summary.silverWeightGrams.toFixed(1)} g`,
   ];
 
-  const tabs: { id: DetailTab; label: string; count?: number }[] = [
+  const tabs: { id: DetailTab; label: string; hint?: string; count?: number }[] = [
     { id: 'summary', label: 'Σύνοψη' },
     { id: 'customers', label: 'Πελάτες', count: detail.customers.length },
-    { id: 'lines', label: 'Γραμμές', count: detail.lines.length },
+    {
+      id: 'lines',
+      label: 'Πωλήσεις',
+      hint: 'Κάθε εγγραφή = μία αποστολή ή πραγματοποιημένη πώληση',
+      count: detail.lines.length,
+    },
     ...(detail.backlog.quantity > 0 ? [{ id: 'backlog' as const, label: 'Εκκρεμεί', count: detail.backlog.quantity }] : []),
   ];
 
@@ -188,6 +193,12 @@ export default function SkuVariantDetailPanel({ detail, gender, onSelectVariant 
             );
           })}
         </div>
+
+        {tab === 'lines' && (
+          <p className="mt-2 text-[10px] font-medium leading-relaxed text-blue-600/80">
+            Κάθε κάρτα είναι μία αποστολή ή πραγματοποιημένη πώληση αυτού του SKU (ημερομηνία, πελάτης, παραγγελία, ποσότητα).
+          </p>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
@@ -377,7 +388,7 @@ export default function SkuVariantDetailPanel({ detail, gender, onSelectVariant 
 
                 return (
                   <div
-                    key={`${line.orderId}-${line.shipmentId ?? 'legacy'}-${index}`}
+                    key={`${line.orderId}-${line.shipmentId ?? 'legacy'}-${line.lineId ?? 'noline'}-${line.date}-${index}`}
                     className={`rounded-xl border border-slate-100 p-3.5 shadow-sm ${accent}`}
                   >
                     <div className="flex items-start justify-between gap-2">

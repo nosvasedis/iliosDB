@@ -6,6 +6,8 @@ import { ShoppingCart, Plus, Search, Calendar, CheckCircle, Package, ArrowRight,
 import * as ReactQuery from '@tanstack/react-query';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { retailEndClientPillClass } from '../utils/retailPresentation';
+import { useSellers } from '../hooks/api/useSellers';
+import { withResolvedOrderSeller } from '../utils/orderSeller';
 import { useUI } from './UIProvider';
 import { useAuth } from './AuthContext';
 import { formatCurrency, getVariantComponents } from '../utils/pricingEngine';
@@ -112,6 +114,7 @@ function SellerAssignmentModal({ order, onClose, onSaved }: {
     onSaved: (updatedOrder: Order) => void;
 }) {
     const { showToast } = useUI();
+    const { data: sellers } = useSellers();
     const [sellerId, setSellerId] = React.useState<string | undefined>(order.seller_id);
     const [sellerName, setSellerName] = React.useState<string | undefined>(order.seller_name);
     const [commission, setCommission] = React.useState<number | undefined>(order.seller_commission_percent);
@@ -120,12 +123,12 @@ function SellerAssignmentModal({ order, onClose, onSaved }: {
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            const updated: Order = {
+            const updated = withResolvedOrderSeller({
                 ...order,
                 seller_id: sellerId || undefined,
                 seller_name: sellerName || undefined,
                 seller_commission_percent: sellerId ? commission : undefined,
-            };
+            }, sellers);
             await ordersRepository.updateOrder(updated);
             showToast('Ο πλασιέ ενημερώθηκε.', 'success');
             onSaved(updated);
