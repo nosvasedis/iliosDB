@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Product, GlobalSettings, Order, OrderStatus, ProductionStage, Gender, ProductionType } from '../types';
 import { 
   TrendingUp, 
@@ -31,9 +31,11 @@ import {
   ResponsiveContainer, 
 } from 'recharts';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { productionKeys, productionRepository } from '../features/production';
+import { orderKeys } from '../features/orders';
 import { useOrdersWithItems } from '../hooks/api/useOrders';
+import { useSellers } from '../hooks/api/useSellers';
 import { getProductionStageLabel } from '../utils/productionStages';
 import DesktopPageHeader from './DesktopPageHeader';
 import FinancePeriodSelector from './FinancePeriodSelector';
@@ -109,7 +111,9 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
   const [financePeriodMode, setFinancePeriodMode] = useState<FinancePeriodMode>('current_year');
   const [legalReconciliationOpen, setLegalReconciliationOpen] = useState(false);
 
+  const queryClient = useQueryClient();
   const { data: orders, isLoading: ordersLoading, isError: ordersError, error: ordersErr, refetch: refetchOrders } = useOrdersWithItems();
+  const { data: sellers } = useSellers();
   const { data: batches, isLoading: batchesLoading, isError: batchesError, error: batchesErr, refetch: refetchBatches } = useQuery({
     queryKey: productionKeys.batches(),
     queryFn: productionRepository.getProductionBatches,
@@ -126,6 +130,11 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
     period: { mode: financePeriodMode },
   });
   const periodLabel = financeStats?.period.label ?? 'την επιλεγμένη περίοδο';
+
+  const handleOpenTopVariants = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: orderKeys.all });
+    setTopVariantsModalOpen(true);
+  }, [queryClient]);
 
   if (ordersError || batchesError) {
     const err = ordersErr || batchesErr;
@@ -546,7 +555,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                 data={mosaicData}
                 loading={mosaicLoading}
                 onNavigate={handleMosaicNavigate}
-                onOpenTopVariants={() => setTopVariantsModalOpen(true)}
+                onOpenTopVariants={handleOpenTopVariants}
               />
 
               {topVariantsModalOpen && (
@@ -555,6 +564,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                   backlogEvents={financeStats?.events.backlog ?? []}
                   products={products}
                   orders={orders ?? []}
+                  sellers={sellers ?? []}
                   periodLabel={periodLabel}
                   onClose={() => setTopVariantsModalOpen(false)}
                   onOpenRegistry={onNavigate ? () => { setTopVariantsModalOpen(false); onNavigate('registry'); } : undefined}

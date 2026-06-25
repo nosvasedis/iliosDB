@@ -89,6 +89,36 @@ describe('skuModalFilters', () => {
     expect(byTag[0].orderId).toBe('order-1');
   });
 
+  it('filters by seller from current order assignment even when events lack sellerId', () => {
+    const ordersWithLateSeller = [
+      ...orders,
+      {
+        id: 'order-3',
+        customer_name: 'Gamma',
+        items: [],
+        status: 'Delivered',
+        created_at: '2026-01-03',
+        total_price: 80,
+        seller_id: 's2',
+        seller_name: 'Alexandros',
+      },
+    ] as any[];
+
+    const eventsWithoutSeller = [
+      ...realized,
+      event({ orderId: 'order-3', customerId: 'c3', customerName: 'Gamma', sku: 'NEW01', quantity: 3 }),
+    ];
+
+    const orderMeta = buildOrderMetaIndex(ordersWithLateSeller);
+    const filters = createEmptySkuModalFilters();
+    filters.sellers.add('s2');
+
+    const filtered = filterFinanceEventsForModal(eventsWithoutSeller, filters, orderMeta, []);
+    expect(filtered.some((row) => row.orderId === 'order-3')).toBe(true);
+    expect(filtered.find((row) => row.orderId === 'order-3')?.sellerId).toBe('s2');
+    expect(filtered.find((row) => row.orderId === 'order-3')?.sellerName).toBe('Alexandros');
+  });
+
   it('tracks gift quantity in variant rankings', () => {
     const rankings = aggregateVariantRankingsFromEvents(realized);
     const giftRow = rankings.find((r) => r.profit < 0);
@@ -109,9 +139,27 @@ describe('skuModalFilters', () => {
   });
 
   it('builds filter facets from events and orders', () => {
-    const orderMeta = buildOrderMetaIndex(orders);
-    const facets = buildFilterFacets(realized, orderMeta, []);
+    const ordersWithLateSeller = [
+      ...orders,
+      {
+        id: 'order-3',
+        customer_name: 'Gamma',
+        items: [],
+        status: 'Delivered',
+        created_at: '2026-01-03',
+        total_price: 80,
+        seller_id: 's2',
+        seller_name: 'Alexandros',
+      },
+    ] as any[];
+    const eventsWithoutSeller = [
+      ...realized,
+      event({ orderId: 'order-3', customerId: 'c3', customerName: 'Gamma' }),
+    ];
+    const orderMeta = buildOrderMetaIndex(ordersWithLateSeller);
+    const facets = buildFilterFacets(eventsWithoutSeller, orderMeta, []);
     expect(facets.tags).toContain('Αθήνα');
     expect(facets.customers.map((c) => c.name)).toEqual(expect.arrayContaining(['Alpha', 'Beta', 'Gamma']));
+    expect(facets.sellers.map((s) => s.id)).toEqual(expect.arrayContaining(['s1', 's2']));
   });
 });

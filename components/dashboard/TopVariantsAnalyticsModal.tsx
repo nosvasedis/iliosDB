@@ -9,7 +9,7 @@ import {
   Gift,
   Loader2,
 } from 'lucide-react';
-import { Gender, Order, Product } from '../../types';
+import { Gender, Order, Product, UserProfile } from '../../types';
 import { resolveImageUrl } from '../../lib/supabase';
 import { formatCurrency, splitSkuComponents } from '../../utils/pricingEngine';
 import { FinanceLineEvent } from '../../utils/financeAnalytics';
@@ -38,6 +38,7 @@ import {
   createEmptySkuModalFilters,
   describeNegativeProfit,
   filterFinanceEventsForModal,
+  applyOrderMetaToFinanceEvents,
   formatVariantMargin,
   type SkuModalFilterSelection,
 } from '../../features/dashboard/skuModalFilters';
@@ -64,6 +65,7 @@ interface Props {
   backlogEvents: FinanceLineEvent[];
   products: Product[];
   orders: Order[];
+  sellers?: UserProfile[];
   periodLabel: string;
   onClose: () => void;
   onOpenRegistry?: () => void;
@@ -186,6 +188,7 @@ function TopVariantsModalBody({
   backlogEvents,
   products,
   orders,
+  sellers,
   periodLabel,
   onOpenRegistry,
 }: Omit<Props, 'onClose'>) {
@@ -200,12 +203,17 @@ function TopVariantsModalBody({
   const [isPending, startTransition] = useTransition();
   const listParentRef = useRef<HTMLDivElement>(null);
 
-  const orderMeta = useMemo(() => buildOrderMetaIndex(orders), [orders]);
+  const orderMeta = useMemo(() => buildOrderMetaIndex(orders, sellers), [orders, sellers]);
   const productsMap = useMemo(() => new Map(products.map((p) => [p.sku, p])), [products]);
 
+  const realizedWithOrderMeta = useMemo(
+    () => applyOrderMetaToFinanceEvents(realizedEvents, orderMeta),
+    [realizedEvents, orderMeta],
+  );
+
   const facets = useMemo(
-    () => buildFilterFacets(realizedEvents, orderMeta, products),
-    [realizedEvents, orderMeta, products],
+    () => buildFilterFacets(realizedWithOrderMeta, orderMeta, products),
+    [realizedWithOrderMeta, orderMeta, products],
   );
 
   const filteredRealized = useMemo(

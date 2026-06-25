@@ -1,8 +1,9 @@
-import { Gender, Order, Product } from '../../types';
+import { Gender, Order, Product, UserProfile } from '../../types';
 import { FinanceLineEvent, FinanceVariantRanking } from '../../utils/financeAnalytics';
 import { variantRankingKey } from '../../utils/financeLineSku';
 import { getVariantComponents } from '../../utils/pricingEngine';
 import { isSpecialCreationSku } from '../../utils/specialCreationSku';
+import { resolveOrderSeller } from '../../utils/orderSeller';
 import {
   type EnrichedVariantAnalyticsRow,
   type VariantAnalyticsSort,
@@ -12,7 +13,36 @@ export type OrderMeta = {
   tags: string[];
   sellerId: string | null;
   sellerName: string | null;
+  sellerCommissionPercent: number;
 };
+
+function getEventSellerId(event: FinanceLineEvent, orderMeta: Map<string, OrderMeta>): string | null {
+  return orderMeta.get(event.orderId)?.sellerId ?? event.sellerId ?? null;
+}
+
+/** Overlay current order seller onto finance events (assignment can change after shipment). */
+export function applyOrderMetaToFinanceEvents(
+  events: FinanceLineEvent[],
+  orderMeta: Map<string, OrderMeta>,
+): FinanceLineEvent[] {
+  return events.map((event) => {
+    const meta = orderMeta.get(event.orderId);
+    if (!meta?.sellerId) return event;
+    if (
+      meta.sellerId === event.sellerId
+      && meta.sellerName === event.sellerName
+      && meta.sellerCommissionPercent === event.sellerCommissionPercent
+    ) {
+      return event;
+    }
+    return {
+      ...event,
+      sellerId: meta.sellerId,
+      sellerName: meta.sellerName ?? event.sellerName,
+      sellerCommissionPercent: meta.sellerCommissionPercent,
+    };
+  });
+}
 
 export type SkuModalFilterFacets = {
   customers: Array<{ id: string; name: string }>;
@@ -58,13 +88,15 @@ export function countActiveSkuModalFilters(filters: SkuModalFilterSelection): nu
   );
 }
 
-export function buildOrderMetaIndex(orders: Order[]): Map<string, OrderMeta> {
+export function buildOrderMetaIndex(orders: Order[], sellers?: UserProfile[]): Map<string, OrderMeta> {
   const map = new Map<string, OrderMeta>();
   orders.forEach((order) => {
+    const resolved = resolveOrderSeller(order, sellers);
     map.set(order.id, {
       tags: order.tags || [],
-      sellerId: order.seller_id || null,
-      sellerName: order.seller_name || null,
+      sellerId: resolved.sellerId,
+      sellerName: resolved.sellerName,
+      sellerCommissionPercent: resolved.sellerCommissionPercent,
     });
   });
   return map;
@@ -138,10 +170,6 @@ export function buildFilterFacets(
     const customerKey = event.customerId || event.customerName;
     customers.set(customerKey, event.customerName);
 
-    if (event.sellerId) {
-      sellers.set(event.sellerId, event.sellerName || 'Πλασιέ');
-    }
-
     categories.add(event.category.split(' ')[0]);
 
     const collectionKey = event.collectionId === null ? 'none' : String(event.collectionId);
@@ -156,7 +184,11 @@ export function buildFilterFacets(
 
   const orderIds = new Set(events.map((e) => e.orderId));
   orderIds.forEach((orderId) => {
-    orderMeta.get(orderId)?.tags.forEach((tag) => tags.add(tag));
+    const meta = orderMeta.get(orderId);
+    if (meta?.sellerId) {
+      sellers.set(meta.sellerId, meta.sellerName || sellers.get(meta.sellerId) || 'Πλασιέ');
+    }
+    meta?.tags.forEach((tag) => tags.add(tag));
   });
 
   return {
@@ -193,7 +225,8 @@ export function eventPassesSkuModalFilters(
   }
 
   if (filters.sellers.size > 0) {
-    if (!event.sellerId || !filters.sellers.has(event.sellerId)) return false;
+    const sellerId = getEventSellerId(event, orderMeta);
+    if (!sellerId || !filters.sellers.has(sellerId)) return false;
   }
 
   if (filters.categories.size > 0) {
@@ -228,7 +261,8 @@ export function filterFinanceEventsForModal(
   products: Product[],
 ): FinanceLineEvent[] {
   const productsBySku = new Map(products.map((p) => [p.sku, p]));
-  return events.filter((event) => eventPassesSkuModalFilters(event, filters, orderMeta, productsBySku));
+  const enriched = applyOrderMetaToFinanceEvents(events, orderMeta);
+  return enriched.filter((event) => eventPassesSkuModalFilters(event, filters, orderMeta, productsBySku));
 }
 
 export function buildSlimEnrichedRowsFromEvents(
