@@ -38,7 +38,7 @@ import { getProductionStageLabel } from '../utils/productionStages';
 import DesktopPageHeader from './DesktopPageHeader';
 import FinancePeriodSelector from './FinancePeriodSelector';
 import DashboardStatCarousel, { type DashboardStatSlide } from './dashboard/DashboardStatCarousel';
-import DashboardOverviewMosaic, { type DashboardNavigatePage } from './dashboard/DashboardOverviewMosaic';
+import DashboardOverviewMosaic, { type DashboardNavigatePage, type MosaicLoadingFlags } from './dashboard/DashboardOverviewMosaic';
 import TopVariantsAnalyticsModal from './dashboard/TopVariantsAnalyticsModal';
 import { useOrderDeliveryPlans } from '../hooks/api/useOrderDeliveryPlans';
 import { getAttentionItems } from '../utils/deliveryScheduling';
@@ -103,24 +103,25 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
   const [showPendingRevenue, setShowPendingRevenue] = useState(false);
   const [showRealizedRevenue, setShowRealizedRevenue] = useState(false);
   const [showEstimatedProfit, setShowEstimatedProfit] = useState(false);
-  const [statSlideIndex, setStatSlideIndex] = useState(0);
+  const [statFinanceIndex, setStatFinanceIndex] = useState(0);
+  const [statOpsIndex, setStatOpsIndex] = useState(0);
   const [topVariantsModalOpen, setTopVariantsModalOpen] = useState(false);
   const [silverOrderScope, setSilverOrderScope] = useState<SilverOrderScope>('active');
   const [financePeriodMode, setFinancePeriodMode] = useState<FinancePeriodMode>('current_year');
   const [legalReconciliationOpen, setLegalReconciliationOpen] = useState(false);
 
-  const { data: orders, isError: ordersError, error: ordersErr, refetch: refetchOrders } = useOrdersWithItems();
-  const { data: batches, isError: batchesError, error: batchesErr, refetch: refetchBatches } = useQuery({
+  const { data: orders, isLoading: ordersLoading, isError: ordersError, error: ordersErr, refetch: refetchOrders } = useOrdersWithItems();
+  const { data: batches, isLoading: batchesLoading, isError: batchesError, error: batchesErr, refetch: refetchBatches } = useQuery({
     queryKey: productionKeys.batches(),
     queryFn: productionRepository.getProductionBatches,
   });
   const { data: collections } = useCollections();
-  const { enrichedItems: deliveryItems } = useOrderDeliveryPlans();
-  const { data: offers } = useQuery({
+  const { enrichedItems: deliveryItems, isLoading: deliveryLoading } = useOrderDeliveryPlans();
+  const { data: offers, isLoading: offersLoading } = useQuery({
     queryKey: ['offers'],
     queryFn: api.getOffers,
   });
-  const { analytics: financeStats } = useFinanceAnalytics({
+  const { analytics: financeStats, isLoading: financeLoading } = useFinanceAnalytics({
     products,
     settings,
     period: { mode: financePeriodMode },
@@ -325,7 +326,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       return (financeStats?.topProducts ?? []).slice(0, 5);
   }, [financeStats?.topProducts]);
 
-  const overviewStatSlides: DashboardStatSlide[] = useMemo(() => [
+  const financeStatSlides: DashboardStatSlide[] = useMemo(() => [
     {
       id: 'revenue',
       title: 'Πραγματοποιημένα έσοδα',
@@ -352,6 +353,9 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       isValueVisible: showEstimatedProfit,
       onToggleVisibility: () => setShowEstimatedProfit((v) => !v),
     },
+  ], [stats, showRealizedRevenue, showEstimatedProfit]);
+
+  const opsStatSlides: DashboardStatSlide[] = useMemo(() => [
     {
       id: 'pending',
       title: 'Εκκρεμής αξία',
@@ -374,10 +378,12 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       bg: 'bg-amber-500',
       text: 'text-white',
     },
-  ], [stats, showRealizedRevenue, showEstimatedProfit, showPendingRevenue]);
+  ], [stats, showPendingRevenue]);
 
-  const goToPrevStat = () => setStatSlideIndex((i) => (i - 1 + overviewStatSlides.length) % overviewStatSlides.length);
-  const goToNextStat = () => setStatSlideIndex((i) => (i + 1) % overviewStatSlides.length);
+  const goToPrevFinanceStat = () => setStatFinanceIndex((i) => (i - 1 + financeStatSlides.length) % financeStatSlides.length);
+  const goToNextFinanceStat = () => setStatFinanceIndex((i) => (i + 1) % financeStatSlides.length);
+  const goToPrevOpsStat = () => setStatOpsIndex((i) => (i - 1 + opsStatSlides.length) % opsStatSlides.length);
+  const goToNextOpsStat = () => setStatOpsIndex((i) => (i + 1) % opsStatSlides.length);
 
   const deliveryAttention = useMemo(() => getAttentionItems(deliveryItems), [deliveryItems]);
   const productionPulse = useMemo(() => buildProductionPulse(batches), [batches]);
@@ -385,6 +391,14 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
   const demandPressure = useMemo(() => buildDemandPressureRows(products, orders), [products, orders]);
   const offersPipeline = useMemo(() => buildOffersSummary(offers), [offers]);
   const readyOrdersCount = useMemo(() => countReadyOrders(orders), [orders]);
+
+  const mosaicLoading: MosaicLoadingFlags = useMemo(() => ({
+    finance: financeLoading,
+    orders: ordersLoading,
+    batches: batchesLoading,
+    delivery: deliveryLoading,
+    offers: offersLoading,
+  }), [financeLoading, ordersLoading, batchesLoading, deliveryLoading, offersLoading]);
 
   const mosaicData = useMemo(() => ({
     periodLabel,
@@ -512,17 +526,29 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       />
 
       {activeTab === 'overview' && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <DashboardStatCarousel
-                variant="desktop"
-                slides={overviewStatSlides}
-                activeIndex={statSlideIndex}
-                onPrev={goToPrevStat}
-                onNext={goToNextStat}
-              />
+          <div className="space-y-6">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <DashboardStatCarousel
+                  variant="desktop"
+                  slides={financeStatSlides}
+                  activeIndex={statFinanceIndex}
+                  onPrev={goToPrevFinanceStat}
+                  onNext={goToNextFinanceStat}
+                  isLoading={financeLoading}
+                />
+                <DashboardStatCarousel
+                  variant="desktop"
+                  slides={opsStatSlides}
+                  activeIndex={statOpsIndex}
+                  onPrev={goToPrevOpsStat}
+                  onNext={goToNextOpsStat}
+                  isLoading={ordersLoading || batchesLoading}
+                />
+              </div>
 
               <DashboardOverviewMosaic
                 data={mosaicData}
+                loading={mosaicLoading}
                 onNavigate={handleMosaicNavigate}
                 onOpenTopVariants={() => setTopVariantsModalOpen(true)}
               />

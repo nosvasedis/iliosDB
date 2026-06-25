@@ -50,6 +50,14 @@ export type DashboardNavigatePage =
   | 'offers'
   | 'legal';
 
+export interface MosaicLoadingFlags {
+  finance: boolean;
+  orders: boolean;
+  batches: boolean;
+  delivery: boolean;
+  offers: boolean;
+}
+
 export interface DashboardMosaicData {
   periodLabel: string;
   colors: string[];
@@ -77,6 +85,7 @@ export interface DashboardMosaicData {
 
 interface Props {
   data: DashboardMosaicData;
+  loading: MosaicLoadingFlags;
   onNavigate?: (page: DashboardNavigatePage) => void;
   onOpenTopVariants?: () => void;
 }
@@ -95,12 +104,12 @@ function StatLine({
   return (
     <div className="flex items-center justify-between gap-2 text-xs">
       <span className={dark ? 'text-emerald-200/70' : 'text-slate-500'}>{label}</span>
-      <span className={`font-black ${dark ? 'text-white' : valueClass}`}>{value}</span>
+      <span className={`font-black tabular-nums ${dark ? 'text-white' : valueClass}`}>{value}</span>
     </div>
   );
 }
 
-export default function DashboardOverviewMosaic({ data, onNavigate, onOpenTopVariants }: Props) {
+export default function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants }: Props) {
   const {
     periodLabel,
     colors,
@@ -128,8 +137,6 @@ export default function DashboardOverviewMosaic({ data, onNavigate, onOpenTopVar
 
   const collectionRevenueByName = new Map(collectionRankings.map((c) => [c.name, c.revenue]));
   const emptySales = `Δεν βρέθηκαν πωλήσεις για ${periodLabel.toLowerCase()}.`;
-  let delay = 0;
-  const step = 40;
 
   return (
     <div>
@@ -138,28 +145,29 @@ export default function DashboardOverviewMosaic({ data, onNavigate, onOpenTopVar
         <p className="text-sm font-medium text-slate-500">{periodLabel}</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-12">
-        {/* Row 1 */}
+      <div className="grid auto-rows-fr grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-12 lg:gap-3.5">
+        {/* Ops row — four equal tiles */}
         <DashboardMosaicPane
           title="Ασήμι & Υλικά"
           icon={Gem}
           accent="dark"
-          colSpan={4}
-          animationDelay={(delay += step) - step}
+          size="md"
+          colSpan={3}
+          isLoading={loading.finance}
         >
-          <div className="space-y-4">
+          <div className="flex h-full flex-col justify-center gap-3">
             <div className="text-center">
               <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-200/60">Ασήμι Πωληθέν</p>
-              <p className="mt-1 text-2xl font-black tracking-tight">
+              <p className="mt-0.5 text-xl font-black tracking-tight tabular-nums">
                 {materials.silverSold.toFixed(3)}{' '}
                 <span className="text-sm font-medium opacity-40">kg</span>
               </p>
-              <p className="mt-1 text-sm font-bold text-emerald-300">≈ {formatCurrency(materials.silverValue)}</p>
+              <p className="mt-0.5 text-xs font-bold text-emerald-300 tabular-nums">≈ {formatCurrency(materials.silverValue)}</p>
             </div>
             <div className="h-px bg-white/10" />
             <div className="text-center">
               <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-200/60">Πέτρες & Υλικά</p>
-              <p className="mt-1 text-xl font-black text-amber-400">
+              <p className="mt-0.5 text-lg font-black text-amber-400 tabular-nums">
                 {materials.stonesSold} <span className="text-sm font-medium opacity-40">τμχ</span>
               </p>
             </div>
@@ -170,22 +178,23 @@ export default function DashboardOverviewMosaic({ data, onNavigate, onOpenTopVar
           title="Παλμός Παραγωγής"
           icon={Factory}
           accent="amber"
-          colSpan={4}
-          animationDelay={(delay += step) - step}
+          size="md"
+          colSpan={3}
+          isLoading={loading.batches}
           onNavigate={onNavigate ? () => onNavigate('production') : undefined}
         >
-          <div className="space-y-3">
+          <div className="flex h-full flex-col justify-center gap-2">
             <div className="flex items-center justify-between">
               <span className="text-xs text-slate-500">Υγεία ροής</span>
               <span
-                className={`text-2xl font-black ${
+                className={`text-2xl font-black tabular-nums ${
                   productionPulse.healthScore >= 80 ? 'text-emerald-600' : productionPulse.healthScore >= 50 ? 'text-amber-600' : 'text-red-600'
                 }`}
               >
                 {productionPulse.healthScore}%
               </span>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               <StatLine label="Καθυστερήσεις (>48ω)" value={String(productionPulse.delayed)} valueClass="text-red-600" />
               <StatLine label="Σε αναμονή" value={String(productionPulse.onHold)} valueClass="text-amber-600" />
               <StatLine label="Έτοιμες παρτίδες" value={String(productionPulse.ready)} valueClass="text-emerald-600" />
@@ -197,23 +206,22 @@ export default function DashboardOverviewMosaic({ data, onNavigate, onOpenTopVar
           title="Υπενθυμίσεις Παράδοσης"
           icon={Truck}
           accent="sky"
-          colSpan={4}
-          animationDelay={(delay += step) - step}
+          size="md"
+          colSpan={3}
+          isLoading={loading.delivery}
           onNavigate={onNavigate ? () => onNavigate('deliveries') : undefined}
         >
           {deliveryAttention.length === 0 ? (
             <MosaicEmptyState message="Καμία επείγουσα υπενθύμιση." />
           ) : (
-            <div className="space-y-1.5">
+            <div className="flex flex-col justify-center gap-1.5">
               {deliveryAttention.slice(0, 3).map((entry) => (
                 <div
                   key={entry.reminder.id}
-                  className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 px-2.5 py-2"
+                  className="flex h-10 items-center justify-between gap-2 rounded-xl bg-slate-50 px-2.5"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-xs font-black text-slate-800">
-                      {entry.item.order.customer_name}
-                    </p>
+                    <p className="truncate text-xs font-black text-slate-800">{entry.item.order.customer_name}</p>
                     <p className="text-[10px] text-slate-500">#{entry.item.order.id.slice(0, 8)}</p>
                   </div>
                   <span
@@ -225,46 +233,43 @@ export default function DashboardOverviewMosaic({ data, onNavigate, onOpenTopVar
                   </span>
                 </div>
               ))}
-              {deliveryAttention.length > 3 && (
-                <p className="text-center text-[10px] font-bold text-slate-400">
-                  +{deliveryAttention.length - 3} ακόμη
-                </p>
-              )}
             </div>
           )}
         </DashboardMosaicPane>
 
-        {/* Row 2 */}
         <DashboardMosaicPane
           title="Έτοιμες Παραγγελίες"
           icon={CheckCircle}
           accent="emerald"
-          colSpan={4}
-          animationDelay={(delay += step) - step}
+          size="sm"
+          colSpan={3}
+          isLoading={loading.orders}
           onNavigate={onNavigate ? () => onNavigate('orders') : undefined}
         >
-          <div className="flex flex-col items-center justify-center py-2">
-            <p className="text-4xl font-black text-emerald-600">{readyOrdersCount}</p>
+          <div className="flex h-full flex-col items-center justify-center">
+            <p className="text-4xl font-black text-emerald-600 tabular-nums">{readyOrdersCount}</p>
             <p className="mt-1 text-xs font-semibold text-slate-500">περιμένουν παράδοση</p>
           </div>
         </DashboardMosaicPane>
 
+        {/* Finance row */}
         <DashboardMosaicPane
           title="Μέσος Όρος Παραγγελίας"
           icon={Wallet}
           accent="emerald"
-          colSpan={4}
-          animationDelay={(delay += step) - step}
+          size="md"
+          colSpan={3}
+          isLoading={loading.finance}
           onNavigate={onNavigate ? () => onNavigate('analytics') : undefined}
         >
-          <div className="space-y-3 py-1">
+          <div className="flex h-full flex-col justify-center gap-3">
             <div>
               <p className="text-[10px] font-bold uppercase text-slate-400">Μ.Ο. αξία</p>
-              <p className="text-xl font-black text-slate-800">{formatCurrency(orderEconomics.averageOrderValue)}</p>
+              <p className="text-xl font-black text-slate-800 tabular-nums">{formatCurrency(orderEconomics.averageOrderValue)}</p>
             </div>
             <div>
               <p className="text-[10px] font-bold uppercase text-slate-400">Μ.Ο. τεμάχια</p>
-              <p className="text-xl font-black text-slate-800">{orderEconomics.averageBasketSize.toFixed(1)}</p>
+              <p className="text-xl font-black text-slate-800 tabular-nums">{orderEconomics.averageBasketSize.toFixed(1)}</p>
             </div>
           </div>
         </DashboardMosaicPane>
@@ -273,32 +278,33 @@ export default function DashboardOverviewMosaic({ data, onNavigate, onOpenTopVar
           title="Έκπτωση & ΦΠΑ"
           icon={Percent}
           accent="indigo"
-          colSpan={4}
-          animationDelay={(delay += step) - step}
+          size="md"
+          colSpan={3}
+          isLoading={loading.finance}
           onNavigate={onNavigate ? () => onNavigate('financials') : undefined}
         >
-          <div className="space-y-3 py-1">
+          <div className="flex h-full flex-col justify-center gap-3">
             <div>
               <p className="text-[10px] font-bold uppercase text-slate-400">Έκπτωση περιόδου</p>
-              <p className="text-xl font-black text-rose-600">{formatCurrency(discountVat.discount)}</p>
+              <p className="text-xl font-black text-rose-600 tabular-nums">{formatCurrency(discountVat.discount)}</p>
             </div>
             <div>
               <p className="text-[10px] font-bold uppercase text-slate-400">ΦΠΑ περιόδου</p>
-              <p className="text-xl font-black text-slate-800">{formatCurrency(discountVat.vat)}</p>
+              <p className="text-xl font-black text-slate-800 tabular-nums">{formatCurrency(discountVat.vat)}</p>
             </div>
           </div>
         </DashboardMosaicPane>
 
-        {/* Row 3 */}
         <DashboardMosaicPane
           title="Βάθος Εκκρεμοτήτων"
           icon={Activity}
           accent="slate"
-          colSpan={4}
-          animationDelay={(delay += step) - step}
+          size="md"
+          colSpan={3}
+          isLoading={loading.finance}
           onNavigate={onNavigate ? () => onNavigate('orders') : undefined}
         >
-          <div className="space-y-1.5">
+          <div className="flex h-full flex-col justify-center space-y-1">
             <StatLine label="Μικτή αξία" value={formatCurrency(backlogDepth.gross)} />
             <StatLine label="ΦΠΑ" value={formatCurrency(backlogDepth.vat)} />
             <StatLine label="Καθαρή αξία" value={formatCurrency(backlogDepth.net)} valueClass="text-slate-900" />
@@ -309,13 +315,14 @@ export default function DashboardOverviewMosaic({ data, onNavigate, onOpenTopVar
           title="Ανοιχτές Προσφορές"
           icon={Tag}
           accent="blue"
-          colSpan={4}
-          animationDelay={(delay += step) - step}
+          size="sm"
+          colSpan={3}
+          isLoading={loading.offers}
           onNavigate={onNavigate ? () => onNavigate('offers') : undefined}
         >
-          <div className="flex flex-col items-center justify-center py-2">
-            <p className="text-3xl font-black text-blue-600">{offersPipeline.count}</p>
-            <p className="mt-1 text-sm font-bold text-slate-600">{formatCurrency(offersPipeline.totalValue)}</p>
+          <div className="flex h-full flex-col items-center justify-center">
+            <p className="text-3xl font-black text-blue-600 tabular-nums">{offersPipeline.count}</p>
+            <p className="mt-1 text-sm font-bold text-slate-600 tabular-nums">{formatCurrency(offersPipeline.totalValue)}</p>
             <p className="mt-0.5 text-[10px] text-slate-400">σε αναμονή απάντησης</p>
           </div>
         </DashboardMosaicPane>
@@ -324,15 +331,16 @@ export default function DashboardOverviewMosaic({ data, onNavigate, onOpenTopVar
           title="Νομική Συμφωνία"
           icon={FileText}
           accent="indigo"
-          colSpan={4}
-          animationDelay={(delay += step) - step}
+          size="md"
+          colSpan={3}
+          isLoading={loading.finance}
           onNavigate={onNavigate ? () => onNavigate('legal') : undefined}
         >
-          <div className="space-y-2 py-1">
+          <div className="flex h-full flex-col justify-center gap-1">
             <div>
               <p className="text-[10px] font-bold uppercase text-slate-400">Διαφορά καθαρής αξίας</p>
               <p
-                className={`text-xl font-black ${
+                className={`text-xl font-black tabular-nums ${
                   Math.abs(compliance.legalGap) < 1 ? 'text-emerald-600' : 'text-amber-600'
                 }`}
               >
@@ -343,13 +351,13 @@ export default function DashboardOverviewMosaic({ data, onNavigate, onOpenTopVar
           </div>
         </DashboardMosaicPane>
 
-        {/* Row 4 - Sales */}
         <DashboardMosaicPane
           title="Πωλήσεις ανά Κατηγορία"
           icon={PieChart}
           accent="blue"
+          size="chart"
           colSpan={6}
-          animationDelay={(delay += step) - step}
+          isLoading={loading.finance}
           headerExtra={
             <div className="relative">
               <Filter className="absolute left-1.5 top-1/2 -translate-y-1/2 text-slate-400" size={10} />
@@ -357,7 +365,7 @@ export default function DashboardOverviewMosaic({ data, onNavigate, onOpenTopVar
                 value={categoryGenderFilter}
                 onChange={(e) => onCategoryGenderFilterChange(e.target.value as 'All' | Gender)}
                 onClick={(e) => e.stopPropagation()}
-                className="cursor-pointer appearance-none rounded-md border border-slate-200 bg-slate-50 py-1 pl-5 pr-2 text-[10px] font-bold text-slate-600 outline-none"
+                className="cursor-pointer appearance-none rounded-md border border-slate-200 bg-white py-1 pl-5 pr-2 text-[10px] font-bold text-slate-600 outline-none shadow-sm"
               >
                 <option value="All">Όλα</option>
                 <option value={Gender.Women}>Γυν.</option>
@@ -370,7 +378,7 @@ export default function DashboardOverviewMosaic({ data, onNavigate, onOpenTopVar
           {categoryData.length === 0 ? (
             <MosaicEmptyState message={emptySales} />
           ) : (
-            <MiniPiePanel data={categoryData} colors={colors} compact />
+            <MiniPiePanel data={categoryData} colors={colors} />
           )}
         </DashboardMosaicPane>
 
@@ -378,8 +386,9 @@ export default function DashboardOverviewMosaic({ data, onNavigate, onOpenTopVar
           title="Πωλήσεις ανά Συλλογή"
           icon={Boxes}
           accent="violet"
+          size="chart"
           colSpan={6}
-          animationDelay={(delay += step) - step}
+          isLoading={loading.finance}
           onNavigate={onNavigate ? () => onNavigate('collections') : undefined}
         >
           {collectionData.length === 0 ? (
@@ -388,7 +397,6 @@ export default function DashboardOverviewMosaic({ data, onNavigate, onOpenTopVar
             <MiniPiePanel
               data={collectionData}
               colors={colors}
-              compact
               legendExtra={(item) => (
                 <p className="text-[9px] font-semibold text-slate-400">
                   {formatCurrency(collectionRevenueByName.get(item.name) ?? 0)}
@@ -402,8 +410,9 @@ export default function DashboardOverviewMosaic({ data, onNavigate, onOpenTopVar
           title="Κορυφαία SKU"
           icon={Trophy}
           accent="amber"
+          size="list"
           colSpan={6}
-          animationDelay={(delay += step) - step}
+          isLoading={loading.finance}
         >
           {topVariants.length === 0 ? (
             <MosaicEmptyState message={emptySales} />
@@ -416,13 +425,14 @@ export default function DashboardOverviewMosaic({ data, onNavigate, onOpenTopVar
           title="Πωλήσεις ανά Φύλο"
           icon={Users}
           accent="sky"
-          colSpan={4}
-          animationDelay={(delay += step) - step}
+          size="chart"
+          colSpan={3}
+          isLoading={loading.finance}
         >
           {genderData.length === 0 ? (
             <MosaicEmptyState message={emptySales} />
           ) : (
-            <MiniPiePanel data={genderData} colors={colors} compact />
+            <MiniPiePanel data={genderData} colors={colors} />
           )}
         </DashboardMosaicPane>
 
@@ -430,13 +440,14 @@ export default function DashboardOverviewMosaic({ data, onNavigate, onOpenTopVar
           title="Πωλήσεις ανά Φινίρισμα"
           icon={Sparkles}
           accent="rose"
-          colSpan={4}
-          animationDelay={(delay += step) - step}
+          size="chart"
+          colSpan={3}
+          isLoading={loading.finance}
         >
           {finishData.length === 0 ? (
             <MosaicEmptyState message={emptySales} />
           ) : (
-            <MiniPiePanel data={finishData} colors={colors} compact />
+            <MiniPiePanel data={finishData} colors={colors} />
           )}
         </DashboardMosaicPane>
 
@@ -444,8 +455,9 @@ export default function DashboardOverviewMosaic({ data, onNavigate, onOpenTopVar
           title="Κορυφαίοι Πελάτες"
           icon={UserCheck}
           accent="emerald"
-          colSpan={4}
-          animationDelay={(delay += step) - step}
+          size="list"
+          colSpan={6}
+          isLoading={loading.finance}
           onNavigate={onNavigate ? () => onNavigate('customers') : undefined}
         >
           {topCustomers.length === 0 ? (
@@ -455,32 +467,35 @@ export default function DashboardOverviewMosaic({ data, onNavigate, onOpenTopVar
           )}
         </DashboardMosaicPane>
 
-        {/* Row 6 - Inventory */}
+        {/* Inventory */}
         <DashboardMosaicPane
           title="Χαμηλό Απόθεμα"
           icon={Package}
           accent="violet"
+          size="lg"
           colSpan={6}
-          animationDelay={(delay += step) - step}
           onNavigate={onNavigate ? () => onNavigate('inventory') : undefined}
         >
           {inventoryRisk.totalLowStock === 0 ? (
             <MosaicEmptyState message="Όλα τα είδη έχουν επαρκές απόθεμα." />
           ) : (
-            <div className="space-y-2">
-              <p className="text-xs font-bold text-violet-600">
-                {inventoryRisk.totalLowStock} είδη &lt; 5 τεμ.
-              </p>
+            <div className="flex h-full flex-col justify-center gap-2">
+              <p className="text-xs font-bold text-violet-600">{inventoryRisk.totalLowStock} είδη &lt; 5 τεμ.</p>
               <div className="space-y-1.5">
                 {inventoryRisk.rows.map((row) => (
                   <div
                     key={`${row.sku}::${row.suffix}`}
-                    className="flex items-center justify-between rounded-xl bg-slate-50 px-2.5 py-2"
+                    className="flex h-9 items-center justify-between rounded-xl bg-slate-50 px-2.5"
                   >
                     <span className="truncate text-xs font-bold text-slate-700">{row.label}</span>
-                    <span className="shrink-0 text-xs font-black text-red-600">{row.stock} τεμ.</span>
+                    <span className="shrink-0 text-xs font-black text-red-600 tabular-nums">{row.stock} τεμ.</span>
                   </div>
                 ))}
+                {inventoryRisk.totalLowStock > inventoryRisk.rows.length && (
+                  <p className="text-center text-[10px] font-bold text-slate-400">
+                    +{inventoryRisk.totalLowStock - inventoryRisk.rows.length} ακόμη
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -490,23 +505,24 @@ export default function DashboardOverviewMosaic({ data, onNavigate, onOpenTopVar
           title="Ζήτηση > Απόθεμα"
           icon={AlertTriangle}
           accent="amber"
+          size="lg"
           colSpan={6}
-          animationDelay={(delay += step) - step}
+          isLoading={loading.orders}
           onNavigate={onNavigate ? () => onNavigate('inventory') : undefined}
         >
           {demandPressure.totalPressure === 0 ? (
             <MosaicEmptyState message="Η ζήτηση καλύπτεται από το απόθεμα." />
           ) : (
-            <div className="space-y-2">
+            <div className="flex h-full flex-col justify-center gap-2">
               <p className="text-xs font-bold text-amber-600">{demandPressure.totalPressure} είδη με έλλειμμα</p>
               <div className="space-y-1.5">
                 {demandPressure.rows.map((row) => (
                   <div
                     key={`${row.sku}::${row.suffix}`}
-                    className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 px-2.5 py-2"
+                    className="flex h-9 items-center justify-between gap-2 rounded-xl bg-slate-50 px-2.5"
                   >
                     <span className="truncate text-xs font-bold text-slate-700">{row.label}</span>
-                    <span className="shrink-0 text-[10px] font-black text-amber-700">
+                    <span className="shrink-0 text-[10px] font-black text-amber-700 tabular-nums">
                       {row.demand} ζήτ. / {row.stock} αποθ.
                     </span>
                   </div>

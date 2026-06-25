@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export type DashboardStatSlide = {
   id: string;
@@ -21,6 +21,8 @@ interface Props {
   onPrev: () => void;
   onNext: () => void;
   variant?: 'mobile' | 'desktop';
+  isLoading?: boolean;
+  className?: string;
 }
 
 export default function DashboardStatCarousel({
@@ -29,6 +31,8 @@ export default function DashboardStatCarousel({
   onPrev,
   onNext,
   variant = 'mobile',
+  isLoading = false,
+  className = '',
 }: Props) {
   const slide = slides[activeIndex];
   const Icon = slide.icon;
@@ -50,8 +54,8 @@ export default function DashboardStatCarousel({
   return (
     <div
       className={`relative flex flex-col justify-between overflow-hidden shadow-sm transition-colors duration-300 ${
-        isDesktop ? 'min-h-[10.5rem] rounded-3xl p-6 pb-8' : 'h-32 rounded-2xl p-5 pb-6'
-      } ${slide.bg}`}
+        isDesktop ? 'h-[10.5rem] rounded-3xl p-6 pb-8' : 'h-32 rounded-2xl p-5 pb-6'
+      } ${slide.bg} ${className}`}
       tabIndex={isDesktop ? 0 : undefined}
       onKeyDown={isDesktop ? handleKeyDown : undefined}
       role="region"
@@ -107,40 +111,50 @@ export default function DashboardStatCarousel({
         </div>
       </div>
 
-      <div className="relative z-10">
-        <div className="flex items-center gap-2">
-          <div
-            className={`font-black ${slide.text} ${slide.blurValue ? 'blur-lg select-none' : ''} ${
-              isDesktop ? 'text-4xl md:text-5xl' : 'text-2xl'
-            }`}
-          >
-            {slide.value}
+      <div className="relative z-10 min-h-[4.5rem]">
+        {isLoading ? (
+          <div className="flex h-full min-h-[4.5rem] items-center">
+            <Loader2 size={isDesktop ? 32 : 24} className={`animate-spin opacity-70 ${slide.text}`} />
           </div>
-          {slide.showEyeToggle && slide.onToggleVisibility && (
-            <button
-              type="button"
-              onClick={slide.onToggleVisibility}
-              className={`rounded-lg transition-colors opacity-60 hover:bg-white/10 hover:opacity-100 ${
-                isDesktop ? 'p-2' : 'p-1.5'
-              }`}
-              title={slide.isValueVisible ? 'Απόκρυψη' : 'Εμφάνιση'}
-            >
-              {slide.isValueVisible ? (
-                <EyeOff size={isDesktop ? 18 : 16} className={slide.text} />
-              ) : (
-                <Eye size={isDesktop ? 18 : 16} className={slide.text} />
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              <div
+                className={`font-black tabular-nums ${slide.text} ${slide.blurValue ? 'blur-lg select-none' : ''} ${
+                  isDesktop ? 'text-3xl lg:text-4xl' : 'text-2xl'
+                }`}
+              >
+                {slide.value}
+              </div>
+              {slide.showEyeToggle && slide.onToggleVisibility && (
+                <button
+                  type="button"
+                  onClick={slide.onToggleVisibility}
+                  className={`rounded-lg transition-colors opacity-60 hover:bg-white/10 hover:opacity-100 ${
+                    isDesktop ? 'p-2' : 'p-1.5'
+                  }`}
+                  title={slide.isValueVisible ? 'Απόκρυψη' : 'Εμφάνιση'}
+                >
+                  {slide.isValueVisible ? (
+                    <EyeOff size={isDesktop ? 18 : 16} className={slide.text} />
+                  ) : (
+                    <Eye size={isDesktop ? 18 : 16} className={slide.text} />
+                  )}
+                </button>
               )}
-            </button>
-          )}
-        </div>
-        {slide.sub && (
-          <div
-            className={`font-medium opacity-70 ${slide.text} ${
-              slide.blurValue ? 'blur-lg select-none' : ''
-            } ${isDesktop ? 'mt-1 text-sm' : 'text-[10px]'}`}
-          >
-            {slide.sub}
-          </div>
+            </div>
+            {slide.sub ? (
+              <div
+                className={`font-medium opacity-70 ${slide.text} ${
+                  slide.blurValue ? 'blur-lg select-none' : ''
+                } ${isDesktop ? 'mt-1 text-sm' : 'text-[10px]'}`}
+              >
+                {slide.sub}
+              </div>
+            ) : (
+              <div className={isDesktop ? 'mt-1 h-5' : 'mt-1 h-4'} aria-hidden />
+            )}
+          </>
         )}
       </div>
 

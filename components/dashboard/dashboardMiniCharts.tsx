@@ -7,7 +7,6 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { ArrowUpRight, Trophy } from 'lucide-react';
-import { formatCurrency } from '../../utils/pricingEngine';
 import SkuColorizedText from '../SkuColorizedText';
 import type { DashboardPieSlice, DashboardVariantRow } from '../../features/dashboard/dashboardAnalysisViewModels';
 import { FinanceCustomerRanking } from '../../utils/financeAnalytics';
@@ -15,7 +14,6 @@ import { FinanceCustomerRanking } from '../../utils/financeAnalytics';
 export function MiniPiePanel({
   data,
   colors,
-  compact = false,
   legendExtra,
 }: {
   data: DashboardPieSlice[];
@@ -23,17 +21,16 @@ export function MiniPiePanel({
   compact?: boolean;
   legendExtra?: (item: DashboardPieSlice, idx: number) => React.ReactNode;
 }) {
-  const chartHeight = compact ? 'h-28' : 'h-36';
-  const outerRadius = compact ? 48 : 60;
+  const outerRadius = 52;
 
   return (
-    <div className={`grid grid-cols-1 items-center gap-3 ${compact ? '' : 'md:grid-cols-2 md:gap-4'}`}>
-      <div className={chartHeight}>
+    <div className="grid h-full grid-cols-1 items-center gap-2 lg:grid-cols-5">
+      <div className="h-[7.5rem] lg:col-span-2">
         <ResponsiveContainer width="100%" height="100%">
           <RePieChart>
             <Pie
               data={data}
-              innerRadius={compact ? 20 : 28}
+              innerRadius={24}
               outerRadius={outerRadius}
               dataKey="value"
               stroke="white"
@@ -49,7 +46,7 @@ export function MiniPiePanel({
           </RePieChart>
         </ResponsiveContainer>
       </div>
-      <div className="max-h-32 space-y-1 overflow-y-auto pr-0.5">
+      <div className="flex h-[7.5rem] flex-col justify-center space-y-1 overflow-y-auto pr-0.5 lg:col-span-3">
         {data.map((item, idx) => (
           <div key={item.name} className="flex items-center justify-between gap-2 text-xs">
             <div className="flex min-w-0 items-center gap-1.5">
@@ -78,8 +75,8 @@ export function MiniVariantList({
   onOpenFull?: () => void;
 }) {
   return (
-    <div className="space-y-2">
-      <div className="max-h-40 space-y-1.5 overflow-y-auto pr-0.5">
+    <div className="flex h-full flex-col justify-between gap-2">
+      <div className="flex min-h-[9.5rem] flex-col justify-center space-y-1.5 overflow-y-auto pr-0.5">
         {items.map((item, index) => (
           <div
             key={`${item.sku}::${item.variantSuffix}`}
@@ -118,7 +115,7 @@ export function MiniVariantList({
 
 export function MiniCustomerList({ items }: { items: FinanceCustomerRanking[] }) {
   return (
-    <div className="max-h-44 space-y-1.5 overflow-y-auto pr-0.5">
+    <div className="flex min-h-[9.5rem] flex-col justify-center space-y-1.5 overflow-y-auto pr-0.5">
       {items.map((item, index) => (
         <div
           key={item.id}
@@ -139,7 +136,7 @@ export function MiniCustomerList({ items }: { items: FinanceCustomerRanking[] })
 
 export function MosaicEmptyState({ message }: { message: string }) {
   return (
-    <div className="flex min-h-[4rem] items-center justify-center py-4 text-center text-xs italic text-slate-400">
+    <div className="flex h-full min-h-[inherit] flex-1 items-center justify-center py-2 text-center text-xs italic text-slate-400">
       {message}
     </div>
   );
