@@ -1876,7 +1876,9 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                 ) : (
                                                     <span className={`shrink-0 rounded-full border px-3 py-1 text-xs font-black shadow-sm ring-1 ring-white/80 ${getOrderStatusClasses(order.status)}`}>{getOrderStatusLabel(order.status)}</span>
                                                 )}
-                                                {!ready && (
+                                                {!ready
+                                                    && order.status !== OrderStatus.Delivered
+                                                    && order.status !== OrderStatus.Cancelled && (
                                                     <div className="flex min-w-[12rem] flex-1 items-center gap-2">
                                                         <OrderListProgressBar order={order} batches={batches} ready={ready} density="desktop" shippedQty={shippedQtyByOrderId.get(order.id)} showPercentLabel={false} />
                                                         <span className="shrink-0 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-black tabular-nums text-slate-600 shadow-sm">
