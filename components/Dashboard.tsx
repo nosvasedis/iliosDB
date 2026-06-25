@@ -38,8 +38,18 @@ import { getProductionStageLabel } from '../utils/productionStages';
 import DesktopPageHeader from './DesktopPageHeader';
 import FinancePeriodSelector from './FinancePeriodSelector';
 import DashboardStatCarousel, { type DashboardStatSlide } from './dashboard/DashboardStatCarousel';
-import DashboardSalesAnalysisCarousel, { PANEL_COUNT } from './dashboard/DashboardSalesAnalysisCarousel';
+import DashboardOverviewMosaic, { type DashboardNavigatePage } from './dashboard/DashboardOverviewMosaic';
 import TopVariantsAnalyticsModal from './dashboard/TopVariantsAnalyticsModal';
+import { useOrderDeliveryPlans } from '../hooks/api/useOrderDeliveryPlans';
+import { getAttentionItems } from '../utils/deliveryScheduling';
+import { api } from '../lib/supabase';
+import {
+  buildProductionPulse,
+  buildInventoryRiskRows,
+  buildDemandPressureRows,
+  buildOffersSummary,
+  countReadyOrders,
+} from '../features/dashboard/dashboardMosaicViewModels';
 import { useCollections } from '../hooks/api/useCollections';
 import {
   buildCategoryChartData,
@@ -56,7 +66,7 @@ import { FinancePeriodMode, isWithinFinancePeriod } from '../utils/financeAnalyt
 interface Props {
   products: Product[];
   settings: GlobalSettings;
-  onNavigate?: (page: 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio' | 'pricelist' | 'analytics' | 'offers') => void;
+  onNavigate?: (page: 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio' | 'pricelist' | 'analytics' | 'offers' | 'deliveries' | 'legal') => void;
 }
 
 const STAGE_LABELS: Record<string, string> = {
@@ -94,7 +104,6 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
   const [showRealizedRevenue, setShowRealizedRevenue] = useState(false);
   const [showEstimatedProfit, setShowEstimatedProfit] = useState(false);
   const [statSlideIndex, setStatSlideIndex] = useState(0);
-  const [analysisSlideIndex, setAnalysisSlideIndex] = useState(0);
   const [topVariantsModalOpen, setTopVariantsModalOpen] = useState(false);
   const [silverOrderScope, setSilverOrderScope] = useState<SilverOrderScope>('active');
   const [financePeriodMode, setFinancePeriodMode] = useState<FinancePeriodMode>('current_year');
@@ -106,6 +115,11 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
     queryFn: productionRepository.getProductionBatches,
   });
   const { data: collections } = useCollections();
+  const { enrichedItems: deliveryItems } = useOrderDeliveryPlans();
+  const { data: offers } = useQuery({
+    queryKey: ['offers'],
+    queryFn: api.getOffers,
+  });
   const { analytics: financeStats } = useFinanceAnalytics({
     products,
     settings,
@@ -282,7 +296,6 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
         financeStats.topVariants,
         products,
         collections || [],
-        100,
       );
   }, [financeStats, products, collections]);
 
@@ -365,8 +378,82 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
 
   const goToPrevStat = () => setStatSlideIndex((i) => (i - 1 + overviewStatSlides.length) % overviewStatSlides.length);
   const goToNextStat = () => setStatSlideIndex((i) => (i + 1) % overviewStatSlides.length);
-  const goToPrevAnalysis = () => setAnalysisSlideIndex((i) => (i - 1 + PANEL_COUNT) % PANEL_COUNT);
-  const goToNextAnalysis = () => setAnalysisSlideIndex((i) => (i + 1) % PANEL_COUNT);
+
+  const deliveryAttention = useMemo(() => getAttentionItems(deliveryItems), [deliveryItems]);
+  const productionPulse = useMemo(() => buildProductionPulse(batches), [batches]);
+  const inventoryRisk = useMemo(() => buildInventoryRiskRows(products), [products]);
+  const demandPressure = useMemo(() => buildDemandPressureRows(products, orders), [products, orders]);
+  const offersPipeline = useMemo(() => buildOffersSummary(offers), [offers]);
+  const readyOrdersCount = useMemo(() => countReadyOrders(orders), [orders]);
+
+  const mosaicData = useMemo(() => ({
+    periodLabel,
+    colors: COLORS,
+    materials: {
+      silverSold: stats.silverSold,
+      silverValue: stats.silverSold * 1000 * settings.silver_price_gram,
+      stonesSold: stats.stonesSold,
+    },
+    productionPulse,
+    deliveryAttention,
+    readyOrdersCount,
+    orderEconomics: {
+      averageOrderValue: financeStats?.totals.averageOrderValue ?? 0,
+      averageBasketSize: financeStats?.totals.averageBasketSize ?? 0,
+    },
+    discountVat: {
+      discount: stats.realizedDiscount,
+      vat: stats.realizedVat,
+    },
+    backlogDepth: {
+      gross: financeStats?.totals.backlogGross ?? 0,
+      vat: financeStats?.totals.backlogVat ?? 0,
+      net: stats.pendingRevenue,
+    },
+    offersPipeline,
+    compliance: {
+      legalGap: stats.legalGap,
+      issuedCount: financeStats?.legal.issuedCount ?? 0,
+    },
+    categoryData,
+    collectionData: collectionChartData,
+    collectionRankings,
+    topVariants: topVariantRows,
+    genderData: genderChartData,
+    finishData: finishChartData,
+    topCustomers: topCustomerRows,
+    inventoryRisk,
+    demandPressure,
+    categoryGenderFilter,
+    onCategoryGenderFilterChange: setCategoryGenderFilter,
+  }), [
+    periodLabel,
+    stats,
+    settings.silver_price_gram,
+    productionPulse,
+    deliveryAttention,
+    readyOrdersCount,
+    financeStats,
+    offersPipeline,
+    categoryData,
+    collectionChartData,
+    collectionRankings,
+    topVariantRows,
+    genderChartData,
+    finishChartData,
+    topCustomerRows,
+    inventoryRisk,
+    demandPressure,
+    categoryGenderFilter,
+  ]);
+
+  const handleMosaicNavigate = (page: DashboardNavigatePage) => {
+    if (page === 'financials') {
+      setActiveTab('financials');
+      return;
+    }
+    onNavigate?.(page);
+  };
 
   const KPICard = ({ title, value, subValue, icon, colorClass, hint }: { title: string, value: string, subValue?: string, icon: React.ReactNode, colorClass: string, hint?: string }) => (
       <div 
@@ -434,59 +521,18 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                 onNext={goToNextStat}
               />
 
-              <div>
-                <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                  <h2 className="text-lg font-bold text-slate-800">Ανάλυση περιόδου</h2>
-                  <p className="text-sm font-medium text-slate-500">{periodLabel}</p>
-                </div>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div className="lg:col-span-2">
-                      <DashboardSalesAnalysisCarousel
-                        activeIndex={analysisSlideIndex}
-                        onPrev={goToPrevAnalysis}
-                        onNext={goToNextAnalysis}
-                        categoryData={categoryData}
-                        collectionData={collectionChartData}
-                        collectionRankings={collectionRankings}
-                        genderData={genderChartData}
-                        finishData={finishChartData}
-                        topVariants={topVariantRows}
-                        topCustomers={topCustomerRows}
-                        categoryGenderFilter={categoryGenderFilter}
-                        onCategoryGenderFilterChange={setCategoryGenderFilter}
-                        periodLabel={periodLabel}
-                        colors={COLORS}
-                        onOpenTopVariants={() => setTopVariantsModalOpen(true)}
-                      />
-                  </div>
-
-                  <div className="bg-gradient-to-br from-[#060b00] to-emerald-900 p-8 rounded-3xl text-white shadow-sm border border-slate-200/10 flex flex-col justify-center gap-6 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mt-10 blur-2xl"></div>
-                        
-                        <div className="text-center relative z-10">
-                            <p className="text-emerald-200/60 text-[10px] font-bold uppercase tracking-widest mb-2">Ασήμι Πωληθέν</p>
-                            <h3 className="text-4xl font-black tracking-tight">{stats.silverSold.toFixed(3)} <span className="text-lg opacity-40 font-medium">kg</span></h3>
-                            <div className="bg-emerald-500/20 rounded-xl py-2 px-4 mt-3 inline-block border border-emerald-500/30">
-                                <p className="text-emerald-300 font-bold text-lg">≈ {formatCurrency(stats.silverSold * 1000 * settings.silver_price_gram)}</p>
-                            </div>
-                        </div>
-
-                        <div className="h-px bg-white/10 w-full"></div>
-
-                        <div className="text-center relative z-10">
-                            <p className="text-emerald-200/60 text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center justify-center gap-1 cursor-help">
-                                Πέτρες & Υλικά <HelpCircle size={10} />
-                            </p>
-                            <h3 className="text-3xl font-black tracking-tight text-amber-400">{stats.stonesSold} <span className="text-lg opacity-40 font-medium">τμχ</span></h3>
-                            <p className="text-emerald-200/40 text-[10px] mt-1 italic">Από πωληθέντα είδη ({periodLabel.toLowerCase()})</p>
-                        </div>
-                  </div>
-              </div>
-              </div>
+              <DashboardOverviewMosaic
+                data={mosaicData}
+                onNavigate={handleMosaicNavigate}
+                onOpenTopVariants={() => setTopVariantsModalOpen(true)}
+              />
 
               {topVariantsModalOpen && (
                 <TopVariantsAnalyticsModal
                   rows={enrichedVariantRows}
+                  realizedEvents={financeStats?.events.realized ?? []}
+                  backlogEvents={financeStats?.events.backlog ?? []}
+                  products={products}
                   periodLabel={periodLabel}
                   shippedPieces={stats.shippedPieces}
                   onClose={() => setTopVariantsModalOpen(false)}

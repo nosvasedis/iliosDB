@@ -1,4 +1,5 @@
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, useRef, useDeferredValue } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   X,
   Trophy,
@@ -12,15 +13,24 @@ import {
   ExternalLink,
   ImageIcon,
 } from 'lucide-react';
+import { Gender, Product } from '../../types';
 import { resolveImageUrl } from '../../lib/supabase';
-import { formatCurrency } from '../../utils/pricingEngine';
+import { formatCurrency, splitSkuComponents } from '../../utils/pricingEngine';
 import { getSkuFinishTextColor, getSkuStoneTextColor } from '../../utils/skuColoring';
+import { FinanceLineEvent } from '../../utils/financeAnalytics';
 import SkuColorizedText from '../SkuColorizedText';
+import SkuVariantDetailPanel from './SkuVariantDetailPanel';
 import {
   type EnrichedVariantAnalyticsRow,
   type VariantAnalyticsSort,
   filterAndSortEnrichedVariants,
 } from '../../features/dashboard/dashboardAnalysisViewModels';
+import {
+  buildSkuVariantDetail,
+  buildSkuVariantDetailFromSelection,
+  type SkuVariantDetail,
+} from '../../features/dashboard/skuVariantAnalytics';
+import { variantRankingKey } from '../../utils/financeLineSku';
 
 const FINISH_BADGE: Record<string, string> = {
   '': 'bg-slate-100 text-slate-600 border-slate-200',
@@ -43,8 +53,13 @@ const RANK_STYLES: Record<number, string> = {
   3: 'bg-orange-400 text-white',
 };
 
+const ROW_HEIGHT_ESTIMATE = 108;
+
 interface Props {
   rows: EnrichedVariantAnalyticsRow[];
+  realizedEvents: FinanceLineEvent[];
+  backlogEvents: FinanceLineEvent[];
+  products: Product[];
   periodLabel: string;
   shippedPieces: number;
   onClose: () => void;
@@ -84,18 +99,26 @@ function RankBadge({ rank }: { rank: number }) {
 
 export default function TopVariantsAnalyticsModal({
   rows,
+  realizedEvents,
+  backlogEvents,
+  products,
   periodLabel,
   shippedPieces,
   onClose,
   onOpenRegistry,
 }: Props) {
   const [query, setQuery] = useState('');
+  const deferredQuery = useDeferredValue(query);
   const [sort, setSort] = useState<VariantAnalyticsSort>('quantity');
   const [copiedSku, setCopiedSku] = useState<string | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const listParentRef = useRef<HTMLDivElement>(null);
+
+  const productsMap = useMemo(() => new Map(products.map((p) => [p.sku, p])), [products]);
 
   const displayed = useMemo(
-    () => filterAndSortEnrichedVariants(rows, query, sort),
-    [rows, query, sort],
+    () => filterAndSortEnrichedVariants(rows, deferredQuery, sort),
+    [rows, deferredQuery, sort],
   );
 
   const summary = useMemo(() => {
@@ -104,6 +127,37 @@ export default function TopVariantsAnalyticsModal({
     const totalProfit = rows.reduce((s, r) => s + r.profit, 0);
     return { totalQty, totalRevenue, totalProfit, variantCount: rows.length };
   }, [rows]);
+
+  const inspectDetail = useMemo((): SkuVariantDetail | null => {
+    const q = deferredQuery.trim();
+    if (q.length >= 2) {
+      return buildSkuVariantDetail({ realized: realizedEvents, backlog: backlogEvents, query: q });
+    }
+    if (selectedKey) {
+      const row = rows.find((r) => variantRankingKey(r.sku, r.variantSuffix) === selectedKey);
+      if (!row) return null;
+      return buildSkuVariantDetailFromSelection({
+        realized: realizedEvents,
+        backlog: backlogEvents,
+        sku: row.sku,
+        variantSuffix: row.variantSuffix,
+        isMasterAggregate: false,
+      });
+    }
+    return null;
+  }, [deferredQuery, selectedKey, realizedEvents, backlogEvents, rows]);
+
+  const inspectGender = useMemo(() => {
+    if (inspectDetail) return productsMap.get(inspectDetail.sku)?.gender;
+    return undefined;
+  }, [inspectDetail, productsMap]);
+
+  const virtualizer = useVirtualizer({
+    count: displayed.length,
+    getScrollElement: () => listParentRef.current,
+    estimateSize: () => ROW_HEIGHT_ESTIMATE,
+    overscan: 8,
+  });
 
   const handleCopy = useCallback(async (fullSku: string) => {
     try {
@@ -114,6 +168,25 @@ export default function TopVariantsAnalyticsModal({
       /* clipboard unavailable */
     }
   }, []);
+
+  const handleSelectRow = useCallback((row: EnrichedVariantAnalyticsRow) => {
+    const key = variantRankingKey(row.sku, row.variantSuffix);
+    setSelectedKey(key);
+    setQuery('');
+  }, []);
+
+  const handleSelectVariant = useCallback((variantSuffix: string) => {
+    if (!inspectDetail) return;
+    const key = variantRankingKey(inspectDetail.sku, variantSuffix);
+    setSelectedKey(key);
+    setQuery(inspectDetail.sku + variantSuffix);
+  }, [inspectDetail]);
+
+  const previewComponents = useMemo(() => {
+    const q = query.trim().toUpperCase();
+    if (!q) return { master: '', suffix: '' };
+    return splitSkuComponents(q);
+  }, [query]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -132,10 +205,9 @@ export default function TopVariantsAnalyticsModal({
       onClick={onClose}
     >
       <div
-        className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-200"
+        className="flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header — matches AuditLogs / AnalysisExplainer pattern */}
         <div className="shrink-0 border-b border-slate-100 bg-gradient-to-r from-emerald-50/80 to-slate-50 px-5 py-5 sm:px-6">
           <div className="flex items-start justify-between gap-4">
             <div className="flex min-w-0 items-start gap-3">
@@ -147,7 +219,7 @@ export default function TopVariantsAnalyticsModal({
                   Κορυφαία SKU
                 </h2>
                 <p className="mt-0.5 text-sm font-medium text-slate-500">
-                  Λεπτομερής κατάταξη έως {rows.length} παραλλαγές · {periodLabel.toLowerCase()}
+                  {summary.variantCount} παραλλαγές πωλήθηκαν · {periodLabel.toLowerCase()}
                 </p>
               </div>
             </div>
@@ -182,196 +254,210 @@ export default function TopVariantsAnalyticsModal({
           </div>
         </div>
 
-        {/* Toolbar */}
-        <div className="shrink-0 space-y-3 border-b border-slate-100 bg-white px-5 py-3 sm:px-6">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-            <div className="relative min-w-0 flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Αναζήτηση κωδικού, φινιρίσματος, πέτρας, κατηγορίας…"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm font-medium text-slate-700 outline-none transition-all focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
-              />
-            </div>
-            {onOpenRegistry && (
-              <button
-                type="button"
-                onClick={onOpenRegistry}
-                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-all hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
-              >
-                <ExternalLink size={15} />
-                Άνοιγμα μητρώου
-              </button>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-bold text-slate-400">Ταξινόμηση κατά</span>
-            {SORT_OPTIONS.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => setSort(option.id)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                  sort === option.id
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Column headers — desktop */}
-        <div className="hidden shrink-0 border-b border-slate-100 bg-slate-50/80 px-5 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 lg:grid lg:grid-cols-[2.5rem_3.5rem_minmax(0,1fr)_repeat(4,minmax(5rem,auto))] lg:items-center lg:gap-3 lg:px-6">
-          <span>#</span>
-          <span className="sr-only">Εικόνα</span>
-          <span>Προϊόν</span>
-          <span className="text-right">Τεμάχια</span>
-          <span className="text-right">Έσοδα</span>
-          <span className="text-right">Κέρδος</span>
-          <span className="text-right">Περιθώριο</span>
-        </div>
-
-        {/* List */}
-        <div className="flex-1 overflow-y-auto bg-slate-50/50 px-3 py-3 sm:px-4 lg:px-5">
-          {displayed.length === 0 ? (
-            <div className="py-16 text-center text-sm text-slate-400">
-              Δεν βρέθηκαν αποτελέσματα για «{query}».
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {displayed.map((row) => {
-                const rowKey = `${row.sku}::${row.variantSuffix}`;
-                const finishBadge = FINISH_BADGE[row.finishCode] || FINISH_BADGE[''];
-                const stoneColor = getSkuStoneTextColor(row.stoneCode);
-                const finishColor = getSkuFinishTextColor(row.finishCode);
-                const isCopied = copiedSku === row.fullSku;
-
-                return (
-                  <div
-                    key={rowKey}
-                    className="group rounded-2xl border border-slate-100 bg-white p-3 shadow-sm transition-all hover:border-emerald-200 hover:shadow-md sm:p-3.5 lg:grid lg:grid-cols-[2.5rem_3.5rem_minmax(0,1fr)_repeat(4,minmax(5rem,auto))] lg:items-center lg:gap-3"
+        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col border-b border-slate-100 lg:w-[45%] lg:border-b-0 lg:border-r">
+            <div className="shrink-0 space-y-3 border-b border-slate-100 bg-white px-5 py-3 sm:px-6">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                <div className="relative min-w-0 flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <input
+                    type="search"
+                    value={query}
+                    onChange={(e) => {
+                      setQuery(e.target.value);
+                      if (e.target.value.trim().length >= 2) setSelectedKey(null);
+                    }}
+                    placeholder="Αναζήτηση κωδικού για λεπτομερή ανάλυση…"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm font-medium text-slate-700 outline-none transition-all focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+                  />
+                </div>
+                {onOpenRegistry && (
+                  <button
+                    type="button"
+                    onClick={onOpenRegistry}
+                    className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-all hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
                   >
-                    <div className="flex gap-3 lg:contents">
-                      <div className="flex shrink-0 flex-col items-center gap-2 pt-0.5 lg:block">
-                        <RankBadge rank={row.rank} />
-                      </div>
+                    <ExternalLink size={15} />
+                    Άνοιγμα μητρώου
+                  </button>
+                )}
+              </div>
 
-                      <ProductThumb imageUrl={row.image} sku={row.sku} />
+              {previewComponents.master && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Αναζήτηση:</span>
+                  <SkuColorizedText
+                    sku={previewComponents.master}
+                    suffix={previewComponents.suffix}
+                    gender={productsMap.get(previewComponents.master)?.gender}
+                    className="text-sm"
+                  />
+                  {previewComponents.suffix === '' && query.trim().length >= 2 && (
+                    <span className="text-[10px] italic text-slate-400">+ όλες οι παραλλαγές</span>
+                  )}
+                </div>
+              )}
 
-                      <div className="min-w-0 flex-1 lg:mt-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <SkuColorizedText
-                          sku={row.sku}
-                          suffix={row.variantSuffix}
-                          gender={row.gender}
-                          className="text-sm sm:text-base"
-                        />
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold text-slate-400">Ταξινόμηση κατά</span>
+                {SORT_OPTIONS.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setSort(option.id)}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                      sort === option.id
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div
+              ref={listParentRef}
+              className="min-h-0 flex-1 overflow-y-auto bg-slate-50/50 px-3 py-3 sm:px-4"
+            >
+              {displayed.length === 0 ? (
+                <div className="py-16 text-center text-sm text-slate-400">
+                  Δεν βρέθηκαν αποτελέσματα για «{deferredQuery}».
+                </div>
+              ) : (
+                <div
+                  style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}
+                >
+                  {virtualizer.getVirtualItems().map((virtualRow) => {
+                    const row = displayed[virtualRow.index];
+                    const rowKey = variantRankingKey(row.sku, row.variantSuffix);
+                    const isSelected = selectedKey === rowKey;
+                    const finishBadge = FINISH_BADGE[row.finishCode] || FINISH_BADGE[''];
+                    const stoneColor = getSkuStoneTextColor(row.stoneCode);
+                    const finishColor = getSkuFinishTextColor(row.finishCode);
+                    const isCopied = copiedSku === row.fullSku;
+
+                    return (
+                      <div
+                        key={rowKey}
+                        ref={virtualizer.measureElement}
+                        data-index={virtualRow.index}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          transform: `translateY(${virtualRow.start}px)`,
+                        }}
+                        className="pb-2"
+                      >
                         <button
                           type="button"
-                          onClick={() => handleCopy(row.fullSku)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-bold text-slate-500 opacity-0 transition-all hover:border-slate-300 hover:text-slate-800 group-hover:opacity-100"
-                          title="Αντιγραφή κωδικού"
+                          onClick={() => handleSelectRow(row)}
+                          className={`group w-full rounded-2xl border bg-white p-3 text-left shadow-sm transition-all sm:p-3.5 ${
+                            isSelected
+                              ? 'border-emerald-400 ring-2 ring-emerald-500/20'
+                              : 'border-slate-100 hover:border-emerald-200 hover:shadow-md'
+                          }`}
                         >
-                          {isCopied ? (
-                            <>
-                              <Check size={12} className="text-emerald-600" />
-                              <span className="text-emerald-600">Αντιγράφηκε</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy size={12} />
-                              Αντιγραφή
-                            </>
-                          )}
+                          <div className="flex gap-3">
+                            <div className="flex shrink-0 flex-col items-center gap-2 pt-0.5">
+                              <RankBadge rank={row.rank} />
+                            </div>
+
+                            <ProductThumb imageUrl={row.image} sku={row.sku} />
+
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <SkuColorizedText
+                                  sku={row.sku}
+                                  suffix={row.variantSuffix}
+                                  gender={row.gender}
+                                  className="text-sm sm:text-base"
+                                />
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCopy(row.fullSku);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleCopy(row.fullSku);
+                                    }
+                                  }}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-bold text-slate-500 opacity-0 transition-all hover:border-slate-300 hover:text-slate-800 group-hover:opacity-100"
+                                >
+                                  {isCopied ? (
+                                    <>
+                                      <Check size={12} className="text-emerald-600" />
+                                      <span className="text-emerald-600">Αντιγράφηκε</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy size={12} />
+                                      Αντιγραφή
+                                    </>
+                                  )}
+                                </span>
+                              </div>
+
+                              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                <span className={`rounded-md border px-2 py-0.5 text-[10px] font-bold ${finishBadge}`}>
+                                  <span className={finishColor}>{row.finishName}</span>
+                                </span>
+                                {row.stoneCode && (
+                                  <span className="rounded-md border border-violet-100 bg-violet-50 px-2 py-0.5 text-[10px] font-bold">
+                                    <span className={stoneColor}>{row.stoneName}</span>
+                                  </span>
+                                )}
+                                <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                                  {row.category.split(' ')[0]}
+                                </span>
+                              </div>
+
+                              <div className="mt-2 grid grid-cols-4 gap-2 text-xs">
+                                <div>
+                                  <p className="text-[9px] font-bold text-slate-400">Τεμ.</p>
+                                  <p className="font-black text-slate-900">{row.quantity}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[9px] font-bold text-slate-400">Έσοδα</p>
+                                  <p className="font-black text-slate-800">{formatCurrency(row.revenue)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[9px] font-bold text-slate-400">Κέρδος</p>
+                                  <p className={`font-black ${row.profit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                                    {formatCurrency(row.profit)}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-[9px] font-bold text-slate-400">Περιθ.</p>
+                                  <p className="font-black text-slate-800">{row.margin.toFixed(1)}%</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         </button>
                       </div>
-
-                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        <span className={`rounded-md border px-2 py-0.5 text-[10px] font-bold ${finishBadge}`}>
-                          <span className={finishColor}>{row.finishName}</span>
-                        </span>
-                        {row.stoneCode && (
-                          <span className="rounded-md border border-violet-100 bg-violet-50 px-2 py-0.5 text-[10px] font-bold">
-                            <span className={stoneColor}>{row.stoneName}</span>
-                          </span>
-                        )}
-                        <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                          {row.category.split(' ')[0]}
-                        </span>
-                        {row.collectionLabel !== '—' && (
-                          <span className="max-w-[10rem] truncate rounded-md bg-fuchsia-50 px-2 py-0.5 text-[10px] font-bold text-fuchsia-700">
-                            {row.collectionLabel}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="mt-2 lg:hidden">
-                        <div className="mb-1 flex justify-between text-[10px] font-bold text-slate-400">
-                          <span>Μερίδιο στη λίστα</span>
-                          <span>{row.quantityShare.toFixed(1)}%</span>
-                        </div>
-                        <div className="h-1 overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            className="h-full rounded-full bg-emerald-500 transition-all"
-                            style={{ width: `${Math.max(4, row.peakShare)}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Mobile metrics */}
-                      <div className="mt-3 grid grid-cols-2 gap-2 text-sm lg:hidden">
-                        <div className="rounded-xl bg-slate-50 p-2">
-                          <p className="text-[10px] font-bold text-slate-400">Τεμάχια</p>
-                          <p className="font-black text-slate-900">{row.quantity}</p>
-                        </div>
-                        <div className="rounded-xl bg-slate-50 p-2">
-                          <p className="text-[10px] font-bold text-slate-400">Έσοδα</p>
-                          <p className="font-black text-slate-900">{formatCurrency(row.revenue)}</p>
-                        </div>
-                        <div className="rounded-xl bg-slate-50 p-2">
-                          <p className="text-[10px] font-bold text-slate-400">Κέρδος</p>
-                          <p className={`font-black ${row.profit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-                            {formatCurrency(row.profit)}
-                          </p>
-                        </div>
-                        <div className="rounded-xl bg-slate-50 p-2">
-                          <p className="text-[10px] font-bold text-slate-400">Περιθώριο</p>
-                          <p className="font-black text-slate-800">{row.margin.toFixed(1)}%</p>
-                        </div>
-                      </div>
-                    </div>
-                    </div>
-
-                    {/* Desktop metrics */}
-                    <div className="hidden text-right lg:block">
-                      <p className="text-base font-black tabular-nums text-slate-900">{row.quantity}</p>
-                      <p className="text-[10px] font-semibold text-slate-400">{row.quantityShare.toFixed(1)}% του συνόλου</p>
-                    </div>
-                    <div className="hidden text-right lg:block">
-                      <p className="text-sm font-black tabular-nums text-slate-800">{formatCurrency(row.revenue)}</p>
-                      <p className="text-[10px] font-semibold text-slate-400">μέση {formatCurrency(row.avgUnitRevenue)}</p>
-                    </div>
-                    <div className="hidden text-right lg:block">
-                      <p className={`text-sm font-black tabular-nums ${row.profit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-                        {formatCurrency(row.profit)}
-                      </p>
-                    </div>
-                    <div className="hidden text-right lg:block">
-                      <p className={`text-sm font-black tabular-nums ${row.margin >= 30 ? 'text-emerald-600' : row.margin >= 15 ? 'text-amber-600' : 'text-slate-600'}`}>
-                        {row.margin.toFixed(1)}%
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          )}
+          </div>
+
+          <div className="flex min-h-[280px] min-w-0 flex-col bg-slate-50/30 lg:w-[55%] lg:min-h-0">
+            <SkuVariantDetailPanel
+              detail={inspectDetail}
+              gender={inspectGender as Gender | undefined}
+              onSelectVariant={handleSelectVariant}
+            />
+          </div>
         </div>
 
         <div className="shrink-0 border-t border-slate-100 bg-slate-50 px-5 py-4 sm:flex sm:items-center sm:justify-between sm:gap-4">

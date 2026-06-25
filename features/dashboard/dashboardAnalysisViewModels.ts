@@ -138,11 +138,13 @@ export function buildEnrichedVariantAnalyticsRows(
   topVariants: FinanceVariantRanking[],
   products: Product[],
   collections: Collection[],
-  limit = 100,
+  limit?: number,
 ): EnrichedVariantAnalyticsRow[] {
   const bySku = productMap(products);
   const collectionById = new Map(collections.map((c) => [c.id, c.name]));
-  const sorted = [...topVariants].sort((a, b) => b.quantity - a.quantity).slice(0, limit);
+  const sorted = [...topVariants]
+    .sort((a, b) => b.quantity - a.quantity)
+    .slice(0, limit ?? undefined);
   const topQty = sorted[0]?.quantity ?? 1;
   const totalQty = sorted.reduce((sum, row) => sum + row.quantity, 0);
 

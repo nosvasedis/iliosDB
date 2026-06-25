@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Gender, ProductionType } from '../../types';
 import {
   buildCategoryChartData,
+  buildEnrichedVariantAnalyticsRows,
   buildFinishChartData,
   buildGenderChartData,
   buildTopCustomerRows,
@@ -164,5 +165,22 @@ describe('dashboardAnalysisViewModels', () => {
 
     expect(buildTopCustomerRows(customers, 2)).toHaveLength(2);
     expect(buildTopCustomerRows(customers, 2)[0].name).toBe('Alpha');
+  });
+
+  it('buildEnrichedVariantAnalyticsRows returns all variants when limit omitted', () => {
+    const rankings: FinanceVariantRanking[] = Array.from({ length: 15 }, (_, i) => ({
+      sku: `SKU${i}`,
+      variantSuffix: 'X',
+      image: null,
+      category: 'Δαχτυλίδι',
+      revenue: 50,
+      estimatedCost: 5,
+      profit: 45,
+      margin: 90,
+      quantity: 10,
+    }));
+
+    expect(buildEnrichedVariantAnalyticsRows(rankings, products, [])).toHaveLength(15);
+    expect(buildEnrichedVariantAnalyticsRows(rankings, products, [], 5)).toHaveLength(5);
   });
 });

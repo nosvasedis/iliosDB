@@ -9,20 +9,17 @@ import {
   Users,
   Sparkles,
   UserCheck,
-  ArrowUpRight,
 } from 'lucide-react';
-import {
-  PieChart as RePieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
 import { Gender } from '../../types';
 import { FinanceCollectionRanking, FinanceCustomerRanking } from '../../utils/financeAnalytics';
 import { formatCurrency } from '../../utils/pricingEngine';
-import SkuColorizedText from '../SkuColorizedText';
 import type { DashboardPieSlice, DashboardVariantRow } from '../../features/dashboard/dashboardAnalysisViewModels';
+import {
+  MiniCustomerList,
+  MiniPiePanel,
+  MiniVariantList,
+  MosaicEmptyState,
+} from './dashboardMiniCharts';
 
 const PANEL_COUNT = 6;
 
@@ -51,52 +48,6 @@ interface Props {
   periodLabel: string;
   colors: string[];
   onOpenTopVariants?: () => void;
-}
-
-function PiePanel({
-  data,
-  colors,
-  legendExtra,
-}: {
-  data: DashboardPieSlice[];
-  colors: string[];
-  legendExtra?: (item: DashboardPieSlice, idx: number) => React.ReactNode;
-}) {
-  return (
-    <div className="grid grid-cols-1 items-center gap-8 md:grid-cols-2">
-      <div className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          <RePieChart>
-            <Pie data={data} innerRadius={0} outerRadius={80} dataKey="value" stroke="white" strokeWidth={2}>
-              {data.map((_, index) => (
-                <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
-              ))}
-            </Pie>
-            <Tooltip
-              contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-            />
-          </RePieChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="space-y-2">
-        {data.map((item, idx) => (
-          <div key={item.name} className="flex items-center justify-between text-sm">
-            <div className="flex min-w-0 items-center gap-2">
-              <div
-                className="h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ backgroundColor: colors[idx % colors.length] }}
-              />
-              <span className="truncate font-bold text-slate-600">{item.name}</span>
-            </div>
-            <div className="ml-2 shrink-0 text-right">
-              <span className="font-black text-slate-400">{item.value}</span>
-              {legendExtra?.(item, idx)}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 export default function DashboardSalesAnalysisCarousel({
@@ -144,9 +95,7 @@ export default function DashboardSalesAnalysisCarousel({
   const currentPieData = pieDataByPanel[panel.id] ?? [];
 
   const emptyMessage = (
-    <div className="py-8 text-center text-sm italic text-slate-400">
-      Δεν βρέθηκαν πωλήσεις για {periodLabel.toLowerCase()}.
-    </div>
+    <MosaicEmptyState message={`Δεν βρέθηκαν πωλήσεις για ${periodLabel.toLowerCase()}.`} />
   );
 
   const renderContent = () => {
@@ -155,7 +104,7 @@ export default function DashboardSalesAnalysisCarousel({
       if (data.length === 0) return emptyMessage;
 
       return (
-        <PiePanel
+        <MiniPiePanel
           data={data}
           colors={colors}
           legendExtra={
@@ -173,64 +122,11 @@ export default function DashboardSalesAnalysisCarousel({
 
     if (panel.type === 'variants') {
       if (topVariants.length === 0) return emptyMessage;
-      return (
-        <div className="space-y-3">
-          <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-            {topVariants.map((item, index) => (
-              <div
-                key={`${item.sku}::${item.variantSuffix}`}
-                className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3 transition-colors hover:bg-slate-100/80"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="shrink-0 text-xs font-black text-slate-400">#{index + 1}</span>
-                  <SkuColorizedText
-                    sku={item.sku}
-                    suffix={item.variantSuffix}
-                    gender={item.gender}
-                    className="text-sm"
-                  />
-                </div>
-                <div className="shrink-0 text-right">
-                  <p className="text-sm font-black text-slate-800">{item.quantity} τεμ.</p>
-                  <p className="text-xs font-semibold text-slate-400">{formatCurrency(item.revenue)}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-          {onOpenTopVariants && (
-            <button
-              type="button"
-              onClick={onOpenTopVariants}
-              className="group flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-3 text-sm font-black text-emerald-800 transition-all hover:border-emerald-300 hover:shadow-md hover:shadow-emerald-100 active:scale-[0.99]"
-            >
-              <Trophy size={16} className="transition-transform group-hover:scale-110" />
-              Πλήρης ανάλυση
-              <ArrowUpRight size={16} className="opacity-60 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-            </button>
-          )}
-        </div>
-      );
+      return <MiniVariantList items={topVariants} onOpenFull={onOpenTopVariants} />;
     }
 
     if (topCustomers.length === 0) return emptyMessage;
-    return (
-      <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-        {topCustomers.map((item, index) => (
-          <div
-            key={item.id}
-            className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3"
-          >
-            <div className="min-w-0">
-              <p className="truncate text-sm font-black text-slate-900">
-                #{index + 1} {item.name}
-              </p>
-              <p className="text-xs font-semibold text-slate-500">{item.orders} παραγγ.</p>
-            </div>
-            <p className="shrink-0 text-sm font-black text-slate-900">{formatCurrency(item.revenue)}</p>
-          </div>
-        ))}
-      </div>
-    );
+    return <MiniCustomerList items={topCustomers} />;
   };
 
   return (

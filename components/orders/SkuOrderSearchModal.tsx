@@ -6,6 +6,7 @@ import { splitSkuComponents } from '../../utils/pricingEngine';
 import { getOrderStatusClasses, getOrderStatusLabel, getOrderStatusIcon } from '../../features/orders/statusPresentation';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { getProductionStageLabel, PRODUCTION_STAGE_ORDER_INDEX } from '../../utils/productionStages';
+import { itemMatchesSkuQuery } from '../../utils/skuSearchMatch';
 
 interface SkuOrderSearchModalProps {
     onClose: () => void;
@@ -27,39 +28,6 @@ interface StageBadgeAggregate {
     qty: number;
     className: string;
     order: number;
-}
-
-/**
- * Normalises a full SKU (master + suffix) to uppercase for matching.
- */
-function normalizeSku(sku: string, variantSuffix?: string): string {
-    const full = variantSuffix ? sku + variantSuffix : sku;
-    return full.toUpperCase().replace(/\s+/g, '');
-}
-
-/**
- * Determines whether an order item matches the typed query.
- *
- * Smart rules:
- * 1. If the query matches only the master portion  → any suffix variant qualifies.
- * 2. If the query extends into the suffix letters  → filter to those specific variants.
- * 3. Matching is prefix-based so DA001D shows DA001DLE, DA001DPR, etc.
- */
-function itemMatchesQuery(item: OrderItem, query: string): boolean {
-    if (!query) return false;
-    const q = query.toUpperCase().replace(/\s+/g, '');
-    if (q.length < 2) return false;
-
-    const fullSku = normalizeSku(item.sku, item.variant_suffix);
-    const masterSku = item.sku.toUpperCase();
-
-    // prefix match on full SKU (covers master-only and partial-suffix queries)
-    if (fullSku.startsWith(q)) return true;
-
-    // prefix match on just the master (so "DA001" also matches "DA001DLE")
-    if (q === masterSku) return true;
-
-    return false;
 }
 
 function getStageBadgeMeta(batch: ProductionBatch): { key: string; label: string; className: string; order: number } {
@@ -139,7 +107,7 @@ export default function SkuOrderSearchModal({
             const matchedItems: { item: OrderItem; totalQty: number }[] = [];
 
             for (const item of order.items) {
-                if (itemMatchesQuery(item, q)) {
+                if (itemMatchesSkuQuery(item, q)) {
                     matchedItems.push({ item, totalQty: item.quantity });
                 }
             }
