@@ -109,6 +109,23 @@ export function getShippedQuantities(
   return map;
 }
 
+/** Total shipped piece count per order — matches Παραγγελίες progress / readiness. */
+export function buildShippedQtyByOrderId(
+  shipments: OrderShipment[] | undefined | null,
+  shipmentItems: OrderShipmentItem[] | undefined | null,
+): Map<string, number> {
+  const map = new Map<string, number>();
+  if (!shipments || !shipmentItems) return map;
+
+  const shipmentToOrder = new Map(shipments.map((s) => [s.id, s.order_id]));
+  for (const item of shipmentItems) {
+    const orderId = shipmentToOrder.get(item.shipment_id);
+    if (!orderId) continue;
+    map.set(orderId, (map.get(orderId) || 0) + (item.quantity || 0));
+  }
+  return map;
+}
+
 /** Returns order items with quantities reduced by already-shipped amounts. Items fully shipped are excluded. */
 export function getRemainingOrderItems(
   order: Order,

@@ -1,5 +1,8 @@
 import { Offer, Order, OrderStatus, Product, ProductionBatch, ProductionStage } from '../../types';
-import { isOrderReady } from '../../utils/orderReadiness';
+import {
+  buildPartialDeliveryProgressSegments,
+  isOrderReadyForShipment,
+} from '../../utils/orderReadiness';
 
 export interface ProductionPulseSummary {
   delayed: number;
@@ -28,6 +31,25 @@ export interface DemandPressureRow {
 export interface OffersPipelineSummary {
   count: number;
   totalValue: number;
+}
+
+export type ReadyOrderShipmentKind = 'full' | 'partial';
+
+export interface ReadyOrderEntry {
+  orderId: string;
+  customerName: string;
+  kind: ReadyOrderShipmentKind;
+  /** Τεμάχια έτοιμα προς την επόμενη αποστολή */
+  readyQty: number;
+  shippedQty: number;
+  totalQty: number;
+}
+
+export interface ReadyOrdersSummary {
+  total: number;
+  fullCount: number;
+  partialCount: number;
+  entries: ReadyOrderEntry[];
 }
 
 const LOW_STOCK_THRESHOLD = 5;
@@ -178,20 +200,59 @@ export function buildOffersSummary(offers: Offer[] | undefined): OffersPipelineS
 }
 
 /**
- * Orders ready for delivery — same rule as Παραγγελίες (100% έτοιμο):
- * status Έτοιμο OR all production batches in Ready stage covering the order.
+ * Orders ready for shipment — mirrors Παραγγελίες «Αποστολή 100%» badge,
+ * including Μερική Παράδοση (uses real shipped quantities from DB).
  */
+export function buildReadyOrdersSummary(
+  orders: Order[] | undefined,
+  batches: ProductionBatch[] | undefined,
+  shippedQtyByOrderId?: Map<string, number>,
+): ReadyOrdersSummary {
+  const entries: ReadyOrderEntry[] = [];
+  if (!orders) {
+    return { total: 0, fullCount: 0, partialCount: 0, entries };
+  }
+
+  for (const order of orders) {
+    const shippedQty = shippedQtyByOrderId?.get(order.id);
+    if (!isOrderReadyForShipment(order, batches, shippedQty)) continue;
+
+    const partialProgress = buildPartialDeliveryProgressSegments(order, batches, shippedQty);
+    const isPartialContext = order.status === OrderStatus.PartiallyDelivered;
+    const kind: ReadyOrderShipmentKind = isPartialContext ? 'partial' : 'full';
+
+    const itemsTotal =
+      partialProgress?.itemsTotal ??
+      (Array.isArray(order.items)
+        ? order.items.reduce((sum, item) => sum + (item.quantity || 0), 0)
+        : order.item_total_qty ?? 0);
+
+    entries.push({
+      orderId: order.id,
+      customerName: order.customer_name,
+      kind,
+      readyQty: partialProgress?.readyQty ?? itemsTotal,
+      shippedQty: partialProgress?.shippedQty ?? shippedQty ?? 0,
+      totalQty: itemsTotal,
+    });
+  }
+
+  const partialCount = entries.filter((entry) => entry.kind === 'partial').length;
+  const fullCount = entries.filter((entry) => entry.kind === 'full').length;
+
+  return {
+    total: entries.length,
+    fullCount,
+    partialCount,
+    entries,
+  };
+}
+
+/** @deprecated Prefer buildReadyOrdersSummary — kept for simple count callers */
 export function countReadyOrders(
   orders: Order[] | undefined,
   batches: ProductionBatch[] | undefined,
+  shippedQtyByOrderId?: Map<string, number>,
 ): number {
-  if (!orders) return 0;
-
-  return orders.filter((order) => {
-    if (order.status === OrderStatus.Cancelled || order.status === OrderStatus.Delivered) {
-      return false;
-    }
-    if (order.status === OrderStatus.Ready) return true;
-    return isOrderReady(order, batches);
-  }).length;
+  return buildReadyOrdersSummary(orders, batches, shippedQtyByOrderId).total;
 }

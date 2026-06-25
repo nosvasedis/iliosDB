@@ -34,8 +34,7 @@ import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { productionKeys, productionRepository } from '../features/production';
 import { orderKeys } from '../features/orders';
-import { useOrdersWithItems } from '../hooks/api/useOrders';
-import { useSellers } from '../hooks/api/useSellers';
+import { useAllShipmentItems, useAllShipments, useOrdersWithItems } from '../hooks/api/useOrders';
 import { getProductionStageLabel } from '../utils/productionStages';
 import DesktopPageHeader from './DesktopPageHeader';
 import FinancePeriodSelector from './FinancePeriodSelector';
@@ -50,9 +49,11 @@ import {
   buildInventoryRiskRows,
   buildDemandPressureRows,
   buildOffersSummary,
-  countReadyOrders,
+  buildReadyOrdersSummary,
 } from '../features/dashboard/dashboardMosaicViewModels';
 import { DASHBOARD_TERM_HINTS } from '../features/dashboard/dashboardTermHints';
+import { buildShippedQtyByOrderId } from '../utils/shipmentUtils';
+import { useSellers } from '../hooks/api/useSellers';
 import { useCollections } from '../hooks/api/useCollections';
 import {
   buildCategoryChartData,
@@ -114,6 +115,8 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
 
   const queryClient = useQueryClient();
   const { data: orders, isLoading: ordersLoading, isError: ordersError, error: ordersErr, refetch: refetchOrders } = useOrdersWithItems();
+  const { data: allShipments, isLoading: shipmentsLoading } = useAllShipments();
+  const { data: allShipmentItems, isLoading: shipmentItemsLoading } = useAllShipmentItems();
   const { data: sellers } = useSellers();
   const { data: batches, isLoading: batchesLoading, isError: batchesError, error: batchesErr, refetch: refetchBatches } = useQuery({
     queryKey: productionKeys.batches(),
@@ -394,15 +397,23 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
   const inventoryRisk = useMemo(() => buildInventoryRiskRows(products), [products]);
   const demandPressure = useMemo(() => buildDemandPressureRows(products, orders), [products, orders]);
   const offersPipeline = useMemo(() => buildOffersSummary(offers), [offers]);
-  const readyOrdersCount = useMemo(() => countReadyOrders(orders, batches), [orders, batches]);
+  const shippedQtyByOrderId = useMemo(
+    () => buildShippedQtyByOrderId(allShipments, allShipmentItems),
+    [allShipments, allShipmentItems],
+  );
+  const readyOrdersSummary = useMemo(
+    () => buildReadyOrdersSummary(orders, batches, shippedQtyByOrderId),
+    [orders, batches, shippedQtyByOrderId],
+  );
 
   const mosaicLoading: MosaicLoadingFlags = useMemo(() => ({
     finance: financeLoading,
     orders: ordersLoading,
     batches: batchesLoading,
+    shipments: shipmentsLoading || shipmentItemsLoading,
     delivery: deliveryLoading,
     offers: offersLoading,
-  }), [financeLoading, ordersLoading, batchesLoading, deliveryLoading, offersLoading]);
+  }), [financeLoading, ordersLoading, batchesLoading, shipmentsLoading, shipmentItemsLoading, deliveryLoading, offersLoading]);
 
   const mosaicData = useMemo(() => ({
     periodLabel,
@@ -414,7 +425,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
     },
     productionPulse,
     deliveryAttention,
-    readyOrdersCount,
+    readyOrdersSummary,
     orderEconomics: {
       averageOrderValue: financeStats?.totals.averageOrderValue ?? 0,
       averageBasketSize: financeStats?.totals.averageBasketSize ?? 0,
@@ -450,7 +461,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
     settings.silver_price_gram,
     productionPulse,
     deliveryAttention,
-    readyOrdersCount,
+    readyOrdersSummary,
     financeStats,
     offersPipeline,
     categoryData,

@@ -29,6 +29,7 @@ import type {
   InventoryRiskRow,
   OffersPipelineSummary,
   ProductionPulseSummary,
+  ReadyOrdersSummary,
 } from '../../features/dashboard/dashboardMosaicViewModels';
 import DashboardMosaicPane, { MOSAIC_LAYOUT } from './DashboardMosaicPane';
 import { DASHBOARD_TERM_HINTS } from '../../features/dashboard/dashboardTermHints';
@@ -55,6 +56,7 @@ export interface MosaicLoadingFlags {
   finance: boolean;
   orders: boolean;
   batches: boolean;
+  shipments: boolean;
   delivery: boolean;
   offers: boolean;
 }
@@ -65,7 +67,7 @@ export interface DashboardMosaicData {
   materials: { silverSold: number; silverValue: number; stonesSold: number };
   productionPulse: ProductionPulseSummary;
   deliveryAttention: DeliveryAttentionEntry[];
-  readyOrdersCount: number;
+  readyOrdersSummary: ReadyOrdersSummary;
   orderEconomics: { averageOrderValue: number; averageBasketSize: number };
   discountVat: { discount: number; vat: number };
   backlogDepth: { gross: number; vat: number; net: number };
@@ -143,7 +145,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
     materials,
     productionPulse,
     deliveryAttention,
-    readyOrdersCount,
+    readyOrdersSummary,
     orderEconomics,
     discountVat,
     backlogDepth,
@@ -275,12 +277,31 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           size="sm"
           layoutClass={MOSAIC_LAYOUT.readyOrders}
           hint={DASHBOARD_TERM_HINTS.readyOrders}
-          isLoading={loading.orders || loading.batches}
+          isLoading={loading.orders || loading.batches || loading.shipments}
           onNavigate={onNavigate ? () => onNavigate('orders') : undefined}
         >
-          <div className="flex h-full flex-col items-center justify-center">
-            <p className="text-4xl font-black text-emerald-600 tabular-nums">{readyOrdersCount}</p>
-            <p className="mt-1 text-xs font-semibold text-slate-500">έτοιμες 100% · προς παράδοση</p>
+          <div className="flex h-full flex-col items-center justify-center gap-2 px-1">
+            <p className="text-4xl font-black text-emerald-600 tabular-nums">{readyOrdersSummary.total}</p>
+            {readyOrdersSummary.total > 0 ? (
+              <div className="flex flex-wrap items-center justify-center gap-1.5">
+                {readyOrdersSummary.fullCount > 0 ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden />
+                    {readyOrdersSummary.fullCount} πλήρεις
+                  </span>
+                ) : null}
+                {readyOrdersSummary.partialCount > 0 ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden />
+                    {readyOrdersSummary.partialCount} μερική
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+            <p className="text-center text-[10px] font-semibold leading-snug text-slate-500">
+              έτοιμες προς αποστολή
+              <span className="block text-slate-400">ίδιο κριτήριο με «Αποστολή 100%»</span>
+            </p>
           </div>
         </DashboardMosaicPane>
 

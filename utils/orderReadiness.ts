@@ -553,3 +553,40 @@ export function getShipmentReadiness(orderId: string, batches: ProductionBatch[]
     shipments
   };
 }
+
+/**
+ * Ποσοστό ετοιμότητας παραγγελίας — ίδια λογική με τη λίστα Παραγγελιών.
+ * Για Μερική Παράδοση χρειάζεται πραγματικό shippedQty από αποστολές.
+ */
+export function getOrderReadinessPercent(
+  order: Order,
+  batches: ProductionBatch[] | undefined | null,
+  shippedQty?: number,
+): number {
+  if (order.status === OrderStatus.Delivered || order.status === OrderStatus.Ready) return 100;
+  if (order.status === OrderStatus.Cancelled) return -1;
+  if (isOrderReady(order, batches)) return 100;
+  if (order.status === OrderStatus.PartiallyDelivered) {
+    return buildPartialDeliveryProgressSegments(order, batches, shippedQty)?.overallCompletePercent ?? 0;
+  }
+  if (order.status === OrderStatus.InProduction || order.status === OrderStatus.Pending) {
+    return buildInProductionCollapsedProgressSegments(order, batches)?.readyPercentVsOrder ?? 0;
+  }
+  return 0;
+}
+
+/**
+ * Έτοιμη για αποστολή (κουμπί «Αποστολή 100%» στις Παραγγελίες).
+ * Συμπεριλαμβάνει Μερική Παράδοση όταν shipped + έτοιμα τεμάχια = σύνολο παραγγελίας.
+ */
+export function isOrderReadyForShipment(
+  order: Order,
+  batches: ProductionBatch[] | undefined | null,
+  shippedQty?: number,
+): boolean {
+  if (order.status === OrderStatus.Cancelled || order.status === OrderStatus.Delivered) return false;
+  if (order.is_archived === true) return false;
+  if (order.status === OrderStatus.Ready) return true;
+  const readinessPercent = getOrderReadinessPercent(order, batches, shippedQty);
+  return readinessPercent >= 100 || isOrderReady(order, batches);
+}

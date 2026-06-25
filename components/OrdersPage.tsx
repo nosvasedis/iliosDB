@@ -15,7 +15,7 @@ import DesktopOrderBuilder from './DesktopOrderBuilder';
 import CustomerDetailsModal from './CustomerDetailsModal';
 import ProductionSendModal from './ProductionSendModal';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
-import { buildInProductionCollapsedProgressSegments, buildPartialDeliveryProgressSegments, groupBatchesByShipment, getShipmentReadiness, isOrderReady } from '../utils/orderReadiness';
+import { groupBatchesByShipment, getShipmentReadiness, getOrderReadinessPercent, isOrderReady, isOrderReadyForShipment } from '../utils/orderReadiness';
 import { OrderListProgressBar } from './orders/OrderListProgressBar';
 import ShipmentCreationModal, { ShipmentCreationVariant } from './deliveries/ShipmentCreationModal';
 import ShipmentUndoConfirmationModal from './deliveries/ShipmentUndoConfirmationModal';
@@ -34,7 +34,7 @@ import { useCollections } from '../hooks/api/useCollections';
 import { useAllShipmentItems, useAllShipments, useCustomers, useOrderShipmentsForOrder, useOrdersWithItems } from '../hooks/api/useOrders';
 import { useProductionBatches } from '../hooks/api/useProductionBatches';
 import { ordersRepository } from '../features/orders';
-import { getShippedQuantitiesForOrderLines, itemKey } from '../utils/shipmentUtils';
+import { buildShippedQtyByOrderId, getShippedQuantitiesForOrderLines, itemKey } from '../utils/shipmentUtils';
 import DesktopPageHeader from './DesktopPageHeader';
 import { SellerPicker } from './OrderBuilder/SellerPicker';
 import { productionRepository } from '../features/production';
@@ -83,19 +83,6 @@ const ORDER_SORT_OPTIONS: Array<{ id: OrderSortMode; label: string; helper: stri
 
 function getOrderPrimaryTag(order: Order): string {
     return (order.tags || []).map(t => t.trim()).filter(Boolean).sort((a, b) => a.localeCompare(b, 'el'))[0] || '';
-}
-
-function getOrderReadinessPercent(order: Order, batches: ProductionBatch[] | undefined | null, shippedQty?: number): number {
-    if (order.status === OrderStatus.Delivered || order.status === OrderStatus.Ready) return 100;
-    if (order.status === OrderStatus.Cancelled) return -1;
-    if (isOrderReady(order, batches)) return 100;
-    if (order.status === OrderStatus.PartiallyDelivered) {
-        return buildPartialDeliveryProgressSegments(order, batches, shippedQty)?.overallCompletePercent ?? 0;
-    }
-    if (order.status === OrderStatus.InProduction || order.status === OrderStatus.Pending) {
-        return buildInProductionCollapsedProgressSegments(order, batches)?.readyPercentVsOrder ?? 0;
-    }
-    return 0;
 }
 
 function hasFullOrderItems(order: Order | null | undefined): boolean {
@@ -970,13 +957,10 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     }, [allShipments, allShipmentItems]);
 
     // Precompute total shipped qty per order (for PartiallyDelivered progress bar stripe)
-    const shippedQtyByOrderId = useMemo(() => {
-        const map = new Map<string, number>();
-        shipmentItemsByOrderId.forEach((items, orderId) => {
-            map.set(orderId, items.reduce((sum, item) => sum + item.quantity, 0));
-        });
-        return map;
-    }, [shipmentItemsByOrderId]);
+    const shippedQtyByOrderId = useMemo(
+        () => buildShippedQtyByOrderId(allShipments, allShipmentItems),
+        [allShipments, allShipmentItems],
+    );
 
     // View State
     const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
@@ -1099,7 +1083,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             const orderBatches = batchesByOrderId.get(order.id) || [];
             const readinessPercent = getOrderReadinessPercent(order, orderBatches, shippedQtyByOrderId.get(order.id));
             map.set(order.id, {
-                isReady: readinessPercent >= 100 || isOrderReady(order, orderBatches),
+                isReady: isOrderReadyForShipment(order, orderBatches, shippedQtyByOrderId.get(order.id)),
                 retailClientLabel,
                 readinessPercent
             });

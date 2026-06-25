@@ -7,7 +7,9 @@ import {
   buildPartialDeliveryProgressSegments,
   getOrderItemProductionStageBreakdown,
   getShipmentReadiness,
+  getOrderReadinessPercent,
   isOrderReady,
+  isOrderReadyForShipment,
   orderStatusShowsProductionProgress,
 } from '../../utils/orderReadiness';
 
@@ -105,6 +107,49 @@ describe('isOrderReady', () => {
       { ...baseBatch, id: 'a', order_id: 'o1', sku: 'B', quantity: 5, current_stage: ProductionStage.Ready },
     ];
     expect(isOrderReady(order, batches)).toBe(true);
+  });
+});
+
+describe('getOrderReadinessPercent / isOrderReadyForShipment', () => {
+  const baseBatch = {
+    created_at: '',
+    updated_at: '',
+    priority: 'Normal' as const,
+    requires_setting: false,
+  };
+
+  it('treats PartiallyDelivered as 100% when shipped qty plus ready batches cover the order', () => {
+    const order = {
+      id: 'o1',
+      status: OrderStatus.PartiallyDelivered,
+      items: [{ sku: 'A', quantity: 10, price_at_order: 10 }],
+    } as Order;
+    const batches = [
+      { ...baseBatch, id: 'b1', order_id: 'o1', sku: 'A', quantity: 5, current_stage: ProductionStage.Ready },
+    ];
+    expect(getOrderReadinessPercent(order, batches, 5)).toBe(100);
+    expect(isOrderReadyForShipment(order, batches, 5)).toBe(true);
+  });
+
+  it('is ready for shipment when everything was shipped and no batches remain', () => {
+    const order = {
+      id: 'o1',
+      status: OrderStatus.PartiallyDelivered,
+      items: [{ sku: 'A', quantity: 6, price_at_order: 10 }],
+    } as Order;
+    expect(isOrderReady(order, [])).toBe(false);
+    expect(getOrderReadinessPercent(order, [], 6)).toBe(100);
+    expect(isOrderReadyForShipment(order, [], 6)).toBe(true);
+  });
+
+  it('excludes archived ready orders from shipment readiness', () => {
+    const order = {
+      id: 'o1',
+      status: OrderStatus.Ready,
+      is_archived: true,
+      items: [{ sku: 'A', quantity: 1, price_at_order: 10 }],
+    } as Order;
+    expect(isOrderReadyForShipment(order, [])).toBe(false);
   });
 });
 
