@@ -47,6 +47,8 @@ export type SkuVariantDetailSummary = {
   silverWeightGrams: number;
   costBreakdown: { silver: number; labor: number; materials: number };
   priceOverrideCount: number;
+  giftQuantity: number;
+  belowCostQuantity: number;
 };
 
 export type SkuVariantDetail = {
@@ -95,6 +97,8 @@ function aggregateSummary(lines: FinanceLineEvent[]): SkuVariantDetailSummary {
   const customerKeys = new Set<string>();
   let shipmentCount = 0;
   let priceOverrideCount = 0;
+  let giftQuantity = 0;
+  let belowCostQuantity = 0;
   const costBreakdown = { silver: 0, labor: 0, materials: 0 };
 
   let quantity = 0;
@@ -114,6 +118,8 @@ function aggregateSummary(lines: FinanceLineEvent[]): SkuVariantDetailSummary {
     customerKeys.add(line.customerId || line.customerName);
     if (line.source === 'shipment') shipmentCount += 1;
     if (line.priceOverride) priceOverrideCount += 1;
+    if (line.net <= 0.001) giftQuantity += line.quantity;
+    else if (line.profit < 0) belowCostQuantity += line.quantity;
   });
 
   return {
@@ -127,6 +133,8 @@ function aggregateSummary(lines: FinanceLineEvent[]): SkuVariantDetailSummary {
     silverWeightGrams,
     costBreakdown,
     priceOverrideCount,
+    giftQuantity,
+    belowCostQuantity,
   };
 }
 

@@ -205,6 +205,23 @@ export default function SkuVariantDetailPanel({ detail, gender, onSelectVariant 
               </div>
             )}
 
+            {summary.profit < 0 && (
+              <div className="rounded-xl border border-red-100 bg-red-50 px-3 py-2.5 text-xs leading-relaxed text-red-800">
+                <p className="font-bold">Γιατί αρνητικό κέρδος;</p>
+                <p className="mt-1 font-medium text-red-700/90">
+                  {summary.giftQuantity > 0 && (
+                    <span>{summary.giftQuantity} τεμ. δώρο (τιμή 0€) — το κόστος παραγωγής μετράει ως ζημία. </span>
+                  )}
+                  {summary.belowCostQuantity > 0 && (
+                    <span>{summary.belowCostQuantity} τεμ. πωλήθηκαν κάτω από εκτιμώμενο κόστος (έκπτωση ή χειροκίνητη τιμή). </span>
+                  )}
+                  {summary.giftQuantity === 0 && summary.belowCostQuantity === 0 && (
+                    <span>Το συνολικό κόστος παραγωγής υπερβαίνει τα έσοδα της περιόδου.</span>
+                  )}
+                </p>
+              </div>
+            )}
+
             <TimelineBars timeline={detail.timeline} />
 
             {detail.variantBreakdown && detail.variantBreakdown.length > 0 && (
@@ -340,8 +357,13 @@ export default function SkuVariantDetailPanel({ detail, gender, onSelectVariant 
                         </p>
                       </div>
                     </div>
-                    {(line.priceOverride || line.costWarning) && (
+                    {(line.priceOverride || line.costWarning || line.net <= 0.001) && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
+                        {line.net <= 0.001 && (
+                          <span className="rounded-md bg-fuchsia-50 px-2 py-0.5 text-[9px] font-bold text-fuchsia-700">
+                            Δώρο (0€)
+                          </span>
+                        )}
                         {line.priceOverride && (
                           <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[9px] font-bold text-amber-700">
                             Χειροκίνητη τιμή

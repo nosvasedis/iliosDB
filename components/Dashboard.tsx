@@ -58,7 +58,6 @@ import {
   buildFinishChartData,
   buildTopVariantRows,
   buildTopCustomerRows,
-  buildEnrichedVariantAnalyticsRows,
 } from '../features/dashboard/dashboardAnalysisViewModels';
 import { useFinanceAnalytics } from '../hooks/api/useFinanceAnalytics';
 import { FinancePeriodMode, isWithinFinancePeriod } from '../utils/financeAnalytics';
@@ -290,15 +289,6 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       if (!financeStats) return [];
       return buildTopVariantRows(financeStats.topVariants, products);
   }, [financeStats, products]);
-
-  const enrichedVariantRows = useMemo(() => {
-      if (!financeStats) return [];
-      return buildEnrichedVariantAnalyticsRows(
-        financeStats.topVariants,
-        products,
-        collections || [],
-      );
-  }, [financeStats, products, collections]);
 
   const topCustomerRows = useMemo(() => {
       if (!financeStats) return [];
@@ -561,12 +551,11 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
 
               {topVariantsModalOpen && (
                 <TopVariantsAnalyticsModal
-                  rows={enrichedVariantRows}
                   realizedEvents={financeStats?.events.realized ?? []}
                   backlogEvents={financeStats?.events.backlog ?? []}
                   products={products}
+                  orders={orders ?? []}
                   periodLabel={periodLabel}
-                  shippedPieces={stats.shippedPieces}
                   onClose={() => setTopVariantsModalOpen(false)}
                   onOpenRegistry={onNavigate ? () => { setTopVariantsModalOpen(false); onNavigate('registry'); } : undefined}
                 />

@@ -130,6 +130,8 @@ export type EnrichedVariantAnalyticsRow = DashboardVariantRow & {
   peakShare: number;
   avgUnitRevenue: number;
   fullSku: string;
+  giftQuantity?: number;
+  belowCostQuantity?: number;
 };
 
 export type VariantAnalyticsSort = 'quantity' | 'revenue' | 'profit' | 'margin';
