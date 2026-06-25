@@ -35,21 +35,13 @@ const ACCENT_STYLES: Record<MosaicAccent, { strip: string; icon: string; bg: str
   indigo: { strip: 'bg-indigo-500', icon: 'text-indigo-600', bg: 'bg-white' },
 };
 
-const COL_SPAN: Record<number, string> = {
-  3: 'lg:col-span-3',
-  4: 'lg:col-span-4',
-  6: 'lg:col-span-6',
-  8: 'lg:col-span-8',
-  12: 'lg:col-span-12',
-};
-
 interface Props {
   title: string;
   icon: LucideIcon;
   accent?: MosaicAccent;
   size?: MosaicPaneSize;
-  colSpan?: 3 | 4 | 6 | 8 | 12;
-  rowSpan?: 1 | 2;
+  /** Responsive grid placement — must sum to 12 per row on lg+ */
+  layoutClass: string;
   onNavigate?: () => void;
   headerExtra?: React.ReactNode;
   isLoading?: boolean;
@@ -62,8 +54,7 @@ function DashboardMosaicPane({
   icon: Icon,
   accent = 'slate',
   size = 'md',
-  colSpan = 4,
-  rowSpan = 1,
+  layoutClass,
   onNavigate,
   headerExtra,
   isLoading = false,
@@ -84,8 +75,7 @@ function DashboardMosaicPane({
       className={`
         group relative flex h-full flex-col overflow-hidden rounded-2xl border text-left
         [contain:layout_paint]
-        ${COL_SPAN[colSpan] ?? 'lg:col-span-4'}
-        ${rowSpan === 2 ? 'lg:row-span-2' : ''}
+        ${layoutClass}
         ${isDark ? 'border-emerald-800/40 text-white shadow-sm' : 'border-slate-200/90 shadow-sm'}
         ${styles.bg}
         ${onNavigate ? 'cursor-pointer hover:border-slate-300' : ''}
@@ -123,7 +113,7 @@ function DashboardMosaicPane({
       </div>
 
       <div
-        className={`relative flex flex-1 flex-col px-4 pb-4 pt-1 ${MOSAIC_BODY_MIN_HEIGHT[size]} ${
+        className={`relative flex w-full flex-1 flex-col px-4 pb-4 pt-1 ${MOSAIC_BODY_MIN_HEIGHT[size]} ${
           isDark ? 'text-white' : ''
         }`}
       >
@@ -140,3 +130,24 @@ function DashboardMosaicPane({
 }
 
 export default memo(DashboardMosaicPane);
+
+/** Asymmetrical responsive spans — each row sums to 12 on lg/xl */
+export const MOSAIC_LAYOUT = {
+  materials: 'col-span-1 sm:col-span-2 lg:col-span-4 xl:col-span-3',
+  production: 'col-span-1 sm:col-span-1 lg:col-span-3 xl:col-span-3',
+  delivery: 'col-span-1 sm:col-span-1 lg:col-span-3 xl:col-span-4',
+  readyOrders: 'col-span-1 sm:col-span-2 lg:col-span-2 xl:col-span-2',
+  orderEconomics: 'col-span-1 sm:col-span-2 lg:col-span-4 xl:col-span-3',
+  discountVat: 'col-span-1 sm:col-span-1 lg:col-span-3 xl:col-span-3',
+  backlog: 'col-span-1 sm:col-span-1 lg:col-span-3 xl:col-span-3',
+  offers: 'col-span-1 sm:col-span-2 lg:col-span-2 xl:col-span-3',
+  documents: 'col-span-1 sm:col-span-2 lg:col-span-3 xl:col-span-2',
+  category: 'col-span-1 sm:col-span-2 lg:col-span-9 xl:col-span-10',
+  collection: 'col-span-1 sm:col-span-2 lg:col-span-5 xl:col-span-6',
+  variants: 'col-span-1 sm:col-span-2 lg:col-span-7 xl:col-span-6',
+  gender: 'col-span-1 sm:col-span-1 lg:col-span-4 xl:col-span-3',
+  finish: 'col-span-1 sm:col-span-1 lg:col-span-3 xl:col-span-3',
+  customers: 'col-span-1 sm:col-span-2 lg:col-span-5 xl:col-span-6',
+  inventoryRisk: 'col-span-1 sm:col-span-2 lg:col-span-7 xl:col-span-5',
+  demandPressure: 'col-span-1 sm:col-span-2 lg:col-span-5 xl:col-span-7',
+} as const;

@@ -30,7 +30,7 @@ import type {
   OffersPipelineSummary,
   ProductionPulseSummary,
 } from '../../features/dashboard/dashboardMosaicViewModels';
-import DashboardMosaicPane from './DashboardMosaicPane';
+import DashboardMosaicPane, { MOSAIC_LAYOUT } from './DashboardMosaicPane';
 import {
   MiniCustomerList,
   MiniPiePanel,
@@ -109,6 +109,32 @@ function StatLine({
   );
 }
 
+function DocumentsPaneContent({
+  issuedCount,
+  isAligned,
+}: {
+  issuedCount: number;
+  isAligned: boolean;
+}) {
+  return (
+    <div className="flex h-full flex-col justify-center gap-2">
+      <p className="text-xs leading-relaxed text-slate-500">
+        {issuedCount > 0
+          ? `${issuedCount} παραστατικά στην επιλεγμένη περίοδο.`
+          : 'Δεν έχουν εκδοθεί παραστατικά για την περίοδο.'}
+      </p>
+      <span
+        className={`inline-flex w-fit rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+          isAligned ? 'bg-slate-100 text-slate-500' : 'bg-slate-100 text-slate-600'
+        }`}
+      >
+        {isAligned ? 'Αρχειοθέτηση εντάξει' : 'Ελέγξτε τα στοιχεία'}
+      </span>
+      <p className="text-[10px] text-slate-400">Πατήστε για πλήρη αρχείο.</p>
+    </div>
+  );
+}
+
 function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants }: Props) {
   const {
     periodLabel,
@@ -137,6 +163,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
 
   const collectionRevenueByName = new Map(collectionRankings.map((c) => [c.name, c.revenue]));
   const emptySales = `Δεν βρέθηκαν πωλήσεις για ${periodLabel.toLowerCase()}.`;
+  const documentsAligned = Math.abs(compliance.legalGap) < 1;
 
   return (
     <div>
@@ -145,14 +172,14 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
         <p className="text-sm font-medium text-slate-500">{periodLabel}</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-12 lg:gap-3.5 [contain:layout]">
-        {/* Ops row — four equal tiles */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-12 lg:gap-3.5 [contain:layout]">
+        {/* Row 1: 4+3+3+2 */}
         <DashboardMosaicPane
           title="Ασήμι & Υλικά"
           icon={Gem}
           accent="dark"
           size="md"
-          colSpan={3}
+          layoutClass={MOSAIC_LAYOUT.materials}
           isLoading={loading.finance}
         >
           <div className="flex h-full flex-col justify-center gap-3">
@@ -179,7 +206,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           icon={Factory}
           accent="amber"
           size="md"
-          colSpan={3}
+          layoutClass={MOSAIC_LAYOUT.production}
           isLoading={loading.batches}
           onNavigate={onNavigate ? () => onNavigate('production') : undefined}
         >
@@ -207,7 +234,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           icon={Truck}
           accent="sky"
           size="md"
-          colSpan={3}
+          layoutClass={MOSAIC_LAYOUT.delivery}
           isLoading={loading.delivery}
           onNavigate={onNavigate ? () => onNavigate('deliveries') : undefined}
         >
@@ -242,7 +269,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           icon={CheckCircle}
           accent="emerald"
           size="sm"
-          colSpan={3}
+          layoutClass={MOSAIC_LAYOUT.readyOrders}
           isLoading={loading.orders}
           onNavigate={onNavigate ? () => onNavigate('orders') : undefined}
         >
@@ -252,13 +279,13 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           </div>
         </DashboardMosaicPane>
 
-        {/* Finance row */}
+        {/* Row 2: 4+3+3+2 */}
         <DashboardMosaicPane
           title="Μέσος Όρος Παραγγελίας"
           icon={Wallet}
           accent="emerald"
           size="md"
-          colSpan={3}
+          layoutClass={MOSAIC_LAYOUT.orderEconomics}
           isLoading={loading.finance}
           onNavigate={onNavigate ? () => onNavigate('analytics') : undefined}
         >
@@ -279,7 +306,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           icon={Percent}
           accent="indigo"
           size="md"
-          colSpan={3}
+          layoutClass={MOSAIC_LAYOUT.discountVat}
           isLoading={loading.finance}
           onNavigate={onNavigate ? () => onNavigate('financials') : undefined}
         >
@@ -300,7 +327,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           icon={Activity}
           accent="slate"
           size="md"
-          colSpan={3}
+          layoutClass={MOSAIC_LAYOUT.backlog}
           isLoading={loading.finance}
           onNavigate={onNavigate ? () => onNavigate('orders') : undefined}
         >
@@ -316,7 +343,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           icon={Tag}
           accent="blue"
           size="sm"
-          colSpan={3}
+          layoutClass={MOSAIC_LAYOUT.offers}
           isLoading={loading.offers}
           onNavigate={onNavigate ? () => onNavigate('offers') : undefined}
         >
@@ -327,28 +354,17 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           </div>
         </DashboardMosaicPane>
 
+        {/* Row 3: 3+9 — category fills the row */}
         <DashboardMosaicPane
-          title="Νομική Συμφωνία"
+          title="Παραστατικά"
           icon={FileText}
-          accent="indigo"
+          accent="slate"
           size="md"
-          colSpan={3}
+          layoutClass={MOSAIC_LAYOUT.documents}
           isLoading={loading.finance}
           onNavigate={onNavigate ? () => onNavigate('legal') : undefined}
         >
-          <div className="flex h-full flex-col justify-center gap-1">
-            <div>
-              <p className="text-[10px] font-bold uppercase text-slate-400">Διαφορά καθαρής αξίας</p>
-              <p
-                className={`text-xl font-black tabular-nums ${
-                  Math.abs(compliance.legalGap) < 1 ? 'text-emerald-600' : 'text-amber-600'
-                }`}
-              >
-                {formatCurrency(compliance.legalGap)}
-              </p>
-            </div>
-            <p className="text-xs text-slate-500">{compliance.issuedCount} εκδοθέντα παραστατικά</p>
-          </div>
+          <DocumentsPaneContent issuedCount={compliance.issuedCount} isAligned={documentsAligned} />
         </DashboardMosaicPane>
 
         <DashboardMosaicPane
@@ -356,7 +372,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           icon={PieChart}
           accent="blue"
           size="chart"
-          colSpan={6}
+          layoutClass={MOSAIC_LAYOUT.category}
           isLoading={loading.finance}
           headerExtra={
             <div className="relative">
@@ -382,12 +398,13 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           )}
         </DashboardMosaicPane>
 
+        {/* Row 4: 5+7 */}
         <DashboardMosaicPane
           title="Πωλήσεις ανά Συλλογή"
           icon={Boxes}
           accent="violet"
           size="chart"
-          colSpan={6}
+          layoutClass={MOSAIC_LAYOUT.collection}
           isLoading={loading.finance}
           onNavigate={onNavigate ? () => onNavigate('collections') : undefined}
         >
@@ -411,7 +428,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           icon={Trophy}
           accent="amber"
           size="list"
-          colSpan={6}
+          layoutClass={MOSAIC_LAYOUT.variants}
           isLoading={loading.finance}
         >
           {topVariants.length === 0 ? (
@@ -421,12 +438,13 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           )}
         </DashboardMosaicPane>
 
+        {/* Row 5: 4+3+5 */}
         <DashboardMosaicPane
           title="Πωλήσεις ανά Φύλο"
           icon={Users}
           accent="sky"
           size="chart"
-          colSpan={3}
+          layoutClass={MOSAIC_LAYOUT.gender}
           isLoading={loading.finance}
         >
           {genderData.length === 0 ? (
@@ -441,7 +459,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           icon={Sparkles}
           accent="rose"
           size="chart"
-          colSpan={3}
+          layoutClass={MOSAIC_LAYOUT.finish}
           isLoading={loading.finance}
         >
           {finishData.length === 0 ? (
@@ -456,7 +474,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           icon={UserCheck}
           accent="emerald"
           size="list"
-          colSpan={6}
+          layoutClass={MOSAIC_LAYOUT.customers}
           isLoading={loading.finance}
           onNavigate={onNavigate ? () => onNavigate('customers') : undefined}
         >
@@ -467,13 +485,13 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           )}
         </DashboardMosaicPane>
 
-        {/* Inventory */}
+        {/* Row 6: 7+5 */}
         <DashboardMosaicPane
           title="Χαμηλό Απόθεμα"
           icon={Package}
           accent="violet"
           size="lg"
-          colSpan={6}
+          layoutClass={MOSAIC_LAYOUT.inventoryRisk}
           onNavigate={onNavigate ? () => onNavigate('inventory') : undefined}
         >
           {inventoryRisk.totalLowStock === 0 ? (
@@ -506,7 +524,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           icon={AlertTriangle}
           accent="amber"
           size="lg"
-          colSpan={6}
+          layoutClass={MOSAIC_LAYOUT.demandPressure}
           isLoading={loading.orders}
           onNavigate={onNavigate ? () => onNavigate('inventory') : undefined}
         >

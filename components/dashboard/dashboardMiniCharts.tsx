@@ -46,8 +46,8 @@ export const MiniPiePanel = memo(function MiniPiePanel({
   legendExtra?: (item: DashboardPieSlice, idx: number) => React.ReactNode;
 }) {
   return (
-    <div className="grid h-full grid-cols-1 items-center gap-2 lg:grid-cols-5">
-      <div className="flex h-[7.5rem] items-center justify-center lg:col-span-2">
+    <div className="grid h-full w-full grid-cols-1 items-center gap-3 lg:grid-cols-5">
+      <div className="flex h-[7.5rem] w-full items-center justify-center lg:col-span-2">
         <RePieChart width={PIE_SIZE} height={PIE_SIZE}>
           <Pie
             data={data}
@@ -70,7 +70,7 @@ export const MiniPiePanel = memo(function MiniPiePanel({
           />
         </RePieChart>
       </div>
-      <div className="flex h-[7.5rem] flex-col justify-center space-y-1 overflow-hidden pr-0.5 lg:col-span-3">
+      <div className="flex h-[7.5rem] w-full flex-col justify-center space-y-1 overflow-hidden lg:col-span-3">
         {data.map((item, idx) => (
           <div key={item.name} className="flex items-center justify-between gap-2 text-xs">
             <div className="flex min-w-0 items-center gap-1.5">
