@@ -398,28 +398,28 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       <DesktopPageHeader
         icon={Activity}
         title="Πίνακας Ελέγχου"
-        subtitle={`Έξυπνη επισκόπηση και ανάλυση κερδοφορίας για ${periodLabel.toLowerCase()}.`}
-        tailClassName="flex w-full min-w-0 flex-1 flex-wrap items-center gap-3 lg:ml-auto lg:max-w-none lg:justify-end"
+        subtitle="Έξυπνη επισκόπηση και ανάλυση κερδοφορίας"
         tail={(
-          <div className="flex flex-wrap gap-3">
-            <FinancePeriodSelector value={financePeriodMode} onChange={setFinancePeriodMode} />
-            <div className="flex rounded-xl bg-slate-100 p-1">
-              {DASHBOARD_TABS.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-bold transition-all ${
-                    activeTab === tab.id
-                      ? 'bg-white text-emerald-700 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  <tab.icon size={16} />
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+          <FinancePeriodSelector value={financePeriodMode} onChange={setFinancePeriodMode} />
+        )}
+        tailClassName="flex shrink-0 items-center justify-end"
+        below={(
+          <div className="flex overflow-x-auto rounded-xl bg-slate-100 p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {DASHBOARD_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-bold transition-all sm:px-4 sm:py-2.5 ${
+                  activeTab === tab.id
+                    ? 'bg-white text-emerald-700 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <tab.icon size={16} />
+                {tab.label}
+              </button>
+            ))}
           </div>
         )}
       />

@@ -204,7 +204,7 @@ export default function DashboardSalesAnalysisCarousel({
               className="group flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-3 text-sm font-black text-emerald-800 transition-all hover:border-emerald-300 hover:shadow-md hover:shadow-emerald-100 active:scale-[0.99]"
             >
               <Trophy size={16} className="transition-transform group-hover:scale-110" />
-              Πλήρης ανάλυση (Top 100)
+              Πλήρης ανάλυση
               <ArrowUpRight size={16} className="opacity-60 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
             </button>
           )}
