@@ -31,6 +31,7 @@ import type {
   ProductionPulseSummary,
 } from '../../features/dashboard/dashboardMosaicViewModels';
 import DashboardMosaicPane, { MOSAIC_LAYOUT } from './DashboardMosaicPane';
+import { DASHBOARD_TERM_HINTS } from '../../features/dashboard/dashboardTermHints';
 import {
   MiniCustomerList,
   MiniPiePanel,
@@ -180,6 +181,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           accent="dark"
           size="md"
           layoutClass={MOSAIC_LAYOUT.materials}
+          hint={DASHBOARD_TERM_HINTS.materials}
           isLoading={loading.finance}
         >
           <div className="flex h-full flex-col justify-center gap-3">
@@ -207,6 +209,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           accent="amber"
           size="md"
           layoutClass={MOSAIC_LAYOUT.production}
+          hint={DASHBOARD_TERM_HINTS.productionPulse}
           isLoading={loading.batches}
           onNavigate={onNavigate ? () => onNavigate('production') : undefined}
         >
@@ -235,6 +238,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           accent="sky"
           size="md"
           layoutClass={MOSAIC_LAYOUT.delivery}
+          hint={DASHBOARD_TERM_HINTS.deliveryAttention}
           isLoading={loading.delivery}
           onNavigate={onNavigate ? () => onNavigate('deliveries') : undefined}
         >
@@ -270,12 +274,13 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           accent="emerald"
           size="sm"
           layoutClass={MOSAIC_LAYOUT.readyOrders}
-          isLoading={loading.orders}
+          hint={DASHBOARD_TERM_HINTS.readyOrders}
+          isLoading={loading.orders || loading.batches}
           onNavigate={onNavigate ? () => onNavigate('orders') : undefined}
         >
           <div className="flex h-full flex-col items-center justify-center">
             <p className="text-4xl font-black text-emerald-600 tabular-nums">{readyOrdersCount}</p>
-            <p className="mt-1 text-xs font-semibold text-slate-500">περιμένουν παράδοση</p>
+            <p className="mt-1 text-xs font-semibold text-slate-500">έτοιμες 100% · προς παράδοση</p>
           </div>
         </DashboardMosaicPane>
 
@@ -286,6 +291,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           accent="emerald"
           size="md"
           layoutClass={MOSAIC_LAYOUT.orderEconomics}
+          hint={DASHBOARD_TERM_HINTS.orderEconomics}
           isLoading={loading.finance}
           onNavigate={onNavigate ? () => onNavigate('analytics') : undefined}
         >
@@ -307,6 +313,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           accent="indigo"
           size="md"
           layoutClass={MOSAIC_LAYOUT.discountVat}
+          hint={DASHBOARD_TERM_HINTS.discountVat}
           isLoading={loading.finance}
           onNavigate={onNavigate ? () => onNavigate('financials') : undefined}
         >
@@ -328,6 +335,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           accent="slate"
           size="md"
           layoutClass={MOSAIC_LAYOUT.backlog}
+          hint={DASHBOARD_TERM_HINTS.backlogDepth}
           isLoading={loading.finance}
           onNavigate={onNavigate ? () => onNavigate('orders') : undefined}
         >
@@ -344,6 +352,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           accent="blue"
           size="sm"
           layoutClass={MOSAIC_LAYOUT.offers}
+          hint={DASHBOARD_TERM_HINTS.offers}
           isLoading={loading.offers}
           onNavigate={onNavigate ? () => onNavigate('offers') : undefined}
         >
@@ -361,6 +370,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           accent="slate"
           size="md"
           layoutClass={MOSAIC_LAYOUT.documents}
+          hint={DASHBOARD_TERM_HINTS.documents}
           isLoading={loading.finance}
           onNavigate={onNavigate ? () => onNavigate('legal') : undefined}
         >
@@ -373,6 +383,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           accent="blue"
           size="chart"
           layoutClass={MOSAIC_LAYOUT.category}
+          hint={DASHBOARD_TERM_HINTS.categorySales}
           isLoading={loading.finance}
           headerExtra={
             <div className="relative">
@@ -405,6 +416,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           accent="violet"
           size="chart"
           layoutClass={MOSAIC_LAYOUT.collection}
+          hint={DASHBOARD_TERM_HINTS.collectionSales}
           isLoading={loading.finance}
           onNavigate={onNavigate ? () => onNavigate('collections') : undefined}
         >
@@ -429,6 +441,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           accent="amber"
           size="list"
           layoutClass={MOSAIC_LAYOUT.variants}
+          hint={DASHBOARD_TERM_HINTS.topVariants}
           isLoading={loading.finance}
         >
           {topVariants.length === 0 ? (
@@ -445,6 +458,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           accent="sky"
           size="chart"
           layoutClass={MOSAIC_LAYOUT.gender}
+          hint={DASHBOARD_TERM_HINTS.genderSales}
           isLoading={loading.finance}
         >
           {genderData.length === 0 ? (
@@ -460,6 +474,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           accent="rose"
           size="chart"
           layoutClass={MOSAIC_LAYOUT.finish}
+          hint={DASHBOARD_TERM_HINTS.finishSales}
           isLoading={loading.finance}
         >
           {finishData.length === 0 ? (
@@ -475,6 +490,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           accent="emerald"
           size="list"
           layoutClass={MOSAIC_LAYOUT.customers}
+          hint={DASHBOARD_TERM_HINTS.topCustomers}
           isLoading={loading.finance}
           onNavigate={onNavigate ? () => onNavigate('customers') : undefined}
         >
@@ -492,6 +508,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           accent="violet"
           size="lg"
           layoutClass={MOSAIC_LAYOUT.inventoryRisk}
+          hint={DASHBOARD_TERM_HINTS.inventoryRisk}
           onNavigate={onNavigate ? () => onNavigate('inventory') : undefined}
         >
           {inventoryRisk.totalLowStock === 0 ? (
@@ -525,6 +542,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
           accent="amber"
           size="lg"
           layoutClass={MOSAIC_LAYOUT.demandPressure}
+          hint={DASHBOARD_TERM_HINTS.demandPressure}
           isLoading={loading.orders}
           onNavigate={onNavigate ? () => onNavigate('inventory') : undefined}
         >

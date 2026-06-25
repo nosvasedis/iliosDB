@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { ArrowUpRight, type LucideIcon } from 'lucide-react';
 import { MosaicSpinner } from './dashboardMiniCharts';
+import DashboardTermHint from './DashboardTermHint';
 
 export type MosaicAccent =
   | 'emerald'
@@ -44,6 +45,7 @@ interface Props {
   layoutClass: string;
   onNavigate?: () => void;
   headerExtra?: React.ReactNode;
+  hint?: string;
   isLoading?: boolean;
   children: React.ReactNode;
   className?: string;
@@ -57,6 +59,7 @@ function DashboardMosaicPane({
   layoutClass,
   onNavigate,
   headerExtra,
+  hint,
   isLoading = false,
   children,
   className = '',
@@ -100,6 +103,9 @@ function DashboardMosaicPane({
           >
             {title}
           </h3>
+          {hint ? (
+            <DashboardTermHint text={hint} variant={isDark ? 'dark' : 'default'} />
+          ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {headerExtra}

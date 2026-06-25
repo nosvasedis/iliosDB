@@ -52,6 +52,7 @@ import {
   buildOffersSummary,
   countReadyOrders,
 } from '../features/dashboard/dashboardMosaicViewModels';
+import { DASHBOARD_TERM_HINTS } from '../features/dashboard/dashboardTermHints';
 import { useCollections } from '../hooks/api/useCollections';
 import {
   buildCategoryChartData,
@@ -338,6 +339,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       showEyeToggle: true,
       isValueVisible: showRealizedRevenue,
       onToggleVisibility: () => setShowRealizedRevenue((v) => !v),
+      hint: DASHBOARD_TERM_HINTS.realizedRevenue,
     },
     {
       id: 'profit',
@@ -351,6 +353,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       showEyeToggle: true,
       isValueVisible: showEstimatedProfit,
       onToggleVisibility: () => setShowEstimatedProfit((v) => !v),
+      hint: DASHBOARD_TERM_HINTS.estimatedProfit,
     },
   ], [stats, showRealizedRevenue, showEstimatedProfit]);
 
@@ -367,6 +370,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       showEyeToggle: true,
       isValueVisible: showPendingRevenue,
       onToggleVisibility: () => setShowPendingRevenue((v) => !v),
+      hint: DASHBOARD_TERM_HINTS.backlogValue,
     },
     {
       id: 'production',
@@ -376,6 +380,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       icon: Factory,
       bg: 'bg-amber-500',
       text: 'text-white',
+      hint: DASHBOARD_TERM_HINTS.inProduction,
     },
   ], [stats, showPendingRevenue]);
 
@@ -389,7 +394,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
   const inventoryRisk = useMemo(() => buildInventoryRiskRows(products), [products]);
   const demandPressure = useMemo(() => buildDemandPressureRows(products, orders), [products, orders]);
   const offersPipeline = useMemo(() => buildOffersSummary(offers), [offers]);
-  const readyOrdersCount = useMemo(() => countReadyOrders(orders), [orders]);
+  const readyOrdersCount = useMemo(() => countReadyOrders(orders, batches), [orders, batches]);
 
   const mosaicLoading: MosaicLoadingFlags = useMemo(() => ({
     finance: financeLoading,

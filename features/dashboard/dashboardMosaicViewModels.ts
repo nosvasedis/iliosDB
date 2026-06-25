@@ -1,4 +1,5 @@
 import { Offer, Order, OrderStatus, Product, ProductionBatch, ProductionStage } from '../../types';
+import { isOrderReady } from '../../utils/orderReadiness';
 
 export interface ProductionPulseSummary {
   delayed: number;
@@ -176,6 +177,21 @@ export function buildOffersSummary(offers: Offer[] | undefined): OffersPipelineS
   };
 }
 
-export function countReadyOrders(orders: Order[] | undefined): number {
-  return (orders ?? []).filter((o) => o.status === OrderStatus.Ready).length;
+/**
+ * Orders ready for delivery — same rule as Παραγγελίες (100% έτοιμο):
+ * status Έτοιμο OR all production batches in Ready stage covering the order.
+ */
+export function countReadyOrders(
+  orders: Order[] | undefined,
+  batches: ProductionBatch[] | undefined,
+): number {
+  if (!orders) return 0;
+
+  return orders.filter((order) => {
+    if (order.status === OrderStatus.Cancelled || order.status === OrderStatus.Delivered) {
+      return false;
+    }
+    if (order.status === OrderStatus.Ready) return true;
+    return isOrderReady(order, batches);
+  }).length;
 }

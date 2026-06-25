@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
 import { MosaicSpinner } from './dashboardMiniCharts';
+import DashboardTermHint from './DashboardTermHint';
 
 export type DashboardStatSlide = {
   id: string;
@@ -14,6 +15,7 @@ export type DashboardStatSlide = {
   showEyeToggle?: boolean;
   isValueVisible?: boolean;
   onToggleVisibility?: () => void;
+  hint?: string;
 };
 
 interface Props {
@@ -72,7 +74,7 @@ export default function DashboardStatCarousel({
       </div>
 
       <div className="relative z-10 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
           <div
             className={`shrink-0 rounded-lg bg-white/20 backdrop-blur-sm ${
               isDesktop ? 'p-2' : 'p-1.5'
@@ -87,6 +89,11 @@ export default function DashboardStatCarousel({
           >
             {slide.title}
           </span>
+          {slide.hint ? (
+            <span className="pointer-events-auto shrink-0">
+              <DashboardTermHint text={slide.hint} variant="light" />
+            </span>
+          ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <button
