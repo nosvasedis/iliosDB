@@ -1,17 +1,41 @@
-import React from 'react';
+import React, { memo } from 'react';
 import {
   PieChart as RePieChart,
   Pie,
   Cell,
   Tooltip,
-  ResponsiveContainer,
 } from 'recharts';
 import { ArrowUpRight, Trophy } from 'lucide-react';
+import { formatCurrency } from '../../utils/pricingEngine';
 import SkuColorizedText from '../SkuColorizedText';
 import type { DashboardPieSlice, DashboardVariantRow } from '../../features/dashboard/dashboardAnalysisViewModels';
 import { FinanceCustomerRanking } from '../../utils/financeAnalytics';
 
-export function MiniPiePanel({
+const PIE_SIZE = 120;
+
+export const MosaicSpinner = memo(function MosaicSpinner({
+  dark = false,
+  light = false,
+}: {
+  dark?: boolean;
+  light?: boolean;
+}) {
+  const ringClass = light
+    ? 'border-white/25 border-t-white/80'
+    : dark
+      ? 'border-emerald-400/25 border-t-emerald-300/80'
+      : 'border-slate-200 border-t-slate-400';
+
+  return (
+    <div
+      className={`h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-t-transparent ${ringClass}`}
+      role="status"
+      aria-label="Φόρτωση"
+    />
+  );
+});
+
+export const MiniPiePanel = memo(function MiniPiePanel({
   data,
   colors,
   legendExtra,
@@ -21,32 +45,32 @@ export function MiniPiePanel({
   compact?: boolean;
   legendExtra?: (item: DashboardPieSlice, idx: number) => React.ReactNode;
 }) {
-  const outerRadius = 52;
-
   return (
     <div className="grid h-full grid-cols-1 items-center gap-2 lg:grid-cols-5">
-      <div className="h-[7.5rem] lg:col-span-2">
-        <ResponsiveContainer width="100%" height="100%">
-          <RePieChart>
-            <Pie
-              data={data}
-              innerRadius={24}
-              outerRadius={outerRadius}
-              dataKey="value"
-              stroke="white"
-              strokeWidth={2}
-            >
-              {data.map((_, index) => (
-                <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
-              ))}
-            </Pie>
-            <Tooltip
-              contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: 12 }}
-            />
-          </RePieChart>
-        </ResponsiveContainer>
+      <div className="flex h-[7.5rem] items-center justify-center lg:col-span-2">
+        <RePieChart width={PIE_SIZE} height={PIE_SIZE}>
+          <Pie
+            data={data}
+            cx={PIE_SIZE / 2}
+            cy={PIE_SIZE / 2}
+            innerRadius={24}
+            outerRadius={52}
+            dataKey="value"
+            stroke="white"
+            strokeWidth={2}
+            isAnimationActive={false}
+          >
+            {data.map((_, index) => (
+              <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+            ))}
+          </Pie>
+          <Tooltip
+            isAnimationActive={false}
+            contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: 12 }}
+          />
+        </RePieChart>
       </div>
-      <div className="flex h-[7.5rem] flex-col justify-center space-y-1 overflow-y-auto pr-0.5 lg:col-span-3">
+      <div className="flex h-[7.5rem] flex-col justify-center space-y-1 overflow-hidden pr-0.5 lg:col-span-3">
         {data.map((item, idx) => (
           <div key={item.name} className="flex items-center justify-between gap-2 text-xs">
             <div className="flex min-w-0 items-center gap-1.5">
@@ -65,9 +89,9 @@ export function MiniPiePanel({
       </div>
     </div>
   );
-}
+});
 
-export function MiniVariantList({
+export const MiniVariantList = memo(function MiniVariantList({
   items,
   onOpenFull,
 }: {
@@ -76,7 +100,7 @@ export function MiniVariantList({
 }) {
   return (
     <div className="flex h-full flex-col justify-between gap-2">
-      <div className="flex min-h-[9.5rem] flex-col justify-center space-y-1.5 overflow-y-auto pr-0.5">
+      <div className="flex min-h-[9.5rem] flex-col justify-center space-y-1.5 overflow-hidden pr-0.5">
         {items.map((item, index) => (
           <div
             key={`${item.sku}::${item.variantSuffix}`}
@@ -102,7 +126,7 @@ export function MiniVariantList({
         <button
           type="button"
           onClick={onOpenFull}
-          className="group flex w-full items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800 transition-all hover:border-emerald-300 hover:shadow-sm"
+          className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800 hover:border-emerald-300"
         >
           <Trophy size={14} />
           Πλήρης ανάλυση
@@ -111,11 +135,11 @@ export function MiniVariantList({
       )}
     </div>
   );
-}
+});
 
-export function MiniCustomerList({ items }: { items: FinanceCustomerRanking[] }) {
+export const MiniCustomerList = memo(function MiniCustomerList({ items }: { items: FinanceCustomerRanking[] }) {
   return (
-    <div className="flex min-h-[9.5rem] flex-col justify-center space-y-1.5 overflow-y-auto pr-0.5">
+    <div className="flex min-h-[9.5rem] flex-col justify-center space-y-1.5 overflow-hidden pr-0.5">
       {items.map((item, index) => (
         <div
           key={item.id}
@@ -132,7 +156,7 @@ export function MiniCustomerList({ items }: { items: FinanceCustomerRanking[] })
       ))}
     </div>
   );
-}
+});
 
 export function MosaicEmptyState({ message }: { message: string }) {
   return (

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -109,7 +109,7 @@ function StatLine({
   );
 }
 
-export default function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants }: Props) {
+function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants }: Props) {
   const {
     periodLabel,
     colors,
@@ -145,7 +145,7 @@ export default function DashboardOverviewMosaic({ data, loading, onNavigate, onO
         <p className="text-sm font-medium text-slate-500">{periodLabel}</p>
       </div>
 
-      <div className="grid auto-rows-fr grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-12 lg:gap-3.5">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-12 lg:gap-3.5 [contain:layout]">
         {/* Ops row — four equal tiles */}
         <DashboardMosaicPane
           title="Ασήμι & Υλικά"
@@ -535,3 +535,5 @@ export default function DashboardOverviewMosaic({ data, loading, onNavigate, onO
     </div>
   );
 }
+
+export default memo(DashboardOverviewMosaic);

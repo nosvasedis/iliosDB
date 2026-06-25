@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
+import { MosaicSpinner } from './dashboardMiniCharts';
 
 export type DashboardStatSlide = {
   id: string;
@@ -114,7 +115,7 @@ export default function DashboardStatCarousel({
       <div className="relative z-10 min-h-[4.5rem]">
         {isLoading ? (
           <div className="flex h-full min-h-[4.5rem] items-center">
-            <Loader2 size={isDesktop ? 32 : 24} className={`animate-spin opacity-70 ${slide.text}`} />
+            <MosaicSpinner light />
           </div>
         ) : (
           <>
