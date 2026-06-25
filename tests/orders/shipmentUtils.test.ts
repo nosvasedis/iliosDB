@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { Order, OrderStatus } from '../../types';
-import { getRemainingOrderItems, getShippedQuantitiesForOrderLines, itemKey } from '../../utils/shipmentUtils';
+import { Order, OrderStatus, ProductionStage } from '../../types';
+import { getReadyToShipQuantity, getRemainingOrderItems, getShippedQuantitiesForOrderLines, isOrderFullyShipped, itemKey } from '../../utils/shipmentUtils';
 
 describe('shipment utils', () => {
   it('attributes shipped quantities to same SKU note variants by line_id', () => {
@@ -81,5 +81,23 @@ describe('shipment utils', () => {
     expect(remaining).toEqual([
       expect.objectContaining({ sku: 'PN056', variant_suffix: 'X', quantity: 1, line_id: 'line-x' }),
     ]);
+  });
+
+  it('sums only Ready-stage batch quantities for getReadyToShipQuantity', () => {
+    const batches = [
+      { id: 'b1', order_id: 'o1', sku: 'A', quantity: 3, current_stage: ProductionStage.Ready, created_at: '', updated_at: '', priority: 'Normal', requires_setting: false },
+      { id: 'b2', order_id: 'o1', sku: 'B', quantity: 2, current_stage: ProductionStage.Waxing, created_at: '', updated_at: '', priority: 'Normal', requires_setting: false },
+    ];
+    expect(getReadyToShipQuantity('o1', batches)).toBe(3);
+  });
+
+  it('detects fully shipped partial orders', () => {
+    const order = {
+      id: 'o1',
+      status: OrderStatus.PartiallyDelivered,
+      items: [{ sku: 'A', quantity: 5, price_at_order: 10 }],
+    } as Order;
+    expect(isOrderFullyShipped(order, 5)).toBe(true);
+    expect(isOrderFullyShipped(order, 3)).toBe(false);
   });
 });

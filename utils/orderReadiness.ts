@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import { Order, OrderStatus, ProductionBatch, ProductionStage, ShipmentReadinessSummary } from '../types';
 import { buildItemIdentityKey } from './itemIdentity';
+import { getReadyToShipQuantity } from './shipmentUtils';
 import { PRODUCTION_STAGE_ORDER_INDEX } from './productionStages';
 
 /** Orders where the production progress bar should be shown. */
@@ -577,16 +578,14 @@ export function getOrderReadinessPercent(
 
 /**
  * Έτοιμη για αποστολή (κουμπί «Αποστολή 100%» στις Παραγγελίες).
- * Συμπεριλαμβάνει Μερική Παράδοση όταν shipped + έτοιμα τεμάχια = σύνολο παραγγελίας.
+ * Απαιτεί πραγματικά τεμάχια στο στάδιο «Έτοιμα» — ίδιο κριτήριο με το modal αποστολής.
  */
 export function isOrderReadyForShipment(
   order: Order,
   batches: ProductionBatch[] | undefined | null,
-  shippedQty?: number,
+  _shippedQty?: number,
 ): boolean {
   if (order.status === OrderStatus.Cancelled || order.status === OrderStatus.Delivered) return false;
   if (order.is_archived === true) return false;
-  if (order.status === OrderStatus.Ready) return true;
-  const readinessPercent = getOrderReadinessPercent(order, batches, shippedQty);
-  return readinessPercent >= 100 || isOrderReady(order, batches);
+  return getReadyToShipQuantity(order.id, batches) > 0;
 }

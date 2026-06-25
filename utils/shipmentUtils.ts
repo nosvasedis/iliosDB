@@ -1,5 +1,5 @@
 
-import { Order, OrderItem, OrderShipment, OrderShipmentItem, ProductionBatch, ProductionStage } from '../types';
+import { Order, OrderItem, OrderShipment, OrderShipmentItem, OrderStatus, ProductionBatch, ProductionStage } from '../types';
 import { catalogIdentityMatches } from '../features/production/orderBatchReconcile';
 import { buildItemIdentityKey } from './itemIdentity';
 
@@ -183,6 +183,25 @@ export function getReadyToShipItems(
     }
   }
   return Array.from(groupMap.values());
+}
+
+/** Total quantity in production batches at stage «Έτοιμα» — what the shipment modal can ship. */
+export function getReadyToShipQuantity(orderId: string, batches: ProductionBatch[] | undefined | null): number {
+  if (!batches) return 0;
+  return getReadyToShipItems(orderId, batches).reduce((sum, item) => sum + (item.quantity || 0), 0);
+}
+
+/**
+ * True when every order line quantity has been recorded in shipments.
+ * Used to detect stale «Μερική Παράδοση» rows that should become «Παραδόθηκε».
+ */
+export function isOrderFullyShipped(order: Order, shippedQty?: number): boolean {
+  if (order.status === OrderStatus.Delivered) return true;
+  const itemsTotal = Array.isArray(order.items)
+    ? order.items.reduce((sum, item) => sum + (item.quantity || 0), 0)
+    : order.item_total_qty ?? 0;
+  if (itemsTotal <= 0) return false;
+  return (shippedQty ?? 0) >= itemsTotal;
 }
 
 /** Compute the financial value of a shipment (subtotal, discount, net, VAT, total). */

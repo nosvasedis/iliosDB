@@ -22,12 +22,16 @@ describe('buildReadyOrdersSummary', () => {
     });
   });
 
-  it('counts orders with status Ready as full', () => {
+  it('counts orders with status Ready only when Ready-stage batches exist', () => {
     const orders = [
       { id: 'o1', status: OrderStatus.Ready, customer_name: 'A', items: [{ sku: 'X', quantity: 1, price_at_order: 1 }] },
       { id: 'o2', status: OrderStatus.Pending, customer_name: 'B', items: [] },
     ] as Order[];
-    const summary = buildReadyOrdersSummary(orders, []);
+    expect(buildReadyOrdersSummary(orders, []).total).toBe(0);
+    const batches = [
+      { ...baseBatch, id: 'b1', order_id: 'o1', sku: 'X', quantity: 1, current_stage: ProductionStage.Ready },
+    ];
+    const summary = buildReadyOrdersSummary(orders, batches);
     expect(summary.total).toBe(1);
     expect(summary.fullCount).toBe(1);
     expect(summary.partialCount).toBe(0);
@@ -76,7 +80,7 @@ describe('buildReadyOrdersSummary', () => {
     });
   });
 
-  it('counts PartiallyDelivered when all items shipped and no batches remain', () => {
+  it('does not count partial orders when all items shipped and no Ready batches remain', () => {
     const orders = [
       {
         id: 'o1',
@@ -86,9 +90,7 @@ describe('buildReadyOrdersSummary', () => {
       },
     ] as Order[];
     const shippedQty = new Map([['o1', 8]]);
-    const summary = buildReadyOrdersSummary(orders, [], shippedQty);
-    expect(summary.total).toBe(1);
-    expect(summary.partialCount).toBe(1);
+    expect(buildReadyOrdersSummary(orders, [], shippedQty).total).toBe(0);
   });
 
   it('excludes delivered, cancelled, and archived orders', () => {
@@ -116,7 +118,24 @@ describe('buildReadyOrdersSummary', () => {
     expect(buildReadyOrdersSummary(orders, []).total).toBe(0);
   });
 
-  it('does not count partial orders with incomplete next shipment', () => {
+  it('does not count partial orders with nothing in Ready stage', () => {
+    const orders = [
+      {
+        id: 'o1',
+        status: OrderStatus.PartiallyDelivered,
+        customer_name: 'Μερική',
+        items: [{ sku: 'A', quantity: 10, price_at_order: 10 }],
+      },
+    ] as Order[];
+    const batches = [
+      { ...baseBatch, id: 'b1', order_id: 'o1', sku: 'A', quantity: 3, current_stage: ProductionStage.Polishing },
+      { ...baseBatch, id: 'b2', order_id: 'o1', sku: 'A', quantity: 2, current_stage: ProductionStage.Waxing },
+    ];
+    const shippedQty = new Map([['o1', 3]]);
+    expect(buildReadyOrdersSummary(orders, batches, shippedQty).total).toBe(0);
+  });
+
+  it('counts partial orders when some pipeline qty is in Ready stage', () => {
     const orders = [
       {
         id: 'o1',
@@ -130,13 +149,23 @@ describe('buildReadyOrdersSummary', () => {
       { ...baseBatch, id: 'b2', order_id: 'o1', sku: 'A', quantity: 2, current_stage: ProductionStage.Polishing },
     ];
     const shippedQty = new Map([['o1', 3]]);
-    expect(buildReadyOrdersSummary(orders, batches, shippedQty).total).toBe(0);
+    expect(buildReadyOrdersSummary(orders, batches, shippedQty).total).toBe(1);
   });
 });
 
 describe('countReadyOrders', () => {
+  const baseBatch = {
+    created_at: '',
+    updated_at: '',
+    priority: 'Normal' as const,
+    requires_setting: false,
+  };
+
   it('delegates to buildReadyOrdersSummary', () => {
-    const orders = [{ id: 'o1', status: OrderStatus.Ready, customer_name: 'A', items: [] }] as Order[];
-    expect(countReadyOrders(orders, [])).toBe(1);
+    const orders = [{ id: 'o1', status: OrderStatus.Ready, customer_name: 'A', items: [{ sku: 'X', quantity: 1, price_at_order: 1 }] }] as Order[];
+    const batches = [
+      { ...baseBatch, id: 'b1', order_id: 'o1', sku: 'X', quantity: 1, current_stage: ProductionStage.Ready },
+    ];
+    expect(countReadyOrders(orders, batches)).toBe(1);
   });
 });

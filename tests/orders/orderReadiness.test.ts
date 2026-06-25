@@ -131,15 +131,27 @@ describe('getOrderReadinessPercent / isOrderReadyForShipment', () => {
     expect(isOrderReadyForShipment(order, batches, 5)).toBe(true);
   });
 
-  it('is ready for shipment when everything was shipped and no batches remain', () => {
+  it('is not ready for shipment when everything was shipped and no Ready batches remain', () => {
     const order = {
       id: 'o1',
       status: OrderStatus.PartiallyDelivered,
       items: [{ sku: 'A', quantity: 6, price_at_order: 10 }],
     } as Order;
-    expect(isOrderReady(order, [])).toBe(false);
     expect(getOrderReadinessPercent(order, [], 6)).toBe(100);
-    expect(isOrderReadyForShipment(order, [], 6)).toBe(true);
+    expect(isOrderReadyForShipment(order, [], 6)).toBe(false);
+  });
+
+  it('requires Ready-stage batches, not only OrderStatus.Ready', () => {
+    const order = {
+      id: 'o1',
+      status: OrderStatus.Ready,
+      items: [{ sku: 'A', quantity: 2, price_at_order: 10 }],
+    } as Order;
+    expect(isOrderReadyForShipment(order, [])).toBe(false);
+    const batches = [
+      { ...baseBatch, id: 'b1', order_id: 'o1', sku: 'A', quantity: 2, current_stage: ProductionStage.Ready },
+    ];
+    expect(isOrderReadyForShipment(order, batches)).toBe(true);
   });
 
   it('excludes archived ready orders from shipment readiness', () => {

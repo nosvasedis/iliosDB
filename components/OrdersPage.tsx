@@ -34,7 +34,7 @@ import { useCollections } from '../hooks/api/useCollections';
 import { useAllShipmentItems, useAllShipments, useCustomers, useOrderShipmentsForOrder, useOrdersWithItems } from '../hooks/api/useOrders';
 import { useProductionBatches } from '../hooks/api/useProductionBatches';
 import { ordersRepository } from '../features/orders';
-import { buildShippedQtyByOrderId, getShippedQuantitiesForOrderLines, itemKey } from '../utils/shipmentUtils';
+import { buildShippedQtyByOrderId, getShippedQuantitiesForOrderLines, isOrderFullyShipped, itemKey } from '../utils/shipmentUtils';
 import DesktopPageHeader from './DesktopPageHeader';
 import { SellerPicker } from './OrderBuilder/SellerPicker';
 import { productionRepository } from '../features/production';
@@ -1077,13 +1077,15 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     }, [ensureFullOrderItems, batchesByOrderId]);
 
     const orderMetaById = useMemo(() => {
-        const map = new Map<string, { isReady: boolean; retailClientLabel: string; readinessPercent: number }>();
+        const map = new Map<string, { isReady: boolean; fullyShipped: boolean; retailClientLabel: string; readinessPercent: number }>();
         orders?.forEach(order => {
             const retailClientLabel = extractRetailClientFromNotes(order.notes).retailClientLabel;
             const orderBatches = batchesByOrderId.get(order.id) || [];
-            const readinessPercent = getOrderReadinessPercent(order, orderBatches, shippedQtyByOrderId.get(order.id));
+            const shippedQty = shippedQtyByOrderId.get(order.id);
+            const readinessPercent = getOrderReadinessPercent(order, orderBatches, shippedQty);
             map.set(order.id, {
-                isReady: isOrderReadyForShipment(order, orderBatches, shippedQtyByOrderId.get(order.id)),
+                isReady: isOrderReadyForShipment(order, orderBatches, shippedQty),
+                fullyShipped: isOrderFullyShipped(order, shippedQty),
                 retailClientLabel,
                 readinessPercent
             });
@@ -1386,6 +1388,24 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             } catch (err: any) {
                 showToast(`Σφάλμα: ${err.message}`, 'error');
             }
+        }
+    };
+
+    const handleMarkOrderDelivered = async (order: Order) => {
+        const yes = await confirm({
+            title: 'Σήμανση ως Παραδόθηκε',
+            message: `Όλα τα τεμάχια της παραγγελίας έχουν ήδη καταχωρηθεί σε αποστολές. Θέλετε να ενημερώσετε την κατάσταση σε «Παραδόθηκε»;`,
+            confirmText: 'Ναι, παραδόθηκε',
+        });
+        if (!yes) return;
+        try {
+            await ordersRepository.updateOrderStatus(order.id, OrderStatus.Delivered);
+            await auditRepository.logAction(profile?.full_name || 'System', 'Ολοκλήρωση Παράδοσης', { order_id: order.id });
+            void invalidateOrdersAndBatches(queryClient);
+            setManagingOrder((prev) => (prev?.id === order.id ? { ...prev, status: OrderStatus.Delivered } : prev));
+            showToast('Η παραγγελία σημειώθηκε ως παραδομένη.', 'success');
+        } catch (err: any) {
+            showToast(`Σφάλμα: ${err.message}`, 'error');
         }
     };
 
@@ -1875,6 +1895,16 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                         <span className="rounded-full bg-emerald-600 px-1.5 py-0.5 text-[9px] leading-none text-white">100%</span>
                                                     </button>
                                                 )}
+                                                {!ready && orderMeta?.fullyShipped && order.status === OrderStatus.PartiallyDelivered && (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); void handleMarkOrderDelivered(order); }}
+                                                        className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-slate-300 bg-slate-50 px-2.5 py-1 text-xs font-black text-slate-700 shadow-sm ring-1 ring-white/80 transition-all hover:-translate-y-px hover:bg-slate-100 hover:shadow-md"
+                                                        title="Όλα τα τεμάχια έχουν αποσταλεί — ενημέρωση κατάστασης"
+                                                    >
+                                                        <PackageCheck size={14} />
+                                                        Ολοκληρώθηκε αποστολή
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                         <div className="p-4 text-right">
@@ -2096,6 +2126,17 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                     className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors"
                                 >
                                     <Truck size={18} /> Μερική Αποστολή ({managingShipmentReadiness.ready_qty}/{managingShipmentReadiness.total_qty} τεμ. έτοιμα)
+                                </button>
+                            )}
+
+                            {!orderMetaById.get(managingOrder.id)?.isReady
+                                && orderMetaById.get(managingOrder.id)?.fullyShipped
+                                && managingOrder.status === OrderStatus.PartiallyDelivered && (
+                                <button
+                                    onClick={() => { void handleMarkOrderDelivered(managingOrder); setShowWorkflowActions(false); }}
+                                    className="w-full text-left p-4 rounded-2xl flex items-center gap-3 font-bold bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 transition-colors"
+                                >
+                                    <PackageCheck size={18} /> Ολοκληρώθηκε αποστολή — σήμανση «Παραδόθηκε»
                                 </button>
                             )}
 
