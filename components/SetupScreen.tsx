@@ -5,6 +5,7 @@ import { saveConfiguration, api } from '../lib/supabase';
 import { APP_ICON_ONLY } from '../constants';
 import { useUI } from './UIProvider';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { validateBackup, getDefaultRestoreOptions } from '../lib/backupConfig';
 import MobileSetupScreen from './mobile/MobileSetupScreen';
 
 export default function SetupScreen() {
@@ -15,7 +16,7 @@ export default function SetupScreen() {
     const [geminiKey, setGeminiKey] = useState('');
     const [isRestoring, setIsRestoring] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const { showToast } = useUI();
+    const { showToast, confirm } = useUI();
 
     if (isMobile) {
         return <MobileSetupScreen />;
@@ -41,18 +42,39 @@ export default function SetupScreen() {
         reader.onload = async (event) => {
             try {
                 const backupData = JSON.parse(event.target?.result as string);
+                const validation = validateBackup(backupData);
+
+                if (!validation.valid) {
+                    showToast(validation.errors.join(' '), 'error');
+                    return;
+                }
+
+                const confirmed = await confirm({
+                    title: 'Εισαγωγή Backup',
+                    message: `${validation.summary}\n\nΤο ERP θα ξεκινήσει σε τοπική λειτουργία με τα δεδομένα του backup. Συνέχεια;`,
+                    isDestructive: false,
+                    confirmText: 'Εισαγωγή',
+                });
+                if (!confirmed) return;
+
                 setIsRestoring(true);
-                showToast("Φόρτωση τοπικών δεδομένων...", "info");
+                showToast('Φόρτωση τοπικών δεδομένων...', 'info');
 
-                // Restore to local IndexedDB
-                await api.restoreFullSystem(backupData);
+                await api.restoreSystem(backupData, {
+                    ...getDefaultRestoreOptions(validation.availableTables),
+                    restoreConfig: validation.hasConfig,
+                    includeSyncQueue: validation.hasSyncQueue,
+                    includeImages: validation.imageCount > 0,
+                    includeLocalExtras: validation.hasExtras || true,
+                });
 
-                showToast("Επιτυχής επαναφορά! Το ERP θα ξεκινήσει τοπικά.", "success");
+                showToast('Επιτυχής επαναφορά! Το ERP θα ξεκινήσει τοπικά.', 'success');
                 setTimeout(() => window.location.reload(), 1500);
-            } catch (err) {
-                showToast("Το αρχείο δεν είναι έγκυρο αντίγραφο Ilios ERP.", "error");
+            } catch {
+                showToast('Το αρχείο δεν είναι έγκυρο αντίγραφο Ilios ERP.', 'error');
             } finally {
                 setIsRestoring(false);
+                if (fileInputRef.current) fileInputRef.current.value = '';
             }
         };
         reader.readAsText(file);

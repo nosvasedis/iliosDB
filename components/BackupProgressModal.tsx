@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { Loader2, CheckCircle2, AlertTriangle, Database, Image as ImageIcon, Settings, RefreshCw, Shield, Trash2 } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertTriangle, Database, Image as ImageIcon, Settings, RefreshCw, Shield, Trash2, HardDrive } from 'lucide-react';
 import { BackupProgress, BackupProgressPhase } from '../lib/backupConfig';
 
 interface BackupProgressModalProps {
@@ -18,6 +18,7 @@ const PHASE_LABELS: Record<BackupProgressPhase, { label: string; icon: React.Rea
     images:     { label: 'Εικόνες Προϊόντων',      icon: <ImageIcon size={16} /> },
     config:     { label: 'Ρυθμίσεις Σύνδεσης',     icon: <Settings size={16} /> },
     sync_queue: { label: 'Ουρά Συγχρονισμού',      icon: <RefreshCw size={16} /> },
+    extras:     { label: 'Τοπικά Extras',          icon: <HardDrive size={16} /> },
     validation: { label: 'Επαλήθευση',             icon: <Shield size={16} /> },
     cleanup:    { label: 'Εκκαθάριση',             icon: <Trash2 size={16} /> },
 };

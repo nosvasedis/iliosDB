@@ -3,6 +3,7 @@ import React, { useState, useRef } from 'react';
 import { ShieldCheck, Server, Key, ArrowRight, HardDrive, Upload, Loader2 } from 'lucide-react';
 import { saveConfiguration, api } from '../../lib/supabase';
 import { APP_ICON_ONLY } from '../../constants';
+import { validateBackup, getDefaultRestoreOptions } from '../../lib/backupConfig';
 import { useUI } from '../UIProvider';
 
 export default function MobileSetupScreen() {
@@ -28,15 +29,28 @@ export default function MobileSetupScreen() {
         reader.onload = async (event) => {
             try {
                 const backupData = JSON.parse(event.target?.result as string);
+                const validation = validateBackup(backupData);
+                if (!validation.valid) {
+                    showToast(validation.errors.join(' '), 'error');
+                    return;
+                }
+
                 setIsRestoring(true);
-                showToast("Φόρτωση...", "info");
-                await api.restoreFullSystem(backupData);
-                showToast("Επιτυχία!", "success");
+                showToast('Φόρτωση...', 'info');
+                await api.restoreSystem(backupData, {
+                    ...getDefaultRestoreOptions(validation.availableTables),
+                    restoreConfig: validation.hasConfig,
+                    includeSyncQueue: validation.hasSyncQueue,
+                    includeImages: validation.imageCount > 0,
+                    includeLocalExtras: validation.hasExtras || true,
+                });
+                showToast('Επιτυχία!', 'success');
                 setTimeout(() => window.location.reload(), 1500);
-            } catch (err) {
-                showToast("Μη έγκυρο αρχείο.", "error");
+            } catch {
+                showToast('Μη έγκυρο αρχείο.', 'error');
             } finally {
                 setIsRestoring(false);
+                if (fileInputRef.current) fileInputRef.current.value = '';
             }
         };
         reader.readAsText(file);

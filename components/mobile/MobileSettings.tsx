@@ -3,12 +3,13 @@ import React, { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, supabase, GEMINI_API_KEY, AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL } from '../../lib/supabase';
 import { useAuth } from '../AuthContext';
-import { LogOut, Coins, ShieldCheck, User, Wifi, WifiOff, Upload, Save, Tag, ShoppingBag, Key, RefreshCw, FileText, Download, Loader2, Database, Settings } from 'lucide-react';
+import { LogOut, Coins, ShieldCheck, User, Wifi, WifiOff, Upload, Save, Tag, ShoppingBag, Key, RefreshCw, Loader2, Database, Settings } from 'lucide-react';
 import MobileScreenHeader from './MobileScreenHeader';
 import { formatDecimal } from '../../utils/pricingEngine';
 import { useUI } from '../UIProvider';
 import { downloadFile, downloadBlob, flattenForCSV, convertToCSV } from '../../utils/exportUtils';
-import { BACKUP_TABLE_REGISTRY, BackupProgress, validateBackup } from '../../lib/backupConfig';
+import { BACKUP_TABLE_REGISTRY, BackupExportOptions, BackupProgress, BackupRestoreOptions } from '../../lib/backupConfig';
+import BackupManagerModal from '../backup/BackupManagerModal';
 import BackupProgressModal from '../BackupProgressModal';
 
 export default function MobileSettings() {
@@ -33,6 +34,9 @@ export default function MobileSettings() {
     const [backupComplete, setBackupComplete] = useState(false);
     const [backupSummary, setBackupSummary] = useState('');
     const [backupErrors, setBackupErrors] = useState<Array<{ table: string; message: string }>>([]);
+    const [isBackupManagerOpen, setIsBackupManagerOpen] = useState(false);
+    const [backupManagerMode, setBackupManagerMode] = useState<'export' | 'restore'>('export');
+    const [pendingRestoreData, setPendingRestoreData] = useState<unknown>(null);
 
     // Initialize local state when data loads
     React.useEffect(() => {
@@ -92,119 +96,104 @@ export default function MobileSettings() {
         }
     };
 
-    const handleRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const runExport = async (options: BackupExportOptions, format: 'json' | 'csv') => {
+        setIsBackupManagerOpen(false);
+        setIsExporting(true);
+        setBackupProgress(null);
+        setBackupComplete(false);
+        setBackupSummary('');
+        setBackupErrors([]);
+        setBackupModalTitle(format === 'json' ? 'Δημιουργία Backup' : 'Εξαγωγή CSV');
+        setIsBackupModalOpen(true);
+        try {
+            const data = await api.getSystemExport(options, (p) => setBackupProgress(p));
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const dateOnly = new Date().toISOString().split('T')[0];
+
+            if (format === 'json') {
+                const jsonStr = JSON.stringify(data, null, 2);
+                downloadBlob(new Blob([jsonStr], { type: 'application/json' }), `ilios_erp_mobile_backup_${timestamp}.json`);
+                const meta = data._meta;
+                const totalRows = Object.values(meta.table_counts).reduce((a, b) => a + b, 0);
+                let summary = `${meta.total_tables} πίνακες, ${totalRows} εγγραφές, ${meta.image_count} εικόνες`;
+                if (meta.failed_tables?.length) summary += ` (${meta.failed_tables.length} πίνακες απέτυχαν)`;
+                setBackupSummary(summary);
+            } else {
+                const csvTables = BACKUP_TABLE_REGISTRY.filter((t) => t.includeInCsv && options.tables.includes(t.table));
+                let exported = 0;
+                for (const entry of csvTables) {
+                    const tableData = data.tables[entry.table] || [];
+                    if (tableData.length > 0) {
+                        downloadFile(convertToCSV(flattenForCSV(tableData)), `ilios_${entry.displayName.toLowerCase()}_${dateOnly}.csv`, 'text/csv');
+                        exported++;
+                        await new Promise((r) => setTimeout(r, 200));
+                    }
+                }
+                setBackupSummary(`${exported} αρχεία CSV λήφθηκαν.`);
+            }
+            setBackupComplete(true);
+        } catch {
+            setBackupSummary('Σφάλμα εξαγωγής.');
+            setBackupComplete(true);
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    const runRestore = async (backupData: unknown, options: BackupRestoreOptions) => {
+        setIsBackupManagerOpen(false);
+        const confirmed = await confirm({
+            title: 'Επαναφορά Backup',
+            message: `Θα επαναφερθούν ${options.tables.length} πίνακες. Συνέχεια;`,
+            isDestructive: true,
+            confirmText: 'Επαναφορά',
+        });
+        if (!confirmed) return;
+
+        setBackupProgress(null);
+        setBackupComplete(false);
+        setBackupSummary('');
+        setBackupErrors([]);
+        setBackupModalTitle('Επαναφορά Backup');
+        setIsBackupModalOpen(true);
+
+        try {
+            const result = await api.restoreSystem(backupData as any, {
+                ...options,
+                onProgress: (p) => setBackupProgress(p),
+            });
+            if (result.errors.length > 0) {
+                setBackupErrors(result.errors);
+                setBackupSummary(`Ολοκληρώθηκε με ${result.errors.length} προειδοποιήσεις.`);
+            } else {
+                setBackupSummary('Επιτυχής επαναφορά! Ανανέωση...');
+                setTimeout(() => window.location.reload(), 3000);
+            }
+            setBackupComplete(true);
+        } catch {
+            setBackupSummary('Σφάλμα επαναφοράς.');
+            setBackupComplete(true);
+        } finally {
+            setPendingRestoreData(null);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const handleRestoreFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-
         const reader = new FileReader();
-        reader.onload = async (event) => {
+        reader.onload = (event) => {
             try {
-                const data = JSON.parse(event.target?.result as string);
-                const validation = validateBackup(data);
-
-                if (!validation.valid) {
-                    showToast(validation.errors.join(' '), 'error');
-                    return;
-                }
-
-                const dateStr = validation.createdAt
-                    ? new Date(validation.createdAt).toLocaleString('el-GR')
-                    : 'Άγνωστη ημερομηνία';
-
-                const confirmed = await confirm({
-                    title: 'Επαναφορά',
-                    message: `Backup: ${dateStr}\n${validation.summary}\n\nΑυτό θα αντικαταστήσει ΟΛΑ τα δεδομένα. Συνέχεια;`,
-                    isDestructive: true,
-                    confirmText: 'Επαναφορά'
-                });
-                if (!confirmed) return;
-
-                setBackupProgress(null);
-                setBackupComplete(false);
-                setBackupSummary('');
-                setBackupErrors([]);
-                setBackupModalTitle('Επαναφορά Backup');
-                setIsBackupModalOpen(true);
-
-                const result = await api.restoreFullSystem(data, {
-                    restoreConfig: validation.hasConfig,
-                    onProgress: (p) => setBackupProgress(p),
-                });
-
-                if (result.errors.length > 0) {
-                    setBackupErrors(result.errors);
-                    setBackupSummary(`Ολοκληρώθηκε με ${result.errors.length} προειδοποιήσεις.`);
-                } else {
-                    setBackupSummary('Επιτυχής επαναφορά! Ανανέωση...');
-                    setTimeout(() => window.location.reload(), 3000);
-                }
-                setBackupComplete(true);
-            } catch (err) {
-                showToast("Μη έγκυρο αρχείο.", "error");
+                setPendingRestoreData(JSON.parse(event.target?.result as string));
+                setBackupManagerMode('restore');
+                setIsBackupManagerOpen(true);
+            } catch {
+                showToast('Μη έγκυρο αρχείο.', 'error');
+                if (fileInputRef.current) fileInputRef.current.value = '';
             }
         };
         reader.readAsText(file);
-    };
-
-    const handleJsonBackup = async () => {
-        setIsExporting(true);
-        setBackupProgress(null);
-        setBackupComplete(false);
-        setBackupSummary('');
-        setBackupErrors([]);
-        setBackupModalTitle('Δημιουργία Backup');
-        setIsBackupModalOpen(true);
-        try {
-            const data = await api.getFullSystemExport((p) => setBackupProgress(p));
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const jsonStr = JSON.stringify(data, null, 2);
-            const blob = new Blob([jsonStr], { type: 'application/json' });
-            downloadBlob(blob, `ilios_erp_mobile_backup_${timestamp}.json`);
-
-            const meta = data._meta;
-            const totalRows = Object.values(meta.table_counts).reduce((a, b) => a + b, 0);
-            setBackupSummary(`${meta.total_tables} πίνακες, ${totalRows} εγγραφές, ${meta.image_count} εικόνες`);
-            setBackupComplete(true);
-        } catch (err) {
-            setBackupSummary('Σφάλμα backup.');
-            setBackupComplete(true);
-        } finally {
-            setIsExporting(false);
-        }
-    };
-
-    const handleCsvExport = async () => {
-        setIsExporting(true);
-        setBackupProgress(null);
-        setBackupComplete(false);
-        setBackupSummary('');
-        setBackupErrors([]);
-        setBackupModalTitle('Εξαγωγή CSV');
-        setIsBackupModalOpen(true);
-        try {
-            const data = await api.getFullSystemExport((p) => setBackupProgress(p));
-            const timestamp = new Date().toISOString().split('T')[0];
-
-            const csvTables = BACKUP_TABLE_REGISTRY.filter(t => t.includeInCsv);
-            let exported = 0;
-            for (const entry of csvTables) {
-                const tableData = data.tables[entry.table] || [];
-                if (tableData.length > 0) {
-                    const flattened = flattenForCSV(tableData);
-                    const csv = convertToCSV(flattened);
-                    downloadFile(csv, `ilios_${entry.displayName.toLowerCase()}_${timestamp}.csv`, 'text/csv');
-                    exported++;
-                    await new Promise(r => setTimeout(r, 200));
-                }
-            }
-            setBackupSummary(`${exported} αρχεία CSV λήφθηκαν.`);
-            setBackupComplete(true);
-        } catch (err) {
-            setBackupSummary('Σφάλμα CSV.');
-            setBackupComplete(true);
-        } finally {
-            setIsExporting(false);
-        }
     };
 
     if (!localSettings) return <div className="p-8 text-center text-slate-400">Φόρτωση...</div>;
@@ -258,10 +247,9 @@ export default function MobileSettings() {
                 {/* Backup & System */}
                 <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3">
                     <h3 className="text-xs font-bold text-slate-400 uppercase mb-2 flex items-center gap-2"><Database size={14} /> Backup & Δεδομένα</h3>
-                    <button onClick={handleJsonBackup} disabled={isExporting} className="w-full flex items-center gap-3 p-3 bg-blue-50 text-blue-700 rounded-xl font-bold text-sm hover:bg-blue-100 transition-colors">{isExporting ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />} Full Backup (JSON)</button>
-                    <button onClick={handleCsvExport} disabled={isExporting} className="w-full flex items-center gap-3 p-3 bg-emerald-50 text-emerald-700 rounded-xl font-bold text-sm hover:bg-emerald-100 transition-colors">{isExporting ? <Loader2 size={18} className="animate-spin" /> : <FileText size={18} />} Export CSV (All Tables)</button>
+                    <button onClick={() => { setBackupManagerMode('export'); setIsBackupManagerOpen(true); }} disabled={isExporting} className="w-full flex items-center gap-3 p-3 bg-blue-50 text-blue-700 rounded-xl font-bold text-sm hover:bg-blue-100 transition-colors">{isExporting ? <Loader2 size={18} className="animate-spin" /> : <Database size={18} />} Backup & Εξαγωγή</button>
 
-                    <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleRestore} />
+                    <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleRestoreFilePick} />
                     <button onClick={() => fileInputRef.current?.click()} className="w-full flex items-center gap-3 p-3 bg-slate-50 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-100 transition-colors border border-slate-200 mt-2"><Upload size={18} /> Επαναφορά από Backup</button>
 
                     <div className="flex justify-between items-center text-sm pt-2 border-t border-slate-50 mt-2">
@@ -273,6 +261,16 @@ export default function MobileSettings() {
                 <button onClick={handleLogout} className="w-full bg-red-50 text-red-600 font-bold py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-red-100 transition-colors mt-4"><LogOut size={20} /> Αποσύνδεση</button>
                 <div className="text-center text-[10px] text-slate-300 mt-4 flex items-center justify-center gap-1"><ShieldCheck size={12} /> Secure Connection • Ilios ERP</div>
             </div>
+
+            <BackupManagerModal
+                isOpen={isBackupManagerOpen}
+                mode={backupManagerMode}
+                restoreData={pendingRestoreData ?? undefined}
+                onClose={() => { setIsBackupManagerOpen(false); setPendingRestoreData(null); }}
+                onRunExport={runExport}
+                onRunRestore={runRestore}
+                onPickRestoreFile={() => fileInputRef.current?.click()}
+            />
 
             <BackupProgressModal
                 isOpen={isBackupModalOpen}
