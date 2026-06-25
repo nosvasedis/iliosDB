@@ -577,13 +577,30 @@ export function getOrderReadinessPercent(
 }
 
 /**
- * Έτοιμη για αποστολή (κουμπί «Αποστολή 100%» στις Παραγγελίες).
- * Απαιτεί πραγματικά τεμάχια στο στάδιο «Έτοιμα» — ίδιο κριτήριο με το modal αποστολής.
+ * Έτοιμη για πλήρη αποστολή (κουμπί «Αποστολή 100%» στη λίστα Παραγγελιών).
+ * Πρέπει να ισχύουν ΚΑΙ τα δύο:
+ * 1) Η παραγγελία είναι 100% έτοιμη (ίδια λογική με πριν: isOrderReady ή readinessPercent ≥ 100)
+ * 2) Υπάρχουν πραγματικά τεμάχια στο στάδιο «Έτοιμα» (ώστε το modal να μην είναι κενό)
  */
 export function isOrderReadyForShipment(
   order: Order,
   batches: ProductionBatch[] | undefined | null,
-  _shippedQty?: number,
+  shippedQty?: number,
+): boolean {
+  if (order.status === OrderStatus.Cancelled || order.status === OrderStatus.Delivered) return false;
+  if (order.is_archived === true) return false;
+  if (getReadyToShipQuantity(order.id, batches) <= 0) return false;
+
+  if (order.status === OrderStatus.Ready) return true;
+  if (isOrderReady(order, batches)) return true;
+
+  return getOrderReadinessPercent(order, batches, shippedQty) >= 100;
+}
+
+/** Τεμάχια στο «Έτοιμα» που μπορούν να αποσταλούν (μερική ή πλήρης αποστολή). */
+export function hasShippableReadyQuantity(
+  order: Order,
+  batches: ProductionBatch[] | undefined | null,
 ): boolean {
   if (order.status === OrderStatus.Cancelled || order.status === OrderStatus.Delivered) return false;
   if (order.is_archived === true) return false;

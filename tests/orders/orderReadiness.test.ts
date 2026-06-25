@@ -154,6 +154,33 @@ describe('getOrderReadinessPercent / isOrderReadyForShipment', () => {
     expect(isOrderReadyForShipment(order, batches)).toBe(true);
   });
 
+  it('does not treat partial pipeline readiness as full shipment ready', () => {
+    const order = {
+      id: 'o1',
+      status: OrderStatus.InProduction,
+      items: [{ sku: 'A', quantity: 10, price_at_order: 10 }],
+    } as Order;
+    const batches = [
+      { ...baseBatch, id: 'b1', order_id: 'o1', sku: 'A', quantity: 3, current_stage: ProductionStage.Ready },
+      { ...baseBatch, id: 'b2', order_id: 'o1', sku: 'A', quantity: 2, current_stage: ProductionStage.Waxing },
+    ];
+    expect(getOrderReadinessPercent(order, batches)).toBe(30);
+    expect(isOrderReadyForShipment(order, batches)).toBe(false);
+  });
+
+  it('does not treat partial delivery wave as full shipment when wip remains', () => {
+    const order = {
+      id: 'o1',
+      status: OrderStatus.PartiallyDelivered,
+      items: [{ sku: 'A', quantity: 10, price_at_order: 10 }],
+    } as Order;
+    const batches = [
+      { ...baseBatch, id: 'b1', order_id: 'o1', sku: 'A', quantity: 3, current_stage: ProductionStage.Ready },
+      { ...baseBatch, id: 'b2', order_id: 'o1', sku: 'A', quantity: 2, current_stage: ProductionStage.Polishing },
+    ];
+    expect(isOrderReadyForShipment(order, batches, 3)).toBe(false);
+  });
+
   it('excludes archived ready orders from shipment readiness', () => {
     const order = {
       id: 'o1',

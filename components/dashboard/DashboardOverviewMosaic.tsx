@@ -299,8 +299,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
               </div>
             ) : null}
             <p className="text-center text-[10px] font-semibold leading-snug text-slate-500">
-              τεμάχια στο Έτοιμα
-              <span className="block text-slate-400">προς αποστολή τώρα</span>
+              έτοιμες 100% · προς αποστολή
             </p>
           </div>
         </DashboardMosaicPane>

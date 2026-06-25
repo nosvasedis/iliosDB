@@ -135,7 +135,7 @@ describe('buildReadyOrdersSummary', () => {
     expect(buildReadyOrdersSummary(orders, batches, shippedQty).total).toBe(0);
   });
 
-  it('counts partial orders when some pipeline qty is in Ready stage', () => {
+  it('does not count partial orders with only a ready wave still in progress', () => {
     const orders = [
       {
         id: 'o1',
@@ -149,7 +149,7 @@ describe('buildReadyOrdersSummary', () => {
       { ...baseBatch, id: 'b2', order_id: 'o1', sku: 'A', quantity: 2, current_stage: ProductionStage.Polishing },
     ];
     const shippedQty = new Map([['o1', 3]]);
-    expect(buildReadyOrdersSummary(orders, batches, shippedQty).total).toBe(1);
+    expect(buildReadyOrdersSummary(orders, batches, shippedQty).total).toBe(0);
   });
 });
 
