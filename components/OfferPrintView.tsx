@@ -61,7 +61,10 @@ export default function OfferPrintView({ offer }: Props) {
                     {item.size_info && <span className="inline-block text-[7px] bg-slate-100 px-1 rounded text-slate-600 border border-slate-200 leading-none mt-0.5">{item.size_info}</span>}
                 </div>
                 <div className="w-14 text-right font-black text-slate-900 font-mono text-[10px] whitespace-nowrap">
-                    {item.quantity} x {formatDecimal(item.price_at_order, 2)}
+                    <div>{item.quantity} x {formatDecimal(item.price_at_order, 2)}</div>
+                    <div className="mt-0.5 text-[9px] leading-none text-slate-400">
+                        {formatDecimal(item.quantity * item.price_at_order, 2)}
+                    </div>
                 </div>
             </div>
         );

@@ -90,7 +90,10 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                     </div>
                 </div>
                 <div className="w-14 text-right font-black text-slate-900 tabular-nums text-[10px] whitespace-nowrap">
-                    {item.quantity} x {item.price_at_order.toFixed(2).replace('.', ',')}{isOverridden ? '*' : ''}
+                    <div>{item.quantity} x {item.price_at_order.toFixed(2).replace('.', ',')}{isOverridden ? '*' : ''}</div>
+                    <div className="mt-0.5 text-[9px] leading-none text-slate-400">
+                        {(item.quantity * item.price_at_order).toFixed(2).replace('.', ',')}
+                    </div>
                 </div>
             </div>
         );
