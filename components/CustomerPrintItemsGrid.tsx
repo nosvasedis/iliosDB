@@ -4,7 +4,7 @@ export type CustomerPrintItemsLayoutMode = 'three-column' | 'legacy-two-column';
 
 export const CUSTOMER_PRINT_ITEMS_LAYOUT_MODE: CustomerPrintItemsLayoutMode = 'three-column';
 export const CUSTOMER_PRINT_COLUMN_COUNT = 3;
-export const CUSTOMER_PRINT_ITEMS_PER_COLUMN = 10;
+export const CUSTOMER_PRINT_ITEMS_PER_COLUMN = 13;
 export const CUSTOMER_PRINT_ITEMS_PER_PAGE = CUSTOMER_PRINT_COLUMN_COUNT * CUSTOMER_PRINT_ITEMS_PER_COLUMN;
 
 interface CustomerPrintItemsGridProps<T> {
@@ -47,9 +47,9 @@ function CustomerPrintItemsHeader({
             {Array.from({ length: columnCount }, (_, columnIndex) => (
                 <div key={columnIndex} className={`flex items-center ${getColumnClass(columnIndex)}`}>
                     <div className="w-6 text-center text-slate-400">#</div>
-                    <div className="w-16 text-center">Εικ.</div>
+                    <div className="w-14 text-center">Εικ.</div>
                     <div className="flex-1 px-1">{descriptionLabel}</div>
-                    <div className="w-[58px] text-right">{amountLabel}</div>
+                    <div className="w-14 text-right">{amountLabel}</div>
                 </div>
             ))}
         </div>

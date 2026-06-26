@@ -93,15 +93,15 @@ export default function OrderInvoiceView({ order, title, revisionSuffix }: Props
         return (
             <div
                 key={globalIndex}
-                className="flex items-center min-h-[72px] py-1 border-b border-slate-100 break-inside-avoid"
+                className="flex items-center min-h-[52px] py-0.5 border-b border-slate-100 break-inside-avoid"
             >
                 <div className="w-6 text-center text-slate-400 text-[11px] tabular-nums">{globalIndex + 1}</div>
-                <div className="w-16 text-center flex-shrink-0">
-                    <div className="w-14 h-14 bg-slate-50 rounded overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
+                <div className="w-14 text-center flex-shrink-0">
+                    <div className="w-12 h-12 bg-slate-50 rounded overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
                         {imageUrl ? (
                             <img src={imageUrl} alt={item.sku} className="w-full h-full object-cover" />
                         ) : (
-                            <ImageIcon size={18} className="text-slate-300" />
+                            <ImageIcon size={16} className="text-slate-300" />
                         )}
                     </div>
                 </div>
@@ -121,7 +121,7 @@ export default function OrderInvoiceView({ order, title, revisionSuffix }: Props
                         )}
                     </div>
                 </div>
-                <div className="w-[58px] text-right font-black text-slate-900 tabular-nums font-sans text-[10px] whitespace-nowrap">
+                <div className="w-14 text-right font-black text-slate-900 tabular-nums font-sans text-[10px] whitespace-nowrap">
                     {item.quantity} x {item.price_at_order.toFixed(2).replace('.', ',')}{item.price_override ? '*' : ''}
                 </div>
             </div>
