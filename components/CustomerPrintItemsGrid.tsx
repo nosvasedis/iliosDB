@@ -46,10 +46,10 @@ function CustomerPrintItemsHeader({
         <div className={`grid ${gridClass} border-b-2 border-slate-800 pb-1 mb-1 text-[9px] font-black text-slate-700 uppercase tracking-wider`}>
             {Array.from({ length: columnCount }, (_, columnIndex) => (
                 <div key={columnIndex} className={`flex items-center ${getColumnClass(columnIndex)}`}>
-                    <div className="w-5 text-center text-slate-400">#</div>
-                    <div className="w-9 text-center">Εικ.</div>
+                    <div className="w-6 text-center text-slate-400">#</div>
+                    <div className="w-16 text-center">Εικ.</div>
                     <div className="flex-1 px-1">{descriptionLabel}</div>
-                    <div className="w-[54px] text-right">{amountLabel}</div>
+                    <div className="w-[58px] text-right">{amountLabel}</div>
                 </div>
             ))}
         </div>
@@ -95,7 +95,7 @@ export default function CustomerPrintItemsGrid<T>({
                 return (
                     <section
                         key={pageIndex}
-                        className={isLastPage ? undefined : 'page-break-after-always'}
+                        className={`${isLastPage ? '' : 'page-break-after-always'} min-h-0`}
                         style={{
                             breakAfter: isLastPage ? undefined : 'page',
                             pageBreakAfter: isLastPage ? undefined : 'always',

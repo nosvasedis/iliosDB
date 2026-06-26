@@ -66,15 +66,15 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
         return (
             <div
                 key={globalIndex}
-                className="flex items-center min-h-[41px] py-1.5 border-b border-slate-100 break-inside-avoid"
+                className="flex items-center min-h-[72px] py-1 border-b border-slate-100 break-inside-avoid"
             >
-                <div className="w-5 text-center text-slate-400 text-[10px] tabular-nums">{globalIndex + 1}</div>
-                <div className="w-9 text-center flex-shrink-0">
-                    <div className="w-8 h-8 bg-slate-50 rounded overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
+                <div className="w-6 text-center text-slate-400 text-[11px] tabular-nums">{globalIndex + 1}</div>
+                <div className="w-16 text-center flex-shrink-0">
+                    <div className="w-14 h-14 bg-slate-50 rounded overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
                         {imageUrl ? (
                             <img src={imageUrl} alt={item.sku} className="w-full h-full object-cover" />
                         ) : (
-                            <ImageIcon size={12} className="text-slate-300" />
+                            <ImageIcon size={18} className="text-slate-300" />
                         )}
                     </div>
                 </div>
@@ -89,7 +89,7 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                         <span className="text-[9px] text-slate-600 truncate font-medium">{description}</span>
                     </div>
                 </div>
-                <div className="w-[54px] text-right font-black text-slate-900 tabular-nums text-[10px] whitespace-nowrap">
+                <div className="w-[58px] text-right font-black text-slate-900 tabular-nums text-[10px] whitespace-nowrap">
                     {item.quantity} x {item.price_at_order.toFixed(2).replace('.', ',')}{isOverridden ? '*' : ''}
                 </div>
             </div>

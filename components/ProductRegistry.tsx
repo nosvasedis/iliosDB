@@ -1140,16 +1140,20 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                         {availableStones.map(s => {
                                             const style = getStoneChipStyle(s.id);
                                             const isActive = subFilters.stone === s.id;
+                                            const isDisabled = subFilters.stone === 'without';
                                             return (
                                                 <button
                                                     key={s.id}
+                                                    disabled={isDisabled}
                                                     onClick={() => setSubFilters(p => ({ ...p, stone: isActive ? 'all' : s.id }))}
-                                                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-bold border transition-all ${isActive
-                                                        ? `${style.bg} ${style.text} border-current ring-2 ring-offset-1 ring-current/30 shadow`
-                                                        : `${style.bg} ${style.text} border-transparent hover:border-current/40 opacity-80 hover:opacity-100`
+                                                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-bold border transition-all ${isDisabled
+                                                        ? 'bg-slate-100 text-slate-400 border-slate-200 opacity-60 cursor-not-allowed'
+                                                        : isActive
+                                                            ? `${style.bg} ${style.text} border-current ring-2 ring-offset-1 ring-current/30 shadow`
+                                                            : `${style.bg} ${style.text} border-transparent hover:border-current/40 opacity-80 hover:opacity-100`
                                                         }`}
                                                 >
-                                                    <span className={`w-2 h-2 rounded-full ${style.dot} shrink-0`}></span>
+                                                    <span className={`w-2 h-2 rounded-full ${isDisabled ? 'bg-slate-300' : style.dot} shrink-0`}></span>
                                                     {s.name}
                                                     <span className="opacity-50 text-[10px]">({s.count})</span>
                                                 </button>

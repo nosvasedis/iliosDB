@@ -128,7 +128,10 @@ export function getAvailableRegistryStones(
     });
   });
 
-  return Array.from(stoneMap.values()).sort((a, b) => b.count - a.count);
+  return Array.from(stoneMap.values()).sort((a, b) => {
+    const nameCompare = a.name.localeCompare(b.name, 'el', { sensitivity: 'base' });
+    return nameCompare !== 0 ? nameCompare : a.id.localeCompare(b.id, 'el', { sensitivity: 'base' });
+  });
 }
 
 function compareRegistrySku(a: Product, b: Product): number {

@@ -45,11 +45,11 @@ export default function OfferPrintView({ offer }: Props) {
         return (
             <div
                 key={globalIndex}
-                className="flex items-center min-h-[41px] py-1.5 border-b border-slate-100 break-inside-avoid"
+                className="flex items-center min-h-[72px] py-1 border-b border-slate-100 break-inside-avoid"
             >
-                <div className="w-5 text-center text-slate-400 font-mono text-[10px]">{globalIndex + 1}</div>
-                <div className="w-9 flex justify-center flex-shrink-0">
-                    <div className="w-8 h-8 bg-slate-50 rounded overflow-hidden border border-slate-200">
+                <div className="w-6 text-center text-slate-400 font-mono text-[11px]">{globalIndex + 1}</div>
+                <div className="w-16 flex justify-center flex-shrink-0">
+                    <div className="w-14 h-14 bg-slate-50 rounded overflow-hidden border border-slate-200">
                         {imageUrl && (
                             <img src={imageUrl} alt={item.sku} className="w-full h-full object-cover" />
                         )}
@@ -60,7 +60,7 @@ export default function OfferPrintView({ offer }: Props) {
                     <div className="text-slate-500 font-medium truncate text-[9px]">{description}</div>
                     {item.size_info && <span className="inline-block text-[7px] bg-slate-100 px-1 rounded text-slate-600 border border-slate-200 leading-none mt-0.5">{item.size_info}</span>}
                 </div>
-                <div className="w-[54px] text-right font-black text-slate-900 font-mono text-[10px] whitespace-nowrap">
+                <div className="w-[58px] text-right font-black text-slate-900 font-mono text-[10px] whitespace-nowrap">
                     {item.quantity} x {formatDecimal(item.price_at_order, 2)}
                 </div>
             </div>
