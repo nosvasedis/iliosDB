@@ -3,9 +3,6 @@ import React, { ReactNode } from 'react';
 export type CustomerPrintItemsLayoutMode = 'three-column' | 'legacy-two-column';
 
 export const CUSTOMER_PRINT_ITEMS_LAYOUT_MODE: CustomerPrintItemsLayoutMode = 'three-column';
-export const CUSTOMER_PRINT_COLUMN_COUNT = 3;
-export const CUSTOMER_PRINT_ITEMS_PER_COLUMN = 13;
-export const CUSTOMER_PRINT_ITEMS_PER_PAGE = CUSTOMER_PRINT_COLUMN_COUNT * CUSTOMER_PRINT_ITEMS_PER_COLUMN;
 
 interface CustomerPrintItemsGridProps<T> {
     items: readonly T[];
@@ -14,14 +11,6 @@ interface CustomerPrintItemsGridProps<T> {
     amountLabel?: string;
     textClassName?: string;
     layoutMode?: CustomerPrintItemsLayoutMode;
-}
-
-function chunkItems<T>(items: readonly T[], size: number): T[][] {
-    const chunks: T[][] = [];
-    for (let index = 0; index < items.length; index += size) {
-        chunks.push(items.slice(index, index + size));
-    }
-    return chunks;
 }
 
 function getColumnClass(columnIndex: number) {
@@ -84,41 +73,21 @@ export default function CustomerPrintItemsGrid<T>({
         );
     }
 
-    const pages = chunkItems(items, CUSTOMER_PRINT_ITEMS_PER_PAGE);
-
     return (
         <>
-            {pages.map((pageItems, pageIndex) => {
-                const isLastPage = pageIndex === pages.length - 1;
-                const pageBaseIndex = pageIndex * CUSTOMER_PRINT_ITEMS_PER_PAGE;
-
-                return (
-                    <section
-                        key={pageIndex}
-                        className={`${isLastPage ? '' : 'page-break-after-always'} min-h-0`}
-                        style={{
-                            breakAfter: isLastPage ? undefined : 'page',
-                            pageBreakAfter: isLastPage ? undefined : 'always',
-                        }}
-                    >
-                        <CustomerPrintItemsHeader columnCount={3} descriptionLabel={descriptionLabel} amountLabel={amountLabel} />
-                        <div className={`grid grid-cols-3 gap-x-3 ${textClassName}`}>
-                            {Array.from({ length: CUSTOMER_PRINT_COLUMN_COUNT }, (_, columnIndex) => {
-                                const columnStart = columnIndex * CUSTOMER_PRINT_ITEMS_PER_COLUMN;
-                                const columnItems = pageItems.slice(columnStart, columnStart + CUSTOMER_PRINT_ITEMS_PER_COLUMN);
-
-                                return (
-                                    <div key={columnIndex} className={getColumnClass(columnIndex)}>
-                                        {columnItems.map((item, itemIndex) =>
-                                            renderItem(item, pageBaseIndex + columnStart + itemIndex)
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </section>
-                );
-            })}
+            <CustomerPrintItemsHeader columnCount={3} descriptionLabel={descriptionLabel} amountLabel={amountLabel} />
+            <div
+                className={textClassName}
+                style={{
+                    columnCount: 3,
+                    columnGap: '0.75rem',
+                    columnRuleWidth: '1px',
+                    columnRuleStyle: 'dashed',
+                    columnRuleColor: '#e2e8f0',
+                }}
+            >
+                {items.map((item, index) => renderItem(item, index))}
+            </div>
         </>
     );
 }
