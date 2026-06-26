@@ -11,6 +11,7 @@ import { formatOrderId } from '../utils/orderUtils';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
 import { getProductOptionColorLabel } from '../utils/xrOptions';
 import { isSpecialCreationSku } from '../utils/specialCreationSku';
+import CustomerPrintItemsGrid from './CustomerPrintItemsGrid';
 
 interface Props {
     order: Order;
@@ -92,27 +93,27 @@ export default function OrderInvoiceView({ order, title, revisionSuffix }: Props
         return (
             <div
                 key={globalIndex}
-                className="flex items-center py-1.5 border-b border-slate-100 break-inside-avoid"
+                className="flex items-center min-h-[41px] py-1.5 border-b border-slate-100 break-inside-avoid"
             >
-                <div className="w-6 text-center text-slate-400 text-[11px] tabular-nums">{globalIndex + 1}</div>
-                <div className="w-8 text-center">
-                    <div className="w-6 h-6 bg-slate-50 rounded overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
+                <div className="w-5 text-center text-slate-400 text-[10px] tabular-nums">{globalIndex + 1}</div>
+                <div className="w-9 text-center flex-shrink-0">
+                    <div className="w-8 h-8 bg-slate-50 rounded overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
                         {imageUrl ? (
                             <img src={imageUrl} alt={item.sku} className="w-full h-full object-cover" />
                         ) : (
-                            <ImageIcon size={10} className="text-slate-300" />
+                            <ImageIcon size={12} className="text-slate-300" />
                         )}
                     </div>
                 </div>
                 <div className="flex-1 px-1 min-w-0">
                     <div className="flex flex-col">
-                        <div className="flex items-baseline gap-1">
-                            <span className={`font-bold ${isSpecialCreationSku(item.sku) ? 'text-violet-900' : 'text-slate-900'}`}>{fullSku}</span>
+                        <div className="flex items-baseline gap-1 min-w-0">
+                            <span className={`font-bold truncate ${isSpecialCreationSku(item.sku) ? 'text-violet-900' : 'text-slate-900'}`}>{fullSku}</span>
                             {item.size_info && <span className="text-[9px] bg-slate-100 px-1 rounded text-slate-600 border border-slate-200 font-bold whitespace-nowrap">{item.size_info}</span>}
                             {item.cord_color && <span className="text-[9px] bg-amber-50 px-1 rounded text-amber-700 border border-amber-100 font-bold whitespace-nowrap">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
                             {item.enamel_color && <span className="text-[9px] bg-rose-50 px-1 rounded text-rose-700 border border-rose-100 font-bold whitespace-nowrap">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
                         </div>
-                        <span className="text-[10px] text-slate-600 truncate max-w-[200px] font-medium">{description}</span>
+                        <span className="text-[9px] text-slate-600 truncate font-medium">{description}</span>
                         {item.notes && (
                             <div className="text-[9px] text-emerald-700 italic flex items-center gap-0.5 mt-0.5 leading-none font-medium">
                                 <StickyNote size={8}/> {item.notes}
@@ -120,9 +121,9 @@ export default function OrderInvoiceView({ order, title, revisionSuffix }: Props
                         )}
                     </div>
                 </div>
-                <div className="w-8 text-center font-bold text-slate-800 text-[12px]">{item.quantity}</div>
-                <div className="w-12 text-right text-slate-700 tabular-nums font-sans font-semibold text-[12px]">{item.price_at_order.toFixed(2).replace('.', ',')}{item.price_override ? '*' : ''}</div>
-                <div className="w-14 text-right font-black text-slate-900 tabular-nums font-sans text-[12px]">{(item.price_at_order * item.quantity).toFixed(2).replace('.', ',')}</div>
+                <div className="w-[54px] text-right font-black text-slate-900 tabular-nums font-sans text-[10px] whitespace-nowrap">
+                    {item.quantity} x {item.price_at_order.toFixed(2).replace('.', ',')}{item.price_override ? '*' : ''}
+                </div>
             </div>
         );
     };
@@ -182,38 +183,14 @@ export default function OrderInvoiceView({ order, title, revisionSuffix }: Props
                 </div>
             </div>
 
-            {/* DUAL COLUMN ITEMS GRID */}
+            {/* CUSTOMER ITEMS GRID */}
             <main className="flex-1 min-h-0 relative">
-                
-                {/* Header Row (Duplicated for 2 Columns) */}
-                <div className="flex border-b-2 border-slate-800 pb-1 mb-1 text-[10px] font-black text-slate-700 uppercase tracking-wider">
-                    {/* Left Column Header */}
-                    <div className="flex-1 flex items-center pr-3">
-                        <div className="w-6 text-center text-slate-400">#</div>
-                        <div className="w-8 text-center">Eik.</div>
-                        <div className="flex-1 px-1">Περιγραφη</div>
-                        <div className="w-8 text-center">Ποσ.</div>
-                        <div className="w-12 text-right">Τιμη</div>
-                        <div className="w-14 text-right">Συνολο</div>
-                    </div>
-                    {/* Right Column Header */}
-                    <div className="flex-1 flex items-center pl-3 border-l border-slate-300">
-                         <div className="w-6 text-center text-slate-400">#</div>
-                        <div className="w-8 text-center">Eik.</div>
-                        <div className="flex-1 px-1">Περιγραφη</div>
-                        <div className="w-8 text-center">Ποσ.</div>
-                        <div className="w-12 text-right">Τιμη</div>
-                        <div className="w-14 text-right">Συνολο</div>
-                    </div>
-                </div>
-
-                {/* Items Grid - CSS columns: page-aware vertical flow, left→right per page */}
-                <div
-                    className="text-[12px] leading-snug"
-                    style={{ columnCount: 2, columnGap: '1.5rem', columnRuleWidth: '1px', columnRuleStyle: 'dashed', columnRuleColor: '#e2e8f0' }}
-                >
-                    {sortedItems.map((item, index) => renderOrderItem(item, index))}
-                </div>
+                <CustomerPrintItemsGrid
+                    items={sortedItems}
+                    renderItem={renderOrderItem}
+                    descriptionLabel="Περιγραφη"
+                    textClassName="text-[10px] leading-tight"
+                />
             </main>
 
             {/* COMPACT FOOTER */}

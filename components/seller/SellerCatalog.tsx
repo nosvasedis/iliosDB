@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect, useDeferredValue } from 'react';
 import { Product, Gender, ProductVariant, ProductionType } from '../../types';
 import { Search, ImageIcon, X, SlidersHorizontal, Camera, PackageOpen, Expand, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatCurrency, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
@@ -13,7 +13,10 @@ import SellerImageLightbox from './SellerImageLightbox';
 import { SELLER_FINISH_COLORS, SELLER_STONE_TEXT_COLORS } from './skuColors';
 
 const CATALOG_PAGE_SIZE = 60;
-const PAGE_SIZE = 30;
+const INITIAL_DISPLAY_LIMIT = 60;
+const DISPLAY_INCREMENT = 60;
+const CATALOG_STALE_TIME_MS = 1000 * 60 * 20;
+const BACKGROUND_PREFETCH_DELAY_MS = 900;
 
 interface Props { products?: Product[]; }
 
@@ -48,8 +51,6 @@ const SuffixBadge = ({ suffix, gender }: { suffix: string; gender: Gender }) => 
 };
 
 // ─── Catalogue Card with swipe + smart variant ordering ───────────────────────
-const GRID_COLS = 3; // keep as const so virtualizer row height is stable
-
 interface CardProps { product: Product; }
 
 const CatalogueCard = React.memo(({ product }: CardProps) => {
@@ -94,9 +95,7 @@ const CatalogueCard = React.memo(({ product }: CardProps) => {
     const displayPrice = currentVariant
         ? (currentVariant.selling_price || product.selling_price || 0)
         : (product.selling_price || 0);
-    const basePrice = product.selling_price || 0;
     const stockQty = currentVariant ? (currentVariant.stock_qty || 0) : (product.stock_qty || 0);
-    const { finish, stone } = getVariantComponents(currentVariant?.suffix || '', product.gender);
 
     const goToIndex = useCallback((newIdx: number, dir: 'left' | 'right') => {
         if (isAnimating.current || newIdx === viewIndex) return;
@@ -158,7 +157,7 @@ const CatalogueCard = React.memo(({ product }: CardProps) => {
                     style={{ transform: `translateX(${dragOffset * 0.25}px)`, transition: dragOffset === 0 ? 'transform 0.2s ease-out' : 'none' }}
                 >
                     {product.image_url ? (
-                        <img src={product.image_url} className="w-full h-full object-cover" alt={displaySku} draggable={false} loading="lazy" />
+                        <img src={product.image_url} className="w-full h-full object-cover" alt={displaySku} draggable={false} loading="lazy" decoding="async" />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center text-slate-300">
                             <ImageIcon size={20} />
@@ -268,25 +267,15 @@ export default function SellerCatalog({ products: productsProp }: Props) {
         getNextPageParam: (lastPage, allPages) => lastPage.hasMore ? allPages.length * CATALOG_PAGE_SIZE : undefined,
         initialPageParam: 0,
         enabled: productsProp == null,
-        staleTime: 0,
-        refetchOnMount: 'always',
+        staleTime: CATALOG_STALE_TIME_MS,
     });
 
     const catalogProducts = useMemo(() => catalogData?.pages.flatMap(p => p.products) ?? [], [catalogData]);
     const products = productsProp ?? catalogProducts;
 
-    // Auto-load remaining catalog pages in background with a throttled delay so the
-    // UI thread stays free between fetches (critical for older/slower mobile devices).
-    useEffect(() => {
-        if (productsProp != null || !hasNextPage || isFetchingNextPage) return;
-        const timer = setTimeout(() => {
-            fetchNextPage();
-        }, 800);
-        return () => clearTimeout(timer);
-    }, [productsProp, hasNextPage, isFetchingNextPage, fetchNextPage]);
-
     // ── Filter states ────────────────────────────────────────────────────────
     const [search, setSearch] = useState('');
+    const deferredSearch = useDeferredValue(search.trim());
     const [selectedGroup, setSelectedGroup] = useState<string>('All');
     const [selectedGender, setSelectedGender] = useState<'All' | Gender>('All');
     const [selectedCollection, setSelectedCollection] = useState<number | 'All'>('All');
@@ -298,12 +287,12 @@ export default function SellerCatalog({ products: productsProp }: Props) {
     const [onlyInStock, setOnlyInStock] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
     const [showScanner, setShowScanner] = useState(false);
-    const [currentPage, setCurrentPage] = useState(0);
+    const [displayLimit, setDisplayLimit] = useState(INITIAL_DISPLAY_LIMIT);
 
-    // Reset pagination when any filter changes
+    // Reset the visible window when filters change, matching the admin mobile registry.
     useEffect(() => {
-        setCurrentPage(0);
-    }, [search, selectedGroup, selectedGender, selectedCollection, selectedFinish, selectedStone, stoneFilterMode, selectedProductionType, onlyInStock, sortBy]);
+        setDisplayLimit(INITIAL_DISPLAY_LIMIT);
+    }, [deferredSearch, selectedGroup, selectedGender, selectedCollection, selectedFinish, selectedStone, stoneFilterMode, selectedProductionType, onlyInStock, sortBy]);
 
     const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -350,9 +339,10 @@ export default function SellerCatalog({ products: productsProp }: Props) {
 
     // ── Filtered products ────────────────────────────────────────────────────
     const filteredProducts = useMemo(() => {
+        const normalizedSearch = deferredSearch.toLowerCase();
         const hasAnyStone = (p: Product) => p.variants?.some(v => !!getVariantComponents(v.suffix, p.gender).stone.code);
         return sellable.filter(p => {
-            const matchSearch = !search || p.sku.toLowerCase().includes(search.toLowerCase()) || p.category.toLowerCase().includes(search.toLowerCase());
+            const matchSearch = !normalizedSearch || p.sku.toLowerCase().includes(normalizedSearch) || p.category.toLowerCase().includes(normalizedSearch);
             const matchGroup = selectedGroup === 'All' || getCategoryGroup(p.category) === selectedGroup;
             const matchGender = selectedGender === 'All' || p.gender === selectedGender;
             const matchCollection = selectedCollection === 'All' || p.collections?.includes(selectedCollection as number);
@@ -371,18 +361,49 @@ export default function SellerCatalog({ products: productsProp }: Props) {
             }
             return a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' });
         });
-    }, [sellable, search, selectedGroup, selectedGender, selectedCollection, selectedFinish, selectedStone, stoneFilterMode, selectedProductionType, onlyInStock, sortBy]);
+    }, [sellable, deferredSearch, selectedGroup, selectedGender, selectedCollection, selectedFinish, selectedStone, stoneFilterMode, selectedProductionType, onlyInStock, sortBy]);
 
-    // ── Pagination ───────────────────────────────────────────────────────────
-    const totalPages = Math.ceil(filteredProducts.length / PAGE_SIZE);
-
-    const paginatedProducts = useMemo(() => {
-        const start = currentPage * PAGE_SIZE;
-        return filteredProducts.slice(start, start + PAGE_SIZE);
-    }, [filteredProducts, currentPage]);
+    const displayedProducts = useMemo(() => filteredProducts.slice(0, displayLimit), [filteredProducts, displayLimit]);
 
     // ── Active filter count ──────────────────────────────────────────────────
     const activeCount = [selectedGender !== 'All', selectedCollection !== 'All', selectedFinish !== null, selectedStone !== null, stoneFilterMode !== 'All', selectedProductionType !== 'All', onlyInStock].filter(Boolean).length;
+    const hasActiveCatalogQuery = deferredSearch.length > 0 || selectedGroup !== 'All' || activeCount > 0 || sortBy !== 'sku';
+
+    const shouldPrefetchNextPage = productsProp == null
+        && !!hasNextPage
+        && !isFetchingNextPage
+        && (
+            products.length < Math.max(displayLimit + CATALOG_PAGE_SIZE, CATALOG_PAGE_SIZE * 2)
+            || hasActiveCatalogQuery
+        );
+
+    useEffect(() => {
+        if (!shouldPrefetchNextPage) return;
+        const idleWindow = window as typeof window & {
+            requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+            cancelIdleCallback?: (handle: number) => void;
+        };
+        if (idleWindow.requestIdleCallback) {
+            const handle = idleWindow.requestIdleCallback(() => {
+                void fetchNextPage();
+            }, { timeout: BACKGROUND_PREFETCH_DELAY_MS });
+            return () => idleWindow.cancelIdleCallback?.(handle);
+        }
+        const timer = window.setTimeout(() => {
+            void fetchNextPage();
+        }, BACKGROUND_PREFETCH_DELAY_MS);
+        return () => window.clearTimeout(timer);
+    }, [shouldPrefetchNextPage, fetchNextPage]);
+
+    const canShowMoreLoaded = displayedProducts.length < filteredProducts.length;
+    const hasMoreCatalogPages = productsProp == null && !!hasNextPage;
+
+    const handleLoadMore = useCallback(() => {
+        setDisplayLimit(prev => prev + DISPLAY_INCREMENT);
+        if (productsProp == null && hasNextPage && !isFetchingNextPage && !canShowMoreLoaded) {
+            void fetchNextPage();
+        }
+    }, [productsProp, hasNextPage, isFetchingNextPage, canShowMoreLoaded, fetchNextPage]);
 
     const clearAll = () => {
         setSelectedGender('All');
@@ -589,13 +610,10 @@ export default function SellerCatalog({ products: productsProp }: Props) {
             <div className="px-3 pt-2 pb-1 shrink-0">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                     {filteredProducts.length} προϊόντα
-                    {productsProp == null && isFetchingNextPage && (
-                        <span className="ml-1.5 text-emerald-600 font-normal">(φόρτωση...)</span>
-                    )}
                 </span>
             </div>
 
-            {/* ── Paginated product grid ──────────────────────────────── */}
+            {/* ── Product grid ─────────────────────────────────────────── */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto custom-scrollbar px-2 pb-6">
                 {filteredProducts.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-64 text-slate-400 gap-3">
@@ -606,50 +624,22 @@ export default function SellerCatalog({ products: productsProp }: Props) {
                 ) : (
                     <>
                         <div className="grid grid-cols-3 gap-2 pb-4">
-                            {paginatedProducts.map(p => (
+                            {displayedProducts.map(p => (
                                 <CatalogueCard key={p.sku} product={p} />
                             ))}
                         </div>
 
-                        {/* Pagination Controls */}
-                        {totalPages > 1 && (
-                            <div className="flex items-center justify-center gap-4 py-6 bg-white rounded-2xl shadow-sm border border-slate-100 mt-2 mb-4">
-                                <button
-                                    onClick={() => {
-                                        setCurrentPage(p => Math.max(0, p - 1));
-                                        scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-                                    }}
-                                    disabled={currentPage === 0}
-                                    className="p-2 rounded-xl border border-slate-200 text-slate-600 disabled:opacity-30 hover:bg-slate-50 transition-colors"
-                                >
-                                    <ChevronLeft size={20} />
-                                </button>
-
-                                <span className="text-sm font-black text-slate-700">
-                                    Σελίδα {currentPage + 1} / {totalPages}
-                                </span>
-
-                                <button
-                                    onClick={() => {
-                                        setCurrentPage(p => Math.min(totalPages - 1, p + 1));
-                                        scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-                                    }}
-                                    disabled={currentPage === totalPages - 1}
-                                    className="p-2 rounded-xl border border-slate-200 text-slate-600 disabled:opacity-30 hover:bg-slate-50 transition-colors"
-                                >
-                                    <ChevronRight size={20} />
-                                </button>
-                            </div>
-                        )}
-
-                        {/* Loading More Background Catalog Indicator */}
-                        {productsProp == null && hasNextPage && isFetchingNextPage && (
-                            <div className="py-2 flex justify-center">
-                                <span className="text-xs font-bold text-emerald-600 flex items-center gap-1.5 bg-emerald-50 px-3 py-1.5 rounded-full">
-                                    <span className="w-3 h-3 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-                                    Συγχρονισμός καταλόγου...
-                                </span>
-                            </div>
+                        {(canShowMoreLoaded || hasMoreCatalogPages) && (
+                            <button
+                                type="button"
+                                onClick={handleLoadMore}
+                                disabled={!canShowMoreLoaded && isFetchingNextPage}
+                                className="w-full py-3 bg-white text-slate-600 rounded-xl font-black text-sm hover:bg-slate-100 transition-colors flex items-center justify-center gap-2 mb-4 border border-slate-100 shadow-sm disabled:opacity-60"
+                            >
+                                {!canShowMoreLoaded && isFetchingNextPage
+                                    ? 'Φόρτωση...'
+                                    : `Περισσότερα${canShowMoreLoaded ? ` (${filteredProducts.length - displayedProducts.length})` : ''}`}
+                            </button>
                         )}
                     </>
                 )}

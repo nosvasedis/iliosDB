@@ -3507,7 +3507,7 @@ export const api = {
             await safeMutate(
                 'batch_stage_history',
                 'INSERT',
-                batchesToInsert.map((batch) => buildInitialBatchHistoryEntry(batch as ProductionBatch)),
+                batchesToInsert.map((batch) => buildInitialBatchHistoryEntry(batch as unknown as ProductionBatch)),
                 { noSelect: true },
             );
         }

@@ -5,6 +5,7 @@ import { ImageIcon, Phone, MapPin, StickyNote, Calendar, Hash, Truck } from 'luc
 import { formatOrderId } from '../utils/orderUtils';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
 import { getProductOptionColorLabel } from '../utils/xrOptions';
+import CustomerPrintItemsGrid from './CustomerPrintItemsGrid';
 
 interface Props {
     order: Order;
@@ -65,32 +66,32 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
         return (
             <div
                 key={globalIndex}
-                className="flex items-center py-1.5 border-b border-slate-100 break-inside-avoid"
+                className="flex items-center min-h-[41px] py-1.5 border-b border-slate-100 break-inside-avoid"
             >
-                <div className="w-6 text-center text-slate-400 text-[11px] tabular-nums">{globalIndex + 1}</div>
-                <div className="w-8 text-center">
-                    <div className="w-6 h-6 bg-slate-50 rounded overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
+                <div className="w-5 text-center text-slate-400 text-[10px] tabular-nums">{globalIndex + 1}</div>
+                <div className="w-9 text-center flex-shrink-0">
+                    <div className="w-8 h-8 bg-slate-50 rounded overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
                         {imageUrl ? (
                             <img src={imageUrl} alt={item.sku} className="w-full h-full object-cover" />
                         ) : (
-                            <ImageIcon size={10} className="text-slate-300" />
+                            <ImageIcon size={12} className="text-slate-300" />
                         )}
                     </div>
                 </div>
                 <div className="flex-1 px-1 min-w-0">
                     <div className="flex flex-col">
-                        <div className="flex items-baseline gap-1">
-                            <span className="font-bold text-slate-900">{fullSku}</span>
+                        <div className="flex items-baseline gap-1 min-w-0">
+                            <span className="font-bold text-slate-900 truncate">{fullSku}</span>
                             {item.size_info && <span className="text-[9px] bg-slate-100 px-1 rounded text-slate-600 border border-slate-200 font-bold whitespace-nowrap">{item.size_info}</span>}
                             {item.cord_color && <span className="text-[9px] bg-amber-50 px-1 rounded text-amber-700 border border-amber-100 font-bold whitespace-nowrap">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
                             {item.enamel_color && <span className="text-[9px] bg-rose-50 px-1 rounded text-rose-700 border border-rose-100 font-bold whitespace-nowrap">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
                         </div>
-                        <span className="text-[10px] text-slate-600 truncate max-w-[200px] font-medium">{description}</span>
+                        <span className="text-[9px] text-slate-600 truncate font-medium">{description}</span>
                     </div>
                 </div>
-                <div className="w-8 text-center font-bold text-slate-800 text-[12px]">{item.quantity}</div>
-                <div className="w-12 text-right text-slate-700 tabular-nums font-semibold text-[12px]">{item.price_at_order.toFixed(2).replace('.', ',')}{isOverridden ? '*' : ''}</div>
-                <div className="w-14 text-right font-black text-slate-900 tabular-nums text-[12px]">{(item.price_at_order * item.quantity).toFixed(2).replace('.', ',')}</div>
+                <div className="w-[54px] text-right font-black text-slate-900 tabular-nums text-[10px] whitespace-nowrap">
+                    {item.quantity} x {item.price_at_order.toFixed(2).replace('.', ',')}{isOverridden ? '*' : ''}
+                </div>
             </div>
         );
     };
@@ -112,7 +113,7 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                 <div className="text-right">
                     <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-none mb-0.5">ΜΕΡΙΚΗ ΠΡΟΣΦΟΡΑ</h1>
                     <div className="flex items-center justify-end gap-3 text-[10px] text-slate-700 font-medium">
-                        <span className="flex items-center gap-1"><Truck size={10}/> Αποστολή #{shipment.shipment_number}</span>
+                        <span className="flex items-center gap-1"><Truck size={10}/> Τμήμα Προσφοράς #{shipment.shipment_number}</span>
                         <span className="text-slate-300">|</span>
                         <span className="flex items-center gap-1"><Hash size={10}/> {formatOrderId(order.id)}</span>
                         <span className="text-slate-300">|</span>
@@ -160,34 +161,14 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                 )}
             </div>
 
-            {/* DUAL COLUMN ITEMS GRID */}
+            {/* CUSTOMER ITEMS GRID */}
             <main className="flex-1 min-h-0 relative">
-                <div className="flex border-b-2 border-slate-800 pb-1 mb-1 text-[10px] font-black text-slate-700 uppercase tracking-wider">
-                    <div className="flex-1 flex items-center pr-3">
-                        <div className="w-6 text-center text-slate-400">#</div>
-                        <div className="w-8 text-center">Eik.</div>
-                        <div className="flex-1 px-1">Περιγραφή</div>
-                        <div className="w-8 text-center">Ποσ.</div>
-                        <div className="w-12 text-right">Τιμή</div>
-                        <div className="w-14 text-right">Σύνολο</div>
-                    </div>
-                    <div className="flex-1 flex items-center pl-3 border-l border-slate-300">
-                        <div className="w-6 text-center text-slate-400">#</div>
-                        <div className="w-8 text-center">Eik.</div>
-                        <div className="flex-1 px-1">Περιγραφή</div>
-                        <div className="w-8 text-center">Ποσ.</div>
-                        <div className="w-12 text-right">Τιμή</div>
-                        <div className="w-14 text-right">Σύνολο</div>
-                    </div>
-                </div>
-
-                {/* Items Grid - CSS columns: page-aware vertical flow, left→right per page */}
-                <div
-                    className="text-[12px] leading-snug"
-                    style={{ columnCount: 2, columnGap: '1.5rem', columnRuleWidth: '1px', columnRuleStyle: 'dashed', columnRuleColor: '#e2e8f0' }}
-                >
-                    {sortedShipmentItems.map((item, index) => renderShipmentItem(item, index))}
-                </div>
+                <CustomerPrintItemsGrid
+                    items={sortedShipmentItems}
+                    renderItem={renderShipmentItem}
+                    descriptionLabel="Περιγραφή"
+                    textClassName="text-[10px] leading-tight"
+                />
             </main>
 
             {/* FOOTER */}
@@ -224,7 +205,7 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                 </div>
             </footer>
             <div className="mt-4 text-center text-[8px] text-slate-400 uppercase tracking-widest font-bold">
-                Δελτίο Μερικής Αποστολής #{shipment.shipment_number} &bull; Ilios Kosmima ERP &bull; {new Date().toLocaleTimeString()}
+                ILIOS KOSMIMA ERP &bull; {new Date().toLocaleTimeString()}
             </div>
             {hasOverriddenPrices && (
                 <div className="mt-1 text-center text-[8px] text-amber-700 font-bold">

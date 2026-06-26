@@ -17,8 +17,12 @@ export default function SellerApp() {
   const [activePage, setActivePage] = useState<SellerPage>('dashboard');
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const handleNavigate = (page: string) => setActivePage(page as SellerPage);
-  
-  const { data: products, isLoading: productsLoading } = useQuery({ queryKey: productKeys.all, queryFn: productsRepository.getProducts });
+  const needsFullProducts = activePage === 'order-builder' || activePage === 'collections';
+  const { data: products, isLoading: productsLoading } = useQuery({
+    queryKey: productKeys.all,
+    queryFn: productsRepository.getProducts,
+    enabled: needsFullProducts,
+  });
 
   const handleCreateOrder = () => {
       setEditingOrder(null);

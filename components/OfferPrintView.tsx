@@ -5,6 +5,7 @@ import { APP_LOGO } from '../constants';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import { Phone, Mail, MapPin, Coins } from 'lucide-react';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
+import CustomerPrintItemsGrid from './CustomerPrintItemsGrid';
 
 interface Props {
     offer: Offer;
@@ -44,10 +45,10 @@ export default function OfferPrintView({ offer }: Props) {
         return (
             <div
                 key={globalIndex}
-                className="flex items-center py-1.5 border-b border-slate-100 break-inside-avoid"
+                className="flex items-center min-h-[41px] py-1.5 border-b border-slate-100 break-inside-avoid"
             >
-                <div className="w-5 text-center text-slate-400 font-mono text-[8px]">{globalIndex + 1}</div>
-                <div className="w-10 flex justify-center">
+                <div className="w-5 text-center text-slate-400 font-mono text-[10px]">{globalIndex + 1}</div>
+                <div className="w-9 flex justify-center flex-shrink-0">
                     <div className="w-8 h-8 bg-slate-50 rounded overflow-hidden border border-slate-200">
                         {imageUrl && (
                             <img src={imageUrl} alt={item.sku} className="w-full h-full object-cover" />
@@ -56,12 +57,12 @@ export default function OfferPrintView({ offer }: Props) {
                 </div>
                 <div className="flex-1 px-1 min-w-0">
                     <div className="font-black text-slate-900 truncate">{fullSku}</div>
-                    <div className="text-slate-500 font-medium truncate text-[8px]">{description}</div>
+                    <div className="text-slate-500 font-medium truncate text-[9px]">{description}</div>
                     {item.size_info && <span className="inline-block text-[7px] bg-slate-100 px-1 rounded text-slate-600 border border-slate-200 leading-none mt-0.5">{item.size_info}</span>}
                 </div>
-                <div className="w-8 text-center font-bold text-slate-800">{item.quantity}</div>
-                <div className="w-12 text-right font-mono text-slate-600">{formatCurrency(item.price_at_order)}</div>
-                <div className="w-14 text-right font-black text-slate-900 font-mono">{formatCurrency(item.price_at_order * item.quantity)}</div>
+                <div className="w-[54px] text-right font-black text-slate-900 font-mono text-[10px] whitespace-nowrap">
+                    {item.quantity} x {formatDecimal(item.price_at_order, 2)}
+                </div>
             </div>
         );
     };
@@ -120,38 +121,14 @@ export default function OfferPrintView({ offer }: Props) {
                 </div>
             </section>
 
-            {/* ITEMS GRID (2 COLUMNS) */}
+            {/* CUSTOMER ITEMS GRID */}
             <main className="flex-1 relative z-10">
-                
-                {/* Double Header Row */}
-                <div className="flex border-b-2 border-slate-800 pb-1 mb-1 text-[8px] font-black text-slate-800 uppercase tracking-wider">
-                    {/* Left Column Header */}
-                    <div className="flex-1 flex items-center pr-3">
-                        <div className="w-5 text-center text-slate-400">#</div>
-                        <div className="w-10 text-center">Eik.</div>
-                        <div className="flex-1 px-1">Περιγραφη</div>
-                        <div className="w-8 text-center">Ποσ.</div>
-                        <div className="w-12 text-right">Τιμη</div>
-                        <div className="w-14 text-right">Συνολο</div>
-                    </div>
-                    {/* Right Column Header */}
-                    <div className="flex-1 flex items-center pl-3 border-l border-slate-300">
-                        <div className="w-5 text-center text-slate-400">#</div>
-                        <div className="w-10 text-center">Eik.</div>
-                        <div className="flex-1 px-1">Περιγραφη</div>
-                        <div className="w-8 text-center">Ποσ.</div>
-                        <div className="w-12 text-right">Τιμη</div>
-                        <div className="w-14 text-right">Συνολο</div>
-                    </div>
-                </div>
-
-                {/* Grid Content - CSS columns: page-aware vertical flow, left→right per page */}
-                <div
-                    className="text-[9px] leading-tight"
-                    style={{ columnCount: 2, columnGap: '1.5rem', columnRuleWidth: '1px', columnRuleStyle: 'dashed', columnRuleColor: '#e2e8f0' }}
-                >
-                    {sortedItems.map((item, index) => renderOfferItem(item, index))}
-                </div>
+                <CustomerPrintItemsGrid
+                    items={sortedItems}
+                    renderItem={renderOfferItem}
+                    descriptionLabel="Περιγραφη"
+                    textClassName="text-[10px] leading-tight"
+                />
             </main>
 
             {/* FOOTER */}

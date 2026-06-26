@@ -232,15 +232,26 @@ function ErpAppContent() {
     };
   }, [refreshQueue, showToast]);
 
-  const { data: settings, isLoading: loadingSettings } = useSettings();
-  const { data: materials, isLoading: loadingMaterials } = useMaterials();
-  const { data: molds, isLoading: loadingMolds } = useMolds();
-  const { data: products, isLoading: loadingProducts } = useProducts();
-  const { data: collections, isLoading: loadingCollections } = useCollections();
-  const { data: allShipments } = useAllShipments();
-  const { data: allShipmentItems } = useAllShipmentItems();
+  const shouldLoadErpData = profile?.role !== 'seller';
+  const { data: settings, isLoading: loadingSettings } = useSettings({ enabled: shouldLoadErpData });
+  const { data: materials, isLoading: loadingMaterials } = useMaterials({ enabled: shouldLoadErpData });
+  const { data: molds, isLoading: loadingMolds } = useMolds({ enabled: shouldLoadErpData });
+  const { data: products, isLoading: loadingProducts } = useProducts({ enabled: shouldLoadErpData });
+  const { data: collections, isLoading: loadingCollections } = useCollections({ enabled: shouldLoadErpData });
+  const { data: allShipments } = useAllShipments({ enabled: shouldLoadErpData });
+  const { data: allShipmentItems } = useAllShipmentItems({ enabled: shouldLoadErpData });
 
 
+
+  // Seller mode uses its own lightweight catalog queries, so do not block it on
+  // the full ERP graph needed by admin/employee screens.
+  if (profile?.role === 'seller') {
+    return (
+      <Suspense fallback={<div className="h-screen w-full flex items-center justify-center bg-slate-50"><Loader2 size={40} className="animate-spin text-amber-500" /></div>}>
+        <SellerApp />
+      </Suspense>
+    );
+  }
 
   if (loadingSettings || loadingMaterials || loadingMolds || loadingProducts || loadingCollections) {
     return <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-500"><Loader2 size={48} className="animate-spin mb-4 text-amber-500" /><p className="font-medium text-lg">Φόρτωση ERP...</p></div>;
@@ -301,16 +312,7 @@ function ErpAppContent() {
     );
   }
 
-  // 2. Seller ('seller') -> Seller App (NEW)
-  if (profile?.role === 'seller') {
-    return (
-      <Suspense fallback={<div className="h-screen w-full flex items-center justify-center bg-slate-50"><Loader2 size={40} className="animate-spin text-amber-500" /></div>}>
-        <SellerApp />
-      </Suspense>
-    );
-  }
-
-  // 3. Admin Logic
+  // 2. Admin Logic
   if (profile?.role === 'admin') {
     if (isMobile) {
       return (

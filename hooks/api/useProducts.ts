@@ -3,12 +3,19 @@ import { invalidateProductsAndCatalog } from '../../lib/queryInvalidation';
 import { Product } from '../../types';
 import { productKeys, productsRepository } from '../../features/products';
 
-export const useProducts = () => {
+type ProductsQueryOptions = {
+    enabled?: boolean;
+    staleTime?: number;
+    refetchOnMount?: boolean | 'always';
+};
+
+export const useProducts = (options: ProductsQueryOptions = {}) => {
     return useQuery<Product[]>({
         queryKey: productKeys.all,
         queryFn: productsRepository.getProducts,
-        staleTime: 0,
-        refetchOnMount: 'always',
+        enabled: options.enabled ?? true,
+        staleTime: options.staleTime ?? 0,
+        refetchOnMount: options.refetchOnMount ?? 'always',
     });
 };
 

@@ -7,6 +7,7 @@ const THIRTY_MINUTES_MS = 1000 * 60 * 30;
 type OrdersQueryOptions = {
   staleTime?: number;
   refetchOnMount?: boolean | 'always';
+  enabled?: boolean;
 };
 
 export const useOrdersList = () => {
@@ -22,6 +23,7 @@ export const useOrdersWithItems = (options: OrdersQueryOptions = {}) => {
   return useQuery<Order[]>({
     queryKey: orderKeys.all,
     queryFn: ordersRepository.getOrders,
+    enabled: options.enabled ?? true,
     staleTime: options.staleTime ?? THIRTY_MINUTES_MS,
     refetchOnMount: options.refetchOnMount,
   });
@@ -62,16 +64,18 @@ export const useOrderShipmentsForOrder = (orderId: string) => {
   });
 };
 
-export const useAllShipments = () => {
+export const useAllShipments = (options: OrdersQueryOptions = {}) => {
   return useQuery<OrderShipment[]>({
     queryKey: orderKeys.shipments(),
     queryFn: ordersRepository.getShipments,
+    enabled: options.enabled ?? true,
   });
 };
 
-export const useAllShipmentItems = () => {
+export const useAllShipmentItems = (options: OrdersQueryOptions = {}) => {
   return useQuery<OrderShipmentItem[]>({
     queryKey: orderKeys.shipmentItems(),
     queryFn: ordersRepository.getAllShipmentItems,
+    enabled: options.enabled ?? true,
   });
 };
