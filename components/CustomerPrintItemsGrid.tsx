@@ -38,7 +38,7 @@ function CustomerPrintItemsHeader({
                     <div className="w-6 text-center text-slate-400">#</div>
                     <div className="w-14 text-center">Εικ.</div>
                     <div className="flex-1 px-1">{descriptionLabel}</div>
-                    <div className="w-14 text-right">{amountLabel}</div>
+                    <div className="w-14 text-right text-[8px] tracking-normal whitespace-nowrap">{amountLabel}</div>
                 </div>
             ))}
         </div>

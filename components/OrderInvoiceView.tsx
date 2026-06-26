@@ -113,7 +113,7 @@ export default function OrderInvoiceView({ order, title, revisionSuffix }: Props
                             {item.cord_color && <span className="text-[9px] bg-amber-50 px-1 rounded text-amber-700 border border-amber-100 font-bold whitespace-nowrap">Κορδόνι: {getProductOptionColorLabel(item.cord_color)}</span>}
                             {item.enamel_color && <span className="text-[9px] bg-rose-50 px-1 rounded text-rose-700 border border-rose-100 font-bold whitespace-nowrap">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
                         </div>
-                        <span className="text-[9px] text-slate-600 truncate font-medium">{description}</span>
+                        <span className="block text-[9px] text-slate-600 font-medium leading-[1.15] whitespace-normal break-words">{description}</span>
                         {item.notes && (
                             <div className="text-[9px] text-emerald-700 italic flex items-center gap-0.5 mt-0.5 leading-none font-medium">
                                 <StickyNote size={8}/> {item.notes}
