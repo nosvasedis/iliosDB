@@ -2,10 +2,16 @@
 import React, { useMemo } from 'react';
 import { Offer } from '../types';
 import { APP_LOGO } from '../constants';
-import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
+import { formatDecimal } from '../utils/pricingEngine';
 import { Phone, Mail, MapPin, Coins } from 'lucide-react';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
 import CustomerPrintItemsGrid from './CustomerPrintItemsGrid';
+import {
+    CUSTOMER_PRINT_CSS,
+    CUSTOMER_PRINT_MAIN_CLASS,
+    CUSTOMER_PRINT_PAGE_CLASS,
+    CustomerPrintSummaryFooter,
+} from './customerPrintShared';
 
 interface Props {
     offer: Offer;
@@ -73,7 +79,8 @@ export default function OfferPrintView({ offer }: Props) {
     };
 
     return (
-        <div className="bg-white text-black font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 page-break-after-always relative flex flex-col">
+        <div className={CUSTOMER_PRINT_PAGE_CLASS}>
+            <style>{CUSTOMER_PRINT_CSS}</style>
             
             {/* Watermark Background */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03] z-0">
@@ -127,52 +134,32 @@ export default function OfferPrintView({ offer }: Props) {
             </section>
 
             {/* CUSTOMER ITEMS GRID */}
-            <main className="flex-1 relative z-10">
+            <main className={`${CUSTOMER_PRINT_MAIN_CLASS} z-10`}>
                 <CustomerPrintItemsGrid
                     items={sortedItems}
                     renderItem={renderOfferItem}
                     descriptionLabel="Περιγραφη"
                     textClassName="text-[10px] leading-tight"
+                    footer={
+                        <CustomerPrintSummaryFooter
+                            notes={offer.notes}
+                            notesFallback="Δεν υπάρχουν σημειώσεις."
+                            subtotalLabel="Υποσύνολο:"
+                            subtotal={subtotal}
+                            discountPercent={offer.discount_percent}
+                            discountAmount={discountAmount}
+                            vatRate={vatRate}
+                            vatAmount={vatAmount}
+                            grandTotal={grandTotal}
+                            trailing={
+                                <p className="mt-1.5 text-center text-[7px] font-bold uppercase tracking-widest text-slate-400">
+                                    ILIOS KOSMIMA ERP
+                                </p>
+                            }
+                        />
+                    }
                 />
             </main>
-
-            {/* FOOTER */}
-            <div className="mt-4 flex justify-between items-start shrink-0 relative z-10 border-t-2 border-slate-900 pt-3">
-                
-                {/* Left: Notes */}
-                <div className="w-[60%] text-[9px]">
-                    <p className="font-bold text-slate-800 uppercase tracking-wider mb-1 text-[8px]">Σημειωσεις</p>
-                    <div className="bg-slate-50 p-2 rounded border border-slate-100 text-slate-600 leading-snug italic">
-                        {offer.notes || "Δεν υπάρχουν σημειώσεις."}
-                    </div>
-                </div>
-
-                {/* Right: Totals */}
-                <div className="w-[35%] space-y-0.5 text-[10px]">
-                    <div className="flex justify-between items-center text-slate-600">
-                        <span>Υποσύνολο:</span>
-                        <span className="font-mono font-bold text-slate-900">{formatCurrency(subtotal)}</span>
-                    </div>
-                    {offer.discount_percent > 0 && (
-                        <div className="flex justify-between items-center text-rose-600">
-                            <span>Έκπτωση ({offer.discount_percent}%):</span>
-                            <span className="font-mono font-bold">-{formatCurrency(discountAmount)}</span>
-                        </div>
-                    )}
-                    <div className="flex justify-between items-center text-slate-600 pb-1 border-b border-slate-200 mb-1">
-                        <span>Φ.Π.Α. ({(vatRate * 100).toFixed(0)}%):</span>
-                        <span className="font-mono font-bold">{formatCurrency(vatAmount)}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-slate-900 font-black text-sm">
-                        <span className="uppercase">Γενικο Συνολο:</span>
-                        <span className="font-mono text-base">{formatCurrency(grandTotal)}</span>
-                    </div>
-                </div>
-            </div>
-
-            <footer className="mt-4 pt-2 border-t border-slate-100 flex justify-between items-center text-[7px] text-slate-400 font-bold uppercase tracking-widest shrink-0 relative z-10">
-                <p>ILIOS KOSMIMA ERP</p>
-            </footer>
         </div>
     );
 }

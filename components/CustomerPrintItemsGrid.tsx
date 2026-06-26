@@ -11,6 +11,8 @@ interface CustomerPrintItemsGridProps<T> {
     amountLabel?: string;
     textClassName?: string;
     layoutMode?: CustomerPrintItemsLayoutMode;
+    /** Rendered inside the column flow (column-span: all) so it can share the last page with items. */
+    footer?: ReactNode;
 }
 
 function getColumnClass(columnIndex: number) {
@@ -52,6 +54,7 @@ export default function CustomerPrintItemsGrid<T>({
     amountLabel = 'Τεμ. x Τιμή',
     textClassName = 'text-[10px] leading-tight',
     layoutMode = CUSTOMER_PRINT_ITEMS_LAYOUT_MODE,
+    footer,
 }: CustomerPrintItemsGridProps<T>) {
     if (layoutMode === 'legacy-two-column') {
         return (
@@ -68,6 +71,7 @@ export default function CustomerPrintItemsGrid<T>({
                     }}
                 >
                     {items.map((item, index) => renderItem(item, index))}
+                    {footer}
                 </div>
             </>
         );
@@ -87,6 +91,7 @@ export default function CustomerPrintItemsGrid<T>({
                 }}
             >
                 {items.map((item, index) => renderItem(item, index))}
+                {footer}
             </div>
         </>
     );

@@ -6,6 +6,12 @@ import { formatOrderId } from '../utils/orderUtils';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
 import { getProductOptionColorLabel } from '../utils/xrOptions';
 import CustomerPrintItemsGrid from './CustomerPrintItemsGrid';
+import {
+    CUSTOMER_PRINT_CSS,
+    CUSTOMER_PRINT_MAIN_CLASS,
+    CUSTOMER_PRINT_PAGE_CLASS,
+    CustomerPrintSummaryFooter,
+} from './customerPrintShared';
 
 interface Props {
     order: Order;
@@ -102,7 +108,8 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
     };
 
     return (
-        <div className="bg-white text-black font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 page-break-after-always flex flex-col relative">
+        <div className={CUSTOMER_PRINT_PAGE_CLASS}>
+            <style>{CUSTOMER_PRINT_CSS}</style>
 
             {/* HEADER */}
             <div className="flex justify-between items-end border-b-2 border-slate-900 pb-2 mb-3 shrink-0">
@@ -167,56 +174,39 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
             </div>
 
             {/* CUSTOMER ITEMS GRID */}
-            <main className="flex-1 min-h-0 relative">
+            <main className={CUSTOMER_PRINT_MAIN_CLASS}>
                 <CustomerPrintItemsGrid
                     items={sortedShipmentItems}
                     renderItem={renderShipmentItem}
                     descriptionLabel="Περιγραφή"
                     textClassName="text-[10px] leading-tight"
+                    footer={
+                        <CustomerPrintSummaryFooter
+                            notes={shipment.notes || order.notes}
+                            notesFallback="Δεν υπάρχουν σημειώσεις."
+                            totalPieces={totalPieces}
+                            subtotal={subtotal}
+                            discountPercent={discountPercent}
+                            discountAmount={discountAmount}
+                            vatRate={vatRate}
+                            vatAmount={vatAmount}
+                            grandTotal={grandTotal}
+                            trailing={
+                                <>
+                                    <p className="mt-1.5 text-center text-[7px] font-bold uppercase tracking-widest text-slate-400">
+                                        ILIOS KOSMIMA ERP &bull; {new Date().toLocaleTimeString()}
+                                    </p>
+                                    {hasOverriddenPrices && (
+                                        <p className="mt-0.5 text-center text-[7px] font-bold text-amber-700">
+                                            * Τιμή ανά τεμάχιο με εξαίρεση για τη συγκεκριμένη παραγγελία.
+                                        </p>
+                                    )}
+                                </>
+                            }
+                        />
+                    }
                 />
             </main>
-
-            {/* FOOTER */}
-            <footer className="mt-2 pt-2 border-t-2 border-slate-900 flex justify-between items-start shrink-0">
-                <div className="text-[9px] text-slate-600 max-w-xs leading-snug">
-                    <p className="font-bold uppercase text-slate-500 mb-0.5">Σημειώσεις</p>
-                    <p className="italic bg-slate-50 p-1.5 rounded border border-slate-100">{shipment.notes || order.notes || "Δεν υπάρχουν σημειώσεις."}</p>
-                </div>
-
-                <div className="w-48 text-[11px]">
-                    <div className="flex justify-between items-center text-slate-700 mb-1 pb-1 border-b border-slate-200">
-                        <span>Σύνολο Τεμαχίων:</span>
-                        <span className="tabular-nums font-bold">{totalPieces}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-slate-600 mb-0.5">
-                        <span>Καθαρή Αξία:</span>
-                        <span className="tabular-nums font-bold">{subtotal.toFixed(2).replace('.', ',')}&#8364;</span>
-                    </div>
-                    {discountAmount > 0 && (
-                        <div className="flex justify-between items-center text-rose-600 mb-0.5">
-                            <span>Έκπτωση ({discountPercent}%):</span>
-                            <span className="tabular-nums font-bold">-{discountAmount.toFixed(2).replace('.', ',')}&#8364;</span>
-                        </div>
-                    )}
-                    <div className="flex justify-between items-center text-slate-600 mb-1 pb-1 border-b border-slate-200">
-                        <span>Φ.Π.Α. ({(vatRate * 100).toFixed(0)}%):</span>
-                        <span className="tabular-nums font-bold">{vatAmount.toFixed(2).replace('.', ',')}&#8364;</span>
-                    </div>
-
-                    <div className="flex justify-between items-center text-slate-900 font-black text-sm">
-                        <span className="uppercase">Γενικό Σύνολο:</span>
-                        <span className="tabular-nums text-base">{grandTotal.toFixed(2).replace('.', ',')}&#8364;</span>
-                    </div>
-                </div>
-            </footer>
-            <div className="mt-4 text-center text-[8px] text-slate-400 uppercase tracking-widest font-bold">
-                ILIOS KOSMIMA ERP &bull; {new Date().toLocaleTimeString()}
-            </div>
-            {hasOverriddenPrices && (
-                <div className="mt-1 text-center text-[8px] text-amber-700 font-bold">
-                    * Τιμή ανά τεμάχιο με εξαίρεση για τη συγκεκριμένη παραγγελία.
-                </div>
-            )}
         </div>
     );
 }
