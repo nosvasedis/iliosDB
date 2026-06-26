@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Order, OrderShipment, OrderShipmentItem, Product, Customer } from '../types';
 import { APP_LOGO } from '../constants';
-import { ImageIcon, Phone, MapPin, StickyNote, Calendar, Hash, Truck } from 'lucide-react';
+import { ImageIcon, Phone, MapPin, Calendar, Hash, Truck } from 'lucide-react';
 import { formatOrderId } from '../utils/orderUtils';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
 import { getProductOptionColorLabel } from '../utils/xrOptions';
@@ -134,43 +134,44 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                 </div>
             </div>
 
-            {/* INFO BAR */}
-            <div className="flex gap-4 mb-3 shrink-0 bg-slate-50 rounded-lg border border-slate-200 p-2">
-                <div className="flex-1 flex flex-col justify-center">
-                    <div className="flex items-baseline gap-2 mb-0.5">
-                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Πελάτης</span>
-                        <span className="font-black text-slate-900 text-sm leading-none">{customer?.full_name || order.customer_name}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-[10px] text-slate-700">
+            {/* INFO BAR — customer, shipment meta, value in one compact strip */}
+            <div className="mb-2 flex shrink-0 gap-3 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+                <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0 leading-tight">
+                        <span className="text-[8px] font-bold uppercase tracking-wider text-slate-500">Πελάτης</span>
+                        <span className="text-[11px] font-black leading-none text-slate-900">
+                            {customer?.full_name || order.customer_name}
+                        </span>
                         {(customer?.phone || order.customer_phone) && (
-                            <span className="flex items-center gap-1"><Phone size={10} className="text-slate-400"/> {customer?.phone || order.customer_phone}</span>
-                        )}
-                        {customer?.address && (
-                            <span className="flex items-center gap-1"><MapPin size={10} className="text-slate-400"/> {customer.address}</span>
+                            <span className="inline-flex items-center gap-0.5 text-[9px] text-slate-600">
+                                <Phone size={9} className="text-slate-400" />
+                                {customer?.phone || order.customer_phone}
+                            </span>
                         )}
                         {customer?.vat_number && (
-                            <span className="font-mono text-slate-600">ΑΦΜ: {customer.vat_number}</span>
+                            <span className="font-mono text-[9px] text-slate-500">ΑΦΜ {customer.vat_number}</span>
                         )}
                     </div>
+                    {customer?.address && (
+                        <p className="mt-0.5 truncate text-[9px] leading-tight text-slate-600">
+                            <MapPin size={9} className="mr-0.5 inline text-slate-400" />
+                            {customer.address}
+                        </p>
+                    )}
+                    <p className="mt-0.5 text-[9px] leading-tight text-slate-600">
+                        <span className="font-bold text-slate-500">Απεστάλη από:</span>{' '}
+                        <span className="font-semibold text-slate-800">{shipment.shipped_by}</span>
+                    </p>
                 </div>
 
-                <div className="w-px bg-slate-200 my-0.5"></div>
+                <div className="my-0.5 w-px shrink-0 bg-slate-200" />
 
-                <div className="flex flex-col justify-center items-end px-2 min-w-[120px]">
-                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Αξία Αποστολής</span>
-                    <span className="font-black text-xl text-slate-900 leading-none">{grandTotal.toFixed(2).replace('.', ',')}&#8364;</span>
+                <div className="flex shrink-0 flex-col justify-center px-1 text-right">
+                    <span className="text-[8px] font-bold uppercase tracking-wider text-slate-500">Αξία Αποστολής</span>
+                    <span className="text-lg font-black leading-none text-slate-900 tabular-nums">
+                        {grandTotal.toFixed(2).replace('.', ',')}&#8364;
+                    </span>
                 </div>
-            </div>
-
-            {/* Shipment meta */}
-            <div className="flex gap-4 mb-3 text-[10px] text-slate-600 font-medium bg-amber-50 rounded-lg border border-amber-100 px-3 py-2">
-                <span>Απεστάλη από: <span className="font-bold text-slate-800">{shipment.shipped_by}</span></span>
-                {shipment.notes && (
-                    <>
-                        <span className="text-slate-300">|</span>
-                        <span className="flex items-center gap-1"><StickyNote size={10}/> {shipment.notes}</span>
-                    </>
-                )}
             </div>
 
             {/* CUSTOMER ITEMS GRID */}
