@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { OrderItem, ProductionBatch, ProductionStage } from '../../types';
 import {
   bindProductionLineIds,
+  planNonDuplicateProductionSendItems,
   planLineIdIdentityMorphs,
   planSameSkuIdentitySubstitutions,
 } from '../../features/production/orderBatchReconcile';
@@ -92,5 +93,45 @@ describe('order batch reconciliation planning', () => {
     ];
 
     expect(planSameSkuIdentitySubstitutions(items, batches, {})).toEqual([]);
+  });
+
+  it('skips partial production send quantities already covered by existing batches', () => {
+    const itemsToSend = [
+      { sku: 'DM100', variant: 'X', qty: 16, size_info: '52', line_id: 'line-new' },
+    ];
+    const existingBatches: ProductionBatch[] = [
+      {
+        ...baseBatch,
+        id: 'batch-existing',
+        sku: 'DM100',
+        variant_suffix: 'X',
+        quantity: 16,
+        size_info: '52',
+        line_id: 'line-new',
+      },
+    ];
+
+    expect(planNonDuplicateProductionSendItems(itemsToSend, existingBatches)).toEqual([]);
+  });
+
+  it('only sends the missing remainder when an existing batch partially covers a line', () => {
+    const itemsToSend = [
+      { sku: 'DM100', variant: 'X', qty: 16, size_info: '52', line_id: 'line-new' },
+    ];
+    const existingBatches: ProductionBatch[] = [
+      {
+        ...baseBatch,
+        id: 'batch-existing',
+        sku: 'DM100',
+        variant_suffix: 'X',
+        quantity: 6,
+        size_info: '52',
+        line_id: 'line-new',
+      },
+    ];
+
+    expect(planNonDuplicateProductionSendItems(itemsToSend, existingBatches)).toEqual([
+      { sku: 'DM100', variant: 'X', qty: 10, size_info: '52', line_id: 'line-new' },
+    ]);
   });
 });

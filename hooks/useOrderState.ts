@@ -24,6 +24,7 @@ import {
     type SuggestionRankContext,
 } from '../features/orders/smartSkuSuggestions';
 import { dispatchLiveActivity } from './useLiveActivity';
+import { invalidateAndRefetchAfterOrderMutation } from '../lib/queryInvalidation';
 import {
     allowsNewProductionPartOrderEdit,
     orderNeedsProductionEditDialog,
@@ -1085,7 +1086,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                 showToast('Η παραγγελία δημιουργήθηκε.', 'success');
                 dispatchLiveActivity({ type: 'order_created', userName: profile?.full_name || 'Κάποιος', customerName: effectiveCustomerName, itemCount: selectedItems.length });
             }
-            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            await invalidateAndRefetchAfterOrderMutation(queryClient);
             clearDraft();
             onBack();
         } catch (err: any) {

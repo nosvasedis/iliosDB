@@ -26,6 +26,7 @@ import { PRODUCT_OPTION_COLORS, PRODUCT_OPTION_COLOR_LABELS, getProductOptionCol
 import { useCollections } from '../../hooks/api/useCollections';
 import { useCustomers } from '../../hooks/api/useOrders';
 import { ordersRepository } from '../../features/orders';
+import { invalidateAndRefetchAfterOrderMutation } from '../../lib/queryInvalidation';
 import {
     allowsNewProductionPartOrderEdit,
     orderNeedsProductionEditDialog,
@@ -578,8 +579,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
         } else {
             await ordersRepository.saveOrder(orderPayload);
         }
-        await queryClient.refetchQueries({ queryKey: ['orders'] });
-        await queryClient.refetchQueries({ queryKey: ['customers'] });
+        await invalidateAndRefetchAfterOrderMutation(queryClient);
+        await queryClient.refetchQueries({ queryKey: ['customers'], type: 'active' });
         sessionStorage.removeItem(DRAFT_KEY);
         onBack();
     }, [initialOrder, items, grandTotal, discountPercent, orderNotes, retailClientLabel, attachSeller, isSeller, profile?.id, profile?.full_name, user?.id, user?.email, queryClient, onBack, confirm, mobSelectedSellerId, mobSelectedSellerName, mobSellerCommissionPercent]);

@@ -44,6 +44,7 @@ import {
     buildShippedByDemandKey,
     demandKeyForItem,
     planLineIdIdentityMorphs,
+    planNonDuplicateProductionSendItems,
     planSameSkuIdentitySubstitutions,
     supplyKeyForBatch,
     type ReconcileCatalogItem,
@@ -3550,24 +3551,50 @@ export const api = {
         const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
         const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
         const batches: any[] = [];
+        const existingBatches = await fetchBatchesByOrderId(orderId);
+        const plannedItemsToSend = planNonDuplicateProductionSendItems(itemsToSend, existingBatches);
+        const plannedQtyByStockKey = new Map<string, number>();
+        for (const item of plannedItemsToSend) {
+            const key = buildItemIdentityKey({
+                sku: item.sku,
+                variant_suffix: item.variant,
+                size_info: item.size_info,
+                cord_color: item.cord_color as any,
+                enamel_color: item.enamel_color as any,
+                line_id: item.line_id ?? null
+            });
+            plannedQtyByStockKey.set(key, (plannedQtyByStockKey.get(key) || 0) + item.qty);
+        }
+        const plannedStockFulfilledItems = (stockFulfilledItems ?? []).flatMap((item) => {
+            const key = buildItemIdentityKey({
+                sku: item.sku,
+                variant_suffix: item.variant_suffix,
+                size_info: item.size_info,
+                cord_color: item.cord_color as any,
+                enamel_color: item.enamel_color as any,
+                line_id: item.line_id ?? null
+            });
+            const remaining = plannedQtyByStockKey.get(key) || 0;
+            const qty = Math.min(item.qty, remaining);
+            plannedQtyByStockKey.set(key, Math.max(0, remaining - qty));
+            return qty > 0 ? [{ ...item, qty }] : [];
+        });
 
         // Build stock-fulfilled lookup
         const stockMap = new Map<string, number>();
-        if (stockFulfilledItems) {
-            for (const sf of stockFulfilledItems) {
-                const key = buildItemIdentityKey({
-                    sku: sf.sku,
-                    variant_suffix: sf.variant_suffix,
-                    size_info: sf.size_info,
-                    cord_color: sf.cord_color as any,
-                    enamel_color: sf.enamel_color as any,
-                    line_id: sf.line_id ?? null
-                });
-                stockMap.set(key, (stockMap.get(key) || 0) + sf.qty);
-            }
+        for (const sf of plannedStockFulfilledItems) {
+            const key = buildItemIdentityKey({
+                sku: sf.sku,
+                variant_suffix: sf.variant_suffix,
+                size_info: sf.size_info,
+                cord_color: sf.cord_color as any,
+                enamel_color: sf.enamel_color as any,
+                line_id: sf.line_id ?? null
+            });
+            stockMap.set(key, (stockMap.get(key) || 0) + sf.qty);
         }
 
-        for (const item of itemsToSend) {
+        for (const item of plannedItemsToSend) {
             if (item.qty <= 0) continue;
 
             const stockKey = buildItemIdentityKey({

@@ -9,6 +9,7 @@ import {
   invalidateProductionBatches,
   invalidateRealtimeDomain,
   invalidateShipmentUndoQueries,
+  invalidateAndRefetchAfterOrderMutation,
   refetchRealtimeActiveQueries,
 } from '../lib/queryInvalidation';
 
@@ -108,6 +109,24 @@ describe('query invalidation helpers', () => {
     expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: productionKeys.batches(), type: 'active' });
     expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: productionKeys.boardBatches(), type: 'active' });
     expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: orderKeys.shipmentsForOrder('order-1'), type: 'active' });
+  });
+
+  it('order mutations refetch active orders and production caches immediately', async () => {
+    const queryClient = {
+      invalidateQueries: vi.fn().mockResolvedValue(undefined),
+      refetchQueries: vi.fn().mockResolvedValue(undefined),
+    } as any;
+
+    await invalidateAndRefetchAfterOrderMutation(queryClient);
+
+    expect(queryClient.invalidateQueries).toHaveBeenCalled();
+    expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: orderKeys.all, type: 'active' });
+    expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: orderKeys.list(), type: 'active' });
+    expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: orderKeys.productionBoard(), type: 'active' });
+    expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: productionKeys.batches(), type: 'active' });
+    expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: productionKeys.boardBatches(), type: 'active' });
+    expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: productionKeys.batchHistoryEntries(), type: 'active' });
+    expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: productionKeys.boardBatchHistoryEntries(), type: 'active' });
   });
 
   it('realtime ready catch-up refetches only active visible order/production/catalog caches', async () => {

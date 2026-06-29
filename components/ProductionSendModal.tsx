@@ -18,6 +18,7 @@ import { formatOrderId } from '../utils/orderUtils';
 import { buildBatchStageHistoryMap, isStageNotRequired } from '../features/production/selectors';
 import { groupProductionBatchesByStage } from '../features/production/workflowSelectors';
 import { getRelevantProductionBatchesForOrderItem } from '../features/production/productionSendPlanner';
+import { planNonDuplicateProductionSendItems } from '../features/production/orderBatchReconcile';
 import { buildOrderItemIdentityKey } from '../features/orders/printHelpers';
 import { getSpecialCreationProductStub, isSpecialCreationSku } from '../utils/specialCreationSku';
 import { useOrderShipmentsForOrder } from '../hooks/api/useOrders';
@@ -457,17 +458,31 @@ export default function ProductionSendModal({ order: orderProp, products, materi
             notes: r.notes, line_id: r.line_id ?? null
         })).filter(i => i.qty > 0);
         if (itemsToSend.length === 0) { showToast("Δεν επιλέχθηκαν τεμάχια για αποστολή.", "info"); return; }
-        const stockCheck = checkStockForOrderItems(itemsToSend, products);
+        const latestBatches = await queryClient.fetchQuery({
+            queryKey: productionKeys.batches(),
+            queryFn: productionRepository.getProductionBatches,
+        });
+        const plannedItemsToSend = planNonDuplicateProductionSendItems(
+            itemsToSend,
+            latestBatches.filter(batch => batch.order_id === order.id),
+        );
+        if (plannedItemsToSend.length === 0) {
+            showToast("Όλα τα τεμάχια έχουν ήδη σταλεί στην παραγωγή.", "info");
+            await invalidateOrdersAndBatches(queryClient);
+            return;
+        }
+
+        const stockCheck = checkStockForOrderItems(plannedItemsToSend, products);
         const hasStock = stockCheck.some(s => s.available_in_stock > 0);
         if (hasStock) {
             setStockDecision({
                 items: stockCheck.map(s => ({ ...s, fromStock: Math.min(s.available_in_stock, s.requested_qty) })),
-                originalItemsToSend: itemsToSend
+                originalItemsToSend: plannedItemsToSend
             });
             return;
         }
-        await executeSend(itemsToSend);
-    }, [isLoadingShipments, showToast, rows, toSendQuantities, products, executeSend]);
+        await executeSend(plannedItemsToSend);
+    }, [isLoadingShipments, showToast, rows, toSendQuantities, products, executeSend, order.id, queryClient]);
 
     const handleConfirmStockDecision = useCallback(async () => {
         if (!stockDecision) return;

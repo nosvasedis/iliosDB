@@ -74,6 +74,60 @@ export type ShippedCatalogItem = Pick<
   'sku' | 'variant_suffix' | 'size_info' | 'cord_color' | 'enamel_color' | 'quantity' | 'line_id'
 >;
 
+export type ProductionSendItem = {
+  sku: string;
+  variant: string | null;
+  qty: number;
+  size_info?: string | null;
+  cord_color?: string | null;
+  enamel_color?: string | null;
+  notes?: string | null;
+  line_id?: string | null;
+};
+
+function sendItemToReconcileItem(item: ProductionSendItem): ReconcileCatalogItem {
+  return {
+    sku: item.sku,
+    variant_suffix: item.variant,
+    quantity: item.qty,
+    size_info: item.size_info ?? undefined,
+    cord_color: (item.cord_color ?? null) as OrderItem['cord_color'],
+    enamel_color: (item.enamel_color ?? null) as OrderItem['enamel_color'],
+    notes: item.notes ?? undefined,
+    line_id: item.line_id ?? null,
+  };
+}
+
+/**
+ * Guard partial production sends against stale UI state. If a batch for the same
+ * logical order line already exists, send only the missing remainder.
+ */
+export function planNonDuplicateProductionSendItems(
+  itemsToSend: ProductionSendItem[],
+  existingBatches: ProductionBatch[],
+): ProductionSendItem[] {
+  if (itemsToSend.length === 0) return [];
+
+  const reconcileItems = itemsToSend.map(sendItemToReconcileItem);
+  const keyOptions: ReconcileKeyOptions = {
+    naturalKeyDemandCount: buildNaturalKeyDemandCount(reconcileItems),
+  };
+
+  const existingByKey = new Map<string, number>();
+  for (const batch of existingBatches) {
+    const key = supplyKeyForBatch(batch, keyOptions);
+    existingByKey.set(key, (existingByKey.get(key) || 0) + batch.quantity);
+  }
+
+  return itemsToSend.flatMap((item, index) => {
+    const key = demandKeyForItem(reconcileItems[index], keyOptions);
+    const alreadyCovered = existingByKey.get(key) || 0;
+    const missingQty = Math.max(0, item.qty - alreadyCovered);
+    existingByKey.set(key, Math.max(0, alreadyCovered - item.qty));
+    return missingQty > 0 ? [{ ...item, qty: missingQty }] : [];
+  });
+}
+
 /**
  * Map shipped quantities onto reconcile demand keys.
  * Legacy shipment rows often lack line_id; allocate FIFO to matching order lines.

@@ -218,6 +218,24 @@ export function invalidateOrdersAndBatches(queryClient: QueryClient): Promise<vo
     ]).then(() => undefined);
 }
 
+/**
+ * Order edits can reconcile production_batches as a side effect. Refresh the
+ * active order and production surfaces immediately so Παραγωγή search/readiness
+ * does not wait for realtime or a page reload.
+ */
+export async function invalidateAndRefetchAfterOrderMutation(queryClient: QueryClient): Promise<void> {
+    await invalidateOrdersAndBatches(queryClient);
+    await Promise.all([
+        queryClient.refetchQueries({ queryKey: orderKeys.all, type: 'active' }),
+        queryClient.refetchQueries({ queryKey: orderKeys.list(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: orderKeys.productionBoard(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: productionKeys.batches(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: productionKeys.boardBatches(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: productionKeys.batchHistoryEntries(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: productionKeys.boardBatchHistoryEntries(), type: 'active' }),
+    ]);
+}
+
 export function invalidateShipmentUndoQueries(queryClient: QueryClient, orderId?: string): Promise<void> {
     return Promise.all([
         invalidateOrdersAndBatches(queryClient),

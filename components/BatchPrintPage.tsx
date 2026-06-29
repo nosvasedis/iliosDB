@@ -11,6 +11,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, SYSTEM_IDS, recordStockMovement, supabase } from '../lib/supabase';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 import DesktopPageHeader from './DesktopPageHeader';
+import { parseBatchLabelInputLine } from '../features/printing/batchLabelInput';
+import { getSizingInfo } from '../utils/sizing';
 
 // Set workerSrc for pdf.js.
 GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@4.4.168/build/pdf.worker.mjs`;
@@ -18,7 +20,7 @@ GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@4.4.168/build/pdf.wor
 interface Props {
     allProducts: Product[];
     allCollections: Collection[];
-    setPrintItems: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail', showPrice?: boolean, priceTier?: 'wholesale' | 'retail' }[]) => void;
+    setPrintItems: (items: { product: Product; variant?: ProductVariant; quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail', showPrice?: boolean, priceTier?: 'wholesale' | 'retail' }[]) => void;
     onPrintPhotoCatalog: (products: Product[]) => void;
     skusText: string;
     setSkusText: (text: string) => void;
@@ -178,30 +180,25 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
 
     const parseItemsFromText = () => {
         const lines = skusText.split(/\r?\n/).filter(line => line.trim() !== '');
-        const items: { product: Product; variant?: ProductVariant; quantity: number; rawSku: string }[] = [];
+        const items: { product: Product; variant?: ProductVariant; quantity: number; rawSku: string; size?: string }[] = [];
         const notFound: string[] = [];
 
         for (const line of lines) {
-            const cleanLine = line.replace(/[\x00-\x1F\x7F-\x9F]/g, " ").trim();
-            const parts = cleanLine.split(/\s+/);
-            if (parts.length === 0) continue;
+            const parsedWithoutSizing = parseBatchLabelInputLine(line);
+            if (!parsedWithoutSizing) continue;
 
-            const rawToken = parts[0].toUpperCase();
-            const quantityStr = parts.length > 1 ? parts[1] : '1';
-            const quantity = parseInt(quantityStr.replace(/[^0-9]/g, ''), 10);
-
-            if (isNaN(quantity) || quantity <= 0) continue;
-
-            const expandedSkus = expandSkuRange(rawToken);
+            const expandedSkus = expandSkuRange(parsedWithoutSizing.rawToken);
 
             for (const rawSku of expandedSkus) {
                 let matchFound = false;
                 const match = findProductByScannedCode(rawSku, allProducts);
 
                 if (match) {
+                    const parsed = parseBatchLabelInputLine(line, getSizingInfo(match.product));
+                    if (!parsed) continue;
                     // CASE 1: Exact match for a variant or simple product with no variants
                     if (match.variant || (!match.product.variants || match.product.variants.length === 0)) {
-                        items.push({ product: match.product, variant: match.variant, quantity, rawSku });
+                        items.push({ product: match.product, variant: match.variant, quantity: parsed.quantity, rawSku, size: parsed.size });
                         matchFound = true;
                     }
                     // CASE 2: Master SKU entered exactly (no variant suffix matched)
@@ -215,15 +212,16 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                             items.push({
                                 product: match.product,
                                 variant: baseVariant,
-                                quantity,
-                                rawSku: match.product.sku
+                                quantity: parsed.quantity,
+                                rawSku: match.product.sku,
+                                size: parsed.size
                             });
                             matchFound = true;
                         }
                         else if (variants.length > 0) {
                             // "Intelligent" expansion: if no empty-suffix variant exists, add ALL available variants
                             variants.forEach(v => {
-                                items.push({ product: match.product, variant: v, quantity, rawSku: match.product.sku + v.suffix });
+                                items.push({ product: match.product, variant: v, quantity: parsed.quantity, rawSku: match.product.sku + v.suffix, size: parsed.size });
                             });
                             matchFound = true;
                         }
@@ -249,6 +247,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
             product: i.product,
             variant: i.variant,
             quantity: i.quantity,
+            size: i.size,
             format: labelFormat,
             showPrice,
             priceTier,
