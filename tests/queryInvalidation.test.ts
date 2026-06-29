@@ -9,6 +9,7 @@ import {
   invalidateProductionBatches,
   invalidateRealtimeDomain,
   invalidateShipmentUndoQueries,
+  refetchRealtimeActiveQueries,
 } from '../lib/queryInvalidation';
 
 describe('query invalidation helpers', () => {
@@ -107,5 +108,24 @@ describe('query invalidation helpers', () => {
     expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: productionKeys.batches(), type: 'active' });
     expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: productionKeys.boardBatches(), type: 'active' });
     expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: orderKeys.shipmentsForOrder('order-1'), type: 'active' });
+  });
+
+  it('realtime ready catch-up refetches only active visible order/production/catalog caches', async () => {
+    const queryClient = {
+      refetchQueries: vi.fn().mockResolvedValue(undefined),
+    } as any;
+
+    await refetchRealtimeActiveQueries(queryClient);
+
+    expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: ['products'], type: 'active' });
+    expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: ['productsCatalog'], type: 'active' });
+    expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: orderKeys.all, type: 'active' });
+    expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: orderKeys.list(), type: 'active' });
+    expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: orderKeys.productionBoard(), type: 'active' });
+    expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: productionKeys.batches(), type: 'active' });
+    expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: productionKeys.boardBatches(), type: 'active' });
+    expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: productionKeys.batchHistoryEntries(), type: 'active' });
+    expect(queryClient.refetchQueries).toHaveBeenCalledWith({ queryKey: productionKeys.boardBatchHistoryEntries(), type: 'active' });
+    expect(queryClient.refetchQueries.mock.calls.every(([args]) => args.type === 'active')).toBe(true);
   });
 });

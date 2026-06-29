@@ -6,6 +6,7 @@ import { INSPECTION_REALTIME_TABLES } from '../../lib/inspectionAllowedTables';
 import {
   getRealtimeInvalidationDomainsForTable,
   invalidateRealtimeDomain,
+  refetchRealtimeActiveQueries,
 } from '../../lib/queryInvalidation';
 import { tryPatchRealtimeCache } from '../../lib/realtimeCachePatch';
 import { createRealtimeInvalidationScheduler } from './realtimeInvalidationScheduler';
@@ -52,12 +53,14 @@ export const CORE_REALTIME_TABLES = [
 
 const CHANNEL_NAME = 'realtime:app-data';
 const RETRY_MS = 3000;
+const READY_REFRESH_MIN_INTERVAL_MS = 30000;
 
 export function useRealtimeInvalidation(): void {
   const queryClient = useQueryClient();
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const schedulerRef = useRef<ReturnType<typeof createRealtimeInvalidationScheduler> | null>(null);
+  const lastReadyRefreshRef = useRef(0);
 
   useEffect(() => {
     if (isLocalMode) return;
@@ -98,6 +101,13 @@ export function useRealtimeInvalidation(): void {
       });
 
       channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          const now = Date.now();
+          if (now - lastReadyRefreshRef.current >= READY_REFRESH_MIN_INTERVAL_MS) {
+            lastReadyRefreshRef.current = now;
+            void refetchRealtimeActiveQueries(queryClient);
+          }
+        }
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           void supabase.removeChannel(channel);
           channelRef.current = null;

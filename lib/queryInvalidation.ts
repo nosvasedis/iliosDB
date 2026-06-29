@@ -259,6 +259,37 @@ export async function invalidateAndRefetchAfterShipmentChange(
     ]);
 }
 
+/**
+ * Realtime does not replay database changes missed while the browser was asleep,
+ * disconnected, or restoring persisted cache. On channel readiness, refetch only
+ * active high-signal queries so visible order/production/catalog surfaces catch up
+ * without polling or waking every cached query.
+ */
+export function refetchRealtimeActiveQueries(queryClient: QueryClient): Promise<void> {
+    return Promise.all([
+        queryClient.refetchQueries({ queryKey: ['products'], type: 'active' }),
+        queryClient.refetchQueries({ queryKey: ['productsCatalog'], type: 'active' }),
+        queryClient.refetchQueries({ queryKey: ['collections'], type: 'active' }),
+        queryClient.refetchQueries({ queryKey: orderKeys.all, type: 'active' }),
+        queryClient.refetchQueries({ queryKey: orderKeys.list(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: orderKeys.productionBoard(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: orderKeys.shipments(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: orderKeys.shipmentItems(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: ['order-shipments'], type: 'active' }),
+        queryClient.refetchQueries({ queryKey: productionKeys.batches(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: productionKeys.boardBatches(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: productionKeys.batchHistoryEntries(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: productionKeys.boardBatchHistoryEntries(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: deliveryKeys.plans(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: deliveryKeys.reminders(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: deliveryKeys.shipments(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: deliveryKeys.shipmentItems(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: ['materials'], type: 'active' }),
+        queryClient.refetchQueries({ queryKey: ['molds'], type: 'active' }),
+        queryClient.refetchQueries({ queryKey: ['warehouses'], type: 'active' }),
+    ]).then(() => undefined);
+}
+
 export function invalidateRealtimeDomain(
     queryClient: QueryClient,
     domain: RealtimeInvalidationDomain,

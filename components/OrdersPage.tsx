@@ -1008,15 +1008,21 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         setTagInputFocused(false);
     }, [managingOrder]);
 
-    // Keep manage-modal order in sync when the orders query refetches (e.g. after partial shipment).
+    // Keep read-only/order-flow modals in sync when realtime or explicit refetches update orders.
+    // Do not sync `editingOrder`: the builder owns an in-progress draft and should not be overwritten.
     useEffect(() => {
-        if (!managingOrder?.id || !orders) return;
-        const fresh = orders.find((o) => o.id === managingOrder.id);
-        if (!fresh) return;
-        if (fresh.status !== managingOrder.status) {
-            setManagingOrder(fresh);
-        }
-    }, [orders, managingOrder?.id, managingOrder?.status]);
+        if (!orders) return;
+        const ordersById = new Map(orders.map((order) => [order.id, order]));
+        const syncOrder = (current: Order | null) => {
+            if (!current?.id) return current;
+            return ordersById.get(current.id) || current;
+        };
+
+        setManagingOrder(syncOrder);
+        setPrintModalOrder(syncOrder);
+        setProductionModalOrder(syncOrder);
+        setShipmentModalOrder(syncOrder);
+    }, [orders]);
 
     const ensureFullOrderItems = useCallback(async (order: Order): Promise<Order | null> => {
         if (hasFullOrderItems(order)) return order;
