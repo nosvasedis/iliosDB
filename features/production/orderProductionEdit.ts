@@ -32,10 +32,10 @@ function sameNullableNumber(a?: number | null, b?: number | null): boolean {
 function orderHeadersEqualForNewPart(before: Order, after: Order): boolean {
   const tagsEqual = JSON.stringify(before.tags || []) === JSON.stringify(after.tags || []);
   return (
-    before.customer_id === after.customer_id &&
+    sameOptionalText(before.customer_id, after.customer_id) &&
     before.customer_name === after.customer_name &&
     sameOptionalText(before.customer_phone, after.customer_phone) &&
-    before.seller_id === after.seller_id &&
+    sameOptionalText(before.seller_id, after.seller_id) &&
     sameOptionalText(before.seller_name, after.seller_name) &&
     sameNullableNumber(before.seller_commission_percent, after.seller_commission_percent) &&
     before.vat_rate === after.vat_rate &&

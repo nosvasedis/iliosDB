@@ -17,6 +17,7 @@ import { getProductionTimingInfo, getProductionTimingStatusClasses } from '../ut
 import { formatOrderId } from '../utils/orderUtils';
 import { buildBatchStageHistoryMap, isStageNotRequired } from '../features/production/selectors';
 import { groupProductionBatchesByStage } from '../features/production/workflowSelectors';
+import { getRelevantProductionBatchesForOrderItem } from '../features/production/productionSendPlanner';
 import { buildOrderItemIdentityKey } from '../features/orders/printHelpers';
 import { getSpecialCreationProductStub, isSpecialCreationSku } from '../utils/specialCreationSku';
 import { useOrderShipmentsForOrder } from '../hooks/api/useOrders';
@@ -231,9 +232,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
             const key = itemKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color, item.line_id);
             const shippedQty = shippedQuantities.get(key) || 0;
             const shipmentAllocations = getItemShipmentAllocations(key, orderShipments, orderShipmentItems);
-            const relevantBatches = existingBatches.filter(b =>
-                buildOrderItemIdentityKey(b) === buildOrderItemIdentityKey(item)
-            ).sort((a, b) => {
+            const relevantBatches = getRelevantProductionBatchesForOrderItem(item, order.items, existingBatches).sort((a, b) => {
                 const stages = Object.values(ProductionStage);
                 return stages.indexOf(a.current_stage) - stages.indexOf(b.current_stage);
             });

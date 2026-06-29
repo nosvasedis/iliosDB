@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { OrderItem } from '../../types';
+import { OrderItem, ProductionBatch, ProductionStage } from '../../types';
 import {
   buildShippedByDemandKey,
   demandKeyForItem,
   buildNaturalKeyDemandCount,
 } from '../../features/production/orderBatchReconcile';
+import { getRelevantProductionBatchesForOrderItem } from '../../features/production/productionSendPlanner';
 import {
   allowsNewProductionPart,
   allowsNewProductionPartOrderEdit,
@@ -114,5 +115,76 @@ describe('order production edit rules', () => {
         items: afterItems,
       }),
     ).toBe(false);
+  });
+
+  it('treats null and undefined optional order ids as unchanged', () => {
+    const before = {
+      ...baseOrder,
+      customer_id: null,
+      seller_id: null,
+    };
+    const afterItems: OrderItem[] = [
+      ...baseOrder.items,
+      { sku: 'PN041', variant_suffix: 'H', quantity: 1, price_at_order: 80 },
+    ];
+
+    expect(
+      allowsNewProductionPartOrderEdit(before, {
+        ...before,
+        customer_id: undefined,
+        seller_id: undefined,
+        items: afterItems,
+      }),
+    ).toBe(true);
+  });
+});
+
+describe('production send row matching', () => {
+  const baseBatch = {
+    order_id: 'ORD-1',
+    created_at: '2026-01-01T10:00:00.000Z',
+    updated_at: '2026-01-01T10:00:00.000Z',
+    priority: 'Normal' as const,
+    type: 'Νέα' as const,
+    requires_setting: false,
+    requires_assembly: false,
+    current_stage: ProductionStage.Waxing,
+  };
+
+  it('matches a batch back to a stale order row when reconciliation added the batch line_id', () => {
+    const orderItems: OrderItem[] = [
+      { sku: 'PN041', variant_suffix: 'H', quantity: 16, price_at_order: 80 },
+    ];
+    const batches: ProductionBatch[] = [
+      {
+        ...baseBatch,
+        id: 'batch-1',
+        sku: 'PN041',
+        variant_suffix: 'H',
+        quantity: 16,
+        line_id: 'line-added-during-reconcile',
+      },
+    ];
+
+    expect(getRelevantProductionBatchesForOrderItem(orderItems[0], orderItems, batches)).toEqual(batches);
+  });
+
+  it('does not use natural-key fallback when duplicate order rows make the match ambiguous', () => {
+    const orderItems: OrderItem[] = [
+      { sku: 'PN041', variant_suffix: 'H', quantity: 1, price_at_order: 80 },
+      { sku: 'PN041', variant_suffix: 'H', quantity: 1, price_at_order: 80 },
+    ];
+    const batches: ProductionBatch[] = [
+      {
+        ...baseBatch,
+        id: 'batch-1',
+        sku: 'PN041',
+        variant_suffix: 'H',
+        quantity: 1,
+        line_id: 'line-added-during-reconcile',
+      },
+    ];
+
+    expect(getRelevantProductionBatchesForOrderItem(orderItems[0], orderItems, batches)).toEqual([]);
   });
 });

@@ -38,6 +38,7 @@ import { buildShippedQtyByOrderId, getShippedQuantitiesForOrderLines, isOrderFul
 import DesktopPageHeader from './DesktopPageHeader';
 import { SellerPicker } from './OrderBuilder/SellerPicker';
 import { productionRepository } from '../features/production';
+import { getRelevantProductionBatchesForOrderItem } from '../features/production/productionSendPlanner';
 import { auditRepository } from '../features/audit';
 import { dispatchLiveActivity } from '../hooks/useLiveActivity';
 import { usePrint } from './PrintContext';
@@ -1292,11 +1293,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         order = fullOrder;
 
         const existingBatchesForOrder = batchesByOrderId.get(order.id) || [];
-        const inProductionQtyByKey = new Map<string, number>();
-        existingBatchesForOrder.forEach(b => {
-            const key = [b.sku, b.variant_suffix || '', b.size_info || '', b.cord_color || '', b.enamel_color || '', b.line_id || ''].join('|');
-            inProductionQtyByKey.set(key, (inProductionQtyByKey.get(key) || 0) + b.quantity);
-        });
 
         // For PartiallyDelivered orders, subtract already-shipped quantities
         // so we don't re-send items that have already been delivered to the client.
@@ -1310,9 +1306,12 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
 
         const itemsToSend = order.items
             .map(item => {
-                const key = [item.sku, item.variant_suffix || '', item.size_info || '', item.cord_color || '', item.enamel_color || '', item.line_id || ''].join('|');
                 const lineKey = itemKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color, item.line_id);
-                const alreadyInProduction = inProductionQtyByKey.get(key) || 0;
+                const alreadyInProduction = getRelevantProductionBatchesForOrderItem(
+                    item,
+                    order.items,
+                    existingBatchesForOrder,
+                ).reduce((sum, batch) => sum + batch.quantity, 0);
                 const alreadyShipped = shippedByLine.get(lineKey) || 0;
                 const qty = Math.max(0, item.quantity - alreadyShipped - alreadyInProduction);
                 return {
