@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "vexp": {
+      "command": "node",
+      "args": [
+        "c:\\Users\\arisp\\.vscode\\extensions\\vexp.vexp-vscode-2.1.0-win32-x64\\dist\\mcp-server.cjs"
+      ],
+      "env": {
+        "VEXP_WORKSPACE": "c:\\Users\\arisp\\Downloads\\iliosDB"
+      }
+    }
+  }
+}

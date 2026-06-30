@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ScanBarcode, X, Hash, Layers, Plus, ImageIcon, StickyNote, ChevronDown, ChevronUp } from 'lucide-react';
+import { ScanBarcode, X, Hash, Layers, Plus, ImageIcon, StickyNote, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { getVariantComponents, getVariantSuffixDisplayCodes } from '../../utils/pricingEngine';
 import { useOrderState, FINISH_COLORS, STONE_TEXT_COLORS } from '../../hooks/useOrderState';
 import {
@@ -48,6 +48,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
     const { state, setters, actions, refs } = orderState;
     const [suggestionsExpanded, setSuggestionsExpanded] = useState(false);
     const [setMatesExpanded, setSetMatesExpanded] = useState(true);
+    const [rangeSizesBySku, setRangeSizesBySku] = useState<Record<string, string>>({});
     const suggestionsScrollRef = useRef<HTMLDivElement>(null);
 
     const virtualRows = state.smartSuggestions?.virtualRows ?? [];
@@ -61,6 +62,20 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
     useEffect(() => {
         setSuggestionsExpanded(false);
     }, [state.smartSuggestions]);
+
+    useEffect(() => {
+        if (!state.pendingOrderRangeReview) {
+            setRangeSizesBySku({});
+            return;
+        }
+        setRangeSizesBySku((prev) => {
+            const next: Record<string, string> = {};
+            state.pendingOrderRangeReview!.rows.forEach((row) => {
+                next[row.sku] = prev[row.sku] || '';
+            });
+            return next;
+        });
+    }, [state.pendingOrderRangeReview]);
 
     const hasSuggestionPanel =
         !state.activeMaster &&
@@ -131,6 +146,19 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
             </div>
         );
     };
+
+    const rangeStatusLabel = (status: string) => {
+        if (status === 'ready') return 'Έτοιμο';
+        if (status === 'missing_variant') return 'Λείπει παραλλαγή';
+        if (status === 'ambiguous_variant') return 'Θέλει παραλλαγή';
+        return 'Δεν βρέθηκε';
+    };
+
+    const rangePreview = state.orderRangePreview;
+    const readyRangeCount = rangePreview?.readyRows.length ?? 0;
+    const invalidRangeCount = rangePreview ? rangePreview.rows.length - readyRangeCount : 0;
+    const pendingRange = state.pendingOrderRangeReview;
+    const pendingReadyCount = pendingRange?.readyRows.length ?? 0;
 
     // SKU Visualizer: renders the SKU text overlay with colour-coded suffix
     const SkuVisualizer = () => {
@@ -204,6 +232,45 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                         />
                     </div>
                 </div>
+
+                {rangePreview && (
+                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                            <div className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">
+                                Εύρος προϊόντων
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-bold text-emerald-900">
+                                <span>{rangePreview.rows[0]?.displaySku}</span>
+                                <span className="text-emerald-500">→</span>
+                                <span>{rangePreview.rows[rangePreview.rows.length - 1]?.displaySku}</span>
+                                <span className="text-emerald-700">· {readyRangeCount}/{rangePreview.rows.length} έγκυρα</span>
+                                {rangePreview.hasSizableRows && <span className="text-slate-500">· μεγέθη</span>}
+                            </div>
+                        </div>
+                        {invalidRangeCount > 0 ? (
+                            <div className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700">
+                                <AlertTriangle size={12} /> {invalidRangeCount}
+                            </div>
+                        ) : (
+                            <CheckCircle2 size={18} className="shrink-0 text-emerald-600" />
+                        )}
+                    </div>
+                )}
+
+                {rangePreview && (
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 block flex items-center gap-1">
+                            <StickyNote size={12} /> Μαζικές σημειώσεις
+                        </label>
+                        <textarea
+                            rows={3}
+                            value={state.itemNotes}
+                            onChange={(e) => setters.setItemNotes(e.target.value)}
+                            placeholder="Σημείωση που θα μπει σε όλα τα είδη του εύρους..."
+                            className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm transition-all resize-y min-h-[5rem]"
+                        />
+                    </div>
+                )}
 
                 {state.scanInput.trim().split(/\s+/)[0]?.toUpperCase() === SPECIAL_CREATION_SKU && (
                     <div className="rounded-2xl border border-violet-200 bg-violet-50/80 p-4 space-y-2">
@@ -533,6 +600,99 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                     </div>
                 )}
             </div>
+
+            {pendingRange && (
+                <div className="fixed inset-0 z-50 bg-black/35 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="w-full max-w-3xl max-h-[86vh] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
+                        <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-3">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Έλεγχος εύρους</h3>
+                                <p className="text-xs text-slate-500 font-bold mt-1">
+                                    {pendingReadyCount}/{pendingRange.rows.length} έγκυρα · ποσότητα {state.scanQty}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setters.setPendingOrderRangeReview(null)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50/60 p-3 space-y-2">
+                            {pendingRange.rows.map((row) => {
+                                const isReady = row.status === 'ready' && row.product;
+                                return (
+                                    <div
+                                        key={row.sku}
+                                        className={`grid grid-cols-[3rem_minmax(0,1fr)_minmax(7rem,10rem)] gap-3 items-center rounded-xl border p-2.5 ${
+                                            isReady ? 'bg-white border-slate-100' : 'bg-amber-50/70 border-amber-100'
+                                        }`}
+                                    >
+                                        <div className="w-12 h-12 rounded-lg bg-slate-100 overflow-hidden border border-slate-100">
+                                            {row.product?.image_url ? (
+                                                <img src={row.product.image_url} className="w-full h-full object-cover" alt="" />
+                                            ) : (
+                                                <ImageIcon size={16} className="m-4 text-slate-300" />
+                                            )}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <div className="font-black text-sm text-slate-800 font-mono truncate">{row.displaySku}</div>
+                                            <div className="text-[11px] text-slate-500 font-bold truncate">
+                                                {row.product?.category || rangeStatusLabel(row.status)}
+                                            </div>
+                                            {row.status !== 'ready' && (
+                                                <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[9px] font-black text-amber-800">
+                                                    <AlertTriangle size={10} /> {rangeStatusLabel(row.status)}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div>
+                                            {isReady && row.sizing ? (
+                                                <select
+                                                    value={rangeSizesBySku[row.sku] || ''}
+                                                    onChange={(e) =>
+                                                        setRangeSizesBySku((prev) => ({ ...prev, [row.sku]: e.target.value }))
+                                                    }
+                                                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                                >
+                                                    <option value="">Χωρίς {row.sizing.type}</option>
+                                                    {row.sizing.sizes.map((size) => (
+                                                        <option key={size} value={size}>{size}</option>
+                                                    ))}
+                                                </select>
+                                            ) : (
+                                                <div className="text-[10px] font-bold text-slate-400 text-right">
+                                                    {isReady ? 'Χωρίς μέγεθος' : 'Παράλειψη'}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="px-5 py-4 border-t border-slate-100 bg-white flex justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setters.setPendingOrderRangeReview(null)}
+                                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                            >
+                                Ακύρωση
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => actions.confirmOrderRangeAdd(rangeSizesBySku)}
+                                disabled={pendingReadyCount === 0}
+                                className="px-4 py-2 rounded-xl text-xs font-black text-white bg-[#060b00] hover:bg-black transition-colors disabled:opacity-50"
+                            >
+                                Προσθήκη έγκυρων ({pendingReadyCount})
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

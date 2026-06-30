@@ -31,6 +31,11 @@ import {
     PRODUCTION_EDIT_CHOICE_MESSAGE,
     PRODUCTION_EDIT_NEW_PART_HINT,
 } from '../features/production/orderProductionEdit';
+import {
+    buildOrderRangeAddEntries,
+    resolveOrderRangeInput,
+    type OrderRangeResolution,
+} from '../features/orders/orderRangeEntry';
 
 const DRAFT_ORDER_KEY = 'ilios_desktop_draft_order';
 
@@ -119,6 +124,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
     const [sizeMode, setSizeMode] = useState<ProductSizingInfo | null>(null);
     const [showScanner, setShowScanner] = useState(false);
     const [specialCreationUnitPriceStr, setSpecialCreationUnitPriceStr] = useState('');
+    const [pendingOrderRangeReview, setPendingOrderRangeReview] = useState<OrderRangeResolution | null>(null);
 
     // --- Sort & Filter State ---
     const [sortOrder, setSortOrder] = useState<'input' | 'alpha'>('input');
@@ -170,6 +176,12 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         };
         return sortProductsForSuggestions(mates, rankCtx);
     }, [productSearchIndex, activeMaster, scanInput, selectedItems, recentContextMasterSkus, resolveOrderLineProduct]);
+
+    const orderRangePreview = useMemo(() => {
+        const skuCode = scanInput.split(/\s+/)[0]?.toUpperCase();
+        if (!skuCode || !skuCode.includes('-')) return null;
+        return resolveOrderRangeInput(skuCode, products);
+    }, [scanInput, products]);
 
     // --- Draft autosave ---
     useEffect(() => {
@@ -314,6 +326,20 @@ export function useOrderState({ initialOrder, products, customers, collections, 
 
     const removeTag = (tag: string) => setTags(tags.filter(t => t !== tag));
 
+    const resetSmartEntryState = () => {
+        setActiveMaster(null);
+        setScanQty(1);
+        setSelectedSize('');
+        setItemNotes('');
+        setSelectedCordColor(undefined);
+        setSelectedEnamelColor(undefined);
+        setSizeMode(null);
+        setScanInput('');
+        setCandidateProducts([]);
+        setSmartSuggestions(null);
+        setFilteredVariants([]);
+    };
+
     // --- Smart Entry Actions ---
     const handleSmartInput = (e: React.ChangeEvent<HTMLInputElement>) => {
         const rawVal = e.target.value.toUpperCase();
@@ -336,6 +362,18 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         }
 
         if (skuPart === SPECIAL_CREATION_SKU) {
+            setCandidateProducts([]);
+            setSmartSuggestions(null);
+            setActiveMaster(null);
+            setFilteredVariants([]);
+            setSizeMode(null);
+            setSelectedSize('');
+            setSelectedCordColor(undefined);
+            setSelectedEnamelColor(undefined);
+            return;
+        }
+
+        if (skuPart.includes('-') && resolveOrderRangeInput(skuPart, products)) {
             setCandidateProducts([]);
             setSmartSuggestions(null);
             setActiveMaster(null);
@@ -531,6 +569,43 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         setPriceDiffs(null);
     };
 
+    const addOrderRangeEntries = (range: OrderRangeResolution, sizesBySku: Record<string, string>) => {
+        const entries = buildOrderRangeAddEntries(range.rows, sizesBySku);
+        if (entries.length === 0) {
+            showToast('Δεν υπάρχουν έγκυρα είδη στο εύρος.', 'error');
+            return false;
+        }
+
+        for (const entry of entries) {
+            _addItemToOrder(
+                entry.product,
+                entry.variant,
+                scanQty,
+                entry.size,
+                itemNotes,
+                selectedCordColor,
+                selectedEnamelColor,
+            );
+        }
+
+        showToast(
+            entries.length === 1
+                ? 'Προστέθηκε 1 είδος από το εύρος.'
+                : `Προστέθηκαν ${entries.length} είδη από το εύρος.`,
+            'success',
+        );
+        return true;
+    };
+
+    const confirmOrderRangeAdd = (sizesBySku: Record<string, string>) => {
+        if (!pendingOrderRangeReview) return;
+        const added = addOrderRangeEntries(pendingOrderRangeReview, sizesBySku);
+        if (!added) return;
+        setPendingOrderRangeReview(null);
+        resetSmartEntryState();
+        setTimeout(() => inputRef.current?.focus(), 100);
+    };
+
     const handleAddItem = (variant: ProductVariant | null) => {
         if (!activeMaster) return;
         if (!variant) {
@@ -554,6 +629,20 @@ export function useOrderState({ initialOrder, products, customers, collections, 
     const executeAddItem = () => {
         const skuCode = scanInput.split(/\s+/)[0]?.toUpperCase();
         if (!skuCode) return;
+
+        const range = resolveOrderRangeInput(skuCode, products);
+        if (range) {
+            const hasInvalidRows = range.rows.some(row => row.status !== 'ready');
+            if (range.hasSizableRows || hasInvalidRows) {
+                setPendingOrderRangeReview(range);
+                return;
+            }
+            const added = addOrderRangeEntries(range, {});
+            if (!added) return;
+            resetSmartEntryState();
+            setTimeout(() => inputRef.current?.focus(), 100);
+            return;
+        }
 
         if (skuCode === SPECIAL_CREATION_SKU) {
             const normalized = specialCreationUnitPriceStr.trim().replace(',', '.');
@@ -1130,6 +1219,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             // Smart entry
             scanInput, scanQty, itemNotes, specialCreationUnitPriceStr,
             candidateProducts, smartSuggestions, activeMasterSetMates, collectionNameById,
+            orderRangePreview, pendingOrderRangeReview,
             resolveOrderLineProduct,
             activeMaster, filteredVariants,
             selectedSize, selectedCordColor, selectedEnamelColor, sizeMode, showScanner,
@@ -1152,13 +1242,13 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             setSelectedSellerId, setSelectedSellerName, setSellerCommissionPercent,
             setScanInput, setScanQty, setItemNotes, setSpecialCreationUnitPriceStr,
             setActiveMaster, setFilteredVariants, setSelectedSize, setSelectedCordColor, setSelectedEnamelColor,
-            setSizeMode, setCandidateProducts, setSmartSuggestions, setShowScanner,
+            setSizeMode, setCandidateProducts, setSmartSuggestions, setShowScanner, setPendingOrderRangeReview,
             setSortOrder, setItemSearchTerm,
         },
         actions: {
             handleSelectCustomer, handleUseRetailCustomer, handleAddTag, removeTag,
             handleSmartInput, handleSelectMaster,
-            handleAddItem, executeAddItem, handleScanInOrder,
+            handleAddItem, executeAddItem, confirmOrderRangeAdd, handleScanInOrder,
             updateQuantity, updateItemNotes, updateItemUnitPrice, revertItemToCatalogPrice, updateItemVariantAndSize, handleRemoveItem,
             handleRecalculatePrices, generatePriceSyncPreview, applyPriceSyncPreview, handleSaveOrder, handleBack,
             getSkuComponents,
