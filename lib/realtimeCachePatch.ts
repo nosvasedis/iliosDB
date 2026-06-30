@@ -139,9 +139,9 @@ export function tryPatchRealtimeCache(queryClient: QueryClient, payload: Realtim
     }
 
     if (table === 'production_batches') {
-        const patchedBatches = patchListById<ProductionBatch>(queryClient, productionKeys.batches(), payload);
-        const patchedBoardBatches = patchListById<ProductionBatch>(queryClient, productionKeys.boardBatches(), payload);
-        return patchedBatches || patchedBoardBatches;
+        patchListById<ProductionBatch>(queryClient, productionKeys.batches(), payload);
+        patchListById<ProductionBatch>(queryClient, productionKeys.boardBatches(), payload);
+        return false;
     }
 
     if (table === 'orders') {
