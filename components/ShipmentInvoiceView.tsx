@@ -167,9 +167,9 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                 <div className="my-0.5 w-px shrink-0 bg-slate-200" />
 
                 <div className="flex shrink-0 flex-col justify-center px-1 text-right">
-                    <span className="text-[8px] font-bold uppercase tracking-wider text-slate-500">Αξία Αποστολής</span>
+                    <span className="text-[8px] font-bold uppercase tracking-wider text-slate-500">Καθαρή Αξία</span>
                     <span className="text-lg font-black leading-none text-slate-900 tabular-nums">
-                        {grandTotal.toFixed(2).replace('.', ',')}&#8364;
+                        {netAmount.toFixed(2).replace('.', ',')}&#8364;
                     </span>
                 </div>
             </div>

@@ -188,10 +188,10 @@ export default function OrderInvoiceView({ order, title, revisionSuffix }: Props
                 {/* Vertical Divider */}
                 <div className="w-px bg-slate-200 my-0.5"></div>
 
-                {/* Total Info */}
+                {/* Net value */}
                 <div className="flex flex-col justify-center items-end px-2 min-w-[120px]">
-                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Συνολο</span>
-                    <span className="font-black text-xl text-slate-900 leading-none">{grandTotal.toFixed(2).replace('.', ',')}€</span>
+                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Καθαρή Αξία</span>
+                    <span className="font-black text-xl text-slate-900 leading-none">{netAmount.toFixed(2).replace('.', ',')}€</span>
                 </div>
             </div>
 
