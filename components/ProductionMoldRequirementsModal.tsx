@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { ProductionBatch, Order, Product, Mold, OrderStatus, ProductionStage } from '../types';
 import { Search, X, CheckSquare, Square, MapPin, Grid, CheckCircle2, Flame, SlidersHorizontal, Layers, AlertCircle } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
+import { PRODUCTION_STAGE_META } from '../utils/productionStages';
 
 // ─── Stage filter types & definitions ────────────────────────────────────────
 
@@ -25,55 +26,70 @@ interface StageDef {
     dotBg: string;
 }
 
+// Labels & colors aligned with ProductionPage STAGE_DISPLAY / production board
 const STAGE_DEFS: StageDef[] = [
     {
-        id: 'AwaitingDelivery', label: 'Αναμονή Παραλαβής', shortLabel: 'Αναμ. Παραλ.',
+        id: 'AwaitingDelivery',
+        label: PRODUCTION_STAGE_META[ProductionStage.AwaitingDelivery].label,
+        shortLabel: 'Αναμονή',
         stage: ProductionStage.AwaitingDelivery, pendingDispatch: null,
-        bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-200',
+        bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200',
         activeBg: 'bg-indigo-600', activeText: 'text-white', activeBorder: 'border-indigo-600',
-        dotBg: 'bg-indigo-500',
+        dotBg: 'bg-indigo-400',
     },
     {
-        id: 'Waxing', label: 'Κέρωμα', shortLabel: 'Κέρωμα',
+        id: 'Waxing',
+        label: PRODUCTION_STAGE_META[ProductionStage.Waxing].label,
+        shortLabel: 'Διαλογή',
         stage: ProductionStage.Waxing, pendingDispatch: null,
-        bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-300',
-        activeBg: 'bg-slate-700', activeText: 'text-white', activeBorder: 'border-slate-700',
-        dotBg: 'bg-slate-500',
+        bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200',
+        activeBg: 'bg-slate-600', activeText: 'text-white', activeBorder: 'border-slate-600',
+        dotBg: 'bg-slate-400',
     },
     {
-        id: 'Casting', label: 'Χύτευση', shortLabel: 'Χύτευση',
+        id: 'Casting',
+        label: PRODUCTION_STAGE_META[ProductionStage.Casting].label,
+        shortLabel: 'Χυτήριο',
         stage: ProductionStage.Casting, pendingDispatch: null,
-        bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-200',
+        bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200',
         activeBg: 'bg-orange-500', activeText: 'text-white', activeBorder: 'border-orange-500',
-        dotBg: 'bg-orange-500',
+        dotBg: 'bg-orange-400',
     },
     {
-        id: 'Setting', label: 'Setting', shortLabel: 'Setting',
+        id: 'Setting',
+        label: PRODUCTION_STAGE_META[ProductionStage.Setting].label,
+        shortLabel: 'Καρφωτής',
         stage: ProductionStage.Setting, pendingDispatch: null,
-        bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-200',
+        bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200',
         activeBg: 'bg-purple-600', activeText: 'text-white', activeBorder: 'border-purple-600',
-        dotBg: 'bg-purple-500',
+        dotBg: 'bg-purple-400',
     },
     {
-        id: 'Polishing_pending', label: 'Τεχνίτης — Αναμ. Αποστ.', shortLabel: 'Τεχν. Αναμ.',
+        id: 'Polishing_pending',
+        label: 'Αναμονή Αποστολής',
+        shortLabel: 'Αναμ. Αποστ.',
         stage: ProductionStage.Polishing, pendingDispatch: true,
-        bg: 'bg-teal-50', text: 'text-teal-600', border: 'border-teal-200',
+        bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-200',
         activeBg: 'bg-teal-600', activeText: 'text-white', activeBorder: 'border-teal-600',
         dotBg: 'bg-teal-500',
     },
     {
-        id: 'Polishing_dispatched', label: 'Τεχνίτης — Στον Τεχ.', shortLabel: 'Στον Τεχ.',
+        id: 'Polishing_dispatched',
+        label: 'Στον Τεχνίτη',
+        shortLabel: 'Στον Τεχ.',
         stage: ProductionStage.Polishing, pendingDispatch: false,
-        bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200',
+        bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200',
         activeBg: 'bg-blue-600', activeText: 'text-white', activeBorder: 'border-blue-600',
         dotBg: 'bg-blue-500',
     },
     {
-        id: 'Assembly', label: 'Μοντάρισμα', shortLabel: 'Μοντάρ.',
+        id: 'Assembly',
+        label: PRODUCTION_STAGE_META[ProductionStage.Assembly].label,
+        shortLabel: 'Συναρμ.',
         stage: ProductionStage.Assembly, pendingDispatch: null,
-        bg: 'bg-pink-50', text: 'text-pink-600', border: 'border-pink-200',
+        bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-200',
         activeBg: 'bg-pink-600', activeText: 'text-white', activeBorder: 'border-pink-600',
-        dotBg: 'bg-pink-500',
+        dotBg: 'bg-pink-400',
     },
 ];
 
