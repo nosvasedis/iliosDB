@@ -21,7 +21,6 @@ import { EnhancedProductionBatch } from '../types';
 import { requiresAssemblyStage } from '../constants';
 import { isSpecialCreationSku } from '../utils/specialCreationSku';
 import ProductionMoldRequirementsModal from './ProductionMoldRequirementsModal';
-import { buildProductionAlertGroups } from './production/productionAlerts';
 import { invalidateOrdersAndBatches, invalidateProductionBatches, invalidateAndRefetchAfterShipmentChange } from '../lib/queryInvalidation';
 import { PRODUCTION_STAGES, getProductionStageLabel, getProductionStageShortLabel } from '../utils/productionStages';
 import { StageOnHoldMiniStrip } from './production/StageOnHoldMiniStrip';
@@ -2443,11 +2442,6 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         [orders, batchesByOrderId]
     );
 
-    const criticalAlertGroups = useMemo(
-        () => buildProductionAlertGroups(timedEnhancedBatches),
-        [timedEnhancedBatches]
-    );
-
     const stageBatchesByStage = useMemo(() => groupProductionBatchesByStage(enhancedBatches), [enhancedBatches]);
 
     const quickPickEntries = useMemo(
@@ -3503,13 +3497,13 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                 </div>
                     </>
                 )}
-            />
-
-            <ProductionHealthPanel
-                summary={productionHealthSummary}
-                notes={activeProductionNotes}
-                alertGroups={criticalAlertGroups}
-                onFilterClick={(type) => setOverviewModal({ isOpen: true, type })}
+                below={(
+                    <ProductionHealthPanel
+                        summary={productionHealthSummary}
+                        notes={activeProductionNotes}
+                        onFilterClick={(type) => setOverviewModal({ isOpen: true, type })}
+                    />
+                )}
             />
 
             <div className="flex-1 overflow-x-auto overflow-y-auto pb-4 custom-scrollbar lg:overflow-y-hidden">
