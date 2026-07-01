@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Product, ProductVariant, Collection } from '../types';
-import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight, Tag, ShoppingBag, ImageIcon, Search, Save, PackageCheck, MapPin, List, X, Clock, RotateCcw, BookImage, LayoutGrid, ChevronDown, FolderKanban, Users2 } from 'lucide-react';
+import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight, Tag, ShoppingBag, ImageIcon, Search, Save, PackageCheck, MapPin, List, X, Clock, RotateCcw, BookImage, LayoutGrid, ChevronDown, FolderKanban, Users2, Zap } from 'lucide-react';
 import { useUI } from './UIProvider';
 import BarcodeScanner from './BarcodeScanner';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
@@ -633,7 +633,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                     type="button"
                                     onClick={() => setShowHistoryModal(true)}
                                     title="Ιστορικό"
-                                    className="rounded-xl border border-slate-200 bg-slate-100 p-3 font-bold text-slate-700 transition-all hover:bg-slate-200"
+                                    className="rounded-xl border border-slate-200 bg-white p-3 font-bold text-slate-700 transition-all hover:bg-slate-100 hover:border-slate-300 shadow-sm"
                                 >
                                     <History size={20} />
                                 </button>
@@ -642,7 +642,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                     onClick={() => fileInputRef.current?.click()}
                                     disabled={isProcessing}
                                     title="Εισαγωγή PDF"
-                                    className="rounded-xl border border-amber-200 bg-amber-50 p-3 font-bold text-amber-700 transition-all hover:bg-amber-100 disabled:opacity-50"
+                                    className="rounded-xl border border-amber-200 bg-amber-50 p-3 font-bold text-amber-700 transition-all hover:bg-amber-100 disabled:opacity-50 shadow-sm"
                                 >
                                     {isProcessing ? <Loader2 size={20} className="animate-spin" /> : <FileUp size={20} />}
                                 </button>
@@ -650,7 +650,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                     type="button"
                                     onClick={() => setShowScanner(true)}
                                     title="Σάρωση"
-                                    className="rounded-xl border border-blue-200 bg-blue-50 p-3 font-bold text-blue-700 transition-all hover:bg-blue-100"
+                                    className="rounded-xl border border-blue-200 bg-blue-50 p-3 font-bold text-blue-700 transition-all hover:bg-blue-100 shadow-sm"
                                 >
                                     <Camera size={20} />
                                 </button>
@@ -658,42 +658,50 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                         )}
                     </>
                 )}
+                below={(
+                    <div className="flex flex-wrap items-center gap-3">
+                        {/* TAB SWITCHER — integrated in header */}
+                        <div className="bg-white p-1 rounded-2xl shadow-sm border border-slate-100 flex gap-1 w-fit">
+                            <button
+                                onClick={() => setActiveTab('labels')}
+                                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all ${activeTab === 'labels'
+                                    ? 'bg-slate-900 text-white shadow-md'
+                                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                                    }`}
+                            >
+                                <Tag size={16} />
+                                Ετικέτες
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('catalog')}
+                                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all ${activeTab === 'catalog'
+                                    ? 'bg-violet-600 text-white shadow-md shadow-violet-200'
+                                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                                    }`}
+                            >
+                                <BookImage size={16} />
+                                Φωτο-κατάλογος
+                            </button>
+                        </div>
+                    </div>
+                )}
             />
-
-            {/* TAB SWITCHER */}
-            <div className="bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100 flex gap-1 w-fit">
-                <button
-                    onClick={() => setActiveTab('labels')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${activeTab === 'labels'
-                        ? 'bg-slate-900 text-white shadow-md'
-                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
-                        }`}
-                >
-                    <Tag size={16} />
-                    Ετικέτες
-                </button>
-                <button
-                    onClick={() => setActiveTab('catalog')}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${activeTab === 'catalog'
-                        ? 'bg-violet-600 text-white shadow-md shadow-violet-200'
-                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
-                        }`}
-                >
-                    <BookImage size={16} />
-                    Φωτο-κατάλογος
-                </button>
-            </div>
 
             {/* ==================== LABELS TAB ==================== */}
             {activeTab === 'labels' && (<>
 
-                {/* SMART ENTRY AREA */}
-                <div className="bg-white rounded-[2rem] border border-slate-200 shadow-xl overflow-visible p-6 sm:p-8 animate-in slide-in-from-top-4 duration-500">
+                {/* SMART ENTRY AREA — redesigned to match Inventory */}
+                <div className="bg-gradient-to-br from-white via-slate-50 to-emerald-50/30 rounded-[2rem] border-2 border-emerald-200/40 shadow-xl overflow-visible p-6 sm:p-8 animate-in slide-in-from-top-4 duration-500 ring-2 ring-emerald-500/5 relative">
+                    <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500/5 via-amber-500/5 to-emerald-500/5 rounded-[2rem] blur-xl opacity-50 animate-pulse pointer-events-none" />
+                    <div className="relative z-10">
                     <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2.5 bg-[#060b00] text-white rounded-xl shadow-lg">
-                            <ScanBarcode size={22} className="animate-pulse" />
+                        <div className="p-2.5 bg-gradient-to-br from-[#060b00] to-slate-800 text-white rounded-xl shadow-lg shadow-emerald-900/10 ring-2 ring-emerald-500/20">
+                            <Zap size={22} className="text-amber-500" />
                         </div>
-                        <h2 className="font-black text-slate-800 uppercase tracking-tighter text-lg">Έξυπνη Ταχεία Προσθήκη</h2>
+                        <div>
+                          <h2 className="font-black text-slate-800 uppercase tracking-tighter text-lg bg-gradient-to-r from-[#060b00] to-emerald-700 bg-clip-text text-transparent">Έξυπνη Ταχεία Εισαγωγή</h2>
+                          <p className="text-[10px] text-slate-400 font-bold tracking-wide">Γρήγορη προσθήκη κωδικών για εκτύπωση</p>
+                        </div>
                     </div>
 
                     <div className="flex flex-col gap-6">
@@ -803,6 +811,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                 </div>
                             )}
                         </div>
+                    </div>
                     </div>
                 </div>
 

@@ -885,17 +885,21 @@ export default function OffersPage({ products, materials, settings, collections,
                     </button>
                 )}
             />
-
-            <div className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
-                <DebouncedSearchInput
+            below={(
+              <div className="space-y-4">
+                <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3 shadow-sm">
+                  <DebouncedSearchInput
                     value={offerSearch}
                     onDebouncedChange={setOfferSearch}
                     placeholder="Αναζήτηση προσφοράς, πελάτη, τηλεφώνου ή κατάστασης..."
-                    inputClassName="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm font-medium text-slate-700 outline-none transition-[border-color,background-color,box-shadow] hover:border-slate-300 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
-                />
-            </div>
+                    inputClassName="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm font-medium text-slate-700 outline-none transition-all hover:border-slate-300 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+                  />
+                </div>
+              </div>
+            )}
+          />
 
-            <div className="flex-1 min-h-0 overflow-auto custom-scrollbar">
+          <div className="flex-1 min-h-0 overflow-auto custom-scrollbar">
                 <div className="rounded-3xl border border-slate-100 bg-slate-50/70 p-2 shadow-sm">
                     <div className="sticky top-0 z-10 mb-2 rounded-2xl border border-slate-100 bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
                         <div className="flex items-center justify-between gap-3">

@@ -449,82 +449,83 @@ export default function MaterialsPage({ settings }: Props) {
 
   return (
     <div className="space-y-6 h-full flex flex-col">
-        {/* HEADER & TABS */}
+        {/* HEADER & TABS — redesigned with integrated controls */}
         <DesktopPageHeader
             ref={headerRef}
             icon={Gem}
             title="Αποθήκη Υλικών"
             subtitle="Διαχείριση πρώτων υλών & εξαρτημάτων."
+            tailClassName="flex w-full min-w-0 flex-1 flex-wrap items-center gap-3 lg:ml-auto lg:max-w-none lg:justify-end"
             tail={(
-                <div className="text-right">
-                    <div className="mb-1 text-xs font-bold uppercase tracking-widest text-slate-400">Αξια Αποθηκης</div>
-                    <div className="text-2xl font-black text-emerald-600">{formatCurrency(stats.totalValue)}</div>
+                <div className="flex items-center gap-4">
+                    <div className="text-right hidden sm:block">
+                        <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Αξια Αποθηκης</div>
+                        <div className="text-xl font-black text-emerald-600">{formatCurrency(stats.totalValue)}</div>
+                    </div>
+                    <button 
+                        onClick={handleCreate}
+                        className="bg-[#060b00] text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:bg-slate-800 transition-all hover:-translate-y-0.5"
+                    >
+                        <Plus size={18}/> Νέο Υλικό
+                    </button>
                 </div>
             )}
             below={(
-                <div className="flex gap-2 overflow-x-auto rounded-2xl bg-slate-50 p-1.5">
-                    {TABS.map(tab => (
-                        <button
-                            key={tab.id}
-                            type="button"
-                            onClick={() => { setActiveTab(tab.id as MaterialType); }}
-                            className={`
-                            flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-3 text-sm font-bold transition-all
-                            ${activeTab === tab.id
-                                ? 'bg-white text-slate-900 shadow-md ring-1 ring-slate-100'
-                                : 'text-slate-500 hover:bg-slate-200 hover:text-slate-700'}
-                        `}
-                        >
-                            <tab.icon size={18} className={activeTab === tab.id ? tab.color : 'text-slate-400'} />
-                            {tab.label}
-                        </button>
-                    ))}
-                </div>
-            )}
-        />
+                <div className="flex flex-wrap items-center gap-3">
+                    {/* Tab buttons — center-aligned */}
+                    <div className="flex gap-1 overflow-x-auto rounded-2xl bg-slate-50 p-1 border border-slate-200/60 shadow-sm">
+                        {TABS.map(tab => (
+                            <button
+                                key={tab.id}
+                                type="button"
+                                onClick={() => { setActiveTab(tab.id as MaterialType); }}
+                                className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-bold transition-all ${
+                                    activeTab === tab.id
+                                        ? 'bg-white text-slate-900 shadow-md ring-1 ring-slate-100'
+                                        : 'text-slate-500 hover:bg-slate-200 hover:text-slate-700'}
+                                `}
+                            >
+                                <tab.icon size={16} className={activeTab === tab.id ? tab.color : 'text-slate-400'} />
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
 
-        {/* CONTROLS & CONTENT */}
-        <div className="flex-1 min-h-0 flex flex-col">
-            <div className="flex items-center justify-between mb-4 shrink-0 px-2">
-                <div className="flex items-center gap-4">
-                    {/* SUB-FILTER FOR STONES */}
+                    {/* Stone sub-filter (shown only when Πέτρες is active) */}
                     {activeTab === MaterialType.Stone && (
                         <div className="bg-white border border-slate-200 p-1 rounded-xl flex shadow-sm">
                             <button 
                                 onClick={() => setStoneSubFilter('standard')}
-                                className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${stoneSubFilter === 'standard' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${stoneSubFilter === 'standard' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 Συμβατικές
                             </button>
                             <button 
                                 onClick={() => setStoneSubFilter('strand')}
-                                className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${stoneSubFilter === 'strand' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${stoneSubFilter === 'strand' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 Κορδόνι
                             </button>
                         </div>
                     )}
                     
-                    <div className="bg-white border border-slate-200 p-1 rounded-xl flex items-center shadow-sm w-64">
-                         <Search size={16} className="ml-3 text-slate-400"/>
+                    {/* Search bar — integrated in header */}
+                    <div className="bg-white border border-slate-200 p-1 rounded-xl flex items-center shadow-sm min-w-[200px] flex-1 max-w-xs">
+                         <Search size={16} className="ml-2 text-slate-400"/>
                          <input 
                             placeholder="Αναζήτηση..." 
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                             className="w-full bg-transparent p-1.5 pl-2 text-sm font-bold outline-none text-slate-700"
                          />
-                         {searchTerm && <button onClick={() => setSearchTerm('')} className="mr-2 text-slate-400 hover:text-slate-600"><X size={14}/></button>}
+                         {searchTerm && <button onClick={() => setSearchTerm('')} className="mr-1 text-slate-400 hover:text-slate-600"><X size={14}/></button>}
                     </div>
                 </div>
+            )}
+        />
 
-                <button 
-                    onClick={handleCreate}
-                    className="bg-[#060b00] text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:bg-slate-800 transition-all hover:-translate-y-0.5"
-                >
-                    <Plus size={18}/> Νέο Υλικό
-                </button>
-            </div>
-
+        {/* CONTENT */}
+        <div className="flex-1 min-h-0 flex flex-col">
             {/* GRID - animated on tab switch */}
             <div key={activeTab} className="flex-1 pr-2 pb-20 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 {filteredMaterials.length > 0 ? (

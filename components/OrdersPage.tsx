@@ -1659,95 +1659,99 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                     </div>
                 )}
             />
-
-            {/* SEARCH / FILTERS / SORT */}
-            <div className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
-                <div className="grid gap-3 lg:grid-cols-[minmax(18rem,1fr)_minmax(16rem,22rem)] lg:items-center">
+            below={(
+              <div className="space-y-4">
+                {/* SEARCH / FILTERS / SORT */}
+                <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3 shadow-sm">
+                  <div className="grid gap-3 lg:grid-cols-[minmax(18rem,1fr)_minmax(16rem,22rem)] lg:items-center">
                     <DebouncedSearchInput
-                        value={searchFilter}
-                        onDebouncedChange={handleSearchFilterChange}
-                        placeholder="Αναζήτηση παραγγελίας, πελάτη ή ετικέτας..."
-                        inputClassName="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm font-medium text-slate-700 outline-none transition-[border-color,background-color,box-shadow] hover:border-slate-300 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+                      value={searchFilter}
+                      onDebouncedChange={handleSearchFilterChange}
+                      placeholder="Αναζήτηση παραγγελίας, πελάτη ή ετικέτας..."
+                      inputClassName="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm font-medium text-slate-700 outline-none transition-[border-color,background-color,box-shadow] hover:border-slate-300 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
                     />
                     <div className="flex items-center gap-2">
-                        <span className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 sm:flex">
-                            <ActiveSortIcon size={16} />
-                        </span>
-                        <div className="relative min-w-0 flex-1">
-                            <select
-                                value={sortMode}
-                                onChange={event => setSortMode(event.target.value as OrderSortMode)}
-                                className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-sm font-bold text-slate-700 outline-none transition-all hover:border-slate-300 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
-                                aria-label="Ταξινόμηση παραγγελιών"
-                            >
-                                {ORDER_SORT_OPTIONS.map(option => (
-                                    <option key={option.id} value={option.id}>
-                                        {option.label} · {option.helper}
-                                    </option>
-                                ))}
-                            </select>
-                            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                        </div>
+                      <span className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 sm:flex">
+                        <ActiveSortIcon size={16} />
+                      </span>
+                      <div className="relative min-w-0 flex-1">
+                        <select
+                          value={sortMode}
+                          onChange={event => setSortMode(event.target.value as OrderSortMode)}
+                          className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 pr-10 text-sm font-bold text-slate-700 outline-none transition-all hover:border-slate-300 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+                          aria-label="Ταξινόμηση παραγγελιών"
+                        >
+                          {ORDER_SORT_OPTIONS.map(option => (
+                            <option key={option.id} value={option.id}>
+                              {option.label} · {option.helper}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                      </div>
                     </div>
-                </div>
+                  </div>
 
-                <div className="mt-3">
+                  <div className="mt-3">
                     <OrdersFilterPanel
-                        allTags={allTags}
-                        allSellers={allSellers}
-                        filters={filters}
-                        onChange={setFilters}
-                        tagColorOverrides={tagColorOverrides}
-                        onChangeTagColor={handleChangeTagColor}
+                      allTags={allTags}
+                      allSellers={allSellers}
+                      filters={filters}
+                      onChange={setFilters}
+                      tagColorOverrides={tagColorOverrides}
+                      onChangeTagColor={handleChangeTagColor}
                     />
+                  </div>
                 </div>
-            </div>
 
-            {/* ACTIVE FILTERS SUMMARY BAR */}
-            {countActiveFilters(filters) > 0 && (
-                <div className="flex flex-wrap items-center gap-2 px-1">
+                {/* ACTIVE FILTERS SUMMARY BAR */}
+                {countActiveFilters(filters) > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 px-1">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Ενεργά:</span>
                     {Array.from(filters.statuses).map(s => (
-                        <span key={s} className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border font-bold ${getOrderStatusClasses(s)}`}>
-                            {getOrderStatusIcon(s, 10)}
-                            {getOrderStatusLabel(s)}
-                            <button onClick={() => { const next = new Set(filters.statuses); next.delete(s); setFilters(f => ({ ...f, statuses: next })); }} className="ml-0.5 hover:opacity-70 transition-opacity"><X size={9} /></button>
-                        </span>
+                      <span key={s} className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border font-bold ${getOrderStatusClasses(s)}`}>
+                        {getOrderStatusIcon(s, 10)}
+                        {getOrderStatusLabel(s)}
+                        <button onClick={() => { const next = new Set(filters.statuses); next.delete(s); setFilters(f => ({ ...f, statuses: next })); }} className="ml-0.5 hover:opacity-70 transition-opacity"><X size={9} /></button>
+                      </span>
                     ))}
                     {filters.datePreset !== 'all' && (
-                        <span className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border font-bold bg-violet-100 text-violet-700 border-violet-200">
-                            {filters.datePreset === 'today' && 'Σήμερα'}
-                            {filters.datePreset === 'week' && 'Εβδομάδα'}
-                            {filters.datePreset === 'month' && 'Μήνας'}
-                            {filters.datePreset === 'custom' && `${filters.dateFrom ?? '…'} — ${filters.dateTo ?? '…'}`}
-                            <button onClick={() => setFilters(f => ({ ...f, datePreset: 'all', dateFrom: null, dateTo: null }))} className="ml-0.5 hover:opacity-70 transition-opacity"><X size={9} /></button>
-                        </span>
+                      <span className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border font-bold bg-violet-100 text-violet-700 border-violet-200">
+                        {filters.datePreset === 'today' && 'Σήμερα'}
+                        {filters.datePreset === 'week' && 'Εβδομάδα'}
+                        {filters.datePreset === 'month' && 'Μήνας'}
+                        {filters.datePreset === 'custom' && `${filters.dateFrom ?? '…'} — ${filters.dateTo ?? '…'}`}
+                        <button onClick={() => setFilters(f => ({ ...f, datePreset: 'all', dateFrom: null, dateTo: null }))} className="ml-0.5 hover:opacity-70 transition-opacity"><X size={9} /></button>
+                      </span>
                     )}
                     {Array.from(filters.sellers).map(seller => (
-                        <span key={seller} className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border font-bold bg-sky-100 text-sky-700 border-sky-200">
-                            {seller}
-                            <button onClick={() => { const next = new Set(filters.sellers); next.delete(seller); setFilters(f => ({ ...f, sellers: next })); }} className="ml-0.5 hover:opacity-70 transition-opacity"><X size={9} /></button>
-                        </span>
+                      <span key={seller} className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border font-bold bg-sky-100 text-sky-700 border-sky-200">
+                        {seller}
+                        <button onClick={() => { const next = new Set(filters.sellers); next.delete(seller); setFilters(f => ({ ...f, sellers: next })); }} className="ml-0.5 hover:opacity-70 transition-opacity"><X size={9} /></button>
+                      </span>
                     ))}
                     {Array.from(filters.tags).map(tag => {
-                        const c = getTagColor(tag, tagColorOverrides);
-                        return (
-                            <span key={tag} className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border font-bold ${c.activeBg} ${c.activeText} ${c.activeBorder}`}>
-                                {tag}
-                                <button onClick={() => { const next = new Set(filters.tags); next.delete(tag); setFilters(f => ({ ...f, tags: next })); }} className="ml-0.5 hover:opacity-70 transition-opacity"><X size={9} /></button>
-                            </span>
-                        );
+                      const c = getTagColor(tag, tagColorOverrides);
+                      return (
+                        <span key={tag} className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border font-bold ${c.activeBg} ${c.activeText} ${c.activeBorder}`}>
+                          {tag}
+                          <button onClick={() => { const next = new Set(filters.tags); next.delete(tag); setFilters(f => ({ ...f, tags: next })); }} className="ml-0.5 hover:opacity-70 transition-opacity"><X size={9} /></button>
+                        </span>
+                      );
                     })}
                     <button
-                        onClick={() => setFilters(DEFAULT_FILTERS)}
-                        className="text-[10px] font-black text-slate-400 hover:text-rose-500 flex items-center gap-0.5 ml-1 transition-colors"
+                      onClick={() => setFilters(DEFAULT_FILTERS)}
+                      className="text-[10px] font-black text-slate-400 hover:text-rose-500 flex items-center gap-0.5 ml-1 transition-colors"
                     >
-                        <X size={10} /> Καθαρισμός όλων
+                      <X size={10} /> Καθαρισμός όλων
                     </button>
-                </div>
+                  </div>
+                )}
+              </div>
             )}
+          />
 
-            <div ref={ordersScrollRef} className="flex-1 overflow-auto min-h-0">
+          <div ref={ordersScrollRef} className="flex-1 overflow-auto min-h-0">
                 <div className="rounded-3xl border border-slate-100 bg-slate-50/70 p-2 shadow-sm">
                     <div className="sticky top-0 z-10 mb-2 rounded-2xl border border-slate-100 bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
                         <div className="flex items-center justify-between gap-3">

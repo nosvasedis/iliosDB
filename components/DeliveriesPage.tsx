@@ -225,22 +225,24 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
         title="Ημερολόγιο"
         subtitle="Προγραμματισμένες παραδόσεις και υπενθυμίσεις."
         tail={(
-          <button type="button" onClick={() => { setPlannerOrder(null); setSelectedItem(null); setIsPlannerOpen(true); }} className="flex items-center gap-2 rounded-2xl bg-[#060b00] px-4 py-3 text-sm font-bold text-white">
+          <button type="button" onClick={() => { setPlannerOrder(null); setSelectedItem(null); setIsPlannerOpen(true); }} className="flex items-center gap-2 rounded-2xl bg-[#060b00] px-4 py-3 text-sm font-bold text-white shadow-lg hover:bg-slate-800 transition-all hover:-translate-y-0.5">
             <Plus size={16} /> Νέο πλάνο
           </button>
         )}
+        below={(
+          <div className="space-y-4">
+            <DeliveryAlertRail
+              attentionItems={attentionItems}
+              onSelectItem={(entry) => setSelectedItem(entry.item)}
+              onCompleteReminder={(reminder) => handleReminderAction(reminder, 'complete')}
+              onSnoozeReminder={(reminder) => handleReminderAction(reminder, 'snooze')}
+              onShowAll={() => setFilter('today')}
+              loadingReminders={loadingReminders}
+            />
+            <DeliveryFilters filter={filter} search={search} onFilterChange={setFilter} onSearchChange={setSearch} />
+          </div>
+        )}
       />
-
-      <DeliveryAlertRail
-        attentionItems={attentionItems}
-        onSelectItem={(entry) => setSelectedItem(entry.item)}
-        onCompleteReminder={(reminder) => handleReminderAction(reminder, 'complete')}
-        onSnoozeReminder={(reminder) => handleReminderAction(reminder, 'snooze')}
-        onShowAll={() => setFilter('today')}
-        loadingReminders={loadingReminders}
-      />
-
-      <DeliveryFilters filter={filter} search={search} onFilterChange={setFilter} onSearchChange={setSearch} />
 
       <div className="grid grid-cols-1 xl:grid-cols-[1.45fr_0.95fr] gap-6">
         <div className="space-y-6">

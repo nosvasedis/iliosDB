@@ -598,32 +598,41 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                 icon={ScrollText}
                 title="Τιμοκατάλογος"
                 subtitle="Διαχειριστείτε τους κωδικούς που θα εμφανίζονται στην εκτύπωση."
+                className="bg-gradient-to-r from-white via-slate-50/80 to-indigo-50/30 border-indigo-100/50 shadow-md"
+                tail={(
+                    <div className="flex items-center gap-3">
+                        <div className="text-right">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Προϊόντα</div>
+                            <div className="text-lg font-black text-indigo-600">{products.filter(p => !p.is_component).length}</div>
+                        </div>
+                    </div>
+                )}
             />
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 min-h-0">
                 {/* CONTROLS PANEL (LEFT) */}
-                <div className="lg:col-span-4 flex flex-col bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+                <div className="lg:col-span-4 flex flex-col bg-white rounded-3xl shadow-md border border-slate-100 overflow-hidden animate-in slide-in-from-left-3 duration-400">
                     {/* TABS HEADER */}
-                    <div className="flex border-b border-slate-100 p-2 gap-2 bg-slate-50/50">
+                    <div className="flex border-b border-slate-100 p-2 gap-2 bg-gradient-to-r from-slate-50 via-white to-slate-50/50">
                         <button 
                             onClick={() => setActiveTab('filters')} 
-                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${activeTab === 'filters' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:bg-slate-100'}`}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${activeTab === 'filters' ? 'bg-white shadow-sm text-indigo-600 ring-1 ring-indigo-100' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}
                         >
                             <ListFilter size={16}/> Φίλτρα
                         </button>
                         <button 
                             onClick={() => setActiveTab('collections')} 
-                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${activeTab === 'collections' ? 'bg-white shadow-sm text-pink-600' : 'text-slate-500 hover:bg-slate-100'}`}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${activeTab === 'collections' ? 'bg-white shadow-sm text-pink-600 ring-1 ring-pink-100' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}
                         >
                             <FolderKanban size={16}/> Συλλογές
-                            {selectedCollectionIds.length > 0 && <span className="w-2 h-2 bg-pink-500 rounded-full"/>}
+                            {selectedCollectionIds.length > 0 && <span className="w-2 h-2 bg-pink-500 rounded-full animate-pulse"/>}
                         </button>
                         <button 
                             onClick={() => setActiveTab('manual')} 
-                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${activeTab === 'manual' ? 'bg-white shadow-sm text-amber-600' : 'text-slate-500 hover:bg-slate-100'}`}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${activeTab === 'manual' ? 'bg-white shadow-sm text-amber-600 ring-1 ring-amber-100' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}
                         >
                             <PenTool size={16}/> Εισαγωγή
-                            {(manualSkus.length > 0 || excludedSkus.size > 0) && <span className="w-2 h-2 bg-amber-500 rounded-full"/>}
+                            {(manualSkus.length > 0 || excludedSkus.size > 0) && <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"/>}
                         </button>
                     </div>
 
@@ -933,13 +942,15 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                     </div>
                 </div>
 
-                {/* PREVIEW PANEL (RIGHT) */}
-                <div className="lg:col-span-8 bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden h-full">
-                    <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 gap-4">
+                {/* PREVIEW PANEL (RIGHT) — enhanced */}
+                <div className="lg:col-span-8 bg-gradient-to-br from-white to-slate-50/50 rounded-3xl shadow-md border border-slate-100 flex flex-col overflow-hidden h-full animate-in slide-in-from-right-3 duration-400">
+                    <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-slate-50 via-white to-indigo-50/20 gap-4">
                         <div className="flex items-center gap-2">
-                            <Layers size={20} className="text-indigo-500"/> 
+                            <div className="p-1.5 bg-indigo-100 text-indigo-600 rounded-lg">
+                              <Layers size={18}/>
+                            </div> 
                             <span className="font-bold text-slate-800 text-lg hidden sm:inline">Προεπισκόπηση</span>
-                            <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-xs font-bold">
+                            <span className="bg-gradient-to-r from-indigo-500 to-indigo-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-sm">
                                 {filteredItems.length}
                             </span>
                         </div>
@@ -952,12 +963,12 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                 placeholder="Αναζήτηση στη λίστα..." 
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full pl-9 p-2 border border-slate-200 rounded-xl bg-white text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                                className="w-full pl-9 p-2 border border-slate-200 rounded-xl bg-white text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
                             />
                         </div>
                     </div>
                     
-                    <div ref={listParentRef} className="flex-1 overflow-y-auto p-8 bg-slate-50/30 custom-scrollbar">
+                    <div ref={listParentRef} className="flex-1 overflow-y-auto p-8 bg-gradient-to-b from-slate-50/50 to-white custom-scrollbar">
                         {filteredItems.length > 0 ? (
                             <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative', width: '100%' }}>
                                 {rowVirtualizer.getVirtualItems().map((virtualRow) => {
@@ -970,7 +981,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                             style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}
                                         >
                                             {rowItems.map((item, idx) => (
-                                                <div key={startIdx + idx} className="group relative flex flex-col justify-between bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-sm min-h-[80px] hover:border-indigo-200 transition-all">
+                                                <div key={startIdx + idx} className="group relative flex flex-col justify-between bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-sm min-h-[80px] hover:border-indigo-300 hover:shadow-md transition-all duration-200">
                                                     <button
                                                         onClick={() => toggleExclusion(item.skuBase)}
                                                         className="absolute -top-2 -right-2 bg-white text-slate-400 hover:text-red-500 p-1.5 rounded-full shadow-md border border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity z-10"
@@ -1055,13 +1066,14 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                         )}
                     </div>
 
-                    <div className="p-6 border-t border-slate-100 bg-white">
+                    <div className="p-6 border-t border-slate-100 bg-gradient-to-r from-white via-indigo-50/20 to-white">
                         <button 
                             onClick={handlePrint}
                             disabled={filteredItems.length === 0}
-                            className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-1 active:translate-y-0"
+                            className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-3 hover:from-indigo-700 hover:to-indigo-800 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-1 active:translate-y-0"
                         >
                             <Printer size={20}/> Δημιουργία PDF Καταλόγου
+                            {filteredItems.length > 0 && <span className="bg-white/20 text-white px-2.5 py-0.5 rounded-full text-xs font-bold">{filteredItems.length}</span>}
                         </button>
                     </div>
                 </div>

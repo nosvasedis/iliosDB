@@ -225,65 +225,65 @@ export default function MoldsPage() {
 
     return (
         <div className="space-y-6 h-full flex flex-col">
-            {/* HEADER */}
+            {/* HEADER — redesigned with integrated controls */}
             <DesktopPageHeader
                 ref={headerRef}
                 icon={MapPin}
                 title="Διαχείριση Λάστιχων"
                 subtitle="Οργάνωση καλουπιών παραγωγής."
+                tailClassName="flex w-full min-w-0 flex-1 flex-wrap items-center gap-3 lg:ml-auto lg:max-w-none lg:justify-end"
                 tail={(
-                    <div className="text-right">
-                        <div className="mb-1 text-xs font-bold uppercase tracking-widest text-slate-400">
-                            {moldTab === 'lstx' ? 'LSTX' : 'Κανονικά'}
+                    <div className="flex items-center gap-4">
+                        <div className="text-right hidden sm:block">
+                            <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                {moldTab === 'lstx' ? 'LSTX' : 'Κανονικά'}
+                            </div>
+                            <div className={`text-xl font-black ${moldTab === 'lstx' ? 'text-blue-600' : 'text-amber-600'}`}>
+                                {categoryMolds.length}
+                            </div>
                         </div>
-                        <div className={`text-2xl font-black ${moldTab === 'lstx' ? 'text-blue-600' : 'text-amber-600'}`}>
-                            {categoryMolds.length}
+                        <button
+                            onClick={() => {
+                                setNewMold({ code: defaultMoldCode, location: '', description: '', weight_g: 0 });
+                                setIsCreating(true);
+                            }}
+                            className={`text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all hover:-translate-y-0.5 ${moldTab === 'lstx' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-[#060b00] hover:bg-slate-800'}`}
+                        >
+                            <Plus size={18} /> {moldTab === 'lstx' ? 'Νέο LSTX' : 'Νέο Λάστιχο'}
+                        </button>
+                    </div>
+                )}
+                below={(
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="bg-white border border-slate-200 p-1 rounded-xl flex shadow-sm">
+                            <button
+                                type="button"
+                                onClick={() => { setMoldTab('standard'); setSearchTerm(''); }}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${moldTab === 'standard' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                Κανονικά
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => { setMoldTab('lstx'); setSearchTerm(''); }}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 ${moldTab === 'lstx' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                <Puzzle size={12} /> LSTX
+                            </button>
+                        </div>
+                        <div className="bg-white border border-slate-200 p-1 rounded-xl flex items-center shadow-sm min-w-[200px] flex-1 max-w-sm">
+                            <Search size={16} className="ml-2 text-slate-400" />
+                            <input
+                                placeholder="Αναζήτηση με κωδικό ή περιγραφή..."
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="w-full bg-transparent p-1.5 pl-2 text-sm font-bold outline-none text-slate-700"
+                            />
+                            {searchTerm && <button onClick={() => setSearchTerm('')} className="mr-1 text-slate-400 hover:text-slate-600"><X size={14} /></button>}
                         </div>
                     </div>
                 )}
             />
-
-            {/* CONTROLS */}
-            <div className="flex items-center justify-between shrink-0 px-2">
-                <div className="flex items-center gap-4">
-                <div className="bg-white border border-slate-200 p-1 rounded-xl flex shadow-sm">
-                    <button
-                        type="button"
-                        onClick={() => { setMoldTab('standard'); setSearchTerm(''); }}
-                        className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${moldTab === 'standard' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                        Κανονικά
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => { setMoldTab('lstx'); setSearchTerm(''); }}
-                        className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 ${moldTab === 'lstx' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                        <Puzzle size={12} /> LSTX
-                    </button>
-                </div>
-                <div className="bg-white border border-slate-200 p-1 rounded-xl flex items-center shadow-sm w-full md:w-80">
-                    <Search size={16} className="ml-3 text-slate-400" />
-                    <input
-                        placeholder="Αναζήτηση με κωδικό ή περιγραφή..."
-                        value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                        className="w-full bg-transparent p-2 pl-2 text-sm font-bold outline-none text-slate-700"
-                    />
-                    {searchTerm && <button onClick={() => setSearchTerm('')} className="mr-2 text-slate-400 hover:text-slate-600"><X size={14} /></button>}
-                </div>
-                </div>
-
-                <button
-                    onClick={() => {
-                        setNewMold({ code: defaultMoldCode, location: '', description: '', weight_g: 0 });
-                        setIsCreating(true);
-                    }}
-                    className={`text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all hover:-translate-y-0.5 ${moldTab === 'lstx' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-[#060b00] hover:bg-slate-800'}`}
-                >
-                    <Plus size={18} /> {moldTab === 'lstx' ? 'Νέο LSTX' : 'Νέο Λάστιχο'}
-                </button>
-            </div>
 
             {/* GRID */}
             <div className="flex-1 pr-2 pb-20">

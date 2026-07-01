@@ -148,7 +148,7 @@ export const CARD_HOVER = 'hover:shadow-md hover:border-slate-300 transition-all
 
 
 // ──────────────────────────────────────────────
-//  Animations
+//  Animations & transitions
 // ──────────────────────────────────────────────
 
 /** Fade + slide for tab content */
@@ -159,6 +159,21 @@ export const SECTION_ENTRANCE = 'animate-in fade-in slide-in-from-bottom-4 durat
 
 /** Pulse for alert/warning badges */
 export const PULSE_BADGE = 'animate-pulse';
+
+/** Page-level transition (used on the main content wrapper) */
+export const PAGE_TRANSITION = 'animate-in fade-in slide-in-from-bottom-3 duration-400';
+
+/** Header card with strong shadow and subtle border accent */
+export const HEADER_CARD = 'bg-white border border-slate-100 shadow-md rounded-3xl';
+
+/** Glowing border accent for special sections (smart entry, etc.) */
+export const GLOW_BORDER = 'ring-2 ring-amber-500/20 border-amber-200/50';
+
+/** Nice loader container with brand colours */
+export const NICE_LOADER = 'flex flex-col items-center justify-center gap-4 min-h-[320px] w-full';
+
+/** Soft gradient text for section titles */
+export const GRADIENT_TEXT = 'bg-gradient-to-r from-[#060b00] to-slate-600 bg-clip-text text-transparent';
 
 
 // ──────────────────────────────────────────────

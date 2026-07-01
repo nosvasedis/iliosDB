@@ -60,6 +60,7 @@ jspm_packages/
 
 # Reasonix agent files
 .reasonix/
+reasonix.toml
 
 # CodeGraph local index (database, cache, logs)
 .codegraph/

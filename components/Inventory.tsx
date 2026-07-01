@@ -667,22 +667,27 @@ export default function Inventory({ products, setPrintItems, settings, collectio
 
             {activeTab === 'stock' && (
                 <div className="flex-1 flex flex-col min-h-0 space-y-6 animate-in slide-in-from-bottom-2">
-                    <div className="bg-white rounded-[2rem] border border-slate-200 shadow-xl shrink-0 flex flex-col lg:flex-row">
-                        <div className="flex-1 p-8 bg-slate-50 border-r border-slate-100 flex flex-col gap-6 rounded-t-[2rem] lg:rounded-tr-none lg:rounded-l-[2rem]">
+                    <div className="bg-gradient-to-br from-white via-slate-50 to-emerald-50/30 rounded-[2rem] border-2 border-emerald-200/40 shadow-xl shrink-0 flex flex-col lg:flex-row ring-2 ring-emerald-500/5 relative overflow-hidden">
+                      {/* Subtle animated glow */}
+                      <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500/5 via-amber-500/5 to-emerald-500/5 rounded-[2rem] blur-xl opacity-50 animate-pulse pointer-events-none" />
+                      <div className="flex-1 p-8 bg-gradient-to-br from-slate-50/80 via-white/50 to-emerald-50/20 border-r border-emerald-100/50 flex flex-col gap-6 rounded-t-[2rem] lg:rounded-tr-none lg:rounded-l-[2rem] relative z-10">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2.5 bg-[#060b00] text-white rounded-xl shadow-lg">
-                                        <ScanBarcode size={22} className="animate-pulse" />
+                                    <div className="p-2.5 bg-gradient-to-br from-[#060b00] to-slate-800 text-white rounded-xl shadow-lg shadow-emerald-900/10 ring-2 ring-emerald-500/20">
+                                        <Zap size={22} className="text-amber-500" />
                                     </div>
-                                    <h2 className="font-black text-slate-800 uppercase tracking-tighter text-lg">Έξυπνη Ταχεία Εισαγωγή</h2>
+                                    <div>
+                                      <h2 className="font-black text-slate-800 uppercase tracking-tighter text-lg bg-gradient-to-r from-[#060b00] to-emerald-700 bg-clip-text text-transparent">Έξυπνη Ταχεία Εισαγωγή</h2>
+                                      <p className="text-[10px] text-slate-400 font-bold tracking-wide">Γρήγορη καταχώρηση κινήσεων αποθέματος</p>
+                                    </div>
                                 </div>
                                 <div className="flex gap-2">
-                                    <button onClick={() => setShowScanner(true)} className="p-2 bg-white text-slate-600 rounded-xl border border-slate-200 hover:bg-slate-50 shadow-sm" title="Σάρωση Barcode"><Camera size={20} /></button>
-                                    <div className="flex bg-slate-200 p-1 rounded-xl">
-                                        <button onClick={() => setQuickMode('add')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-2 ${quickMode === 'add' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>
+                                    <button onClick={() => setShowScanner(true)} className="p-2 bg-white text-slate-600 rounded-xl border border-slate-200 hover:bg-slate-50 hover:border-emerald-300 shadow-sm transition-all" title="Σάρωση Barcode"><Camera size={20} /></button>
+                                    <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+                                        <button onClick={() => setQuickMode('add')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-2 ${quickMode === 'add' ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200' : 'text-slate-500 hover:text-emerald-600 hover:bg-emerald-50'}`}>
                                             <Plus size={14} /> Εισαγωγή
                                         </button>
-                                        <button onClick={() => setQuickMode('subtract')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-2 ${quickMode === 'subtract' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}>
+                                        <button onClick={() => setQuickMode('subtract')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-2 ${quickMode === 'subtract' ? 'bg-rose-500 text-white shadow-md shadow-rose-200' : 'text-slate-500 hover:text-rose-600 hover:bg-rose-50'}`}>
                                             <Minus size={14} /> Αφαίρεση
                                         </button>
                                     </div>

@@ -81,8 +81,18 @@ const LegalDocumentsPage = lazyPage(() => import('./components/LegalDocumentsPag
 
 const ContentLoader = () => (
   <div className="min-h-[320px] w-full flex flex-col items-center justify-center text-slate-500">
-    <Loader2 size={36} className="animate-spin mb-3 text-amber-500" />
-    <p className="font-medium">Φόρτωση ενότητας...</p>
+    <div className="relative mb-5">
+      <div className="absolute inset-0 bg-amber-500/20 rounded-full blur-xl animate-pulse" />
+      <div className="relative w-16 h-16 rounded-2xl bg-[#060b00] flex items-center justify-center shadow-xl shadow-amber-900/10 animate-in zoom-in-95">
+        <Gem size={28} className="text-amber-500" />
+      </div>
+    </div>
+    <div className="flex items-center gap-1.5">
+      <span className="w-2 h-2 rounded-full bg-amber-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+      <span className="w-2 h-2 rounded-full bg-amber-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+      <span className="w-2 h-2 rounded-full bg-amber-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+    </div>
+    <p className="mt-3 font-bold text-slate-400 tracking-wide">Φόρτωση ενότητας...</p>
   </div>
 );
 
@@ -566,9 +576,11 @@ function ErpAppContent() {
             <div className={`w-2 h-2 rounded-full ${isLocalMode ? 'bg-amber-500' : isOnline ? (pendingCount > 0 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500') : 'bg-rose-500 animate-pulse'}`} />
           </header>
           <div className="flex-1 overflow-y-auto p-4 md:p-8 relative scroll-smooth">
-            <div className="max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="max-w-[1600px] mx-auto" key={activePage}>
               <Suspense fallback={<ContentLoader />}>
+              <div className="animate-in fade-in slide-in-from-bottom-3 duration-400">
               {adminPageRegistry[activePage]}
+              </div>
               </Suspense>
             </div>
           </div>
