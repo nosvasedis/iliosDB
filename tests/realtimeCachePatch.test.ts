@@ -83,4 +83,47 @@ describe('realtime cache patching', () => {
     expect(queryClient.getQueryData<any[]>(productionKeys.batches())?.[0].current_stage).toBe(ProductionStage.Casting);
     expect(queryClient.getQueryData<any[]>(productionKeys.boardBatches())?.[0].current_stage).toBe(ProductionStage.Casting);
   });
+
+  it('patches batch stage history caches without duplicating repeated payloads', () => {
+    const queryClient = new QueryClient();
+    const historyEntry = {
+      id: 'history-1',
+      batch_id: 'batch-1',
+      from_stage: ProductionStage.Waxing,
+      to_stage: ProductionStage.Casting,
+      moved_by: 'Alex',
+      moved_at: '2024-01-01T00:00:01.000Z',
+    };
+    const repeatedEntry = {
+      ...historyEntry,
+      moved_by: 'Alex Updated',
+    };
+
+    queryClient.setQueryData(productionKeys.batchHistoryEntries(), []);
+    queryClient.setQueryData(productionKeys.boardBatchHistoryEntries(), []);
+
+    const handledInsert = tryPatchRealtimeCache(queryClient, {
+      table: 'batch_stage_history',
+      eventType: 'INSERT',
+      new: historyEntry,
+      old: {},
+      schema: 'public',
+      commit_timestamp: '2024-01-01T00:00:01.000Z',
+      errors: null,
+    } as any);
+    const handledRepeat = tryPatchRealtimeCache(queryClient, {
+      table: 'batch_stage_history',
+      eventType: 'UPDATE',
+      new: repeatedEntry,
+      old: historyEntry,
+      schema: 'public',
+      commit_timestamp: '2024-01-01T00:00:02.000Z',
+      errors: null,
+    } as any);
+
+    expect(handledInsert).toBe(false);
+    expect(handledRepeat).toBe(false);
+    expect(queryClient.getQueryData<any[]>(productionKeys.batchHistoryEntries())).toEqual([repeatedEntry]);
+    expect(queryClient.getQueryData<any[]>(productionKeys.boardBatchHistoryEntries())).toEqual([repeatedEntry]);
+  });
 });

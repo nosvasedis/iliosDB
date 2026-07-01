@@ -2,7 +2,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { orderKeys } from '../features/orders/keys';
 import { productionKeys } from '../features/production/keys';
-import type { Order, Product, ProductionBatch } from '../types';
+import type { BatchStageHistoryEntry, Order, Product, ProductionBatch } from '../types';
 import { isProductGraphRealtimeTable } from './queryInvalidation';
 
 type RealtimeRowPayload = RealtimePostgresChangesPayload<Record<string, unknown>>;
@@ -141,6 +141,12 @@ export function tryPatchRealtimeCache(queryClient: QueryClient, payload: Realtim
     if (table === 'production_batches') {
         patchListById<ProductionBatch>(queryClient, productionKeys.batches(), payload);
         patchListById<ProductionBatch>(queryClient, productionKeys.boardBatches(), payload);
+        return false;
+    }
+
+    if (table === 'batch_stage_history') {
+        patchListById<BatchStageHistoryEntry>(queryClient, productionKeys.batchHistoryEntries(), payload);
+        patchListById<BatchStageHistoryEntry>(queryClient, productionKeys.boardBatchHistoryEntries(), payload);
         return false;
     }
 

@@ -71,6 +71,14 @@ export function getRealtimeInvalidationDomainsForTable(tableName: string): Realt
     return [...(REALTIME_TABLE_DOMAINS[tableName] || [])];
 }
 
+export function getRealtimeDomainsForTables(tableNames: readonly string[]): RealtimeInvalidationDomain[] {
+    const domains = new Set<RealtimeInvalidationDomain>();
+    tableNames.forEach((tableName) => {
+        getRealtimeInvalidationDomainsForTable(tableName).forEach((domain) => domains.add(domain));
+    });
+    return [...domains];
+}
+
 export function isProductGraphRealtimeTable(tableName: string): boolean {
     return PRODUCT_GRAPH_TABLES.has(tableName);
 }
@@ -284,28 +292,97 @@ export async function invalidateAndRefetchAfterShipmentChange(
  * without polling or waking every cached query.
  */
 export function refetchRealtimeActiveQueries(queryClient: QueryClient): Promise<void> {
-    return Promise.all([
-        queryClient.refetchQueries({ queryKey: ['products'], type: 'active' }),
-        queryClient.refetchQueries({ queryKey: ['productsCatalog'], type: 'active' }),
-        queryClient.refetchQueries({ queryKey: ['collections'], type: 'active' }),
-        queryClient.refetchQueries({ queryKey: orderKeys.all, type: 'active' }),
-        queryClient.refetchQueries({ queryKey: orderKeys.list(), type: 'active' }),
-        queryClient.refetchQueries({ queryKey: orderKeys.productionBoard(), type: 'active' }),
-        queryClient.refetchQueries({ queryKey: orderKeys.shipments(), type: 'active' }),
-        queryClient.refetchQueries({ queryKey: orderKeys.shipmentItems(), type: 'active' }),
-        queryClient.refetchQueries({ queryKey: ['order-shipments'], type: 'active' }),
-        queryClient.refetchQueries({ queryKey: productionKeys.batches(), type: 'active' }),
-        queryClient.refetchQueries({ queryKey: productionKeys.boardBatches(), type: 'active' }),
-        queryClient.refetchQueries({ queryKey: productionKeys.batchHistoryEntries(), type: 'active' }),
-        queryClient.refetchQueries({ queryKey: productionKeys.boardBatchHistoryEntries(), type: 'active' }),
-        queryClient.refetchQueries({ queryKey: deliveryKeys.plans(), type: 'active' }),
-        queryClient.refetchQueries({ queryKey: deliveryKeys.reminders(), type: 'active' }),
-        queryClient.refetchQueries({ queryKey: deliveryKeys.shipments(), type: 'active' }),
-        queryClient.refetchQueries({ queryKey: deliveryKeys.shipmentItems(), type: 'active' }),
-        queryClient.refetchQueries({ queryKey: ['materials'], type: 'active' }),
-        queryClient.refetchQueries({ queryKey: ['molds'], type: 'active' }),
-        queryClient.refetchQueries({ queryKey: ['warehouses'], type: 'active' }),
-    ]).then(() => undefined);
+    return refetchRealtimeDomains(queryClient, [
+        'products',
+        'collections',
+        'orders',
+        'production',
+        'deliveries',
+        'resources',
+    ]);
+}
+
+function refetchActiveRealtimeDomain(
+    queryClient: QueryClient,
+    domain: RealtimeInvalidationDomain,
+): Promise<void> {
+    switch (domain) {
+        case 'products':
+            return Promise.all([
+                queryClient.refetchQueries({ queryKey: ['products'], type: 'active' }),
+                queryClient.refetchQueries({ queryKey: ['productsCatalog'], type: 'active' }),
+            ]).then(() => undefined);
+        case 'collections':
+            return queryClient.refetchQueries({ queryKey: ['collections'], type: 'active' }).then(() => undefined);
+        case 'orders':
+            return Promise.all([
+                queryClient.refetchQueries({ queryKey: orderKeys.all, type: 'active' }),
+                queryClient.refetchQueries({ queryKey: orderKeys.list(), type: 'active' }),
+                queryClient.refetchQueries({ queryKey: orderKeys.productionBoard(), type: 'active' }),
+                queryClient.refetchQueries({ queryKey: orderKeys.shipments(), type: 'active' }),
+                queryClient.refetchQueries({ queryKey: orderKeys.shipmentItems(), type: 'active' }),
+                queryClient.refetchQueries({ queryKey: ['order-shipments'], type: 'active' }),
+                queryClient.refetchQueries({ queryKey: ['tag_color_overrides'], type: 'active' }),
+            ]).then(() => undefined);
+        case 'production':
+            return Promise.all([
+                queryClient.refetchQueries({ queryKey: productionKeys.batches(), type: 'active' }),
+                queryClient.refetchQueries({ queryKey: productionKeys.boardBatches(), type: 'active' }),
+                queryClient.refetchQueries({ queryKey: productionKeys.batchHistoryEntries(), type: 'active' }),
+                queryClient.refetchQueries({ queryKey: productionKeys.boardBatchHistoryEntries(), type: 'active' }),
+            ]).then(() => undefined);
+        case 'deliveries':
+            return Promise.all([
+                queryClient.refetchQueries({ queryKey: deliveryKeys.plans(), type: 'active' }),
+                queryClient.refetchQueries({ queryKey: deliveryKeys.reminders(), type: 'active' }),
+                queryClient.refetchQueries({ queryKey: deliveryKeys.shipments(), type: 'active' }),
+                queryClient.refetchQueries({ queryKey: deliveryKeys.shipmentItems(), type: 'active' }),
+            ]).then(() => undefined);
+        case 'resources':
+            return Promise.all([
+                queryClient.refetchQueries({ queryKey: ['materials'], type: 'active' }),
+                queryClient.refetchQueries({ queryKey: ['molds'], type: 'active' }),
+                queryClient.refetchQueries({ queryKey: ['warehouses'], type: 'active' }),
+            ]).then(() => undefined);
+        case 'contacts':
+            return Promise.all([
+                queryClient.refetchQueries({ queryKey: orderKeys.customers(), type: 'active' }),
+                queryClient.refetchQueries({ queryKey: ['suppliers'], type: 'active' }),
+                queryClient.refetchQueries({ queryKey: ['sellers'], type: 'active' }),
+            ]).then(() => undefined);
+        case 'settings':
+            return queryClient.refetchQueries({ queryKey: ['settings'], type: 'active' }).then(() => undefined);
+        case 'pricing':
+            return queryClient.refetchQueries({ queryKey: ['price_snapshots'], type: 'active' }).then(() => undefined);
+        case 'supplierOrders':
+            return queryClient.refetchQueries({ queryKey: ['supplier_orders'], type: 'active' }).then(() => undefined);
+        case 'offers':
+            return queryClient.refetchQueries({ queryKey: ['offers'], type: 'active' }).then(() => undefined);
+        case 'legal':
+            return Promise.all([
+                queryClient.refetchQueries({ queryKey: ['legal_settings'], type: 'active' }),
+                queryClient.refetchQueries({ queryKey: ['legal_numbering_sequences'], type: 'active' }),
+                queryClient.refetchQueries({ queryKey: ['legal_carriers'], type: 'active' }),
+                queryClient.refetchQueries({ queryKey: ['legal_documents'], type: 'active' }),
+                queryClient.refetchQueries({ queryKey: ['legal_document_lines'], type: 'active' }),
+                queryClient.refetchQueries({ queryKey: ['legal_transmissions'], type: 'active' }),
+                queryClient.refetchQueries({ queryKey: ['legal_delivery_events'], type: 'active' }),
+                queryClient.refetchQueries({ queryKey: ['legal_sync_runs'], type: 'active' }),
+                queryClient.refetchQueries({ queryKey: ['proforma_documents'], type: 'active' }),
+                queryClient.refetchQueries({ queryKey: ['proforma_document_lines'], type: 'active' }),
+                queryClient.refetchQueries({ queryKey: ['legal_aade_credentials'], type: 'active' }),
+            ]).then(() => undefined);
+        default:
+            return Promise.resolve();
+    }
+}
+
+export function refetchRealtimeDomains(
+    queryClient: QueryClient,
+    domains: readonly RealtimeInvalidationDomain[],
+): Promise<void> {
+    const uniqueDomains = [...new Set(domains)];
+    return Promise.all(uniqueDomains.map((domain) => refetchActiveRealtimeDomain(queryClient, domain))).then(() => undefined);
 }
 
 export function invalidateRealtimeDomain(

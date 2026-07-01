@@ -66,7 +66,7 @@ export interface LiveActivityPayload {
 }
 
 /** Internal broadcast envelope — adds routing metadata. */
-interface BroadcastEnvelope extends LiveActivityPayload {
+export interface BroadcastEnvelope extends LiveActivityPayload {
     senderTabId: string;
     eventId: string;
     timestamp: string;
@@ -95,6 +95,26 @@ export function dispatchLiveActivity(payload: LiveActivityPayload): void {
 const CHANNEL_NAME = 'ilios:live-activity';
 const MAX_NOTIFICATIONS = 5;
 const EXPIRE_MS = 7000;
+const RETRY_MS = 3000;
+
+export function appendUniqueLiveActivityNotification(
+    notifications: LiveActivityNotification[],
+    notification: LiveActivityNotification,
+    maxNotifications = MAX_NOTIFICATIONS,
+): LiveActivityNotification[] {
+    if (notifications.some((existing) => existing.eventId === notification.eventId)) {
+        return notifications;
+    }
+    return [...notifications, notification].slice(-maxNotifications);
+}
+
+export function drainLiveActivityQueue(
+    queued: BroadcastEnvelope[],
+    send: (envelope: BroadcastEnvelope) => void,
+): BroadcastEnvelope[] {
+    queued.forEach((envelope) => send(envelope));
+    return [];
+}
 
 interface UseLiveActivityResult {
     notifications: LiveActivityNotification[];
@@ -105,24 +125,28 @@ interface UseLiveActivityResult {
 export function useLiveActivity(): UseLiveActivityResult {
     const [notifications, setNotifications] = useState<LiveActivityNotification[]>([]);
     const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+    const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const isSubscribedRef = useRef(false);
+    const queuedEventsRef = useRef<BroadcastEnvelope[]>([]);
     const expireTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+    const notificationIdsRef = useRef<Set<string>>(new Set());
 
     const addNotification = useCallback((envelope: BroadcastEnvelope) => {
+        if (notificationIdsRef.current.has(envelope.eventId)) return;
+        notificationIdsRef.current.add(envelope.eventId);
+
         const notification: LiveActivityNotification = {
             ...envelope,
             receivedAt: Date.now(),
         };
 
-        setNotifications(prev => {
-            const next = [...prev, notification];
-            // Keep only the last MAX_NOTIFICATIONS
-            return next.slice(-MAX_NOTIFICATIONS);
-        });
+        setNotifications(prev => appendUniqueLiveActivityNotification(prev, notification));
 
         // Auto-expire
         const timer = setTimeout(() => {
             setNotifications(prev => prev.filter(n => n.eventId !== notification.eventId));
             expireTimers.current.delete(notification.eventId);
+            notificationIdsRef.current.delete(notification.eventId);
         }, EXPIRE_MS);
         expireTimers.current.set(notification.eventId, timer);
     }, []);
@@ -133,12 +157,14 @@ export function useLiveActivity(): UseLiveActivityResult {
             clearTimeout(timer);
             expireTimers.current.delete(eventId);
         }
+        notificationIdsRef.current.delete(eventId);
         setNotifications(prev => prev.filter(n => n.eventId !== eventId));
     }, []);
 
     const clearAll = useCallback(() => {
         expireTimers.current.forEach(timer => clearTimeout(timer));
         expireTimers.current.clear();
+        notificationIdsRef.current.clear();
         setNotifications([]);
     }, []);
 
@@ -146,7 +172,21 @@ export function useLiveActivity(): UseLiveActivityResult {
     useEffect(() => {
         if (isLocalMode) return;
 
+        let disposed = false;
+        const sendEnvelope = (envelope: BroadcastEnvelope) => {
+            if (!channelRef.current || !isSubscribedRef.current) {
+                queuedEventsRef.current.push(envelope);
+                return;
+            }
+            void channelRef.current.send({
+                type: 'broadcast',
+                event: 'activity',
+                payload: envelope,
+            });
+        };
+
         const subscribe = () => {
+            if (disposed) return;
             const channel = supabase
                 .channel(CHANNEL_NAME)
                 .on('broadcast', { event: 'activity' }, ({ payload }) => {
@@ -156,10 +196,21 @@ export function useLiveActivity(): UseLiveActivityResult {
                     addNotification(envelope);
                 })
                 .subscribe((status) => {
-                    if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                    if (disposed) return;
+                    if (status === 'SUBSCRIBED') {
+                        isSubscribedRef.current = true;
+                        queuedEventsRef.current = drainLiveActivityQueue(queuedEventsRef.current, sendEnvelope);
+                    }
+                    if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                        isSubscribedRef.current = false;
                         void supabase.removeChannel(channel);
                         channelRef.current = null;
-                        setTimeout(() => subscribe(), 3000);
+                        if (!retryTimerRef.current) {
+                            retryTimerRef.current = setTimeout(() => {
+                                retryTimerRef.current = null;
+                                subscribe();
+                            }, RETRY_MS);
+                        }
                     }
                 });
             channelRef.current = channel;
@@ -168,6 +219,12 @@ export function useLiveActivity(): UseLiveActivityResult {
         subscribe();
 
         return () => {
+            disposed = true;
+            isSubscribedRef.current = false;
+            if (retryTimerRef.current) {
+                clearTimeout(retryTimerRef.current);
+                retryTimerRef.current = null;
+            }
             if (channelRef.current) {
                 void supabase.removeChannel(channelRef.current);
                 channelRef.current = null;
@@ -179,6 +236,18 @@ export function useLiveActivity(): UseLiveActivityResult {
     useEffect(() => {
         if (isLocalMode) return;
 
+        const sendEnvelope = (envelope: BroadcastEnvelope) => {
+            if (!channelRef.current || !isSubscribedRef.current) {
+                queuedEventsRef.current.push(envelope);
+                return;
+            }
+            void channelRef.current.send({
+                type: 'broadcast',
+                event: 'activity',
+                payload: envelope,
+            });
+        };
+
         const handleWindowEvent = (e: Event) => {
             const payload = (e as CustomEvent<LiveActivityPayload>).detail;
             const envelope: BroadcastEnvelope = {
@@ -188,13 +257,7 @@ export function useLiveActivity(): UseLiveActivityResult {
                 timestamp: new Date().toISOString(),
             };
             // Broadcast to other tabs/devices — do NOT add to local state
-            if (channelRef.current) {
-                void channelRef.current.send({
-                    type: 'broadcast',
-                    event: 'activity',
-                    payload: envelope,
-                });
-            }
+            sendEnvelope(envelope);
         };
 
         window.addEventListener('ilios-live-activity', handleWindowEvent);
@@ -205,6 +268,7 @@ export function useLiveActivity(): UseLiveActivityResult {
     useEffect(() => {
         return () => {
             expireTimers.current.forEach(timer => clearTimeout(timer));
+            notificationIdsRef.current.clear();
         };
     }, []);
 

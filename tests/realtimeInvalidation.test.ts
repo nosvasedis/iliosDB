@@ -1,9 +1,15 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import {
+  getRealtimeDomainsForTables,
   getRealtimeInvalidationDomainsForTable,
   invalidateRealtimeDomain,
 } from '../lib/queryInvalidation';
 import { createRealtimeInvalidationScheduler } from '../hooks/api/realtimeInvalidationScheduler';
+import {
+  CORE_REALTIME_CHANNEL_GROUPS,
+  CORE_REALTIME_TABLES,
+  getRealtimeChannelGroups,
+} from '../hooks/api/useRealtimeInvalidation';
 
 describe('realtime invalidation mapping', () => {
   it('maps product variant changes to the product/catalog domain', async () => {
@@ -22,6 +28,25 @@ describe('realtime invalidation mapping', () => {
 
   it('maps shipment table changes to order and delivery surfaces', () => {
     expect(getRealtimeInvalidationDomainsForTable('order_shipment_items')).toEqual(['orders', 'deliveries']);
+  });
+
+  it('maps production batch changes to every visible dependent surface', () => {
+    expect(getRealtimeInvalidationDomainsForTable('production_batches')).toEqual(['production', 'orders', 'deliveries']);
+  });
+
+  it('groups every core realtime table exactly once', () => {
+    const groupedTables = CORE_REALTIME_CHANNEL_GROUPS.flatMap((group) => group.tables);
+
+    expect(new Set(groupedTables)).toEqual(new Set(CORE_REALTIME_TABLES));
+    expect(groupedTables).toHaveLength(new Set(groupedTables).size);
+  });
+
+  it('derives group readiness domains from grouped tables', () => {
+    const groups = getRealtimeChannelGroups(false);
+    const productionGroup = groups.find((group) => group.id === 'production');
+
+    expect(productionGroup?.tables).toEqual(['production_batches', 'batch_stage_history']);
+    expect(getRealtimeDomainsForTables(productionGroup?.tables ?? [])).toEqual(['production', 'orders', 'deliveries']);
   });
 });
 

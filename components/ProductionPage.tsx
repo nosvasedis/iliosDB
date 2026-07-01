@@ -2434,55 +2434,72 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     // ── Optimistic cache helpers ────────────────────────────────────────────
     // Update the batches cache in-place so cards jump to their new stage
     // immediately. Returns a snapshot for rollback on error.
+    type ProductionBatchCacheSnapshot = {
+        batches?: ProductionBatch[];
+        boardBatches?: ProductionBatch[];
+    };
+
+    const patchProductionBatchCaches = useCallback((patchBatch: (batch: ProductionBatch) => ProductionBatch) => {
+        const patchList = (cur: ProductionBatch[] | undefined) => {
+            if (!cur) return cur;
+            return cur.map(patchBatch);
+        };
+        queryClient.setQueryData<ProductionBatch[]>(productionKeys.batches(), patchList);
+        queryClient.setQueryData<ProductionBatch[]>(productionKeys.boardBatches(), patchList);
+    }, [queryClient]);
+
     const applyOptimisticStage = useCallback((
         batchId: string,
         targetStage: ProductionStage,
         pendingDispatch?: boolean,
-    ): ProductionBatch[] | undefined => {
-        const key = productionKeys.batches();
-        const prev = queryClient.getQueryData<ProductionBatch[]>(key);
+    ): ProductionBatchCacheSnapshot => {
+        const snapshot = {
+            batches: queryClient.getQueryData<ProductionBatch[]>(productionKeys.batches()),
+            boardBatches: queryClient.getQueryData<ProductionBatch[]>(productionKeys.boardBatches()),
+        };
         const nowIso = new Date().toISOString();
-        queryClient.setQueryData<ProductionBatch[]>(key, (cur) => {
-            if (!cur) return cur;
-            return cur.map(b => {
-                if (b.id !== batchId) return b;
-                const wasPolishing = b.current_stage === ProductionStage.Polishing;
-                const willBePolishing = targetStage === ProductionStage.Polishing;
-                return {
-                    ...b,
-                    current_stage: targetStage,
-                    pending_dispatch: willBePolishing
-                        ? (pendingDispatch ?? true)
-                        : (wasPolishing ? false : b.pending_dispatch),
-                    updated_at: nowIso,
-                };
-            });
+        patchProductionBatchCaches((b) => {
+            if (b.id !== batchId) return b;
+            const wasPolishing = b.current_stage === ProductionStage.Polishing;
+            const willBePolishing = targetStage === ProductionStage.Polishing;
+            return {
+                ...b,
+                current_stage: targetStage,
+                pending_dispatch: willBePolishing
+                    ? (pendingDispatch ?? true)
+                    : (wasPolishing ? false : b.pending_dispatch),
+                updated_at: nowIso,
+            };
         });
-        return prev;
-    }, [queryClient]);
+        return snapshot;
+    }, [patchProductionBatchCaches, queryClient]);
 
     // Optimistically flip pending_dispatch for a set of Polishing batches
     // (used by the dispatch/recall flows that do NOT change the stage).
     const applyOptimisticPendingDispatch = useCallback((
         batchIds: string[],
         nextValue: boolean,
-    ): ProductionBatch[] | undefined => {
-        const key = productionKeys.batches();
-        const prev = queryClient.getQueryData<ProductionBatch[]>(key);
+    ): ProductionBatchCacheSnapshot => {
+        const snapshot = {
+            batches: queryClient.getQueryData<ProductionBatch[]>(productionKeys.batches()),
+            boardBatches: queryClient.getQueryData<ProductionBatch[]>(productionKeys.boardBatches()),
+        };
         const idSet = new Set(batchIds);
         const nowIso = new Date().toISOString();
-        queryClient.setQueryData<ProductionBatch[]>(key, (cur) => {
-            if (!cur) return cur;
-            return cur.map(b => idSet.has(b.id)
+        patchProductionBatchCaches((b) => idSet.has(b.id)
                 ? { ...b, pending_dispatch: nextValue, updated_at: nowIso }
                 : b);
-        });
-        return prev;
-    }, [queryClient]);
+        return snapshot;
+    }, [patchProductionBatchCaches, queryClient]);
 
-    const rollbackBatchesCache = useCallback((snapshot: ProductionBatch[] | undefined) => {
+    const rollbackBatchesCache = useCallback((snapshot: ProductionBatchCacheSnapshot | undefined) => {
         if (!snapshot) return;
-        queryClient.setQueryData<ProductionBatch[]>(productionKeys.batches(), snapshot);
+        if (snapshot.batches) {
+            queryClient.setQueryData<ProductionBatch[]>(productionKeys.batches(), snapshot.batches);
+        }
+        if (snapshot.boardBatches) {
+            queryClient.setQueryData<ProductionBatch[]>(productionKeys.boardBatches(), snapshot.boardBatches);
+        }
     }, [queryClient]);
 
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>, batchId: string) => {
@@ -2552,6 +2569,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         // the card appears in the target column instantly. Rollback on error.
         markMoving([batch.id], true);
         await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
+        await queryClient.cancelQueries({ queryKey: productionKeys.boardBatches() });
         const snapshot = applyOptimisticStage(batch.id, targetStage, pendingDispatch);
         try {
             await productionRepository.updateBatchStage(batch.id, targetStage, profile?.full_name, pendingDispatch);
@@ -2596,6 +2614,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         // Whole-batch receive: optimistic jump + per-batch lock + rollback on error.
         markMoving([batch.id], true);
         await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
+        await queryClient.cancelQueries({ queryKey: productionKeys.boardBatches() });
         const snapshot = applyOptimisticStage(batch.id, targetStage, pendingDispatch);
         try {
             await productionRepository.updateBatchStage(batch.id, targetStage, profile?.full_name, pendingDispatch);
@@ -2627,9 +2646,10 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         // Whole-batch path gets an optimistic column jump; the split path keeps
         // the source visible until server reconciliation (we can't easily
         // synthesize the new split row locally with all derived fields).
-        let snapshot: ProductionBatch[] | undefined;
+        let snapshot: ProductionBatchCacheSnapshot | undefined;
         if (isWholeMove) {
             await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
+            await queryClient.cancelQueries({ queryKey: productionKeys.boardBatches() });
             snapshot = applyOptimisticStage(batch.id, targetStage, splitModalState?.pendingDispatch);
         }
 
@@ -2777,6 +2797,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         if (targetIds.length === 0) return;
         markMoving(targetIds, true);
         await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
+        await queryClient.cancelQueries({ queryKey: productionKeys.boardBatches() });
         const snapshot = applyOptimisticPendingDispatch(targetIds, false);
         try {
             const count = await productionRepository.markBatchesDispatched(targetIds, profile?.full_name);
@@ -2797,6 +2818,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         if (targetIds.length === 0) return;
         markMoving(targetIds, true);
         await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
+        await queryClient.cancelQueries({ queryKey: productionKeys.boardBatches() });
         const snapshot = applyOptimisticPendingDispatch(targetIds, true);
         try {
             const count = await productionRepository.markBatchesPendingDispatch(targetIds, profile?.full_name);
@@ -2921,11 +2943,15 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         markMoving(allIds, true);
         setIsBulkMoving(true);
         await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
+        await queryClient.cancelQueries({ queryKey: productionKeys.boardBatches() });
 
         // Capture one snapshot of the cache for rollback, then apply all
         // optimistic updates sequentially against the cache. We only need the
         // first snapshot because setQueryData writes replace the whole array.
-        const snapshot = queryClient.getQueryData<ProductionBatch[]>(productionKeys.batches());
+        const snapshot: ProductionBatchCacheSnapshot = {
+            batches: queryClient.getQueryData<ProductionBatch[]>(productionKeys.batches()),
+            boardBatches: queryClient.getQueryData<ProductionBatch[]>(productionKeys.boardBatches()),
+        };
         stageChangeBatches.forEach(b => {
             applyOptimisticStage(b.id, bulkMoveTarget!, bulkMovePendingDispatch);
         });
@@ -3062,7 +3088,11 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         markMoving(allIds, true);
         setIsBulkMoving(true);
         await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
-        const snapshot = queryClient.getQueryData<ProductionBatch[]>(productionKeys.batches());
+        await queryClient.cancelQueries({ queryKey: productionKeys.boardBatches() });
+        const snapshot: ProductionBatchCacheSnapshot = {
+            batches: queryClient.getQueryData<ProductionBatch[]>(productionKeys.batches()),
+            boardBatches: queryClient.getQueryData<ProductionBatch[]>(productionKeys.boardBatches()),
+        };
         targetBatches.forEach(b => {
             applyOptimisticStage(b.id, ProductionStage.Ready);
         });

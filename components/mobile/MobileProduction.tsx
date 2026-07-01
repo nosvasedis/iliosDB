@@ -42,7 +42,7 @@ import { useMaterials } from '../../hooks/api/useMaterials';
 import { useMolds } from '../../hooks/api/useMolds';
 import { useOrdersWithItems } from '../../hooks/api/useOrders';
 import { useBatchStageHistoryEntries, useProductionBatches } from '../../hooks/api/useProductionBatches';
-import { productionRepository } from '../../features/production';
+import { productionKeys, productionRepository } from '../../features/production';
 import { findMatchingOrderItemForBatch } from '../../features/production/boardViewModel';
 import { getBatchAgeInfo } from '../../features/production/selectors';
 import { invalidateProductionBatches } from '../../lib/queryInvalidation';
@@ -1023,6 +1023,71 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
 
     const foundBatches = useMemo(() => buildMobileProductionFoundBatches(enrichedBatches, deferredFinderTerm), [enrichedBatches, deferredFinderTerm]);
 
+    type MobileBatchCacheSnapshot = {
+        batches?: ProductionBatch[];
+        boardBatches?: ProductionBatch[];
+    };
+
+    const patchMobileBatchCaches = useCallback((patchBatch: (batch: ProductionBatch) => ProductionBatch) => {
+        const patchList = (cur: ProductionBatch[] | undefined) => {
+            if (!cur) return cur;
+            return cur.map(patchBatch);
+        };
+        queryClient.setQueryData<ProductionBatch[]>(productionKeys.batches(), patchList);
+        queryClient.setQueryData<ProductionBatch[]>(productionKeys.boardBatches(), patchList);
+    }, [queryClient]);
+
+    const snapshotMobileBatchCaches = useCallback((): MobileBatchCacheSnapshot => ({
+        batches: queryClient.getQueryData<ProductionBatch[]>(productionKeys.batches()),
+        boardBatches: queryClient.getQueryData<ProductionBatch[]>(productionKeys.boardBatches()),
+    }), [queryClient]);
+
+    const rollbackMobileBatchCaches = useCallback((snapshot: MobileBatchCacheSnapshot | undefined) => {
+        if (!snapshot) return;
+        if (snapshot.batches) {
+            queryClient.setQueryData<ProductionBatch[]>(productionKeys.batches(), snapshot.batches);
+        }
+        if (snapshot.boardBatches) {
+            queryClient.setQueryData<ProductionBatch[]>(productionKeys.boardBatches(), snapshot.boardBatches);
+        }
+    }, [queryClient]);
+
+    const applyMobileOptimisticStage = useCallback((
+        batchId: string,
+        targetStage: ProductionStage,
+        pendingDispatch?: boolean,
+    ): MobileBatchCacheSnapshot => {
+        const snapshot = snapshotMobileBatchCaches();
+        const nowIso = new Date().toISOString();
+        patchMobileBatchCaches((batch) => {
+            if (batch.id !== batchId) return batch;
+            const wasPolishing = batch.current_stage === ProductionStage.Polishing;
+            const willBePolishing = targetStage === ProductionStage.Polishing;
+            return {
+                ...batch,
+                current_stage: targetStage,
+                pending_dispatch: willBePolishing
+                    ? (pendingDispatch ?? true)
+                    : (wasPolishing ? false : batch.pending_dispatch),
+                updated_at: nowIso,
+            };
+        });
+        return snapshot;
+    }, [patchMobileBatchCaches, snapshotMobileBatchCaches]);
+
+    const applyMobileOptimisticPendingDispatch = useCallback((
+        batchIds: string[],
+        nextValue: boolean,
+    ): MobileBatchCacheSnapshot => {
+        const snapshot = snapshotMobileBatchCaches();
+        const idSet = new Set(batchIds);
+        const nowIso = new Date().toISOString();
+        patchMobileBatchCaches((batch) => idSet.has(batch.id)
+            ? { ...batch, pending_dispatch: nextValue, updated_at: nowIso }
+            : batch);
+        return snapshot;
+    }, [patchMobileBatchCaches, snapshotMobileBatchCaches]);
+
     const toggleStage = (stageId: string) => {
         setOpenStage((prev) => {
             if (prev === stageId) return null;
@@ -1034,11 +1099,15 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     const handleNextStage = async (batch: ProductionBatch) => {
         const nextStage = getMobileProductionNextStage(batch);
         if (!nextStage) return;
+        await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
+        await queryClient.cancelQueries({ queryKey: productionKeys.boardBatches() });
+        const snapshot = applyMobileOptimisticStage(batch.id, nextStage, nextStage === ProductionStage.Polishing ? true : undefined);
         try {
             await productionRepository.updateBatchStage(batch.id, nextStage, undefined, nextStage === ProductionStage.Polishing ? true : undefined);
             await invalidateProductionBatches(queryClient);
             showToast(`Το ${batch.sku} μετακινήθηκε στο στάδιο ${STAGES.find(s => s.id === nextStage)?.label}.`, "success");
         } catch (error) {
+            rollbackMobileBatchCaches(snapshot);
             showToast("Σφάλμα μετακίνησης.", "error");
         }
     };
@@ -1088,6 +1157,9 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             const wantPending = options?.pendingDispatch ?? true;
             const currentlyPending = !!batch.pending_dispatch;
             if (wantPending === currentlyPending) return; // No change
+            await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
+            await queryClient.cancelQueries({ queryKey: productionKeys.boardBatches() });
+            const snapshot = applyMobileOptimisticPendingDispatch([batch.id], wantPending);
             try {
                 if (wantPending) {
                     await productionRepository.markBatchesPendingDispatch([batch.id]);
@@ -1097,6 +1169,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                 await invalidateProductionBatches(queryClient);
                 showToast(wantPending ? 'Επιστροφή σε Αναμονή Αποστολής' : 'Αποστολή στον Τεχνίτη', 'success');
             } catch (e: any) {
+                rollbackMobileBatchCaches(snapshot);
                 showToast(`Σφάλμα: ${e.message}`, 'error');
             }
             return;
@@ -1118,11 +1191,15 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             .map((b) => b.id);
         if (ids.length === 0) return;
         setIsProcessingSplit(true);
+        await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
+        await queryClient.cancelQueries({ queryKey: productionKeys.boardBatches() });
+        const snapshot = applyMobileOptimisticPendingDispatch(ids, false);
         try {
             const count = await productionRepository.markBatchesDispatched(ids);
             await invalidateProductionBatches(queryClient);
             showToast(`${count} παρτίδ${count === 1 ? 'α' : 'ες'} στάλθηκ${count === 1 ? 'ε' : 'αν'} στον Τεχνίτη.`, 'success');
         } catch (e: any) {
+            rollbackMobileBatchCaches(snapshot);
             showToast(`Σφάλμα: ${e.message}`, 'error');
         } finally {
             setIsProcessingSplit(false);
@@ -1133,11 +1210,15 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         const confirmed = window.confirm(`Επιβεβαιώνετε την παραλαβή για την παρτίδα ${batch.sku}${batch.variant_suffix || ''}?`);
         if (confirmed) {
             setIsProcessingSplit(true);
+            await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
+            await queryClient.cancelQueries({ queryKey: productionKeys.boardBatches() });
+            const snapshot = applyMobileOptimisticStage(batch.id, targetStage, pendingDispatch);
             try {
                 await productionRepository.updateBatchStage(batch.id, targetStage, undefined, pendingDispatch);
                 await invalidateProductionBatches(queryClient);
                 showToast('Η παρτίδα παρελήφθη.', 'success');
             } catch (e: any) {
+                rollbackMobileBatchCaches(snapshot);
                 showToast(`Σφάλμα: ${e.message}`, 'error');
             } finally {
                 setIsProcessingSplit(false);
@@ -1148,10 +1229,17 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     const handleConfirmSplit = async (quantityToMove: number, targetStage: ProductionStage) => {
         if (!splitModalState) return;
         const { batch, pendingDispatch } = splitModalState;
+        const isWholeMove = quantityToMove >= batch.quantity;
 
         setIsProcessingSplit(true);
+        let snapshot: MobileBatchCacheSnapshot | undefined;
+        if (isWholeMove) {
+            await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
+            await queryClient.cancelQueries({ queryKey: productionKeys.boardBatches() });
+            snapshot = applyMobileOptimisticStage(batch.id, targetStage, pendingDispatch);
+        }
         try {
-            if (quantityToMove >= batch.quantity) {
+            if (isWholeMove) {
                 await productionRepository.updateBatchStage(batch.id, targetStage, undefined, pendingDispatch);
             } else {
                 const originalNewQty = batch.quantity - quantityToMove;
@@ -1172,6 +1260,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             showToast('Η μετακίνηση ολοκληρώθηκε.', 'success');
             setSplitModalState(null);
         } catch (e: any) {
+            rollbackMobileBatchCaches(snapshot);
             showToast(`Σφάλμα: ${e.message}`, 'error');
         } finally {
             setIsProcessingSplit(false);

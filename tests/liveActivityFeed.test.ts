@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { getLiveActivityActionText } from '../components/LiveActivityFeed';
-import type { LiveActivityNotification } from '../hooks/useLiveActivity';
+import {
+  appendUniqueLiveActivityNotification,
+  drainLiveActivityQueue,
+  type BroadcastEnvelope,
+  type LiveActivityNotification,
+} from '../hooks/useLiveActivity';
 
 const baseNotification: Omit<LiveActivityNotification, 'type' | 'receivedAt'> = {
   userName: 'Alex Papas',
@@ -21,5 +26,37 @@ describe('product live activity text', () => {
 
     expect(text.line1).toContain('Alex');
     expect(`${text.line1} ${text.line2 || ''}`).toContain('RN123P');
+  });
+});
+
+describe('live activity realtime helpers', () => {
+  it('flushes queued outbound events once when realtime subscribes', () => {
+    const queued: BroadcastEnvelope[] = [
+      { ...baseNotification, type: 'batch_moved', toStage: 'Casting' },
+      { ...baseNotification, eventId: 'event-2', type: 'batch_bulk_moved', count: 2 },
+    ];
+    const sent: BroadcastEnvelope[] = [];
+
+    const remaining = drainLiveActivityQueue(queued, (event) => sent.push(event));
+    const remainingAfterSecondFlush = drainLiveActivityQueue(remaining, (event) => sent.push(event));
+
+    expect(sent.map((event) => event.eventId)).toEqual(['event-1', 'event-2']);
+    expect(remaining).toEqual([]);
+    expect(remainingAfterSecondFlush).toEqual([]);
+  });
+
+  it('deduplicates received notifications by event id', () => {
+    const notification = {
+      ...baseNotification,
+      type: 'batch_moved',
+      toStage: 'Casting',
+      receivedAt: Date.now(),
+    } as LiveActivityNotification;
+
+    const once = appendUniqueLiveActivityNotification([], notification, 5);
+    const twice = appendUniqueLiveActivityNotification(once, notification, 5);
+
+    expect(twice).toHaveLength(1);
+    expect(twice[0].eventId).toBe('event-1');
   });
 });
