@@ -2457,19 +2457,18 @@ export default function LegalDocumentsPage({
           tail={statsStrip}
           below={(
             <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+              <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl bg-slate-50 p-1.5 border border-slate-200/60 shadow-sm">
                 <button
                   type="button"
                   onClick={() => setActiveTab('new')}
-                  className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-black transition ${activeTab === 'new' ? 'bg-[#060b00] text-white' : 'text-slate-700 hover:bg-slate-200'}`}
+                  className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold transition-all duration-200 ${activeTab === 'new' ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}
                 >
                   <FileCheck2 size={16} /> Δημιουργία
                 </button>
-                <span className="w-px self-stretch bg-slate-300" aria-hidden="true" />
                 <button
                   type="button"
                   onClick={() => setActiveTab('archive')}
-                  className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-black transition ${activeTab === 'archive' ? 'bg-[#060b00] text-white' : 'text-slate-700 hover:bg-slate-200'}`}
+                  className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold transition-all duration-200 ${activeTab === 'archive' ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}
                 >
                   <Archive size={16} /> Αρχείο
                 </button>
@@ -2482,7 +2481,7 @@ export default function LegalDocumentsPage({
                     key={tab.id}
                     type="button"
                     onClick={() => (tab.id === 'settings' ? handleSettingsTabClick() : setActiveTab(tab.id))}
-                    className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-black transition ${activeTab === tab.id ? 'bg-[#060b00] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                    className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold transition-all duration-200 ${activeTab === tab.id ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}
                   >
                     <Icon size={16} /> {tab.label}
                   </button>
@@ -2493,11 +2492,13 @@ export default function LegalDocumentsPage({
         />
       )}
 
-      {activeTab === 'new' && renderNewTab()}
-      {activeTab === 'archive' && renderArchiveTab()}
-      {activeTab === 'sync' && renderSyncTab()}
-      {activeTab === 'delivery' && renderDeliveryTab()}
-      {activeTab === 'settings' && renderSettingsTab()}
+      <div key={activeTab} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+        {activeTab === 'new' && renderNewTab()}
+        {activeTab === 'archive' && renderArchiveTab()}
+        {activeTab === 'sync' && renderSyncTab()}
+        {activeTab === 'delivery' && renderDeliveryTab()}
+        {activeTab === 'settings' && renderSettingsTab()}
+      </div>
 
       <ProformaConvertModal
         isOpen={!!convertModal.proforma}

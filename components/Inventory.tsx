@@ -658,9 +658,9 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                 title="Κέντρο Αποθήκης"
                 subtitle="Απόθεμα, χώροι και ταχείες κινήσεις."
                 tail={(
-                    <div className="flex rounded-xl bg-slate-100 p-1">
-                        <button type="button" onClick={() => setActiveTab('stock')} className={`flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-bold transition-all ${activeTab === 'stock' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><Package size={16} /> Απόθεμα</button>
-                        <button type="button" onClick={() => setActiveTab('warehouses')} className={`flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-bold transition-all ${activeTab === 'warehouses' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><Store size={16} /> Χώροι</button>
+                    <div className="inline-flex items-center rounded-xl bg-slate-100 p-0.5 border border-slate-200/50 shadow-sm">
+                        <button type="button" onClick={() => setActiveTab('stock')} className={`flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-bold transition-all duration-200 ${activeTab === 'stock' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-100' : 'text-slate-500 hover:text-slate-700'}`}><Package size={16} /> Απόθεμα</button>
+                        <button type="button" onClick={() => setActiveTab('warehouses')} className={`flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-bold transition-all duration-200 ${activeTab === 'warehouses' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-100' : 'text-slate-500 hover:text-slate-700'}`}><Store size={16} /> Χώροι</button>
                     </div>
                 )}
             />

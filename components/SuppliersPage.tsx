@@ -225,9 +225,9 @@ export default function SuppliersPage() {
                                 placeholder="Αναζήτηση προμηθευτή..."
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm font-bold shadow-inner outline-none transition-all focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10"
+                                className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm font-bold outline-none transition-all focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
                             />
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-purple-500" size={18} />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                         </div>
                         <button
                             type="button"

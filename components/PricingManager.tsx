@@ -495,25 +495,25 @@ export default function PricingManager({ products, settings, materials }: Props)
         roundedClassName="rounded-2xl"
         tail={(
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex rounded-xl border border-slate-100 bg-slate-50 p-0.5">
+            <div className="flex rounded-xl bg-slate-100 p-0.5 border border-slate-200/50 shadow-sm">
               <button
                 type="button"
                 onClick={() => switchMode('cost')}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${mode === 'cost' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:bg-white'}`}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 ${mode === 'cost' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-100' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 <RefreshCw size={14} /> Κόστος (Ασήμι)
               </button>
               <button
                 type="button"
                 onClick={() => switchMode('selling')}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${mode === 'selling' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:bg-white'}`}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 ${mode === 'selling' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-100' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 <TrendingUp size={14} /> Χονδρική
               </button>
               <button
                 type="button"
                 onClick={() => switchMode('history')}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${mode === 'history' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-white'}`}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 ${mode === 'history' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-100' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 <History size={14} /> Ιστορικό
               </button>

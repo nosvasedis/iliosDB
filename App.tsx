@@ -416,9 +416,9 @@ function ErpAppContent() {
     settings: <SettingsPage />,
     resources: (
       <div className="space-y-6">
-        <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-100 w-fit flex gap-2 mx-auto sm:mx-0 overflow-x-auto">
-          <button onClick={() => setResourceTab('materials')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 whitespace-nowrap ${resourceTab === 'materials' ? 'bg-[#060b00] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}><Gem size={18} /> Υλικά</button>
-          <button onClick={() => setResourceTab('molds')} className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 whitespace-nowrap ${resourceTab === 'molds' ? 'bg-[#060b00] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}><MapPin size={18} /> Λάστιχα</button>
+        <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl bg-slate-50 p-1.5 border border-slate-200/60 shadow-sm w-fit">
+          <button onClick={() => setResourceTab('materials')} className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-3 text-sm font-bold transition-all duration-200 ${resourceTab === 'materials' ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}><Gem size={18} /> Υλικά</button>
+          <button onClick={() => setResourceTab('molds')} className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-3 text-sm font-bold transition-all duration-200 ${resourceTab === 'molds' ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}><MapPin size={18} /> Λάστιχα</button>
         </div>
         {resourceTab === 'materials' && <MaterialsPage settings={settings} />}
         {resourceTab === 'molds' && <MoldsPage />}

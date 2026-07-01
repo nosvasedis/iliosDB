@@ -1626,18 +1626,18 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                 subtitle="Διαχείριση λιανικής και χονδρικής."
                 tail={(
                     <div className="flex flex-wrap gap-3">
-                        <div className="flex rounded-xl bg-slate-100 p-1">
+                        <div className="inline-flex items-center rounded-xl bg-slate-100 p-0.5 border border-slate-200/50 shadow-sm">
                             <button
                                 type="button"
                                 onClick={() => setActiveTab('active')}
-                                className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-all ${activeTab === 'active' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-all duration-200 ${activeTab === 'active' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-100' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 <ShoppingCart size={16} /> Ενεργές
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setActiveTab('archived')}
-                                className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-all ${activeTab === 'archived' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-all duration-200 ${activeTab === 'archived' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-100' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 <Archive size={16} /> Αρχείο
                             </button>

@@ -525,8 +525,8 @@ export default function MaterialsPage({ settings }: Props) {
                 </button>
             </div>
 
-            {/* GRID - NOTE: removed local overflow-y-auto to allow parent scroll detection, OR rely on window scroll if structure allows */}
-            <div className="flex-1 pr-2 pb-20">
+            {/* GRID - animated on tab switch */}
+            <div key={activeTab} className="flex-1 pr-2 pb-20 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 {filteredMaterials.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {filteredMaterials.map(material => (

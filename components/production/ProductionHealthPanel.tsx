@@ -38,15 +38,25 @@ export default function ProductionHealthPanel({ summary, notes, onFilterClick }:
     return (
         <>
             <div className="flex flex-wrap items-center justify-center gap-3 md:gap-4">
-                {/* Health score circle + title */}
-                <div className="flex items-center gap-3 shrink-0 min-w-0">
-                    <div className={`w-16 h-16 shrink-0 rounded-full flex items-center justify-center text-xl font-black border-4 shadow-inner ${summary.healthScore > 80 ? 'border-emerald-100 text-emerald-600 bg-emerald-50' : (summary.healthScore > 50 ? 'border-amber-100 text-amber-600 bg-amber-50' : 'border-red-100 text-red-600 bg-red-50')}`}>
+                {/* Health score circle + title — now a unified badge box matching the stat boxes below */}
+                <div className={`px-4 py-3 rounded-2xl border min-w-[128px] shrink-0 h-[100px] flex flex-col justify-center items-center text-center transition-all duration-200 hover:scale-[1.02] ${
+                    summary.healthScore > 80
+                        ? 'bg-emerald-50 border-emerald-100'
+                        : summary.healthScore > 50
+                            ? 'bg-amber-50 border-amber-100'
+                            : 'bg-red-50 border-red-100'
+                }`}>
+                    <div className={`w-12 h-12 mx-auto rounded-full flex items-center justify-center text-lg font-black border-[3px] shadow-inner mb-1 ${
+                        summary.healthScore > 80
+                            ? 'border-emerald-200 text-emerald-600 bg-white'
+                            : summary.healthScore > 50
+                                ? 'border-amber-200 text-amber-600 bg-white'
+                                : 'border-red-200 text-red-600 bg-white'
+                    }`}>
                         {summary.healthScore.toFixed(0)}%
                     </div>
-                    <div className="min-w-0">
-                        <h3 className="font-bold text-slate-800 md:whitespace-nowrap">Υγεία Παραγωγής</h3>
-                        <p className="text-xs text-slate-500 md:whitespace-nowrap">Βάσει χρονικών ορίων</p>
-                    </div>
+                    <div className="text-[10px] font-bold text-slate-600 uppercase tracking-wide leading-tight">Υγεία Παραγωγής</div>
+                    <div className="text-[9px] text-slate-400 font-medium">Βάσει χρον. ορίων</div>
                 </div>
 
                 {/* Οδηγίες Παραγωγής preview box */}
@@ -76,22 +86,22 @@ export default function ProductionHealthPanel({ summary, notes, onFilterClick }:
                     </button>
                 )}
 
-                {/* Stat boxes */}
-                <button onClick={() => onFilterClick('onHold')} className="bg-amber-50 px-4 py-3 rounded-2xl border border-amber-100 min-w-[128px] shrink-0 h-[100px] flex flex-col justify-center hover:bg-amber-100 transition-all text-left">
+                {/* Stat boxes — with subtle hover lift */}
+                <button onClick={() => onFilterClick('onHold')} className="bg-amber-50 px-4 py-3 rounded-2xl border border-amber-100 min-w-[128px] shrink-0 h-[100px] flex flex-col justify-center hover:bg-amber-100 transition-all duration-200 hover:scale-[1.02] text-left">
                     <div className="text-[11px] font-bold text-amber-600 uppercase tracking-wide mb-1 flex items-center gap-1 whitespace-nowrap"><PauseCircle size={12} className="shrink-0" /> Σε Αναμονή</div>
                     <div className="text-2xl font-black text-amber-700">{summary.onHold}</div>
                 </button>
-                <button onClick={() => onFilterClick('active')} className="bg-slate-50 px-4 py-3 rounded-2xl border border-slate-100 min-w-[128px] shrink-0 h-[100px] flex flex-col justify-center hover:bg-slate-100 transition-all text-left">
+                <button onClick={() => onFilterClick('active')} className="bg-slate-50 px-4 py-3 rounded-2xl border border-slate-100 min-w-[128px] shrink-0 h-[100px] flex flex-col justify-center hover:bg-slate-100 transition-all duration-200 hover:scale-[1.02] text-left">
                     <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-1 flex items-center gap-1 whitespace-nowrap"><Activity size={12} className="shrink-0" /> Ενεργά</div>
                     <div className="text-2xl font-black text-slate-800">{summary.inProgress}</div>
                 </button>
-                <button onClick={() => onFilterClick('delayed')} className={`px-4 py-3 rounded-2xl border min-w-[128px] shrink-0 h-[100px] flex flex-col justify-center transition-all text-left ${summary.delayed > 0 ? 'bg-red-50 border-red-100 hover:bg-red-100' : 'bg-slate-50 border-slate-100 hover:bg-slate-100'}`}>
+                <button onClick={() => onFilterClick('delayed')} className={`px-4 py-3 rounded-2xl border min-w-[128px] shrink-0 h-[100px] flex flex-col justify-center transition-all duration-200 hover:scale-[1.02] text-left ${summary.delayed > 0 ? 'bg-red-50 border-red-100 hover:bg-red-100' : 'bg-slate-50 border-slate-100 hover:bg-slate-100'}`}>
                     <div className={`text-[11px] font-bold uppercase tracking-wide mb-1 flex items-center gap-1 whitespace-nowrap ${summary.delayed > 0 ? 'text-red-500' : 'text-slate-400'}`}>
                         <Siren size={12} className={`shrink-0 ${summary.delayed > 0 ? 'animate-pulse' : ''}`} /> Καθυστέρηση
                     </div>
                     <div className={`text-2xl font-black ${summary.delayed > 0 ? 'text-red-600' : 'text-slate-800'}`}>{summary.delayed}</div>
                 </button>
-                <button onClick={() => onFilterClick('ready')} className="bg-emerald-50 px-4 py-3 rounded-2xl border border-emerald-100 min-w-[128px] shrink-0 h-[100px] flex flex-col justify-center hover:bg-emerald-100 transition-all text-left">
+                <button onClick={() => onFilterClick('ready')} className="bg-emerald-50 px-4 py-3 rounded-2xl border border-emerald-100 min-w-[128px] shrink-0 h-[100px] flex flex-col justify-center hover:bg-emerald-100 transition-all duration-200 hover:scale-[1.02] text-left">
                     <div className="text-[11px] font-bold text-emerald-600 uppercase tracking-wide mb-1 flex items-center gap-1 whitespace-nowrap"><CheckCircle size={12} className="shrink-0" /> Έτοιμα</div>
                     <div className="text-2xl font-black text-emerald-700">{summary.ready}</div>
                 </button>

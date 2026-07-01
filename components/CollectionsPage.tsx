@@ -453,7 +453,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                         <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wide">Επιλογη απο Μητρωο</h3>
                                         <div className="relative">
                                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                            <input type="text" placeholder="Αναζήτηση..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-11 p-3 border border-slate-200 rounded-xl bg-slate-50 text-sm font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"/>
+                                            <input type="text" placeholder="Αναζήτηση..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-11 p-3 border border-slate-200 rounded-xl bg-white text-sm font-medium outline-none transition-all focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"/>
                                         </div>
                                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-64 overflow-y-auto custom-scrollbar p-1">
                                             {filteredAvailableProducts.map(p => (
