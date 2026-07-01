@@ -81,18 +81,23 @@ const LegalDocumentsPage = lazyPage(() => import('./components/LegalDocumentsPag
 
 const ContentLoader = () => (
   <div className="min-h-[320px] w-full flex flex-col items-center justify-center text-slate-500">
-    <div className="relative mb-5">
-      <div className="absolute inset-0 bg-amber-500/20 rounded-full blur-xl animate-pulse" />
-      <div className="relative w-16 h-16 rounded-2xl bg-[#060b00] flex items-center justify-center shadow-xl shadow-amber-900/10 animate-in zoom-in-95">
-        <Gem size={28} className="text-amber-500" />
+    <div className="relative mb-5 flex items-center justify-center">
+      {/* subtle ambient glow */}
+      <div className="absolute inset-0 h-24 w-24 -translate-x-1/2 -translate-y-1/2 top-1/2 left-1/2 rounded-full bg-amber-400/15 blur-2xl animate-pulse" />
+      {/* orbit ring */}
+      <div className="absolute h-[72px] w-[72px] rounded-full border border-amber-200/60" />
+      {/* orbiting spark */}
+      <div className="absolute h-[72px] w-[72px] animate-[spin_2s_linear_infinite]">
+        <div className="absolute -top-1 left-1/2 h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.9)]" />
       </div>
+      {/* central gem */}
+      <Gem
+        size={34}
+        className="relative text-amber-500 drop-shadow-[0_0_20px_rgba(245,158,11,0.45)] animate-pulse"
+        strokeWidth={1.25}
+      />
     </div>
-    <div className="flex items-center gap-1.5">
-      <span className="w-2 h-2 rounded-full bg-amber-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-      <span className="w-2 h-2 rounded-full bg-amber-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-      <span className="w-2 h-2 rounded-full bg-amber-500 animate-bounce" style={{ animationDelay: '300ms' }} />
-    </div>
-    <p className="mt-3 font-bold text-slate-400 tracking-wide">Φόρτωση ενότητας...</p>
+    <p className="font-bold text-slate-400 tracking-wide">Φόρτωση ενότητας</p>
   </div>
 );
 
@@ -426,12 +431,8 @@ function ErpAppContent() {
     settings: <SettingsPage />,
     resources: (
       <div className="space-y-6">
-        <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl bg-slate-50 p-1.5 border border-slate-200/60 shadow-sm w-fit">
-          <button onClick={() => setResourceTab('materials')} className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-3 text-sm font-bold transition-all duration-200 ${resourceTab === 'materials' ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}><Gem size={18} /> Υλικά</button>
-          <button onClick={() => setResourceTab('molds')} className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-3 text-sm font-bold transition-all duration-200 ${resourceTab === 'molds' ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}><MapPin size={18} /> Λάστιχα</button>
-        </div>
-        {resourceTab === 'materials' && <MaterialsPage settings={settings} />}
-        {resourceTab === 'molds' && <MoldsPage />}
+        {resourceTab === 'materials' && <MaterialsPage settings={settings} resourceTab={resourceTab} onResourceTabChange={setResourceTab} />}
+        {resourceTab === 'molds' && <MoldsPage resourceTab={resourceTab} onResourceTabChange={setResourceTab} />}
       </div>
     ),
     collections: <CollectionsPage products={products} onPrint={(data) => setPriceListPrintData(data)} />,

@@ -157,10 +157,6 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
     }
   };
 
-  if (isLoading) {
-    return <div className="p-4 text-sm font-medium text-slate-500">Φόρτωση ημερολογίου...</div>;
-  }
-
   return (
     <div className="flex min-h-0 flex-col bg-slate-50 pb-28">
       <MobileScreenHeader

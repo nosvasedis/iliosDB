@@ -2456,24 +2456,21 @@ export default function LegalDocumentsPage({
           roundedClassName="rounded-lg"
           tail={statsStrip}
           below={(
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl bg-slate-50 p-1.5 border border-slate-200/60 shadow-sm">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('new')}
-                  className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold transition-all duration-200 ${activeTab === 'new' ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}
-                >
-                  <FileCheck2 size={16} /> Δημιουργία
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('archive')}
-                  className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold transition-all duration-200 ${activeTab === 'archive' ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}
-                >
-                  <Archive size={16} /> Αρχείο
-                </button>
-              </div>
-
+            <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl bg-slate-50 p-1.5 border border-slate-200/60 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setActiveTab('new')}
+                className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold transition-all duration-200 ${activeTab === 'new' ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}
+              >
+                <FileCheck2 size={16} /> Δημιουργία
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('archive')}
+                className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold transition-all duration-200 ${activeTab === 'archive' ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}
+              >
+                <Archive size={16} /> Αρχείο
+              </button>
               {secondaryTabItems.map((tab) => {
                 const Icon = tab.icon;
                 return (

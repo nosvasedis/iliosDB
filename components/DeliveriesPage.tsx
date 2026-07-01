@@ -214,10 +214,6 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
     }
   };
 
-  if (isLoading) {
-    return <div className="p-8 text-slate-500 font-medium">Φόρτωση ημερολογίου...</div>;
-  }
-
   return (
     <div className="space-y-6">
       <DesktopPageHeader

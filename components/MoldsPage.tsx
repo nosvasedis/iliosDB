@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Mold } from '../types';
-import { Trash2, Plus, MapPin, Loader2, Search, X, Check, MoreHorizontal, Puzzle } from 'lucide-react';
+import { Trash2, Plus, MapPin, Gem, Loader2, Search, X, Check, MoreHorizontal, Puzzle } from 'lucide-react';
 import { filterMoldsByCategory, isLstxMold, MoldCategoryTab } from '../utils/moldCategories';
 import { supabase } from '../lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -116,7 +116,12 @@ const MoldCard: React.FC<MoldCardProps> = ({ mold, onSaveRow, onDelete }) => {
 };
 
 
-export default function MoldsPage() {
+interface Props {
+    resourceTab?: 'materials' | 'molds';
+    onResourceTabChange?: (tab: 'materials' | 'molds') => void;
+}
+
+export default function MoldsPage({ resourceTab = 'molds', onResourceTabChange }: Props) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { data: molds, isLoading } = useQuery<Mold[]>({ queryKey: ['molds'], queryFn: api.getMolds });
@@ -255,6 +260,24 @@ export default function MoldsPage() {
                 )}
                 below={(
                     <div className="flex flex-wrap items-center gap-3">
+                        {/* Resource-level switcher: Υλικά / Λάστιχα */}
+                        <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl bg-slate-50 p-1 border border-slate-200/60 shadow-sm">
+                            <button
+                                type="button"
+                                onClick={() => onResourceTabChange?.('materials')}
+                                className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-bold transition-all duration-200 ${resourceTab === 'materials' ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}
+                            >
+                                <Gem size={16} /> Υλικά
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => onResourceTabChange?.('molds')}
+                                className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-bold transition-all duration-200 ${resourceTab === 'molds' ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}
+                            >
+                                <MapPin size={16} /> Λάστιχα
+                            </button>
+                        </div>
+
                         <div className="bg-white border border-slate-200 p-1 rounded-xl flex shadow-sm">
                             <button
                                 type="button"

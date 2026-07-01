@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Material, MaterialType, GlobalSettings } from '../types';
-import { Trash2, Plus, Save, Loader2, Gem, Box, Activity, Puzzle, Palette, Scroll, Search, X, Globe, Package, MoreHorizontal, User, CircleDollarSign, Check, XCircle, LayoutGrid, List as ListIcon, Calculator } from 'lucide-react';
+import { Trash2, Plus, Save, Loader2, Gem, MapPin, Box, Activity, Puzzle, Palette, Scroll, Search, X, Globe, Package, MoreHorizontal, User, CircleDollarSign, Check, XCircle, LayoutGrid, List as ListIcon, Calculator } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
@@ -20,6 +20,8 @@ const MAT_TYPE_MAP: Record<MaterialType, string> = {
 
 interface Props {
     settings: GlobalSettings;
+    resourceTab?: 'materials' | 'molds';
+    onResourceTabChange?: (tab: 'materials' | 'molds') => void;
 }
 
 // Simplified Filter: Only Standard vs Strand for stones
@@ -292,7 +294,7 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
     );
 };
 
-export default function MaterialsPage({ settings }: Props) {
+export default function MaterialsPage({ settings, resourceTab = 'materials', onResourceTabChange }: Props) {
   const queryClient = useQueryClient();
   const { showToast, confirm } = useUI();
   
@@ -472,6 +474,24 @@ export default function MaterialsPage({ settings }: Props) {
             )}
             below={(
                 <div className="flex flex-wrap items-center gap-3">
+                    {/* Resource-level switcher: Υλικά / Λάστιχα */}
+                    <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl bg-slate-50 p-1 border border-slate-200/60 shadow-sm">
+                        <button
+                            type="button"
+                            onClick={() => onResourceTabChange?.('materials')}
+                            className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-bold transition-all duration-200 ${resourceTab === 'materials' ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}
+                        >
+                            <Gem size={16} /> Υλικά
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onResourceTabChange?.('molds')}
+                            className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-bold transition-all duration-200 ${resourceTab === 'molds' ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}
+                        >
+                            <MapPin size={16} /> Λάστιχα
+                        </button>
+                    </div>
+
                     {/* Tab buttons — center-aligned */}
                     <div className="flex gap-1 overflow-x-auto rounded-2xl bg-slate-50 p-1 border border-slate-200/60 shadow-sm">
                         {TABS.map(tab => (
