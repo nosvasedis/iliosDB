@@ -7,6 +7,13 @@ import { getVariantComponents } from '../utils/pricingEngine';
 import { formatOrderId } from '../utils/orderUtils';
 import { formatGreekDurationFromMs, getProductionTimingStatusClasses, getProductionTimingStatusLabel } from '../utils/productionTiming';
 import { PRODUCTION_STAGES, getProductionStageLabel } from '../utils/productionStages';
+import {
+    getMovementSurfaceClass,
+    MOVEMENT_BADGE_CLASS,
+    MOVEMENT_FEEDBACK_LABEL,
+    MOVEMENT_OVERLAY_CLASS,
+    MOVEMENT_PROGRESS_BAR_CLASS,
+} from './production/movementFeedback';
 
 // Finish/Plating Visuals
 export const FINISH_STYLES: Record<string, { style: string, label: string }> = {
@@ -271,21 +278,22 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                     ? 'border-amber-400 bg-amber-50/30' // Visual indication of HOLD
                     : (isRefurbish ? 'border-blue-300 ring-1 ring-blue-50' : (!isSpecialCreation ? 'border-slate-200 hover:border-emerald-400 hover:shadow-md' : 'hover:border-violet-400 hover:shadow-md')))}
                     ${isReady ? 'opacity-90 hover:opacity-100' : ''}
-                    ${isMoving ? 'ring-2 ring-emerald-400/70 ring-offset-1 shadow-lg animate-pulse' : ''}
+                    ${getMovementSurfaceClass(isMoving)}
         `}
         >
             {/* Syncing overlay shown while a move is in flight. Keeps the card
                 visually "in transit" and blocks accidental double-clicks. */}
             {isMoving && (
                 <div
-                    className="absolute inset-0 rounded-2xl bg-white/55 backdrop-blur-[1.5px] z-20 flex items-start justify-center pt-3 pointer-events-auto cursor-wait"
+                    className={`${MOVEMENT_OVERLAY_CLASS} pt-3`}
                     onClick={(e) => { e.stopPropagation(); }}
                     aria-hidden="true"
                 >
-                    <div className="flex items-center gap-1.5 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg ring-2 ring-white">
+                    <div className={MOVEMENT_BADGE_CLASS}>
                         <Loader2 size={11} className="animate-spin" />
-                        <span>Μετακινείται…</span>
+                        <span>{MOVEMENT_FEEDBACK_LABEL}</span>
                     </div>
+                    <div className={MOVEMENT_PROGRESS_BAR_CLASS} />
                 </div>
             )}
             {/* Header Badges */}
@@ -498,7 +506,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                                 }`}
                             >
                                 {isMoving ? <Loader2 size={12} className="animate-spin" /> : <MoveRight size={12} />}
-                                {isMoving ? 'Μετακινείται…' : (isAwaiting ? 'Παραλαβή' : 'Μετακίνηση')}
+                                {isMoving ? MOVEMENT_FEEDBACK_LABEL : (isAwaiting ? 'Παραλαβή' : 'Μετακίνηση')}
                                 {!isMoving && onMoveToStage && (stageSelectorOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
                             </button>
                         </div>

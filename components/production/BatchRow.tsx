@@ -10,6 +10,13 @@ import { getProductionTimingStatusClasses } from '../../utils/productionTiming';
 import { getProductOptionColorLabel } from '../../utils/xrOptions';
 import { StageFlowRail } from './StageFlowRail';
 import { STAGES, STAGE_BUTTON_COLORS, getStageColorKey } from './stageConstants';
+import {
+    getMovementSurfaceClass,
+    MOVEMENT_BADGE_CLASS,
+    MOVEMENT_FEEDBACK_LABEL,
+    MOVEMENT_OVERLAY_CLASS,
+    MOVEMENT_PROGRESS_BAR_CLASS,
+} from './movementFeedback';
 
 interface BatchRowProps {
     batch: ProductionBatch;
@@ -70,13 +77,14 @@ export const BatchRow = React.memo(function BatchRow({
     const stageColors = STAGE_BUTTON_COLORS[getStageColorKey(batch.current_stage)];
 
     return (
-        <div className={`rounded-xl border text-xs transition-all relative ${isMoving ? 'border-emerald-300 ring-2 ring-emerald-400/60 ring-offset-1 shadow-lg animate-pulse' : isSelected ? 'border-blue-300 bg-blue-50/30' : 'border-slate-200 bg-slate-50/50'}`}>
+        <div className={`rounded-xl border text-xs transition-all relative ${isMoving ? `border-emerald-300 ${getMovementSurfaceClass(true)}` : isSelected ? 'border-blue-300 bg-blue-50/30' : 'border-slate-200 bg-slate-50/50'}`}>
             {isMoving && (
-                <div className="absolute inset-0 z-20 rounded-xl bg-white/55 backdrop-blur-[1.5px] flex items-start justify-center pt-1.5 pointer-events-auto cursor-wait">
-                    <div className="flex items-center gap-1.5 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg ring-2 ring-white">
+                <div className={`${MOVEMENT_OVERLAY_CLASS} pt-1.5`}>
+                    <div className={MOVEMENT_BADGE_CLASS}>
                         <Loader2 size={11} className="animate-spin" />
-                        <span>Μετακινείται…</span>
+                        <span>{MOVEMENT_FEEDBACK_LABEL}</span>
                     </div>
+                    <div className={MOVEMENT_PROGRESS_BAR_CLASS} />
                 </div>
             )}
             {/* Compact row — always visible */}

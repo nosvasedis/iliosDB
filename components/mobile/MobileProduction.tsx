@@ -16,6 +16,13 @@ import { getSpecialCreationProductStub, isSpecialCreationSku } from '../../utils
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import FinderBatchStageSelector from '../production/FinderBatchStageSelector';
 import MobileBatchStageMoveSheet from './MobileBatchStageMoveSheet';
+import {
+    getMovementSurfaceClass,
+    MOVEMENT_BADGE_CLASS,
+    MOVEMENT_FEEDBACK_LABEL,
+    MOVEMENT_OVERLAY_CLASS,
+    MOVEMENT_PROGRESS_BAR_CLASS,
+} from '../production/movementFeedback';
 import { PRODUCTION_STAGES, getProductionStageLabel } from '../../utils/productionStages';
 import { getFinderSearchBadgeTone, getFinderSearchResultSurface } from '../../utils/productionFinderSurfaces';
 import {
@@ -82,7 +89,8 @@ const MobileBatchCard: React.FC<{
     onMoveToStage?: (b: ProductionBatch, stage: ProductionStage, options?: { pendingDispatch?: boolean }) => void,
     onToggleHold: (b: ProductionBatch) => void, 
     onClick: (b: ProductionBatch) => void,
-}> = ({ batch, onNext, onMoveToStage, onToggleHold, onClick }) => {
+    isMoving?: boolean,
+}> = ({ batch, onNext, onMoveToStage, onToggleHold, onClick, isMoving = false }) => {
     const isSpecialCreation = isSpecialCreationSku(batch.sku);
     const isDelayed = batch.isDelayed;
     const isReady = batch.current_stage === ProductionStage.Ready;
@@ -116,8 +124,22 @@ const MobileBatchCard: React.FC<{
         <>
         <div
             onClick={() => onClick(batch)}
-            className={`p-3 rounded-2xl border shadow-sm relative transition-transform active:scale-[0.98] cursor-pointer touch-manipulation ${outerSurface}`}
+            aria-busy={isMoving || undefined}
+            className={`p-3 rounded-2xl border shadow-sm relative transition-transform active:scale-[0.98] cursor-pointer touch-manipulation overflow-hidden ${outerSurface} ${getMovementSurfaceClass(isMoving)}`}
         >
+            {isMoving && (
+                <div
+                    className={`${MOVEMENT_OVERLAY_CLASS} pt-3`}
+                    onClick={(e) => { e.stopPropagation(); }}
+                    aria-hidden="true"
+                >
+                    <div className={MOVEMENT_BADGE_CLASS}>
+                        <Loader2 size={11} className="animate-spin" />
+                        <span>{MOVEMENT_FEEDBACK_LABEL}</span>
+                    </div>
+                    <div className={MOVEMENT_PROGRESS_BAR_CLASS} />
+                </div>
+            )}
             <div className="flex justify-between items-start gap-3 mb-2">
                 <div className="w-11 h-11 shrink-0 rounded-xl overflow-hidden border border-slate-100 bg-slate-50 flex items-center justify-center">
                     {(batch as any).product_image ? (
@@ -174,11 +196,12 @@ const MobileBatchCard: React.FC<{
                     <button
                         type="button"
                         onClick={() => onToggleHold(batch)}
+                        disabled={isMoving}
                         className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all shadow-sm active:scale-95 border ${
                             batch.on_hold
                                 ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
                                 : 'bg-amber-100 text-amber-700 border-amber-200'
-                        }`}
+                        } disabled:opacity-50 disabled:cursor-wait`}
                     >
                         {batch.on_hold ? <PlayCircle size={12} className="fill-current" /> : <PauseCircle size={12} />}
                         {batch.on_hold ? 'Συνέχεια' : 'Αναμονή'}
@@ -190,20 +213,22 @@ const MobileBatchCard: React.FC<{
                                 <button
                                     type="button"
                                     onClick={() => onMoveToStage(batch, ProductionStage.Polishing, { pendingDispatch: false })}
-                                    className="flex items-center gap-1 bg-teal-100 active:bg-teal-200 text-teal-700 p-1.5 rounded-lg text-[10px] font-bold border border-teal-200 transition-all shadow-sm active:scale-95"
+                                    disabled={isMoving}
+                                    className="flex items-center gap-1 bg-teal-100 active:bg-teal-200 text-teal-700 p-1.5 rounded-lg text-[10px] font-bold border border-teal-200 transition-all shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-wait"
                                     title="Αποστολή στον Τεχνίτη"
                                 >
-                                    <Truck size={12} />
+                                    {isMoving ? <Loader2 size={12} className="animate-spin" /> : <Truck size={12} />}
                                 </button>
                             )}
                             {!batch.pending_dispatch && (
                                 <button
                                     type="button"
                                     onClick={() => onMoveToStage(batch, ProductionStage.Polishing, { pendingDispatch: true })}
-                                    className="flex items-center gap-1 bg-blue-100 active:bg-blue-200 text-blue-700 p-1.5 rounded-lg text-[10px] font-bold border border-blue-200 transition-all shadow-sm active:scale-95"
+                                    disabled={isMoving}
+                                    className="flex items-center gap-1 bg-blue-100 active:bg-blue-200 text-blue-700 p-1.5 rounded-lg text-[10px] font-bold border border-blue-200 transition-all shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-wait"
                                     title="Επιστροφή σε Αναμονή Αποστολής"
                                 >
-                                    <Package size={12} />
+                                    {isMoving ? <Loader2 size={12} className="animate-spin" /> : <Package size={12} />}
                                 </button>
                             )}
                         </>
@@ -212,17 +237,19 @@ const MobileBatchCard: React.FC<{
                     {!isReady && !batch.on_hold && (
                         <button
                             type="button"
+                            disabled={isMoving}
                             onClick={(e) => {
+                                if (isMoving) return;
                                 if (onMoveToStage) {
                                     openStageSheet(e);
                                 } else {
                                     onNext(batch);
                                 }
                             }}
-                            className="flex items-center gap-1 bg-slate-100 active:bg-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[10px] font-bold transition-all shadow-sm active:scale-95"
+                            className="flex items-center gap-1 bg-slate-100 active:bg-slate-200 text-slate-600 px-2 py-1 rounded-lg text-[10px] font-bold transition-all shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-wait"
                         >
-                            <MoveRight size={11} />
-                            Στάδιο
+                            {isMoving ? <Loader2 size={11} className="animate-spin" /> : <MoveRight size={11} />}
+                            {isMoving ? MOVEMENT_FEEDBACK_LABEL : 'Στάδιο'}
                             {onMoveToStage ? <ChevronDown size={11} /> : null}
                         </button>
                     )}
@@ -1022,6 +1049,17 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     }, [orders, enrichedBatches]);
 
     const foundBatches = useMemo(() => buildMobileProductionFoundBatches(enrichedBatches, deferredFinderTerm), [enrichedBatches, deferredFinderTerm]);
+    const [mobileMovingBatchIds, setMobileMovingBatchIds] = useState<Set<string>>(new Set());
+    const markMobileMoving = useCallback((ids: string[], isMoving: boolean) => {
+        setMobileMovingBatchIds(prev => {
+            const next = new Set(prev);
+            ids.forEach(id => {
+                if (isMoving) next.add(id);
+                else next.delete(id);
+            });
+            return next;
+        });
+    }, []);
 
     type MobileBatchCacheSnapshot = {
         batches?: ProductionBatch[];
@@ -1099,6 +1137,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     const handleNextStage = async (batch: ProductionBatch) => {
         const nextStage = getMobileProductionNextStage(batch);
         if (!nextStage) return;
+        markMobileMoving([batch.id], true);
         await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
         await queryClient.cancelQueries({ queryKey: productionKeys.boardBatches() });
         const snapshot = applyMobileOptimisticStage(batch.id, nextStage, nextStage === ProductionStage.Polishing ? true : undefined);
@@ -1109,6 +1148,8 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         } catch (error) {
             rollbackMobileBatchCaches(snapshot);
             showToast("Σφάλμα μετακίνησης.", "error");
+        } finally {
+            markMobileMoving([batch.id], false);
         }
     };
 
@@ -1157,6 +1198,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             const wantPending = options?.pendingDispatch ?? true;
             const currentlyPending = !!batch.pending_dispatch;
             if (wantPending === currentlyPending) return; // No change
+            markMobileMoving([batch.id], true);
             await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
             await queryClient.cancelQueries({ queryKey: productionKeys.boardBatches() });
             const snapshot = applyMobileOptimisticPendingDispatch([batch.id], wantPending);
@@ -1171,6 +1213,8 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             } catch (e: any) {
                 rollbackMobileBatchCaches(snapshot);
                 showToast(`Σφάλμα: ${e.message}`, 'error');
+            } finally {
+                markMobileMoving([batch.id], false);
             }
             return;
         }
@@ -1191,6 +1235,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             .map((b) => b.id);
         if (ids.length === 0) return;
         setIsProcessingSplit(true);
+        markMobileMoving(ids, true);
         await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
         await queryClient.cancelQueries({ queryKey: productionKeys.boardBatches() });
         const snapshot = applyMobileOptimisticPendingDispatch(ids, false);
@@ -1202,6 +1247,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             rollbackMobileBatchCaches(snapshot);
             showToast(`Σφάλμα: ${e.message}`, 'error');
         } finally {
+            markMobileMoving(ids, false);
             setIsProcessingSplit(false);
         }
     };
@@ -1210,6 +1256,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         const confirmed = window.confirm(`Επιβεβαιώνετε την παραλαβή για την παρτίδα ${batch.sku}${batch.variant_suffix || ''}?`);
         if (confirmed) {
             setIsProcessingSplit(true);
+            markMobileMoving([batch.id], true);
             await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
             await queryClient.cancelQueries({ queryKey: productionKeys.boardBatches() });
             const snapshot = applyMobileOptimisticStage(batch.id, targetStage, pendingDispatch);
@@ -1221,6 +1268,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                 rollbackMobileBatchCaches(snapshot);
                 showToast(`Σφάλμα: ${e.message}`, 'error');
             } finally {
+                markMobileMoving([batch.id], false);
                 setIsProcessingSplit(false);
             }
         }
@@ -1234,6 +1282,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         setIsProcessingSplit(true);
         let snapshot: MobileBatchCacheSnapshot | undefined;
         if (isWholeMove) {
+            markMobileMoving([batch.id], true);
             await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
             await queryClient.cancelQueries({ queryKey: productionKeys.boardBatches() });
             snapshot = applyMobileOptimisticStage(batch.id, targetStage, pendingDispatch);
@@ -1263,6 +1312,9 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             rollbackMobileBatchCaches(snapshot);
             showToast(`Σφάλμα: ${e.message}`, 'error');
         } finally {
+            if (isWholeMove) {
+                markMobileMoving([batch.id], false);
+            }
             setIsProcessingSplit(false);
         }
     };
@@ -1528,6 +1580,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                                         onMoveToStage={(batch, stage, opts) => handleMoveBatch(batch, stage, opts)}
                                         onToggleHold={handleToggleHold}
                                         onEditNote={(b) => setEditingNoteBatch(b)}
+                                        isMoving={mobileMovingBatchIds.has(b.id)}
                                     />
                                 </div>
                             </div>
@@ -1604,8 +1657,9 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                     const isOpen = openStage === stage.id;
                     const colorClass = STAGE_COLORS[stage.color];
                     const headerCount = allAtStage.length;
+                    const stageMovingCount = stageBatches.filter(batch => mobileMovingBatchIds.has(batch.id)).length;
                     return (
-                        <div key={stage.id} className={`rounded-2xl border transition-all duration-300 overflow-hidden ${isOpen ? 'bg-white border-slate-300 shadow-md' : `bg-white border-slate-100 shadow-sm opacity-90`}`}>
+                        <div key={stage.id} className={`relative rounded-2xl border transition-all duration-300 overflow-hidden ${isOpen ? 'bg-white border-slate-300 shadow-md' : `bg-white border-slate-100 shadow-sm opacity-90`} ${stageMovingCount > 0 ? 'ring-2 ring-emerald-300/60 ring-offset-1 shadow-lg' : ''}`}>
                             <div onClick={() => toggleStage(stage.id)} className={`p-4 flex justify-between items-center cursor-pointer ${isOpen ? 'bg-slate-50' : ''}`}>
                                 <div className="flex items-center gap-3"><div className={`w-3 h-3 rounded-full ${colorClass.split(' ')[0].replace('bg-', 'bg-').replace('50', '500')}`} /><span className={`font-bold text-sm ${isOpen ? 'text-slate-900' : 'text-slate-600'}`}>{stage.label}</span></div>
                                 <div className="flex items-center gap-3">
@@ -1630,6 +1684,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                                     <span className={`px-2 py-0.5 rounded-md text-xs font-black ${headerCount > 0 ? colorClass : 'bg-slate-100 text-slate-400'}`}>{headerCount}</span>{isOpen ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
                                 </div>
                             </div>
+                            {stageMovingCount > 0 && <div className={MOVEMENT_PROGRESS_BAR_CLASS} />}
                             {isOpen && isPolishingStage && (
                                 <div
                                     className="px-3 pt-0 pb-3 border-b border-slate-100 bg-slate-50 space-y-2"
@@ -1675,7 +1730,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                                             className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-teal-600 text-white text-[11px] font-bold hover:bg-teal-700 transition-colors shadow-sm disabled:opacity-50"
                                             title="Αποστολή όλων στον Τεχνίτη"
                                         >
-                                            <Truck size={14} />
+                                            {isProcessingSplit ? <Loader2 size={14} className="animate-spin" /> : <Truck size={14} />}
                                             Αποστολή Όλων
                                         </button>
                                     )}
@@ -1683,7 +1738,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
                             )}
                             {isOpen && (
                                 <div className="p-3 space-y-3 bg-slate-50/50 border-t border-slate-100">
-                                    {stageBatches.map(batch => <MobileBatchCard key={batch.id} batch={batch} onNext={handleNextStage} onMoveToStage={handleMoveBatch} onToggleHold={handleToggleHold} onClick={setViewBuildBatch} />)}
+                                    {stageBatches.map(batch => <MobileBatchCard key={batch.id} batch={batch} onNext={handleNextStage} onMoveToStage={handleMoveBatch} onToggleHold={handleToggleHold} onClick={setViewBuildBatch} isMoving={mobileMovingBatchIds.has(batch.id)} />)}
                                     {stageBatches.length === 0 && (
                                         <div className="text-center py-6 text-slate-400 text-xs italic">
                                             {isPolishingStage

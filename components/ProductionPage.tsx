@@ -29,6 +29,15 @@ import ProductionBatchFinder from './production/ProductionBatchFinder';
 import FinderBatchStageSelector from './production/FinderBatchStageSelector';
 import VirtualizedProductionBatchGroups from './production/VirtualizedProductionBatchGroups';
 import {
+    getMovementProgressPercent,
+    getMovementStageSurfaceClass,
+    getMovementSurfaceClass,
+    MOVEMENT_BADGE_CLASS,
+    MOVEMENT_FEEDBACK_LABEL,
+    MOVEMENT_OVERLAY_CLASS,
+    MOVEMENT_PROGRESS_BAR_CLASS,
+} from './production/movementFeedback';
+import {
     buildBatchStageHistoryMap,
     getBatchAgeInfo,
     getBatchStageChronologyTimestamp,
@@ -115,6 +124,24 @@ const GENDER_CONFIG: Record<string, { label: string, style: string }> = {
     [Gender.Unisex]: { label: 'Unisex / Άλλα', style: 'bg-slate-100 text-slate-600 border-slate-200 ring-slate-100' },
     'Unknown': { label: 'Ακατηγοριοποίητα', style: 'bg-gray-50 text-gray-600 border-gray-200 ring-gray-100' }
 };
+
+const MovementSkeletonStack: React.FC<{ count?: number }> = ({ count = 3 }) => (
+    <div className="space-y-2" aria-hidden="true">
+        {Array.from({ length: count }).map((_, index) => (
+            <div key={index} className="rounded-2xl border border-emerald-100 bg-white/75 p-3 shadow-sm overflow-hidden relative">
+                <div className={MOVEMENT_PROGRESS_BAR_CLASS} />
+                <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-emerald-100/70 animate-pulse" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                        <div className="h-3 w-2/3 rounded-full bg-slate-200 animate-pulse" />
+                        <div className="h-2.5 w-1/2 rounded-full bg-slate-100 animate-pulse" />
+                    </div>
+                    <div className="h-6 w-10 rounded-full bg-emerald-100 animate-pulse" />
+                </div>
+            </div>
+        ))}
+    </div>
+);
 
 type PrintSelectorType = 'technician' | 'preparation' | 'aggregated' | 'labels' | 'assembly' | 'stagePdf';
 
@@ -2101,7 +2128,7 @@ const StageInspectorModal: React.FC<{
                                         return (
                                     <div className={`relative bg-white rounded-2xl border shadow-sm overflow-hidden transition-shadow hover:shadow-md ${leftBorder}
                                         ${batch.on_hold ? 'border-l-[4px] border-amber-200 bg-amber-50/30' : 'border-l-[3px] border-slate-200'}
-                                        ${rowMoving ? 'ring-2 ring-emerald-400/70 ring-offset-1 shadow-lg animate-pulse' : ''}`}
+                                        ${getMovementSurfaceClass(rowMoving)}`}
                                         aria-busy={rowMoving || undefined}
                                     >
                                         {/* Hold bar */}
@@ -2214,14 +2241,15 @@ const StageInspectorModal: React.FC<{
                                         </div>
                                         {rowMoving && (
                                             <div
-                                                className="absolute inset-0 rounded-2xl bg-white/55 backdrop-blur-[1.5px] z-20 flex items-start justify-center pt-3 pointer-events-auto cursor-wait"
+                                                className={`${MOVEMENT_OVERLAY_CLASS} pt-3`}
                                                 onClick={(e) => { e.stopPropagation(); }}
                                                 aria-hidden="true"
                                             >
-                                                <div className="flex items-center gap-1.5 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg ring-2 ring-white">
+                                                <div className={MOVEMENT_BADGE_CLASS}>
                                                     <Loader2 size={11} className="animate-spin" />
-                                                    <span>Μετακινείται…</span>
+                                                    <span>{MOVEMENT_FEEDBACK_LABEL}</span>
                                                 </div>
+                                                <div className={MOVEMENT_PROGRESS_BAR_CLASS} />
                                             </div>
                                         )}
                                     </div>
@@ -2321,6 +2349,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     const [bulkMoveTarget, setBulkMoveTarget] = useState<ProductionStage | null>(null);
     const [bulkMovePendingDispatch, setBulkMovePendingDispatch] = useState<boolean | undefined>(undefined);
     const [isBulkMoving, setIsBulkMoving] = useState(false);
+    const [labelingBulkMoveIds, setLabelingBulkMoveIds] = useState<string[]>([]);
 
     useEffect(() => {
         const intervalId = window.setInterval(() => setTimingNow(Date.now()), 60_000);
@@ -3055,6 +3084,19 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         () => (stageBatchesByStage[ProductionStage.Labeling] || []).filter(batch => !batch.on_hold),
         [stageBatchesByStage]
     );
+    const labelingBulkInFlightCount = useMemo(
+        () => labelingBulkMoveIds.filter(id => movingBatchIds.has(id)).length,
+        [labelingBulkMoveIds, movingBatchIds]
+    );
+    const labelingBulkTotal = labelingBulkMoveIds.length;
+    const isCompletingAllLabeling = isBulkMoving && labelingBulkTotal > 0;
+    const labelingBulkProgress = getMovementProgressPercent(
+        labelingBulkTotal - labelingBulkInFlightCount,
+        labelingBulkTotal
+    );
+    const visibleLabelingBulkProgress = isCompletingAllLabeling
+        ? Math.max(12, labelingBulkProgress)
+        : 0;
 
     // Handle Print Request with Modal (New Logic)
     const handlePrintRequest = (batchesToPrint: EnhancedProductionBatch[], type: PrintSelectorType) => {
@@ -3086,6 +3128,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         // column jumps immediately so cards appear in Έτοιμα without waiting for
         // the server. Rollback the entire cache on any error.
         markMoving(allIds, true);
+        setLabelingBulkMoveIds(allIds);
         setIsBulkMoving(true);
         await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
         await queryClient.cancelQueries({ queryKey: productionKeys.boardBatches() });
@@ -3131,6 +3174,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             showToast(`Σφάλμα: ${e.message}`, 'error');
         } finally {
             markMoving(allIds, false);
+            setLabelingBulkMoveIds([]);
             setIsBulkMoving(false);
         }
     };
@@ -3477,11 +3521,16 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         const colors = STAGE_COLORS[stage.color as keyof typeof STAGE_COLORS];
                         const isTarget = dropTarget === stage.id;
                         const isExpanded = expandedStageId === stage.id;
+                        const stageMovingCount = stageBatches.filter(batch => movingBatchIds.has(batch.id)).length;
+                        const isLabelingBulkSource = stage.id === ProductionStage.Labeling && isCompletingAllLabeling;
+                        const isStageMovementActive = stageMovingCount > 0 || isLabelingBulkSource;
 
                         // ── Two separate Kanban panels for the Polishing (Τεχνίτης) sub-stages ──
                         if (stage.id === ProductionStage.Polishing) {
                             const pendingCollapsed = polishingFocus === 'dispatched';
                             const dispatchedCollapsed = polishingFocus === 'pending';
+                            const pendingMovingCount = polishingPendingBatches.filter(batch => movingBatchIds.has(batch.id)).length;
+                            const dispatchedMovingCount = polishingDispatchedBatches.filter(batch => movingBatchIds.has(batch.id)).length;
 
                             return (
                                 <div
@@ -3499,7 +3548,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                     <div
                                         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropTarget(ProductionStage.Polishing); setPolishingDropTarget('pending'); }}
                                         onDrop={() => { void handleDrop(ProductionStage.Polishing, true); setPolishingDropTarget(null); }}
-                                        className={`flex flex-col rounded-3xl border transition-all duration-300 w-full min-h-[180px] lg:min-h-0 ${pendingCollapsed ? 'lg:flex-none' : 'lg:flex-1'} ${polishingDropTarget === 'pending' ? 'bg-emerald-50 border-emerald-300 shadow-2xl scale-[1.01]' : 'bg-teal-50 border-teal-200'}`}
+                                        className={`relative flex flex-col rounded-3xl border transition-all duration-300 overflow-hidden w-full min-h-[180px] lg:min-h-0 ${pendingCollapsed ? 'lg:flex-none' : 'lg:flex-1'} ${polishingDropTarget === 'pending' ? 'bg-emerald-50 border-emerald-300 shadow-2xl scale-[1.01]' : 'bg-teal-50 border-teal-200'} ${getMovementStageSurfaceClass(pendingMovingCount > 0)}`}
                                     >
                                         <div className={`p-4 rounded-t-3xl flex justify-between items-center bg-teal-100/60 ${pendingCollapsed ? 'rounded-b-3xl' : 'border-b border-teal-200'}`}>
                                             <div className="flex items-center gap-3">
@@ -3540,6 +3589,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                                 </button>
                                             </div>
                                         </div>
+                                        {pendingMovingCount > 0 && <div className={MOVEMENT_PROGRESS_BAR_CLASS} />}
                                         {!pendingCollapsed && (
                                             <VirtualizedProductionBatchGroups
                                                 groupedData={groupedPolishingPending as any}
@@ -3564,7 +3614,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                     <div
                                         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropTarget(ProductionStage.Polishing); setPolishingDropTarget('dispatched'); }}
                                         onDrop={() => { void handleDrop(ProductionStage.Polishing, false); setPolishingDropTarget(null); }}
-                                        className={`flex flex-col rounded-3xl border transition-all duration-300 w-full min-h-[180px] lg:min-h-0 ${dispatchedCollapsed ? 'lg:flex-none' : 'lg:flex-1'} ${polishingDropTarget === 'dispatched' ? 'bg-emerald-50 border-emerald-300 shadow-2xl scale-[1.01]' : 'bg-blue-50 border-blue-200'}`}
+                                        className={`relative flex flex-col rounded-3xl border transition-all duration-300 overflow-hidden w-full min-h-[180px] lg:min-h-0 ${dispatchedCollapsed ? 'lg:flex-none' : 'lg:flex-1'} ${polishingDropTarget === 'dispatched' ? 'bg-emerald-50 border-emerald-300 shadow-2xl scale-[1.01]' : 'bg-blue-50 border-blue-200'} ${getMovementStageSurfaceClass(dispatchedMovingCount > 0)}`}
                                     >
                                         <div className={`p-4 rounded-t-3xl flex justify-between items-center bg-blue-100/60 ${dispatchedCollapsed ? 'rounded-b-3xl' : 'border-b border-blue-200'}`}>
                                             <div className="flex items-center gap-3">
@@ -3591,6 +3641,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                                 </button>
                                             </div>
                                         </div>
+                                        {dispatchedMovingCount > 0 && <div className={MOVEMENT_PROGRESS_BAR_CLASS} />}
                                         {!dispatchedCollapsed && (
                                             <VirtualizedProductionBatchGroups
                                                 groupedData={groupedPolishingDispatched as any}
@@ -3622,10 +3673,11 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                 onDragEnd={handleDragEnd}
                                 onDrop={() => handleDrop(stage.id)}
                                 className={`
-                                flex flex-col rounded-3xl border transition-all duration-300
+                                relative flex flex-col rounded-3xl border transition-all duration-300 overflow-hidden
                                 lg:w-80 lg:h-full
                                 w-full
                                 ${isTarget ? 'bg-emerald-50 border-emerald-300 shadow-2xl scale-[1.02]' : `${colors.bg} border-slate-200`}
+                                ${getMovementStageSurfaceClass(isStageMovementActive)}
                             `}
                             >
                                 <div
@@ -3659,11 +3711,22 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                             <>
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); handleCompleteAllLabeling(); }}
-                                                    className="p-1.5 bg-white rounded-lg hover:bg-emerald-100 text-emerald-500 hover:text-emerald-700 transition-colors shadow-sm"
+                                                    className={`relative p-1.5 bg-white rounded-lg text-emerald-500 transition-colors shadow-sm overflow-hidden disabled:cursor-wait ${
+                                                        isCompletingAllLabeling
+                                                            ? 'ring-2 ring-emerald-300/70 text-emerald-700'
+                                                            : 'hover:bg-emerald-100 hover:text-emerald-700'
+                                                    }`}
                                                     title="Ολοκλήρωση Όλων"
                                                     disabled={isBulkMoving || isProcessingSplit}
+                                                    aria-busy={isCompletingAllLabeling || undefined}
                                                 >
-                                                    {isBulkMoving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                                                    {isCompletingAllLabeling ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                                                    {isCompletingAllLabeling && (
+                                                        <span
+                                                            className="absolute inset-x-0 bottom-0 h-0.5 bg-emerald-500 transition-[width] duration-300"
+                                                            style={{ width: `${visibleLabelingBulkProgress}%` }}
+                                                        />
+                                                    )}
                                                 </button>
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); handlePrintStageLabels(stage.id); }}
@@ -3680,6 +3743,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                         </div>
                                     </div>
                                 </div>
+                                {isStageMovementActive && <div className={MOVEMENT_PROGRESS_BAR_CLASS} />}
 
                                 <VirtualizedProductionBatchGroups
                                     groupedData={groupedData as any}
@@ -3700,10 +3764,16 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                         </div>
                                     ) : null}
                                     emptyState={(
-                                        <div className="h-24 lg:h-full flex flex-col items-center justify-center text-slate-400/50 p-4 border-2 border-dashed border-slate-200/50 rounded-2xl">
-                                            <Package size={24} className="mb-2" />
-                                            <p className="text-[10px] font-bold uppercase tracking-widest text-center">Τίποτα</p>
-                                        </div>
+                                        isLabelingBulkSource ? (
+                                            <div className="p-1">
+                                                <MovementSkeletonStack count={Math.min(3, Math.max(1, labelingBulkTotal))} />
+                                            </div>
+                                        ) : (
+                                            <div className="h-24 lg:h-full flex flex-col items-center justify-center text-slate-400/50 p-4 border-2 border-dashed border-slate-200/50 rounded-2xl">
+                                                <Package size={24} className="mb-2" />
+                                                <p className="text-[10px] font-bold uppercase tracking-widest text-center">Τίποτα</p>
+                                            </div>
+                                        )
                                     )}
                                 />
                             </div>
@@ -3915,9 +3985,17 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                     // every optimistic bulk operation has reconciled with
                     // the server.
                     const inFlightSelectedCount = Array.from(multiSelectIds).filter(id => movingBatchIds.has(id)).length;
+                    const bulkProgress = getMovementProgressPercent(multiSelectIds.size - inFlightSelectedCount, multiSelectIds.size);
+                    const visibleBulkProgress = isBulkMoving ? Math.max(12, bulkProgress) : 0;
                     return (
                 <div className="fixed bottom-6 inset-x-0 flex justify-center z-[300] pointer-events-none px-4">
-                    <div className="bg-slate-900/95 backdrop-blur-md text-white rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-3 pointer-events-auto animate-in slide-in-from-bottom-4 duration-200 border border-white/10 max-w-2xl w-full">
+                    <div className="relative overflow-hidden bg-slate-900/95 backdrop-blur-md text-white rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-3 pointer-events-auto animate-in slide-in-from-bottom-4 duration-200 border border-white/10 max-w-2xl w-full">
+                        {isBulkMoving && (
+                            <div
+                                className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-500 transition-[width] duration-300"
+                                style={{ width: `${visibleBulkProgress}%` }}
+                            />
+                        )}
                         <div className="flex items-center gap-2 shrink-0">
                             <div className="w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center text-xs font-black shadow-lg shadow-blue-500/40">
                                 {multiSelectIds.size}

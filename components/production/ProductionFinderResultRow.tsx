@@ -14,6 +14,13 @@ import { getFinderSearchResultSurface } from '../../utils/productionFinderSurfac
 import { getBatchAgeInfo } from '../../features/production/selectors';
 import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 import DesktopFinderBatchStageSelector from './DesktopFinderBatchStageSelector';
+import {
+    getMovementSurfaceClass,
+    MOVEMENT_BADGE_CLASS,
+    MOVEMENT_FEEDBACK_LABEL,
+    MOVEMENT_OVERLAY_CLASS,
+    MOVEMENT_PROGRESS_BAR_CLASS,
+} from './movementFeedback';
 
 const STAGE_COLORS: Record<string, { text: string; border: string }> = {
     indigo: { text: 'text-indigo-700', border: 'border-indigo-200' },
@@ -78,7 +85,7 @@ function ProductionFinderResultRow({
         <div
             onClick={() => onRowClick(batch)}
             aria-busy={isMoving || undefined}
-            className={`relative rounded-xl p-3 group cursor-pointer ${finderRowSurface} ${isSpecialBatch ? 'ring-1 ring-violet-200/65' : ''} ${isSelected ? '!ring-2 !ring-blue-400 ring-offset-0 !border-blue-300/80 !bg-blue-50/35' : ''} ${showTopBorder ? 'mt-1 border-t border-t-slate-200/60 pt-3' : ''} ${isMoving ? 'ring-2 ring-emerald-400/70 ring-offset-1 shadow-lg animate-pulse' : ''}`}
+            className={`relative rounded-xl p-3 group cursor-pointer ${finderRowSurface} ${isSpecialBatch ? 'ring-1 ring-violet-200/65' : ''} ${isSelected ? '!ring-2 !ring-blue-400 ring-offset-0 !border-blue-300/80 !bg-blue-50/35' : ''} ${showTopBorder ? 'mt-1 border-t border-t-slate-200/60 pt-3' : ''} ${getMovementSurfaceClass(isMoving)}`}
         >
             <div className="flex justify-between items-start">
                 <div className="flex items-start gap-2">
@@ -186,16 +193,17 @@ function ProductionFinderResultRow({
             />
             {isMoving && (
                 <div
-                    className="absolute inset-0 rounded-xl bg-white/55 backdrop-blur-[1.5px] z-20 flex items-start justify-center pt-2 pointer-events-auto cursor-wait"
+                    className={`${MOVEMENT_OVERLAY_CLASS} pt-2`}
                     onClick={(e) => {
                         e.stopPropagation();
                     }}
                     aria-hidden="true"
                 >
-                    <div className="flex items-center gap-1.5 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg ring-2 ring-white">
+                    <div className={MOVEMENT_BADGE_CLASS}>
                         <Loader2 size={11} className="animate-spin" />
-                        <span>Μετακινείται…</span>
+                        <span>{MOVEMENT_FEEDBACK_LABEL}</span>
                     </div>
+                    <div className={MOVEMENT_PROGRESS_BAR_CLASS} />
                 </div>
             )}
         </div>
