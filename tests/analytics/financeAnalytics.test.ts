@@ -199,6 +199,50 @@ describe('buildFinanceAnalytics', () => {
     expect(analytics.timeChartData.map((item) => item.name)).toEqual(['Ιαν 26']);
   });
 
+  it('keeps month and quarter dashboard stats populated at a new period boundary', () => {
+    const commonInput = {
+      orders: [
+        order({ id: 'o-may', status: OrderStatus.PartiallyDelivered, items: [{ sku: 'A', quantity: 1, price_at_order: 50 }] }),
+        order({ id: 'o-jun', status: OrderStatus.PartiallyDelivered, items: [{ sku: 'A', quantity: 1, price_at_order: 100 }] }),
+        order({ id: 'o-apr', status: OrderStatus.PartiallyDelivered, items: [{ sku: 'A', quantity: 1, price_at_order: 200 }] }),
+        order({ id: 'o-mar', status: OrderStatus.PartiallyDelivered, items: [{ sku: 'A', quantity: 1, price_at_order: 400 }] }),
+      ],
+      shipments: [
+        shipment({ id: 's-may', order_id: 'o-may', shipped_at: '2026-05-31T10:00:00.000Z' }),
+        shipment({ id: 's-jun', order_id: 'o-jun', shipped_at: '2026-06-30T10:00:00.000Z' }),
+        shipment({ id: 's-apr', order_id: 'o-apr', shipped_at: '2026-04-01T10:00:00.000Z' }),
+        shipment({ id: 's-mar', order_id: 'o-mar', shipped_at: '2026-03-31T10:00:00.000Z' }),
+      ],
+      shipmentItems: [
+        shipmentItem({ shipment_id: 's-may', sku: 'A', quantity: 1, price_at_order: 50 }),
+        shipmentItem({ shipment_id: 's-jun', sku: 'A', quantity: 1, price_at_order: 100 }),
+        shipmentItem({ shipment_id: 's-apr', sku: 'A', quantity: 1, price_at_order: 200 }),
+        shipmentItem({ shipment_id: 's-mar', sku: 'A', quantity: 1, price_at_order: 400 }),
+      ],
+      products: [product({ sku: 'A' })],
+      materials,
+      settings,
+      collections: [],
+      sellers: [],
+      legalDocuments: [],
+      now: new Date('2026-07-01T10:00:00.000Z'),
+    };
+
+    const month = buildFinanceAnalytics({
+      ...commonInput,
+      period: { mode: 'current_month' },
+    });
+    const quarter = buildFinanceAnalytics({
+      ...commonInput,
+      period: { mode: 'current_quarter' },
+    });
+
+    expect(month.totals.realizedNet).toBe(100);
+    expect(month.costBreakdown.silver).toBe(5);
+    expect(quarter.totals.realizedNet).toBe(350);
+    expect(quarter.costBreakdown.silver).toBe(15);
+  });
+
   it('calculates variant-aware estimated cost and profit', () => {
     const analytics = buildFinanceAnalytics({
       orders: [order({ id: 'variant-order', status: OrderStatus.Delivered, items: [{ sku: 'VAR', variant_suffix: 'X', quantity: 1, price_at_order: 50 }] })],

@@ -287,7 +287,23 @@ export function isWithinFinancePeriod(dateValue: string | undefined, period: Res
   if (!period.start || !period.end) return true;
   if (!dateValue) return false;
   const time = new Date(dateValue).getTime();
+  if (!Number.isFinite(time)) return false;
   return time >= period.start.getTime() && time < period.end.getTime();
+}
+
+function resolveShortPeriodWithActivity(period: ResolvedFinancePeriod, events: FinanceLineEvent[]): ResolvedFinancePeriod {
+  if (period.mode !== 'current_month' && period.mode !== 'current_quarter') return period;
+  if (!period.start || !period.end) return period;
+  if (events.some((event) => isWithinFinancePeriod(event.date, period))) return period;
+
+  let latestEventTime = -Infinity;
+  events.forEach((event) => {
+    const time = new Date(event.date).getTime();
+    if (Number.isFinite(time) && time > latestEventTime) latestEventTime = time;
+  });
+
+  if (!Number.isFinite(latestEventTime)) return period;
+  return resolvePeriod({ mode: period.mode }, new Date(latestEventTime));
 }
 
 function monthKey(dateValue: string): string {
@@ -522,7 +538,7 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
     shipmentsByOrderId.set(shipment.order_id, rows);
   });
 
-  const realizedEvents: FinanceLineEvent[] = [];
+  const allRealizedEvents: FinanceLineEvent[] = [];
   const backlogEvents: FinanceLineEvent[] = [];
 
   orders
@@ -551,7 +567,7 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
           materialsMap,
           sellerById,
         });
-        if (isWithinFinancePeriod(event.date, period)) realizedEvents.push(event);
+        allRealizedEvents.push(event);
       });
 
       if (order.status === OrderStatus.Delivered && orderShipments.length === 0) {
@@ -572,7 +588,7 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
             materialsMap,
             sellerById,
           });
-          if (isWithinFinancePeriod(event.date, period)) realizedEvents.push(event);
+          allRealizedEvents.push(event);
         });
       }
 
@@ -601,7 +617,10 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
       });
     });
 
-  const dedupedRealizedEvents = dedupeIdenticalFinanceEvents(realizedEvents);
+  const effectivePeriod = resolveShortPeriodWithActivity(period, allRealizedEvents);
+  const dedupedRealizedEvents = dedupeIdenticalFinanceEvents(
+    allRealizedEvents.filter((event) => isWithinFinancePeriod(event.date, effectivePeriod)),
+  );
 
   const totals = dedupedRealizedEvents.reduce<FinanceTotals>(
     (acc, event) => {
@@ -798,7 +817,7 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
   });
 
   const legalDocuments = input.legalDocuments || [];
-  const issuedLegal = legalDocuments.filter((document) => document.status === 'issued' && isWithinFinancePeriod(document.issue_date || document.created_at, period));
+  const issuedLegal = legalDocuments.filter((document) => document.status === 'issued' && isWithinFinancePeriod(document.issue_date || document.created_at, effectivePeriod));
   const legal: FinanceLegalReconciliation = {
     issuedNet: roundMoney(issuedLegal.reduce((sum, document) => sum + (document.totals?.net || 0), 0)),
     issuedVat: roundMoney(issuedLegal.reduce((sum, document) => sum + (document.totals?.vat || 0), 0)),
@@ -831,7 +850,7 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
   const costWarnings = Array.from(new Set([...dedupedRealizedEvents, ...backlogEvents].map((event) => event.costWarning).filter((warning): warning is string => Boolean(warning))));
 
   return {
-    period,
+    period: effectivePeriod,
     labels: GREEK_LABELS,
     totals: roundedTotals,
     costBreakdown: {
