@@ -1,20 +1,11 @@
 import React, { createContext, useContext, useState } from 'react';
-import { Product, ProductVariant, Order, ProductionBatch, AggregatedData, Offer, SupplierOrder, AssemblyPrintData, StageBatchPrintData, OrderShipment, OrderShipmentItem, LegalDocument, LegalDocumentLine, ProformaDocument, ProformaDocumentLine } from '../types';
+import { Order, ProductionBatch, AggregatedData, Offer, SupplierOrder, AssemblyPrintData, StageBatchPrintData, OrderShipment, OrderShipmentItem, LegalDocument, LegalDocumentLine, ProformaDocument, ProformaDocumentLine } from '../types';
 import { PriceListPrintData } from './PriceListPrintView';
-
-interface PrintItem {
-    product: Product;
-    variant?: ProductVariant;
-    quantity: number;
-    size?: string;
-    format?: 'standard' | 'simple' | 'retail';
-    showPrice?: boolean;
-    priceTier?: 'wholesale' | 'retail';
-}
+import { PrintLabelItem } from '../features/printing';
 
 interface PrintContextType {
-    printItems: PrintItem[];
-    setPrintItems: (items: PrintItem[]) => void;
+    printItems: PrintLabelItem[];
+    setPrintItems: (items: PrintLabelItem[]) => void;
     orderToPrint: Order | null;
     setOrderToPrint: (order: Order | null) => void;
     remainingOrderToPrint: Order | null;
@@ -60,7 +51,7 @@ export const usePrint = () => {
 };
 
 export const PrintProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [printItems, setPrintItems] = useState<PrintItem[]>([]);
+    const [printItems, setPrintItems] = useState<PrintLabelItem[]>([]);
     const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
     const [remainingOrderToPrint, setRemainingOrderToPrint] = useState<Order | null>(null);
     const [shipmentToPrint, setShipmentToPrint] = useState<{ order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] } | null>(null);

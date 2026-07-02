@@ -303,11 +303,13 @@ export function normalizeProductionFinderTerm(finderTerm: string): string | null
 }
 
 /**
- * Letter-led alphanumeric queries (e.g. XR, DA, PN1) use SKU-prefix matching only,
+ * SKU-like queries (e.g. XR, DA, PN1) use SKU-prefix matching only,
  * so order_id / customer overlaps do not pull unrelated SKUs from the same order.
+ * Longer plain words are treated as names too, so English customers like Rahimzianov
+ * can be found by first-name prefixes such as "Rah".
  */
 export function isStrictProductionFinderSkuQuery(term: string): boolean {
-  return /^[A-Z]{2}[A-Z0-9]*$/.test(term);
+  return /^[A-Z]{2}$/.test(term) || /^[A-Z]{2}[A-Z0-9]*\d[A-Z0-9]*$/.test(term);
 }
 
 function productionFinderSkuMatches(fullSkuUpper: string, term: string): boolean {

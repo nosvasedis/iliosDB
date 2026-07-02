@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Product, ProductVariant, Collection } from '../types';
-import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight, Tag, ShoppingBag, ImageIcon, Search, Save, PackageCheck, MapPin, List, X, Clock, RotateCcw, BookImage, LayoutGrid, ChevronDown, FolderKanban, Users2, Zap } from 'lucide-react';
+import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight, Tag, ShoppingBag, ImageIcon, Search, Save, PackageCheck, MapPin, List, X, Clock, RotateCcw, BookImage, LayoutGrid, ChevronDown, FolderKanban, Users2, Zap, Eye, RotateCcw as ResetIcon } from 'lucide-react';
 import { useUI } from './UIProvider';
 import BarcodeScanner from './BarcodeScanner';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
@@ -12,6 +12,7 @@ import { api, SYSTEM_IDS, recordStockMovement, supabase } from '../lib/supabase'
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 import DesktopPageHeader from './DesktopPageHeader';
 import { parseBatchLabelInputLine } from '../features/printing/batchLabelInput';
+import { buildBatchLabelOverrideKey, buildLabelText, LabelTextOverrides, PrintLabelItem } from '../features/printing';
 import { getSizingInfo } from '../utils/sizing';
 
 // Set workerSrc for pdf.js.
@@ -20,7 +21,7 @@ GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@4.4.168/build/pdf.wor
 interface Props {
     allProducts: Product[];
     allCollections: Collection[];
-    setPrintItems: (items: { product: Product; variant?: ProductVariant; quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail', showPrice?: boolean, priceTier?: 'wholesale' | 'retail' }[]) => void;
+    setPrintItems: (items: PrintLabelItem[]) => void;
     onPrintPhotoCatalog: (products: Product[]) => void;
     skusText: string;
     setSkusText: (text: string) => void;
@@ -57,9 +58,21 @@ interface ActionLog {
     target?: string;
 }
 
+interface ParsedBatchLabelQueueItem {
+    key: string;
+    lineIndex: number;
+    lineText: string;
+    rawSku: string;
+    product: Product;
+    variant?: ProductVariant;
+    quantity: number;
+    size?: string;
+}
+
 export default function BatchPrintPage({ allProducts, allCollections, setPrintItems, skusText, setSkusText, onPrintPhotoCatalog }: Props) {
     const queryClient = useQueryClient();
     const { data: warehouses } = useQuery({ queryKey: ['warehouses'], queryFn: api.getWarehouses });
+    const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
 
     const [isProcessing, setIsProcessing] = useState(false);
     const [foundItemsCount, setFoundItemsCount] = useState(0);
@@ -159,6 +172,8 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
         return [];
     });
     const [showHistoryModal, setShowHistoryModal] = useState(false);
+    const [labelOverrideDrafts, setLabelOverrideDrafts] = useState<Record<string, LabelTextOverrides>>({});
+    const [editingLabelKey, setEditingLabelKey] = useState<string | null>(null);
 
     // Persist changes
     useEffect(() => { localStorage.setItem('batch_print_format', labelFormat); }, [labelFormat]);
@@ -178,14 +193,14 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
 
     const inputRef = useRef<HTMLInputElement>(null);
 
-    const parseItemsFromText = () => {
-        const lines = skusText.split(/\r?\n/).filter(line => line.trim() !== '');
-        const items: { product: Product; variant?: ProductVariant; quantity: number; rawSku: string; size?: string }[] = [];
+    const parsedLabelQueue = useMemo(() => {
+        const entries: ParsedBatchLabelQueueItem[] = [];
         const notFound: string[] = [];
 
-        for (const line of lines) {
+        skusText.split(/\r?\n/).forEach((line, lineIndex) => {
+            if (!line.trim()) return;
             const parsedWithoutSizing = parseBatchLabelInputLine(line);
-            if (!parsedWithoutSizing) continue;
+            if (!parsedWithoutSizing) return;
 
             const expandedSkus = expandSkuRange(parsedWithoutSizing.rawToken);
 
@@ -196,32 +211,38 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                 if (match) {
                     const parsed = parseBatchLabelInputLine(line, getSizingInfo(match.product));
                     if (!parsed) continue;
-                    // CASE 1: Exact match for a variant or simple product with no variants
+
+                    const pushEntry = (product: Product, variant?: ProductVariant, entryRawSku = rawSku) => {
+                        entries.push({
+                            key: buildBatchLabelOverrideKey({
+                                lineIndex,
+                                rawSku: entryRawSku,
+                                quantity: parsed.quantity,
+                                size: parsed.size,
+                            }),
+                            lineIndex,
+                            lineText: line,
+                            rawSku: entryRawSku,
+                            product,
+                            variant,
+                            quantity: parsed.quantity,
+                            size: parsed.size,
+                        });
+                    };
+
                     if (match.variant || (!match.product.variants || match.product.variants.length === 0)) {
-                        items.push({ product: match.product, variant: match.variant, quantity: parsed.quantity, rawSku, size: parsed.size });
+                        pushEntry(match.product, match.variant);
                         matchFound = true;
-                    }
-                    // CASE 2: Master SKU entered exactly (no variant suffix matched)
-                    else {
+                    } else {
                         const variants = match.product.variants || [];
                         const baseVariant = variants.find(v => v.suffix === "");
 
                         if (baseVariant) {
-                            // If the product has a "Master/Lustre" variant (empty suffix),
-                            // we assume typing the SKU alone refers specifically to that variant.
-                            items.push({
-                                product: match.product,
-                                variant: baseVariant,
-                                quantity: parsed.quantity,
-                                rawSku: match.product.sku,
-                                size: parsed.size
-                            });
+                            pushEntry(match.product, baseVariant, match.product.sku);
                             matchFound = true;
-                        }
-                        else if (variants.length > 0) {
-                            // "Intelligent" expansion: if no empty-suffix variant exists, add ALL available variants
+                        } else if (variants.length > 0) {
                             variants.forEach(v => {
-                                items.push({ product: match.product, variant: v, quantity: parsed.quantity, rawSku: match.product.sku + v.suffix, size: parsed.size });
+                                pushEntry(match.product, v, match.product.sku + v.suffix);
                             });
                             matchFound = true;
                         }
@@ -232,8 +253,24 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                     notFound.push(rawSku);
                 }
             }
+        });
+
+        return { entries, notFound };
+    }, [allProducts, skusText]);
+
+    useEffect(() => {
+        const activeKeys = new Set(parsedLabelQueue.entries.map(item => item.key));
+        setLabelOverrideDrafts(prev => {
+            const next = Object.fromEntries(Object.entries(prev).filter(([key]) => activeKeys.has(key)));
+            return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+        });
+        if (editingLabelKey && !activeKeys.has(editingLabelKey)) {
+            setEditingLabelKey(null);
         }
-        return { items, notFound };
+    }, [editingLabelKey, parsedLabelQueue.entries]);
+
+    const parseItemsFromText = () => {
+        return { items: parsedLabelQueue.entries, notFound: parsedLabelQueue.notFound };
     };
 
     const handlePrint = () => {
@@ -251,6 +288,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
             format: labelFormat,
             showPrice,
             priceTier,
+            labelOverrides: labelOverrideDrafts[i.key],
         }));
 
         setTimeout(() => {
@@ -617,6 +655,47 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
         }
     };
 
+    const editingLabelItem = editingLabelKey
+        ? parsedLabelQueue.entries.find(item => item.key === editingLabelKey) || null
+        : null;
+    const editingLabelOverrides = editingLabelKey ? labelOverrideDrafts[editingLabelKey] || {} : {};
+    const editingLabelText = editingLabelItem
+        ? buildLabelText({
+            product: editingLabelItem.product,
+            variant: editingLabelItem.variant,
+            format: labelFormat,
+            size: editingLabelItem.size,
+            showPrice,
+            priceTier,
+            overrides: editingLabelOverrides,
+        })
+        : null;
+    const labelPreviewWidth = labelFormat === 'retail'
+        ? (settings?.retail_barcode_width_mm || 72)
+        : (settings?.barcode_width_mm || 40);
+    const labelPreviewHeight = labelFormat === 'retail'
+        ? (settings?.retail_barcode_height_mm || 10)
+        : (settings?.barcode_height_mm || 20);
+    const hasLabelOverrides = (key: string) => Boolean(labelOverrideDrafts[key] && Object.keys(labelOverrideDrafts[key]).length > 0);
+    const updateEditingLabelOverride = (field: keyof LabelTextOverrides, value: string) => {
+        if (!editingLabelKey) return;
+        setLabelOverrideDrafts(prev => ({
+            ...prev,
+            [editingLabelKey]: {
+                ...(prev[editingLabelKey] || {}),
+                [field]: value,
+            },
+        }));
+    };
+    const resetEditingLabelOverride = () => {
+        if (!editingLabelKey) return;
+        setLabelOverrideDrafts(prev => {
+            const next = { ...prev };
+            delete next[editingLabelKey];
+            return next;
+        });
+    };
+
     return (
         <div className="max-w-6xl mx-auto space-y-8">
             <DesktopPageHeader
@@ -848,6 +927,74 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                 className="w-full p-4 border border-slate-200 rounded-xl font-mono text-sm bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all placeholder-slate-400 flex-1 custom-scrollbar"
                                 placeholder={`Προσθέστε κωδικούς παραπάνω ή πληκτρολογήστε εδώ...\nDA050-DA063 2\nXR2020 5`}
                             />
+                            {(parsedLabelQueue.entries.length > 0 || parsedLabelQueue.notFound.length > 0) && (
+                                <div className="mt-4 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                                    <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+                                        <div>
+                                            <h3 className="text-sm font-black text-slate-800">Προεπισκόπηση ετικετών</h3>
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                                {parsedLabelQueue.entries.length} γραμμές έτοιμες για εκτύπωση
+                                            </p>
+                                        </div>
+                                        <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-700">
+                                            {parsedLabelQueue.entries.reduce((sum, item) => sum + item.quantity, 0)} τεμ.
+                                        </span>
+                                    </div>
+
+                                    <div className="max-h-72 overflow-y-auto custom-scrollbar divide-y divide-slate-100">
+                                        {parsedLabelQueue.entries.map(item => {
+                                            const text = buildLabelText({
+                                                product: item.product,
+                                                variant: item.variant,
+                                                format: labelFormat,
+                                                size: item.size,
+                                                showPrice,
+                                                priceTier,
+                                                overrides: labelOverrideDrafts[item.key],
+                                            });
+                                            const edited = hasLabelOverrides(item.key);
+
+                                            return (
+                                                <div key={item.key} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors">
+                                                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                                                        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${edited ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                                                            <Tag size={16} />
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="truncate font-mono text-sm font-black text-slate-900">{text.displaySku}</span>
+                                                                {item.size && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-slate-500">{item.size}</span>}
+                                                                {edited && <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-black text-emerald-600">EDIT</span>}
+                                                            </div>
+                                                            <div className="mt-0.5 truncate text-xs font-medium text-slate-500">
+                                                                {text.stone || item.variant?.description || item.product.category}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <span className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-black text-slate-600">x{item.quantity}</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setEditingLabelKey(item.key)}
+                                                        title="Προεπισκόπηση / επεξεργασία ετικέτας"
+                                                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 transition-all"
+                                                    >
+                                                        <Eye size={16} />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                        {parsedLabelQueue.notFound.map((rawSku, index) => (
+                                            <div key={`missing-${rawSku}-${index}`} className="flex items-center gap-3 px-4 py-3 bg-red-50/60">
+                                                <AlertCircle size={16} className="text-red-500" />
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="font-mono text-sm font-black text-red-700">{rawSku}</div>
+                                                    <div className="text-xs font-medium text-red-500">Δεν βρέθηκε προϊόν για προεπισκόπηση ή εκτύπωση.</div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -1189,6 +1336,90 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                             })}
                         </div>
                     )}
+                </div>
+            )}
+
+            {editingLabelItem && editingLabelText && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
+                    <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+                        <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
+                            <div className="min-w-0">
+                                <h3 className="truncate text-lg font-black text-slate-900">Προεπισκόπηση / Επεξεργασία ετικέτας</h3>
+                                <p className="mt-0.5 text-xs font-bold text-slate-400">
+                                    Οι αλλαγές ισχύουν μόνο για αυτή την εκτύπωση. Το QR κρατά τον πραγματικό κωδικό {editingLabelText.sourceSku}.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setEditingLabelKey(null)}
+                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_360px]">
+                            <div className="flex min-h-[260px] items-center justify-center bg-slate-100 p-6">
+                                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-inner">
+                                    <BarcodeView
+                                        product={editingLabelItem.product}
+                                        variant={editingLabelItem.variant}
+                                        width={labelPreviewWidth}
+                                        height={labelPreviewHeight}
+                                        format={labelFormat}
+                                        size={editingLabelItem.size}
+                                        showPrice={showPrice}
+                                        priceTier={priceTier}
+                                        labelOverrides={editingLabelOverrides}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-4 border-l border-slate-100 p-5">
+                                <div className="rounded-2xl bg-amber-50 p-3 text-xs font-bold leading-relaxed text-amber-800">
+                                    Επεξεργάζεσαι την εμφάνιση της ετικέτας, όχι το προϊόν. Άφησε κενό ένα πεδίο για να μη φαίνεται.
+                                </div>
+
+                                {([
+                                    ['displaySku', 'SKU / Όνομα', editingLabelText.displaySku],
+                                    ['stone', 'Πέτρα / Περιγραφή', editingLabelText.stone],
+                                    ['brand', 'Brand', editingLabelText.brand],
+                                    ['price', 'Τιμή', editingLabelText.price],
+                                    ['metal', 'Μέταλλο', editingLabelText.metal],
+                                    ['size', 'Μέγεθος', editingLabelText.size],
+                                ] as Array<[keyof LabelTextOverrides, string, string]>).map(([field, label, value]) => (
+                                    <label key={field} className="block">
+                                        <span className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</span>
+                                        <input
+                                            type="text"
+                                            value={value}
+                                            onChange={(event) => updateEditingLabelOverride(field, event.target.value)}
+                                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900 outline-none transition-all focus:border-amber-400 focus:bg-white focus:ring-4 focus:ring-amber-500/10"
+                                        />
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 sm:flex-row sm:justify-end">
+                            <button
+                                type="button"
+                                onClick={resetEditingLabelOverride}
+                                className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-600 hover:bg-slate-100"
+                            >
+                                <ResetIcon size={16} />
+                                Reset
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setEditingLabelKey(null)}
+                                className="flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-black text-white hover:bg-slate-800"
+                            >
+                                <Save size={16} />
+                                Αποθήκευση για αυτή την εκτύπωση
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

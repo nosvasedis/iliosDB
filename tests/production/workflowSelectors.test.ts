@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { Gender, ProductionStage, ProductionType } from '../../types';
 import {
   buildAssemblyOrderCandidates,
+  buildProductionFinderIndex,
+  filterAndSortProductionFinderBatches,
+  filterAndSortProductionFinderIndexedBatches,
   buildLabelPrintQueue,
   getNextProductionStage,
   groupProductionBatchesByStage,
@@ -170,6 +173,74 @@ describe('production workflow selectors', () => {
     ] as any, 'customer', products);
 
     expect(queue.map((item) => item.quantity)).toEqual([1, 2]);
+  });
+
+  it('finds production batches by English customer first name', () => {
+    const batches = [
+      {
+        id: 'b-rahim',
+        sku: 'PN1',
+        variant_suffix: '',
+        order_id: 'ord-rahim',
+        customer_name: 'Rahimzianov',
+        quantity: 1,
+        current_stage: ProductionStage.Waxing,
+        created_at: '2024-01-01T00:00:00.000Z',
+        updated_at: '2024-01-01T00:00:00.000Z',
+        priority: 'Normal',
+        requires_setting: false,
+      },
+      {
+        id: 'b-other',
+        sku: 'DA2',
+        variant_suffix: '',
+        order_id: 'ord-other',
+        customer_name: 'Other Client',
+        quantity: 1,
+        current_stage: ProductionStage.Waxing,
+        created_at: '2024-01-01T00:00:00.000Z',
+        updated_at: '2024-01-01T00:00:00.000Z',
+        priority: 'Normal',
+        requires_setting: false,
+      },
+    ] as any;
+
+    expect(filterAndSortProductionFinderBatches(batches, 'Rah').map((batch) => batch.id)).toEqual(['b-rahim']);
+    expect(filterAndSortProductionFinderIndexedBatches(buildProductionFinderIndex(batches), 'Rah').map((batch) => batch.id)).toEqual(['b-rahim']);
+  });
+
+  it('keeps two-letter production finder terms strict for SKU prefixes', () => {
+    const batches = [
+      {
+        id: 'b-sku',
+        sku: 'PN1',
+        variant_suffix: '',
+        order_id: 'ord-sku',
+        customer_name: 'Sku Client',
+        quantity: 1,
+        current_stage: ProductionStage.Waxing,
+        created_at: '2024-01-01T00:00:00.000Z',
+        updated_at: '2024-01-01T00:00:00.000Z',
+        priority: 'Normal',
+        requires_setting: false,
+      },
+      {
+        id: 'b-customer',
+        sku: 'DA2',
+        variant_suffix: '',
+        order_id: 'ord-customer',
+        customer_name: 'Pnina Customer',
+        quantity: 1,
+        current_stage: ProductionStage.Waxing,
+        created_at: '2024-01-01T00:00:00.000Z',
+        updated_at: '2024-01-01T00:00:00.000Z',
+        priority: 'Normal',
+        requires_setting: false,
+      },
+    ] as any;
+
+    expect(filterAndSortProductionFinderBatches(batches, 'PN').map((batch) => batch.id)).toEqual(['b-sku']);
+    expect(filterAndSortProductionFinderIndexedBatches(buildProductionFinderIndex(batches), 'PN').map((batch) => batch.id)).toEqual(['b-sku']);
   });
 
   it('skips assembly candidate orders while their items are missing', () => {

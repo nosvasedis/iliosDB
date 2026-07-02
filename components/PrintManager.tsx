@@ -18,6 +18,7 @@ import LegalDocumentPrintView from './LegalDocumentPrintView';
 import ProformaPrintView from './ProformaPrintView';
 import { INITIAL_SETTINGS } from '../constants';
 import { transliterateForBarcode } from '../utils/pricingEngine';
+import { PrintLabelItem } from '../features/printing';
 import {
     buildPrintIframeOnloadScript,
     isLabelPrintJob,
@@ -29,7 +30,7 @@ interface PrintManagerProps {
     products: Product[] | undefined;
     materials: any[] | undefined;
     molds: any[] | undefined;
-    printItems: { product: Product, variant?: ProductVariant, quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail', showPrice?: boolean, priceTier?: 'wholesale' | 'retail' }[];
+    printItems: PrintLabelItem[];
     orderToPrint: Order | null;
     remainingOrderToPrint: Order | null;
     shipmentToPrint: { order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] } | null;
@@ -345,7 +346,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                 )}
                 {printItems.length > 0 && (
                     <div className="print-area">
-                        {printItems.flatMap(item => Array.from({ length: item.quantity }, () => ({ product: item.product, variant: item.variant, size: item.size, format: item.format || 'standard', showPrice: item.showPrice, priceTier: item.priceTier }))).map((item, idx) => (
+                        {printItems.flatMap(item => Array.from({ length: item.quantity }, () => ({ product: item.product, variant: item.variant, size: item.size, format: item.format || 'standard', showPrice: item.showPrice, priceTier: item.priceTier, labelOverrides: item.labelOverrides }))).map((item, idx) => (
                             <BarcodeView
                                 key={`${idx}`}
                                 product={item.product}
@@ -356,6 +357,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                                 size={item.size}
                                 showPrice={item.showPrice}
                                 priceTier={item.priceTier}
+                                labelOverrides={item.labelOverrides}
                             />
                         ))}
                     </div>

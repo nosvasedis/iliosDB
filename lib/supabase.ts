@@ -344,11 +344,16 @@ const TABLE_DEFAULT_ORDER: Record<string, (query: any) => any> = {
 };
 
 const TABLE_PAGE_TIMEOUT_MS: Record<string, number> = {
+    orders: 12000,
     products: 12000,
     product_variants: 12000,
     recipes: 10000,
     product_stock: 10000,
 };
+
+export function getTablePageTimeoutMs(tableName: string): number {
+    return TABLE_PAGE_TIMEOUT_MS[tableName] ?? 4000;
+}
 
 const FETCH_PAGE_RETRIES = 3;
 
@@ -540,7 +545,7 @@ async function fetchFullTable(
             let from = 0;
             let to = 999;
             let hasMore = true;
-            const pageTimeoutMs = TABLE_PAGE_TIMEOUT_MS[tableName] ?? 4000;
+            const pageTimeoutMs = getTablePageTimeoutMs(tableName);
             const applyOrder = filter ?? TABLE_DEFAULT_ORDER[tableName];
 
             while (hasMore) {
@@ -651,7 +656,7 @@ async function fetchRowsByFilter(
         let query = supabase.from(tableName).select(select);
         query = applyFilter(query);
         if (options?.order) query = options.order(query);
-        const timeoutMs = TABLE_PAGE_TIMEOUT_MS[tableName] ?? 4000;
+        const timeoutMs = getTablePageTimeoutMs(tableName);
         const { data, error } = await fetchWithTimeout(
             options?.single ? query.maybeSingle() : query,
             timeoutMs,

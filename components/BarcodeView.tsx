@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import QRCode from 'qrcode';
 import { Product, ProductVariant } from '../types';
-import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES, INITIAL_SETTINGS } from '../constants';
-import { transliterateForBarcode, getVariantComponents, formatCurrency, getLabelDisplayPrice } from '../utils/pricingEngine';
+import { INITIAL_SETTINGS } from '../constants';
+import { transliterateForBarcode } from '../utils/pricingEngine';
 import { fitRetailStoneLabelText, getRetailLabelMetrics, RETAIL_TAIL_GUIDE_WIDTH_MM } from '../utils/retailLabelLayout';
 import { SIZED_PREFIXES } from '../utils/sizing';
+import { buildLabelText, LabelTextOverrides } from '../features/printing/labelText';
 
 interface Props {
     product: Product;
@@ -15,6 +16,7 @@ interface Props {
     size?: string;
     showPrice?: boolean;
     priceTier?: 'wholesale' | 'retail';
+    labelOverrides?: LabelTextOverrides;
 }
 
 const BarcodeView: React.FC<Props> = ({
@@ -26,12 +28,9 @@ const BarcodeView: React.FC<Props> = ({
     size,
     showPrice: showPriceProp,
     priceTier: priceTierProp,
+    labelOverrides,
 }) => {
     const [qrDataUrl, setQrDataUrl] = useState<string>('');
-
-    const baseSku = product?.sku || '';
-    const suffix = variant?.suffix || '';
-    const finalSku = `${baseSku}${suffix}`;
 
     const activeWidth = width > 0
         ? width
@@ -40,43 +39,21 @@ const BarcodeView: React.FC<Props> = ({
         ? height
         : (format === 'retail' ? INITIAL_SETTINGS.retail_barcode_height_mm : INITIAL_SETTINGS.barcode_height_mm);
 
-    // Smart Stone Detection Logic
-    const stoneName = useMemo(() => {
-        if (product.sku.startsWith('ST') && (variant?.suffix === '' || !variant)) {
-            return null;
-        }
-        if (variant?.description) {
-            let desc = variant.description;
-            const finishes = Object.values(FINISH_CODES);
-            finishes.forEach(finish => {
-                if (finish) {
-                    const regex = new RegExp(`(^|\\s*-\\s*)${finish}(\\s*-\\s*|$)`, 'i');
-                    desc = desc.replace(regex, '').trim();
-                }
-            });
-            desc = desc.replace(/Λουστρέ/gi, '').replace(/Πατίνα/gi, '').trim();
-            desc = desc.replace(/^-+\s*/, '').replace(/\s*-+$/, '').trim();
-            if (desc && desc.length > 2) return desc; 
-        }
-        if (suffix) {
-             const allStones = { ...STONE_CODES_MEN, ...STONE_CODES_WOMEN };
-             const sortedCodes = Object.keys(allStones).sort((a,b) => b.length - a.length);
-             for (const code of sortedCodes) {
-                 if (suffix.includes(code)) return (allStones as any)[code];
-             }
-        }
-        return null;
-    }, [product, variant, suffix]);
-
-    const wholesalePrice = variant?.selling_price ?? product?.selling_price ?? 0;
     const showPrice = showPriceProp ?? format !== 'retail';
     const priceTier = priceTierProp ?? 'wholesale';
-    const displayPrice = getLabelDisplayPrice(wholesalePrice, priceTier);
-    const formattedPrice = displayPrice > 0 ? formatCurrency(displayPrice) : '';
+    const labelText = useMemo(() => buildLabelText({
+        product,
+        variant,
+        format,
+        size,
+        showPrice,
+        priceTier,
+        overrides: labelOverrides,
+    }), [product, variant, format, size, showPrice, priceTier, labelOverrides]);
 
     useEffect(() => {
-        if (finalSku) {
-            const valueToEncode = transliterateForBarcode(finalSku);
+        if (labelText.sourceSku) {
+            const valueToEncode = transliterateForBarcode(labelText.sourceSku);
             
             // Generate QR code with high error correction (Level H)
             QRCode.toDataURL(valueToEncode, {
@@ -95,7 +72,7 @@ const BarcodeView: React.FC<Props> = ({
                 console.error("QR Code generation failed:", err);
             });
         }
-    }, [finalSku]);
+    }, [labelText.sourceSku]);
 
     // FONT CALCULATIONS (in mm)
     // Sku font size slightly increased from 0.15/0.14/3.8 to 0.16/0.15/4.0
@@ -137,7 +114,7 @@ const BarcodeView: React.FC<Props> = ({
             <div className="label-container" style={{ ...containerStyle, padding: '1mm' }}>
                 <div className="w-full text-center leading-none mb-0.5">
                     <span className="font-black block uppercase" style={{ fontSize: `${skuFontSize}mm` }}>
-                        {finalSku}
+                        {labelText.displaySku}
                     </span>
                 </div>
                 <div className="flex-1 w-full flex items-center justify-center overflow-hidden min-h-0 py-0.5">
@@ -151,16 +128,17 @@ const BarcodeView: React.FC<Props> = ({
         const retailMetrics = getRetailLabelMetrics({
             labelWidthMm: activeWidth,
             labelHeightMm: activeHeight,
-            hasStone: Boolean(stoneName),
-            showPrice: Boolean(showPrice && formattedPrice),
-            hasSize: Boolean(size),
+            hasStone: Boolean(labelText.stone),
+            showPrice: Boolean(labelText.price),
+            hasSize: Boolean(labelText.size),
         });
-        const stoneFit = stoneName
-            ? fitRetailStoneLabelText(stoneName, retailMetrics.rightColumnMaxWidthMm, retailMetrics.stoneMaxHeightMm)
+        const stoneFit = labelText.stone
+            ? fitRetailStoneLabelText(labelText.stone, retailMetrics.rightColumnMaxWidthMm, retailMetrics.stoneMaxHeightMm)
             : null;
 
-        const skuMaster = product.sku;
-        const suffixStr = variant?.suffix || '';
+        const isCustomDisplaySku = Boolean(labelOverrides?.displaySku && labelOverrides.displaySku !== labelText.sourceSku);
+        const skuMaster = isCustomDisplaySku ? labelText.displaySku : labelText.skuMaster;
+        const suffixStr = isCustomDisplaySku ? '' : labelText.suffix;
         
         return (
             <div className="label-container" style={{ ...containerStyle, position: 'relative', padding: 0 }}>
@@ -234,7 +212,7 @@ const BarcodeView: React.FC<Props> = ({
                         width: `${retailMetrics.rightColumnMaxWidthMm}mm`,
                         maxWidth: `${retailMetrics.rightColumnMaxWidthMm}mm`,
                     }}>
-                        {stoneName && stoneFit && (
+                        {labelText.stone && stoneFit && (
                             <div
                                 style={{
                                     fontWeight: 'bold',
@@ -248,20 +226,22 @@ const BarcodeView: React.FC<Props> = ({
                                     boxSizing: 'border-box',
                                 }}
                             >
-                                {stoneName}
+                                {labelText.stone}
                             </div>
                         )}
-                        <div className="font-black tracking-[0.05em] text-black uppercase leading-none" style={{ fontSize: `${retailMetrics.brandFontMm}mm`, marginTop: `${retailMetrics.blockGapMm}mm` }}>
-                            ILIOS
-                        </div>
-                        {showPrice && formattedPrice && (
+                        {labelText.brand && (
+                            <div className="font-black tracking-[0.05em] text-black uppercase leading-none" style={{ fontSize: `${retailMetrics.brandFontMm}mm`, marginTop: `${retailMetrics.blockGapMm}mm` }}>
+                                {labelText.brand}
+                            </div>
+                        )}
+                        {labelText.price && (
                             <div className="font-black text-black leading-none" style={{ fontSize: `${retailMetrics.priceFontMm}mm`, marginTop: `${retailMetrics.blockGapMm}mm`, whiteSpace: 'nowrap' }}>
-                                {formattedPrice}
+                                {labelText.price}
                             </div>
                         )}
-                        {size && (
+                        {labelText.size && (
                             <div className="px-1 rounded-[1px] text-[1.8mm] font-bold leading-none border border-black text-black" style={{ marginTop: `${retailMetrics.blockGapMm}mm` }}>
-                                {size}
+                                {labelText.size}
                             </div>
                         )}
                     </div>
@@ -275,36 +255,36 @@ const BarcodeView: React.FC<Props> = ({
         <div className="label-container" style={{ ...containerStyle, padding: '0.6mm 0.8mm' }}>
             <div className="w-full text-center leading-none">
                 <span className="font-black block uppercase tracking-tighter text-black" style={{ fontSize: `${skuFontSize}mm` }}>
-                    {finalSku}
+                    {labelText.displaySku}
                 </span>
             </div>
             <div className="flex-1 w-full flex items-center justify-center overflow-hidden min-h-0 py-0.5">
                 {qrDataUrl && <img src={qrDataUrl} style={{ height: '100%', maxWidth: '100%', objectFit: 'contain', display: 'block' }} alt="QR" />}
             </div>
             <div className="w-full text-center leading-[1.1] mb-0.5">
-                {stoneName && (
+                {labelText.stone && (
                     <span className="font-bold text-black block truncate leading-none" style={{ fontSize: `${stoneFontSize}mm` }}>
-                        {stoneName}
+                        {labelText.stone}
                     </span>
                 )}
             </div>
             <div className="w-full flex items-center justify-between gap-1 border-t border-black pt-0.5 leading-none">
                  <span className="font-black tracking-[0.1em] text-black uppercase flex-1 text-left" style={{ fontSize: `${brandFontSize * 0.85}mm` }}>
-                    ILIOS
+                    {labelText.brand}
                 </span>
                 <span className="font-black text-black flex-1 text-center" style={{ fontSize: `${brandFontSize * 0.85}mm`, whiteSpace: 'nowrap' }}>
-                    {showPrice && formattedPrice ? formattedPrice : ''}
+                    {labelText.price}
                 </span>
-                 <span className="font-black text-black flex-1 text-right" style={{ fontSize: `${brandFontSize * 0.85}mm` }}>925°</span>
+                 <span className="font-black text-black flex-1 text-right" style={{ fontSize: `${brandFontSize * 0.85}mm` }}>{labelText.metal}</span>
             </div>
             {/* Size prominently displayed under the line for rings and bracelets */}
-            {isSizedItem && size && (
+            {isSizedItem && labelText.size && (
                 <div className="w-full text-center mt-0.5">
                     <span
                         className="font-black text-black px-1.5 rounded-[1px] border border-black"
                         style={{ fontSize: `${detailsFontSize * 1.1}mm`, lineHeight: '1.1' }}
                     >
-                        {size}
+                        {labelText.size}
                     </span>
                 </div>
             )}
