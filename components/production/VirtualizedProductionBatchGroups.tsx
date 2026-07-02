@@ -59,6 +59,10 @@ export function getProductionVirtualRowMeasureElement(
     return virtualizer.measureElement;
 }
 
+export function getProductionVirtualBatchRowClassName(): string {
+    return 'pl-2 pr-1 py-1.5 border-l-2 border-slate-200 ml-1 overflow-visible';
+}
+
 function flattenGroupedRows(
     groupedData: Record<string, Record<string, DisplayBatch[]>>,
     groupMode: ProductionDisplayGroupMode,
@@ -147,9 +151,9 @@ function VirtualizedProductionBatchGroups({
     });
     const measureVirtualRowElement = getProductionVirtualRowMeasureElement(virtualizer);
 
-    // After bulk moves row indices shift, but the virtualizer can keep stale
-    // per-index heights. Keep this tied to actual row-layout changes only;
-    // parent re-renders should not re-measure and nudge the scroll position.
+    // After moves row indices shift and cards can temporarily gain movement
+    // chrome. Remeasure on row identity changes and renderBatch changes so
+    // absolute virtual rows do not overlap while optimistic moves reconcile.
     useLayoutEffect(() => {
         const scrollElement = parentRef.current;
         const previousScrollPosition = lastScrollPositionRef.current;
@@ -166,10 +170,13 @@ function VirtualizedProductionBatchGroups({
         };
 
         restoreScrollPosition();
-        const restoreFrame = window.requestAnimationFrame(restoreScrollPosition);
+        const restoreFrame = window.requestAnimationFrame(() => {
+            virtualizer.measure();
+            restoreScrollPosition();
+        });
 
         return () => window.cancelAnimationFrame(restoreFrame);
-    }, [rowsLayoutKey]);
+    }, [rowsLayoutKey, renderBatch]);
 
     return (
         <div
@@ -233,7 +240,7 @@ function VirtualizedProductionBatchGroups({
                                     </div>
                                 )}
                                 {row.type === 'batch' && (
-                                    <div className="pl-2 border-l-2 border-slate-200 ml-1 pb-2">
+                                    <div className={getProductionVirtualBatchRowClassName()}>
                                         {renderBatch(row.batch)}
                                     </div>
                                 )}
