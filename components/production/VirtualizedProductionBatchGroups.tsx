@@ -52,6 +52,7 @@ type Props = {
 const SORTED_GENDERS = [Gender.Women, Gender.Men, Gender.Unisex, 'Unknown'];
 const VIRTUAL_OVERSCAN = 6;
 type RowVirtualizerMeasureRef = { measureElement: (node: HTMLDivElement | null | undefined) => void };
+type VirtualRowsLayoutKeyRow = Pick<VirtualRow, 'key' | 'type'>;
 
 export function getProductionVirtualRowMeasureElement(
     virtualizer: RowVirtualizerMeasureRef,
@@ -61,6 +62,27 @@ export function getProductionVirtualRowMeasureElement(
 
 export function getProductionVirtualBatchRowClassName(): string {
     return 'pl-2 pr-1 py-1.5 border-l-2 border-slate-200 ml-1 overflow-visible';
+}
+
+function hashVirtualRowsLayoutSignature(value: string): string {
+    let hash = 5381;
+    for (let index = 0; index < value.length; index += 1) {
+        hash = ((hash << 5) + hash) ^ value.charCodeAt(index);
+    }
+    return (hash >>> 0).toString(36);
+}
+
+export function getProductionVirtualRowsLayoutKey(
+    groupMode: ProductionDisplayGroupMode,
+    sortOrder: ProductionDisplaySortOrder,
+    rows: readonly VirtualRowsLayoutKeyRow[],
+): string {
+    const rowSignature = rows.map((row) => `${row.type}:${row.key}`).join('|');
+    return `layout:${hashVirtualRowsLayoutSignature(`${groupMode}|${sortOrder}|${rowSignature}`)}`;
+}
+
+export function getProductionVirtualDomRowKey(rowsLayoutKey: string, virtualRowKey: React.Key): string {
+    return `${rowsLayoutKey}:${String(virtualRowKey)}`;
 }
 
 function flattenGroupedRows(
@@ -135,7 +157,10 @@ function VirtualizedProductionBatchGroups({
         [groupedData, groupMode, sortOrder],
     );
 
-    const rowsLayoutKey = useMemo(() => rows.map((row) => row.key).join('|'), [rows]);
+    const rowsLayoutKey = useMemo(
+        () => getProductionVirtualRowsLayoutKey(groupMode, sortOrder, rows),
+        [groupMode, sortOrder, rows],
+    );
 
     const getItemKey = useCallback(
         (index: number) => rows[index]?.key ?? index,
@@ -204,7 +229,7 @@ function VirtualizedProductionBatchGroups({
                         const row = rows[virtualRow.index];
                         return (
                             <div
-                                key={virtualRow.key}
+                                key={getProductionVirtualDomRowKey(rowsLayoutKey, virtualRow.key)}
                                 data-index={virtualRow.index}
                                 ref={measureVirtualRowElement}
                                 style={{
