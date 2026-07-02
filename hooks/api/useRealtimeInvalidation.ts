@@ -10,6 +10,10 @@ import {
   refetchRealtimeDomains,
 } from '../../lib/queryInvalidation';
 import { tryPatchRealtimeCache } from '../../lib/realtimeCachePatch';
+import {
+  shouldRemoveRealtimeChannelOnStatus,
+  shouldRetryRealtimeChannelOnStatus,
+} from '../realtimeChannelLifecycle';
 import { createRealtimeInvalidationScheduler } from './realtimeInvalidationScheduler';
 
 export const CORE_REALTIME_TABLES = [
@@ -208,8 +212,10 @@ export function useRealtimeInvalidation(): void {
             void refetchRealtimeDomains(queryClient, getRealtimeDomainsForTables(group.tables));
           }
         }
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          void supabase.removeChannel(channel);
+        if (shouldRetryRealtimeChannelOnStatus(status)) {
+          if (shouldRemoveRealtimeChannelOnStatus(status)) {
+            void supabase.removeChannel(channel);
+          }
           channelRefs.current.delete(group.id);
           scheduleRetry(group);
         }

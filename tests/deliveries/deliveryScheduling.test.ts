@@ -69,8 +69,8 @@ function makeItem(reminders: OrderDeliveryReminder[], planStatus: OrderDeliveryP
 
 describe('buildSingleCallReminder', () => {
   it('schedules day before at 13:00 when delivery is in the future', () => {
-    const delivery = new Date('2026-06-15T09:00:00.000Z');
-    const now = new Date('2026-06-10T10:00:00.000Z');
+    const delivery = new Date(2026, 5, 15, 9, 0, 0, 0);
+    const now = new Date(2026, 5, 10, 10, 0, 0, 0);
     const draft = buildSingleCallReminder(delivery, now);
     const trigger = new Date(draft.trigger_at);
     expect(trigger.getDate()).toBe(14);
@@ -80,8 +80,8 @@ describe('buildSingleCallReminder', () => {
   });
 
   it('falls back to same morning when day-before is in the past', () => {
-    const delivery = new Date('2026-06-12T15:00:00.000Z');
-    const now = new Date('2026-06-12T08:00:00.000Z');
+    const delivery = new Date(2026, 5, 12, 15, 0, 0, 0);
+    const now = new Date(2026, 5, 12, 8, 0, 0, 0);
     const draft = buildSingleCallReminder(delivery, now);
     const trigger = new Date(draft.trigger_at);
     expect(trigger.getDate()).toBe(12);

@@ -18,6 +18,10 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase, isLocalMode } from '../lib/supabase';
+import {
+    shouldRemoveRealtimeChannelOnStatus,
+    shouldRetryRealtimeChannelOnStatus,
+} from './realtimeChannelLifecycle';
 
 // ── Per-tab identity ─────────────────────────────────────────────────────────
 // Generated once per module load (i.e., per browser tab/page). Not persisted.
@@ -201,9 +205,11 @@ export function useLiveActivity(): UseLiveActivityResult {
                         isSubscribedRef.current = true;
                         queuedEventsRef.current = drainLiveActivityQueue(queuedEventsRef.current, sendEnvelope);
                     }
-                    if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                    if (shouldRetryRealtimeChannelOnStatus(status)) {
                         isSubscribedRef.current = false;
-                        void supabase.removeChannel(channel);
+                        if (shouldRemoveRealtimeChannelOnStatus(status)) {
+                            void supabase.removeChannel(channel);
+                        }
                         channelRef.current = null;
                         if (!retryTimerRef.current) {
                             retryTimerRef.current = setTimeout(() => {

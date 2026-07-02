@@ -6,6 +6,10 @@ import {
 } from '../lib/queryInvalidation';
 import { createRealtimeInvalidationScheduler } from '../hooks/api/realtimeInvalidationScheduler';
 import {
+  shouldRemoveRealtimeChannelOnStatus,
+  shouldRetryRealtimeChannelOnStatus,
+} from '../hooks/realtimeChannelLifecycle';
+import {
   CORE_REALTIME_CHANNEL_GROUPS,
   CORE_REALTIME_TABLES,
   getRealtimeChannelGroups,
@@ -90,5 +94,24 @@ describe('realtime invalidation scheduler', () => {
 
     expect(invalidateDomain).toHaveBeenCalledTimes(1);
     expect(invalidateDomain).toHaveBeenCalledWith('production', ['production_batches', 'batch_stage_history']);
+  });
+});
+
+describe('realtime channel lifecycle', () => {
+  it('does not remove a channel while handling its CLOSED callback', () => {
+    expect(shouldRemoveRealtimeChannelOnStatus('CLOSED')).toBe(false);
+  });
+
+  it('removes failed channels before retrying', () => {
+    expect(shouldRemoveRealtimeChannelOnStatus('CHANNEL_ERROR')).toBe(true);
+    expect(shouldRemoveRealtimeChannelOnStatus('TIMED_OUT')).toBe(true);
+    expect(shouldRemoveRealtimeChannelOnStatus('SUBSCRIBED')).toBe(false);
+  });
+
+  it('retries after failed or closed channel states', () => {
+    expect(shouldRetryRealtimeChannelOnStatus('CHANNEL_ERROR')).toBe(true);
+    expect(shouldRetryRealtimeChannelOnStatus('TIMED_OUT')).toBe(true);
+    expect(shouldRetryRealtimeChannelOnStatus('CLOSED')).toBe(true);
+    expect(shouldRetryRealtimeChannelOnStatus('SUBSCRIBED')).toBe(false);
   });
 });
