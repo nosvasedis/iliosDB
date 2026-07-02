@@ -17,7 +17,6 @@ import {
   ChevronDown,
   FileText,
   HelpCircle,
-  Loader2,
   Package,
   Printer,
   Scale,
@@ -33,6 +32,7 @@ import { FinancePeriodMode } from '../utils/financeAnalytics';
 import { useFinanceAnalytics } from '../hooks/api/useFinanceAnalytics';
 import FinancePeriodSelector from './FinancePeriodSelector';
 import DesktopPageHeader from './DesktopPageHeader';
+import IliosLoader from './ui/IliosLoader';
 
 interface Props {
   products: Product[];
@@ -99,12 +99,7 @@ export default function AnalyticsView({ products, onBack, onPrint }: Props) {
   };
 
   if (loading || !stats) {
-    return (
-      <div className="flex min-h-[420px] flex-col items-center justify-center gap-4 text-slate-500">
-        <Loader2 className="animate-spin text-emerald-600" size={36} />
-        <p className="text-sm font-black">Φόρτωση οικονομικών στοιχείων...</p>
-      </div>
-    );
+    return <IliosLoader variant="section" className="min-h-[420px]" />;
   }
 
   if (failed) {

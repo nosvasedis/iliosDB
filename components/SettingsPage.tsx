@@ -15,6 +15,7 @@ import BackupManagerModal from './backup/BackupManagerModal';
 import DesktopPageHeader from './DesktopPageHeader';
 import { useSettings } from '../hooks/api/useSettings';
 import { compressImage } from '../utils/imageHelpers';
+import IliosLoader from './ui/IliosLoader';
 
 const IMAGE_OPTIMIZATION_BATCH_SIZE = 100;
 const IMAGE_OPTIMIZATION_SKIPPED_KEY = 'ilios:image-optimization-skipped:v1';
@@ -86,7 +87,7 @@ export default function SettingsPage() {
     }, [imageOptimizationFilter, imageOptimizationPreview]);
 
     if (loadingSettings || !settings) {
-        return <div className="p-8 text-center text-slate-400">Φόρτωση ρυθμίσεων...</div>;
+        return <IliosLoader variant="section" />;
     }
 
     const fetchLivePrice = async () => {

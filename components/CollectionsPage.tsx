@@ -10,6 +10,7 @@ import { PriceListPrintData } from './PriceListPrintView';
 import { generateCollectionDescription } from '../lib/gemini';
 import ProductDetails from './ProductDetails';
 import DesktopPageHeader from './DesktopPageHeader';
+import IliosLoader from './ui/IliosLoader';
 
 interface Props {
     products?: Product[];
@@ -283,7 +284,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
     }, [allProducts, selectedCollection, searchTerm]);
 
     if (loadingCollections) {
-        return <div className="flex justify-center items-center h-64"><Loader2 size={32} className="animate-spin text-amber-500" /></div>;
+        return <IliosLoader variant="section" />;
     }
     
     if (isError) {

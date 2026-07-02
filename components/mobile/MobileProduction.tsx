@@ -47,6 +47,7 @@ import {
 } from '../../features/production/workflowSelectors';
 import { useMaterials } from '../../hooks/api/useMaterials';
 import { useMolds } from '../../hooks/api/useMolds';
+import IliosLoader from '../ui/IliosLoader';
 import { useOrdersWithItems } from '../../hooks/api/useOrders';
 import { useBatchStageHistoryEntries, useProductionBatches } from '../../hooks/api/useProductionBatches';
 import { productionKeys, productionRepository } from '../../features/production';
@@ -1449,7 +1450,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     };
 
     if (loadingBatches || loadingMaterials || !allProducts || !materials || !batches) {
-        return <div className="p-8 text-center text-slate-400">Φόρτωση παραγωγής...</div>;
+        return <IliosLoader variant="section" />;
     }
 
     const activeBatchesCount = enrichedBatches.filter(b => b.current_stage !== ProductionStage.Ready && !b.on_hold).length;

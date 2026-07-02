@@ -18,6 +18,7 @@ import {
 import { useUI } from '../UIProvider';
 import { formatOrderId } from '../../utils/orderUtils';
 import { invalidateOrdersAndBatches } from '../../lib/queryInvalidation';
+import IliosLoader from '../ui/IliosLoader';
 
 const ClerkBatchCard: React.FC<{ batch: ProductionBatch, onMove: (b: ProductionBatch, target: ProductionStage) => void, isLoading: boolean }> = ({ batch, onMove, isLoading }) => {
     // Determine possible actions based on current stage
@@ -94,7 +95,7 @@ export default function EmployeeProduction() {
         }
     };
 
-    if (isLoading) return <div className="flex justify-center p-10"><Loader2 className="animate-spin text-slate-400" /></div>;
+    if (isLoading) return <IliosLoader variant="section" />;
 
     // Filter batches relevant to the store clerk
     // 1. Coming from Polishing (Arriving at store/packaging)

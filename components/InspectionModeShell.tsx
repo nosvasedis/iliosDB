@@ -5,7 +5,6 @@ import {
   ChevronRight,
   Cloud,
   FileCheck2,
-  Loader2,
   RefreshCw,
   Settings,
   Truck,
@@ -23,6 +22,7 @@ import {
 } from '../lib/inspectionMode';
 import type { LegalTab } from './LegalDocumentsPage';
 import LegalOnlyPrintManager from './LegalOnlyPrintManager';
+import IliosLoader from './ui/IliosLoader';
 
 const LegalDocumentsPage = lazyWithChunkRecovery(
   () => import('./LegalDocumentsPage'),
@@ -79,13 +79,6 @@ const InspectionNavItem = ({
   </button>
 );
 
-const ContentLoader = () => (
-  <div className="min-h-[320px] w-full flex flex-col items-center justify-center text-slate-500">
-    <Loader2 size={36} className="animate-spin mb-3 text-amber-500" />
-    <p className="font-medium">Φόρτωση ενότητας...</p>
-  </div>
-);
-
 const InspectionModeShell: React.FC = () => {
   const [activeTab, setActiveTab] = useState<LegalTab>('new');
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -102,13 +95,7 @@ const InspectionModeShell: React.FC = () => {
   const environment = legalSettings?.environment?.toUpperCase() || 'DEV';
 
   if (loadingProducts) {
-    return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-500">
-        <Loader2 size={48} className="animate-spin mb-4 text-amber-500" />
-        <p className="font-medium text-lg">{INSPECTION_DOCUMENT_TITLE}</p>
-        <p className="mt-2 text-sm text-slate-400">Φόρτωση καταλόγου προϊόντων...</p>
-      </div>
-    );
+    return <IliosLoader variant="screen" />;
   }
 
   if (productsError || !products) {
@@ -228,7 +215,7 @@ const InspectionModeShell: React.FC = () => {
 
           <div className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth">
             <div className="max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <Suspense fallback={<ContentLoader />}>
+              <Suspense fallback={<IliosLoader variant="section" />}>
                 <LegalDocumentsPage
                   products={products}
                   presentation="inspection"

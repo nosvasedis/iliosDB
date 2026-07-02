@@ -4,11 +4,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/supabase';
 import { useOrdersWithItems } from '../../hooks/api/useOrders';
 import { Order, OrderStatus } from '../../types';
-import { ShoppingCart, Plus, Search, Loader2, ChevronRight, CalendarRange } from 'lucide-react';
+import { ShoppingCart, Plus, Search, ChevronRight, CalendarRange } from 'lucide-react';
 import { useUI } from '../UIProvider';
 import { formatCurrency } from '../../utils/pricingEngine';
 import MobileOrderBuilder from '../mobile/MobileOrderBuilder'; 
 import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
+import IliosLoader from '../ui/IliosLoader';
 
 export default function EmployeeOrders({ onOpenDeliveries }: { onOpenDeliveries?: (order: Order) => void }) {
     const { data: orders, isLoading } = useOrdersWithItems();
@@ -23,7 +24,7 @@ export default function EmployeeOrders({ onOpenDeliveries }: { onOpenDeliveries?
         o.id.toLowerCase().includes(search.toLowerCase())
     ) || [];
 
-    if (isLoading || !products) return <div className="flex justify-center p-20"><Loader2 className="animate-spin text-emerald-600"/></div>;
+    if (isLoading || !products) return <IliosLoader variant="section" />;
 
     if (isCreating || editingOrder) {
         return (

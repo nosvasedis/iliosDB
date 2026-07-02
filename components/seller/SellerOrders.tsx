@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
+import IliosLoader from '../ui/IliosLoader';
 
 interface Props {
     onCreate: () => void;
@@ -157,11 +158,7 @@ export default function SellerOrders({ onCreate, onEdit }: Props) {
         return matchesStatus && matchesSearch;
     });
 
-    if (isLoading) return (
-        <div className="p-10 flex justify-center">
-            <Loader2 className="animate-spin text-amber-500" />
-        </div>
-    );
+    if (isLoading) return <IliosLoader variant="section" />;
 
     return (
         <div className="p-4 space-y-4 h-full flex flex-col landscape:max-w-4xl landscape:mx-auto">

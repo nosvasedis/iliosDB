@@ -11,6 +11,7 @@ import { generateOrderId } from '../utils/orderUtils';
 import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../utils/retailNotes';
 import DesktopPageHeader from './DesktopPageHeader';
 import DebouncedSearchInput from './orders/DebouncedSearchInput';
+import IliosLoader from './ui/IliosLoader';
 
 // SKU visualizer colors (synced with BatchPrint / Inventory)
 const FINISH_COLORS: Record<string, string> = {
@@ -540,7 +541,7 @@ export default function OffersPage({ products, materials, settings, collections,
 
     // ---------------- UI RENDERING ----------------
 
-    if (loadingOffers) return <div className="p-12 text-center text-slate-400">Φόρτωση προσφορών...</div>;
+    if (loadingOffers) return <IliosLoader variant="section" />;
 
     if (isCreating) {
         return (

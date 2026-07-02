@@ -15,6 +15,7 @@ import { normalizedIncludes } from '../../utils/greekSearch';
 import { generateOrderId } from '../../utils/orderUtils';
 import BarcodeScanner from '../BarcodeScanner';
 import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../../utils/retailNotes';
+import IliosLoader from '../ui/IliosLoader';
 
 interface Props {
     onPrintOffer: (offer: Offer) => void;
@@ -424,7 +425,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
 
     // ---------------- UI RENDERING ----------------
 
-    if (loadingOffers) return <div className="p-12 text-center text-slate-400">Φόρτωση προσφορών...</div>;
+    if (loadingOffers) return <IliosLoader variant="section" />;
 
     // BUILDER VIEW
     if (view === 'builder') {

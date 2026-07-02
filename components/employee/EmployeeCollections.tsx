@@ -6,6 +6,7 @@ import { Collection, Product, ProductVariant, Warehouse } from '../../types';
 import { FolderKanban, ArrowLeft, Search, Layers, ImageIcon, X, Sparkles } from 'lucide-react';
 import EmployeeProductDetails from './EmployeeProductDetails';
 import { formatCurrency } from '../../utils/pricingEngine';
+import IliosLoader from '../ui/IliosLoader';
 
 interface Props {
     setPrintItems?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
@@ -76,7 +77,7 @@ export default function EmployeeCollections({ setPrintItems }: Props) {
             .sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' }));
     }, [selectedCollection, products, searchTerm]);
 
-    if (loadingCol || loadingProd) return <div className="p-12 text-center text-slate-400">Φόρτωση...</div>;
+    if (loadingCol || loadingProd) return <IliosLoader variant="section" />;
 
     // View: Product Details
     if (selectedProduct && warehouses) {

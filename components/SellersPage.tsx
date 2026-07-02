@@ -10,6 +10,7 @@ import { useFinanceAnalytics } from '../hooks/api/useFinanceAnalytics';
 import { UserProfile, Order, OrderStatus } from '../types';
 import { formatCurrency } from '../utils/pricingEngine';
 import DesktopPageHeader from './DesktopPageHeader';
+import IliosLoader from './ui/IliosLoader';
 
 interface SellerFormState {
   full_name: string;
@@ -213,12 +214,7 @@ export default function SellersPage() {
   const detailStats = detailSeller ? sellerStatsMap.get(detailSeller.id) : null;
 
   if (isLoading || financeLoading || !financeStats) {
-    return (
-      <div className="p-6">
-        <DesktopPageHeader icon={UserCheck} title="Πλασιέ" subtitle="Διαχείριση πωλητών" />
-        <div className="mt-8 text-center text-slate-400 font-medium">Φόρτωση...</div>
-      </div>
-    );
+    return <IliosLoader variant="section" />;
   }
 
   return (

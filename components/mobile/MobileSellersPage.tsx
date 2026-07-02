@@ -10,6 +10,7 @@ import { useSellers, sellerKeys } from '../../hooks/api/useSellers';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { useProducts } from '../../hooks/api/useProducts';
 import { useFinanceAnalytics } from '../../hooks/api/useFinanceAnalytics';
+import IliosLoader from '../ui/IliosLoader';
 
 interface SellerFormState {
   full_name: string;
@@ -229,7 +230,7 @@ export default function MobileSellersPage() {
       {/* ── Sellers List ── */}
       <div className="px-4 pt-4 space-y-3">
         {isLoading ? (
-          <div className="text-center py-12 text-slate-400 font-medium text-sm">Φόρτωση...</div>
+          <IliosLoader variant="section" className="min-h-[220px]" />
         ) : filteredSellers.length === 0 ? (
           <div className="text-center py-16">
             <UserCheck size={40} className="mx-auto text-slate-300 mb-3" />

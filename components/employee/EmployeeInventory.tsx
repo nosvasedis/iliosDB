@@ -9,6 +9,7 @@ import BarcodeScanner from '../BarcodeScanner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, SYSTEM_IDS, recordStockMovement, supabase } from '../../lib/supabase';
 import { invalidateProductsAndCatalog } from '../../lib/queryInvalidation';
+import IliosLoader from '../ui/IliosLoader';
 
 // Visual Helpers (Shared)
 const FINISH_COLORS: Record<string, string> = {
@@ -229,7 +230,7 @@ export default function EmployeeInventory() {
         }
     };
 
-    if (!products) return <div className="p-12 text-center">Loading...</div>;
+    if (!products) return <IliosLoader variant="section" />;
 
     const sizingInfo = activeMaster ? getSizingInfo(activeMaster) : null;
 

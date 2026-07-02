@@ -11,6 +11,7 @@ import { downloadFile, downloadBlob, flattenForCSV, convertToCSV } from '../../u
 import { BACKUP_TABLE_REGISTRY, BackupExportOptions, BackupProgress, BackupRestoreOptions } from '../../lib/backupConfig';
 import BackupManagerModal from '../backup/BackupManagerModal';
 import BackupProgressModal from '../BackupProgressModal';
+import IliosLoader from '../ui/IliosLoader';
 
 export default function MobileSettings() {
     const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
@@ -196,7 +197,7 @@ export default function MobileSettings() {
         reader.readAsText(file);
     };
 
-    if (!localSettings) return <div className="p-8 text-center text-slate-400">Φόρτωση...</div>;
+    if (!localSettings) return <IliosLoader variant="section" />;
 
     return (
         <div className="flex h-full min-h-0 flex-col overflow-hidden bg-slate-50">

@@ -38,6 +38,7 @@ import {
     RegistrySortSelect,
     type RegistrySortMode,
 } from '../../features/products';
+import IliosLoader from '../ui/IliosLoader';
 
 interface Props {
   products: Product[];
@@ -317,7 +318,7 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
             : subFilters.stone;
 
     if (!materials) {
-        return <div className="p-12 text-center text-slate-400 text-sm">Φόρτωση...</div>;
+        return <IliosLoader variant="section" />;
     }
 
     return (

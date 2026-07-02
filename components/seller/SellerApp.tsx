@@ -9,9 +9,9 @@ import SellerCustomers from './SellerCustomers';
 import MobileOrderBuilder from '../mobile/MobileOrderBuilder';
 import { Product, Order } from '../../types';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
 import type { SellerPage } from '../../surfaces/pageIds';
 import { productKeys, productsRepository } from '../../features/products';
+import IliosLoader from '../ui/IliosLoader';
 
 export default function SellerApp() {
   const [activePage, setActivePage] = useState<SellerPage>('dashboard');
@@ -39,11 +39,7 @@ export default function SellerApp() {
       setActivePage('orders');
   };
 
-  const loadingView = (
-    <div className="h-full flex items-center justify-center bg-slate-50">
-      <Loader2 size={32} className="animate-spin text-emerald-600" />
-    </div>
-  );
+  const loadingView = <IliosLoader variant="section" className="h-full min-h-full bg-slate-50" />;
 
   const pageRegistry: Record<SellerPage, React.ReactNode> = {
     dashboard: <SellerDashboard onNavigate={handleNavigate} onCreateOrder={handleCreateOrder} />,

@@ -1,12 +1,13 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Mold } from '../types';
-import { Trash2, Plus, MapPin, Gem, Loader2, Search, X, Check, MoreHorizontal, Puzzle } from 'lucide-react';
+import { Trash2, Plus, MapPin, Gem, Search, X, Check, MoreHorizontal, Puzzle } from 'lucide-react';
 import { filterMoldsByCategory, isLstxMold, MoldCategoryTab } from '../utils/moldCategories';
 import { supabase } from '../lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
 import DesktopPageHeader from './DesktopPageHeader';
+import IliosLoader from './ui/IliosLoader';
 
 // -- MOLD CARD COMPONENT --
 interface MoldCardProps {
@@ -226,7 +227,7 @@ export default function MoldsPage({ resourceTab = 'molds', onResourceTabChange }
         }
     };
 
-    if (isLoading) return <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-amber-500" size={32} /></div>;
+    if (isLoading) return <IliosLoader variant="section" />;
 
     return (
         <div className="space-y-6 h-full flex flex-col">

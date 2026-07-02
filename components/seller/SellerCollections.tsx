@@ -8,6 +8,7 @@ import { FINISH_CODES } from '../../constants';
 import SkuColorizedText from '../SkuColorizedText';
 import SellerImageLightbox from './SellerImageLightbox';
 import { SELLER_FINISH_COLORS, SELLER_STONE_TEXT_COLORS } from './skuColors';
+import IliosLoader from '../ui/IliosLoader';
 
 const SuffixBadge = ({ suffix, gender }: { suffix: string; gender: Gender }) => {
     const { finish, stone } = getVariantComponents(suffix, gender);
@@ -221,9 +222,7 @@ export default function SellerCollections({ products, onAddToOrder }: Props) {
             .sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' }));
     }, [selectedCollection, products, searchTerm]);
 
-    if (isLoading) return (
-        <div className="p-12 text-center text-slate-400 font-bold">Φόρτωση...</div>
-    );
+    if (isLoading) return <IliosLoader variant="section" />;
 
     // ── Collection Products View ───────────────────────────────────────────────
     if (selectedCollection) {

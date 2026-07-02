@@ -1,5 +1,4 @@
 import React, { Suspense, useState } from 'react';
-import { Loader2 } from 'lucide-react';
 import MobileLayout from './components/mobile/MobileLayout';
 import { PrintManager } from './components/PrintManager';
 import { lazyWithChunkRecovery } from './lib/chunkLoadRecovery';
@@ -31,6 +30,7 @@ import { useSettings } from './hooks/api/useSettings';
 import { useWarehouses } from './hooks/api/useWarehouses';
 import { PriceListPrintData } from './components/PriceListPrintView';
 import { useAllShipmentItems, useAllShipments } from './hooks/api/useOrders';
+import IliosLoader from './components/ui/IliosLoader';
 
 const lazyMobilePage = <T extends React.ComponentType<any>>(factory: () => Promise<{ default: T }>) =>
   lazyWithChunkRecovery(factory, import.meta.url);
@@ -62,12 +62,6 @@ interface MobileAppProps {
   isSyncing?: boolean;
   pendingItemsCount?: number;
 }
-
-const MobileContentLoader = () => (
-  <div className="min-h-[240px] w-full flex items-center justify-center bg-slate-50">
-    <Loader2 size={28} className="animate-spin text-emerald-600" />
-  </div>
-);
 
 export default function MobileApp({ isOnline = true, isSyncing = false, pendingItemsCount = 0 }: MobileAppProps) {
   const [activePage, setActivePage] = useState<MobileAdminPage>('dashboard');
@@ -144,11 +138,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
   };
 
   if (!settings || !products || !warehouses || !materials || !molds) {
-    return (
-      <div className="h-screen w-full flex items-center justify-center bg-slate-50">
-        <Loader2 size={32} className="animate-spin text-emerald-600" />
-      </div>
-    );
+    return <IliosLoader variant="screen" />;
   }
 
   const handleEditOrder = (order: Order) => {
@@ -269,13 +259,13 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         isSyncing={isSyncing}
         pendingCount={pendingItemsCount}
       >
-        <Suspense fallback={<MobileContentLoader />}>
+        <Suspense fallback={<IliosLoader variant="section" />}>
           {pageRegistry[activePage]}
         </Suspense>
       </MobileLayout>
 
       {selectedProduct && (
-        <Suspense fallback={<MobileContentLoader />}>
+        <Suspense fallback={<IliosLoader variant="section" />}>
           <MobileProductDetails
             product={selectedProduct}
             onClose={() => setSelectedProduct(null)}

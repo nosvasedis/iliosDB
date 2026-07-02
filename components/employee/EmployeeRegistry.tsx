@@ -7,6 +7,7 @@ import { formatCurrency, getVariantComponents, calculateProductCost, estimateVar
 import EmployeeProductDetails from './EmployeeProductDetails';
 import { useUI } from '../UIProvider';
 import BarcodeScanner from '../BarcodeScanner';
+import IliosLoader from '../ui/IliosLoader';
 
 interface Props {
     setPrintItems?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
@@ -230,7 +231,7 @@ export default function EmployeeRegistry({ setPrintItems }: Props) {
         }
     };
 
-    if (isLoading) return <div className="p-12 text-center text-slate-400">Φόρτωση προϊόντων...</div>;
+    if (isLoading) return <IliosLoader variant="section" />;
 
     return (
         <div className="flex flex-col h-full space-y-6">

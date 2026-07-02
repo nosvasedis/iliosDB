@@ -4,9 +4,6 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  Loader2,
-  Gem,
-  MapPin,
   LogOut,
   Cloud,
   HardDrive,
@@ -50,6 +47,7 @@ import type { AdminPage } from './surfaces/pageIds';
 import { isInspectionModeActive } from './lib/inspectionMode';
 import InspectionModeShell from './components/InspectionModeShell';
 import { InspectionModeProvider } from './components/InspectionModeProvider';
+import IliosLoader from './components/ui/IliosLoader';
 
 const lazyPage = <T extends React.ComponentType<any>>(factory: () => Promise<{ default: T }>) =>
   lazyWithChunkRecovery(factory, import.meta.url);
@@ -79,39 +77,13 @@ const DeliveriesPage = lazyPage(() => import('./components/DeliveriesPage'));
 const LegalDocumentsPage = lazyPage(() => import('./components/LegalDocumentsPage'));
 
 
-const ContentLoader = () => (
-  <div className="min-h-[320px] w-full flex flex-col items-center justify-center text-slate-500">
-    <div className="relative mb-5 flex items-center justify-center">
-      {/* subtle ambient glow */}
-      <div className="absolute inset-0 h-24 w-24 -translate-x-1/2 -translate-y-1/2 top-1/2 left-1/2 rounded-full bg-amber-400/15 blur-2xl animate-pulse" />
-      {/* orbit ring */}
-      <div className="absolute h-[72px] w-[72px] rounded-full border border-amber-200/60" />
-      {/* orbiting spark */}
-      <div className="absolute h-[72px] w-[72px] animate-[spin_2s_linear_infinite]">
-        <div className="absolute -top-1 left-1/2 h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.9)]" />
-      </div>
-      {/* central gem */}
-      <Gem
-        size={34}
-        className="relative text-amber-500 drop-shadow-[0_0_20px_rgba(245,158,11,0.45)] animate-pulse"
-        strokeWidth={1.25}
-      />
-    </div>
-    <p className="font-bold text-slate-400 tracking-wide">Φόρτωση ενότητας</p>
-  </div>
-);
-
 function AuthGuard({ children }: { children?: React.ReactNode }) {
   const { session, loading, profile, signOut, refreshProfile } = useAuth();
 
   if (isLocalMode) return <>{children}</>;
 
   if (loading) {
-    return (
-      <div className="h-screen w-full flex items-center justify-center bg-slate-50">
-        <Loader2 size={40} className="animate-spin text-amber-500" />
-      </div>
-    );
+    return <IliosLoader variant="screen" />;
   }
 
   if (!session) return <AuthScreen />;
@@ -262,14 +234,14 @@ function ErpAppContent() {
   // the full ERP graph needed by admin/employee screens.
   if (profile?.role === 'seller') {
     return (
-      <Suspense fallback={<div className="h-screen w-full flex items-center justify-center bg-slate-50"><Loader2 size={40} className="animate-spin text-amber-500" /></div>}>
+      <Suspense fallback={<IliosLoader variant="screen" />}>
         <SellerApp />
       </Suspense>
     );
   }
 
   if (loadingSettings || loadingMaterials || loadingMolds || loadingProducts || loadingCollections) {
-    return <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-500"><Loader2 size={48} className="animate-spin mb-4 text-amber-500" /><p className="font-medium text-lg">Φόρτωση ERP...</p></div>;
+    return <IliosLoader variant="screen" />;
   }
   if (!settings || !products || !materials || !molds || !collections) return null;
 
@@ -277,7 +249,7 @@ function ErpAppContent() {
   // 1. Store Clerk ('user') -> Employee App
   if (profile?.role === 'user') {
     return (
-      <Suspense fallback={<div className="h-screen w-full flex items-center justify-center bg-slate-50"><Loader2 size={40} className="animate-spin text-amber-500" /></div>}>
+      <Suspense fallback={<IliosLoader variant="screen" />}>
         <>
           <PrintManager
             settings={settings}
@@ -331,7 +303,7 @@ function ErpAppContent() {
   if (profile?.role === 'admin') {
     if (isMobile) {
       return (
-        <Suspense fallback={<div className="h-screen w-full flex items-center justify-center bg-slate-50"><Loader2 size={40} className="animate-spin text-amber-500" /></div>}>
+        <Suspense fallback={<IliosLoader variant="screen" />}>
           <MobileApp
             isOnline={isOnline}
             isSyncing={isSyncing}
@@ -578,7 +550,7 @@ function ErpAppContent() {
           </header>
           <div className="flex-1 overflow-y-auto p-4 md:p-8 relative scroll-smooth">
             <div className="max-w-[1600px] mx-auto" key={activePage}>
-              <Suspense fallback={<ContentLoader />}>
+              <Suspense fallback={<IliosLoader variant="section" />}>
               <div className="animate-in fade-in slide-in-from-bottom-3 duration-400">
               {adminPageRegistry[activePage]}
               </div>

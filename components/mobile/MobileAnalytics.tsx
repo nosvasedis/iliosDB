@@ -6,7 +6,6 @@ import {
   Boxes,
   ChevronDown,
   FileText,
-  Loader2,
   Package,
   Printer,
   Receipt,
@@ -31,6 +30,7 @@ import { FinancePeriodMode } from '../../utils/financeAnalytics';
 import { useFinanceAnalytics } from '../../hooks/api/useFinanceAnalytics';
 import FinancePeriodSelector from '../FinancePeriodSelector';
 import MobileScreenHeader from './MobileScreenHeader';
+import IliosLoader from '../ui/IliosLoader';
 
 interface Props {
   products: Product[];
@@ -91,15 +91,7 @@ export default function MobileAnalytics({ products, onPrint }: Props) {
   };
 
   if (isLoading || !stats) {
-    return (
-      <div className="min-h-full bg-slate-50">
-        <MobileScreenHeader icon={BarChart3} title="Οικονομικά" subtitle="Πραγματοποιημένα έσοδα και εκκρεμότητες" iconClassName="text-indigo-700" />
-        <div className="flex flex-col items-center justify-center px-5 py-10 text-slate-500">
-          <Loader2 size={28} className="animate-spin text-indigo-600" />
-          <p className="mt-3 text-sm font-bold">Φόρτωση οικονομικών στοιχείων...</p>
-        </div>
-      </div>
-    );
+    return <IliosLoader variant="section" />;
   }
 
   if (isError) {

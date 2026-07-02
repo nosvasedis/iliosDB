@@ -6,6 +6,7 @@ import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold
 import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, ArrowUp, ArrowDown, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, Users, StickyNote, Hash, Save, Edit, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList, Grid, Maximize2, Minimize2 } from 'lucide-react';
 import { useUI } from './UIProvider';
 import DesktopPageHeader from './DesktopPageHeader';
+import IliosLoader from './ui/IliosLoader';
 import { useAuth } from './AuthContext';
 import SkuColorizedText from './SkuColorizedText';
 import BatchBuildModal from './BatchBuildModal';
@@ -3381,7 +3382,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         movingBatchIds,
     ]);
 
-    if (isLoading) return <div className="p-12 text-center text-slate-400">Φόρτωση παραγωγής...</div>;
+    if (isLoading) return <IliosLoader variant="section" />;
 
     if (batchesError) {
         return (

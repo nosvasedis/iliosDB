@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Material, MaterialType, GlobalSettings } from '../types';
-import { Trash2, Plus, Save, Loader2, Gem, MapPin, Box, Activity, Puzzle, Palette, Scroll, Search, X, Globe, Package, MoreHorizontal, User, CircleDollarSign, Check, XCircle, LayoutGrid, List as ListIcon, Calculator } from 'lucide-react';
+import { Trash2, Plus, Save, Gem, MapPin, Box, Activity, Puzzle, Palette, Scroll, Search, X, Globe, Package, MoreHorizontal, User, CircleDollarSign, Check, XCircle, LayoutGrid, List as ListIcon, Calculator } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
@@ -9,6 +9,7 @@ import { useUI } from './UIProvider';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN } from '../constants';
 import { formatCurrency } from '../utils/pricingEngine';
 import DesktopPageHeader from './DesktopPageHeader';
+import IliosLoader from './ui/IliosLoader';
 
 const MAT_TYPE_MAP: Record<MaterialType, string> = {
     [MaterialType.Stone]: 'Πέτρα',
@@ -439,7 +440,7 @@ export default function MaterialsPage({ settings, resourceTab = 'materials', onR
       }
   };
 
-  if (isLoading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin text-amber-500"/></div>;
+  if (isLoading) return <IliosLoader variant="section" />;
 
   const TABS = [
       { id: MaterialType.Stone, label: 'Πέτρες', icon: Gem, color: 'text-purple-600', bg: 'bg-purple-50' },

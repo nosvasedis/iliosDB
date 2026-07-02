@@ -38,6 +38,7 @@ import SkuOrderSearchModal from '../orders/SkuOrderSearchModal';
 import ShipmentSelectorModal from '../ShipmentSelectorModal';
 import { useAllShipmentItems, useAllShipments } from '../../hooks/api/useOrders';
 import TransferRemainingItemsModal from '../TransferRemainingItemsModal';
+import IliosLoader from '../ui/IliosLoader';
 
 const STAGE_ICON_MAP: Record<ProductionStage, LucideIcon> = {
     [ProductionStage.AwaitingDelivery]: Globe,
@@ -1443,7 +1444,7 @@ export default function MobileOrders({
         }
     };
 
-    if (isLoading) return <div className="p-8 text-center text-slate-400">Φόρτωση...</div>;
+    if (isLoading) return <IliosLoader variant="section" />;
 
     const activeFilterCount = countActiveFilters(filters);
 
