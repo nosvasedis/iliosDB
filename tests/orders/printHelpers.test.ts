@@ -1,14 +1,122 @@
 import { describe, expect, it } from 'vitest';
-import { OrderStatus, ProductionStage } from '../../types';
+import { Order, OrderShipment, OrderShipmentItem, OrderStatus, ProductionStage } from '../../types';
 import {
   buildLatestShipmentPrintData,
   buildOrderLabelPrintItems,
   buildOrderItemIdentityKey,
   buildShipmentPrintPayloads,
   buildSyntheticAggregatedBatches,
+  getShipmentPrintDecision,
 } from '../../features/orders/printHelpers';
 
 describe('orders print helpers', () => {
+  const makeOrder = (overrides: Partial<Order> = {}): Order => ({
+    id: 'ord-smart-print',
+    customer_name: 'Smart Print Customer',
+    created_at: '2026-06-01T10:00:00.000Z',
+    status: OrderStatus.InProduction,
+    items: [
+      { sku: 'PN1', quantity: 2, variant_suffix: '', price_at_order: 10, line_id: 'line-1' },
+      { sku: 'PN2', quantity: 1, variant_suffix: 'X', price_at_order: 20, line_id: 'line-2' },
+    ],
+    total_price: 40,
+    vat_rate: 0.24,
+    discount_percent: 0,
+    ...overrides,
+  });
+
+  const makeShipment = (overrides: Partial<OrderShipment> = {}): OrderShipment => ({
+    id: 'ship-1',
+    order_id: 'ord-smart-print',
+    shipment_number: 1,
+    shipped_at: '2026-06-02T10:00:00.000Z',
+    shipped_by: 'tester',
+    notes: null,
+    created_at: '2026-06-02T10:00:00.000Z',
+    ...overrides,
+  });
+
+  const makeShipmentItem = (overrides: Partial<OrderShipmentItem> = {}): OrderShipmentItem => ({
+    id: 'shipment-item-1',
+    shipment_id: 'ship-1',
+    sku: 'PN1',
+    variant_suffix: '',
+    size_info: null,
+    cord_color: null,
+    enamel_color: null,
+    quantity: 1,
+    price_at_order: 10,
+    line_id: 'line-1',
+    ...overrides,
+  });
+
+  it('classifies a one-part full shipment as normal order printing', () => {
+    const order = makeOrder({ status: OrderStatus.Delivered });
+    const snapshot = {
+      shipments: [makeShipment()],
+      items: [
+        makeShipmentItem({ id: 'item-1', sku: 'PN1', quantity: 2, line_id: 'line-1' }),
+        makeShipmentItem({ id: 'item-2', sku: 'PN2', variant_suffix: 'X', quantity: 1, price_at_order: 20, line_id: 'line-2' }),
+      ],
+    };
+
+    const decision = getShipmentPrintDecision(order, snapshot);
+
+    expect(decision.kind).toBe('single_full');
+    expect(decision.latestShipmentData).toBeNull();
+    expect(decision.shipmentPrintPayloads).toHaveLength(1);
+  });
+
+  it('classifies a one-part partial shipment and returns the remaining order', () => {
+    const order = makeOrder();
+    const snapshot = {
+      shipments: [makeShipment()],
+      items: [
+        makeShipmentItem({ id: 'item-1', sku: 'PN1', quantity: 1, line_id: 'line-1' }),
+      ],
+    };
+
+    const decision = getShipmentPrintDecision(order, snapshot);
+
+    expect(decision.kind).toBe('single_partial');
+    expect(decision.latestShipmentData?.remainingOrder.items).toEqual([
+      expect.objectContaining({ sku: 'PN1', quantity: 1, line_id: 'line-1' }),
+      expect.objectContaining({ sku: 'PN2', quantity: 1, line_id: 'line-2' }),
+    ]);
+  });
+
+  it('classifies multiple shipments as a multi-part print choice even when fully delivered', () => {
+    const order = makeOrder({ status: OrderStatus.Delivered });
+    const snapshot = {
+      shipments: [
+        makeShipment({ id: 'ship-1', shipment_number: 1, shipped_at: '2026-06-02T10:00:00.000Z' }),
+        makeShipment({ id: 'ship-2', shipment_number: 2, shipped_at: '2026-06-03T10:00:00.000Z' }),
+      ],
+      items: [
+        makeShipmentItem({ id: 'item-1', shipment_id: 'ship-1', sku: 'PN1', quantity: 2, line_id: 'line-1' }),
+        makeShipmentItem({ id: 'item-2', shipment_id: 'ship-2', sku: 'PN2', variant_suffix: 'X', quantity: 1, price_at_order: 20, line_id: 'line-2' }),
+      ],
+    };
+
+    const decision = getShipmentPrintDecision(order, snapshot);
+
+    expect(decision.kind).toBe('multi_part');
+    expect(decision.latestShipmentData).toBeNull();
+    expect(decision.shipmentPrintPayloads.map((payload) => payload.shipment.id)).toEqual(['ship-2', 'ship-1']);
+  });
+
+  it('ignores shipment rows that have no printable shipment items', () => {
+    const order = makeOrder({ status: OrderStatus.Delivered });
+    const decision = getShipmentPrintDecision(order, {
+      shipments: [makeShipment()],
+      items: [],
+    });
+
+    expect(decision.kind).toBe('none');
+    expect(decision.latestShipmentData).toBeNull();
+    expect(decision.shipmentPrintPayloads).toEqual([]);
+  });
+
   it('builds latest shipment data with the remaining order and totals', () => {
     const order = {
       id: 'ord-1',

@@ -20,7 +20,7 @@ import { OrderListProgressBar } from './orders/OrderListProgressBar';
 import ShipmentCreationModal, { ShipmentCreationVariant } from './deliveries/ShipmentCreationModal';
 import ShipmentUndoConfirmationModal from './deliveries/ShipmentUndoConfirmationModal';
 import { invalidateAndRefetchAfterShipmentChange, invalidateOrdersAndBatches } from '../lib/queryInvalidation';
-import { buildPartialOrderFromBatches, buildLatestShipmentPrintData, buildOrderLabelPrintItems, buildShipmentPrintPayloads, buildSyntheticAggregatedBatches, getShipmentStageBreakdown, getShipmentSummary, getShipmentValue, buildOrderRevisions, orderMatchesSearch, estimateOrderListRowHeight, canOfferRemainingTransfer } from '../features/orders';
+import { buildPartialOrderFromBatches, buildOrderLabelPrintItems, buildSyntheticAggregatedBatches, getShipmentPrintDecision, getShipmentStageBreakdown, getShipmentSummary, getShipmentValue, buildOrderRevisions, orderMatchesSearch, estimateOrderListRowHeight, canOfferRemainingTransfer } from '../features/orders';
 import DebouncedSearchInput from './orders/DebouncedSearchInput';
 import { getOrderStatusClasses, getOrderStatusLabel, getOrderStatusIcon } from '../features/orders/statusPresentation';
 import { getTagColor } from '../features/orders/tagColors';
@@ -359,12 +359,13 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
     // Check if order has multiple shipments (parts)
     const shipments = useMemo(() => groupBatchesByShipment(orderBatches), [orderBatches]);
     const hasMultipleShipments = shipments.length > 1;
-    const latestShipmentData = useMemo(() => buildLatestShipmentPrintData(order, shipmentsQuery.data), [order, shipmentsQuery.data]);
-    const shipmentPrintPayloads = useMemo(() => buildShipmentPrintPayloads(order, shipmentsQuery.data), [order, shipmentsQuery.data]);
+    const shipmentPrintDecision = useMemo(() => getShipmentPrintDecision(order, shipmentsQuery.data), [order, shipmentsQuery.data]);
+    const latestShipmentData = shipmentPrintDecision.latestShipmentData;
+    const shipmentPrintPayloads = shipmentPrintDecision.shipmentPrintPayloads;
     const orderRevisions = useMemo(() => buildOrderRevisions(order), [order]);
     const productsBySku = useMemo(() => new Map(products.map((product) => [product.sku, product])), [products]);
-    const hasPrintableShipmentDocs = shipmentPrintPayloads.length > 0;
-    const hasMultipleOrderShipments = shipmentPrintPayloads.length > 1;
+    const shouldShowShipmentPrompt = shipmentPrintDecision.kind === 'single_partial' || shipmentPrintDecision.kind === 'multi_part';
+    const hasMultipleOrderShipments = shipmentPrintDecision.kind === 'multi_part';
 
     const formatOptionColor = (value?: string | { label?: string; name?: string; code?: string } | null) => {
         if (!value) return '';
@@ -451,7 +452,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
     }, [orderRevisions, productsBySku]);
 
     const handlePrintOrder = () => {
-        if (hasPrintableShipmentDocs && onPrintShipment) {
+        if (shouldShowShipmentPrompt && onPrintShipment) {
             setShowShipmentPrompt(true);
             return;
         }
@@ -602,7 +603,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                 </div>
             </div>
         </div>
-        {showShipmentPrompt && hasPrintableShipmentDocs && (
+        {showShipmentPrompt && shouldShowShipmentPrompt && (
             <div className="fixed inset-0 z-[170] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
                 <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
                     <div className="p-6 border-b border-slate-100 bg-amber-50">

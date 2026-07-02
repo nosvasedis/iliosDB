@@ -20,6 +20,14 @@ export interface ShipmentPrintPayload {
   shipmentItems: OrderShipmentItem[];
 }
 
+export type ShipmentPrintDecisionKind = 'none' | 'single_full' | 'single_partial' | 'multi_part';
+
+export interface ShipmentPrintDecision {
+  kind: ShipmentPrintDecisionKind;
+  shipmentPrintPayloads: ShipmentPrintPayload[];
+  latestShipmentData: LatestShipmentPrintData | null;
+}
+
 export function buildShipmentPrintPayloads(
   order: Order,
   shipmentSnapshot: OrderShipmentSnapshot | undefined | null,
@@ -40,6 +48,36 @@ export function buildShipmentPrintPayloads(
       shipmentItems: shipmentItems.filter((item) => item.shipment_id === shipment.id),
     }))
     .filter((payload) => payload.shipmentItems.length > 0);
+}
+
+export function getShipmentPrintDecision(
+  order: Order,
+  shipmentSnapshot: OrderShipmentSnapshot | undefined | null,
+): ShipmentPrintDecision {
+  const shipmentPrintPayloads = buildShipmentPrintPayloads(order, shipmentSnapshot);
+  const latestShipmentData = buildLatestShipmentPrintData(order, shipmentSnapshot);
+
+  if (shipmentPrintPayloads.length === 0) {
+    return {
+      kind: 'none',
+      shipmentPrintPayloads,
+      latestShipmentData: null,
+    };
+  }
+
+  if (shipmentPrintPayloads.length > 1) {
+    return {
+      kind: 'multi_part',
+      shipmentPrintPayloads,
+      latestShipmentData,
+    };
+  }
+
+  return {
+    kind: latestShipmentData ? 'single_partial' : 'single_full',
+    shipmentPrintPayloads,
+    latestShipmentData,
+  };
 }
 
 export interface OrderLabelPrintItem {
