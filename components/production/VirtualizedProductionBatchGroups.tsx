@@ -51,6 +51,13 @@ type Props = {
 
 const SORTED_GENDERS = [Gender.Women, Gender.Men, Gender.Unisex, 'Unknown'];
 const VIRTUAL_OVERSCAN = 6;
+type RowVirtualizerMeasureRef = { measureElement: (node: HTMLDivElement | null | undefined) => void };
+
+export function getProductionVirtualRowMeasureElement(
+    virtualizer: RowVirtualizerMeasureRef,
+): RowVirtualizerMeasureRef['measureElement'] {
+    return virtualizer.measureElement;
+}
 
 function flattenGroupedRows(
     groupedData: Record<string, Record<string, DisplayBatch[]>>,
@@ -138,6 +145,7 @@ function VirtualizedProductionBatchGroups({
         getItemKey,
         overscan: VIRTUAL_OVERSCAN,
     });
+    const measureVirtualRowElement = getProductionVirtualRowMeasureElement(virtualizer);
 
     // After bulk moves row indices shift, but the virtualizer can keep stale
     // per-index heights. Keep this tied to actual row-layout changes only;
@@ -191,7 +199,7 @@ function VirtualizedProductionBatchGroups({
                             <div
                                 key={virtualRow.key}
                                 data-index={virtualRow.index}
-                                ref={(element) => virtualizer.measureElement(element)}
+                                ref={measureVirtualRowElement}
                                 style={{
                                     position: 'absolute',
                                     top: 0,
