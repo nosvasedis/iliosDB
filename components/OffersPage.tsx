@@ -541,7 +541,7 @@ export default function OffersPage({ products, materials, settings, collections,
 
     // ---------------- UI RENDERING ----------------
 
-    if (loadingOffers) return <IliosLoader variant="section" />;
+    if (loadingOffers) return <IliosLoader variant="section" detail="Προσφορές" />;
 
     if (isCreating) {
         return (

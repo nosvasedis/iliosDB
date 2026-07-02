@@ -197,7 +197,7 @@ export default function MobileSettings() {
         reader.readAsText(file);
     };
 
-    if (!localSettings) return <IliosLoader variant="section" />;
+    if (!localSettings) return <IliosLoader variant="section" detail="Ρυθμίσεις" />;
 
     return (
         <div className="flex h-full min-h-0 flex-col overflow-hidden bg-slate-50">

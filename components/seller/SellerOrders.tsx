@@ -158,7 +158,7 @@ export default function SellerOrders({ onCreate, onEdit }: Props) {
         return matchesStatus && matchesSearch;
     });
 
-    if (isLoading) return <IliosLoader variant="section" />;
+    if (isLoading) return <IliosLoader variant="section" detail="Παραγγελίες" />;
 
     return (
         <div className="p-4 space-y-4 h-full flex flex-col landscape:max-w-4xl landscape:mx-auto">

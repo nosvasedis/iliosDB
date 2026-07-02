@@ -318,7 +318,7 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
             : subFilters.stone;
 
     if (!materials) {
-        return <IliosLoader variant="section" />;
+        return <IliosLoader variant="section" detail="Μητρώο" />;
     }
 
     return (

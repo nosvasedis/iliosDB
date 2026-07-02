@@ -1450,7 +1450,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     };
 
     if (loadingBatches || loadingMaterials || !allProducts || !materials || !batches) {
-        return <IliosLoader variant="section" />;
+        return <IliosLoader variant="section" detail="Παραγωγή" />;
     }
 
     const activeBatchesCount = enrichedBatches.filter(b => b.current_stage !== ProductionStage.Ready && !b.on_hold).length;

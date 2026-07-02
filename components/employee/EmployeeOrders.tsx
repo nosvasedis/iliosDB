@@ -24,7 +24,7 @@ export default function EmployeeOrders({ onOpenDeliveries }: { onOpenDeliveries?
         o.id.toLowerCase().includes(search.toLowerCase())
     ) || [];
 
-    if (isLoading || !products) return <IliosLoader variant="section" />;
+    if (isLoading || !products) return <IliosLoader variant="section" detail="Παραγγελίες" />;
 
     if (isCreating || editingOrder) {
         return (

@@ -222,7 +222,7 @@ export default function SellerCollections({ products, onAddToOrder }: Props) {
             .sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' }));
     }, [selectedCollection, products, searchTerm]);
 
-    if (isLoading) return <IliosLoader variant="section" />;
+    if (isLoading) return <IliosLoader variant="section" detail="Συλλογές" />;
 
     // ── Collection Products View ───────────────────────────────────────────────
     if (selectedCollection) {

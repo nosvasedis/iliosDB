@@ -99,7 +99,7 @@ export default function AnalyticsView({ products, onBack, onPrint }: Props) {
   };
 
   if (loading || !stats) {
-    return <IliosLoader variant="section" className="min-h-[420px]" />;
+    return <IliosLoader variant="section" detail="Οικονομικά" className="min-h-[420px]" />;
   }
 
   if (failed) {

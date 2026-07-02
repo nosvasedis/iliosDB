@@ -57,6 +57,30 @@ const MobileAnalytics = lazyMobilePage(() => import('./components/mobile/MobileA
 const MobileSellers = lazyMobilePage(() => import('./components/mobile/MobileSellersPage'));
 const LegalDocumentsPage = lazyMobilePage(() => import('./components/LegalDocumentsPage'));
 
+const mobileLoadingDetails: Record<MobileAdminPage, string> = {
+  dashboard: 'Αρχική',
+  orders: 'Παραγγελίες',
+  'order-builder': 'Νέα παραγγελία',
+  deliveries: 'Παραδόσεις',
+  production: 'Παραγωγή',
+  inventory: 'Αποθήκη',
+  menu: 'Μενού',
+  registry: 'Μητρώο',
+  'ai-studio': 'AI Studio',
+  settings: 'Ρυθμίσεις',
+  resources: 'Υλικά & λάστιχα',
+  customers: 'Πελάτες',
+  suppliers: 'Προμηθευτές',
+  sellers: 'Πλασιέ',
+  pricing: 'Τιμολόγηση',
+  'batch-print': 'Μαζική εκτύπωση',
+  collections: 'Συλλογές',
+  pricelist: 'Τιμοκατάλογος',
+  offers: 'Προσφορές',
+  analytics: 'Οικονομικά',
+  legal: 'Παραστατικά',
+};
+
 interface MobileAppProps {
   isOnline?: boolean;
   isSyncing?: boolean;
@@ -138,7 +162,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
   };
 
   if (!settings || !products || !warehouses || !materials || !molds) {
-    return <IliosLoader variant="screen" />;
+    return <IliosLoader variant="screen" detail="Συγχρονισμός mobile δεδομένων" />;
   }
 
   const handleEditOrder = (order: Order) => {
@@ -259,13 +283,13 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         isSyncing={isSyncing}
         pendingCount={pendingItemsCount}
       >
-        <Suspense fallback={<IliosLoader variant="section" />}>
+        <Suspense fallback={<IliosLoader variant="section" detail={mobileLoadingDetails[activePage]} />}>
           {pageRegistry[activePage]}
         </Suspense>
       </MobileLayout>
 
       {selectedProduct && (
-        <Suspense fallback={<IliosLoader variant="section" />}>
+        <Suspense fallback={<IliosLoader variant="section" detail="Καρτέλα προϊόντος" />}>
           <MobileProductDetails
             product={selectedProduct}
             onClose={() => setSelectedProduct(null)}

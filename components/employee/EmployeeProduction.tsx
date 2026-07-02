@@ -95,7 +95,7 @@ export default function EmployeeProduction() {
         }
     };
 
-    if (isLoading) return <IliosLoader variant="section" />;
+    if (isLoading) return <IliosLoader variant="section" detail="Παραγωγή" />;
 
     // Filter batches relevant to the store clerk
     // 1. Coming from Polishing (Arriving at store/packaging)

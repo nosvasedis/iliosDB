@@ -214,7 +214,7 @@ export default function SellersPage() {
   const detailStats = detailSeller ? sellerStatsMap.get(detailSeller.id) : null;
 
   if (isLoading || financeLoading || !financeStats) {
-    return <IliosLoader variant="section" />;
+    return <IliosLoader variant="section" detail="Πλασιέ" />;
   }
 
   return (

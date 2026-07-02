@@ -39,7 +39,15 @@ export default function SellerApp() {
       setActivePage('orders');
   };
 
-  const loadingView = <IliosLoader variant="section" className="h-full min-h-full bg-slate-50" />;
+  const sellerLoadingDetails: Record<SellerPage, string> = {
+    dashboard: 'Αρχική',
+    catalog: 'Κατάλογος',
+    collections: 'Συλλογές',
+    orders: 'Παραγγελίες',
+    customers: 'Πελάτες',
+    'order-builder': 'Νέα παραγγελία',
+  };
+  const loadingView = <IliosLoader variant="section" detail={sellerLoadingDetails[activePage]} className="h-full min-h-full bg-slate-50" />;
 
   const pageRegistry: Record<SellerPage, React.ReactNode> = {
     dashboard: <SellerDashboard onNavigate={handleNavigate} onCreateOrder={handleCreateOrder} />,

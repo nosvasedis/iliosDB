@@ -231,7 +231,7 @@ export default function EmployeeRegistry({ setPrintItems }: Props) {
         }
     };
 
-    if (isLoading) return <IliosLoader variant="section" />;
+    if (isLoading) return <IliosLoader variant="section" detail="Προϊόντα" />;
 
     return (
         <div className="flex flex-col h-full space-y-6">

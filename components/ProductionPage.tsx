@@ -3382,7 +3382,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         movingBatchIds,
     ]);
 
-    if (isLoading) return <IliosLoader variant="section" />;
+    if (isLoading) return <IliosLoader variant="section" detail="Παραγωγή" />;
 
     if (batchesError) {
         return (

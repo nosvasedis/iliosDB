@@ -230,7 +230,7 @@ export default function MobileSellersPage() {
       {/* ── Sellers List ── */}
       <div className="px-4 pt-4 space-y-3">
         {isLoading ? (
-          <IliosLoader variant="section" className="min-h-[220px]" />
+          <IliosLoader variant="section" detail="Πλασιέ" className="min-h-[220px]" />
         ) : filteredSellers.length === 0 ? (
           <div className="text-center py-16">
             <UserCheck size={40} className="mx-auto text-slate-300 mb-3" />

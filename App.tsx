@@ -76,6 +76,28 @@ const OffersPage = lazyPage(() => import('./components/OffersPage'));
 const DeliveriesPage = lazyPage(() => import('./components/DeliveriesPage'));
 const LegalDocumentsPage = lazyPage(() => import('./components/LegalDocumentsPage'));
 
+const adminLoadingDetails: Record<AdminPage, string> = {
+  dashboard: 'Πίνακας ελέγχου',
+  registry: 'Μητρώο κωδικών',
+  inventory: 'Αποθήκη & στοκ',
+  pricing: 'Τιμολόγηση',
+  settings: 'Ρυθμίσεις',
+  resources: 'Υλικά & λάστιχα',
+  collections: 'Συλλογές',
+  'batch-print': 'Μαζική εκτύπωση',
+  orders: 'Παραγγελίες',
+  production: 'Παραγωγή',
+  customers: 'Πελάτες',
+  suppliers: 'Προμηθευτές',
+  sellers: 'Πλασιέ',
+  'ai-studio': 'AI Studio',
+  pricelist: 'Τιμοκατάλογος',
+  analytics: 'Οικονομικά',
+  offers: 'Προσφορές',
+  deliveries: 'Ημερολόγιο',
+  legal: 'Παραστατικά',
+};
+
 
 function AuthGuard({ children }: { children?: React.ReactNode }) {
   const { session, loading, profile, signOut, refreshProfile } = useAuth();
@@ -83,7 +105,7 @@ function AuthGuard({ children }: { children?: React.ReactNode }) {
   if (isLocalMode) return <>{children}</>;
 
   if (loading) {
-    return <IliosLoader variant="screen" />;
+    return <IliosLoader variant="screen" detail="Έλεγχος πρόσβασης" />;
   }
 
   if (!session) return <AuthScreen />;
@@ -234,14 +256,14 @@ function ErpAppContent() {
   // the full ERP graph needed by admin/employee screens.
   if (profile?.role === 'seller') {
     return (
-      <Suspense fallback={<IliosLoader variant="screen" />}>
+      <Suspense fallback={<IliosLoader variant="screen" detail="Άνοιγμα χώρου πλασιέ" />}>
         <SellerApp />
       </Suspense>
     );
   }
 
   if (loadingSettings || loadingMaterials || loadingMolds || loadingProducts || loadingCollections) {
-    return <IliosLoader variant="screen" />;
+    return <IliosLoader variant="screen" detail="Συγχρονισμός δεδομένων" />;
   }
   if (!settings || !products || !materials || !molds || !collections) return null;
 
@@ -249,7 +271,7 @@ function ErpAppContent() {
   // 1. Store Clerk ('user') -> Employee App
   if (profile?.role === 'user') {
     return (
-      <Suspense fallback={<IliosLoader variant="screen" />}>
+      <Suspense fallback={<IliosLoader variant="screen" detail="Άνοιγμα εργαστηρίου" />}>
         <>
           <PrintManager
             settings={settings}
@@ -303,7 +325,7 @@ function ErpAppContent() {
   if (profile?.role === 'admin') {
     if (isMobile) {
       return (
-        <Suspense fallback={<IliosLoader variant="screen" />}>
+        <Suspense fallback={<IliosLoader variant="screen" detail="Άνοιγμα mobile εργαστηρίου" />}>
           <MobileApp
             isOnline={isOnline}
             isSyncing={isSyncing}
@@ -550,7 +572,7 @@ function ErpAppContent() {
           </header>
           <div className="flex-1 overflow-y-auto p-4 md:p-8 relative scroll-smooth">
             <div className="max-w-[1600px] mx-auto" key={activePage}>
-              <Suspense fallback={<IliosLoader variant="section" />}>
+              <Suspense fallback={<IliosLoader variant="section" detail={adminLoadingDetails[activePage]} />}>
               <div className="animate-in fade-in slide-in-from-bottom-3 duration-400">
               {adminPageRegistry[activePage]}
               </div>

@@ -91,7 +91,7 @@ export default function MobileAnalytics({ products, onPrint }: Props) {
   };
 
   if (isLoading || !stats) {
-    return <IliosLoader variant="section" />;
+    return <IliosLoader variant="section" detail="Οικονομικά" />;
   }
 
   if (isError) {

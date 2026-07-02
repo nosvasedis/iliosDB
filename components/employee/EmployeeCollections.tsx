@@ -77,7 +77,7 @@ export default function EmployeeCollections({ setPrintItems }: Props) {
             .sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' }));
     }, [selectedCollection, products, searchTerm]);
 
-    if (loadingCol || loadingProd) return <IliosLoader variant="section" />;
+    if (loadingCol || loadingProd) return <IliosLoader variant="section" detail="Συλλογές" />;
 
     // View: Product Details
     if (selectedProduct && warehouses) {

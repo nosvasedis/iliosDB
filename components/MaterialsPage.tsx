@@ -440,7 +440,7 @@ export default function MaterialsPage({ settings, resourceTab = 'materials', onR
       }
   };
 
-  if (isLoading) return <IliosLoader variant="section" />;
+  if (isLoading) return <IliosLoader variant="section" detail="Υλικά" />;
 
   const TABS = [
       { id: MaterialType.Stone, label: 'Πέτρες', icon: Gem, color: 'text-purple-600', bg: 'bg-purple-50' },

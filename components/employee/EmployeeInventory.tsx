@@ -230,7 +230,7 @@ export default function EmployeeInventory() {
         }
     };
 
-    if (!products) return <IliosLoader variant="section" />;
+    if (!products) return <IliosLoader variant="section" detail="Αποθήκη" />;
 
     const sizingInfo = activeMaster ? getSizingInfo(activeMaster) : null;
 

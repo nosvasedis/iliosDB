@@ -437,7 +437,7 @@ export default function MaterialsPage({ settings }: Props) {
       }
   };
 
-  if (isLoading) return <IliosLoader variant="section" />;
+  if (isLoading) return <IliosLoader variant="section" detail="Υλικά λάστιχου" />;
 
   const TABS = [
       { id: MaterialType.Stone, label: 'Πέτρες', icon: Gem, color: 'text-purple-600', bg: 'bg-purple-50' },

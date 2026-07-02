@@ -87,7 +87,7 @@ export default function SettingsPage() {
     }, [imageOptimizationFilter, imageOptimizationPreview]);
 
     if (loadingSettings || !settings) {
-        return <IliosLoader variant="section" />;
+        return <IliosLoader variant="section" detail="Ρυθμίσεις" />;
     }
 
     const fetchLivePrice = async () => {

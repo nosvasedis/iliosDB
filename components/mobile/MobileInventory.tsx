@@ -343,7 +343,7 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
     const handleSaveWarehouse = async () => { if (!warehouseForm.name) return; try { if (warehouseForm.id) { await api.updateWarehouse(warehouseForm.id, warehouseForm); showToast("Ο χώρος ενημερώθηκε.", "success"); } else { await api.saveWarehouse(warehouseForm); showToast("Ο χώρος δημιουργήθηκε.", "success"); } queryClient.invalidateQueries({ queryKey: ['warehouses'] }); setIsEditingWarehouse(false); } catch (err) { showToast("Σφάλμα αποθήκευσης.", "error"); } };
     const handleDeleteWarehouse = async (id: string) => { if (id === SYSTEM_IDS.CENTRAL || id === SYSTEM_IDS.SHOWROOM) { showToast("Δεν διαγράφεται.", "error"); return; } if (await confirm({ title: 'Διαγραφή Χώρου', message: 'Είστε σίγουροι;', isDestructive: true, confirmText: 'Διαγραφή' })) { await api.deleteWarehouse(id); queryClient.invalidateQueries({ queryKey: ['warehouses'] }); } };
 
-    if (!products) return <IliosLoader variant="section" />;
+    if (!products) return <IliosLoader variant="section" detail="Αποθήκη" />;
 
     const sizingInfo = activeMaster ? getSizingInfo(activeMaster) : null;
 

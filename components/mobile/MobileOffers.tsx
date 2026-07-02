@@ -425,7 +425,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
 
     // ---------------- UI RENDERING ----------------
 
-    if (loadingOffers) return <IliosLoader variant="section" />;
+    if (loadingOffers) return <IliosLoader variant="section" detail="Προσφορές" />;
 
     // BUILDER VIEW
     if (view === 'builder') {

@@ -227,7 +227,7 @@ export default function MoldsPage({ resourceTab = 'molds', onResourceTabChange }
         }
     };
 
-    if (isLoading) return <IliosLoader variant="section" />;
+    if (isLoading) return <IliosLoader variant="section" detail="Λάστιχα" />;
 
     return (
         <div className="space-y-6 h-full flex flex-col">

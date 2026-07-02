@@ -95,7 +95,7 @@ const InspectionModeShell: React.FC = () => {
   const environment = legalSettings?.environment?.toUpperCase() || 'DEV';
 
   if (loadingProducts) {
-    return <IliosLoader variant="screen" />;
+    return <IliosLoader variant="screen" detail="Προετοιμασία παραστατικών" />;
   }
 
   if (productsError || !products) {
@@ -215,7 +215,7 @@ const InspectionModeShell: React.FC = () => {
 
           <div className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth">
             <div className="max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <Suspense fallback={<IliosLoader variant="section" />}>
+              <Suspense fallback={<IliosLoader variant="section" detail={tabTitles[activeTab]} />}>
                 <LegalDocumentsPage
                   products={products}
                   presentation="inspection"

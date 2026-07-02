@@ -284,7 +284,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
     }, [allProducts, selectedCollection, searchTerm]);
 
     if (loadingCollections) {
-        return <IliosLoader variant="section" />;
+        return <IliosLoader variant="section" detail="Συλλογές" />;
     }
     
     if (isError) {

@@ -1444,7 +1444,7 @@ export default function MobileOrders({
         }
     };
 
-    if (isLoading) return <IliosLoader variant="section" />;
+    if (isLoading) return <IliosLoader variant="section" detail="Παραγγελίες" />;
 
     const activeFilterCount = countActiveFilters(filters);
 
