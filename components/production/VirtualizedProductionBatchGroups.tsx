@@ -1,5 +1,4 @@
-import React, { memo, useCallback, useLayoutEffect, useMemo, useRef } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import React, { memo, useMemo } from 'react';
 import { Check, FolderKanban } from 'lucide-react';
 import { Gender, ProductionBatch } from '../../types';
 import {
@@ -50,18 +49,14 @@ type Props = {
 };
 
 const SORTED_GENDERS = [Gender.Women, Gender.Men, Gender.Unisex, 'Unknown'];
-const VIRTUAL_OVERSCAN = 6;
-type RowVirtualizerMeasureRef = { measureElement: (node: HTMLDivElement | null | undefined) => void };
 type VirtualRowsLayoutKeyRow = Pick<VirtualRow, 'key' | 'type'>;
-
-export function getProductionVirtualRowMeasureElement(
-    virtualizer: RowVirtualizerMeasureRef,
-): RowVirtualizerMeasureRef['measureElement'] {
-    return virtualizer.measureElement;
-}
 
 export function getProductionVirtualBatchRowClassName(): string {
     return 'pl-2 pr-1 py-1.5 border-l-2 border-slate-200 ml-1 overflow-visible';
+}
+
+export function getProductionGroupedRowsClassName(): string {
+    return 'space-y-3';
 }
 
 function hashVirtualRowsLayoutSignature(value: string): string {
@@ -131,13 +126,6 @@ function flattenGroupedRows(
     return rows;
 }
 
-function estimateRowSize(row: VirtualRow): number {
-    if (row.type === 'level') return 38;
-    if (row.type === 'collection') return 28;
-    if (row.type === 'divider') return 12;
-    return 216;
-}
-
 function VirtualizedProductionBatchGroups({
     groupedData,
     groupMode,
@@ -150,8 +138,6 @@ function VirtualizedProductionBatchGroups({
     emptyState,
     mobileTopIndicator,
 }: Props) {
-    const parentRef = useRef<HTMLDivElement>(null);
-    const lastScrollPositionRef = useRef({ left: 0, top: 0 });
     const rows = useMemo(
         () => flattenGroupedRows(groupedData, groupMode, sortOrder),
         [groupedData, groupMode, sortOrder],
@@ -162,84 +148,19 @@ function VirtualizedProductionBatchGroups({
         [groupMode, sortOrder, rows],
     );
 
-    const getItemKey = useCallback(
-        (index: number) => rows[index]?.key ?? index,
-        [rows],
-    );
-
-    const virtualizer = useVirtualizer({
-        count: rows.length,
-        getScrollElement: () => parentRef.current,
-        estimateSize: (index) => estimateRowSize(rows[index]),
-        getItemKey,
-        overscan: VIRTUAL_OVERSCAN,
-    });
-    const measureVirtualRowElement = getProductionVirtualRowMeasureElement(virtualizer);
-
-    // After moves row indices shift and cards can temporarily gain movement
-    // chrome. Remeasure on row identity changes and renderBatch changes so
-    // absolute virtual rows do not overlap while optimistic moves reconcile.
-    useLayoutEffect(() => {
-        const scrollElement = parentRef.current;
-        const previousScrollPosition = lastScrollPositionRef.current;
-
-        virtualizer.measure();
-
-        if (!scrollElement) return;
-
-        const restoreScrollPosition = () => {
-            const maxTop = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
-            const maxLeft = Math.max(0, scrollElement.scrollWidth - scrollElement.clientWidth);
-            scrollElement.scrollTop = Math.min(previousScrollPosition.top, maxTop);
-            scrollElement.scrollLeft = Math.min(previousScrollPosition.left, maxLeft);
-        };
-
-        restoreScrollPosition();
-        const restoreFrame = window.requestAnimationFrame(() => {
-            virtualizer.measure();
-            restoreScrollPosition();
-        });
-
-        return () => window.cancelAnimationFrame(restoreFrame);
-    }, [rowsLayoutKey, renderBatch]);
-
     return (
         <div
-            ref={parentRef}
             className={`${className} overflow-y-auto custom-scrollbar`}
             style={{ overflowAnchor: 'none' }}
-            onScroll={(event) => {
-                lastScrollPositionRef.current = {
-                    left: event.currentTarget.scrollLeft,
-                    top: event.currentTarget.scrollTop,
-                };
-            }}
         >
             {mobileTopIndicator}
             {rows.length === 0 ? (
                 emptyState || null
             ) : (
-                <div
-                    style={{
-                        height: `${virtualizer.getTotalSize()}px`,
-                        position: 'relative',
-                    }}
-                >
-                    {virtualizer.getVirtualItems().map((virtualRow) => {
-                        const row = rows[virtualRow.index];
+                <div className={getProductionGroupedRowsClassName()}>
+                    {rows.map((row) => {
                         return (
-                            <div
-                                key={getProductionVirtualDomRowKey(rowsLayoutKey, virtualRow.key)}
-                                data-index={virtualRow.index}
-                                ref={measureVirtualRowElement}
-                                style={{
-                                    position: 'absolute',
-                                    top: 0,
-                                    left: 0,
-                                    width: '100%',
-                                    transform: `translateY(${virtualRow.start}px)`,
-                                }}
-                            >
+                            <div key={getProductionVirtualDomRowKey(rowsLayoutKey, row.key)}>
                                 {row.type === 'level' && (
                                     <LevelHeader
                                         row={row}
