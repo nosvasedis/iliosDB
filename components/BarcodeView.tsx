@@ -4,7 +4,7 @@ import { Product, ProductVariant } from '../types';
 import { INITIAL_SETTINGS } from '../constants';
 import { transliterateForBarcode } from '../utils/pricingEngine';
 import { fitRetailStoneLabelText, getRetailLabelMetrics, RETAIL_TAIL_GUIDE_WIDTH_MM } from '../utils/retailLabelLayout';
-import { SIZED_PREFIXES } from '../utils/sizing';
+import { getSizingInfo } from '../utils/sizing';
 import { buildLabelText, LabelTextOverrides } from '../features/printing/labelText';
 
 interface Props {
@@ -82,16 +82,8 @@ const BarcodeView: React.FC<Props> = ({
     // Stone font size slightly increased from 0.10/0.13/2.2 to 0.13/0.15/2.5
     const stoneFontSize = Math.min(activeHeight * 0.13, activeWidth * 0.15, 2.5);
     
-    // Check if product is a ring or bracelet (sized items)
-    const isSizedItem = useMemo(() => {
-        const prefix = product?.prefix?.toUpperCase() || '';
-        return prefix === SIZED_PREFIXES.RINGS_MEN ||
-               prefix === SIZED_PREFIXES.RINGS_WOMEN ||
-               prefix === SIZED_PREFIXES.BRACELETS_WOMEN ||
-               prefix === SIZED_PREFIXES.BRACELETS_MEN ||
-               prefix === 'BDA' ||
-               prefix === 'ΒΔΑ';
-    }, [product?.prefix]);
+    // Keep label rendering aligned with the app-wide sizing rules.
+    const isSizedItem = useMemo(() => Boolean(getSizingInfo(product)), [product]);
     
     const containerStyle: React.CSSProperties = {
         width: `${activeWidth}mm`,
