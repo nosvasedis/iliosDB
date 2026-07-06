@@ -6,6 +6,12 @@ import { ImageIcon } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
 import { normalizeSupplierItemNotesForDisplay } from '../utils/mergeSupplierNeedIntoOrder';
+import CustomerPrintItemsGrid from './CustomerPrintItemsGrid';
+import {
+    CUSTOMER_PRINT_CSS,
+    CUSTOMER_PRINT_MAIN_CLASS,
+    CUSTOMER_PRINT_PAGE_CLASS,
+} from './customerPrintShared';
 
 interface Props {
     order: SupplierOrder;
@@ -69,13 +75,68 @@ export default function SupplierOrderPrintView({ order, products }: Props) {
         return { item, supplierSku, mainDescription, detailLine, imageUrl };
     }), [sortedItems, products]);
 
+    const renderSupplierItem = (
+        { item, supplierSku, mainDescription, detailLine, imageUrl }: typeof itemDisplayData[number],
+        idx: number
+    ) => (
+        <div key={idx} className="flex items-start min-h-[52px] py-0.5 border-b border-slate-100 break-inside-avoid">
+            <div className="w-6 text-center text-slate-400 text-[11px] tabular-nums flex-shrink-0">{idx + 1}</div>
+
+            <div className="w-14 text-center flex-shrink-0">
+                <div className="w-12 h-12 bg-slate-50 rounded overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
+                    {imageUrl ? (
+                        <img src={imageUrl} className="w-full h-full object-cover" alt="prod" />
+                    ) : (
+                        <ImageIcon size={16} className="text-slate-300" />
+                    )}
+                </div>
+            </div>
+
+            <div className="flex-1 px-1 min-w-0">
+                <div className="flex items-baseline gap-1 min-w-0">
+                    <span className="font-mono font-black text-slate-900 truncate">{supplierSku}</span>
+                    {supplierSku !== item.item_name && (
+                        <span className="text-[8px] text-slate-400 truncate">({item.item_name})</span>
+                    )}
+                </div>
+                <div className="text-[9px] text-slate-600 font-medium leading-[1.15] whitespace-normal break-words">
+                    {mainDescription}
+                    {detailLine ? <span className="text-slate-400"> — {detailLine}</span> : null}
+                </div>
+                <div className="flex flex-wrap gap-1 mt-0.5">
+                    {item.size_info && (
+                        <span className="bg-slate-800 text-white px-1 py-px rounded text-[8px] font-bold">Νο {item.size_info}</span>
+                    )}
+                </div>
+                {(() => {
+                    const lineNotes = normalizeSupplierItemNotesForDisplay(item.notes);
+                    return lineNotes ? (
+                        <p className="mt-0.5 pl-1 border-l-2 border-amber-400 text-[8px] leading-[1.25] text-amber-900 italic whitespace-pre-wrap">
+                            {lineNotes}
+                        </p>
+                    ) : null;
+                })()}
+            </div>
+
+            <div className="w-14 text-right font-black text-slate-900 text-[13px] tabular-nums flex-shrink-0">{item.quantity}</div>
+        </div>
+    );
+
+    const footer = (
+        <div className="customer-print-summary customer-print-column-span mt-2 border-t-2 border-slate-900 pt-2">
+            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mb-1">Γενικές Σημειώσεις</p>
+            <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 text-xs italic text-slate-600 min-h-[36px]">
+                {order.notes || "Δεν υπάρχουν επιπλέον σημειώσεις."}
+            </div>
+            <div className="mt-3 text-center text-[7px] text-slate-300 uppercase tracking-widest">
+                Ilios Kosmima ERP • Generated Purchase Order
+            </div>
+        </div>
+    );
+
     return (
-        <div className="bg-white text-black font-sans w-[210mm] min-h-[297mm] p-6 mx-auto shadow-lg print:shadow-none print:p-6 page-break-after-always relative flex flex-col">
-            <style>{`
-                @page { size: A4; margin: 0; }
-                .break-avoid { break-inside: avoid; }
-                .item-card { break-inside: avoid; }
-            `}</style>
+        <div className={CUSTOMER_PRINT_PAGE_CLASS}>
+            <style>{CUSTOMER_PRINT_CSS}</style>
 
             {/* COMPACT HEADER */}
             <div className="flex justify-between items-center border-b-2 border-slate-900 pb-2 mb-3">
@@ -102,91 +163,17 @@ export default function SupplierOrderPrintView({ order, products }: Props) {
                 <span className="font-black text-slate-900 text-sm">{order.supplier_name}</span>
             </div>
 
-            {/* ITEMS — two-column (CSS columns, fills left first then right) */}
-            <main className="flex-1">
-                {/* Duplicated header for both columns */}
-                <div className="flex border-b-2 border-slate-800 pb-0.5 mb-1 text-[9px] font-black text-slate-600 uppercase tracking-wider">
-                    <div className="flex-1 flex items-center pr-3">
-                        <div className="w-5 text-center text-slate-400">#</div>
-                        <div className="w-7 text-center">Εικ.</div>
-                        <div className="flex-1 px-1">Κωδ. Προμηθ. / Περιγραφή</div>
-                        <div className="w-8 text-center">Ποσ.</div>
-                    </div>
-                    <div className="flex-1 flex items-center pl-3 border-l border-slate-300">
-                        <div className="w-5 text-center text-slate-400">#</div>
-                        <div className="w-7 text-center">Εικ.</div>
-                        <div className="flex-1 px-1">Κωδ. Προμηθ. / Περιγραφή</div>
-                        <div className="w-8 text-center">Ποσ.</div>
-                    </div>
-                </div>
-
-                {/* Items — CSS column-count fills left column first, then right */}
-                <div
-                    className="text-[11px] leading-snug"
-                    style={{ columnCount: 2, columnGap: '1.5rem', columnRuleWidth: '1px', columnRuleStyle: 'dashed', columnRuleColor: '#e2e8f0' }}
-                >
-                    {itemDisplayData.map(({ item, supplierSku, mainDescription, detailLine, imageUrl }, idx) => (
-                        <div key={idx} className="flex items-start py-1.5 border-b border-slate-100 break-inside-avoid">
-                            {/* Index */}
-                            <div className="w-5 text-center text-slate-400 text-[10px] tabular-nums flex-shrink-0">{idx + 1}</div>
-
-                            {/* Image */}
-                            <div className="w-7 text-center flex-shrink-0">
-                                <div className="w-6 h-6 bg-slate-50 rounded overflow-hidden border border-slate-200 mx-auto flex items-center justify-center">
-                                    {imageUrl ? (
-                                        <img src={imageUrl} className="w-full h-full object-cover" alt="prod" />
-                                    ) : (
-                                        <ImageIcon size={10} className="text-slate-300" />
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Info */}
-                            <div className="flex-1 px-1 min-w-0">
-                                <div className="flex items-baseline gap-1">
-                                    <span className="font-mono font-black text-slate-900">{supplierSku}</span>
-                                    {supplierSku !== item.item_name && (
-                                        <span className="text-[8px] text-slate-400 truncate">({item.item_name})</span>
-                                    )}
-                                </div>
-                                <div className="text-[9px] text-slate-600 font-medium leading-tight">
-                                    {mainDescription}
-                                    {detailLine ? <span className="text-slate-400"> — {detailLine}</span> : null}
-                                </div>
-                                <div className="flex flex-wrap gap-1 mt-0.5">
-                                    {item.size_info && (
-                                        <span className="bg-slate-800 text-white px-1 py-px rounded text-[8px] font-bold">Νο {item.size_info}</span>
-                                    )}
-                                    {/* customer_reference hidden from supplier PDF */}
-                                </div>
-                                {(() => {
-                                    const lineNotes = normalizeSupplierItemNotesForDisplay(item.notes);
-                                    return lineNotes ? (
-                                        <p className="mt-0.5 pl-1 border-l-2 border-amber-400 text-[8px] leading-[1.25] text-amber-900 italic whitespace-pre-wrap">
-                                            {lineNotes}
-                                        </p>
-                                    ) : null;
-                                })()}
-                            </div>
-
-                            {/* Quantity */}
-                            <div className="w-8 text-center font-black text-slate-900 text-[13px] flex-shrink-0">{item.quantity}</div>
-                        </div>
-                    ))}
-                </div>
+            {/* ITEMS — shared three-column customer/partial-delivery print grid */}
+            <main className={CUSTOMER_PRINT_MAIN_CLASS}>
+                <CustomerPrintItemsGrid
+                    items={itemDisplayData}
+                    renderItem={renderSupplierItem}
+                    descriptionLabel="Κωδ. Προμηθ. / Περιγραφή"
+                    amountLabel="Ποσ."
+                    textClassName="text-[10px] leading-tight"
+                    footer={footer}
+                />
             </main>
-
-            {/* FOOTER */}
-            <div className="mt-4 border-t-2 border-slate-900 pt-2">
-                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mb-1">Γενικές Σημειώσεις</p>
-                <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 text-xs italic text-slate-600 min-h-[36px]">
-                    {order.notes || "Δεν υπάρχουν επιπλέον σημειώσεις."}
-                </div>
-            </div>
-
-            <div className="mt-3 text-center text-[7px] text-slate-300 uppercase tracking-widest">
-                Ilios Kosmima ERP • Generated Purchase Order
-            </div>
         </div>
     );
 }

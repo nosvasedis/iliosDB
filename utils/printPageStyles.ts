@@ -1,9 +1,9 @@
 /**
  * Extra top margin on printed pages 2+ to compensate for physical printer
- * non-printable areas. Mirrors setting ~1cm top margin in Chrome's print dialog.
+ * non-printable areas. Mirrors setting ~1.5cm top margin in Chrome's print dialog.
  * Page 1 is unchanged. Does not alter document layout — only @page margins.
  */
-export const PRINT_PRINTER_TOP_SAFE_INSET = '1cm';
+export const PRINT_PRINTER_TOP_SAFE_INSET = '1.5cm';
 
 /**
  * Injected last in the print iframe, immediately before window.print().
