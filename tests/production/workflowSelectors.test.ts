@@ -5,6 +5,7 @@ import {
   buildProductionFinderIndex,
   filterAndSortProductionFinderBatches,
   filterAndSortProductionFinderIndexedBatches,
+  filterProductionStagePopupBatches,
   buildLabelPrintQueue,
   getNextProductionStage,
   groupProductionBatchesByStage,
@@ -241,6 +242,54 @@ describe('production workflow selectors', () => {
 
     expect(filterAndSortProductionFinderBatches(batches, 'PN').map((batch) => batch.id)).toEqual(['b-sku']);
     expect(filterAndSortProductionFinderIndexedBatches(buildProductionFinderIndex(batches), 'PN').map((batch) => batch.id)).toEqual(['b-sku']);
+  });
+
+  it('filters stage popup batches across SKU, order, customer, notes, and product metadata', () => {
+    const batches = [
+      {
+        id: 'b-sku',
+        sku: 'PN100',
+        variant_suffix: '-R',
+        order_id: 'ORD-123',
+        customer_name: 'Niki Client',
+        quantity: 1,
+        current_stage: ProductionStage.AwaitingDelivery,
+        notes: 'engrave initials',
+        size_info: '54',
+        cord_color: 'black',
+        enamel_color: 'red',
+        on_hold_reason: 'waiting approval',
+        product_details: { category: 'Rings', description: 'Minimal ring' },
+      },
+      {
+        id: 'b-greek',
+        sku: 'DA200',
+        variant_suffix: '',
+        order_id: 'ORD-456',
+        customer_name: 'Νίκη Παπα',
+        quantity: 1,
+        current_stage: ProductionStage.AwaitingDelivery,
+        notes: 'urgent gift',
+        product_details: { category: 'Bracelets', description: 'Pearl piece' },
+      },
+      {
+        id: 'b-other',
+        sku: 'BR300',
+        variant_suffix: '',
+        order_id: 'ORD-789',
+        customer_name: 'Other Client',
+        quantity: 1,
+        current_stage: ProductionStage.AwaitingDelivery,
+        notes: '',
+        product_details: { category: 'Chains', description: 'Plain chain' },
+      },
+    ] as any;
+
+    expect(filterProductionStagePopupBatches(batches, 'PN100-R').map((batch) => batch.id)).toEqual(['b-sku']);
+    expect(filterProductionStagePopupBatches(batches, 'approval').map((batch) => batch.id)).toEqual(['b-sku']);
+    expect(filterProductionStagePopupBatches(batches, 'niki').map((batch) => batch.id)).toEqual(['b-sku', 'b-greek']);
+    expect(filterProductionStagePopupBatches(batches, 'pearl').map((batch) => batch.id)).toEqual(['b-greek']);
+    expect(filterProductionStagePopupBatches(batches, '').map((batch) => batch.id)).toEqual(['b-sku', 'b-greek', 'b-other']);
   });
 
   it('skips assembly candidate orders while their items are missing', () => {

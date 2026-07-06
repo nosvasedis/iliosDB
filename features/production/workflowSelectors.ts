@@ -8,6 +8,7 @@ import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import { requiresAssemblyStage, requiresSettingStage } from '../../constants';
 import { isSpecialCreationSku, getSpecialCreationProductStub } from '../../utils/specialCreationSku';
+import { normalizeGreekForSearch } from '../../utils/greekSearch';
 
 export type ProductionDisplayGroupMode = 'gender' | 'customer';
 export type ProductionDisplaySortOrder = 'alpha' | 'newest' | 'oldest';
@@ -395,6 +396,100 @@ export function filterAndSortProductionFinderIndexedBatches<T extends Production
     .filter((entry) => matchesProductionFinderIndexedBatch(entry, term))
     .map((entry) => entry.batch)
     .sort((a, b) => compareProductionFinderBatches(a, b, term));
+}
+
+const GREEK_TO_LATIN: Record<string, string> = {
+  α: 'a',
+  β: 'v',
+  γ: 'g',
+  δ: 'd',
+  ε: 'e',
+  ζ: 'z',
+  η: 'i',
+  θ: 'th',
+  ι: 'i',
+  κ: 'k',
+  λ: 'l',
+  μ: 'm',
+  ν: 'n',
+  ξ: 'x',
+  ο: 'o',
+  π: 'p',
+  ρ: 'r',
+  σ: 's',
+  ς: 's',
+  τ: 't',
+  υ: 'y',
+  φ: 'f',
+  χ: 'ch',
+  ψ: 'ps',
+  ω: 'o',
+};
+
+function normalizeStagePopupSearchText(value: unknown): string {
+  return normalizeGreekForSearch(String(value ?? ''));
+}
+
+function toGreeklishSearchText(value: unknown): string {
+  return Array.from(normalizeStagePopupSearchText(value))
+    .map((char) => GREEK_TO_LATIN[char] ?? char)
+    .join('');
+}
+
+function stagePopupFieldMatches(value: unknown, normalizedTerm: string, greeklishTerm: string): boolean {
+  const normalizedValue = normalizeStagePopupSearchText(value);
+  if (normalizedValue.includes(normalizedTerm)) return true;
+  return toGreeklishSearchText(value).includes(greeklishTerm);
+}
+
+export type ProductionStagePopupSearchBatch = ProductionBatch & {
+  customer_name?: string | null;
+  notes?: string | null;
+  on_hold_reason?: string | null;
+  cord_color?: string | null;
+  enamel_color?: string | null;
+  product_details?: Partial<Product> | null;
+};
+
+export function filterProductionStagePopupBatches<T extends ProductionStagePopupSearchBatch>(
+  batches: T[],
+  searchTerm: string,
+): T[] {
+  const terms = searchTerm
+    .trim()
+    .split(/\s+/)
+    .map((term) => ({
+      normalized: normalizeStagePopupSearchText(term),
+      greeklish: toGreeklishSearchText(term),
+    }))
+    .filter((term) => term.normalized.length > 0);
+
+  if (terms.length === 0) return batches;
+
+  return batches.filter((batch) => {
+    const product = batch.product_details;
+    const fields: unknown[] = [
+      batch.sku,
+      batch.variant_suffix,
+      `${batch.sku}${batch.variant_suffix || ''}`,
+      [batch.sku, batch.variant_suffix].filter(Boolean).join('-'),
+      batch.order_id,
+      batch.customer_name,
+      batch.size_info,
+      batch.notes,
+      batch.on_hold_reason,
+      batch.cord_color,
+      batch.enamel_color,
+      product?.category,
+      product?.description,
+      product?.gender,
+      product?.production_type,
+    ];
+
+    return terms.every((term) =>
+      fields.some((field) => stagePopupFieldMatches(field, term.normalized, term.greeklish)),
+    );
+  });
 }
 
 export function buildMobileProductionFoundBatches(

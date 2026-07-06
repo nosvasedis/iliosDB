@@ -16,7 +16,7 @@ import { PRODUCTION_STAGES } from '../utils/productionStages';
 import { getProductionTimingInfo, getProductionTimingStatusClasses } from '../utils/productionTiming';
 import { formatOrderId } from '../utils/orderUtils';
 import { buildBatchStageHistoryMap, isStageNotRequired } from '../features/production/selectors';
-import { groupProductionBatchesByStage } from '../features/production/workflowSelectors';
+import { filterProductionStagePopupBatches, groupProductionBatchesByStage } from '../features/production/workflowSelectors';
 import { getRelevantProductionBatchesForOrderItem } from '../features/production/productionSendPlanner';
 import { planNonDuplicateProductionSendItems } from '../features/production/orderBatchReconcile';
 import { buildOrderItemIdentityKey } from '../features/orders/printHelpers';
@@ -129,6 +129,8 @@ export default function ProductionSendModal({ order: orderProp, products, materi
 
     // Stage Popup State
     const [activeStagePopup, setActiveStagePopup] = useState<ProductionStage | null>(null);
+    const [stagePopupSearchInput, setStagePopupSearchInput] = useState('');
+    const [stagePopupSearchTerm, setStagePopupSearchTerm] = useState('');
     // Which sub-tab to show when the Polishing (Τεχνίτης) stage popup is open.
     // 'pending'    → Αναμονή Αποστολής (teal)
     // 'dispatched' → Στον Τεχνίτη (blue)
@@ -138,10 +140,24 @@ export default function ProductionSendModal({ order: orderProp, products, materi
             if (stage === ProductionStage.Polishing) {
                 setPolishingPopupTab(polishingSubStage ?? 'pending');
             }
+            setStagePopupSearchInput('');
+            setStagePopupSearchTerm('');
             setActiveStagePopup(stage);
         },
         [],
     );
+
+    useEffect(() => {
+        const timer = setTimeout(() => setStagePopupSearchTerm(stagePopupSearchInput), 220);
+        return () => clearTimeout(timer);
+    }, [stagePopupSearchInput]);
+
+    useEffect(() => {
+        if (!activeStagePopup) {
+            setStagePopupSearchInput('');
+            setStagePopupSearchTerm('');
+        }
+    }, [activeStagePopup]);
 
     // ─── OPTIMIZED: Selection as Set<string> ─────────────────────────────────
     const [selectedBatchIds, setSelectedBatchIds] = useState<Set<string>>(new Set());
@@ -219,6 +235,11 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                 return (a.size_info || '').localeCompare(b.size_info || '');
             });
     }, [activeStagePopup, existingBatches, polishingPopupTab]);
+
+    const visiblePopupBatches = useMemo(
+        () => filterProductionStagePopupBatches(popupBatches, stagePopupSearchTerm),
+        [popupBatches, stagePopupSearchTerm]
+    );
 
     const shippedQuantities = useMemo(
         () => getShippedQuantities(shipmentSnapshot?.items || [], order.items),
@@ -317,8 +338,8 @@ export default function ProductionSendModal({ order: orderProp, products, materi
     );
 
     const visiblePopupBatchIds = useMemo(
-        () => new Set(popupBatches.map(b => b.id)),
-        [popupBatches]
+        () => new Set(visiblePopupBatches.map(b => b.id)),
+        [visiblePopupBatches]
     );
 
     const totalSelectedCount = useMemo(
@@ -332,8 +353,8 @@ export default function ProductionSendModal({ order: orderProp, products, materi
     );
 
     const selectedVisiblePopupCount = useMemo(
-        () => popupBatches.filter(b => selectedBatchIds.has(b.id)).length,
-        [selectedBatchIds, popupBatches]
+        () => visiblePopupBatches.filter(b => selectedBatchIds.has(b.id)).length,
+        [selectedBatchIds, visiblePopupBatches]
     );
 
     // Derived "something in this order is currently syncing" flag — used to
@@ -348,8 +369,8 @@ export default function ProductionSendModal({ order: orderProp, products, materi
         [selectedBatchIds, movingBatchIds]
     );
     const isAnyPopupSelectedMoving = useMemo(
-        () => popupBatches.some(b => selectedBatchIds.has(b.id) && movingBatchIds.has(b.id)),
-        [popupBatches, selectedBatchIds, movingBatchIds]
+        () => visiblePopupBatches.some(b => selectedBatchIds.has(b.id) && movingBatchIds.has(b.id)),
+        [visiblePopupBatches, selectedBatchIds, movingBatchIds]
     );
 
     // ─── Auto-expand batches (≤2 per item = expanded, ≥3 = collapsed) ───────
@@ -898,7 +919,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
     });
 
     const popupVirtualizer = useVirtualizer({
-        count: popupBatches.length,
+        count: visiblePopupBatches.length,
         getScrollElement: () => popupListParentRef.current,
         estimateSize: () => 220,
         overscan: 4,
@@ -1553,6 +1574,9 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                 const subLabel = isPolishingPopup
                     ? (polishingPopupTab === 'pending' ? 'Αναμονή Αποστολής' : 'Στον Τεχνίτη')
                     : null;
+                const popupTotalQty = popupBatches.reduce((a, b) => a + b.quantity, 0);
+                const visiblePopupTotalQty = visiblePopupBatches.reduce((a, b) => a + b.quantity, 0);
+                const isPopupSearchActive = stagePopupSearchTerm.trim().length > 0;
                 return (
                 <div className="fixed inset-0 z-[260] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={() => setActiveStagePopup(null)}>
                     <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl animate-in zoom-in-95 overflow-hidden flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
@@ -1565,11 +1589,15 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                         {STAGES.find(s => s.id === activeStagePopup)?.label}
                                         {subLabel && <span className="ml-2 text-white/80 text-sm font-bold tracking-normal normal-case">• {subLabel}</span>}
                                     </h3>
-                                    <p className="text-white/80 text-xs font-bold uppercase tracking-widest">{popupBatches.reduce((a, b) => a + b.quantity, 0)} τεμάχια</p>
+                                    <p className="text-white/80 text-xs font-bold uppercase tracking-widest">
+                                        {isPopupSearchActive
+                                            ? `${visiblePopupBatches.length}/${popupBatches.length} παρτίδες · ${visiblePopupTotalQty}/${popupTotalQty} τεμάχια`
+                                            : `${popupTotalQty} τεμάχια`}
+                                    </p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
-                                {onPrintStageBatches && popupBatches.length > 0 && (
+                                {onPrintStageBatches && visiblePopupBatches.length > 0 && (
                                     <button
                                         onClick={() => {
                                             const stageConf = STAGES.find(s => s.id === activeStagePopup);
@@ -1579,7 +1607,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                             onPrintStageBatches({
                                                 stageName, stageId: activeStagePopup,
                                                 customerName: order.customer_name, orderId: order.id,
-                                                batches: popupBatches, generatedAt: new Date().toISOString(),
+                                                batches: visiblePopupBatches, generatedAt: new Date().toISOString(),
                                             });
                                         }}
                                         className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all border border-white/30 active:scale-95"
@@ -1635,15 +1663,51 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                             </div>
                         )}
 
+                        <div className="bg-white border-b border-slate-200 px-4 py-3">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                <div className="relative flex-1 group">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={16} />
+                                    <input
+                                        type="text"
+                                        value={stagePopupSearchInput}
+                                        onChange={(e) => setStagePopupSearchInput(e.target.value)}
+                                        placeholder="Αναζήτηση σε SKU, πελάτη, παραγγελία, σημειώσεις..."
+                                        className="w-full pl-9 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 outline-none focus:bg-white focus:border-blue-300 focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400 transition-all"
+                                    />
+                                    {stagePopupSearchInput && (
+                                        <button
+                                            type="button"
+                                            onClick={() => { setStagePopupSearchInput(''); setStagePopupSearchTerm(''); }}
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                                            title="Καθαρισμός αναζήτησης"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <span className="text-[11px] font-black text-slate-500 bg-slate-50 border border-slate-200 rounded-full px-3 py-1.5">
+                                        {visiblePopupBatches.length}/{popupBatches.length} παρτίδες
+                                    </span>
+                                    {isPopupSearchActive && (
+                                        <span className="text-[11px] font-black text-blue-700 bg-blue-50 border border-blue-100 rounded-full px-3 py-1.5">
+                                            {visiblePopupTotalQty} τεμ.
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Stage popup body */}
                         <div ref={popupListParentRef} className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50/50">
                             {popupBatches.length > 0 ? (
+                                visiblePopupBatches.length > 0 ? (
                                 <>
                                     {/* Sticky bulk bar */}
                                     <div className="sticky top-0 z-[5] mx-4 mt-4 mb-2 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-xl p-2.5 shadow-sm">
                                         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                                             <div className="flex items-center gap-2 flex-wrap">
-                                                <button onClick={() => selectBatchIds(popupBatches.map(b => b.id))}
+                                                <button onClick={() => selectBatchIds(visiblePopupBatches.map(b => b.id))}
                                                     className="px-2.5 py-1 rounded-md text-[11px] font-black bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors">
                                                     Επιλ. όλων
                                                 </button>
@@ -1653,7 +1717,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                                 </button>
                                                 <span className="text-[11px] font-black text-slate-500">Επιλ: <span className="text-slate-900">{selectedVisiblePopupCount}</span></span>
                                                 <button
-                                                    onClick={() => openBulkNoteModal(popupBatches.filter(b => selectedBatchIds.has(b.id)).map(b => b.id))}
+                                                    onClick={() => openBulkNoteModal(visiblePopupBatches.filter(b => selectedBatchIds.has(b.id)).map(b => b.id))}
                                                     disabled={isAnyPopupSelectedMoving || selectedVisiblePopupCount === 0}
                                                     className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-black bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                                     title="Σημείωση στις επιλεγμένες παρτίδες του σταδίου"
@@ -1664,7 +1728,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                             </div>
                                             <BulkStageActions
                                                 disabled={isAnyPopupSelectedMoving || selectedVisiblePopupCount === 0}
-                                                onMove={(stage, options) => handleBulkStageMove(stage, popupBatches.filter(b => selectedBatchIds.has(b.id)).map(b => b.id), options)}
+                                                onMove={(stage, options) => handleBulkStageMove(stage, visiblePopupBatches.filter(b => selectedBatchIds.has(b.id)).map(b => b.id), options)}
                                             />
                                         </div>
                                     </div>
@@ -1672,7 +1736,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                     {/* Virtualized popup batch list */}
                                     <div className="px-4 pb-4" style={{ height: `${popupVirtualizer.getTotalSize()}px`, position: 'relative' }}>
                                         {popupVirtualizer.getVirtualItems().map(virtualRow => {
-                                            const batch = popupBatches[virtualRow.index];
+                                            const batch = visiblePopupBatches[virtualRow.index];
                                             const product = products.find(p => p.sku === batch.sku);
                                             const isSelected = selectedBatchIds.has(batch.id);
                                             const timeInfo = getBatchTiming(batch);
@@ -1779,6 +1843,19 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                         })}
                                     </div>
                                 </>
+                                ) : (
+                                    <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3 py-16">
+                                        <div className="p-5 bg-slate-100 rounded-full"><Search size={40} className="opacity-20" /></div>
+                                        <p className="font-bold text-base">Δεν βρέθηκαν παρτίδες.</p>
+                                        <button
+                                            type="button"
+                                            onClick={() => { setStagePopupSearchInput(''); setStagePopupSearchTerm(''); }}
+                                            className="px-3 py-2 rounded-lg bg-white border border-slate-200 text-xs font-black text-slate-600 hover:bg-slate-50 transition-colors"
+                                        >
+                                            Καθαρισμός αναζήτησης
+                                        </button>
+                                    </div>
+                                )
                             ) : (
                                 <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3 py-16">
                                     <div className="p-5 bg-slate-100 rounded-full"><Package size={40} className="opacity-20" /></div>
