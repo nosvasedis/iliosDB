@@ -95,11 +95,26 @@ export interface TransferPlan {
 export function canOfferRemainingTransfer(
   order: Order,
   shipmentItems: OrderShipmentItem[] = [],
+  isProductionReady = false,
 ): boolean {
   if (order.status === OrderStatus.Delivered || order.status === OrderStatus.Cancelled) return false;
-  if (order.status === OrderStatus.Ready || order.status === OrderStatus.PartiallyDelivered) return true;
+  if (order.status === OrderStatus.Ready || order.status === OrderStatus.PartiallyDelivered || isProductionReady) return true;
   if (shipmentItems.length === 0) return false;
   return getRemainingOrderItems(order, shipmentItems).length > 0;
+}
+
+export function getCandidateTransferTargetOrders(orderA: Order, allOrders: Order[]): Order[] {
+  const customerId = orderA.customer_id;
+  const customerName = orderA.customer_name;
+
+  return allOrders
+    .filter((order) => {
+      if (order.id === orderA.id) return false;
+      if (order.status === OrderStatus.Delivered || order.status === OrderStatus.Cancelled) return false;
+      if (customerId) return order.customer_id === customerId;
+      return order.customer_name === customerName;
+    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
 
 function itemIdentityKey(item: {

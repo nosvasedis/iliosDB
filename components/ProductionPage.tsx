@@ -3305,7 +3305,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         else if (type === 'preparation') onPrintPreparation(selected);
         else if (type === 'aggregated') onPrintAggregated(selected);
         else if (type === 'labels') {
-            const printQueue = buildLabelPrintQueue(selected as EnhancedProductionBatch[], labelPrintSortMode, productsMap);
+            const printQueue = buildLabelPrintQueue(selected as EnhancedProductionBatch[], labelPrintSortMode, productsMap, ordersMap);
             if (printQueue.length > 0 && onPrintLabels) {
                 onPrintLabels(printQueue);
                 const modeLabel = labelPrintSortMode === 'as_sent' ? 'Σειρά Αποστολής' : 'Ταξινόμηση ανά Πελάτη';

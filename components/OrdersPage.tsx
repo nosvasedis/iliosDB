@@ -1147,6 +1147,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     const canTransferManagingOrder = !!managingOrder && canOfferRemainingTransfer(
         managingOrder,
         shipmentItemsByOrderId.get(managingOrder.id) || [],
+        orderMetaById.get(managingOrder.id)?.isReady || false,
     );
 
     // Derived: Filter orders based on Tab, Search, and all panel Filters

@@ -12,7 +12,7 @@ import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import { retailEndClientPillClass, retailOrderBagIconClass } from '../../utils/retailPresentation';
 import { useUI } from '../UIProvider';
 import SkuColorizedText from '../SkuColorizedText';
-import { buildOrderProductionStageSegments, getOrderItemProductionStageBreakdown, groupBatchesByShipment, isOrderReady, orderStatusShowsProductionProgress } from '../../utils/orderReadiness';
+import { buildOrderProductionStageSegments, getOrderItemProductionStageBreakdown, groupBatchesByShipment, isOrderReady, isOrderReadyForShipment, orderStatusShowsProductionProgress } from '../../utils/orderReadiness';
 import { OrderListProgressBar } from '../orders/OrderListProgressBar';
 import {
   ORDER_PRODUCTION_STAGE_BAR_CLASSNAMES,
@@ -1635,7 +1635,11 @@ export default function MobileOrders({
                                     <Settings size={18} className="text-slate-400" /> Παράδοση
                                 </button>
 
-                                {canOfferRemainingTransfer(managingOrder, shipmentItemsByOrderId.get(managingOrder.id) || []) && (
+                                {canOfferRemainingTransfer(
+                                    managingOrder,
+                                    shipmentItemsByOrderId.get(managingOrder.id) || [],
+                                    isOrderReadyForShipment(managingOrder, batchesByOrderId.get(managingOrder.id), shippedQtyByOrderId.get(managingOrder.id)),
+                                ) && (
                                     <button
                                         onClick={() => {
                                             setTransferOrder(managingOrder);

@@ -176,6 +176,48 @@ describe('production workflow selectors', () => {
     expect(queue.map((item) => item.quantity)).toEqual([1, 2]);
   });
 
+  it('fills missing DM label sizes from the matching order item', () => {
+    const products = new Map([
+      ['DM100', {
+        sku: 'DM100',
+        prefix: 'DM',
+        category: 'Ring',
+        variants: [{ suffix: 'X', description: 'Gold', stock_qty: 0 }],
+      }],
+    ] as any);
+    const orders = new Map([
+      ['ord-dm', {
+        id: 'ord-dm',
+        customer_name: 'Client',
+        items: [{
+          sku: 'DM100',
+          variant_suffix: 'X',
+          quantity: 1,
+          price_at_order: 20,
+          size_info: '52',
+        }],
+      }],
+    ] as any);
+
+    const queue = buildLabelPrintQueue([
+      {
+        id: 'dm-labeling',
+        order_id: 'ord-dm',
+        sku: 'DM100',
+        variant_suffix: 'X',
+        quantity: 1,
+        current_stage: ProductionStage.Labeling,
+        created_at: '2024-01-01T00:00:00.000Z',
+        updated_at: '2024-01-01T00:00:00.000Z',
+        priority: 'Normal',
+        requires_setting: false,
+      },
+    ] as any, 'as_sent', products, orders);
+
+    expect(queue).toHaveLength(1);
+    expect(queue[0].size).toBe('52');
+  });
+
   it('finds production batches by English customer first name', () => {
     const batches = [
       {

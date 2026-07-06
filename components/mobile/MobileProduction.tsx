@@ -975,6 +975,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
     const [labelPrintSortMode, setLabelPrintSortMode] = useState<LabelPrintSortMode>('as_sent');
     const batchHistoryLookup = useMemo(() => buildBatchStageHistoryLookup(batchStageHistoryEntries), [batchStageHistoryEntries]);
     const productsMap = useMemo(() => new Map(allProducts.map((product) => [product.sku, product])), [allProducts]);
+    const ordersMap = useMemo(() => new Map((orders || []).map((order) => [order.id, order])), [orders]);
 
     useEffect(() => {
         const intervalId = window.setInterval(() => setTimingNow(Date.now()), 60_000);
@@ -1392,7 +1393,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
         else if (type === 'preparation') onPrintPreparation(selected);
         else if (type === 'aggregated') onPrintAggregated(selected);
         else if (type === 'labels') {
-            const printQueue = buildLabelPrintQueue(selected as any, labelPrintSortMode, productsMap);
+            const printQueue = buildLabelPrintQueue(selected as any, labelPrintSortMode, productsMap, ordersMap);
             if (printQueue.length > 0 && onPrintLabels) {
                 onPrintLabels(printQueue as any);
                 const modeLabel = labelPrintSortMode === 'as_sent' ? 'Σειρά Αποστολής' : 'Ταξινόμηση ανά Πελάτη';
