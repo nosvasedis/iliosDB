@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTransferPlan, canOfferRemainingTransfer } from '../../features/orders/transferHelpers';
+import { buildTransferPlan, canOfferRemainingTransfer, getCandidateTransferTargetOrders } from '../../features/orders/transferHelpers';
 import { getReadyToShipItems } from '../../utils/shipmentUtils';
 import {
   getDuplicateActiveDeliveryPlanGroups,
@@ -140,6 +140,90 @@ describe('shipment safety', () => {
     });
 
     expect(canOfferRemainingTransfer(orderA, [])).toBe(true);
+  });
+
+  it('offers remaining transfer for production-ready orders even before status catches up', () => {
+    const orderA = order({
+      status: OrderStatus.InProduction,
+      items: [{ sku: 'SP001', quantity: 2, price_at_order: 10, line_id: 'line-a' }],
+    });
+
+    expect(canOfferRemainingTransfer(orderA, [], true)).toBe(true);
+  });
+
+  it('does not offer remaining transfer for in-production orders without derived readiness or shipment fallback', () => {
+    const orderA = order({
+      status: OrderStatus.InProduction,
+      items: [{ sku: 'SP001', quantity: 2, price_at_order: 10, line_id: 'line-a' }],
+    });
+
+    expect(canOfferRemainingTransfer(orderA, [], false)).toBe(false);
+  });
+
+  it('builds a valid transfer plan for a production-ready order whose saved status is still in production', () => {
+    const orderA = order({
+      status: OrderStatus.InProduction,
+      items: [{ sku: 'SP001', quantity: 2, price_at_order: 10, line_id: 'line-a' }],
+    });
+    const orderB = order({ id: 'ORD-2', status: OrderStatus.InProduction, items: [] });
+
+    const plan = buildTransferPlan(
+      orderA,
+      orderB,
+      { shipments: [], items: [] },
+      [readyBatch({ id: 'b1', line_id: 'line-a', quantity: 2 })],
+    );
+
+    expect(plan.isValid).toBe(true);
+    expect(plan.transferItems).toEqual([
+      expect.objectContaining({ sku: 'SP001', quantity: 2, line_id: 'line-a' }),
+    ]);
+    expect(plan.batchesToRepoint.map((batch) => batch.id)).toEqual(['b1']);
+  });
+
+  it('finds active same-customer transfer targets sorted newest first', () => {
+    const source = order({
+      id: 'ORD-A',
+      customer_id: 'cust-1',
+      customer_name: 'Demo',
+      created_at: '2026-01-01T00:00:00.000Z',
+    });
+    const olderTarget = order({
+      id: 'ORD-B',
+      customer_id: 'cust-1',
+      customer_name: 'Demo',
+      status: OrderStatus.InProduction,
+      created_at: '2026-01-02T00:00:00.000Z',
+    });
+    const newerTarget = order({
+      id: 'ORD-C',
+      customer_id: 'cust-1',
+      customer_name: 'Demo',
+      status: OrderStatus.Pending,
+      created_at: '2026-01-03T00:00:00.000Z',
+    });
+    const closedTarget = order({
+      id: 'ORD-D',
+      customer_id: 'cust-1',
+      customer_name: 'Demo',
+      status: OrderStatus.Delivered,
+      created_at: '2026-01-04T00:00:00.000Z',
+    });
+    const otherCustomer = order({
+      id: 'ORD-E',
+      customer_id: 'cust-2',
+      customer_name: 'Other',
+      status: OrderStatus.InProduction,
+      created_at: '2026-01-05T00:00:00.000Z',
+    });
+
+    expect(getCandidateTransferTargetOrders(source, [
+      source,
+      olderTarget,
+      newerTarget,
+      closedTarget,
+      otherCustomer,
+    ]).map((candidate) => candidate.id)).toEqual(['ORD-C', 'ORD-B']);
   });
 
   it('offers remaining transfer when shipment history has unshipped items despite status drift', () => {

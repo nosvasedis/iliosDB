@@ -28,11 +28,11 @@ import {
   ShieldAlert,
   Info,
 } from 'lucide-react';
-import { Order, OrderStatus, ProductionStage } from '../types';
+import { Order, ProductionStage } from '../types';
 import { useOrdersWithItems, useOrderShipmentsForOrder } from '../hooks/api/useOrders';
 import { useProductionBatches } from '../hooks/api/useProductionBatches';
 import { useAuth } from './AuthContext';
-import { buildTransferPlan, TransferPlan } from '../features/orders/transferHelpers';
+import { buildTransferPlan, getCandidateTransferTargetOrders, TransferPlan } from '../features/orders/transferHelpers';
 import { api } from '../lib/supabase';
 import { orderKeys } from '../features/orders/keys';
 import { productionKeys } from '../features/production/keys';
@@ -101,14 +101,7 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
   // ── Candidate orders ──────────────────────────────────────────────────────
   // Show orders for the same customer, excluding Order A itself and orders already fully closed.
   const candidateOrders = useMemo(() => {
-    const customerId = orderA.customer_id;
-    const customerName = orderA.customer_name;
-    return allOrders.filter((o) => {
-      if (o.id === orderA.id) return false;
-      if (o.status === OrderStatus.Delivered || o.status === OrderStatus.Cancelled) return false;
-      if (customerId) return o.customer_id === customerId;
-      return o.customer_name === customerName;
-    });
+    return getCandidateTransferTargetOrders(orderA, allOrders);
   }, [allOrders, orderA]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────

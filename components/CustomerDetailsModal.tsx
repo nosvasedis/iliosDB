@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { Customer, Order, OrderStatus, VatRegime } from '../types';
+import { Customer, Order, OrderShipmentItem, OrderStatus, VatRegime } from '../types';
 import {
     Phone,
     Mail,
@@ -31,6 +31,7 @@ import {
     Receipt,
     StickyNote,
     BarChart3,
+    ArrowRightLeft,
 } from 'lucide-react';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -40,6 +41,11 @@ import { retailEndClientPillClass } from '../utils/retailPresentation';
 import { getNextNamedayForName } from '../utils/namedays';
 import { formatGreekDate } from '../utils/deliveryLabels';
 import { getOrderStatusClasses, getOrderStatusLabel } from '../features/orders/statusPresentation';
+import { canOfferRemainingTransfer, getCandidateTransferTargetOrders } from '../features/orders/transferHelpers';
+import { useAllShipmentItems, useAllShipments } from '../hooks/api/useOrders';
+import { useProductionBatches } from '../hooks/api/useProductionBatches';
+import { isOrderReadyForShipment } from '../utils/orderReadiness';
+import TransferRemainingItemsModal from './TransferRemainingItemsModal';
 
 export interface CustomerDetailsModalProps {
     customer: Customer;
@@ -103,7 +109,44 @@ export default function CustomerDetailsModal({
     const [isSaving, setIsSaving] = useState(false);
     const [isSearchingAfm, setIsSearchingAfm] = useState(false);
     const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null);
+    const [transferOrder, setTransferOrder] = useState<Order | null>(null);
     const { showToast } = useUI();
+    const { data: allShipments } = useAllShipments();
+    const { data: allShipmentItems } = useAllShipmentItems();
+    const { data: batches } = useProductionBatches();
+
+    const shipmentItemsByOrderId = useMemo(() => {
+        const map = new Map<string, OrderShipmentItem[]>();
+        if (!allShipments || !allShipmentItems) return map;
+        const shipmentToOrder = new Map(allShipments.map(shipment => [shipment.id, shipment.order_id]));
+        for (const item of allShipmentItems) {
+            const orderId = shipmentToOrder.get(item.shipment_id);
+            if (!orderId) continue;
+            const existing = map.get(orderId);
+            if (existing) existing.push(item);
+            else map.set(orderId, [item]);
+        }
+        return map;
+    }, [allShipments, allShipmentItems]);
+
+    const shippedQtyByOrderId = useMemo(() => {
+        const map = new Map<string, number>();
+        shipmentItemsByOrderId.forEach((items, orderId) => {
+            map.set(orderId, items.reduce((sum, item) => sum + item.quantity, 0));
+        });
+        return map;
+    }, [shipmentItemsByOrderId]);
+
+    const batchesByOrderId = useMemo(() => {
+        const map = new Map<string, NonNullable<typeof batches>>();
+        (batches ?? []).forEach(batch => {
+            if (!batch.order_id) return;
+            const existing = map.get(batch.order_id);
+            if (existing) existing.push(batch);
+            else map.set(batch.order_id, [batch]);
+        });
+        return map;
+    }, [batches]);
 
     type NormalTab = 'overview' | 'contact' | 'billing' | 'notes' | 'analytics' | 'orders';
     type RetailTab = 'overview' | 'end_clients' | 'categories' | 'orders';
@@ -201,6 +244,16 @@ export default function CustomerDetailsModal({
             activeMonths,
         };
     }, [customer, orders]);
+
+    const canTransferOrderFromCustomerList = useCallback((order: Order) => {
+        const candidateTargets = getCandidateTransferTargetOrders(order, stats.history);
+        if (candidateTargets.length === 0) return false;
+        return canOfferRemainingTransfer(
+            order,
+            shipmentItemsByOrderId.get(order.id) || [],
+            isOrderReadyForShipment(order, batchesByOrderId.get(order.id), shippedQtyByOrderId.get(order.id)),
+        );
+    }, [batchesByOrderId, shipmentItemsByOrderId, shippedQtyByOrderId, stats.history]);
 
     const filteredOrders = useMemo(() => {
         const q = orderQuery.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -334,6 +387,8 @@ export default function CustomerDetailsModal({
             : null;
 
     return (
+        <>
+        {!transferOrder && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 p-3 backdrop-blur-sm sm:p-6 lg:p-10 animate-in fade-in duration-200">
             <div
                 className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-xl animate-in zoom-in-95 duration-200"
@@ -1169,6 +1224,16 @@ export default function CustomerDetailsModal({
                                                 </div>
                                                 <div className="font-black text-lg text-slate-800">{formatCurrency(netValue)}</div>
                                             </div>
+                                            {canTransferOrderFromCustomerList(o) && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setTransferOrder(o)}
+                                                    className="p-3 text-violet-700 hover:text-violet-900 bg-violet-50 hover:bg-violet-100 border border-violet-100 rounded-xl transition-colors shadow-sm"
+                                                    title="Μεταφορά υπολοίπου σε άλλη παραγγελία"
+                                                >
+                                                    <ArrowRightLeft size={18} />
+                                                </button>
+                                            )}
                                             {onPrintOrder && (
                                                 <button
                                                     type="button"
@@ -1199,5 +1264,17 @@ export default function CustomerDetailsModal({
                 </div>
             </div>
         </div>
+        )}
+        {transferOrder && (
+            <TransferRemainingItemsModal
+                orderA={transferOrder}
+                onClose={() => setTransferOrder(null)}
+                onSuccess={(updatedOrderB) => {
+                    setTransferOrder(null);
+                    onPrintOrder?.(updatedOrderB);
+                }}
+            />
+        )}
+        </>
     );
 }

@@ -9,6 +9,7 @@ import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import { requiresAssemblyStage, requiresSettingStage } from '../../constants';
 import { isSpecialCreationSku, getSpecialCreationProductStub } from '../../utils/specialCreationSku';
 import { normalizeGreekForSearch } from '../../utils/greekSearch';
+import { findMatchingOrderItemForBatch } from './boardViewModel';
 
 export type ProductionDisplayGroupMode = 'gender' | 'customer';
 export type ProductionDisplaySortOrder = 'alpha' | 'newest' | 'oldest';
@@ -235,6 +236,7 @@ export function buildLabelPrintQueue(
   selected: ProductionDisplayBatch[],
   mode: LabelPrintSortMode,
   productsMap: Map<string, Product>,
+  ordersMap?: Map<string, Pick<Order, 'items'>>,
 ): ProductionLabelPrintItem[] {
   return [...selected]
     .sort((a, b) => {
@@ -268,11 +270,16 @@ export function buildLabelPrintQueue(
       const effectiveVariant = (variant && priceOverride != null && priceOverride > 0)
         ? { ...variant, selling_price: priceOverride }
         : variant;
+      const orderItems = batch.order_id ? ordersMap?.get(batch.order_id)?.items || [] : [];
+      const matchingOrderItem = orderItems.length > 0
+        ? findMatchingOrderItemForBatch(batch, orderItems)
+        : undefined;
+      const size = batch.size_info || matchingOrderItem?.size_info || undefined;
 
       const printItem: ProductionLabelPrintItem = {
         product: effectiveProduct,
         quantity: batch.quantity,
-        size: batch.size_info || undefined,
+        size,
         format: 'standard',
       };
 
