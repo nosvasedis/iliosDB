@@ -159,6 +159,7 @@ describe('sku order search modal view model', () => {
       inProductionQty: 1,
       remainingQty: 0,
       fulfillmentKind: 'partially_delivered',
+      showProductionStageChips: true,
     });
     expect(results[0].matchedItems[0].shipmentAllocations).toEqual([
       expect.objectContaining({ shipmentNumber: 7, quantity: 2 }),
@@ -199,6 +200,7 @@ describe('sku order search modal view model', () => {
     expect(results[0].matchedItems[0]).toMatchObject({
       fulfillmentKind: 'in_production',
       inProductionQty: 2,
+      showProductionStageChips: false,
       productionStages: [
         expect.objectContaining({
           label: 'Τεχν. · Αναμονή',

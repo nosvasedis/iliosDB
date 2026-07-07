@@ -1,11 +1,27 @@
-
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Supplier, SupplierOrderItem, SupplierOrderType, Product, Gender, SupplierOrder } from '../../types';
-import { X, Search, Plus, Save, Trash2, Box, Gem, Factory, ImageIcon, StickyNote, ShoppingCart, Hash, ListPlus, ChevronDown, Loader2 } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+    Box,
+    ChevronDown,
+    Factory,
+    Gem,
+    Globe2,
+    Hash,
+    ImageIcon,
+    ListPlus,
+    Loader2,
+    PackageCheck,
+    Plus,
+    Save,
+    Search,
+    ShoppingCart,
+    StickyNote,
+    Trash2,
+    X,
+} from 'lucide-react';
+import { Supplier, SupplierOrder, SupplierOrderItem, SupplierOrderType, Product } from '../../types';
 import { api } from '../../lib/supabase';
 import { useUI } from '../UIProvider';
-import { getVariantComponents } from '../../utils/pricingEngine';
 import { useSupplierOrderNeeds, type SupplierOrderGroupedNeed } from '../../hooks/useSupplierOrderNeeds';
 import { mergeNeedIntoItems } from '../../utils/mergeSupplierNeedIntoOrder';
 import { needBreakdownKey, unattributedQty } from '../../utils/supplierOrderNeedBreakdown';
@@ -17,9 +33,12 @@ import {
     type PurchaseOrderCustomerFilter,
     type PurchaseOrderFilterTab,
 } from '../../utils/supplierOrderCustomerFilter';
+import {
+    getPurchaseOrderLinePresentation,
+    shouldShowPurchaseOrderSizeInput,
+} from '../../features/suppliers/purchaseOrderPresentation';
 import PurchaseNeedRow from '../PurchaseNeedRow';
 import PurchaseOrderCustomerFilterBar from '../PurchaseOrderCustomerFilterBar';
-import { getSizingInfo, SIZE_TYPE_NUMBER } from '../../utils/sizing';
 
 interface Props {
     supplier: Supplier;
@@ -27,45 +46,12 @@ interface Props {
     initialOrder?: SupplierOrder | null;
 }
 
-// Visual Config
-const FINISH_STYLES: Record<string, string> = {
-    'X': 'bg-amber-100 text-amber-800 border-amber-200',
-    'P': 'bg-stone-200 text-stone-800 border-stone-300',
-    'D': 'bg-orange-100 text-orange-800 border-orange-200',
-    'H': 'bg-cyan-100 text-cyan-900 border-cyan-200',
-    '': 'bg-emerald-50 text-emerald-700 border-emerald-200'
-};
+type SearchResult =
+    | { kind: 'Product'; key: string; name: string; sub: string; image?: string | null; item: Product; variantSuffix: string }
+    | { kind: 'Material'; key: string; name: string; sub: string; image?: string | null; item: any; variantSuffix?: never };
 
-const STONE_TEXT_COLORS: Record<string, string> = {
-    'KR': 'text-rose-600', 'QN': 'text-slate-900', 'LA': 'text-blue-600', 'TY': 'text-teal-500',
-    'TG': 'text-orange-700', 'IA': 'text-red-700', 'BSU': 'text-slate-800', 'GSU': 'text-emerald-800',
-    'RSU': 'text-rose-800', 'MA': 'text-emerald-600', 'FI': 'text-slate-400', 'OP': 'text-indigo-500',
-    'NF': 'text-green-800', 'CO': 'text-orange-500', 'PCO': 'text-emerald-500', 'MCO': 'text-purple-500',
-    'PAX': 'text-green-600', 'MAX': 'text-blue-700', 'KAX': 'text-red-700', 'AI': 'text-slate-600',
-    'AP': 'text-cyan-600', 'AM': 'text-teal-700', 'AZM': 'text-teal-600', 'LR': 'text-indigo-700', 'SB': 'text-sky-500',
-    'MP': 'text-blue-500', 'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500',
-    'MV': 'text-purple-400', 'RZ': 'text-pink-500', 'AK': 'text-cyan-400', 'XAL': 'text-stone-500'
-};
-
-const isRingPurchaseLine = (product: Product | undefined, item?: SupplierOrderItem): boolean => {
-    const sizing = product ? getSizingInfo(product) : null;
-    const values = [
-        product?.prefix,
-        product?.sku,
-        product?.supplier_sku,
-        product?.category,
-        item?.item_id,
-        item?.item_name,
-    ].map(v => (v || '').toUpperCase());
-
-    return (
-        sizing?.type === SIZE_TYPE_NUMBER ||
-        values.some(v => v.startsWith('DM') || v.includes('ΔΑΧ') || v.includes('ΔΑΚΤΥΛ') || v.includes('RING'))
-    );
-};
-
-const shouldShowSizeInput = (product: Product | undefined, item: SupplierOrderItem): boolean =>
-    item.item_type === 'Product' && (isRingPurchaseLine(product, item) || !!item.size_info);
+const sectionTitle = 'text-[10px] font-black uppercase tracking-[0.14em] text-slate-500';
+const fieldLabel = 'text-[9px] font-black uppercase tracking-wide text-slate-400';
 
 export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialOrder = null }: Props) {
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
@@ -77,6 +63,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
 
     const [items, setItems] = useState<SupplierOrderItem[]>(() => initialOrder?.items ?? []);
     const [searchTerm, setSearchTerm] = useState('');
+    const [cartSearchTerm, setCartSearchTerm] = useState('');
     const [searchType, setSearchType] = useState<SupplierOrderType>('Product');
     const [notes, setNotes] = useState(() => initialOrder?.notes ?? '');
     const [isSaving, setIsSaving] = useState(false);
@@ -88,9 +75,12 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
     const [customerPickKeys, setCustomerPickKeys] = useState<Set<string>>(() => new Set());
     const [rowSelectionMasks, setRowSelectionMasks] = useState<Record<string, boolean[]>>({});
 
+    const productBySku = useMemo(() => new Map((products || []).map((product) => [product.sku, product])), [products]);
+    const totalPieces = useMemo(() => items.reduce((sum, item) => sum + Number(item.quantity || 0), 0), [items]);
+
     const poCustomerFilter: PurchaseOrderCustomerFilter = useMemo(
         () => purchaseOrderFilterFromTab(customerFilterTab, customerPickKeys),
-        [customerFilterTab, customerPickKeys]
+        [customerFilterTab, customerPickKeys],
     );
 
     const uniquePoCustomers = useMemo(() => {
@@ -110,7 +100,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
 
     useEffect(() => {
         if (initialOrder) {
-            setItems(initialOrder.items.map(i => ({ ...i })));
+            setItems(initialOrder.items.map((item) => ({ ...item })));
             setNotes(initialOrder.notes ?? '');
         }
     }, [initialOrder?.id]);
@@ -127,77 +117,104 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
         const extra = unattributedQty(need.totalQty, need.requirements);
         const expectedLen = need.requirements.length + (extra > 0 ? 1 : 0);
         if (next.length !== expectedLen) return;
-        setRowSelectionMasks(p => ({ ...p, [key]: next }));
+        setRowSelectionMasks((previous) => ({ ...previous, [key]: next }));
     };
 
     const toggleCustomerPick = (displayName: string) => {
         const k = normCustomerKey(displayName);
-        setCustomerPickKeys(prev => {
-            const n = new Set(prev);
-            if (n.has(k)) n.delete(k);
-            else n.add(k);
-            return n;
+        setCustomerPickKeys((previous) => {
+            const next = new Set(previous);
+            if (next.has(k)) next.delete(k);
+            else next.add(k);
+            return next;
         });
     };
 
-    const addAllProductionNeeds = () => {
-        const withProduct = productionNeeds.filter(n => n.product);
+    const addManyNeeds = (needs: SupplierOrderGroupedNeed[], label: string) => {
+        const withProduct = needs.filter((need) => need.product);
         if (withProduct.length === 0) {
             showToast('Δεν υπάρχουν διαθέσιμες γραμμές.', 'error');
             return;
         }
         if (customerFilterTab === 'include_only' && customerPickKeys.size === 0) {
-            showToast('Επιλέξτε πελάτες στη λειτουργία «Μόνο…» ή αλλάξτε φίλτρο.', 'error');
+            showToast('Επιλέξτε πελάτες στη λειτουργία "Μόνο..." ή αλλάξτε φίλτρο.', 'error');
             return;
         }
-        setItems(prev => mergeManyNeedsWithCustomerFilter(prev, withProduct, poCustomerFilter));
-        showToast('Προστέθηκαν ποσότητες (φίλτρο πελατών).', 'success');
+        setItems((previous) => mergeManyNeedsWithCustomerFilter(previous, withProduct, poCustomerFilter));
+        showToast(`${label}: προστέθηκαν ποσότητες.`, 'success');
+        window.setTimeout(() => cartSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
     };
 
-    const addAllPendingOrderNeeds = () => {
-        const withProduct = pendingOrderNeeds.filter(n => n.product);
-        if (withProduct.length === 0) {
-            showToast('Δεν υπάρχουν διαθέσιμες γραμμές.', 'error');
-            return;
-        }
-        if (customerFilterTab === 'include_only' && customerPickKeys.size === 0) {
-            showToast('Επιλέξτε πελάτες στη λειτουργία «Μόνο…» ή αλλάξτε φίλτρο.', 'error');
-            return;
-        }
-        setItems(prev => mergeManyNeedsWithCustomerFilter(prev, withProduct, poCustomerFilter));
-        showToast('Προστέθηκαν ποσότητες (φίλτρο πελατών).', 'success');
-    };
-
-    const searchResults = useMemo(() => {
-        const lower = searchTerm.toLowerCase();
+    const searchResults = useMemo<SearchResult[]>(() => {
+        const lower = searchTerm.trim().toLowerCase();
         if (!lower) return [];
 
         if (searchType === 'Material') {
-            return materials?.filter(m => m.name.toLowerCase().includes(lower) && m.supplier_id === supplier.id).slice(0, 10) || [];
+            return (materials || [])
+                .filter((material: any) => material.supplier_id === supplier.id && material.name.toLowerCase().includes(lower))
+                .slice(0, 10)
+                .map((material: any) => ({
+                    kind: 'Material',
+                    key: material.id,
+                    name: material.name,
+                    sub: material.type || 'Υλικό',
+                    image: material.image_url,
+                    item: material,
+                }));
         }
-        if (!products) return [];
 
-        const results: { product: Product; variantSuffix: string; displayName: string; image?: string | null }[] = [];
-
-        products.forEach(p => {
-            if (p.supplier_id !== supplier.id) return;
-
-            if (p.sku.toLowerCase().includes(lower)) {
-                if (!p.variants || p.variants.length === 0) {
-                    results.push({ product: p, variantSuffix: '', displayName: p.sku, image: p.image_url });
-                }
-            }
-            if (p.variants && p.variants.length > 0) {
-                p.variants.forEach(v => {
-                    const fullSku = `${p.sku}${v.suffix}`;
-                    if (fullSku.toLowerCase().includes(lower) || p.sku.toLowerCase().includes(lower)) {
-                        results.push({ product: p, variantSuffix: v.suffix, displayName: fullSku, image: p.image_url });
-                    }
+        const results: SearchResult[] = [];
+        (products || []).forEach((product) => {
+            if (product.supplier_id !== supplier.id) return;
+            if (product.sku.toLowerCase().includes(lower) && (!product.variants || product.variants.length === 0)) {
+                results.push({
+                    kind: 'Product',
+                    key: product.sku,
+                    name: product.sku,
+                    sub: product.category,
+                    image: product.image_url,
+                    item: product,
+                    variantSuffix: '',
                 });
             }
+            product.variants?.forEach((variant) => {
+                const fullSku = `${product.sku}${variant.suffix}`;
+                if (fullSku.toLowerCase().includes(lower) || product.sku.toLowerCase().includes(lower)) {
+                    results.push({
+                        kind: 'Product',
+                        key: fullSku,
+                        name: fullSku,
+                        sub: product.category,
+                        image: product.image_url,
+                        item: product,
+                        variantSuffix: variant.suffix,
+                    });
+                }
+            });
         });
         return results.slice(0, 10);
-    }, [searchTerm, searchType, materials, products, supplier.id]);
+    }, [materials, products, searchTerm, searchType, supplier.id]);
+
+    const filteredItems = useMemo(() => {
+        const q = cartSearchTerm.trim().toLowerCase();
+        return items
+            .map((item, index) => ({ item, index }))
+            .filter(({ item }) => {
+                if (!q) return true;
+                const product = item.item_type === 'Product' ? productBySku.get(item.item_id) : undefined;
+                return [
+                    item.item_name,
+                    item.item_id,
+                    item.notes,
+                    item.customer_reference,
+                    item.size_info,
+                    product?.supplier_sku,
+                    product?.category,
+                ]
+                    .filter(Boolean)
+                    .some((value) => String(value).toLowerCase().includes(q));
+            });
+    }, [cartSearchTerm, items, productBySku]);
 
     const addItem = (
         item: any,
@@ -205,29 +222,31 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
         qty: number = 1,
         variantSuffix: string = '',
         size: string = '',
-        addOptions?: { requirements?: { customer: string }[] }
+        addOptions?: { requirements?: { customer: string }[] },
     ) => {
         if (type === 'Material') {
             const id = item.id;
             const name = item.name;
-            const cost = 0;
-            setItems(prev => {
-                const existingIdx = prev.findIndex(i => i.item_name === name && i.item_type === type && (i.size_info || '') === '');
+            setItems((previous) => {
+                const existingIdx = previous.findIndex((line) => line.item_name === name && line.item_type === type && (line.size_info || '') === '');
                 if (existingIdx >= 0) {
-                    const updated = [...prev];
-                    updated[existingIdx].quantity += qty;
-                    updated[existingIdx].total_cost = 0;
+                    const updated = [...previous];
+                    updated[existingIdx] = {
+                        ...updated[existingIdx],
+                        quantity: updated[existingIdx].quantity + qty,
+                        total_cost: 0,
+                    };
                     return updated;
                 }
                 return [
-                    ...prev,
+                    ...previous,
                     {
-                        id: Math.random().toString(36),
+                        id: crypto.randomUUID(),
                         item_type: type,
                         item_id: id,
                         item_name: name,
                         quantity: qty,
-                        unit_cost: cost,
+                        unit_cost: 0,
                         total_cost: 0,
                     },
                 ];
@@ -252,9 +271,9 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
         const suffix = item.variantSuffix !== undefined ? item.variantSuffix : variantSuffix;
         const finalSize = item.size !== undefined ? item.size : size;
 
-        setItems(prev =>
+        setItems((previous) =>
             mergeNeedIntoItems(
-                prev,
+                previous,
                 {
                     variant: suffix,
                     size: finalSize || undefined,
@@ -262,47 +281,48 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                     product,
                     requirements: addOptions?.requirements,
                 },
-                'Product'
-            )
+                'Product',
+            ),
         );
         setSearchTerm('');
         showToast(`Προστέθηκε: ${product.sku}${suffix}`, 'success');
     };
 
     const updateItem = (index: number, field: 'qty' | 'cost' | 'notes' | 'size', val: any) => {
-        setItems(prev => {
-            const updated = [...prev];
+        setItems((previous) => {
+            const updated = [...previous];
             const item = { ...updated[index] };
-            if (field === 'qty') item.quantity = Number(val);
+            if (field === 'qty') item.quantity = Math.max(1, Number(val) || 1);
             else if (field === 'cost') item.unit_cost = Number(val);
             else if (field === 'notes') item.notes = val;
             else if (field === 'size') item.size_info = String(val).trim() || undefined;
-
             item.total_cost = 0;
             updated[index] = item;
             return updated;
         });
     };
 
-    const removeItem = (index: number) => setItems(prev => prev.filter((_, i) => i !== index));
+    const removeItem = (index: number) => setItems((previous) => previous.filter((_, i) => i !== index));
 
     const handleSave = async () => {
-        if (items.length === 0) { showToast("Η εντολή είναι κενή.", "error"); return; }
+        if (items.length === 0) {
+            showToast('Η εντολή είναι κενή.', 'error');
+            return;
+        }
 
         setIsSaving(true);
         try {
             if (initialOrder) {
-                const order: SupplierOrder = {
+                await api.updateSupplierOrder({
                     ...initialOrder,
                     items,
                     notes,
                     total_amount: 0,
-                };
-                await api.updateSupplierOrder(order);
+                });
                 queryClient.invalidateQueries({ queryKey: ['supplier_orders'] });
                 showToast('Η εντολή ενημερώθηκε.', 'success');
             } else {
-                const order: SupplierOrder = {
+                await api.saveSupplierOrder({
                     id: crypto.randomUUID(),
                     supplier_id: supplier.id,
                     supplier_name: supplier.name,
@@ -310,42 +330,138 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                     status: 'Pending',
                     total_amount: 0,
                     items,
-                    notes
-                };
-                await api.saveSupplierOrder(order);
+                    notes,
+                });
                 queryClient.invalidateQueries({ queryKey: ['supplier_orders'] });
-                showToast("Η εντολή δημιουργήθηκε!", "success");
+                showToast('Η εντολή δημιουργήθηκε.', 'success');
             }
             onClose();
-        } catch (e) {
-            showToast("Σφάλμα.", "error");
+        } catch {
+            showToast('Σφάλμα κατά την αποθήκευση.', 'error');
         } finally {
             setIsSaving(false);
         }
     };
 
-    return (
-        <div className="fixed inset-0 z-[110] bg-slate-50 flex flex-col animate-in slide-in-from-bottom duration-300">
-            <div className="bg-white p-4 border-b border-slate-100 flex justify-between items-start gap-3 shadow-sm z-10">
-                <div className="min-w-0 flex-1">
-                    <h2 className="text-lg font-black text-slate-800">
-                        {initialOrder ? 'Επεξεργασία Εντολής' : 'Νέα Εντολή Αγοράς'}
-                    </h2>
-                    <p className="text-xs text-slate-500 font-bold truncate mt-0.5">{supplier.name}</p>
+    const renderNeedSection = (
+        title: string,
+        subtitle: string,
+        needs: SupplierOrderGroupedNeed[],
+        accent: 'indigo' | 'blue',
+        open: boolean,
+        setOpen: React.Dispatch<React.SetStateAction<boolean>>,
+        onAddAll: () => void,
+        icon: React.ReactNode,
+        keyPrefix: 'prod' | 'pend',
+    ) => {
+        if (needs.length === 0) return null;
+        const accentClasses = accent === 'indigo'
+            ? 'bg-indigo-50 border-indigo-100 text-indigo-800'
+            : 'bg-blue-50 border-blue-100 text-blue-800';
+        const buttonClasses = accent === 'indigo' ? 'bg-indigo-600 active:bg-indigo-700' : 'bg-blue-600 active:bg-blue-700';
+
+        return (
+            <div className={`rounded-2xl border p-3 shadow-sm ${accentClasses}`}>
+                <div className="flex items-start justify-between gap-2">
                     <button
                         type="button"
-                        onClick={() => cartSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                        className="mt-2 text-[10px] font-black uppercase tracking-wide text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-lg active:scale-[0.98] transition-transform"
+                        onClick={() => setOpen((value) => !value)}
+                        className="flex min-w-0 flex-1 items-start gap-2 rounded-xl p-1 text-left active:bg-white/50"
+                        aria-expanded={open}
                     >
-                        Καλάθι · {items.length} είδη
+                        <span className="mt-0.5 rounded-xl bg-white/75 p-1.5 shadow-sm">{icon}</span>
+                        <span className="min-w-0">
+                            <span className="block text-[11px] font-black uppercase tracking-wide">{title}</span>
+                            <span className="mt-0.5 block text-[10px] font-bold opacity-75">{subtitle}</span>
+                        </span>
+                        <ChevronDown size={16} className={`ml-auto mt-1 shrink-0 transition-transform ${open ? 'rotate-0' : '-rotate-90'}`} />
+                    </button>
+                    <div className="flex shrink-0 items-center gap-1">
+                        <span className="rounded-lg bg-white/80 px-2 py-1 text-[10px] font-black tabular-nums">{needs.length}</span>
+                        <button
+                            type="button"
+                            onClick={onAddAll}
+                            className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-black uppercase text-white shadow-sm ${buttonClasses}`}
+                        >
+                            <ListPlus size={13} /> Όλα
+                        </button>
+                    </div>
+                </div>
+                {open && (
+                    <div className="mt-3 space-y-2">
+                        {needs.map((need) => {
+                            const key = needBreakdownKey(keyPrefix, need);
+                            return (
+                                <PurchaseNeedRow
+                                    key={key}
+                                    need={need}
+                                    accent={accent}
+                                    expanded={!!needBreakdownOpen[key]}
+                                    onToggleBreakdown={() => setNeedBreakdownOpen((previous) => ({ ...previous, [key]: !previous[key] }))}
+                                    selectionMask={resolveRowMask(key, need)}
+                                    onSelectionChange={(next) => setRowMask(key, need, next)}
+                                    onAddFiltered={(qty, requirements) =>
+                                        addItem(need, 'Product', qty, need.variant, need.size, { requirements })
+                                    }
+                                    onNotifyZero={() => showToast('Επιλέξτε τουλάχιστον μία γραμμή ποσότητας.', 'error')}
+                                    layout="mobile"
+                                />
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    return (
+        <div className="fixed inset-0 z-[110] flex flex-col bg-slate-50 animate-in slide-in-from-bottom duration-300">
+            <div className="sticky top-0 z-20 border-b border-slate-200 bg-white px-4 py-3 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 gap-3">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-purple-50 text-purple-700 ring-1 ring-purple-100">
+                            <Globe2 size={22} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <h2 className="truncate text-lg font-black leading-tight text-slate-900">
+                                {initialOrder ? 'Επεξεργασία Εντολής' : 'Νέα Εντολή Αγοράς'}
+                            </h2>
+                            <p className="mt-0.5 truncate text-xs font-bold text-slate-500">{supplier.name}</p>
+                            <button
+                                type="button"
+                                onClick={() => cartSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                                className="mt-2 inline-flex items-center gap-1.5 rounded-xl border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700 active:scale-[0.98]"
+                            >
+                                <PackageCheck size={12} /> {items.length} είδη · {totalPieces} τεμ.
+                            </button>
+                        </div>
+                    </div>
+                    <button type="button" onClick={onClose} className="shrink-0 rounded-xl p-1.5 text-slate-500 hover:bg-slate-100" aria-label="Κλείσιμο">
+                        <X size={23} />
                     </button>
                 </div>
-                <button type="button" onClick={onClose} className="shrink-0 p-1 -mr-1 rounded-lg hover:bg-slate-100" aria-label="Κλείσιμο">
-                    <X size={24} className="text-slate-500" />
-                </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 space-y-4 overflow-y-auto px-4 pb-28 pt-4 custom-scrollbar">
+                <div className="grid grid-cols-4 gap-2">
+                    <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-2 text-indigo-700">
+                        <div className="text-[8px] font-black uppercase opacity-70">Παραγωγή</div>
+                        <div className="text-base font-black tabular-nums">{productionNeeds.length}</div>
+                    </div>
+                    <div className="rounded-2xl border border-blue-100 bg-blue-50 p-2 text-blue-700">
+                        <div className="text-[8px] font-black uppercase opacity-70">Εκκρεμή</div>
+                        <div className="text-base font-black tabular-nums">{pendingOrderNeeds.length}</div>
+                    </div>
+                    <div className="rounded-2xl border border-purple-100 bg-purple-50 p-2 text-purple-700">
+                        <div className="text-[8px] font-black uppercase opacity-70">Είδη</div>
+                        <div className="text-base font-black tabular-nums">{items.length}</div>
+                    </div>
+                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-2 text-emerald-700">
+                        <div className="text-[8px] font-black uppercase opacity-70">Τεμ.</div>
+                        <div className="text-base font-black tabular-nums">{totalPieces}</div>
+                    </div>
+                </div>
+
                 <PurchaseOrderCustomerFilterBar
                     uniqueCustomers={uniquePoCustomers}
                     tab={customerFilterTab}
@@ -353,302 +469,263 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                     pickedKeys={customerPickKeys}
                     onTogglePicked={toggleCustomerPick}
                     expanded={customerFilterExpanded}
-                    onToggleExpanded={() => setCustomerFilterExpanded(o => !o)}
+                    onToggleExpanded={() => setCustomerFilterExpanded((open) => !open)}
                     layout="mobile"
                 />
 
-                {/* Production Needs */}
-                {productionNeeds.length > 0 && (
-                    <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 space-y-2">
-                        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                            <button
-                                type="button"
-                                onClick={() => setProductionNeedsOpen(o => !o)}
-                                className="flex items-center gap-2 text-xs font-black text-indigo-700 uppercase text-left min-w-0 flex-1 rounded-lg hover:bg-indigo-100/50 -m-1 p-1 transition-colors"
-                                aria-expanded={productionNeedsOpen}
-                            >
-                                <ChevronDown
-                                    size={16}
-                                    className={`shrink-0 text-indigo-600 transition-transform duration-200 ${productionNeedsOpen ? 'rotate-0' : '-rotate-90'}`}
-                                    aria-hidden
-                                />
-                                <Factory size={14} className="shrink-0" />
-                                <span className="truncate">Ανάγκες Παραγωγής</span>
-                            </button>
-                            <div className="flex items-center gap-2 shrink-0">
-                                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-100/80 px-2 py-0.5 rounded-md">{productionNeeds.length} είδη</span>
-                                <button
-                                    type="button"
-                                    onClick={addAllProductionNeeds}
-                                    className="flex items-center gap-1 bg-indigo-600 text-white px-2.5 py-1 rounded-lg text-[10px] font-black uppercase active:scale-95 transition-transform"
-                                >
-                                    <ListPlus size={14} /> Όλα
-                                </button>
-                            </div>
-                        </div>
-                        {productionNeedsOpen &&
-                            productionNeeds.map(n => {
-                                const k = needBreakdownKey('prod', n);
-                                return (
-                                    <PurchaseNeedRow
-                                        key={k}
-                                        need={n}
-                                        accent="indigo"
-                                        expanded={!!needBreakdownOpen[k]}
-                                        onToggleBreakdown={() =>
-                                            setNeedBreakdownOpen(p => ({ ...p, [k]: !p[k] }))
-                                        }
-                                        selectionMask={resolveRowMask(k, n)}
-                                        onSelectionChange={next => setRowMask(k, n, next)}
-                                        onAddFiltered={(qty, reqs) =>
-                                            addItem(n, 'Product', qty, n.variant, n.size, {
-                                                requirements: reqs,
-                                            })
-                                        }
-                                        onNotifyZero={() =>
-                                            showToast('Επιλέξτε τουλάχιστον μία γραμμή ποσότητας.', 'error')
-                                        }
-                                        layout="mobile"
-                                    />
-                                );
-                            })}
+                {renderNeedSection(
+                    'Ανάγκες Παραγωγής',
+                    'Παρτίδες που περιμένουν παραλαβή.',
+                    productionNeeds,
+                    'indigo',
+                    productionNeedsOpen,
+                    setProductionNeedsOpen,
+                    () => addManyNeeds(productionNeeds, 'Ανάγκες παραγωγής'),
+                    <Factory size={15} />,
+                    'prod',
+                )}
+                {renderNeedSection(
+                    'Ανάγκες Παραγγελιών',
+                    'Εκκρεμή εισαγόμενα είδη πελατών.',
+                    pendingOrderNeeds,
+                    'blue',
+                    pendingNeedsOpen,
+                    setPendingNeedsOpen,
+                    () => addManyNeeds(pendingOrderNeeds, 'Ανάγκες παραγγελιών'),
+                    <ShoppingCart size={15} />,
+                    'pend',
+                )}
+
+                {productionNeeds.length === 0 && pendingOrderNeeds.length === 0 && (
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center">
+                        <Factory size={32} className="mx-auto text-slate-300" />
+                        <p className="mt-2 text-sm font-black text-slate-500">Δεν υπάρχουν αυτόματες ανάγκες.</p>
                     </div>
                 )}
 
-                {/* Pending Order Needs */}
-                {pendingOrderNeeds.length > 0 && (
-                    <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 space-y-2">
-                        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                            <button
-                                type="button"
-                                onClick={() => setPendingNeedsOpen(o => !o)}
-                                className="flex items-center gap-2 text-xs font-black text-blue-700 uppercase text-left min-w-0 flex-1 rounded-lg hover:bg-blue-100/50 -m-1 p-1 transition-colors"
-                                aria-expanded={pendingNeedsOpen}
-                            >
-                                <ChevronDown
-                                    size={16}
-                                    className={`shrink-0 text-blue-600 transition-transform duration-200 ${pendingNeedsOpen ? 'rotate-0' : '-rotate-90'}`}
-                                    aria-hidden
-                                />
-                                <ShoppingCart size={14} className="shrink-0" />
-                                <span className="truncate">Ανάγκες Παραγγελιών (Εκκρεμείς)</span>
-                            </button>
-                            <div className="flex items-center gap-2 shrink-0">
-                                <span className="text-[10px] font-bold text-blue-600 bg-blue-100/80 px-2 py-0.5 rounded-md">{pendingOrderNeeds.length} είδη</span>
-                                <button
-                                    type="button"
-                                    onClick={addAllPendingOrderNeeds}
-                                    className="flex items-center gap-1 bg-blue-600 text-white px-2.5 py-1 rounded-lg text-[10px] font-black uppercase active:scale-95 transition-transform"
-                                >
-                                    <ListPlus size={14} /> Όλα
-                                </button>
-                            </div>
-                        </div>
-                        {pendingNeedsOpen &&
-                            pendingOrderNeeds.map(n => {
-                                const k = needBreakdownKey('pend', n);
-                                return (
-                                    <PurchaseNeedRow
-                                        key={k}
-                                        need={n}
-                                        accent="blue"
-                                        expanded={!!needBreakdownOpen[k]}
-                                        onToggleBreakdown={() =>
-                                            setNeedBreakdownOpen(p => ({ ...p, [k]: !p[k] }))
-                                        }
-                                        selectionMask={resolveRowMask(k, n)}
-                                        onSelectionChange={next => setRowMask(k, n, next)}
-                                        onAddFiltered={(qty, reqs) =>
-                                            addItem(n, 'Product', qty, n.variant, n.size, {
-                                                requirements: reqs,
-                                            })
-                                        }
-                                        onNotifyZero={() =>
-                                            showToast('Επιλέξτε τουλάχιστον μία γραμμή ποσότητας.', 'error')
-                                        }
-                                        layout="mobile"
-                                    />
-                                );
-                            })}
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="mb-3 flex items-center gap-2">
+                        <Search size={15} className="text-purple-600" />
+                        <h3 className={sectionTitle}>Χειροκίνητη προσθήκη</h3>
                     </div>
-                )}
-
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-                    <div className="flex bg-slate-100 p-1 rounded-xl">
-                        <button onClick={() => setSearchType('Product')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${searchType === 'Product' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>Προϊόντα</button>
-                        <button onClick={() => setSearchType('Material')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${searchType === 'Material' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500'}`}>Υλικά</button>
+                    <div className="mb-3 grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1">
+                        <button
+                            type="button"
+                            onClick={() => setSearchType('Product')}
+                            className={`rounded-xl py-2 text-xs font-black transition-all ${searchType === 'Product' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}
+                        >
+                            Προϊόντα
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setSearchType('Material')}
+                            className={`rounded-xl py-2 text-xs font-black transition-all ${searchType === 'Material' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500'}`}
+                        >
+                            Υλικά
+                        </button>
                     </div>
-
                     <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
                         <input
-                            className="w-full pl-10 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-slate-800/20 font-medium"
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-3 text-sm font-bold text-slate-800 outline-none focus:border-purple-300 focus:bg-white focus:ring-4 focus:ring-purple-500/10"
                             placeholder="Αναζήτηση..."
                             value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
+                            onChange={(e) => setSearchTerm(e.target.value)}
                         />
-                        {searchTerm && searchResults.length > 0 && (
-                            <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl border border-slate-100 mt-2 z-50 overflow-hidden max-h-48 overflow-y-auto">
-                                {searchResults.map((r: any) => {
-                                    const isProd = searchType === 'Product';
-                                    const name = isProd ? r.displayName : r.name;
-                                    const img = isProd ? r.image : r.image_url;
-                                    const sub = isProd ? r.product.category : r.type;
+                    </div>
+                    {searchTerm && (
+                        <div className="mt-3 max-h-64 space-y-2 overflow-y-auto custom-scrollbar">
+                            {searchResults.map((result) => (
+                                <button
+                                    key={result.key}
+                                    type="button"
+                                    onClick={() => addItem(
+                                        result.kind === 'Product'
+                                            ? { product: result.item, variantSuffix: result.variantSuffix }
+                                            : result.item,
+                                        result.kind,
+                                    )}
+                                    className="group flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white p-2.5 text-left shadow-sm active:bg-emerald-50"
+                                >
+                                    <span className="flex min-w-0 items-center gap-3">
+                                        <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100 text-slate-400">
+                                            {result.image ? <img src={result.image} className="h-full w-full object-cover" alt="" /> : result.kind === 'Material' ? <Box size={15} /> : <Gem size={15} />}
+                                        </span>
+                                        <span className="min-w-0">
+                                            <span className="block truncate font-mono text-sm font-black text-slate-800">{result.name}</span>
+                                            <span className="block truncate text-[10px] font-black uppercase text-slate-400">{result.sub}</span>
+                                        </span>
+                                    </span>
+                                    <span className="rounded-xl bg-emerald-50 p-2 text-emerald-600">
+                                        <Plus size={15} />
+                                    </span>
+                                </button>
+                            ))}
+                            {searchResults.length === 0 && (
+                                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 py-7 text-center text-xs font-bold text-slate-400">
+                                    Δεν βρέθηκαν αποτελέσματα.
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
 
-                                    return (
-                                        <div key={isProd ? name : r.id} onClick={() => addItem(r, searchType)} className="p-3 border-b border-slate-50 flex justify-between items-center hover:bg-slate-50">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 overflow-hidden">
-                                                    {img ? <img src={img} className="w-full h-full object-cover" /> : (searchType === 'Material' ? <Box size={14} /> : <Gem size={14} />)}
-                                                </div>
-                                                <div>
-                                                    <div className="font-bold text-sm text-slate-800">{name}</div>
-                                                    <div className="text-xs text-slate-400">{sub}</div>
-                                                </div>
+                <div ref={cartSectionRef} className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    <div className="border-b border-slate-100 bg-slate-50/70 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <PackageCheck size={15} className="text-emerald-600" />
+                                    <h3 className={sectionTitle}>Περιεχόμενα</h3>
+                                </div>
+                                <p className="mt-1 text-xs font-bold text-slate-500">{items.length} γραμμές · {totalPieces} τεμάχια</p>
+                            </div>
+                            {items.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => setItems([])}
+                                    className="rounded-xl border border-red-200 bg-white px-2.5 py-1.5 text-[10px] font-black uppercase text-red-600"
+                                >
+                                    Καθαρισμός
+                                </button>
+                            )}
+                        </div>
+                        <div className="relative mt-3">
+                            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                                value={cartSearchTerm}
+                                onChange={(e) => setCartSearchTerm(e.target.value)}
+                                placeholder="Αναζήτηση μέσα στην εντολή..."
+                                className="w-full rounded-xl border border-slate-100 bg-white py-2 pl-9 pr-3 text-xs font-bold text-slate-700 outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-500/10"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="space-y-2 p-3">
+                        {filteredItems.map(({ item, index }) => {
+                            const product = item.item_type === 'Product' ? productBySku.get(item.item_id) : undefined;
+                            const display = getPurchaseOrderLinePresentation(item, product);
+                            const showSizeInput = shouldShowPurchaseOrderSizeInput(product, item);
+
+                            return (
+                                <div key={`${item.id}-${index}`} className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="flex min-w-0 gap-3">
+                                            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                                                {display.imageUrl ? <img src={display.imageUrl} className="h-full w-full object-cover" alt="" /> : <ImageIcon size={20} className="text-slate-300" />}
                                             </div>
-                                            <Plus size={16} className="text-emerald-500" />
+                                            <div className="min-w-0">
+                                                <div className="flex flex-wrap items-center gap-1.5">
+                                                    <span className={`rounded-lg border px-2 py-0.5 font-mono text-sm font-black ${display.finishStyle}`}>
+                                                        {item.item_name}
+                                                    </span>
+                                                    {item.size_info && (
+                                                        <span className="inline-flex items-center gap-1 rounded-lg border border-blue-100 bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700">
+                                                            <Hash size={10} /> {item.size_info}
+                                                        </span>
+                                                    )}
+                                                    {display.supplierRef && (
+                                                        <span className="rounded-lg border border-purple-100 bg-purple-50 px-2 py-1 text-[10px] font-black text-purple-700">
+                                                            {display.supplierRef}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="mt-1 flex flex-wrap items-center gap-1 text-xs font-bold text-slate-500">
+                                                    <span>{display.description}</span>
+                                                    {display.stoneCode && <span className={`font-black ${display.stoneColor}`}>{display.stoneCode}</span>}
+                                                </div>
+                                                {item.customer_reference && (
+                                                    <div className="mt-1 text-[11px] font-bold text-slate-600">
+                                                        <span className="mr-1 text-[9px] font-black uppercase text-slate-400">Πελάτης:</span>
+                                                        {item.customer_reference}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                    );
-                                })}
+                                        <button type="button" onClick={() => removeItem(index)} className="shrink-0 rounded-xl p-1.5 text-red-400" aria-label="Αφαίρεση">
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+
+                                    <div className="mt-3 grid grid-cols-12 gap-2">
+                                        <div className={showSizeInput ? 'col-span-5' : 'col-span-6'}>
+                                            <label className={`${fieldLabel} mb-1 block`}>Ποσότητα</label>
+                                            <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1">
+                                                <button type="button" onClick={() => updateItem(index, 'qty', item.quantity - 1)} className="h-8 w-8 rounded-lg bg-white font-black text-slate-600 shadow-sm">-</button>
+                                                <input
+                                                    type="number"
+                                                    value={item.quantity}
+                                                    onChange={(e) => updateItem(index, 'qty', parseInt(e.target.value, 10) || 1)}
+                                                    className="min-w-0 flex-1 bg-transparent text-center text-sm font-black tabular-nums outline-none"
+                                                />
+                                                <button type="button" onClick={() => updateItem(index, 'qty', item.quantity + 1)} className="h-8 w-8 rounded-lg bg-white font-black text-slate-600 shadow-sm">+</button>
+                                            </div>
+                                        </div>
+                                        {showSizeInput && (
+                                            <div className="col-span-4">
+                                                <label className={`${fieldLabel} mb-1 block`}>Μέγεθος</label>
+                                                <input
+                                                    value={item.size_info || ''}
+                                                    onChange={(e) => updateItem(index, 'size', e.target.value)}
+                                                    placeholder="54"
+                                                    aria-label={`Μέγεθος για ${item.item_name}`}
+                                                    className="w-full rounded-xl border border-blue-100 bg-blue-50/60 px-2 py-2 text-right font-mono text-xs font-black text-blue-900 outline-none"
+                                                />
+                                            </div>
+                                        )}
+                                        <div className={showSizeInput ? 'col-span-3' : 'col-span-6'}>
+                                            <label className={`${fieldLabel} mb-1 block`}>Σημείωση</label>
+                                            <div className="relative">
+                                                <StickyNote size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-300" />
+                                                <input
+                                                    value={item.notes || ''}
+                                                    onChange={(e) => updateItem(index, 'notes', e.target.value)}
+                                                    placeholder="..."
+                                                    className="w-full rounded-xl border border-slate-100 bg-slate-50 py-2 pl-7 pr-2 text-xs font-bold text-slate-600 outline-none"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {items.length === 0 && (
+                            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 py-10 text-center">
+                                <Box size={42} className="mx-auto text-slate-300" />
+                                <p className="mt-2 text-sm font-black text-slate-400">Η εντολή είναι κενή.</p>
+                            </div>
+                        )}
+                        {items.length > 0 && filteredItems.length === 0 && (
+                            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 py-8 text-center text-xs font-bold text-slate-400">
+                                Δεν ταιριάζει καμία γραμμή.
                             </div>
                         )}
                     </div>
                 </div>
 
-                <div ref={cartSectionRef} className="flex items-center justify-between gap-2 scroll-mt-4">
-                    <span className="text-xs font-black text-slate-500 uppercase">Περιεχόμενα ({items.length})</span>
-                    {items.length > 0 && (
-                        <button
-                            type="button"
-                            onClick={() => setItems([])}
-                            className="text-[10px] font-black uppercase text-red-600 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded-lg border border-red-200/80 transition-colors"
-                        >
-                            Καθαρισμός
-                        </button>
-                    )}
-                </div>
-
-                <div className="space-y-2">
-                    {items.map((item, idx) => {
-                        // Resolve image
-                        let imgUrl = null;
-                        let supplierRef = null;
-                        let product: Product | undefined;
-
-                        if (item.item_type === 'Product' && products) {
-                            product = products.find(prod => prod.sku === item.item_id);
-                            imgUrl = product?.image_url;
-                            supplierRef = product?.supplier_sku;
-                        }
-                        const showSizeInput = shouldShowSizeInput(product, item);
-
-                        let suffixStr = '';
-                        if (product && item.item_name.startsWith(product.sku)) {
-                            suffixStr = item.item_name.slice(product.sku.length);
-                        }
-
-                        const { finish, stone } = getVariantComponents(suffixStr, product?.gender || Gender.Unisex);
-
-                        const finishStyle = FINISH_STYLES[finish.code] || FINISH_STYLES[''];
-                        const stoneColor = STONE_TEXT_COLORS[stone.code] || 'text-slate-600';
-
-                        let desc = product?.category || 'Είδος';
-                        if (finish.name) desc = `${finish.name}`;
-                        if (stone.name) desc += ` • ${stone.name}`;
-                        if (item.item_type === 'Material') desc = 'Υλικό';
-
-                        return (
-                            <div key={idx} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-2">
-                                <div className="flex justify-between items-start">
-                                    <div className="flex gap-3">
-                                        <div className="w-12 h-12 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 shrink-0 flex items-center justify-center">
-                                            {imgUrl ? <img src={imgUrl} className="w-full h-full object-cover" /> : <ImageIcon size={20} className="text-slate-300" />}
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span className={`font-black text-lg px-2 py-0.5 rounded border ${item.item_type === 'Product' ? finishStyle : 'bg-slate-50 text-slate-800 border-slate-200'}`}>
-                                                    {item.item_name}
-                                                </span>
-                                                {item.size_info && (
-                                                    <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-100 flex items-center gap-1">
-                                                        <Hash size={10} /> {item.size_info}
-                                                    </span>
-                                                )}
-                                                {supplierRef && (
-                                                    <span className="text-[10px] font-bold bg-purple-50 text-purple-700 px-2 py-1 rounded border border-purple-100">
-                                                        {supplierRef}
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            <div className="text-xs font-bold text-slate-500 flex items-center gap-1">
-                                                {desc}
-                                                {stone.code && <span className={`ml-1 font-black ${stoneColor}`}>{stone.code}</span>}
-                                            </div>
-                                            {item.customer_reference && (
-                                                <div className="text-[11px] font-bold text-slate-600 mt-1">
-                                                    <span className="text-slate-400 font-black uppercase text-[9px] mr-1">Πελάτης:</span>
-                                                    {item.customer_reference}
-                                                </div>
-                                            )}
-                                            {showSizeInput && (
-                                                <label className="mt-2 flex w-36 items-center gap-1.5 rounded-lg border border-blue-100 bg-blue-50/60 px-2 py-1 text-[9px] font-black uppercase text-blue-700">
-                                                    <Hash size={9} className="shrink-0" />
-                                                    <span className="shrink-0">Μέγεθος</span>
-                                                    <input
-                                                        value={item.size_info || ''}
-                                                        onChange={e => updateItem(idx, 'size', e.target.value)}
-                                                        placeholder="54"
-                                                        aria-label={`Μέγεθος για ${item.item_name}`}
-                                                        className="min-w-0 flex-1 bg-transparent text-right font-mono text-[11px] font-black text-blue-900 outline-none placeholder:text-blue-300"
-                                                    />
-                                                </label>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <button type="button" onClick={() => removeItem(idx)} className="text-red-400"><Trash2 size={16} /></button>
-                                </div>
-
-                                <div className="flex gap-2 items-center mt-2">
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-1 bg-slate-50 rounded-lg p-1">
-                                            <button onClick={() => updateItem(idx, 'qty', Math.max(1, item.quantity - 1))} className="w-8 h-8 bg-white rounded shadow-sm flex items-center justify-center text-slate-600 font-bold">-</button>
-                                            <input type="number" className="w-full bg-transparent font-black text-center outline-none" value={item.quantity} onChange={e => updateItem(idx, 'qty', parseInt(e.target.value) || 1)} />
-                                            <button onClick={() => updateItem(idx, 'qty', item.quantity + 1)} className="w-8 h-8 bg-white rounded shadow-sm flex items-center justify-center text-slate-600 font-bold">+</button>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex-[2] relative">
-                                        <StickyNote size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-300" />
-                                        <input
-                                            value={item.notes || ''}
-                                            onChange={e => updateItem(idx, 'notes', e.target.value)}
-                                            className="w-full pl-8 p-2 bg-slate-50 rounded-lg text-xs outline-none focus:bg-white border border-transparent focus:border-slate-200 transition-colors"
-                                            placeholder="Σημείωση..."
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
-                    {items.length === 0 && <div className="text-center py-8 text-slate-400 text-xs italic">Η λίστα είναι κενή.</div>}
-                </div>
-
-                <div className="pt-4">
-                    <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Σημειώσεις Εντολής</label>
-                    <textarea value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none h-20 resize-none mt-1" placeholder="Σημειώσεις για τον προμηθευτή..." />
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <label className={`${sectionTitle} mb-2 flex items-center gap-1`}>
+                        <StickyNote size={12} /> Σημειώσεις εντολής
+                    </label>
+                    <textarea
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        className="h-24 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm font-medium text-slate-700 outline-none focus:border-purple-300 focus:bg-white focus:ring-4 focus:ring-purple-500/10"
+                        placeholder="Σημειώσεις για τον προμηθευτή..."
+                    />
                 </div>
             </div>
 
-            <div className="p-4 bg-white border-t border-slate-200 z-20">
+            <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-slate-200 bg-white p-4 shadow-[0_-14px_30px_rgba(15,23,42,0.08)]">
                 <button
                     type="button"
                     onClick={handleSave}
                     disabled={isSaving || items.length === 0}
-                    className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform disabled:opacity-50 disabled:pointer-events-none"
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#060b00] py-4 text-sm font-black text-white shadow-lg active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none"
                 >
                     {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
-                    {initialOrder ? 'Αποθήκευση αλλαγών' : 'Αποθήκευση Εντολής'}
+                    {initialOrder ? 'Αποθήκευση αλλαγών' : 'Αποθήκευση εντολής'}
                 </button>
             </div>
         </div>

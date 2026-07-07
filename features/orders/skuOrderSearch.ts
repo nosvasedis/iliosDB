@@ -34,6 +34,7 @@ export type SkuOrderSearchMatchedItem = {
   fulfillmentKind: ItemFulfillmentKind;
   shipmentAllocations: ItemShipmentAllocation[];
   productionStages: SkuOrderSearchProductionStageSummary[];
+  showProductionStageChips: boolean;
 };
 
 export type SkuOrderSearchProductionStageSummary = {
@@ -193,6 +194,7 @@ function getMatchedItem(
   const productionStages = getLineProductionStages(order, item, options.batches);
   const inProductionQty = productionStages.reduce((sum, stage) => sum + stage.qty, 0);
   const remainingQty = Math.max(0, item.quantity - shippedQty - inProductionQty);
+  const fulfillmentKind = getItemFulfillmentKind({ quantity: item.quantity, shippedQty, remainingQty });
   return {
     item,
     totalQty: item.quantity,
@@ -204,9 +206,10 @@ function getMatchedItem(
     shippedQty,
     inProductionQty,
     remainingQty,
-    fulfillmentKind: getItemFulfillmentKind({ quantity: item.quantity, shippedQty, remainingQty }),
+    fulfillmentKind,
     shipmentAllocations: getItemShipmentAllocations(key, orderShipments, orderShipmentItems),
     productionStages,
+    showProductionStageChips: productionStages.length > 0 && fulfillmentKind !== 'in_production',
   };
 }
 

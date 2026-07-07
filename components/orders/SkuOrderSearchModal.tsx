@@ -26,7 +26,6 @@ import SkuColorizedText from '../SkuColorizedText';
 import { formatCurrency, splitSkuComponents } from '../../utils/pricingEngine';
 import { getSkuFinishTextColor, getSkuStoneTextColor } from '../../utils/skuColoring';
 import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
-import { getProductionStageLabel, PRODUCTION_STAGE_ORDER_INDEX } from '../../utils/productionStages';
 import {
   buildSkuOrderSearchFacets,
   buildSkuOrderSearchResults,
@@ -812,7 +811,7 @@ function MatchedItemRow({
           <span>{formatCurrency(item.price_at_order)}/τεμ.</span>
         </div>
 
-        {match.productionStages.length > 0 && (
+        {match.showProductionStageChips && match.productionStages.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {match.productionStages
               .map((stage) => (
