@@ -5,7 +5,7 @@ import { APP_LOGO } from '../constants';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import QRCode from 'qrcode';
-import { ImageIcon, Phone, MapPin, StickyNote, Calendar, Hash, User } from 'lucide-react';
+import { ImageIcon, Phone, MapPin, Calendar, Hash } from 'lucide-react';
 import { transliterateForBarcode } from '../utils/pricingEngine';
 import { formatOrderId } from '../utils/orderUtils';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
@@ -16,6 +16,7 @@ import {
     CUSTOMER_PRINT_CSS,
     CUSTOMER_PRINT_MAIN_CLASS,
     CUSTOMER_PRINT_PAGE_CLASS,
+    CustomerPrintSkuNote,
     CustomerPrintSummaryFooter,
 } from './customerPrintShared';
 
@@ -120,11 +121,7 @@ export default function OrderInvoiceView({ order, title, revisionSuffix }: Props
                             {item.enamel_color && <span className="text-[9px] bg-rose-50 px-1 rounded text-rose-700 border border-rose-100 font-bold whitespace-nowrap">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
                         </div>
                         <span className="block text-[9px] text-slate-600 font-medium leading-[1.15] whitespace-normal break-words">{description}</span>
-                        {item.notes && (
-                            <div className="text-[9px] text-emerald-700 italic flex items-center gap-0.5 mt-0.5 leading-none font-medium">
-                                <StickyNote size={8}/> {item.notes}
-                            </div>
-                        )}
+                        <CustomerPrintSkuNote note={item.notes} />
                     </div>
                 </div>
                 <div className="w-14 text-right font-black text-slate-900 tabular-nums font-sans text-[10px] whitespace-nowrap">

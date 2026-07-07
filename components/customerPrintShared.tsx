@@ -1,4 +1,5 @@
 import React, { ReactNode } from 'react';
+import { StickyNote } from 'lucide-react';
 
 /** Print CSS — footer flows with items via column-span; no flex stretch in print. */
 export const CUSTOMER_PRINT_CSS = `
@@ -99,6 +100,18 @@ export function CustomerPrintSummaryFooter({
                 </div>
             </div>
             {trailing}
+        </div>
+    );
+}
+
+export function CustomerPrintSkuNote({ note }: { note?: string | null }) {
+    const trimmed = note?.trim();
+    if (!trimmed) return null;
+
+    return (
+        <div className="customer-print-sku-note mt-0.5 flex items-start gap-0.5 rounded-sm bg-emerald-50/70 px-1 py-[1px] text-[8px] font-semibold italic leading-[1.15] text-emerald-800 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+            <StickyNote size={8} className="mt-[1px] shrink-0" />
+            <span className="min-w-0 flex-1">{trimmed}</span>
         </div>
     );
 }

@@ -10,6 +10,7 @@ import {
     CUSTOMER_PRINT_CSS,
     CUSTOMER_PRINT_MAIN_CLASS,
     CUSTOMER_PRINT_PAGE_CLASS,
+    CustomerPrintSkuNote,
     CustomerPrintSummaryFooter,
 } from './customerPrintShared';
 
@@ -26,6 +27,25 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
         () => sortBySkuKey(shipmentItems, (item) => buildSkuKey(item.sku, item.variant_suffix)),
         [shipmentItems]
     );
+    const orderItemsByLineId = useMemo(() => {
+        const map = new Map<string, Order['items'][number]>();
+        for (const item of order.items) {
+            if (item.line_id) map.set(item.line_id, item);
+        }
+        return map;
+    }, [order.items]);
+
+    const getOrderItemNoteForShipmentItem = (item: OrderShipmentItem) => {
+        const lineMatch = item.line_id ? orderItemsByLineId.get(item.line_id) : undefined;
+        const match = lineMatch || order.items.find((orderItem) =>
+            orderItem.sku === item.sku &&
+            (orderItem.variant_suffix || null) === (item.variant_suffix || null) &&
+            (orderItem.size_info || null) === (item.size_info || null) &&
+            (orderItem.cord_color || null) === (item.cord_color || null) &&
+            (orderItem.enamel_color || null) === (item.enamel_color || null)
+        );
+        return match?.notes;
+    };
 
     const isShipmentItemOverridden = (item: OrderShipmentItem) => {
         const match = order.items.find((orderItem) =>
@@ -93,6 +113,7 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                             {item.enamel_color && <span className="text-[9px] bg-rose-50 px-1 rounded text-rose-700 border border-rose-100 font-bold whitespace-nowrap">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
                         </div>
                         <span className="block text-[9px] text-slate-600 font-medium leading-[1.15] whitespace-normal break-words">{description}</span>
+                        <CustomerPrintSkuNote note={getOrderItemNoteForShipmentItem(item)} />
                     </div>
                 </div>
                 <div className="w-14 text-right font-black text-slate-900 tabular-nums text-[10px] whitespace-nowrap">
