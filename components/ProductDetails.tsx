@@ -37,7 +37,9 @@ import {
     buildVariantFinishGroups,
     getAnalyticalCostingItems,
     getAvailableMolds,
+    getMaterialTypeLabel,
     getProductDisplaySummary,
+    getRecipeMaterialSubtitle,
     getSortedFinishCodes,
     getSortedProductVariants,
     productsRepository,
@@ -163,7 +165,7 @@ const RecipeItemSelectorModal = React.memo(({
 
         allItems.forEach(item => {
             const name = type === 'raw' ? item.name.toLowerCase() : item.sku.toLowerCase();
-            const description = type === 'component' ? (item.description || '').toLowerCase() : '';
+            const description = (item.description || '').toLowerCase();
 
             const isSuggested = keywords.types.includes(item.type) || keywords.names.some(kw => name.includes(kw));
             if (isSuggested) {
@@ -175,7 +177,7 @@ const RecipeItemSelectorModal = React.memo(({
 
         const filterFn = (item: any) => {
             const name = type === 'raw' ? item.name.toLowerCase() : item.sku.toLowerCase();
-            const description = type === 'component' ? (item.description || '').toLowerCase() : '';
+            const description = (item.description || '').toLowerCase();
             const search = searchTerm.toLowerCase();
             return name.includes(search) || description.includes(search);
         };
@@ -197,7 +199,7 @@ const RecipeItemSelectorModal = React.memo(({
     const renderListItem = (item: any) => {
         const isComponent = type === 'component';
         const name = isComponent ? item.sku : item.name;
-        const description = isComponent ? item.description : null;
+        const description = item.description;
         const imageUrl = isComponent ? item.image_url : null;
         // Cost formatting
         const cost = isComponent
@@ -228,7 +230,7 @@ const RecipeItemSelectorModal = React.memo(({
                         )}
                         {!isComponent && item.stones_per_strand && (
                             <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 font-bold whitespace-nowrap">
-                                {item.stones_per_strand} πέτρες/strand
+                                {item.stones_per_strand} πέτρες/σειρά
                             </span>
                         )}
                     </div>
@@ -236,7 +238,7 @@ const RecipeItemSelectorModal = React.memo(({
                     {description ? (
                         <div className="text-xs text-slate-600 truncate font-medium">{description}</div>
                     ) : (
-                        <div className="text-xs text-slate-400 truncate italic">{isComponent ? 'Χωρίς περιγραφή' : item.type}</div>
+                        <div className="text-xs text-slate-400 truncate italic">{isComponent ? 'Χωρίς περιγραφή' : getMaterialTypeLabel(item.type)}</div>
                     )}
 
                     <div className="text-[10px] text-slate-400 font-mono mt-0.5">{cost}</div>
@@ -2179,7 +2181,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                         }
                                                     }
 
-                                                    const stonesPerStrand = isRaw ? (details as Material)?.stones_per_strand : undefined;
+                                                    const materialDetails = isRaw ? details as Material | undefined : undefined;
+                                                    const stonesPerStrand = materialDetails?.stones_per_strand;
+                                                    const materialSubtitle = getRecipeMaterialSubtitle(materialDetails);
 
                                                     const stxImageUrl = !isRaw ? (details as Product | undefined)?.image_url : null;
                                                     const stxDescription = !isRaw ? (details as Product | undefined)?.description : null;
@@ -2197,13 +2201,18 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                             </div>
                                                             <div className="flex-1 min-w-0">
                                                                 {isRaw ? (
-                                                                    <select
-                                                                        className="bg-transparent font-bold text-slate-800 outline-none w-full text-sm"
-                                                                        value={item.id}
-                                                                        onChange={(e) => updateRecipeItem(idx, 'id', e.target.value)}
-                                                                    >
-                                                                        {allMaterials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                                                                    </select>
+                                                                    <>
+                                                                        <select
+                                                                            className="bg-transparent font-bold text-slate-800 outline-none w-full text-sm"
+                                                                            value={item.id}
+                                                                            onChange={(e) => updateRecipeItem(idx, 'id', e.target.value)}
+                                                                        >
+                                                                            {allMaterials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                                                        </select>
+                                                                        {materialSubtitle && (
+                                                                            <div className="text-xs text-slate-500 font-medium truncate mt-0.5">{materialSubtitle}</div>
+                                                                        )}
+                                                                    </>
                                                                 ) : (
                                                                     <>
                                                                         <select

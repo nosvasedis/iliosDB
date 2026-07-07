@@ -1,512 +1,829 @@
-import React, { useState, useMemo, useRef, useEffect, useDeferredValue } from 'react';
-import { X, Search, ShoppingCart, Calendar, Tag, Package, User, Hash, Image as ImageIcon, Factory, StickyNote } from 'lucide-react';
-import { Order, OrderItem, Product, ProductionBatch, ProductionStage } from '../../types';
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Calendar,
+  ChevronDown,
+  Factory,
+  Filter,
+  Gem,
+  Hash,
+  Image as ImageIcon,
+  Layers3,
+  Package,
+  PackageCheck,
+  Palette,
+  RotateCcw,
+  Search,
+  ShoppingCart,
+  Sparkles,
+  StickyNote,
+  Tag,
+  Truck,
+  User,
+  X,
+} from 'lucide-react';
+import { Order, OrderItem, OrderShipment, OrderShipmentItem, Product, ProductionBatch, ProductionStage } from '../../types';
 import SkuColorizedText from '../SkuColorizedText';
-import { splitSkuComponents } from '../../utils/pricingEngine';
-import { getOrderStatusClasses, getOrderStatusLabel, getOrderStatusIcon } from '../../features/orders/statusPresentation';
-import { formatCurrency } from '../../utils/pricingEngine';
+import { formatCurrency, splitSkuComponents } from '../../utils/pricingEngine';
+import { getSkuFinishTextColor, getSkuStoneTextColor } from '../../utils/skuColoring';
+import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
 import { getProductionStageLabel, PRODUCTION_STAGE_ORDER_INDEX } from '../../utils/productionStages';
-import { itemMatchesSkuQuery } from '../../utils/skuSearchMatch';
+import {
+  buildSkuOrderSearchFacets,
+  buildSkuOrderSearchResults,
+  countActiveSkuOrderSearchFilters,
+  createEmptySkuOrderSearchFilters,
+  type SkuOrderSearchFacetItem,
+  type SkuOrderSearchFilterSelection,
+  type SkuOrderSearchMatchedItem,
+  type SkuOrderSearchProductionStageSummary,
+} from '../../features/orders/skuOrderSearch';
 
 interface SkuOrderSearchModalProps {
-    onClose: () => void;
-    orders: Order[];
-    products: Product[];
-    batches?: ProductionBatch[];
-    /** If true, renders a mobile-optimised bottom-sheet layout */
-    mobile?: boolean;
+  onClose: () => void;
+  orders: Order[];
+  products: Product[];
+  batches?: ProductionBatch[];
+  shipments?: OrderShipment[];
+  shipmentItems?: OrderShipmentItem[];
+  /** If true, renders a mobile-optimised bottom-sheet layout */
+  mobile?: boolean;
 }
 
-interface MatchedOrder {
-    order: Order;
-    matchedItems: { item: OrderItem; totalQty: number }[];
-    totalMatchedQty: number;
+const FILTER_SCHEMES = {
+  customers: {
+    title: 'text-blue-600',
+    active: 'bg-blue-600 text-white ring-blue-600/20',
+    inactive: 'bg-blue-50 text-blue-800 border-blue-100 hover:bg-blue-100',
+  },
+  sellers: {
+    title: 'text-amber-700',
+    active: 'bg-amber-500 text-white ring-amber-500/20',
+    inactive: 'bg-amber-50 text-amber-900 border-amber-100 hover:bg-amber-100',
+  },
+  tags: {
+    title: 'text-violet-600',
+    active: 'bg-violet-600 text-white ring-violet-600/20',
+    inactive: 'bg-violet-50 text-violet-800 border-violet-100 hover:bg-violet-100',
+  },
+  statuses: {
+    title: 'text-emerald-700',
+    active: 'bg-emerald-600 text-white ring-emerald-600/20',
+    inactive: 'bg-emerald-50 text-emerald-800 border-emerald-100 hover:bg-emerald-100',
+  },
+  finishes: {
+    title: 'text-orange-600',
+    active: 'bg-orange-500 text-white ring-orange-500/20',
+    inactive: 'bg-orange-50 text-orange-800 border-orange-100 hover:bg-orange-100',
+  },
+  stones: {
+    title: 'text-cyan-700',
+    active: 'bg-cyan-600 text-white ring-cyan-600/20',
+    inactive: 'bg-cyan-50 text-cyan-900 border-cyan-100 hover:bg-cyan-100',
+  },
+} as const;
+
+function getStageBadgeClassName(stage: SkuOrderSearchProductionStageSummary): string {
+  if (stage.stage === ProductionStage.Polishing) {
+    return stage.pendingDispatch
+      ? 'bg-teal-50 text-teal-700 border-teal-200'
+      : 'bg-blue-50 text-blue-700 border-blue-200';
+  }
+
+  const stageClassMap: Partial<Record<ProductionStage, string>> = {
+    [ProductionStage.AwaitingDelivery]: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    [ProductionStage.Waxing]: 'bg-slate-50 text-slate-700 border-slate-200',
+    [ProductionStage.Casting]: 'bg-orange-50 text-orange-700 border-orange-200',
+    [ProductionStage.Setting]: 'bg-purple-50 text-purple-700 border-purple-200',
+    [ProductionStage.Assembly]: 'bg-pink-50 text-pink-700 border-pink-200',
+    [ProductionStage.Labeling]: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+    [ProductionStage.Ready]: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  };
+
+  return stageClassMap[stage.stage] ?? 'bg-slate-50 text-slate-700 border-slate-200';
 }
 
-interface StageBadgeAggregate {
-    label: string;
-    qty: number;
-    className: string;
-    order: number;
+function cloneAndToggleFilter(
+  filters: SkuOrderSearchFilterSelection,
+  group: keyof SkuOrderSearchFilterSelection,
+  key: string,
+): SkuOrderSearchFilterSelection {
+  const current = filters[group] as Set<string>;
+  const next = new Set(current);
+  if (next.has(key)) next.delete(key);
+  else next.add(key);
+  return { ...filters, [group]: next };
 }
 
-function getStageBadgeMeta(batch: ProductionBatch): { key: string; label: string; className: string; order: number } {
-    if (batch.current_stage === ProductionStage.Polishing) {
-        if (batch.pending_dispatch) {
-            return {
-                key: 'polishing_pending_dispatch',
-                label: 'Τεχν. • Αναμονή',
-                className: 'bg-teal-50 text-teal-700 border-teal-200',
-                order: (PRODUCTION_STAGE_ORDER_INDEX[ProductionStage.Polishing] ?? 999) - 0.1,
-            };
-        }
+function getFilterSet(filters: SkuOrderSearchFilterSelection, group: keyof SkuOrderSearchFilterSelection): Set<string> {
+  return filters[group] as Set<string>;
+}
 
-        return {
-            key: 'polishing_dispatched',
-            label: 'Τεχν. • Στον Τεχν.',
-            className: 'bg-blue-50 text-blue-700 border-blue-200',
-            order: (PRODUCTION_STAGE_ORDER_INDEX[ProductionStage.Polishing] ?? 999) + 0.1,
-        };
-    }
+function FilterFacetGroup({
+  title,
+  icon,
+  items,
+  selected,
+  scheme,
+  onToggle,
+  formatLabel,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  items: SkuOrderSearchFacetItem[];
+  selected: Set<string>;
+  scheme: typeof FILTER_SCHEMES[keyof typeof FILTER_SCHEMES];
+  onToggle: (key: string) => void;
+  formatLabel?: (item: SkuOrderSearchFacetItem) => React.ReactNode;
+}) {
+  if (items.length === 0) return null;
 
-    const stageClassMap: Partial<Record<ProductionStage, string>> = {
-        [ProductionStage.AwaitingDelivery]: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-        [ProductionStage.Waxing]: 'bg-slate-50 text-slate-700 border-slate-200',
-        [ProductionStage.Casting]: 'bg-orange-50 text-orange-700 border-orange-200',
-        [ProductionStage.Setting]: 'bg-purple-50 text-purple-700 border-purple-200',
-        [ProductionStage.Assembly]: 'bg-pink-50 text-pink-700 border-pink-200',
-        [ProductionStage.Labeling]: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-        [ProductionStage.Ready]: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    };
+  return (
+    <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-2.5">
+      <div className="mb-2 flex items-center gap-1.5">
+        <span className={scheme.title}>{icon}</span>
+        <p className={`text-[10px] font-bold uppercase tracking-wide ${scheme.title}`}>{title}</p>
+      </div>
+      <div className="flex max-h-28 flex-wrap gap-2 overflow-y-auto">
+        {items.map((item) => {
+          const active = selected.has(item.key);
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => onToggle(item.key)}
+              className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-bold transition-all ${
+                active ? `${scheme.active} border-transparent shadow-sm ring-1` : scheme.inactive
+              }`}
+            >
+              {formatLabel ? formatLabel(item) : item.label}
+              <span className={active ? 'text-white/70' : 'text-slate-400'}>{item.count}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
-    return {
-        key: String(batch.current_stage),
-        label: getProductionStageLabel(batch.current_stage),
-        className: stageClassMap[batch.current_stage] ?? 'bg-slate-50 text-slate-700 border-slate-200',
-        order: PRODUCTION_STAGE_ORDER_INDEX[batch.current_stage] ?? 999,
-    };
+function FinishLabel({ item }: { item: SkuOrderSearchFacetItem }) {
+  const code = item.key || 'L';
+  return (
+    <>
+      <span className={`font-black ${getSkuFinishTextColor(item.colorCode || item.key)}`}>{code}</span>
+      <span>{item.label}</span>
+    </>
+  );
+}
+
+function StoneLabel({ item }: { item: SkuOrderSearchFacetItem }) {
+  return (
+    <>
+      <span className={`font-black ${getSkuStoneTextColor(item.colorCode || item.key)}`}>{item.key}</span>
+      <span>{item.label}</span>
+    </>
+  );
+}
+
+function SuffixBadges({ match }: { match: SkuOrderSearchMatchedItem }) {
+  const finishCode = match.finishCode || 'L';
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="inline-flex items-center gap-1 rounded-lg border border-orange-100 bg-orange-50 px-2 py-0.5 text-[10px] font-black text-orange-800">
+        <Palette size={10} />
+        <span className={getSkuFinishTextColor(match.finishCode)}>{finishCode}</span>
+        <span className="font-bold">{match.finishName}</span>
+      </span>
+      {match.stoneCode ? (
+        <span className="inline-flex items-center gap-1 rounded-lg border border-cyan-100 bg-cyan-50 px-2 py-0.5 text-[10px] font-black text-cyan-900">
+          <Gem size={10} />
+          <span className={getSkuStoneTextColor(match.stoneCode)}>{match.stoneCode}</span>
+          <span className="font-bold">{match.stoneName}</span>
+        </span>
+      ) : (
+        <span className="inline-flex items-center gap-1 rounded-lg border border-slate-100 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-400">
+          <Gem size={10} />
+          χωρίς πέτρα
+        </span>
+      )}
+    </div>
+  );
+}
+
+function formatShipmentNumbers(match: SkuOrderSearchMatchedItem): string {
+  if (match.shipmentAllocations.length === 0) return '';
+  return match.shipmentAllocations.map((allocation) => `#${allocation.shipmentNumber}`).join(', ');
+}
+
+function formatProductionStageSummary(match: SkuOrderSearchMatchedItem): string {
+  if (match.productionStages.length === 0) return '';
+  return match.productionStages
+    .map((stage) => `${stage.label}${match.productionStages.length > 1 ? ` x${stage.qty}` : ''}`)
+    .join(', ');
+}
+
+function FulfillmentBadge({ match }: { match: SkuOrderSearchMatchedItem }) {
+  const shipmentLabel = formatShipmentNumbers(match);
+  const productionStageLabel = formatProductionStageSummary(match);
+
+  if (match.fulfillmentKind === 'fully_delivered') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-lg border border-slate-900 bg-slate-800 px-2 py-0.5 text-[10px] font-black text-white shadow-sm">
+        <Truck size={10} strokeWidth={2.5} />
+        {shipmentLabel ? `Παράδοση ${shipmentLabel}` : 'Παραδόθηκε'}
+        <span className="text-white/70">{match.shippedQty}/{match.totalQty}</span>
+      </span>
+    );
+  }
+
+  if (match.fulfillmentKind === 'partially_delivered') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-900 shadow-sm">
+        <PackageCheck size={10} strokeWidth={2.5} />
+        {shipmentLabel ? `Μερική Παράδοση ${shipmentLabel}` : 'Μερική Παράδοση'}
+        <span className="text-amber-700">{match.shippedQty}/{match.totalQty}</span>
+      </span>
+    );
+  }
+
+  if (match.fulfillmentKind === 'in_production') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-800">
+        <Factory size={10} strokeWidth={2.5} />
+        {productionStageLabel ? `Στην παραγωγή: ${productionStageLabel}` : 'Στην παραγωγή'}
+        <span className="text-blue-600">{match.inProductionQty}/{match.totalQty}</span>
+      </span>
+    );
+  }
+
+  if (match.remainingQty > 0) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-black text-slate-500">
+        <Package size={10} strokeWidth={2.5} />
+        Υπόλοιπο προς παραγωγή {match.remainingQty}
+      </span>
+    );
+  }
+
+  return null;
 }
 
 export default function SkuOrderSearchModal({
-    onClose,
-    orders,
-    products,
-    batches,
-    mobile = false,
+  onClose,
+  orders,
+  products,
+  batches,
+  shipments,
+  shipmentItems,
+  mobile = false,
 }: SkuOrderSearchModalProps) {
-    const [rawQuery, setRawQuery] = useState('');
-    const query = useDeferredValue(rawQuery);
-    const inputRef = useRef<HTMLInputElement>(null);
+  const [rawQuery, setRawQuery] = useState('');
+  const [filters, setFilters] = useState<SkuOrderSearchFilterSelection>(() => createEmptySkuOrderSearchFilters());
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const query = useDeferredValue(rawQuery);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-    // Build a products map for gender lookup in SkuColorizedText
-    const productsMap = useMemo(
-        () => new Map(products.map((p) => [p.sku, p])),
-        [products]
-    );
+  const productsMap = useMemo(() => new Map(products.map((p) => [p.sku, p])), [products]);
 
-    // Focus input on open
-    useEffect(() => {
-        const t = setTimeout(() => inputRef.current?.focus(), 80);
-        return () => clearTimeout(t);
-    }, []);
+  useEffect(() => {
+    const t = window.setTimeout(() => inputRef.current?.focus(), 80);
+    return () => window.clearTimeout(t);
+  }, []);
 
-    // Close on Escape
-    useEffect(() => {
-        const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-        window.addEventListener('keydown', handler);
-        return () => window.removeEventListener('keydown', handler);
-    }, [onClose]);
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
 
-    const results = useMemo<MatchedOrder[]>(() => {
-        const q = query.trim();
-        if (q.length < 2) return [];
+  const baseResults = useMemo(
+    () => buildSkuOrderSearchResults(orders, products, query, createEmptySkuOrderSearchFilters(), { shipments, shipmentItems, batches }),
+    [orders, products, query, shipments, shipmentItems, batches],
+  );
 
-        const matched: MatchedOrder[] = [];
+  const facets = useMemo(() => buildSkuOrderSearchFacets(baseResults), [baseResults]);
 
-        for (const order of orders) {
-            const matchedItems: { item: OrderItem; totalQty: number }[] = [];
+  const results = useMemo(
+    () => buildSkuOrderSearchResults(orders, products, query, filters, { shipments, shipmentItems, batches }),
+    [orders, products, query, filters, shipments, shipmentItems, batches],
+  );
 
-            for (const item of order.items) {
-                if (itemMatchesSkuQuery(item, q)) {
-                    matchedItems.push({ item, totalQty: item.quantity });
-                }
-            }
+  const { master: previewMaster, suffix: previewSuffix } = useMemo(() => {
+    const q = rawQuery.trim().toUpperCase();
+    if (!q) return { master: '', suffix: '' };
+    return splitSkuComponents(q);
+  }, [rawQuery]);
 
-            if (matchedItems.length > 0) {
-                const totalMatchedQty = matchedItems.reduce((s, { item }) => s + item.quantity, 0);
-                matched.push({ order, matchedItems, totalMatchedQty });
-            }
+  const totalOrders = results.length;
+  const totalQty = results.reduce((s, r) => s + r.totalMatchedQty, 0);
+  const totalVariants = useMemo(
+    () => new Set(results.flatMap((r) => r.matchedItems.map((m) => m.fullSku))).size,
+    [results],
+  );
+  const activeFilters = countActiveSkuOrderSearchFilters(filters);
+  const hasQuery = rawQuery.trim().length >= 2;
+
+  const variantSummary = useMemo(() => {
+    const rows = new Map<string, { match: SkuOrderSearchMatchedItem; qty: number; orders: number }>();
+    results.forEach((result) => {
+      const seenInOrder = new Set<string>();
+      result.matchedItems.forEach((match) => {
+        const row = rows.get(match.fullSku) || { match, qty: 0, orders: 0 };
+        row.qty += match.totalQty;
+        if (!seenInOrder.has(match.fullSku)) {
+          row.orders += 1;
+          seenInOrder.add(match.fullSku);
         }
+        rows.set(match.fullSku, row);
+      });
+    });
+    return Array.from(rows.values()).sort((a, b) => b.qty - a.qty).slice(0, 5);
+  }, [results]);
 
-        // Sort: most recent first
-        return matched.sort(
-            (a, b) => new Date(b.order.created_at).getTime() - new Date(a.order.created_at).getTime()
-        );
-    }, [query, orders]);
+  const toggleFilter = (group: keyof SkuOrderSearchFilterSelection, key: string) => {
+    setFilters((current) => cloneAndToggleFilter(current, group, key));
+  };
 
-    // Parse the query for the colour-coded preview
-    const { master: previewMaster, suffix: previewSuffix } = useMemo(() => {
-        const q = rawQuery.trim().toUpperCase();
-        if (!q) return { master: '', suffix: '' };
-        return splitSkuComponents(q);
-    }, [rawQuery]);
+  const inputSection = (
+    <div className="space-y-2">
+      <div className="relative">
+        <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input
+          ref={inputRef}
+          type="search"
+          autoCapitalize="characters"
+          autoCorrect="off"
+          autoComplete="off"
+          spellCheck={false}
+          value={rawQuery}
+          onChange={(e) => setRawQuery(e.target.value)}
+          placeholder="π.χ. RN045, RN045D ή RN045DLE"
+          className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-11 text-base font-black tracking-wide text-slate-900 outline-none transition-all placeholder:text-sm placeholder:font-medium placeholder:tracking-normal placeholder:text-slate-400 focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+        />
+        {rawQuery && (
+          <button
+            type="button"
+            onClick={() => { setRawQuery(''); inputRef.current?.focus(); }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-600"
+            aria-label="Καθαρισμός αναζήτησης"
+          >
+            <X size={15} />
+          </button>
+        )}
+      </div>
 
-    const totalOrders = results.length;
-    const totalQty = results.reduce((s, r) => s + r.totalMatchedQty, 0);
-
-    const hasQuery = rawQuery.trim().length >= 2;
-
-    // ─── Shared inner content ──────────────────────────────────────────────────
-
-    const inputSection = (
-        <div className="relative">
-            <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus-within:ring-4 focus-within:ring-emerald-500/20 focus-within:border-emerald-400 transition-all">
-                <Search size={18} className="shrink-0 text-slate-400" />
-                <input
-                    ref={inputRef}
-                    type="text"
-                    autoCapitalize="characters"
-                    autoCorrect="off"
-                    autoComplete="off"
-                    spellCheck={false}
-                    value={rawQuery}
-                    onChange={(e) => setRawQuery(e.target.value)}
-                    placeholder="π.χ. DA001 ή DA001DLE…"
-                    className="flex-1 bg-transparent outline-none text-slate-900 font-bold text-base tracking-wide placeholder:font-normal placeholder:text-slate-400"
-                />
-                {rawQuery && (
-                    <button
-                        type="button"
-                        onClick={() => { setRawQuery(''); inputRef.current?.focus(); }}
-                        className="shrink-0 p-1 rounded-full hover:bg-slate-200 text-slate-400 transition-colors"
-                    >
-                        <X size={15} />
-                    </button>
-                )}
-            </div>
-
-            {/* Live coloured SKU preview */}
-            {previewMaster && (
-                <div className="mt-2 flex items-center gap-2 px-1">
-                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Αναζήτηση:</span>
-                    <SkuColorizedText
-                        sku={previewMaster}
-                        suffix={previewSuffix}
-                        gender={productsMap.get(previewMaster)?.gender}
-                        className="text-sm"
-                        masterClassName="text-slate-800"
-                    />
-                    {previewSuffix === '' && hasQuery && (
-                        <span className="text-[11px] text-slate-400 italic">+ όλες οι παραλλαγές</span>
-                    )}
-                </div>
-            )}
+      {previewMaster && (
+        <div className="flex flex-wrap items-center gap-2 px-1">
+          <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Αναζήτηση</span>
+          <SkuColorizedText
+            sku={previewMaster}
+            suffix={previewSuffix}
+            gender={productsMap.get(previewMaster)?.gender}
+            className="text-sm"
+            masterClassName="text-slate-800"
+          />
+          {previewSuffix === '' && hasQuery && (
+            <span className="rounded-lg bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+              όλες οι παραλλαγές
+            </span>
+          )}
         </div>
-    );
+      )}
+    </div>
+  );
 
-    const summaryBar = hasQuery && (
-        <div className="flex items-center gap-3 text-xs font-bold text-slate-500">
-            {totalOrders > 0 ? (
-                <>
-                    <span className="flex items-center gap-1.5">
-                        <ShoppingCart size={13} className="text-emerald-600" />
-                        <span className="text-emerald-700">{totalOrders} παραγγελί{totalOrders === 1 ? 'α' : 'ες'}</span>
-                    </span>
-                    <span className="text-slate-300">·</span>
-                    <span className="flex items-center gap-1.5">
-                        <Package size={13} />
-                        {totalQty} τεμ.
-                    </span>
-                </>
-            ) : (
-                <span className="text-slate-400 italic font-medium">Δεν βρέθηκαν παραγγελίες με αυτό το SKU.</span>
-            )}
-        </div>
-    );
+  const filterPanel = hasQuery && (
+    <div className="border-b border-slate-100 bg-white">
+      <button
+        type="button"
+        onClick={() => setFiltersOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 px-5 py-2.5 text-left transition-colors hover:bg-slate-50 sm:px-6"
+      >
+        <span className="flex items-center gap-2 text-xs font-bold text-slate-700">
+          <Filter size={14} className="text-emerald-600" />
+          Φίλτρα αποτελεσμάτων
+          {activeFilters > 0 && (
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-700">
+              {activeFilters}
+            </span>
+          )}
+        </span>
+        <ChevronDown size={16} className={`text-slate-400 transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
+      </button>
 
-    const resultsList = (
-        <div className={`overflow-y-auto flex-1 ${mobile ? 'px-4 pb-[max(1rem,env(safe-area-inset-bottom))]' : 'px-6 pb-6'}`}>
-            {hasQuery && results.length === 0 && (
-                <div className="py-16 flex flex-col items-center justify-center gap-3 text-center">
-                    <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
-                        <Search size={22} className="text-slate-400" />
-                    </div>
-                    <p className="text-sm font-bold text-slate-500">Δεν βρέθηκαν παραγγελίες</p>
-                    <p className="text-xs text-slate-400 max-w-[220px]">Κανένα SKU δεν ταιριάζει με &ldquo;{rawQuery.trim().toUpperCase()}&rdquo;</p>
-                </div>
-            )}
-
-            {!hasQuery && (
-                <div className="py-16 flex flex-col items-center justify-center gap-3 text-center">
-                    <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center">
-                        <Hash size={22} className="text-emerald-500" />
-                    </div>
-                    <p className="text-sm font-bold text-slate-600">Αναζήτηση SKU σε Παραγγελίες</p>
-                    <p className="text-xs text-slate-400 max-w-[240px]">Πληκτρολογήστε έναν κωδικό (τουλάχιστον 2 χαρακτήρες) για να δείτε σε ποιές παραγγελίες εμφανίζεται.</p>
-                </div>
-            )}
-
-            {results.length > 0 && (
-                <div className="space-y-3 mt-1">
-                    {results.map(({ order, matchedItems, totalMatchedQty }) => (
-                        <OrderResultCard
-                            key={order.id}
-                            order={order}
-                            matchedItems={matchedItems}
-                            totalMatchedQty={totalMatchedQty}
-                            productsMap={productsMap}
-                            allBatches={batches}
-                            mobile={mobile}
-                        />
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-
-    // ─── Desktop layout ────────────────────────────────────────────────────────
-    if (!mobile) {
-        return (
-            <div
-                className="fixed inset-0 z-[80] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4"
-                onClick={onClose}
+      {filtersOpen && (
+        <div className="space-y-2.5 border-t border-slate-100 px-5 pb-3 pt-2 sm:px-6">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[10px] font-medium text-slate-400">
+              Περιορίστε τις παραγγελίες χωρίς να χάσετε την χρωματική ανάλυση SKU.
+            </p>
+            <button
+              type="button"
+              onClick={() => setFilters(createEmptySkuOrderSearchFilters())}
+              disabled={activeFilters === 0}
+              className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold text-slate-500 transition-colors hover:bg-slate-100 disabled:opacity-40"
             >
-                <div
-                    className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200 flex flex-col"
-                    style={{ maxHeight: 'min(85vh, 780px)' }}
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    {/* Header */}
-                    <div className="px-6 pt-6 pb-4 border-b border-slate-100 shrink-0">
-                        <div className="flex items-start justify-between gap-4 mb-4">
-                            <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white">
-                                    <Search size={18} strokeWidth={2.5} />
-                                </div>
-                                <div>
-                                    <h2 className="text-lg font-bold text-slate-900">Αναζήτηση SKU σε Παραγγελίες</h2>
-                                    <p className="text-xs text-slate-500 mt-0.5">Βρείτε παραγγελίες που περιέχουν συγκεκριμένο κωδικό</p>
-                                </div>
-                            </div>
-                            <button
-                                onClick={onClose}
-                                className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors shrink-0"
-                            >
-                                <X size={18} />
-                            </button>
-                        </div>
-                        {inputSection}
-                    </div>
+              <RotateCcw size={11} />
+              Καθαρισμός
+            </button>
+          </div>
 
-                    {/* Summary bar */}
-                    {summaryBar && (
-                        <div className="px-6 py-2.5 border-b border-slate-100 shrink-0">
-                            {summaryBar}
-                        </div>
-                    )}
+          <div className="grid gap-2.5 lg:grid-cols-2">
+            <FilterFacetGroup
+              title="Πελάτες"
+              icon={<User size={12} />}
+              items={facets.customers}
+              selected={getFilterSet(filters, 'customers')}
+              scheme={FILTER_SCHEMES.customers}
+              onToggle={(key) => toggleFilter('customers', key)}
+            />
+            <FilterFacetGroup
+              title="Πλασιέ"
+              icon={<User size={12} />}
+              items={facets.sellers}
+              selected={getFilterSet(filters, 'sellers')}
+              scheme={FILTER_SCHEMES.sellers}
+              onToggle={(key) => toggleFilter('sellers', key)}
+            />
+            <FilterFacetGroup
+              title="Ετικέτες"
+              icon={<Tag size={12} />}
+              items={facets.tags}
+              selected={getFilterSet(filters, 'tags')}
+              scheme={FILTER_SCHEMES.tags}
+              onToggle={(key) => toggleFilter('tags', key)}
+            />
+            <FilterFacetGroup
+              title="Κατάσταση"
+              icon={<ShoppingCart size={12} />}
+              items={facets.statuses}
+              selected={getFilterSet(filters, 'statuses')}
+              scheme={FILTER_SCHEMES.statuses}
+              onToggle={(key) => toggleFilter('statuses', key)}
+              formatLabel={(item) => getOrderStatusLabel(item.key as Order['status'])}
+            />
+            <FilterFacetGroup
+              title="Μέταλλο / φινίρισμα"
+              icon={<Palette size={12} />}
+              items={facets.finishes}
+              selected={getFilterSet(filters, 'finishes')}
+              scheme={FILTER_SCHEMES.finishes}
+              onToggle={(key) => toggleFilter('finishes', key)}
+              formatLabel={(item) => <FinishLabel item={item} />}
+            />
+            <FilterFacetGroup
+              title="Πέτρες"
+              icon={<Gem size={12} />}
+              items={facets.stones}
+              selected={getFilterSet(filters, 'stones')}
+              scheme={FILTER_SCHEMES.stones}
+              onToggle={(key) => toggleFilter('stones', key)}
+              formatLabel={(item) => <StoneLabel item={item} />}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
-                    {resultsList}
-                </div>
+  const summaryBar = hasQuery && (
+    <div className="space-y-2.5 border-b border-slate-100 bg-slate-50/60 px-5 py-3 sm:px-6">
+      {totalOrders > 0 ? (
+        <>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase text-emerald-600/80">Παραγγελίες</p>
+              <p className="text-base font-black text-emerald-900">{totalOrders}</p>
             </div>
-        );
-    }
+            <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase text-blue-600/80">Τεμάχια</p>
+              <p className="text-base font-black text-blue-900">{totalQty}</p>
+            </div>
+            <div className="rounded-xl border border-cyan-100 bg-cyan-50 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase text-cyan-700/80">Παραλλαγές</p>
+              <p className="text-base font-black text-cyan-950">{totalVariants}</p>
+            </div>
+          </div>
 
-    // ─── Mobile layout (bottom sheet) ─────────────────────────────────────────
+          {variantSummary.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {variantSummary.map(({ match, qty, orders: orderCount }) => (
+                <span key={match.fullSku} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600 shadow-sm">
+                  <SkuColorizedText sku={match.item.sku} suffix={match.item.variant_suffix || ''} className="text-[11px]" />
+                  <span className="text-slate-300">·</span>
+                  <Package size={11} className="text-emerald-600" />
+                  {qty}
+                  <span className="text-slate-300">/</span>
+                  <ShoppingCart size={11} className="text-blue-600" />
+                  {orderCount}
+                </span>
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        <span className="text-xs font-medium italic text-slate-400">
+          Δεν βρέθηκαν παραγγελίες με αυτό το SKU και τα ενεργά φίλτρα.
+        </span>
+      )}
+    </div>
+  );
+
+  const resultsList = (
+    <div className={`min-h-0 flex-1 overflow-y-auto ${mobile ? 'px-4 pb-[max(1rem,env(safe-area-inset-bottom))]' : 'px-6 pb-6'}`}>
+      {hasQuery && results.length === 0 && (
+        <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
+            <Search size={22} className="text-slate-400" />
+          </div>
+          <p className="text-sm font-bold text-slate-500">Δεν βρέθηκαν παραγγελίες</p>
+          <p className="max-w-[260px] text-xs text-slate-400">
+            Δοκιμάστε master SKU για όλες τις παραλλαγές ή καθαρίστε τα φίλτρα μετάλλου/πέτρας.
+          </p>
+        </div>
+      )}
+
+      {!hasQuery && (
+        <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50">
+            <Hash size={22} className="text-emerald-500" />
+          </div>
+          <p className="text-sm font-bold text-slate-600">Αναζήτηση SKU σε Παραγγελίες</p>
+          <p className="max-w-[270px] text-xs text-slate-400">
+            Πληκτρολογήστε master SKU ή πλήρη παραλλαγή για να δείτε πελάτες, ποσότητες, στάδιο παραγωγής, μέταλλο και πέτρα.
+          </p>
+        </div>
+      )}
+
+      {results.length > 0 && (
+        <div className="mt-3 space-y-3">
+          {results.map(({ order, matchedItems, totalMatchedQty, uniqueVariantCount }) => (
+            <OrderResultCard
+              key={order.id}
+              order={order}
+              matchedItems={matchedItems}
+              totalMatchedQty={totalMatchedQty}
+              uniqueVariantCount={uniqueVariantCount}
+              productsMap={productsMap}
+              allBatches={batches}
+              mobile={mobile}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  if (!mobile) {
     return (
+      <div
+        className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/55 p-4 backdrop-blur-sm"
+        onClick={onClose}
+      >
         <div
-            className="fixed inset-0 z-[80] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end"
-            onClick={onClose}
+          className="flex w-full max-w-5xl animate-in flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-2xl duration-200 zoom-in-95"
+          style={{ maxHeight: 'min(88vh, 860px)' }}
+          onClick={(e) => e.stopPropagation()}
         >
-            <div
-                className="bg-white rounded-t-[2rem] flex flex-col animate-in slide-in-from-bottom-full duration-300"
-                style={{ maxHeight: '92dvh' }}
-                onClick={(e) => e.stopPropagation()}
-            >
-                {/* Drag handle */}
-                <div className="flex justify-center pt-3 pb-1 shrink-0">
-                    <div className="w-10 h-1 rounded-full bg-slate-200" />
+          <div className="shrink-0 border-b border-slate-100 bg-white px-6 pb-4 pt-6">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-600/20">
+                  <Sparkles size={19} strokeWidth={2.5} />
                 </div>
-
-                {/* Header */}
-                <div className="px-4 pt-1 pb-4 border-b border-slate-100 shrink-0">
-                    <div className="flex items-center justify-between gap-3 mb-3">
-                        <div className="flex items-center gap-2.5">
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white">
-                                <Search size={16} strokeWidth={2.5} />
-                            </div>
-                            <div>
-                                <h2 className="text-base font-black text-slate-900 leading-tight">Αναζήτηση SKU</h2>
-                                <p className="text-[11px] text-slate-500 font-medium">σε παραγγελίες</p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={onClose}
-                            className="p-2 bg-slate-100 rounded-full text-slate-500 active:scale-95 transition-transform"
-                        >
-                            <X size={18} />
-                        </button>
-                    </div>
-                    {inputSection}
+                <div>
+                  <h2 className="text-lg font-black text-slate-900">Αναζήτηση SKU σε Παραγγελίες</h2>
+                  <p className="mt-0.5 text-xs font-medium text-slate-500">
+                    Master SKU, παραλλαγές, φινιρίσματα, πέτρες και παραγωγή σε μία εικόνα.
+                  </p>
                 </div>
-
-                {/* Summary bar */}
-                {summaryBar && (
-                    <div className="px-4 py-2.5 border-b border-slate-100 shrink-0">
-                        {summaryBar}
-                    </div>
-                )}
-
-                {resultsList}
+              </div>
+              <button
+                onClick={onClose}
+                className="shrink-0 rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100"
+                aria-label="Κλείσιμο"
+              >
+                <X size={18} />
+              </button>
             </div>
-        </div>
-    );
-}
+            {inputSection}
+          </div>
 
-// ─── Individual order result card ──────────────────────────────────────────────
+          {filterPanel}
+          {summaryBar}
+          {resultsList}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[80] flex flex-col justify-end bg-slate-900/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="flex animate-in flex-col rounded-t-[2rem] bg-white duration-300 slide-in-from-bottom-full"
+        style={{ maxHeight: '92dvh' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex shrink-0 justify-center pb-1 pt-3">
+          <div className="h-1 w-10 rounded-full bg-slate-200" />
+        </div>
+
+        <div className="shrink-0 border-b border-slate-100 px-4 pb-4 pt-1">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white">
+                <Sparkles size={16} strokeWidth={2.5} />
+              </div>
+              <div>
+                <h2 className="text-base font-black leading-tight text-slate-900">Αναζήτηση SKU</h2>
+                <p className="text-[11px] font-medium text-slate-500">σε παραγγελίες</p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="rounded-full bg-slate-100 p-2 text-slate-500 transition-transform active:scale-95"
+              aria-label="Κλείσιμο"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          {inputSection}
+        </div>
+
+        {filterPanel}
+        {summaryBar}
+        {resultsList}
+      </div>
+    </div>
+  );
+}
 
 interface OrderResultCardProps {
-    order: Order;
-    matchedItems: { item: OrderItem; totalQty: number }[];
-    totalMatchedQty: number;
-    productsMap: Map<string, Product>;
-    allBatches?: ProductionBatch[];
-    mobile: boolean;
+  order: Order;
+  matchedItems: SkuOrderSearchMatchedItem[];
+  totalMatchedQty: number;
+  uniqueVariantCount: number;
+  productsMap: Map<string, Product>;
+  allBatches?: ProductionBatch[];
+  mobile: boolean;
 }
 
-function OrderResultCard({ order, matchedItems, totalMatchedQty, productsMap, allBatches, mobile }: OrderResultCardProps) {
-    const [expanded, setExpanded] = useState(true);
+function OrderResultCard({
+  order,
+  matchedItems,
+  totalMatchedQty,
+  uniqueVariantCount,
+  productsMap,
+  allBatches,
+  mobile,
+}: OrderResultCardProps) {
+  const [expanded, setExpanded] = useState(true);
 
-    const dateStr = new Date(order.created_at).toLocaleDateString('el-GR', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-    });
+  const dateStr = new Date(order.created_at).toLocaleDateString('el-GR', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
 
-    return (
-        <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm">
-            {/* Order header row */}
-            <button
-                type="button"
-                onClick={() => setExpanded((v) => !v)}
-                className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition-colors active:bg-slate-100"
-            >
-                {/* Status badge */}
-                <span className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border ${getOrderStatusClasses(order.status)}`}>
-                    {getOrderStatusIcon(order.status, 10)}
-                    {getOrderStatusLabel(order.status)}
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full px-4 py-3 text-left transition-colors hover:bg-slate-50 active:bg-slate-100"
+      >
+        <div className="flex items-start gap-3">
+          <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${getOrderStatusClasses(order.status)}`}>
+            {getOrderStatusIcon(order.status, 10)}
+            {getOrderStatusLabel(order.status)}
+          </span>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="truncate text-sm font-black text-slate-900">{order.customer_name}</span>
+              {order.seller_name && (
+                <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                  <User size={9} />
+                  {order.seller_name}
                 </span>
+              )}
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-medium text-slate-400">
+              <span className="font-mono">#{order.id.slice(-8)}</span>
+              <span className="inline-flex items-center gap-1">
+                <Calendar size={9} />
+                {dateStr}
+              </span>
+              {order.tags?.slice(0, mobile ? 1 : 3).map((tag) => (
+                <span key={tag} className="inline-flex items-center gap-1 rounded-md border border-violet-100 bg-violet-50 px-1.5 py-0.5 text-[10px] font-bold text-violet-700">
+                  <Tag size={8} />
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
 
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-black text-sm text-slate-900 truncate">{order.customer_name}</span>
-                        {order.seller_name && (
-                            <span className="text-[10px] font-bold text-slate-400 flex items-center gap-0.5">
-                                <User size={9} />{order.seller_name}
-                            </span>
-                        )}
-                    </div>
-                    <div className="flex items-center gap-3 mt-0.5">
-                        <span className="text-[11px] text-slate-400 font-mono">#{order.id.slice(-8)}</span>
-                        <span className="text-[11px] text-slate-400 flex items-center gap-1">
-                            <Calendar size={9} />{dateStr}
-                        </span>
-                    </div>
-                </div>
+          <div className="grid shrink-0 grid-cols-2 gap-1.5 text-right">
+            <span className="rounded-lg bg-emerald-50 px-2 py-1 text-[11px] font-black text-emerald-800">
+              {totalMatchedQty} τεμ.
+            </span>
+            <span className="rounded-lg bg-cyan-50 px-2 py-1 text-[11px] font-black text-cyan-900">
+              {uniqueVariantCount} SKU
+            </span>
+            <span className="col-span-2 text-[10px] font-bold text-slate-400">
+              {formatCurrency(order.total_price)}
+            </span>
+          </div>
 
-                {/* Matched qty chip */}
-                <div className="shrink-0 flex flex-col items-end gap-0.5">
-                    <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 rounded-full px-2.5 py-0.5 text-xs font-black">
-                        <Package size={11} />{totalMatchedQty} τεμ.
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-bold">
-                        {formatCurrency(order.total_price)}
-                    </span>
-                </div>
-
-                {/* Tags */}
-                {order.tags && order.tags.length > 0 && (
-                    <div className={`hidden ${mobile ? '' : 'sm:flex'} items-center gap-1 shrink-0`}>
-                        {order.tags.slice(0, 3).map((tag) => (
-                            <span key={tag} className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border font-bold bg-slate-100 text-slate-600 border-slate-200">
-                                <Tag size={8} />{tag}
-                            </span>
-                        ))}
-                    </div>
-                )}
-
-                {/* Expand chevron */}
-                <svg
-                    className={`shrink-0 text-slate-400 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
-                    width="16" height="16" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                >
-                    <polyline points="6 9 12 15 18 9" />
-                </svg>
-            </button>
-
-            {/* Expanded matched items */}
-            {expanded && (
-                <div className="border-t border-slate-100 divide-y divide-slate-50 bg-slate-50/50">
-                    {matchedItems.map(({ item }, idx) => {
-                        const product = productsMap.get(item.sku);
-                        // Find active production batches for this order+item
-                        const itemBatches = allBatches?.filter(b =>
-                            b.order_id === order.id &&
-                            b.sku === item.sku &&
-                            (b.variant_suffix || '') === (item.variant_suffix || '') &&
-                            // When both sides carry line_id, use it for exact line-level matching.
-                            (!item.line_id || !b.line_id || b.line_id === item.line_id)
-                        ) || [];
-                        // Collect unique stages (with explicit Τεχνίτης substages)
-                        const stageCounts = new Map<string, StageBadgeAggregate>();
-                        itemBatches.forEach(b => {
-                            const meta = getStageBadgeMeta(b);
-                            const existing = stageCounts.get(meta.key);
-                            if (existing) {
-                                existing.qty += b.quantity;
-                            } else {
-                                stageCounts.set(meta.key, {
-                                    label: meta.label,
-                                    qty: b.quantity,
-                                    className: meta.className,
-                                    order: meta.order,
-                                });
-                            }
-                        });
-                        return (
-                            <div key={`${item.sku}-${item.variant_suffix ?? ''}-${idx}`} className="px-4 py-2.5 flex items-center gap-3">
-                                {/* Product image */}
-                                <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
-                                    {product?.image_url ? (
-                                        <img src={product.image_url} alt={item.sku} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <ImageIcon size={16} className="text-slate-300" />
-                                    )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <SkuColorizedText
-                                            sku={item.sku}
-                                            suffix={item.variant_suffix ?? ''}
-                                            gender={product?.gender}
-                                            className="text-sm font-black"
-                                            masterClassName="text-slate-900"
-                                        />
-                                        {item.notes && item.notes.trim() && (
-                                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 max-w-full">
-                                                <StickyNote size={10} className="shrink-0" />
-                                                <span className="truncate">{item.notes}</span>
-                                            </span>
-                                        )}
-                                    </div>
-                                    {product?.category && (
-                                        <p className="text-[11px] text-slate-400 mt-0.5 truncate">{product.category}</p>
-                                    )}
-                                    {item.size_info && (
-                                        <p className="text-[11px] text-slate-400">Μέγεθος: {item.size_info}</p>
-                                    )}
-                                    {stageCounts.size > 0 && (
-                                        <div className="flex flex-wrap gap-1 mt-1">
-                                            {Array.from(stageCounts.entries())
-                                                .sort((a, b) => a[1].order - b[1].order)
-                                                .map(([stageKey, aggregate]) => (
-                                                <span key={stageKey} className={`inline-flex items-center gap-1 text-[9px] font-black px-1.5 py-0.5 rounded-full border ${aggregate.className}`}>
-                                                    <Factory size={8} />
-                                                    {aggregate.label} ×{aggregate.qty}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="shrink-0 text-right">
-                                    <span className="text-sm font-black text-slate-800">{item.quantity}×</span>
-                                    <p className="text-[11px] text-slate-400">{formatCurrency(item.price_at_order)}/τεμ.</p>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
+          <ChevronDown size={16} className={`mt-1 shrink-0 text-slate-400 transition-transform ${expanded ? 'rotate-180' : ''}`} />
         </div>
-    );
+      </button>
+
+      {expanded && (
+        <div className="divide-y divide-slate-100 border-t border-slate-100 bg-slate-50/60">
+          {matchedItems.map((match, idx) => (
+            <MatchedItemRow
+              key={`${match.item.sku}-${match.item.variant_suffix ?? ''}-${match.item.line_id ?? idx}`}
+              order={order}
+              match={match}
+              product={productsMap.get(match.item.sku)}
+              allBatches={allBatches}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MatchedItemRow({
+  order,
+  match,
+  product,
+}: {
+  order: Order;
+  match: SkuOrderSearchMatchedItem;
+  product?: Product;
+  allBatches?: ProductionBatch[];
+}) {
+  const item = match.item;
+
+  return (
+    <div className="flex gap-3 px-4 py-3">
+      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        {product?.image_url ? (
+          <img src={product.image_url} alt={item.sku} className="h-full w-full object-cover" />
+        ) : (
+          <ImageIcon size={18} className="text-slate-300" />
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <SkuColorizedText
+            sku={item.sku}
+            suffix={item.variant_suffix ?? ''}
+            gender={product?.gender}
+            className="text-sm font-black"
+            masterClassName="text-slate-900"
+          />
+          <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600">
+            <Layers3 size={10} />
+            {match.totalQty} τεμ.
+          </span>
+          <FulfillmentBadge match={match} />
+          {item.notes?.trim() && (
+            <span className="inline-flex max-w-full items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+              <StickyNote size={10} className="shrink-0" />
+              <span className="truncate">{item.notes}</span>
+            </span>
+          )}
+        </div>
+
+        <div className="mt-1.5">
+          <SuffixBadges match={match} />
+        </div>
+
+        <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] font-medium text-slate-400">
+          {product?.category && <span>{product.category}</span>}
+          {item.size_info && <span>Μέγεθος: {item.size_info}</span>}
+          <span>{formatCurrency(item.price_at_order)}/τεμ.</span>
+        </div>
+
+        {match.productionStages.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {match.productionStages
+              .map((stage) => (
+                <span key={stage.key} className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-black ${getStageBadgeClassName(stage)}`}>
+                  <Factory size={8} />
+                  {stage.label} x{stage.qty}
+                </span>
+              ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }

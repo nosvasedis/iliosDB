@@ -184,6 +184,25 @@ export function calculateIliosMasterPrice(
 
 export const buildIliosMasterPrice = calculateIliosMasterPrice;
 
+export function buildCostedVariants(
+  inputVariants: ProductVariant[],
+  currentTempProduct: Product,
+  settings: any,
+  materials: Material[],
+  products: Product[],
+): ProductVariant[] {
+  return inputVariants.map((variant) => ({
+    ...variant,
+    active_price: estimateVariantCost(
+      currentTempProduct,
+      variant.suffix,
+      settings,
+      materials,
+      products,
+    ).total,
+  }));
+}
+
 export function buildIliosPricedVariants(
   inputVariants: ProductVariant[],
   currentTempProduct: Product,

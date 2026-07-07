@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { Gender, PlatingType, Product, ProductionType } from '../../types';
+import { Gender, MaterialType, PlatingType, Product, ProductionType } from '../../types';
 import {
   buildEditableProduct,
   getAvailableMolds,
+  getRecipeMaterialSubtitle,
   getProductDisplaySummary,
   getSecondaryWeightLabel,
   getSortedProductVariants,
@@ -100,5 +101,27 @@ describe('product details view models', () => {
 
     expect(getAvailableMolds(molds, [], '').map((mold) => mold.code)).toEqual(['L12']);
     expect(getAvailableMolds(molds, [], 'LSTX').map((mold) => mold.code)).toEqual(['LSTX01']);
+  });
+
+  it('uses material descriptions in recipe rows and Greek type labels as fallback', () => {
+    expect(
+      getRecipeMaterialSubtitle({
+        description: 'Όνυχας Ταγέ 3mm',
+        type: MaterialType.Cord,
+      } as any),
+    ).toBe('Όνυχας Ταγέ 3mm');
+
+    expect(
+      getRecipeMaterialSubtitle({
+        description: '',
+        type: MaterialType.Stone,
+      } as any),
+    ).toBe('Πέτρα');
+
+    expect(
+      getRecipeMaterialSubtitle({
+        type: MaterialType.Cord,
+      } as any),
+    ).toBe('Κορδόνι');
   });
 });

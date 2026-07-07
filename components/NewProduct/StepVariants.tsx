@@ -52,11 +52,12 @@ export const StepVariants: React.FC<Props> = ({ formState, settings, materials, 
 
             <div className="space-y-3">
                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-1">Λίστα Παραλλαγών</h4>
-                {state.variants.map((variant, index) => {
+                {state.costedVariants.map((variant, index) => {
                     const { color } = actions.getVariantTypeInfo(variant.suffix);
                     const breakdown = estimateVariantCost(state.currentTempProduct, variant.suffix, settings, materials, products);
 
-                    const diff = breakdown.total - state.masterEstimatedCost;
+                    const liveCost = state.costedVariants[index]?.active_price ?? breakdown.total;
+                    const diff = liveCost - state.masterEstimatedCost;
                     const details = breakdown.breakdown.details;
                     const platingCost = details.plating_cost || 0;
                     const stoneDiff = details.stone_diff || 0;

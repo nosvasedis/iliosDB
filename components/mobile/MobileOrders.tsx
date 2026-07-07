@@ -1801,6 +1801,8 @@ export default function MobileOrders({
                     orders={orders || []}
                     products={products}
                     batches={batches || []}
+                    shipments={allShipments || []}
+                    shipmentItems={allShipmentItems || []}
                     mobile={true}
                 />
             )}

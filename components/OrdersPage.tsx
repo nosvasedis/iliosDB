@@ -2359,6 +2359,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                     orders={orders || []}
                     products={products}
                     batches={batches || []}
+                    shipments={allShipments || []}
+                    shipmentItems={allShipmentItems || []}
                     mobile={false}
                 />
             )}

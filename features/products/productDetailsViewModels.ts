@@ -1,4 +1,4 @@
-import { Gender, LaborCost, Mold, PlatingType, Product, ProductVariant, ProductionType } from '../../types';
+import { Gender, LaborCost, Material, MaterialType, Mold, PlatingType, Product, ProductVariant, ProductionType } from '../../types';
 import { analyzeSuffix, calculateProductCost, estimateVariantCost, getIliosSuggestedPriceForProduct, getVariantComponents } from '../../utils/pricingEngine';
 import { isLstxMold, shouldShowLstxInPicker } from '../../utils/moldCategories';
 import { FINISH_CODES } from '../../constants';
@@ -165,6 +165,25 @@ export function getAvailableMolds(allMolds: Mold[], selectedMolds: Array<{ code:
 
 export function getSecondaryWeightLabel(gender: Gender, category: string) {
   return getSharedSecondaryWeightLabel(gender, category);
+}
+
+export const MATERIAL_TYPE_LABELS: Record<string, string> = {
+  [MaterialType.Stone]: 'Πέτρα',
+  [MaterialType.Cord]: 'Κορδόνι',
+  [MaterialType.Component]: 'Εξάρτημα',
+  [MaterialType.Enamel]: 'Σμάλτο',
+  [MaterialType.Leather]: 'Δέρμα',
+};
+
+export function getMaterialTypeLabel(type?: string) {
+  if (!type) return '';
+  return MATERIAL_TYPE_LABELS[type] || type;
+}
+
+export function getRecipeMaterialSubtitle(material?: Pick<Material, 'description' | 'type'> | null) {
+  const description = material?.description?.trim();
+  if (description) return description;
+  return getMaterialTypeLabel(material?.type);
 }
 
 export function getAnalyticalCostingItems(

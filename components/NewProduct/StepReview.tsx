@@ -276,7 +276,7 @@ export const StepReview: React.FC<Props> = ({ formState, settings, materials, pr
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
-                                {state.variants.length > 0 ? state.variants.map((v, idx) => {
+                                {state.costedVariants.length > 0 ? state.costedVariants.map((v, idx) => {
                                     const cost = v.active_price ?? 0;
                                     const price = v.selling_price || state.sellingPrice;
                                     const profit = price - cost;

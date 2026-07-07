@@ -8,6 +8,7 @@ import { getSteps } from '../components/ProductRegistry/constants';
 import { useQueryClient } from '@tanstack/react-query';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 import {
+    buildCostedVariants,
     buildCurrentTempProduct,
     buildIliosMasterPrice,
     buildIliosPricedVariants,
@@ -279,6 +280,13 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
         setCostBreakdown(cost.breakdown);
     }, [currentTempProduct, settings, materials, products]);
 
+    const costedVariants = useMemo(
+        () => settings
+            ? buildCostedVariants(variants, currentTempProduct, settings, materials, products)
+            : variants,
+        [variants, currentTempProduct, settings, materials, products],
+    );
+
     // ACTIONS AND LOGIC
     const platingMasterLabel = useMemo(() => getVariantFinishLabel(selectedFinishes, plating), [plating, selectedFinishes]);
 
@@ -500,7 +508,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             return;
         }
 
-        let finalVariants = [...variants];
+        let finalVariants = [...costedVariants];
         let finalSellingPrice = sellingPrice;
         const finalMasterSku = (detectedMasterSku || sku).toUpperCase().trim();
         const duplicateSku = findDuplicateSkuIdentity({
@@ -696,7 +704,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             useIliosFormula,
             labor, recipe, recipeTotalCost, costBreakdown,
             isSTX, stxDescription,
-            variants, newVariantSuffix, newVariantDesc, newVariantPrice, smartAddStoneSuffix,
+            variants, costedVariants, newVariantSuffix, newVariantDesc, newVariantPrice, smartAddStoneSuffix,
             selectedMolds, moldSearch, otherMolds, suggestedMolds,
             newMoldCode, newMoldLoc, newMoldDesc, isCreatingMold,
             isRecipeModalOpen, showAnalysisHelp,
