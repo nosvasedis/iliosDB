@@ -47,6 +47,61 @@ describe('realtime cache patching', () => {
     );
   });
 
+  it('preserves full order items when realtime status updates omit unchanged JSON columns', () => {
+    const queryClient = new QueryClient();
+    const cachedOrder = {
+      id: 'ord-ship-undo',
+      customer_name: 'Ada',
+      created_at: '2024-01-01T00:00:00.000Z',
+      status: OrderStatus.PartiallyDelivered,
+      total_price: 30,
+      items: [
+        { sku: 'PN1', quantity: 2, price_at_order: 10 },
+        { sku: 'PN2', quantity: 1, price_at_order: 10 },
+      ],
+    } as any;
+    const realtimeStatusOnlyRow = {
+      id: 'ord-ship-undo',
+      customer_name: 'Ada',
+      created_at: '2024-01-01T00:00:00.000Z',
+      status: OrderStatus.InProduction,
+      total_price: 30,
+    } as any;
+
+    queryClient.setQueryData(orderKeys.detail(cachedOrder.id), cachedOrder);
+    queryClient.setQueryData(orderKeys.all, [cachedOrder]);
+    queryClient.setQueryData(orderKeys.productionBoard(), [cachedOrder]);
+    queryClient.setQueryData(orderKeys.list(), [{ ...cachedOrder, items: [], item_count: 2, item_total_qty: 3 }]);
+
+    const patched = tryPatchRealtimeCache(queryClient, {
+      table: 'orders',
+      eventType: 'UPDATE',
+      new: realtimeStatusOnlyRow,
+      old: { id: 'ord-ship-undo' },
+      schema: 'public',
+      commit_timestamp: '2024-01-01T00:00:01.000Z',
+      errors: null,
+    } as any);
+
+    expect(patched).toBe(true);
+    expect(queryClient.getQueryData<any>(orderKeys.detail(cachedOrder.id))).toEqual(
+      expect.objectContaining({
+        status: OrderStatus.InProduction,
+        items: cachedOrder.items,
+      }),
+    );
+    expect(queryClient.getQueryData<any[]>(orderKeys.all)?.[0].items).toEqual(cachedOrder.items);
+    expect(queryClient.getQueryData<any[]>(orderKeys.productionBoard())?.[0].items).toEqual(cachedOrder.items);
+    expect(queryClient.getQueryData<any[]>(orderKeys.list())?.[0]).toEqual(
+      expect.objectContaining({
+        status: OrderStatus.InProduction,
+        items: [],
+        item_count: 2,
+        item_total_qty: 3,
+      }),
+    );
+  });
+
   it('patches visible production batches but still lets realtime invalidation refetch related surfaces', () => {
     const queryClient = new QueryClient();
     const cachedBatch = {

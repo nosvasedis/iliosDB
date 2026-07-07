@@ -130,6 +130,41 @@ function toOrderListRow(row: Order): Order {
     };
 }
 
+function mergeRealtimeOrderRow(existing: Order | undefined, row: Order): Order {
+    if (!existing) return row;
+    const merged = { ...existing, ...row };
+    if (!Array.isArray(row.items) && Array.isArray(existing.items)) {
+        merged.items = existing.items;
+    }
+    return merged;
+}
+
+function patchOrderArray(
+    queryClient: QueryClient,
+    queryKey: readonly unknown[],
+    payload: RealtimeRowPayload,
+    mapRow?: (row: Order) => Order,
+): boolean {
+    const cached = queryClient.getQueryData<Order[]>(queryKey);
+    if (!cached) return false;
+    const row = (payload.eventType === 'DELETE' ? payload.old : payload.new) as unknown as Order | undefined;
+    if (!row?.id) return false;
+
+    if (payload.eventType === 'DELETE') {
+        queryClient.setQueryData(queryKey, upsertById(cached, row, payload.eventType));
+        return true;
+    }
+
+    const list = [...cached];
+    const index = list.findIndex((entry) => entry.id === row.id);
+    const merged = mergeRealtimeOrderRow(index >= 0 ? list[index] : undefined, row);
+    const nextRow = mapRow ? mapRow(merged) : merged;
+    if (index >= 0) list[index] = nextRow;
+    else list.push(nextRow);
+    queryClient.setQueryData(queryKey, list);
+    return true;
+}
+
 export function tryPatchRealtimeCache(queryClient: QueryClient, payload: RealtimeRowPayload): boolean {
     const table = payload.table;
     if (!table) return false;
@@ -154,12 +189,17 @@ export function tryPatchRealtimeCache(queryClient: QueryClient, payload: Realtim
         const row = (payload.eventType === 'DELETE' ? payload.old : payload.new) as unknown as Order | undefined;
         let patched = false;
         if (row?.id) {
-            queryClient.setQueryData(orderKeys.detail(row.id), payload.eventType === 'DELETE' ? null : row);
+            if (payload.eventType === 'DELETE') {
+                queryClient.setQueryData(orderKeys.detail(row.id), null);
+            } else {
+                const existing = queryClient.getQueryData<Order>(orderKeys.detail(row.id));
+                queryClient.setQueryData(orderKeys.detail(row.id), mergeRealtimeOrderRow(existing, row));
+            }
             patched = true;
         }
-        patched = patchListById<Order>(queryClient, orderKeys.all, payload) || patched;
-        patched = patchListById<Order>(queryClient, orderKeys.list(), payload, toOrderListRow) || patched;
-        patched = patchListById<Order>(queryClient, orderKeys.productionBoard(), payload) || patched;
+        patched = patchOrderArray(queryClient, orderKeys.all, payload) || patched;
+        patched = patchOrderArray(queryClient, orderKeys.list(), payload, toOrderListRow) || patched;
+        patched = patchOrderArray(queryClient, orderKeys.productionBoard(), payload) || patched;
         return patched;
     }
 
