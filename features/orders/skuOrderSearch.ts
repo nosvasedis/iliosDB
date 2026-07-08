@@ -1,6 +1,7 @@
 import { Order, OrderItem, OrderShipment, OrderShipmentItem, OrderStatus, Product, ProductionBatch, ProductionStage } from '../../types';
 import { getVariantComponents } from '../../utils/pricingEngine';
 import { getProductionStageLabel, PRODUCTION_STAGE_ORDER_INDEX } from '../../utils/productionStages';
+import { getOrderDisplayName } from '../../utils/deliveryLabels';
 import { buildFullSku, itemMatchesSkuQuery } from '../../utils/skuSearchMatch';
 import {
   getItemFulfillmentKind,
@@ -98,6 +99,8 @@ export function countActiveSkuOrderSearchFilters(filters: SkuOrderSearchFilterSe
 }
 
 function customerKey(order: Order): string {
+  const displayName = getOrderDisplayName(order);
+  if (displayName !== order.customer_name) return `${order.customer_id || order.customer_name}::${displayName}`;
   return order.customer_id || order.customer_name;
 }
 
@@ -297,7 +300,7 @@ export function buildSkuOrderSearchFacets(results: SkuOrderSearchMatchedOrder[])
   const stones = new Map<string, SkuOrderSearchFacetItem>();
 
   results.forEach(({ order, matchedItems }) => {
-    incrementFacet(customers, customerKey(order), order.customer_name);
+    incrementFacet(customers, customerKey(order), getOrderDisplayName(order));
     (order.tags || []).forEach((tag) => incrementFacet(tags, tag, tag));
 
     const seller = sellerKey(order);

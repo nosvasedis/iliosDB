@@ -9,13 +9,13 @@ import {
   OrderStatus,
   ProductionStage
 } from '../types';
-import { RETAIL_CUSTOMER_ID } from '../lib/supabase';
+import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { extractRetailClientFromNotes } from './retailNotes';
 import { getProductionStageLabel as getCanonicalProductionStageLabel } from './productionStages';
 
 /** For delivery UI: show customer name, or for Λιανική show "Λιανική · {actual client id/label}" from notes. */
 export function getOrderDisplayName(order: { customer_id?: string; customer_name: string; notes?: string }): string {
-  if (order.customer_id === RETAIL_CUSTOMER_ID) {
+  if (order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME) {
     const { retailClientLabel } = extractRetailClientFromNotes(order.notes);
     return retailClientLabel ? `Λιανική · ${retailClientLabel}` : order.customer_name;
   }

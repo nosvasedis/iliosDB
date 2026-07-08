@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Gender, OrderStatus, ProductionStage } from '../../types';
+import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME, RETAIL_NOTE_PREFIX } from '../../lib/supabase';
 import {
   buildSkuOrderSearchFacets,
   buildSkuOrderSearchResults,
@@ -102,6 +103,27 @@ describe('sku order search modal view model', () => {
     expect(facets.tags.map((item) => item.label)).toEqual(['Αθήνα', 'Θεσσαλονίκη']);
     expect(facets.finishes.map((item) => item.key)).toEqual(expect.arrayContaining(['', 'D']));
     expect(facets.stones.map((item) => item.key)).toEqual(expect.arrayContaining(['TG', 'LE']));
+  });
+
+  it('shows the final retail client in customer facets', () => {
+    const retailOrder = order({
+      id: 'retail-order',
+      customer_id: RETAIL_CUSTOMER_ID,
+      customer_name: RETAIL_CUSTOMER_NAME,
+      notes: `${RETAIL_NOTE_PREFIX} Eleni Nikolaou`,
+      items: [
+        { sku: 'RN045', variant_suffix: 'TG', quantity: 1, price_at_order: 70 },
+      ],
+    });
+
+    const results = buildSkuOrderSearchResults([retailOrder] as any[], products as any[], 'RN045');
+    const facets = buildSkuOrderSearchFacets(results);
+
+    expect(facets.customers).toEqual([
+      expect.objectContaining({
+        label: `${RETAIL_CUSTOMER_NAME} · Eleni Nikolaou`,
+      }),
+    ]);
   });
 
   it('computes delivery and production status for the specific matched sku line', () => {

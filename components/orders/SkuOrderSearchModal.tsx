@@ -26,6 +26,7 @@ import SkuColorizedText from '../SkuColorizedText';
 import { formatCurrency, splitSkuComponents } from '../../utils/pricingEngine';
 import { getSkuFinishTextColor, getSkuStoneTextColor } from '../../utils/skuColoring';
 import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
+import { getOrderDisplayName } from '../../utils/deliveryLabels';
 import {
   buildSkuOrderSearchFacets,
   buildSkuOrderSearchResults,
@@ -701,7 +702,7 @@ function OrderResultCard({
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="truncate text-sm font-black text-slate-900">{order.customer_name}</span>
+              <span className="truncate text-sm font-black text-slate-900">{getOrderDisplayName(order)}</span>
               {order.seller_name && (
                 <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800">
                   <User size={9} />
