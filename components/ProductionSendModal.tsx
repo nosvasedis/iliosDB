@@ -1342,40 +1342,40 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                     <div className="w-full lg:w-[420px] bg-white flex flex-col shrink-0 border-t lg:border-t-0 lg:border-l border-slate-100 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] z-20">
 
                         {/* Send Summary */}
-                        <div className="p-5 bg-[#060b00] text-white flex flex-col gap-3 shrink-0">
-                            <h3 className="font-bold uppercase text-[10px] tracking-widest text-slate-400 flex items-center gap-2">
+                        <div className="m-3 mb-0 p-4 bg-emerald-50/80 text-slate-900 flex flex-col gap-3 shrink-0 rounded-[1.75rem] border border-emerald-100 shadow-sm">
+                            <h3 className="font-bold uppercase text-[10px] tracking-widest text-emerald-700 flex items-center gap-2">
                                 <Wallet size={13} /> Τρέχουσα Αποστολή
                             </h3>
                             <div className="flex justify-between items-end">
                                 <div>
-                                    <div className="text-3xl font-black tracking-tight">{totalToSend} <span className="text-base font-medium text-slate-400">τεμ</span></div>
-                                    <div className="text-[10px] text-slate-400 font-bold mt-0.5">Επιλεγμένα Είδη</div>
+                                    <div className="text-3xl font-black tracking-tight text-slate-950">{totalToSend} <span className="text-base font-medium text-slate-500">τεμ</span></div>
+                                    <div className="text-[10px] text-slate-500 font-bold mt-0.5">Επιλεγμένα Είδη</div>
                                 </div>
                                 <div className="text-right">
-                                    <div className="text-xl font-black text-emerald-400">{formatCurrency(currentSendValue)}</div>
+                                    <div className="text-xl font-black text-emerald-700">{formatCurrency(currentSendValue)}</div>
                                     <div className="text-[9px] text-slate-500 font-bold uppercase">Καθαρή Αξία</div>
                                 </div>
                             </div>
                             <button
                                 onClick={handleSend}
                                 disabled={isSending || isLoadingShipments || totalToSend === 0}
-                                className="w-full py-3.5 bg-white text-slate-900 rounded-xl font-black text-base shadow-lg hover:bg-emerald-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2.5 active:scale-95"
+                                className="w-full py-3.5 bg-emerald-600 text-white rounded-2xl font-black text-base shadow-sm hover:bg-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2.5 active:scale-95"
                             >
                                 {isSending ? <Loader2 className="animate-spin" size={18} /> : <Factory size={18} />}
                                 {isSending ? 'Αποστολή...' : 'Εκκίνηση Παραγωγής'}
                             </button>
                             <div className="grid grid-cols-2 gap-2 text-[10px] font-black">
-                                <div className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-2">
+                                <div className="rounded-2xl border border-emerald-100 bg-white px-2.5 py-2 shadow-sm">
                                     <div className="text-slate-500 uppercase tracking-widest">Γραμμές</div>
-                                    <div className="text-white text-sm">{sendSelectionSummary.selectedLineCount}</div>
+                                    <div className="text-slate-950 text-sm">{sendSelectionSummary.selectedLineCount}</div>
                                 </div>
-                                <div className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-2">
+                                <div className="rounded-2xl border border-emerald-100 bg-white px-2.5 py-2 shadow-sm">
                                     <div className="text-slate-500 uppercase tracking-widest">Υπόλοιπο</div>
-                                    <div className="text-white text-sm">{sendSelectionSummary.totalPendingQty}</div>
+                                    <div className="text-slate-950 text-sm">{sendSelectionSummary.totalPendingQty}</div>
                                 </div>
                             </div>
                             {sendSelectionSummary.hiddenSelectedQty > 0 && (
-                                <div className="flex items-start gap-2 rounded-lg border border-orange-400/30 bg-orange-400/10 px-2.5 py-2 text-[10px] font-bold text-orange-100 leading-snug">
+                                <div className="flex items-start gap-2 rounded-2xl border border-orange-200 bg-orange-50 px-2.5 py-2 text-[10px] font-bold text-orange-700 leading-snug">
                                     <AlertCircle size={13} className="shrink-0 mt-0.5" />
                                     <span>{sendSelectionSummary.hiddenSelectedQty} επιλεγμένα τεμ. είναι κρυφά από τα τρέχοντα φίλτρα.</span>
                                 </div>
@@ -1383,7 +1383,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                         </div>
 
                         {/* History/Shipments */}
-                        <div className="flex-1 overflow-y-auto p-3 bg-slate-50 border-t border-slate-900 space-y-4">
+                        <div className="flex-1 overflow-y-auto p-3 bg-slate-50 border-t border-transparent space-y-4">
 
                             {canShipReady && (
                                 <button
