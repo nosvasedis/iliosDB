@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Product, ProductionBatch, ProductionStage, Gender, OrderItem, ProductionTimingStatus } from '../../types';
 import {
     ImageIcon, Hash, Minus, Plus,
-    RefreshCw, StickyNote, Merge, ChevronDown
+    RefreshCw, StickyNote, Merge, ChevronDown, CheckSquare, Square
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import { getProductOptionColorLabel } from '../../utils/xrOptions';
@@ -192,7 +192,32 @@ export const BatchItemCard = React.memo(function BatchItemCard({
                     />
                 ) : (
                     <div className="flex flex-col items-start xl:items-end gap-0.5 shrink-0">
-                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Προς Αποστ. (Max: {row.remainingQty})</div>
+                        <div className="flex items-center gap-1.5">
+                            <button
+                                type="button"
+                                onClick={() => onUpdateToSend(originalIndex, currentSend >= row.remainingQty ? 0 : row.remainingQty)}
+                                className={`h-7 px-2 rounded-md border text-[10px] font-black transition-colors flex items-center gap-1 ${
+                                    currentSend >= row.remainingQty
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                }`}
+                                title={currentSend >= row.remainingQty ? 'Αποεπιλογή είδους' : 'Επιλογή όλου του υπολοίπου'}
+                            >
+                                {currentSend >= row.remainingQty ? <CheckSquare size={12} /> : <Square size={12} />}
+                                Όλο
+                            </button>
+                            {currentSend > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => onUpdateToSend(originalIndex, 0)}
+                                    className="h-7 px-2 rounded-md border border-slate-200 bg-white text-[10px] font-black text-slate-500 hover:bg-slate-50 transition-colors"
+                                    title="Καθαρισμός επιλογής είδους"
+                                >
+                                    Καθ.
+                                </button>
+                            )}
+                        </div>
+                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Προς Παραγ. (Max: {row.remainingQty})</div>
                         <div className="flex items-center gap-0.5 bg-blue-50 p-0.5 rounded-lg border border-blue-100">
                             <button onClick={() => onUpdateToSend(originalIndex, currentSend - 1)} className="w-7 h-7 flex items-center justify-center bg-white rounded-md shadow-sm text-blue-600 hover:text-blue-900 active:scale-95 transition-transform"><Minus size={13} /></button>
                             <input

@@ -17,7 +17,16 @@ import { getProductionTimingInfo, getProductionTimingStatusClasses } from '../ut
 import { formatOrderId } from '../utils/orderUtils';
 import { buildBatchStageHistoryMap, isStageNotRequired } from '../features/production/selectors';
 import { filterProductionStagePopupBatches, groupProductionBatchesByStage } from '../features/production/workflowSelectors';
-import { getRelevantProductionBatchesForOrderItem } from '../features/production/productionSendPlanner';
+import {
+    buildProductionSendItemsFromSelection,
+    clearProductionSendSelection,
+    getProductionSendSelectionSummary,
+    getRelevantProductionBatchesForOrderItem,
+    selectVisibleProductionSendRows,
+    unselectVisibleProductionSendRows,
+    updateProductionSendQuantity,
+    type ProductionSendQuantityMap,
+} from '../features/production/productionSendPlanner';
 import { planNonDuplicateProductionSendItems } from '../features/production/orderBatchReconcile';
 import { buildOrderItemIdentityKey } from '../features/orders/printHelpers';
 import { getSpecialCreationProductStub, isSpecialCreationSku } from '../utils/specialCreationSku';
@@ -91,7 +100,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
     const [filterCollection, setFilterCollection] = useState<number | 'All'>('All');
     const [searchInput, setSearchInput] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
-    const [toSendQuantities, setToSendQuantities] = useState<Record<number, number>>({});
+    const [toSendQuantities, setToSendQuantities] = useState<ProductionSendQuantityMap>({});
 
     // Debounced search — 300ms
     useEffect(() => {
@@ -421,31 +430,36 @@ export default function ProductionSendModal({ order: orderProp, products, materi
 
     // ─── SEND LOGIC ─────────────────────────────────────────────────────────
 
-    const currentSendValue = useMemo(() => {
-        return order.items.reduce((sum, item, idx) => {
-            const qty = toSendQuantities[idx] || 0;
-            return sum + (qty * item.price_at_order * discountFactor);
-        }, 0);
-    }, [order.items, toSendQuantities, discountFactor]);
+    const sendSelectionSummary = useMemo(
+        () => getProductionSendSelectionSummary(rows, filteredRows, toSendQuantities),
+        [rows, filteredRows, toSendQuantities]
+    );
 
-    const totalToSend = useMemo(() => (Object.values(toSendQuantities) as number[]).reduce((a, b) => a + b, 0), [toSendQuantities]);
+    const currentSendValue = useMemo(() => {
+        return rows.reduce((sum, row) => {
+            const qty = Math.min(row.remainingQty, Math.max(0, toSendQuantities[row.originalIndex] || 0));
+            return sum + (qty * row.price_at_order * discountFactor);
+        }, 0);
+    }, [rows, toSendQuantities, discountFactor]);
+
+    const totalToSend = sendSelectionSummary.totalSelectedQty;
 
     const updateToSend = useCallback((originalIdx: number, val: number) => {
-        const item = order.items[originalIdx];
-        if (!item) return;
         const row = rows.find(r => r.originalIndex === originalIdx);
-        const maxQty = row ? row.remainingQty : item.quantity;
-        setToSendQuantities(prev => ({ ...prev, [originalIdx]: Math.min(maxQty, Math.max(0, val)) }));
-    }, [order.items, rows]);
+        if (!row) return;
+        setToSendQuantities(prev => updateProductionSendQuantity(prev, row, val));
+    }, [rows]);
 
     const handleSelectVisible = useCallback(() => {
         if (isLoadingShipments) { showToast("Περιμένετε να φορτωθεί το ιστορικό αποστολών.", "info"); return; }
-        const newQuantities = { ...toSendQuantities };
-        filteredRows.forEach(row => { if (row.remainingQty > 0) newQuantities[row.originalIndex] = row.remainingQty; });
-        setToSendQuantities(newQuantities);
-    }, [isLoadingShipments, showToast, toSendQuantities, filteredRows]);
+        setToSendQuantities(prev => selectVisibleProductionSendRows(prev, filteredRows));
+    }, [isLoadingShipments, showToast, filteredRows]);
 
-    const handleClearSelection = useCallback(() => setToSendQuantities({}), []);
+    const handleUnselectVisible = useCallback(() => {
+        setToSendQuantities(prev => unselectVisibleProductionSendRows(prev, filteredRows));
+    }, [filteredRows]);
+
+    const handleClearSelection = useCallback(() => setToSendQuantities(clearProductionSendSelection()), []);
 
     const executeSend = useCallback(async (
         itemsToSend: Array<{ sku: string; variant: string | null; qty: number; size_info?: string; cord_color?: string | null; enamel_color?: string | null; notes?: string; line_id?: string | null }>,
@@ -473,11 +487,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
 
     const handleSend = useCallback(async () => {
         if (isLoadingShipments) { showToast("Περιμένετε να φορτωθεί το ιστορικό αποστολών.", "info"); return; }
-        const itemsToSend = rows.map((r) => ({
-            sku: r.sku, variant: r.variant_suffix || null, qty: toSendQuantities[r.originalIndex] || 0,
-            size_info: r.size_info, cord_color: r.cord_color || null, enamel_color: r.enamel_color || null,
-            notes: r.notes, line_id: r.line_id ?? null
-        })).filter(i => i.qty > 0);
+        const itemsToSend = buildProductionSendItemsFromSelection(rows, toSendQuantities);
         if (itemsToSend.length === 0) { showToast("Δεν επιλέχθηκαν τεμάχια για αποστολή.", "info"); return; }
         const latestBatches = await queryClient.fetchQuery({
             queryKey: productionKeys.batches(),
@@ -1169,9 +1179,63 @@ export default function ProductionSendModal({ order: orderProp, products, materi
 
                         {/* Virtualized Item List */}
                         <div ref={listParentRef} className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
+                            {sendSelectionSummary.visiblePendingQty > 0 && (
+                                <div className="sticky top-0 z-[6] mx-3 mt-3 mb-2 bg-amber-50/95 backdrop-blur-sm border border-amber-200 rounded-xl p-2.5 shadow-sm">
+                                    <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+                                        <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                            <div className="flex items-center gap-1.5 text-[11px] font-black text-amber-900 mr-1">
+                                                <Factory size={13} />
+                                                Εκκρεμή για Παραγωγή
+                                            </div>
+                                            <span className="text-[11px] font-black text-amber-700 bg-white/70 border border-amber-200 px-2 py-1 rounded-md">
+                                                Ορατό υπόλοιπο: {sendSelectionSummary.visiblePendingQty}
+                                            </span>
+                                            <span className="text-[11px] font-black text-emerald-700 bg-white/70 border border-emerald-200 px-2 py-1 rounded-md">
+                                                Επιλεγμένα: {sendSelectionSummary.totalSelectedQty} τεμ. / {sendSelectionSummary.selectedLineCount} γραμμ.
+                                            </span>
+                                            {sendSelectionSummary.hiddenSelectedQty > 0 && (
+                                                <span className="text-[11px] font-black text-orange-700 bg-orange-50 border border-orange-200 px-2 py-1 rounded-md">
+                                                    +{sendSelectionSummary.hiddenSelectedQty} κρυφά από φίλτρα
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                            <button
+                                                onClick={handleSelectVisible}
+                                                disabled={isLoadingShipments || sendSelectionSummary.visiblePendingQty === 0}
+                                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-black bg-white text-blue-700 border border-blue-200 hover:bg-blue-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                            >
+                                                <CheckSquare size={13} /> Επιλογή ορατών
+                                            </button>
+                                            <button
+                                                onClick={handleUnselectVisible}
+                                                disabled={sendSelectionSummary.visibleSelectedQty === 0}
+                                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-black bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                            >
+                                                <Square size={13} /> Αποεπιλογή ορατών
+                                            </button>
+                                            <button
+                                                onClick={handleClearSelection}
+                                                disabled={totalToSend === 0}
+                                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-black bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                            >
+                                                <X size={13} /> Καθαρισμός όλων
+                                            </button>
+                                            <button
+                                                onClick={handleSend}
+                                                disabled={isSending || isLoadingShipments || totalToSend === 0}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black bg-emerald-600 text-white border border-emerald-700 hover:bg-emerald-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                                            >
+                                                {isSending ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                                                Έναρξη επιλεγμένων
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                             {/* Sticky bulk bar */}
                             {visibleActiveBatches.length > 0 && (
-                                <div className="sticky top-0 z-[5] mx-3 mt-3 mb-2 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-xl p-2.5 shadow-sm">
+                                <div className={`sticky ${sendSelectionSummary.visiblePendingQty > 0 ? 'top-[104px]' : 'top-0'} z-[5] mx-3 mt-3 mb-2 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-xl p-2.5 shadow-sm`}>
                                     <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <button
@@ -1224,7 +1288,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                     {rowVirtualizer.getVirtualItems().map(virtualRow => {
                                         const row = filteredRows[virtualRow.index];
                                         const product = products.find(p => p.sku === row.sku);
-                                        const currentSend = toSendQuantities[row.originalIndex] || 0;
+                                        const currentSend = Math.min(row.remainingQty, Math.max(0, toSendQuantities[row.originalIndex] || 0));
                                         return (
                                             <div
                                                 key={`${buildOrderItemIdentityKey(row)}::idx:${row.originalIndex}`}
@@ -1300,6 +1364,22 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                 {isSending ? <Loader2 className="animate-spin" size={18} /> : <Factory size={18} />}
                                 {isSending ? 'Αποστολή...' : 'Εκκίνηση Παραγωγής'}
                             </button>
+                            <div className="grid grid-cols-2 gap-2 text-[10px] font-black">
+                                <div className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-2">
+                                    <div className="text-slate-500 uppercase tracking-widest">Γραμμές</div>
+                                    <div className="text-white text-sm">{sendSelectionSummary.selectedLineCount}</div>
+                                </div>
+                                <div className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-2">
+                                    <div className="text-slate-500 uppercase tracking-widest">Υπόλοιπο</div>
+                                    <div className="text-white text-sm">{sendSelectionSummary.totalPendingQty}</div>
+                                </div>
+                            </div>
+                            {sendSelectionSummary.hiddenSelectedQty > 0 && (
+                                <div className="flex items-start gap-2 rounded-lg border border-orange-400/30 bg-orange-400/10 px-2.5 py-2 text-[10px] font-bold text-orange-100 leading-snug">
+                                    <AlertCircle size={13} className="shrink-0 mt-0.5" />
+                                    <span>{sendSelectionSummary.hiddenSelectedQty} επιλεγμένα τεμ. είναι κρυφά από τα τρέχοντα φίλτρα.</span>
+                                </div>
+                            )}
                         </div>
 
                         {/* History/Shipments */}
@@ -1442,12 +1522,15 @@ export default function ProductionSendModal({ order: orderProp, products, materi
 
                         {/* Totals Footer */}
                         <div className="p-3 bg-white border-t border-slate-200">
-                            <div className="flex gap-2 w-full mb-3">
-                                <button onClick={handleSelectVisible} disabled={isLoadingShipments} className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-[10px] font-bold hover:bg-blue-200 transition-colors border border-blue-200 shadow-sm disabled:opacity-50">
-                                    <CheckSquare size={12} /> Επιλ. Ορατών
+                            <div className="grid grid-cols-3 gap-2 w-full mb-3">
+                                <button onClick={handleSelectVisible} disabled={isLoadingShipments || sendSelectionSummary.visiblePendingQty === 0} className="flex items-center justify-center gap-1 px-2 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-[10px] font-bold hover:bg-blue-200 transition-colors border border-blue-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <CheckSquare size={12} /> Ορατά
                                 </button>
-                                <button onClick={handleClearSelection} className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-white text-slate-600 rounded-lg text-[10px] font-bold hover:bg-slate-100 transition-colors border border-slate-200 shadow-sm">
-                                    <Square size={12} /> Καθαρ.
+                                <button onClick={handleUnselectVisible} disabled={sendSelectionSummary.visibleSelectedQty === 0} className="flex items-center justify-center gap-1 px-2 py-1.5 bg-white text-slate-600 rounded-lg text-[10px] font-bold hover:bg-slate-100 transition-colors border border-slate-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <Square size={12} /> Αποεπ.
+                                </button>
+                                <button onClick={handleClearSelection} disabled={totalToSend === 0} className="flex items-center justify-center gap-1 px-2 py-1.5 bg-white text-slate-600 rounded-lg text-[10px] font-bold hover:bg-slate-100 transition-colors border border-slate-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <X size={12} /> Όλα
                                 </button>
                             </div>
                             <div className="space-y-1 text-[11px] pt-2 border-t border-slate-100">
