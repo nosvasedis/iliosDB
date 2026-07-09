@@ -67,3 +67,6 @@ reasonix.toml
 
 # Local verification scratch files
 tmp/
+
+# Local git worktrees
+.worktrees/
