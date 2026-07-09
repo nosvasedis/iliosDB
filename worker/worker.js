@@ -11,6 +11,491 @@ const CORS_HEADERS = {
   'Access-Control-Max-Age': '86400',
 };
 
+const BACKUP_TABLES = [
+  'global_settings', 'warehouses', 'profiles', 'tag_color_overrides',
+  'suppliers', 'customers', 'molds', 'materials', 'collections', 'products',
+  'product_variants', 'recipes', 'product_molds', 'product_collections',
+  'product_stock', 'stock_movements', 'orders', 'order_delivery_plans',
+  'order_delivery_reminders', 'order_shipments', 'order_shipment_items',
+  'legal_settings', 'legal_numbering_sequences', 'legal_sync_runs',
+  'legal_carriers', 'legal_documents', 'legal_document_lines', 'legal_payments',
+  'legal_transmissions', 'legal_delivery_events', 'legal_audit_log',
+  'proforma_documents', 'proforma_document_lines', 'production_batches',
+  'batch_stage_history', 'offers', 'supplier_orders', 'price_snapshots',
+  'price_snapshot_items', 'audit_logs',
+];
+
+export function selectExpiredBackupKeys(keys, dailyRetention = 30, monthlyRetention = 12) {
+  const daily = keys.filter((key) => key.startsWith('backups/daily/')).sort().reverse();
+  const monthly = keys.filter((key) => key.startsWith('backups/monthly/')).sort().reverse();
+  return [...daily.slice(dailyRetention), ...monthly.slice(monthlyRetention)];
+}
+
+export function selectUnreferencedImageKeys(allImageKeys, referencedImageKeys) {
+  return allImageKeys.filter((key) => !referencedImageKeys.has(key));
+}
+
+function athensDateParts(date) {
+  return Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Athens',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(date).filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]),
+  );
+}
+
+export function shouldRunScheduledBackup(date, existingKeys) {
+  const parts = athensDateParts(date);
+  const day = `${parts.year}-${parts.month}-${parts.day}`;
+  return parts.hour === '02'
+    && !existingKeys.some((key) => key.startsWith(`backups/daily/${day}`));
+}
+
+export async function verifyAdminAccess(request, env, fetchFn = fetch) {
+  const authorization = request.headers.get('Authorization') || '';
+  if (!authorization.startsWith('Bearer ')) {
+    return { ok: false, status: 401, error: 'Missing user bearer token.' };
+  }
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
+    return { ok: false, status: 500, error: 'Missing Supabase admin configuration.' };
+  }
+  const headers = {
+    apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: authorization,
+    'Content-Type': 'application/json',
+  };
+  const userResponse = await fetchFn(`${env.SUPABASE_URL}/auth/v1/user`, { headers });
+  if (!userResponse.ok) {
+    return { ok: false, status: 401, error: 'Invalid or expired user session.' };
+  }
+  const user = await userResponse.json();
+  const profileResponse = await fetchFn(
+    `${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=role,is_approved`,
+    {
+      headers: {
+        apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+    },
+  );
+  if (!profileResponse.ok) {
+    return { ok: false, status: 403, error: 'Unable to verify administrator profile.' };
+  }
+  const [profile] = await profileResponse.json();
+  if (profile?.role !== 'admin' || profile?.is_approved !== true) {
+    return { ok: false, status: 403, error: 'Approved administrator access is required.' };
+  }
+  return { ok: true, status: 200, userId: user.id };
+}
+
+async function sha256Hex(bytes) {
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function stableJsonValue(value) {
+  if (Array.isArray(value)) return value.map(stableJsonValue);
+  if (value && typeof value === 'object') {
+    return Object.keys(value).sort().reduce((result, key) => {
+      if (value[key] !== undefined) result[key] = stableJsonValue(value[key]);
+      return result;
+    }, {});
+  }
+  return value;
+}
+
+function stableJsonStringify(value) {
+  return JSON.stringify(stableJsonValue(value));
+}
+
+function stableTableStringify(rows) {
+  return JSON.stringify([...rows].sort((left, right) => stableJsonStringify(left).localeCompare(stableJsonStringify(right))).map(stableJsonValue));
+}
+
+function decodeEncryptionKey(value) {
+  if (!value) throw new Error('BACKUP_ENCRYPTION_KEY is not configured.');
+  const normalized = String(value).trim();
+  const bytes = normalized.length === 64 && /^[0-9a-f]+$/i.test(normalized)
+    ? Uint8Array.from(normalized.match(/../g), (hex) => parseInt(hex, 16))
+    : Uint8Array.from(atob(normalized), (character) => character.charCodeAt(0));
+  if (bytes.length !== 32) throw new Error('BACKUP_ENCRYPTION_KEY must decode to exactly 32 bytes.');
+  return bytes;
+}
+
+async function encryptAutomaticBackup(payload, env) {
+  const key = await crypto.subtle.importKey('raw', decodeEncryptionKey(env.BACKUP_ENCRYPTION_KEY), 'AES-GCM', false, ['encrypt']);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const plaintext = new TextEncoder().encode(JSON.stringify(payload));
+  const encrypted = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext));
+  const result = new Uint8Array(1 + iv.length + encrypted.length);
+  result[0] = 1;
+  result.set(iv, 1);
+  result.set(encrypted, 13);
+  return result;
+}
+
+async function decryptAutomaticBackup(bytes, env) {
+  if (bytes[0] !== 1) throw new Error('Unsupported automatic backup encryption version.');
+  const key = await crypto.subtle.importKey('raw', decodeEncryptionKey(env.BACKUP_ENCRYPTION_KEY), 'AES-GCM', false, ['decrypt']);
+  const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes.slice(1, 13) }, key, bytes.slice(13));
+  return JSON.parse(new TextDecoder().decode(plaintext));
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let index = 0; index < bytes.length; index += 32768) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + 32768));
+  }
+  return btoa(binary);
+}
+
+async function adminFetch(env, path, options = {}) {
+  const response = await fetch(`${env.SUPABASE_URL}${path}`, {
+    ...options,
+    headers: {
+      apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+  });
+  const text = await response.text();
+  let data;
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  if (!response.ok) {
+    throw new Error(`${path}: ${data?.message || data?.msg || text || response.status}`);
+  }
+  return data;
+}
+
+async function fetchAllRows(env, table) {
+  const rows = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const page = await adminFetch(env, `/rest/v1/${encodeURIComponent(table)}?select=*&offset=${offset}&limit=${pageSize}`);
+    rows.push(...page);
+    if (page.length < pageSize) return rows;
+  }
+}
+
+async function fetchAllAuthUsers(env) {
+  const users = [];
+  for (let page = 1; ; page += 1) {
+    const result = await adminFetch(env, `/auth/v1/admin/users?page=${page}&per_page=1000`);
+    const batch = result.users || [];
+    users.push(...batch.map((user) => ({
+      id: user.id,
+      email: user.email,
+      phone: user.phone,
+      app_metadata: user.app_metadata,
+      user_metadata: user.user_metadata,
+      created_at: user.created_at,
+    })));
+    if (batch.length < 1000) return users;
+  }
+}
+
+export function rewriteRestoredIds(value, idMap) {
+  if (Array.isArray(value)) return value.map((item) => rewriteRestoredIds(item, idMap));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, rewriteRestoredIds(item, idMap)]));
+  }
+  return typeof value === 'string' && idMap.has(value) ? idMap.get(value) : value;
+}
+
+async function prepareAuthRestore(env, authUsers, tables) {
+  if (!Array.isArray(authUsers) || authUsers.length === 0) {
+    return { tables, recreated: [], passwordResetRequired: [] };
+  }
+  const currentUsers = await fetchAllAuthUsers(env);
+  const byEmail = new Map(currentUsers.filter((user) => user.email).map((user) => [user.email.toLowerCase(), user]));
+  const idMap = new Map();
+  const recreated = [];
+  const passwordResetRequired = [];
+
+  for (const source of authUsers) {
+    const email = String(source.email || '').trim().toLowerCase();
+    const existing = email ? byEmail.get(email) : currentUsers.find((user) => user.id === source.id);
+    if (existing) {
+      idMap.set(source.id, existing.id);
+      continue;
+    }
+    if (!email) throw new Error(`Cannot recreate Auth user ${source.id} without an email address.`);
+    const randomPassword = `${crypto.randomUUID()}-${crypto.randomUUID()}!`;
+    const created = await adminFetch(env, '/auth/v1/admin/users', {
+      method: 'POST',
+      body: JSON.stringify({
+        email,
+        password: randomPassword,
+        email_confirm: true,
+        user_metadata: source.user_metadata || {},
+        app_metadata: { ...(source.app_metadata || {}), force_password_reset: true },
+      }),
+    });
+    idMap.set(source.id, created.id);
+    recreated.push({ oldId: source.id, newId: created.id, email });
+    passwordResetRequired.push(email);
+    await adminFetch(
+      env,
+      `/auth/v1/recover${env.APP_URL ? `?redirect_to=${encodeURIComponent(env.APP_URL)}` : ''}`,
+      { method: 'POST', body: JSON.stringify({ email }) },
+    );
+  }
+  return {
+    tables: rewriteRestoredIds(tables, idMap),
+    recreated,
+    passwordResetRequired,
+  };
+}
+
+async function listAllKeys(bucket, prefix) {
+  const keys = [];
+  let cursor;
+  do {
+    const page = await bucket.list({ prefix, cursor });
+    keys.push(...page.objects.map((object) => object.key));
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+  return keys;
+}
+
+async function snapshotImages(env) {
+  const index = {};
+  if (!env.R2_BUCKET || !env.R2_BACKUPS) return index;
+  const keys = await listAllKeys(env.R2_BUCKET, '');
+  for (const key of keys) {
+    const object = await env.R2_BUCKET.get(key);
+    if (!object) continue;
+    const bytes = await object.arrayBuffer();
+    const hash = await sha256Hex(bytes);
+    const target = `image-blobs/${hash}`;
+    if (!(await env.R2_BACKUPS.head(target))) {
+      await env.R2_BACKUPS.put(target, bytes, {
+        httpMetadata: object.httpMetadata,
+        customMetadata: { sha256: hash, sourceKey: key },
+      });
+    }
+    index[key] = { sha256: hash, path: target, contentType: object.httpMetadata?.contentType || null };
+  }
+  return index;
+}
+
+async function garbageCollectImageBlobs(env) {
+  const backupKeys = await listAllKeys(env.R2_BACKUPS, 'backups/');
+  const referenced = new Set();
+  for (const key of backupKeys) {
+    const object = await env.R2_BACKUPS.get(key);
+    if (!object) continue;
+    const payload = await decryptAutomaticBackup(new Uint8Array(await object.arrayBuffer()), env);
+    Object.values(payload._image_index || {}).forEach((entry) => referenced.add(entry.path));
+  }
+  const imageKeys = await listAllKeys(env.R2_BACKUPS, 'image-blobs/');
+  for (const key of selectUnreferencedImageKeys(imageKeys, referenced)) {
+    await env.R2_BACKUPS.delete(key);
+  }
+}
+
+async function createAutomaticBackup(env, reason = 'scheduled') {
+  if (!env.R2_BACKUPS) throw new Error('R2_BACKUPS binding is not configured.');
+  const inventory = await adminFetch(env, '/rest/v1/rpc/backup_schema_inventory', {
+    method: 'POST',
+    body: '{}',
+  });
+  const liveTables = new Set(inventory.map((row) => row.table_name));
+  const missing = BACKUP_TABLES.filter((table) => !liveTables.has(table));
+  const unknown = [...liveTables].filter((table) => !BACKUP_TABLES.includes(table));
+  if (missing.length || unknown.length) {
+    throw new Error(`Backup registry mismatch; missing: ${missing.join(', ') || 'none'}; unregistered: ${unknown.join(', ') || 'none'}`);
+  }
+
+  const tables = {};
+  const manifestTables = {};
+  for (const table of BACKUP_TABLES) {
+    const rows = await fetchAllRows(env, table);
+    tables[table] = rows;
+    const encoded = new TextEncoder().encode(stableTableStringify(rows));
+    manifestTables[table] = {
+      status: rows.length ? 'exported' : 'empty',
+      row_count: rows.length,
+      sha256: await sha256Hex(encoded),
+    };
+  }
+  const authUsers = await fetchAllAuthUsers(env);
+  const images = await snapshotImages(env);
+  const now = new Date();
+  const parts = athensDateParts(now);
+  const dateKey = `${parts.year}-${parts.month}-${parts.day}`;
+  const timestamp = now.toISOString().replace(/[:.]/g, '-');
+  const payload = {
+    _manifest: {
+      format: 'ilios_erp_backup',
+      version: 4,
+      created_at: now.toISOString(),
+      complete: true,
+      reason,
+      source: { app_version: '1.0.0', schema_version: '20260709100558', is_local_mode: false },
+      tables: manifestTables,
+      images: { count: Object.keys(images).length, failed: [] },
+      recovery_checklist: [
+        'Re-enter infrastructure credentials after recovery.',
+        'Verify Worker, R2, Auth, Realtime, AADE, and email configuration.',
+      ],
+    },
+    tables,
+    _auth_users: authUsers,
+    _image_index: images,
+  };
+  const encrypted = await encryptAutomaticBackup(payload, env);
+  const dailyKey = `backups/daily/${dateKey}-${timestamp}.json.enc`;
+  await env.R2_BACKUPS.put(dailyKey, encrypted, {
+    customMetadata: {
+      createdAt: now.toISOString(),
+      complete: 'true',
+      tableCount: String(BACKUP_TABLES.length),
+      authUserCount: String(authUsers.length),
+      imageCount: String(Object.keys(images).length),
+      reason,
+    },
+  });
+  if (parts.day === '01') {
+    await env.R2_BACKUPS.put(`backups/monthly/${parts.year}-${parts.month}-${timestamp}.json.enc`, encrypted, {
+      customMetadata: { createdAt: now.toISOString(), complete: 'true', reason: 'monthly' },
+    });
+  }
+  const keys = await listAllKeys(env.R2_BACKUPS, 'backups/');
+  for (const key of selectExpiredBackupKeys(keys)) await env.R2_BACKUPS.delete(key);
+  await garbageCollectImageBlobs(env);
+  return { key: dailyKey, manifest: payload._manifest };
+}
+
+async function handleBackupAdminRoute(request, env, corsHeaders, url) {
+  if (!env.R2_BACKUPS) return jsonResponse({ error: 'Private backup storage is not configured.' }, 503, corsHeaders);
+  if (url.pathname === '/admin/backups/schema' && request.method === 'GET') {
+    const inventory = await adminFetch(env, '/rest/v1/rpc/backup_schema_inventory', { method: 'POST', body: '{}' });
+    const liveTables = inventory.map((row) => row.table_name);
+    return jsonResponse({
+      complete: BACKUP_TABLES.every((table) => liveTables.includes(table))
+        && liveTables.every((table) => BACKUP_TABLES.includes(table)),
+      registered: BACKUP_TABLES,
+      live: liveTables,
+      missing: BACKUP_TABLES.filter((table) => !liveTables.includes(table)),
+      unregistered: liveTables.filter((table) => !BACKUP_TABLES.includes(table)),
+    }, 200, corsHeaders);
+  }
+  if (url.pathname === '/admin/backups/auth-users' && request.method === 'GET') {
+    return jsonResponse({ users: await fetchAllAuthUsers(env) }, 200, corsHeaders);
+  }
+  if (url.pathname === '/admin/backups' && request.method === 'GET') {
+    const listed = await env.R2_BACKUPS.list({ prefix: 'backups/daily/', include: ['customMetadata'] });
+    const backups = listed.objects
+      .sort((a, b) => b.uploaded.getTime() - a.uploaded.getTime())
+      .map((object) => ({
+        key: object.key,
+        size: object.size,
+        uploaded: object.uploaded.toISOString(),
+        ...object.customMetadata,
+      }));
+    return jsonResponse({ backups, retention: { daily: 30, monthly: 12 } }, 200, corsHeaders);
+  }
+  if (url.pathname === '/admin/backups' && request.method === 'POST') {
+    return jsonResponse(await createAutomaticBackup(env, 'manual-server'), 201, corsHeaders);
+  }
+  if (url.pathname === '/admin/backups/download' && request.method === 'GET') {
+    const key = url.searchParams.get('key') || '';
+    if (!key.startsWith('backups/')) return jsonResponse({ error: 'Invalid backup key.' }, 400, corsHeaders);
+    const object = await env.R2_BACKUPS.get(key);
+    if (!object) return jsonResponse({ error: 'Backup not found.' }, 404, corsHeaders);
+    const payload = await decryptAutomaticBackup(new Uint8Array(await object.arrayBuffer()), env);
+    const images = {};
+    for (const [sourceKey, entry] of Object.entries(payload._image_index || {})) {
+      const image = await env.R2_BACKUPS.get(entry.path);
+      if (!image) throw new Error(`Backup image blob is missing: ${entry.path}`);
+      const bytes = await image.arrayBuffer();
+      images[sourceKey.split('/').pop()] = `data:${entry.contentType || 'image/jpeg'};base64,${arrayBufferToBase64(bytes)}`;
+    }
+    return jsonResponse({
+      _meta: {
+        version: 4,
+        format: 'ilios_erp_backup',
+        created_at: payload._manifest.created_at,
+        table_counts: Object.fromEntries(Object.entries(payload._manifest.tables).map(([table, entry]) => [table, entry.row_count])),
+        image_count: Object.keys(images).length,
+        failed_images: [],
+        failed_tables: [],
+        total_tables: Object.keys(payload._manifest.tables).length,
+        is_local_mode: false,
+      },
+      _manifest: payload._manifest,
+      _auth_users: payload._auth_users,
+      _images: images,
+      tables: payload.tables,
+    }, 200, corsHeaders);
+  }
+  if (url.pathname === '/admin/backups/verify' && request.method === 'POST') {
+    const { key } = await request.json();
+    if (!String(key || '').startsWith('backups/')) return jsonResponse({ error: 'Invalid backup key.' }, 400, corsHeaders);
+    const object = await env.R2_BACKUPS.get(key);
+    if (!object) return jsonResponse({ error: 'Backup not found.' }, 404, corsHeaders);
+    const payload = await decryptAutomaticBackup(new Uint8Array(await object.arrayBuffer()), env);
+    const errors = [];
+    for (const [table, entry] of Object.entries(payload._manifest.tables)) {
+      const rows = payload.tables[table];
+      const digest = await sha256Hex(new TextEncoder().encode(stableTableStringify(rows)));
+      if (!Array.isArray(rows) || rows.length !== entry.row_count || digest !== entry.sha256) errors.push(table);
+    }
+    for (const [sourceKey, entry] of Object.entries(payload._image_index || {})) {
+      const image = await env.R2_BACKUPS.get(entry.path);
+      if (!image) {
+        errors.push(`image:${sourceKey}`);
+        continue;
+      }
+      const digest = await sha256Hex(await image.arrayBuffer());
+      if (digest !== entry.sha256) errors.push(`image:${sourceKey}`);
+    }
+    return jsonResponse({ valid: errors.length === 0, errors, manifest: payload._manifest }, 200, corsHeaders);
+  }
+  if (url.pathname === '/admin/backups/restore' && request.method === 'POST') {
+    const body = await request.json();
+    if (!body.manifest || body.manifest.version !== 4 || body.manifest.format !== 'ilios_erp_backup') {
+      return jsonResponse({ error: 'Restore requires an Ilios v4 manifest.' }, 400, corsHeaders);
+    }
+    for (const [table, entry] of Object.entries(body.manifest.tables || {})) {
+      if (!Object.prototype.hasOwnProperty.call(body.tables || {}, table)) continue;
+      const rows = body.tables[table];
+      if (!Array.isArray(rows)) return jsonResponse({ error: `${table}: payload is not an array.` }, 400, corsHeaders);
+      const digest = await sha256Hex(new TextEncoder().encode(stableTableStringify(rows)));
+      if (rows.length !== entry.row_count || digest !== entry.sha256) {
+        return jsonResponse({ error: `${table}: manifest verification failed.` }, 400, corsHeaders);
+      }
+    }
+    const authRestore = await prepareAuthRestore(env, body.authUsers, body.tables);
+    const stage = await adminFetch(env, '/rest/v1/rpc/backup_stage_restore', {
+      method: 'POST',
+      body: JSON.stringify({
+        p_manifest: body.manifest,
+        p_tables: authRestore.tables,
+        p_mode: body.mode,
+        p_requested_tables: body.requestedTables,
+      }),
+    });
+    const result = await adminFetch(env, '/rest/v1/rpc/backup_apply_restore', {
+      method: 'POST',
+      body: JSON.stringify({ p_session: stage }),
+    });
+    return jsonResponse({ ...result, auth: {
+      recreated: authRestore.recreated,
+      passwordResetRequired: authRestore.passwordResetRequired,
+    } }, 200, corsHeaders);
+  }
+  return null;
+}
+
 // External data: Greek Orthodox namedays (fixed + moving) from GitHub. Cache 24h.
 const FIXED_NAMEDAYS_URL = 'https://raw.githubusercontent.com/stavros-melidoniotis/greek-namedays/master/fixed_namedays.json';
 const MOVING_NAMEDAYS_URL = 'https://raw.githubusercontent.com/stavros-melidoniotis/greek-namedays/master/moving_namedays.json';
@@ -379,6 +864,11 @@ async function handleAdminRoute(request, env, corsHeaders, url) {
     return { ok: response.ok, status: response.status, data };
   };
 
+  if (url.pathname.startsWith('/admin/backups')) {
+    const response = await handleBackupAdminRoute(request, env, corsHeaders, url);
+    if (response) return response;
+  }
+
   if (url.pathname === '/admin/create-seller' && request.method === 'POST') {
     const body = await request.json();
     const { email, password, full_name, commission_percent } = body;
@@ -675,7 +1165,7 @@ export default {
       const isAdminRoute = url.pathname.startsWith('/admin/');
       const isAadeRoute = url.pathname.startsWith('/aade/');
       const isMutation = ['POST', 'DELETE', 'PUT', 'PATCH'].includes(request.method);
-      const isProtected = isMutation || isSilverRoute || isAdminRoute || isAadeRoute;
+      const isProtected = (isMutation && !isAdminRoute) || isSilverRoute || isAadeRoute;
 
       if (isProtected && (!authHeader || authHeader !== env.AUTH_KEY_SECRET)) {
         return new Response('Unauthorized', { status: 403, headers: CORS_HEADERS });
@@ -686,6 +1176,8 @@ export default {
       }
 
       if (isAdminRoute) {
+        const access = await verifyAdminAccess(request, env);
+        if (!access.ok) return jsonResponse({ error: access.error }, access.status, CORS_HEADERS);
         return handleAdminRoute(request, env, CORS_HEADERS, url);
       }
 
@@ -871,7 +1363,15 @@ export default {
       return new Response('Method Not Allowed', { status: 405, headers: CORS_HEADERS });
 
     } catch (err) {
-      return new Response(`Worker Error: ${err.message}`, { status: 500, headers: CORS_HEADERS });
+      console.error('Worker error:', err);
+      return jsonResponse({ error: err?.message || 'Worker error' }, 500, CORS_HEADERS);
     }
+  },
+
+  async scheduled(_controller, env, ctx) {
+    if (!env.R2_BACKUPS) return;
+    const keys = await listAllKeys(env.R2_BACKUPS, 'backups/daily/');
+    if (!shouldRunScheduledBackup(new Date(), keys)) return;
+    ctx.waitUntil(createAutomaticBackup(env, 'scheduled'));
   },
 };

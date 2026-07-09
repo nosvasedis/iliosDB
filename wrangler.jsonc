@@ -8,6 +8,16 @@
     {
       "binding": "R2_BUCKET",
       "bucket_name": "ilios-erp-images"
+    },
+    {
+      "binding": "R2_BACKUPS",
+      "bucket_name": "ilios-erp-backups"
     }
-  ]
+  ],
+  "triggers": {
+    "crons": ["0 * * * *"]
+  },
+  "vars": {
+    "BACKUP_TIMEZONE": "Europe/Athens"
+  }
 }

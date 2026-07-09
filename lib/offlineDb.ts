@@ -45,6 +45,18 @@ export const offlineDb = {
         }
     },
 
+    saveTablesAtomic: async (tables: Record<string, any[]>) => {
+        const db = await openDB();
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        Object.entries(tables).forEach(([tableName, data]) => store.put(data, tableName));
+        return new Promise<void>((resolve, reject) => {
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+            tx.onabort = () => reject(tx.error);
+        });
+    },
+
     getTable: async (tableName: string): Promise<any[] | null> => {
         try {
             const db = await openDB();

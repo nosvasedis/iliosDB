@@ -84,7 +84,7 @@ describe('validateBackup', () => {
     it('validates V3 envelope with export_options', () => {
         const result = validateBackup({
             _meta: {
-                version: BACKUP_VERSION,
+                version: 3,
                 format: BACKUP_FORMAT_MARKER,
                 created_at: '2026-01-01T00:00:00.000Z',
                 table_counts: { products: 2, profiles: 1 },

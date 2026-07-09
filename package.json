@@ -23,6 +23,7 @@
     "@tanstack/react-query-persist-client": "^5.90.23",
     "@tanstack/react-virtual": "^3.0.1",
     "appwrite": "^14.0.0",
+    "fflate": "0.8.2",
     "html2canvas": "^1.4.1",
     "jsbarcode": "^3.11.5",
     "lucide-react": "^0.344.0",

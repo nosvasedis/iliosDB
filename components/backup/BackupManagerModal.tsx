@@ -11,6 +11,7 @@ import {
     BackupExportOptions,
     BackupRestoreOptions,
     ValidationResult,
+    AutomaticBackupRecord,
     getDefaultExportOptions,
     getDefaultRestoreOptions,
     resolveExportTables,
@@ -18,17 +19,24 @@ import {
     validateBackup,
 } from '../../lib/backupConfig';
 import { api } from '../../lib/supabase';
+import { buildRestoreImpact } from '../../lib/backupEngine';
+import { createRecoveryBundle } from '../../lib/backupPackage';
+import { downloadBlob } from '../../utils/exportUtils';
 
 export type BackupManagerMode = 'export' | 'restore';
+export type BackupExportKind = 'recovery' | 'migration' | 'prisma';
 
 interface BackupManagerModalProps {
     isOpen: boolean;
     mode: BackupManagerMode;
     onClose: () => void;
     restoreData?: unknown;
-    onRunExport: (options: BackupExportOptions, format: 'json' | 'csv') => void;
+    onRunExport: (options: BackupExportOptions, format: BackupExportKind, password?: string) => void;
     onRunRestore: (data: unknown, options: BackupRestoreOptions) => void;
     onPickRestoreFile?: () => void;
+    onLoadAutomaticBackup?: (backup: unknown) => void;
+    encryptedRestorePending?: boolean;
+    onUnlockRestore?: (password: string) => Promise<void>;
 }
 
 function ToggleRow({
@@ -72,6 +80,9 @@ export default function BackupManagerModal({
     onRunExport,
     onRunRestore,
     onPickRestoreFile,
+    onLoadAutomaticBackup,
+    encryptedRestorePending,
+    onUnlockRestore,
 }: BackupManagerModalProps) {
     const [exportOptions, setExportOptions] = useState<BackupExportOptions>(getDefaultExportOptions());
     const [restoreOptions, setRestoreOptions] = useState<BackupRestoreOptions>(getDefaultRestoreOptions());
@@ -80,12 +91,23 @@ export default function BackupManagerModal({
     const [loadingStats, setLoadingStats] = useState(false);
     const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(BACKUP_CATEGORIES.map((c) => c.id)));
     const [validation, setValidation] = useState<ValidationResult | null>(null);
+    const [encryptRecovery, setEncryptRecovery] = useState(false);
+    const [recoveryPassword, setRecoveryPassword] = useState('');
+    const [automaticBackups, setAutomaticBackups] = useState<AutomaticBackupRecord[]>([]);
+    const [automaticBackupError, setAutomaticBackupError] = useState('');
+    const [creatingAutomaticBackup, setCreatingAutomaticBackup] = useState(false);
+    const [automaticActionKey, setAutomaticActionKey] = useState('');
+    const [unlockPassword, setUnlockPassword] = useState('');
+    const [unlockError, setUnlockError] = useState('');
+    const [unlocking, setUnlocking] = useState(false);
 
     useEffect(() => {
         if (!isOpen) return;
         if (mode === 'export') {
             setExportOptions(getDefaultExportOptions());
             setSelectedPresetId('full');
+            setEncryptRecovery(false);
+            setRecoveryPassword('');
         }
     }, [isOpen, mode]);
 
@@ -99,6 +121,64 @@ export default function BackupManagerModal({
     }, [isOpen, mode]);
 
     useEffect(() => {
+        if (!isOpen || mode !== 'export') return;
+        api.listAutomaticBackups()
+            .then((result) => {
+                setAutomaticBackups(result.backups);
+                setAutomaticBackupError('');
+            })
+            .catch((error) => setAutomaticBackupError(error?.message || 'Τα αυτόματα backup δεν έχουν ρυθμιστεί.'));
+    }, [isOpen, mode]);
+
+    const createAutomaticBackup = async () => {
+        setCreatingAutomaticBackup(true);
+        setAutomaticBackupError('');
+        try {
+            await api.createAutomaticBackup();
+            const result = await api.listAutomaticBackups();
+            setAutomaticBackups(result.backups);
+            if (result.backups[0]) {
+                const verification = await api.verifyAutomaticBackup(result.backups[0].key);
+                if (!verification.valid) throw new Error('Το νέο αυτόματο backup απέτυχε στην επαλήθευση.');
+            }
+        } catch (error: any) {
+            setAutomaticBackupError(error?.message || 'Αποτυχία αυτόματου backup.');
+        } finally {
+            setCreatingAutomaticBackup(false);
+        }
+    };
+
+    const downloadAutomaticBackup = async (backup: AutomaticBackupRecord) => {
+        setAutomaticActionKey(backup.key);
+        setAutomaticBackupError('');
+        try {
+            const data = await api.downloadAutomaticBackup(backup.key);
+            const bytes = await createRecoveryBundle(data);
+            downloadBlob(
+                new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer], { type: 'application/octet-stream' }),
+                `ilios_automatic_${backup.uploaded.replace(/[:.]/g, '-')}.iliosbackup`,
+            );
+        } catch (error: any) {
+            setAutomaticBackupError(error?.message || 'Αποτυχία λήψης backup.');
+        } finally {
+            setAutomaticActionKey('');
+        }
+    };
+
+    const loadAutomaticBackupForRestore = async (backup: AutomaticBackupRecord) => {
+        setAutomaticActionKey(backup.key);
+        setAutomaticBackupError('');
+        try {
+            const data = await api.downloadAutomaticBackup(backup.key);
+            onLoadAutomaticBackup?.(data);
+        } catch (error: any) {
+            setAutomaticBackupError(error?.message || 'Αποτυχία φόρτωσης backup.');
+        } finally {
+            setAutomaticActionKey('');
+        }
+    };
+
+    useEffect(() => {
         if (!isOpen || mode !== 'restore' || !restoreData) {
             setValidation(null);
             return;
@@ -110,6 +190,7 @@ export default function BackupManagerModal({
             : result.availableTables;
         setRestoreOptions({
             ...getDefaultRestoreOptions(defaultTables),
+            mode: defaultTables.length === result.availableTables.length ? 'exact' : 'merge',
             restoreConfig: result.hasConfig,
             includeSyncQueue: result.hasSyncQueue,
             includeLocalExtras: result.hasExtras || true,
@@ -168,7 +249,12 @@ export default function BackupManagerModal({
             const next = checked
                 ? [...prev.tables, table]
                 : prev.tables.filter((t) => t !== table);
-            return { ...prev, tables: resolveTableDependencies([...new Set(next)]) };
+            const tables = resolveTableDependencies([...new Set(next)]);
+            return {
+                ...prev,
+                tables,
+                mode: tables.length === validation?.availableTables.length ? prev.mode : (prev.mode === 'exact' ? 'merge' : prev.mode),
+            };
         });
     };
 
@@ -177,12 +263,23 @@ export default function BackupManagerModal({
         return restoreOptions.tables.length < validation.availableTables.length;
     }, [validation, restoreOptions.tables]);
 
-    const handleExportJson = () => {
-        onRunExport(exportOptions, 'json');
+    const restoreImpact = useMemo(() => {
+        if (!validation) return null;
+        return buildRestoreImpact(
+            validation.availableTables,
+            restoreOptions.tables,
+            restoreOptions.mode ?? 'merge',
+        );
+    }, [validation, restoreOptions.tables, restoreOptions.mode]);
+
+    const handleRecoveryBackup = () => {
+        if (encryptRecovery && recoveryPassword.length < 8) return;
+        if (exportOptions.includeConfigSecrets && !encryptRecovery) return;
+        onRunExport(exportOptions, 'recovery', encryptRecovery ? recoveryPassword : undefined);
     };
 
-    const handleExportCsv = () => {
-        onRunExport(exportOptions, 'csv');
+    const handleMigrationExport = (format: 'migration' | 'prisma') => {
+        onRunExport(exportOptions, format);
     };
 
     const handleRestore = () => {
@@ -190,14 +287,33 @@ export default function BackupManagerModal({
         onRunRestore(restoreData, restoreOptions);
     };
 
+    const unlockRestore = async () => {
+        if (!onUnlockRestore || unlockPassword.length < 8) return;
+        setUnlocking(true);
+        setUnlockError('');
+        try {
+            await onUnlockRestore(unlockPassword);
+            setUnlockPassword('');
+        } catch (error: any) {
+            setUnlockError(error?.message || 'Ο κωδικός δεν είναι σωστός.');
+        } finally {
+            setUnlocking(false);
+        }
+    };
+
     if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="backup-manager-title"
+                className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+            >
                 <div className="p-6 pb-4 border-b border-slate-100 flex items-center justify-between shrink-0">
                     <div>
-                        <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <h2 id="backup-manager-title" className="text-lg font-bold text-slate-800 flex items-center gap-2">
                             <Database size={20} className="text-blue-500" />
                             {mode === 'export' ? 'Εξαγωγή & Backup' : 'Επαναφορά Backup'}
                         </h2>
@@ -207,7 +323,7 @@ export default function BackupManagerModal({
                                 : 'Επιλέξτε τι θέλετε να επαναφέρετε από το αρχείο'}
                         </p>
                     </div>
-                    <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 text-slate-400">
+                    <button type="button" onClick={onClose} aria-label="Κλείσιμο" className="p-2 rounded-xl hover:bg-slate-100 text-slate-400">
                         <X size={20} />
                     </button>
                 </div>
@@ -215,6 +331,58 @@ export default function BackupManagerModal({
                 <div className="flex-1 overflow-y-auto p-6 space-y-5">
                     {mode === 'export' && (
                         <>
+                            <div className={`p-4 rounded-2xl border ${automaticBackupError ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <div className="text-sm font-black text-slate-800">Αυτόματη προστασία</div>
+                                        {automaticBackups[0] ? (
+                                            <p className="text-xs text-slate-600 mt-1">
+                                                Τελευταίο: {new Date(automaticBackups[0].uploaded).toLocaleString('el-GR')}
+                                                {' · '}{Math.max(1, Math.round(automaticBackups[0].size / 1024 / 1024))} MB
+                                                {' · '}επόμενο καθημερινά στις 02:00
+                                            </p>
+                                        ) : (
+                                            <p className="text-xs text-slate-600 mt-1">Δεν υπάρχει ακόμη επαληθευμένο server backup.</p>
+                                        )}
+                                        <p className="text-[11px] text-slate-500 mt-1">Διατήρηση: 30 ημερήσια + 12 μηνιαία</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={createAutomaticBackup}
+                                        disabled={creatingAutomaticBackup}
+                                        className="px-3 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold disabled:opacity-50"
+                                    >
+                                        {creatingAutomaticBackup ? 'Δημιουργία…' : 'Backup τώρα'}
+                                    </button>
+                                </div>
+                                {automaticBackupError && <p className="text-xs text-amber-800 mt-2">{automaticBackupError}</p>}
+                                {automaticBackups.length > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-slate-200/70 space-y-2">
+                                        {automaticBackups.slice(0, 5).map((backup) => (
+                                            <div key={backup.key} className="flex items-center gap-2 text-xs">
+                                                <span className="flex-1 text-slate-600">{new Date(backup.uploaded).toLocaleString('el-GR')}</span>
+                                                <button
+                                                    type="button"
+                                                    disabled={automaticActionKey === backup.key}
+                                                    onClick={() => downloadAutomaticBackup(backup)}
+                                                    className="px-2 py-1 rounded-lg bg-white border border-slate-200 font-bold"
+                                                >
+                                                    Λήψη
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    disabled={automaticActionKey === backup.key || !onLoadAutomaticBackup}
+                                                    onClick={() => loadAutomaticBackupForRestore(backup)}
+                                                    className="px-2 py-1 rounded-lg bg-blue-600 text-white font-bold disabled:opacity-50"
+                                                >
+                                                    Επαναφορά
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
                             <div>
                                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">Πρότυπο</label>
                                 <select
@@ -330,6 +498,32 @@ export default function BackupManagerModal({
                                 <Info size={14} className="shrink-0 mt-0.5" />
                                 <span>Οι λογαριασμοί Supabase Auth δεν μπορούν να εξαχθούν από τον browser. Τα προφίλ (profiles) μπορούν να συμπεριληφθούν, αλλά οι κωδικοί πρέπει να δημιουργηθούν ξανά.</span>
                             </div>
+
+                            <div className="p-4 rounded-2xl border border-slate-200 bg-white space-y-3">
+                                <label className="flex items-center gap-3 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={encryptRecovery}
+                                        onChange={(event) => setEncryptRecovery(event.target.checked)}
+                                        className="rounded border-slate-300"
+                                    />
+                                    <span className="text-sm font-bold text-slate-700">Κρυπτογράφηση recovery backup με κωδικό</span>
+                                </label>
+                                {encryptRecovery && (
+                                    <div>
+                                        <input
+                                            type="password"
+                                            value={recoveryPassword}
+                                            onChange={(event) => setRecoveryPassword(event.target.value)}
+                                            placeholder="Τουλάχιστον 8 χαρακτήρες"
+                                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                                        />
+                                        {recoveryPassword.length > 0 && recoveryPassword.length < 8 && (
+                                            <p className="text-xs text-red-600 mt-1">Ο κωδικός πρέπει να έχει τουλάχιστον 8 χαρακτήρες.</p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </>
                     )}
 
@@ -338,13 +532,38 @@ export default function BackupManagerModal({
                             {!restoreData && (
                                 <div className="text-center py-8">
                                     <Upload size={40} className="mx-auto text-slate-300 mb-4" />
-                                    <p className="text-sm text-slate-500 mb-4">Επιλέξτε αρχείο backup (.json)</p>
-                                    <button
-                                        onClick={onPickRestoreFile}
-                                        className="px-6 py-3 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 text-sm"
-                                    >
-                                        Επιλογή Αρχείου
-                                    </button>
+                                    {encryptedRestorePending ? (
+                                        <div className="max-w-sm mx-auto space-y-3">
+                                            <p className="text-sm text-slate-600 font-bold">Το backup είναι κρυπτογραφημένο</p>
+                                            <input
+                                                type="password"
+                                                autoFocus
+                                                value={unlockPassword}
+                                                onChange={(event) => setUnlockPassword(event.target.value)}
+                                                onKeyDown={(event) => { if (event.key === 'Enter') unlockRestore(); }}
+                                                placeholder="Κωδικός backup"
+                                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                                            />
+                                            {unlockError && <p className="text-xs text-red-600">{unlockError}</p>}
+                                            <button
+                                                onClick={unlockRestore}
+                                                disabled={unlocking || unlockPassword.length < 8}
+                                                className="w-full px-6 py-3 bg-blue-600 text-white font-bold rounded-2xl disabled:opacity-50 text-sm"
+                                            >
+                                                {unlocking ? 'Έλεγχος…' : 'Ξεκλείδωμα & έλεγχος'}
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <p className="text-sm text-slate-500 mb-4">Επιλέξτε αρχείο backup (.iliosbackup ή .json)</p>
+                                            <button
+                                                onClick={onPickRestoreFile}
+                                                className="px-6 py-3 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 text-sm"
+                                            >
+                                                Επιλογή Αρχείου
+                                            </button>
+                                        </>
+                                    )}
                                 </div>
                             )}
 
@@ -379,6 +598,29 @@ export default function BackupManagerModal({
                                                     Θα αντικατασταθούν μόνο οι επιλεγμένοι πίνακες. Τα υπόλοιπα δεδομένα παραμένουν αμετάβλητα.
                                                 </div>
                                             )}
+
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Τρόπος επαναφοράς</label>
+                                                <select
+                                                    value={restoreOptions.mode ?? 'merge'}
+                                                    onChange={(event) => setRestoreOptions((previous) => ({
+                                                        ...previous,
+                                                        mode: event.target.value as BackupRestoreOptions['mode'],
+                                                    }))}
+                                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700"
+                                                >
+                                                    {!isRestorePartial && <option value="exact">Πλήρης ακριβής αντικατάσταση</option>}
+                                                    <option value="merge">Ασφαλής συγχώνευση / ενημέρωση</option>
+                                                    <option value="replace-selected">Προχωρημένη αντικατάσταση επιλεγμένων</option>
+                                                </select>
+                                                {restoreImpact && (
+                                                    <div className={`p-3 rounded-xl text-xs ${restoreImpact.destructiveTables.length ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                                                        {restoreImpact.destructiveTables.length
+                                                            ? `Θα αντικατασταθούν ${restoreImpact.destructiveTables.length} πίνακες μαζί με εξαρτώμενα δεδομένα.`
+                                                            : `Θα συγχωνευθούν ${restoreImpact.applyTables.length} πίνακες χωρίς διαγραφή υπαρχόντων δεδομένων.`}
+                                                    </div>
+                                                )}
+                                            </div>
 
                                             <div className="space-y-2">
                                                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Επιλογές επαναφοράς</label>
@@ -445,18 +687,27 @@ export default function BackupManagerModal({
                     {mode === 'export' && (
                         <>
                             <button
-                                onClick={handleExportCsv}
+                                onClick={() => handleMigrationExport('migration')}
                                 disabled={resolvedExportTables.length === 0}
                                 className="flex-1 min-w-[140px] flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 disabled:opacity-50 text-sm"
                             >
-                                <FileText size={16} /> Λήψη CSV
+                                <FileText size={16} /> Universal ERP
                             </button>
                             <button
-                                onClick={handleExportJson}
+                                onClick={() => handleMigrationExport('prisma')}
                                 disabled={resolvedExportTables.length === 0}
+                                className="flex-1 min-w-[140px] flex items-center justify-center gap-2 px-4 py-3 bg-violet-600 text-white font-bold rounded-2xl hover:bg-violet-700 disabled:opacity-50 text-sm"
+                            >
+                                <FileText size={16} /> PRISMA Win
+                            </button>
+                            <button
+                                onClick={handleRecoveryBackup}
+                                disabled={resolvedExportTables.length === 0
+                                    || (encryptRecovery && recoveryPassword.length < 8)
+                                    || (exportOptions.includeConfigSecrets && !encryptRecovery)}
                                 className="flex-1 min-w-[140px] flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 disabled:opacity-50 text-sm"
                             >
-                                <FileJson size={16} /> Λήψη JSON
+                                <FileJson size={16} /> Recovery Backup
                             </button>
                         </>
                     )}

@@ -20,13 +20,15 @@ import {
     writeLocalExtras,
 } from './backupConfig';
 import {
-    buildBackupEnvelope,
     exportProductImages,
     patchLocalProductImages,
     prepareExportPlan,
     prepareRestorePlan,
     restoreProductImagesToCloud,
+    buildRestoreImpact,
+    mergeRowsByConflict,
 } from './backupEngine';
+import { buildBackupV4, migrateBackupToV4, verifyBackupV4 } from './backupV4';
 import { buildDefaultReminderDrafts, syncPlanStatusWithOrder } from '../utils/deliveryScheduling';
 import { getOrthodoxCelebrationsForYear } from '../utils/orthodoxHoliday';
 import { buildItemIdentityKey } from '../utils/itemIdentity';
@@ -103,6 +105,17 @@ export const supabase = new Proxy(rawSupabase, {
         return Reflect.get(target, prop, receiver);
     },
 });
+
+async function getWorkerAdminHeaders(): Promise<Record<string, string>> {
+    const { data, error } = await rawSupabase.auth.getSession();
+    if (error || !data.session?.access_token) {
+        throw new Error('Απαιτείται ενεργή συνεδρία διαχειριστή.');
+    }
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${data.session.access_token}`,
+    };
+}
 
 /**
  * SMART URL RESOLVER
@@ -2363,7 +2376,7 @@ export const api = {
         assertInspectionWorkerRouteAllowed('/admin/create-seller');
         const res = await fetch(`${CLOUDFLARE_WORKER_URL}/admin/create-seller`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': AUTH_KEY_SECRET },
+            headers: await getWorkerAdminHeaders(),
             body: JSON.stringify(payload),
         });
         const json = await res.json();
@@ -2374,7 +2387,7 @@ export const api = {
         assertInspectionWorkerRouteAllowed('/admin/update-seller');
         const res = await fetch(`${CLOUDFLARE_WORKER_URL}/admin/update-seller`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': AUTH_KEY_SECRET },
+            headers: await getWorkerAdminHeaders(),
             body: JSON.stringify(payload),
         });
         const json = await res.json();
@@ -2384,7 +2397,7 @@ export const api = {
         assertInspectionWorkerRouteAllowed('/admin/delete-seller');
         const res = await fetch(`${CLOUDFLARE_WORKER_URL}/admin/delete-seller`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': AUTH_KEY_SECRET },
+            headers: await getWorkerAdminHeaders(),
             body: JSON.stringify({ id }),
         });
         const json = await res.json();
@@ -3910,12 +3923,74 @@ export const api = {
         return stats;
     },
 
+    listAutomaticBackups: async (): Promise<{
+        backups: import('./backupConfig').AutomaticBackupRecord[];
+        retention: { daily: number; monthly: number };
+    }> => {
+        const response = await fetch(`${CLOUDFLARE_WORKER_URL}/admin/backups`, {
+            headers: await getWorkerAdminHeaders(),
+        });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || 'Αδυναμία ανάγνωσης αυτόματων backup.');
+        return body;
+    },
+
+    createAutomaticBackup: async (): Promise<{ key: string }> => {
+        const response = await fetch(`${CLOUDFLARE_WORKER_URL}/admin/backups`, {
+            method: 'POST',
+            headers: await getWorkerAdminHeaders(),
+        });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || 'Αποτυχία δημιουργίας server backup.');
+        return body;
+    },
+
+    verifyAutomaticBackup: async (key: string): Promise<import('./backupConfig').BackupVerificationReport> => {
+        const response = await fetch(`${CLOUDFLARE_WORKER_URL}/admin/backups/verify`, {
+            method: 'POST',
+            headers: await getWorkerAdminHeaders(),
+            body: JSON.stringify({ key }),
+        });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || 'Αποτυχία επαλήθευσης backup.');
+        const errors = body.errors ?? [];
+        return {
+            valid: body.valid,
+            complete: body.manifest?.complete === true,
+            errors,
+            warnings: [],
+            verifiedTables: Object.keys(body.manifest?.tables ?? {}).filter((table) => !errors.includes(table)),
+        };
+    },
+
+    downloadAutomaticBackup: async (key: string): Promise<BackupEnvelope> => {
+        const response = await fetch(`${CLOUDFLARE_WORKER_URL}/admin/backups/download?key=${encodeURIComponent(key)}`, {
+            headers: await getWorkerAdminHeaders(),
+        });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || 'Αποτυχία λήψης αυτόματου backup.');
+        return body;
+    },
+
     getSystemExport: async (exportOptions?: BackupExportOptions, onProgress?: ProgressCallback): Promise<BackupEnvelope> => {
         const options = exportOptions ?? getDefaultExportOptions();
         const { tables, includeImages } = prepareExportPlan(options);
+        if (!isLocalMode && tables.length === BACKUP_TABLE_REGISTRY.length) {
+            onProgress?.({ phase: 'validation', current: 0, total: 1, message: 'Έλεγχος πλήρους κάλυψης βάσης...' });
+            const schemaResponse = await fetch(`${CLOUDFLARE_WORKER_URL}/admin/backups/schema`, {
+                headers: await getWorkerAdminHeaders(),
+            });
+            const coverage = await schemaResponse.json();
+            if (!schemaResponse.ok || !coverage.complete) {
+                const missing = coverage.missing?.join(', ') || '—';
+                const unregistered = coverage.unregistered?.join(', ') || '—';
+                throw new Error(`Το πλήρες backup μπλοκαρίστηκε: ελλείποντες πίνακες ${missing}; μη καταχωρημένοι πίνακες ${unregistered}.`);
+            }
+        }
         const tableData: Record<string, any[]> = {};
-        const failedTables: string[] = [];
+        const failedTables: Array<{ table: string; message: string }> = [];
         const totalTables = tables.length;
+        let authUsers: import('./backupConfig').BackupAuthUser[] = [];
 
         for (let i = 0; i < totalTables; i++) {
             const tableName = tables[i];
@@ -3930,8 +4005,7 @@ export const api = {
             try {
                 tableData[tableName] = await fetchFullTable(tableName, '*', undefined, { bypassInspectionCheck: true });
             } catch (err: any) {
-                failedTables.push(tableName);
-                tableData[tableName] = [];
+                failedTables.push({ table: tableName, message: err?.message || String(err) });
             }
         }
 
@@ -3960,8 +4034,22 @@ export const api = {
             extras = readLocalExtras();
         }
 
-        return buildBackupEnvelope({
-            tableData,
+        if (!isLocalMode && tables.includes('profiles') && options.includeConfig) {
+            onProgress?.({ phase: 'config', current: 1, total: 1, message: 'Αποθήκευση ταυτοτήτων χρηστών...' });
+            const authResponse = await fetch(`${CLOUDFLARE_WORKER_URL}/admin/backups/auth-users`, {
+                headers: await getWorkerAdminHeaders(),
+            });
+            const authBody = await authResponse.json();
+            if (!authResponse.ok) {
+                throw new Error(authBody.error || 'Αποτυχία εξαγωγής χρηστών Auth');
+            } else {
+                authUsers = authBody.users ?? [];
+            }
+        }
+
+        return buildBackupV4({
+            tables: tableData,
+            requestedTables: tables,
             failedTables,
             options,
             images,
@@ -3969,7 +4057,12 @@ export const api = {
             config,
             extras,
             syncQueue,
+            authUsers,
             isLocalMode,
+            source: {
+                appVersion: '1.0.0',
+                schemaVersion: '20260701075651',
+            },
         });
     },
 
@@ -3982,21 +4075,42 @@ export const api = {
         options: BackupRestoreOptions,
     ): Promise<RestoreResult> => {
         const onProgress = options.onProgress;
-        const { orderedEntries, envelope, tablesObj, includeImages } = prepareRestorePlan(backupData, options);
+        const normalizedBackup = await migrateBackupToV4(backupData);
+        const verification = await verifyBackupV4(normalizedBackup);
+        if (!verification.valid) {
+            throw new Error(`Backup verification failed: ${verification.errors.join('; ')}`);
+        }
+        const availableTables = Object.keys(normalizedBackup.tables).filter((table) => Array.isArray(normalizedBackup.tables[table]));
+        const mode = options.mode ?? (options.tables.length === availableTables.length ? 'exact' : 'merge');
+        if (mode === 'exact' && !verification.complete) {
+            throw new Error('Η ακριβής επαναφορά απαιτεί πλήρες backup χωρίς αποτυχημένους πίνακες ή εικόνες.');
+        }
+        const impact = buildRestoreImpact(availableTables, options.tables, mode);
+        const effectiveOptions = { ...options, tables: impact.applyTables };
+        const { orderedEntries, envelope, tablesObj, includeImages } = prepareRestorePlan(normalizedBackup, effectiveOptions);
         const errors: RestoreResult['errors'] = [];
         const imageFailures: string[] = [];
         const restoredTables: string[] = [];
         const restoredSet = new Set(orderedEntries.map((e) => e.table));
         const skippedTables = BACKUP_TABLE_REGISTRY.map((e) => e.table).filter((t) => !restoredSet.has(t));
-        const reverseOrder = [...orderedEntries].reverse();
-        const chunkSize = 200;
+        const destructiveSet = new Set(impact.destructiveTables);
 
         if (isLocalMode || !SUPABASE_URL) {
+            const stagedTables: Record<string, any[]> = {};
             for (let i = 0; i < orderedEntries.length; i++) {
                 const entry = orderedEntries[i];
                 const data = tablesObj[entry.table];
-                if (data) {
-                    await offlineDb.saveTable(entry.table, data);
+                if (Array.isArray(data)) {
+                    if (mode === 'exact' || destructiveSet.has(entry.table)) {
+                        stagedTables[entry.table] = data;
+                    } else {
+                        const existing = await offlineDb.getTable(entry.table) || [];
+                        stagedTables[entry.table] = mergeRowsByConflict(
+                            existing,
+                            data,
+                            entry.conflictTarget ?? entry.primaryKey,
+                        );
+                    }
                     restoredTables.push(entry.table);
                 }
                 onProgress?.({
@@ -4007,6 +4121,7 @@ export const api = {
                     message: `Επαναφορά ${entry.displayName} (${i + 1}/${orderedEntries.length})...`,
                 });
             }
+            await offlineDb.saveTablesAtomic(stagedTables);
 
             if (includeImages && envelope?._images) {
                 await patchLocalProductImages(
@@ -4037,57 +4152,40 @@ export const api = {
             }
 
             localStorage.setItem('ILIOS_LOCAL_MODE', 'true');
-            return { errors, restoredTables, skippedTables, imageFailures };
+            return { errors, restoredTables, skippedTables, imageFailures, auth: { recreated: [], passwordResetRequired: [] } };
         }
 
-        for (let i = 0; i < reverseOrder.length; i++) {
-            const entry = reverseOrder[i];
-            onProgress?.({
-                phase: 'cleanup',
-                current: i + 1,
-                total: reverseOrder.length,
-                tableName: entry.table,
-                message: `Εκκαθάριση ${entry.displayName} (${i + 1}/${reverseOrder.length})...`,
-            });
-            try {
-                const pk = entry.primaryKey;
-                const pkType = entry.primaryKeyType;
-                if (pkType === 'uuid') {
-                    await supabase.from(entry.table).delete().gte(pk, '00000000-0000-0000-0000-000000000000');
-                } else if (pkType === 'integer') {
-                    await supabase.from(entry.table).delete().gte(pk, 0);
-                } else {
-                    await supabase.from(entry.table).delete().neq(pk, '');
-                }
-            } catch (err: any) {
-                errors.push({ table: entry.table, message: `Εκκαθάριση: ${err.message || err}` });
-            }
+        onProgress?.({
+            phase: 'validation',
+            current: 1,
+            total: 2,
+            message: 'Έλεγχος και προετοιμασία transactional restore...',
+        });
+        const restoreTables = Object.fromEntries(
+            orderedEntries.map((entry) => [entry.table, tablesObj[entry.table] ?? []]),
+        );
+        const restoreResponse = await fetch(`${CLOUDFLARE_WORKER_URL}/admin/backups/restore`, {
+            method: 'POST',
+            headers: await getWorkerAdminHeaders(),
+            body: JSON.stringify({
+                manifest: normalizedBackup._manifest,
+                tables: restoreTables,
+                authUsers: normalizedBackup._auth_users ?? [],
+                mode,
+                requestedTables: impact.destructiveTables,
+            }),
+        });
+        const restoreResult = await restoreResponse.json();
+        if (!restoreResponse.ok) {
+            throw new Error(restoreResult.error || 'Transactional restore failed.');
         }
-
-        for (let i = 0; i < orderedEntries.length; i++) {
-            const entry = orderedEntries[i];
-            const data = tablesObj[entry.table];
-            onProgress?.({
-                phase: 'tables',
-                current: i + 1,
-                total: orderedEntries.length,
-                tableName: entry.table,
-                message: `Επαναφορά ${entry.displayName} (${i + 1}/${orderedEntries.length})...`,
-            });
-            if (data?.length) {
-                try {
-                    for (let j = 0; j < data.length; j += chunkSize) {
-                        const { error } = await supabase.from(entry.table).insert(data.slice(j, j + chunkSize));
-                        if (error) throw error;
-                    }
-                    restoredTables.push(entry.table);
-                } catch (err: any) {
-                    errors.push({ table: entry.table, message: `Εισαγωγή: ${err.message || err}` });
-                }
-            } else if (Array.isArray(data)) {
-                restoredTables.push(entry.table);
-            }
-        }
+        onProgress?.({
+            phase: 'tables',
+            current: 2,
+            total: 2,
+            message: 'Η βάση επαναφέρθηκε και επαληθεύτηκε transactional.',
+        });
+        restoredTables.push(...orderedEntries.map((entry) => entry.table));
 
         if (includeImages && envelope?._images) {
             const imgResult = await restoreProductImagesToCloud(
@@ -4134,7 +4232,13 @@ export const api = {
             writeLocalExtras(envelope._extras);
         }
 
-        return { errors, restoredTables, skippedTables, imageFailures };
+        return {
+            errors,
+            restoredTables,
+            skippedTables,
+            imageFailures,
+            auth: restoreResult.auth ?? { recreated: [], passwordResetRequired: [] },
+        };
     },
 
     restoreFullSystem: async (

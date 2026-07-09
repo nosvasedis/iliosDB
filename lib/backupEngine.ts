@@ -14,6 +14,8 @@ import {
     readLocalExtras,
     writeLocalExtras,
     getRegistryEntry,
+    BACKUP_TABLE_REGISTRY,
+    RestoreMode,
 } from './backupConfig';
 
 export interface ImageExportResult {
@@ -225,6 +227,79 @@ export async function deleteTableRows(
     const entry = getRegistryEntry(table);
     if (!entry) return;
     await deleteFn(entry.table, entry.primaryKey, entry.primaryKeyType);
+}
+
+export interface RestoreImpact {
+    mode: RestoreMode;
+    requestedTables: string[];
+    applyTables: string[];
+    destructiveTables: string[];
+}
+
+export function buildRestoreImpact(
+    availableTables: string[],
+    requestedTables: string[],
+    mode: RestoreMode,
+): RestoreImpact {
+    const available = new Set(availableTables);
+    const requested = requestedTables.filter((table) => available.has(table));
+    if (mode === 'exact') {
+        const all = BACKUP_TABLE_REGISTRY
+            .map((entry) => entry.table)
+            .filter((table) => available.has(table));
+        return { mode, requestedTables: requested, applyTables: all, destructiveTables: all };
+    }
+
+    const target = new Set(requested);
+    if (mode === 'replace-selected') {
+        let changed = true;
+        while (changed) {
+            changed = false;
+            for (const entry of BACKUP_TABLE_REGISTRY) {
+                if (!available.has(entry.table) || target.has(entry.table)) continue;
+                if ((entry.dependsOn ?? []).some((dependency) => target.has(dependency))) {
+                    target.add(entry.table);
+                    changed = true;
+                }
+            }
+        }
+    }
+    const applyTables = resolveRestoreTables(
+        Object.fromEntries(availableTables.map((table) => [table, []])),
+        { tables: [...target] },
+    );
+    return {
+        mode,
+        requestedTables: requested,
+        applyTables,
+        destructiveTables: mode === 'replace-selected'
+            ? BACKUP_TABLE_REGISTRY.map((entry) => entry.table).filter((table) => target.has(table))
+            : [],
+    };
+}
+
+export function assertMutationSucceeded(
+    result: { error?: { message?: string; code?: string } | null } | null | undefined,
+    table: string,
+    operation: string,
+): void {
+    if (!result) throw new Error(`${table}: ${operation} returned no result`);
+    if (result.error) {
+        const code = result.error.code ? ` (${result.error.code})` : '';
+        throw new Error(`${table}: ${operation} failed${code}: ${result.error.message ?? 'unknown error'}`);
+    }
+}
+
+export function mergeRowsByConflict<T extends Record<string, any>>(
+    existing: T[],
+    incoming: T[],
+    conflictTarget: string,
+): T[] {
+    const keys = conflictTarget.split(',').map((key) => key.trim()).filter(Boolean);
+    const identity = (row: T) => keys.map((key) => JSON.stringify(row?.[key] ?? null)).join('|');
+    const merged = new Map(existing.map((row) => [identity(row), row]));
+    incoming.forEach((row) => merged.set(identity(row), row));
+    return [...merged.values()];
 }
 
 export { readConfigForExport, readLocalExtras, writeLocalExtras, resolveRestoreTables, orderTablesForRestore };

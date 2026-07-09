@@ -7,6 +7,7 @@ import { useUI } from './UIProvider';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { validateBackup, getDefaultRestoreOptions } from '../lib/backupConfig';
 import MobileSetupScreen from './mobile/MobileSetupScreen';
+import { isEncryptedBackupPackage, readBackupBytes } from '../lib/backupPackage';
 
 export default function SetupScreen() {
     const isMobile = useIsMobile();
@@ -38,10 +39,14 @@ export default function SetupScreen() {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                const backupData = JSON.parse(event.target?.result as string);
+        try {
+                const bytes = new Uint8Array(await file.arrayBuffer());
+                let password: string | undefined;
+                if (isEncryptedBackupPackage(bytes)) {
+                    password = window.prompt('Εισαγάγετε τον κωδικό του backup:') ?? undefined;
+                    if (!password) return;
+                }
+                const backupData = await readBackupBytes(bytes, password);
                 const validation = validateBackup(backupData);
 
                 if (!validation.valid) {
@@ -62,6 +67,7 @@ export default function SetupScreen() {
 
                 await api.restoreSystem(backupData, {
                     ...getDefaultRestoreOptions(validation.availableTables),
+                    mode: 'exact',
                     restoreConfig: validation.hasConfig,
                     includeSyncQueue: validation.hasSyncQueue,
                     includeImages: validation.imageCount > 0,
@@ -76,8 +82,6 @@ export default function SetupScreen() {
                 setIsRestoring(false);
                 if (fileInputRef.current) fileInputRef.current.value = '';
             }
-        };
-        reader.readAsText(file);
     };
 
     return (
@@ -138,7 +142,7 @@ export default function SetupScreen() {
                         </p>
 
                         <div className="flex flex-col gap-2">
-                            <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleRestoreBackup} />
+                            <input type="file" accept=".json,.iliosbackup" className="hidden" ref={fileInputRef} onChange={handleRestoreBackup} />
                             <button
                                 onClick={() => fileInputRef.current?.click()}
                                 className="w-full bg-white border border-amber-200 text-amber-800 py-3 rounded-xl font-bold hover:bg-amber-100 transition-all flex items-center justify-center gap-2 text-sm"

@@ -5,6 +5,7 @@ import { saveConfiguration, api } from '../../lib/supabase';
 import { APP_ICON_ONLY } from '../../constants';
 import { validateBackup, getDefaultRestoreOptions } from '../../lib/backupConfig';
 import { useUI } from '../UIProvider';
+import { isEncryptedBackupPackage, readBackupBytes } from '../../lib/backupPackage';
 
 export default function MobileSetupScreen() {
     const [url, setUrl] = useState('');
@@ -17,7 +18,7 @@ export default function MobileSetupScreen() {
     const handleSave = (e: React.FormEvent) => {
         e.preventDefault();
         if(url && key) {
-            saveConfiguration(url, key, '2112Aris101!', '');
+            saveConfiguration(url, key, '', '');
         }
     };
 
@@ -25,10 +26,14 @@ export default function MobileSetupScreen() {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                const backupData = JSON.parse(event.target?.result as string);
+        try {
+                const bytes = new Uint8Array(await file.arrayBuffer());
+                let password: string | undefined;
+                if (isEncryptedBackupPackage(bytes)) {
+                    password = window.prompt('Κωδικός κρυπτογραφημένου backup:') ?? undefined;
+                    if (!password) return;
+                }
+                const backupData = await readBackupBytes(bytes, password);
                 const validation = validateBackup(backupData);
                 if (!validation.valid) {
                     showToast(validation.errors.join(' '), 'error');
@@ -39,6 +44,7 @@ export default function MobileSetupScreen() {
                 showToast('Φόρτωση...', 'info');
                 await api.restoreSystem(backupData, {
                     ...getDefaultRestoreOptions(validation.availableTables),
+                    mode: 'exact',
                     restoreConfig: validation.hasConfig,
                     includeSyncQueue: validation.hasSyncQueue,
                     includeImages: validation.imageCount > 0,
@@ -52,8 +58,6 @@ export default function MobileSetupScreen() {
                 setIsRestoring(false);
                 if (fileInputRef.current) fileInputRef.current.value = '';
             }
-        };
-        reader.readAsText(file);
     };
 
     return (
@@ -107,7 +111,7 @@ export default function MobileSetupScreen() {
                             <p className="text-xs text-slate-500 font-medium">Λειτουργία χωρίς ίντερνετ. Τα δεδομένα αποθηκεύονται στη συσκευή.</p>
                         </div>
                         
-                        <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleRestoreBackup}/>
+                        <input type="file" accept=".json,.iliosbackup" className="hidden" ref={fileInputRef} onChange={handleRestoreBackup}/>
                         <button 
                             onClick={() => fileInputRef.current?.click()}
                             className="w-full bg-slate-100 text-slate-700 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all"

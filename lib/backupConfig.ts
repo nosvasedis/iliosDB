@@ -2,7 +2,7 @@
 // ─── Backup System Configuration ─────────────────────────────────────────────
 // Single source of truth for all backup/export/restore operations.
 
-export const BACKUP_VERSION = 3;
+export const BACKUP_VERSION = 4;
 export const BACKUP_FORMAT_MARKER = 'ilios_erp_backup';
 
 // ─── Categories ──────────────────────────────────────────────────────────────
@@ -46,6 +46,7 @@ export interface TableRegistryEntry {
     category: BackupCategoryId;
     primaryKey: string;
     primaryKeyType: 'uuid' | 'integer' | 'string';
+    conflictTarget?: string;
     includeInCsv: boolean;
     dependsOn?: string[];
 }
@@ -61,10 +62,10 @@ export const BACKUP_TABLE_REGISTRY: TableRegistryEntry[] = [
     { table: 'materials',                displayName: 'Materials',                label: 'Υλικά',                       category: 'catalog',    primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true,  dependsOn: ['suppliers'] },
     { table: 'collections',              displayName: 'Collections',              label: 'Συλλογές',                    category: 'catalog',    primaryKey: 'id',          primaryKeyType: 'integer', includeInCsv: true  },
     { table: 'products',                 displayName: 'Products',                 label: 'Προϊόντα',                    category: 'catalog',    primaryKey: 'sku',         primaryKeyType: 'string',  includeInCsv: true,  dependsOn: ['suppliers'] },
-    { table: 'product_variants',         displayName: 'Product_Variants',         label: 'Παραλλαγές Προϊόντων',        category: 'catalog',    primaryKey: 'product_sku', primaryKeyType: 'string',  includeInCsv: true,  dependsOn: ['products'] },
+    { table: 'product_variants',         displayName: 'Product_Variants',         label: 'Παραλλαγές Προϊόντων',        category: 'catalog',    primaryKey: 'product_sku', primaryKeyType: 'string',  conflictTarget: 'product_sku,suffix', includeInCsv: true,  dependsOn: ['products'] },
     { table: 'recipes',                  displayName: 'Recipes',                  label: 'Συνταγές (BOM)',              category: 'catalog',    primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true,  dependsOn: ['products', 'materials'] },
-    { table: 'product_molds',            displayName: 'Product_Molds',            label: 'Καλούπια Προϊόντων',          category: 'catalog',    primaryKey: 'product_sku', primaryKeyType: 'string',  includeInCsv: true,  dependsOn: ['products', 'molds'] },
-    { table: 'product_collections',      displayName: 'Product_Collections',      label: 'Συλλογές Προϊόντων',          category: 'catalog',    primaryKey: 'product_sku', primaryKeyType: 'string',  includeInCsv: true,  dependsOn: ['products', 'collections'] },
+    { table: 'product_molds',            displayName: 'Product_Molds',            label: 'Καλούπια Προϊόντων',          category: 'catalog',    primaryKey: 'product_sku', primaryKeyType: 'string',  conflictTarget: 'product_sku,mold_code', includeInCsv: true,  dependsOn: ['products', 'molds'] },
+    { table: 'product_collections',      displayName: 'Product_Collections',      label: 'Συλλογές Προϊόντων',          category: 'catalog',    primaryKey: 'product_sku', primaryKeyType: 'string',  conflictTarget: 'product_sku,collection_id', includeInCsv: true,  dependsOn: ['products', 'collections'] },
     { table: 'product_stock',            displayName: 'Product_Stock',            label: 'Απόθεμα ανά Αποθήκη',        category: 'catalog',    primaryKey: 'product_sku', primaryKeyType: 'string',  includeInCsv: true,  dependsOn: ['products', 'warehouses'] },
     { table: 'stock_movements',          displayName: 'Stock_Movements',          label: 'Κινήσεις Αποθέματος',          category: 'catalog',    primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true,  dependsOn: ['products', 'warehouses'] },
     { table: 'orders',                   displayName: 'Orders',                   label: 'Παραγγελίες',                 category: 'orders',     primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true,  dependsOn: ['customers'] },
@@ -109,14 +110,12 @@ export const HISTORY_TABLES = new Set([
 export const CONFIG_KEYS = [
     'VITE_SUPABASE_URL',
     'VITE_SUPABASE_ANON_KEY',
-    'VITE_WORKER_AUTH_KEY',
     'VITE_GEMINI_API_KEY',
     'ILIOS_LOCAL_MODE',
 ] as const;
 
 export const SECRET_CONFIG_KEYS = new Set([
     'VITE_SUPABASE_ANON_KEY',
-    'VITE_WORKER_AUTH_KEY',
     'VITE_GEMINI_API_KEY',
 ]);
 
@@ -139,6 +138,7 @@ export interface BackupExportOptions {
 
 export interface BackupRestoreOptions {
     tables: string[];
+    mode?: RestoreMode;
     includeImages: boolean;
     restoreConfig: boolean;
     includeSyncQueue: boolean;
@@ -167,6 +167,7 @@ export function getDefaultExportOptions(): BackupExportOptions {
 export function getDefaultRestoreOptions(tables?: string[]): BackupRestoreOptions {
     return {
         tables: tables ?? [...ALL_BACKUP_TABLE_NAMES],
+        mode: 'exact',
         includeImages: true,
         restoreConfig: false,
         includeSyncQueue: false,
@@ -299,11 +300,88 @@ export interface BackupMeta {
 
 export interface BackupEnvelope {
     _meta: BackupMeta;
+    _manifest?: BackupManifestV4;
     _config?: Record<string, string>;
     _extras?: Record<string, unknown>;
     _images?: Record<string, string>;
     _sync_queue?: any[];
+    _auth_users?: BackupAuthUser[];
     tables: Record<string, any[]>;
+}
+
+export interface RecoveryBackupOptions extends BackupExportOptions {
+    passwordProtected: boolean;
+}
+
+export interface MigrationExportOptions {
+    target: 'universal' | 'prisma-win';
+    tables: string[];
+    locale: string;
+}
+
+export type RestoreMode = 'exact' | 'merge' | 'replace-selected';
+
+export type BackupTableStatus = 'exported' | 'empty' | 'failed';
+
+export interface BackupTableManifestEntry {
+    status: BackupTableStatus;
+    row_count: number;
+    sha256: string | null;
+    error?: string;
+}
+
+export interface BackupManifestV4 {
+    format: typeof BACKUP_FORMAT_MARKER;
+    version: 4;
+    created_at: string;
+    complete: boolean;
+    source: {
+        app_version: string;
+        schema_version: string;
+        is_local_mode: boolean;
+    };
+    tables: Record<string, BackupTableManifestEntry>;
+    images: {
+        count: number;
+        failed: string[];
+    };
+    recovery_checklist: string[];
+}
+
+export interface BackupAuthUser {
+    id: string;
+    email?: string | null;
+    phone?: string | null;
+    app_metadata?: Record<string, unknown>;
+    user_metadata?: Record<string, unknown>;
+    created_at?: string;
+}
+
+export interface BackupVerificationReport {
+    valid: boolean;
+    complete: boolean;
+    errors: string[];
+    warnings: string[];
+    verifiedTables: string[];
+}
+
+export interface BackupCoverage {
+    database: boolean;
+    authUsers: boolean;
+    images: boolean;
+    configuration: boolean;
+}
+
+export interface AutomaticBackupRecord {
+    key: string;
+    size: number;
+    uploaded: string;
+    createdAt?: string;
+    complete?: string;
+    tableCount?: string;
+    authUserCount?: string;
+    imageCount?: string;
+    reason?: string;
 }
 
 export type BackupProgressPhase = 'tables' | 'images' | 'config' | 'sync_queue' | 'extras' | 'validation' | 'cleanup';
@@ -333,6 +411,10 @@ export interface RestoreResult {
     restoredTables: string[];
     skippedTables: string[];
     imageFailures: string[];
+    auth?: {
+        recreated: Array<{ oldId: string; newId: string; email: string }>;
+        passwordResetRequired: string[];
+    };
 }
 
 export interface ValidationResult {
@@ -414,6 +496,9 @@ export function validateBackup(data: unknown): ValidationResult {
         if (result.version !== null && result.version > BACKUP_VERSION) {
             errors.push(`Η έκδοση backup (v${result.version}) είναι νεότερη από αυτήν που υποστηρίζεται (v${BACKUP_VERSION}).`);
         }
+        if (result.version === 4 && (!obj._manifest || typeof obj._manifest !== 'object')) {
+            errors.push('Το backup v4 δεν περιέχει έγκυρο manifest ακεραιότητας.');
+        }
 
         result.createdAt = meta.created_at || null;
         result.imageCount = typeof meta.image_count === 'number' ? meta.image_count : Object.keys(obj._images || {}).length;
@@ -445,11 +530,11 @@ export function validateBackup(data: unknown): ValidationResult {
         errors.push('Δεν βρέθηκε κανένας αναγνωρίσιμος πίνακας στο backup.');
     }
 
-    if (!result.tableCounts.profiles) {
+    if (!('profiles' in result.tableCounts)) {
         warnings.push('Δεν περιλαμβάνονται προφίλ χρηστών (profiles). Οι λογαριασμοί Supabase Auth δεν μπορούν να εξαχθούν από τον browser.');
     }
 
-    const missingFromFull = ALL_BACKUP_TABLE_NAMES.filter((t) => !result.tableCounts[t]);
+    const missingFromFull = ALL_BACKUP_TABLE_NAMES.filter((t) => !(t in result.tableCounts));
     if (missingFromFull.length > 0 && missingFromFull.length < ALL_BACKUP_TABLE_NAMES.length) {
         warnings.push(`Μερικό backup: λείπουν ${missingFromFull.length} πίνακες από πλήρες σύστημα.`);
     }

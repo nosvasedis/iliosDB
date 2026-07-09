@@ -7,9 +7,11 @@ import { LogOut, Coins, ShieldCheck, User, Wifi, WifiOff, Upload, Save, Tag, Sho
 import MobileScreenHeader from './MobileScreenHeader';
 import { formatDecimal } from '../../utils/pricingEngine';
 import { useUI } from '../UIProvider';
-import { downloadFile, downloadBlob, flattenForCSV, convertToCSV } from '../../utils/exportUtils';
-import { BACKUP_TABLE_REGISTRY, BackupExportOptions, BackupProgress, BackupRestoreOptions } from '../../lib/backupConfig';
-import BackupManagerModal from '../backup/BackupManagerModal';
+import { downloadBlob } from '../../utils/exportUtils';
+import { BackupExportOptions, BackupProgress, BackupRestoreOptions } from '../../lib/backupConfig';
+import BackupManagerModal, { BackupExportKind } from '../backup/BackupManagerModal';
+import { buildCanonicalMigration } from '../../lib/migrationExport';
+import { createMigrationBundle, createRecoveryBundle, encryptBackupPackage, isEncryptedBackupPackage, readBackupBytes } from '../../lib/backupPackage';
 import BackupProgressModal from '../BackupProgressModal';
 import IliosLoader from '../ui/IliosLoader';
 
@@ -38,6 +40,7 @@ export default function MobileSettings() {
     const [isBackupManagerOpen, setIsBackupManagerOpen] = useState(false);
     const [backupManagerMode, setBackupManagerMode] = useState<'export' | 'restore'>('export');
     const [pendingRestoreData, setPendingRestoreData] = useState<unknown>(null);
+    const [pendingEncryptedBackup, setPendingEncryptedBackup] = useState<Uint8Array | null>(null);
 
     // Initialize local state when data loads
     React.useEffect(() => {
@@ -97,44 +100,58 @@ export default function MobileSettings() {
         }
     };
 
-    const runExport = async (options: BackupExportOptions, format: 'json' | 'csv') => {
+    const runExport = async (options: BackupExportOptions, format: BackupExportKind, password?: string) => {
         setIsBackupManagerOpen(false);
         setIsExporting(true);
         setBackupProgress(null);
         setBackupComplete(false);
         setBackupSummary('');
         setBackupErrors([]);
-        setBackupModalTitle(format === 'json' ? 'Δημιουργία Backup' : 'Εξαγωγή CSV');
+        setBackupModalTitle(format === 'recovery' ? 'Δημιουργία Recovery Backup' : 'Εξαγωγή για ERP');
         setIsBackupModalOpen(true);
         try {
-            const data = await api.getSystemExport(options, (p) => setBackupProgress(p));
+            const effectiveOptions = format === 'recovery' ? options : {
+                ...options,
+                includeImages: false,
+                includeConfig: false,
+                includeConfigSecrets: false,
+                includeSyncQueue: false,
+                includeLocalExtras: false,
+            };
+            const data = await api.getSystemExport(effectiveOptions, (p) => setBackupProgress(p));
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const dateOnly = new Date().toISOString().split('T')[0];
+            const failedTables = Object.entries(data._manifest?.tables ?? {})
+                .filter(([, entry]) => entry.status === 'failed')
+                .map(([table, entry]) => ({ table, message: entry.error ?? 'Αποτυχία εξαγωγής' }));
+            if (failedTables.length) {
+                setBackupErrors(failedTables);
+                throw new Error('Η εξαγωγή σταμάτησε επειδή απέτυχαν πίνακες δεδομένων.');
+            }
 
-            if (format === 'json') {
-                const jsonStr = JSON.stringify(data, null, 2);
-                downloadBlob(new Blob([jsonStr], { type: 'application/json' }), `ilios_erp_mobile_backup_${timestamp}.json`);
+            if (format === 'recovery') {
+                if (!data._manifest?.complete) throw new Error('Το πλήρες backup δεν δημιουργήθηκε επειδή απέτυχαν εικόνες.');
+                let packageBytes = await createRecoveryBundle(data);
+                if (password) packageBytes = await encryptBackupPackage(packageBytes, password);
+                downloadBlob(
+                    new Blob([packageBytes.buffer.slice(packageBytes.byteOffset, packageBytes.byteOffset + packageBytes.byteLength) as ArrayBuffer], { type: 'application/octet-stream' }),
+                    `ilios_erp_mobile_backup_${timestamp}.iliosbackup`,
+                );
                 const meta = data._meta;
                 const totalRows = Object.values(meta.table_counts).reduce((a, b) => a + b, 0);
                 let summary = `${meta.total_tables} πίνακες, ${totalRows} εγγραφές, ${meta.image_count} εικόνες`;
-                if (meta.failed_tables?.length) summary += ` (${meta.failed_tables.length} πίνακες απέτυχαν)`;
+                if (password) summary += ' · κρυπτογραφημένο';
                 setBackupSummary(summary);
             } else {
-                const csvTables = BACKUP_TABLE_REGISTRY.filter((t) => t.includeInCsv && options.tables.includes(t.table));
-                let exported = 0;
-                for (const entry of csvTables) {
-                    const tableData = data.tables[entry.table] || [];
-                    if (tableData.length > 0) {
-                        downloadFile(convertToCSV(flattenForCSV(tableData)), `ilios_${entry.displayName.toLowerCase()}_${dateOnly}.csv`, 'text/csv');
-                        exported++;
-                        await new Promise((r) => setTimeout(r, 200));
-                    }
-                }
-                setBackupSummary(`${exported} αρχεία CSV λήφθηκαν.`);
+                const bundle = createMigrationBundle(buildCanonicalMigration(data.tables), { includePrisma: format === 'prisma' });
+                downloadBlob(
+                    new Blob([bundle.buffer.slice(bundle.byteOffset, bundle.byteOffset + bundle.byteLength) as ArrayBuffer], { type: 'application/zip' }),
+                    `ilios_${format}_export_${timestamp}.zip`,
+                );
+                setBackupSummary(format === 'prisma' ? 'Το πακέτο PRISMA Win δημιουργήθηκε.' : 'Το πακέτο μεταφοράς ERP δημιουργήθηκε.');
             }
             setBackupComplete(true);
-        } catch {
-            setBackupSummary('Σφάλμα εξαγωγής.');
+        } catch (error: any) {
+            setBackupSummary(error?.message || 'Σφάλμα εξαγωγής.');
             setBackupComplete(true);
         } finally {
             setIsExporting(false);
@@ -159,6 +176,20 @@ export default function MobileSettings() {
         setIsBackupModalOpen(true);
 
         try {
+            if ((options.mode ?? 'merge') !== 'merge') {
+                setBackupModalTitle('Safety snapshot');
+                const safety = await api.getFullSystemExport((progress) => setBackupProgress(progress));
+                if (!safety._manifest?.complete) {
+                    throw new Error('Η επαναφορά ακυρώθηκε: δεν δημιουργήθηκε πλήρες safety snapshot.');
+                }
+                const safetyBytes = await createRecoveryBundle(safety);
+                downloadBlob(
+                    new Blob([safetyBytes.buffer.slice(safetyBytes.byteOffset, safetyBytes.byteOffset + safetyBytes.byteLength) as ArrayBuffer], { type: 'application/octet-stream' }),
+                    `ilios_pre_restore_${new Date().toISOString().replace(/[:.]/g, '-')}.iliosbackup`,
+                );
+                setBackupModalTitle('Επαναφορά Backup');
+                setBackupProgress(null);
+            }
             const result = await api.restoreSystem(backupData as any, {
                 ...options,
                 onProgress: (p) => setBackupProgress(p),
@@ -167,12 +198,15 @@ export default function MobileSettings() {
                 setBackupErrors(result.errors);
                 setBackupSummary(`Ολοκληρώθηκε με ${result.errors.length} προειδοποιήσεις.`);
             } else {
-                setBackupSummary('Επιτυχής επαναφορά! Ανανέωση...');
+                const resetCount = result.auth?.passwordResetRequired.length ?? 0;
+                setBackupSummary(resetCount > 0
+                    ? `Επαναφορά ολοκληρώθηκε. ${resetCount} χρήστες πρέπει να αλλάξουν κωδικό μέσω email.`
+                    : 'Επιτυχής επαναφορά! Ανανέωση...');
                 setTimeout(() => window.location.reload(), 3000);
             }
             setBackupComplete(true);
-        } catch {
-            setBackupSummary('Σφάλμα επαναφοράς.');
+        } catch (error: any) {
+            setBackupSummary(error?.message || 'Σφάλμα επαναφοράς.');
             setBackupComplete(true);
         } finally {
             setPendingRestoreData(null);
@@ -180,21 +214,25 @@ export default function MobileSettings() {
         }
     };
 
-    const handleRestoreFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleRestoreFilePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            try {
-                setPendingRestoreData(JSON.parse(event.target?.result as string));
+        try {
+            const bytes = new Uint8Array(await file.arrayBuffer());
+            if (isEncryptedBackupPackage(bytes)) {
+                setPendingRestoreData(null);
+                setPendingEncryptedBackup(bytes);
                 setBackupManagerMode('restore');
                 setIsBackupManagerOpen(true);
-            } catch {
-                showToast('Μη έγκυρο αρχείο.', 'error');
-                if (fileInputRef.current) fileInputRef.current.value = '';
+                return;
             }
-        };
-        reader.readAsText(file);
+            setPendingRestoreData(await readBackupBytes(bytes));
+            setBackupManagerMode('restore');
+            setIsBackupManagerOpen(true);
+        } catch {
+            showToast('Μη έγκυρο αρχείο ή κωδικός backup.', 'error');
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
     };
 
     if (!localSettings) return <IliosLoader variant="section" detail="Ρυθμίσεις" />;
@@ -250,7 +288,7 @@ export default function MobileSettings() {
                     <h3 className="text-xs font-bold text-slate-400 uppercase mb-2 flex items-center gap-2"><Database size={14} /> Backup & Δεδομένα</h3>
                     <button onClick={() => { setBackupManagerMode('export'); setIsBackupManagerOpen(true); }} disabled={isExporting} className="w-full flex items-center gap-3 p-3 bg-blue-50 text-blue-700 rounded-xl font-bold text-sm hover:bg-blue-100 transition-colors">{isExporting ? <Loader2 size={18} className="animate-spin" /> : <Database size={18} />} Backup & Εξαγωγή</button>
 
-                    <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleRestoreFilePick} />
+                    <input type="file" accept=".json,.iliosbackup" className="hidden" ref={fileInputRef} onChange={handleRestoreFilePick} />
                     <button onClick={() => fileInputRef.current?.click()} className="w-full flex items-center gap-3 p-3 bg-slate-50 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-100 transition-colors border border-slate-200 mt-2"><Upload size={18} /> Επαναφορά από Backup</button>
 
                     <div className="flex justify-between items-center text-sm pt-2 border-t border-slate-50 mt-2">
@@ -267,10 +305,21 @@ export default function MobileSettings() {
                 isOpen={isBackupManagerOpen}
                 mode={backupManagerMode}
                 restoreData={pendingRestoreData ?? undefined}
-                onClose={() => { setIsBackupManagerOpen(false); setPendingRestoreData(null); }}
+                onClose={() => { setIsBackupManagerOpen(false); setPendingRestoreData(null); setPendingEncryptedBackup(null); }}
                 onRunExport={runExport}
                 onRunRestore={runRestore}
                 onPickRestoreFile={() => fileInputRef.current?.click()}
+                onLoadAutomaticBackup={(backup) => {
+                    setPendingRestoreData(backup);
+                    setPendingEncryptedBackup(null);
+                    setBackupManagerMode('restore');
+                }}
+                encryptedRestorePending={!!pendingEncryptedBackup}
+                onUnlockRestore={async (password) => {
+                    if (!pendingEncryptedBackup) return;
+                    setPendingRestoreData(await readBackupBytes(pendingEncryptedBackup, password));
+                    setPendingEncryptedBackup(null);
+                }}
             />
 
             <BackupProgressModal
