@@ -56,8 +56,10 @@ export async function sha256Json(value: unknown): Promise<string> {
 }
 
 export async function sha256Rows(rows: unknown[]): Promise<string> {
-    const sorted = [...rows].sort((left, right) => stableStringify(left).localeCompare(stableStringify(right)));
-    return sha256Json(sorted);
+    const canonicalRows = rows.map((row) => stableStringify(row)).sort((left, right) => left.localeCompare(right));
+    const bytes = new TextEncoder().encode(`[${canonicalRows.join(',')}]`);
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+    return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 export async function buildBackupV4(input: BuildBackupV4Input): Promise<BackupEnvelope> {

@@ -6,8 +6,30 @@ import {
     rewriteRestoredIds,
     selectUnreferencedImageKeys,
 } from '../../worker/worker.js';
+import * as backupWorker from '../../worker/worker.js';
 
 describe('automatic backup schedule and retention', () => {
+    it('canonicalizes each row only once for Worker checksums', () => {
+        const stableTableStringify = (backupWorker as any).stableTableStringify;
+        expect(stableTableStringify).toBeTypeOf('function');
+
+        let propertyReads = 0;
+        const rows = Array.from({ length: 64 }, (_, index) => {
+            const row: Record<string, unknown> = {};
+            Object.defineProperty(row, 'id', {
+                enumerable: true,
+                get: () => {
+                    propertyReads += 1;
+                    return 64 - index;
+                },
+            });
+            return row;
+        });
+
+        stableTableStringify(rows);
+        expect(propertyReads).toBe(rows.length);
+    });
+
     it('runs once at 02:00 Europe/Athens', () => {
         const instant = new Date('2026-07-09T23:00:00.000Z');
         expect(shouldRunScheduledBackup(instant, [])).toBe(true);

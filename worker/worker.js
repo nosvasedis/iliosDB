@@ -102,7 +102,8 @@ function stableJsonValue(value) {
   if (Array.isArray(value)) return value.map(stableJsonValue);
   if (value && typeof value === 'object') {
     return Object.keys(value).sort().reduce((result, key) => {
-      if (value[key] !== undefined) result[key] = stableJsonValue(value[key]);
+      const normalized = stableJsonValue(value[key]);
+      if (normalized !== undefined) result[key] = normalized;
       return result;
     }, {});
   }
@@ -113,8 +114,9 @@ function stableJsonStringify(value) {
   return JSON.stringify(stableJsonValue(value));
 }
 
-function stableTableStringify(rows) {
-  return JSON.stringify([...rows].sort((left, right) => stableJsonStringify(left).localeCompare(stableJsonStringify(right))).map(stableJsonValue));
+export function stableTableStringify(rows) {
+  const canonicalRows = rows.map((row) => stableJsonStringify(row)).sort((left, right) => left.localeCompare(right));
+  return `[${canonicalRows.join(',')}]`;
 }
 
 function decodeEncryptionKey(value) {

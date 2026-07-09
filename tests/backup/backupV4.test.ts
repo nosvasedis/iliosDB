@@ -9,10 +9,30 @@ import {
 import {
     buildBackupV4,
     migrateBackupToV4,
+    sha256Rows,
     verifyBackupV4,
 } from '../../lib/backupV4';
 
 describe('backup v4 manifest', () => {
+    it('canonicalizes each row only once while calculating a checksum', async () => {
+        let propertyReads = 0;
+        const rows = Array.from({ length: 64 }, (_, index) => {
+            const row: Record<string, unknown> = {};
+            Object.defineProperty(row, 'id', {
+                enumerable: true,
+                get: () => {
+                    propertyReads += 1;
+                    return 64 - index;
+                },
+            });
+            return row;
+        });
+
+        await sha256Rows(rows);
+
+        expect(propertyReads).toBe(rows.length);
+    });
+
     it('records empty, exported, and failed tables separately', async () => {
         const backup = await buildBackupV4({
             tables: {
