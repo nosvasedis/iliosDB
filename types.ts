@@ -465,6 +465,9 @@ export interface Offer {
   created_at: string;
   status: OfferStatus;
   custom_silver_price: number;
+  hide_silver_price_in_pdf?: boolean;
+  hide_offer_validity_in_pdf?: boolean;
+  offer_validity_days?: number;
   discount_percent: number;
   items: OrderItem[];
   total_price: number; // Final price after discount

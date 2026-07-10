@@ -1,7 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { Offer } from '../types';
-import { APP_LOGO } from '../constants';
+import { APP_LOGO, DEFAULT_OFFER_VALIDITY_DAYS } from '../constants';
 import { formatDecimal } from '../utils/pricingEngine';
 import { Phone, Mail, MapPin, Coins } from 'lucide-react';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
@@ -40,6 +40,9 @@ export default function OfferPrintView({ offer }: Props) {
     const netAmount = subtotal - discountAmount;
     const vatAmount = netAmount * vatRate;
     const grandTotal = netAmount + vatAmount;
+    const offerValidityDays = offer.offer_validity_days && offer.offer_validity_days > 0
+        ? Math.floor(offer.offer_validity_days)
+        : DEFAULT_OFFER_VALIDITY_DAYS;
     const sortedItems = useMemo(
         () => sortBySkuKey(offer.items, (item) => buildSkuKey(item.sku, item.variant_suffix)),
         [offer.items]
@@ -111,11 +114,13 @@ export default function OfferPrintView({ offer }: Props) {
                             <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Ημερομηνια</span> 
                             <span className="font-mono font-bold text-slate-900">{formatDate(offer.created_at)}</span>
                         </div>
-                        <div className="flex items-center justify-end gap-2 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 mt-0.5 inline-flex">
-                            <Coins size={10} className="text-slate-400"/>
-                            <span className="text-[8px] text-slate-500 uppercase font-bold tracking-wider">Τιμη Ασημιου</span> 
-                            <span className="font-mono font-black text-slate-900 text-[10px]">{formatDecimal(offer.custom_silver_price, 2)} €/g</span>
-                        </div>
+                        {!offer.hide_silver_price_in_pdf && (
+                            <div className="flex items-center justify-end gap-2 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 mt-0.5 inline-flex">
+                                <Coins size={10} className="text-slate-400"/>
+                                <span className="text-[8px] text-slate-500 uppercase font-bold tracking-wider">Τιμη Ασημιου</span>
+                                <span className="font-mono font-black text-slate-900 text-[10px]">{formatDecimal(offer.custom_silver_price, 2)} €/g</span>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -129,10 +134,12 @@ export default function OfferPrintView({ offer }: Props) {
                         <span className="font-medium text-slate-600 flex items-center gap-1 text-[10px] mt-0.5"><Phone size={10}/> {offer.customer_phone}</span>
                     )}
                 </div>
-                <div className="text-right">
-                     <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block">Ισχυς Προσφορας</span>
-                     <span className="font-bold text-slate-800 text-xs">30 Ημέρες</span>
-                </div>
+                {!offer.hide_offer_validity_in_pdf && (
+                    <div className="text-right">
+                         <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block">Ισχυς Προσφορας</span>
+                         <span className="font-bold text-slate-800 text-xs">{offerValidityDays} {offerValidityDays === 1 ? 'Ημέρα' : 'Ημέρες'}</span>
+                    </div>
+                )}
             </section>
 
             {/* CUSTOMER ITEMS GRID */}

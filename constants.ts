@@ -6,6 +6,8 @@ export const APP_LOGO = 'https://ilios-image-handler.iliosdb.workers.dev/logo.pn
 
 export const APP_ICON_ONLY = 'https://ilios-image-handler.iliosdb.workers.dev/collapsed-logo.png';
 
+export const DEFAULT_OFFER_VALIDITY_DAYS = 30;
+
 // Initial Mock Settings
 export const INITIAL_SETTINGS: GlobalSettings = {
   silver_price_gram: 0.82,

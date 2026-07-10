@@ -3,6 +3,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, CLOUDFLARE_WORKER_URL, AUTH_KEY_SECRET, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { Offer, Product, Customer, OrderItem, VatRegime } from '../../types';
+import { DEFAULT_OFFER_VALIDITY_DAYS } from '../../constants';
 import {
     Plus, Search, Trash2, Printer, Save, FileText, FileBadge, User, Phone, Check, RefreshCw,
     Loader2, ChevronRight, X, ArrowLeft, Coins, Percent, MoreHorizontal, Ban, ShoppingCart, ScanBarcode, Box, Image as ImageIcon,
@@ -56,6 +57,9 @@ export default function MobileOffers({ onPrintOffer }: Props) {
     const [customerPhone, setCustomerPhone] = useState('');
     const [customerId, setCustomerId] = useState<string | null>(null);
     const [customSilverPrice, setCustomSilverPrice] = useState<number>(0);
+    const [hideSilverPriceInPdf, setHideSilverPriceInPdf] = useState(false);
+    const [hideOfferValidityInPdf, setHideOfferValidityInPdf] = useState(false);
+    const [offerValidityDays, setOfferValidityDays] = useState(DEFAULT_OFFER_VALIDITY_DAYS);
     const [discountPercent, setDiscountPercent] = useState<number>(0);
     const [vatRate, setVatRate] = useState<number>(VatRegime.Standard);
     const [notes, setNotes] = useState('');
@@ -88,6 +92,9 @@ export default function MobileOffers({ onPrintOffer }: Props) {
             setCustomerPhone(offer.customer_phone || '');
             setCustomerId(offer.customer_id || null);
             setCustomSilverPrice(offer.custom_silver_price);
+            setHideSilverPriceInPdf(offer.hide_silver_price_in_pdf === true);
+            setHideOfferValidityInPdf(offer.hide_offer_validity_in_pdf === true);
+            setOfferValidityDays(offer.offer_validity_days && offer.offer_validity_days > 0 ? Math.floor(offer.offer_validity_days) : DEFAULT_OFFER_VALIDITY_DAYS);
             setDiscountPercent(offer.discount_percent);
             setVatRate(offer.vat_rate !== undefined ? offer.vat_rate : VatRegime.Standard);
             setNotes(parsedNotes.cleanNotes || '');
@@ -106,6 +113,9 @@ export default function MobileOffers({ onPrintOffer }: Props) {
             setCustomerPhone('');
             setCustomerId(null);
             setCustomSilverPrice(settings?.silver_price_gram || 0);
+            setHideSilverPriceInPdf(false);
+            setHideOfferValidityInPdf(false);
+            setOfferValidityDays(DEFAULT_OFFER_VALIDITY_DAYS);
             setDiscountPercent(0);
             setVatRate(VatRegime.Standard);
             setNotes('');
@@ -326,6 +336,9 @@ export default function MobileOffers({ onPrintOffer }: Props) {
             total_price: grandTotal,
             status: editingId ? (offers?.find(o => o.id === editingId)?.status || 'Pending') : 'Pending',
             created_at: editingId ? (offers?.find(o => o.id === editingId)?.created_at || new Date().toISOString()) : new Date().toISOString(),
+            hide_silver_price_in_pdf: hideSilverPriceInPdf,
+            hide_offer_validity_in_pdf: hideOfferValidityInPdf,
+            offer_validity_days: offerValidityDays,
             notes: composedNotes
         };
 
@@ -513,6 +526,51 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                                             {isFetchingPrice ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
                                         </button>
                                     </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={hideSilverPriceInPdf}
+                                    onClick={() => setHideSilverPriceInPdf(prev => !prev)}
+                                    className="w-full flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-left"
+                                >
+                                    <span>
+                                        <span className="block text-xs font-black text-amber-900">Απόκρυψη Τιμής Ασημιού από PDF</span>
+                                        <span className="block text-[10px] text-amber-600/70 mt-0.5">Η επιλογή αποθηκεύεται στην Προσφορά.</span>
+                                    </span>
+                                    <span className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${hideSilverPriceInPdf ? 'bg-amber-500' : 'bg-slate-200'}`}>
+                                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${hideSilverPriceInPdf ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                                    </span>
+                                </button>
+                                <div className="rounded-xl border border-amber-200 bg-white p-3 space-y-2">
+                                    <button
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={!hideOfferValidityInPdf}
+                                        onClick={() => setHideOfferValidityInPdf(prev => !prev)}
+                                        className="w-full flex items-center justify-between gap-3 text-left"
+                                    >
+                                        <span>
+                                            <span className="block text-xs font-black text-amber-900">Εμφάνιση Ισχύος Προσφοράς στο PDF</span>
+                                            <span className="block text-[10px] text-amber-600/70 mt-0.5">Απενεργοποιήστε το για να μην εμφανίζεται.</span>
+                                        </span>
+                                        <span className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${!hideOfferValidityInPdf ? 'bg-amber-500' : 'bg-slate-200'}`}>
+                                            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${!hideOfferValidityInPdf ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                                        </span>
+                                    </button>
+                                    {!hideOfferValidityInPdf && (
+                                        <div>
+                                            <label className="text-[10px] font-bold text-amber-600 uppercase block mb-1">Διάρκεια Ισχύος (ημέρες)</label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                step="1"
+                                                value={offerValidityDays}
+                                                onChange={e => setOfferValidityDays(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                                                className="w-full p-2 bg-amber-50 border border-amber-200 rounded-lg font-bold text-amber-900 outline-none text-center"
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>

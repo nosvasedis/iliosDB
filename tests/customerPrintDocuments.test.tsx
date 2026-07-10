@@ -94,6 +94,62 @@ describe('customer print documents', () => {
     expect(html).toContain('whitespace-pre-wrap');
   });
 
+  it('hides the silver price badge when the offer requests it', () => {
+    const html = renderToStaticMarkup(
+      <OfferPrintView
+        offer={{
+          id: 'offer-hidden-silver',
+          customer_name: 'Customer',
+          created_at: '2026-07-01T10:00:00.000Z',
+          status: 'Pending',
+          custom_silver_price: 1,
+          hide_silver_price_in_pdf: true,
+          discount_percent: 0,
+          total_price: 25,
+          items: [],
+        }}
+      />,
+    );
+
+    expect(html).not.toContain('Τιμη Ασημιου');
+  });
+
+  it('uses a saved offer validity duration and can hide the validity block', () => {
+    const customDurationHtml = renderToStaticMarkup(
+      <OfferPrintView
+        offer={{
+          id: 'offer-custom-validity',
+          customer_name: 'Customer',
+          created_at: '2026-07-01T10:00:00.000Z',
+          status: 'Pending',
+          custom_silver_price: 1,
+          offer_validity_days: 14,
+          discount_percent: 0,
+          total_price: 25,
+          items: [],
+        }}
+      />,
+    );
+    expect(customDurationHtml).toContain('14 Ημέρες');
+
+    const hiddenDurationHtml = renderToStaticMarkup(
+      <OfferPrintView
+        offer={{
+          id: 'offer-no-validity',
+          customer_name: 'Customer',
+          created_at: '2026-07-01T10:00:00.000Z',
+          status: 'Pending',
+          custom_silver_price: 1,
+          hide_offer_validity_in_pdf: true,
+          discount_percent: 0,
+          total_price: 25,
+          items: [],
+        }}
+      />,
+    );
+    expect(hiddenDurationHtml).not.toContain('Ισχυς Προσφορας');
+  });
+
   it('renders full SKU notes under offer item descriptions without truncating them', () => {
     const html = renderToStaticMarkup(
       <OfferPrintView
@@ -122,6 +178,7 @@ describe('customer print documents', () => {
 
     expect(html).toContain('Platinum finish');
     expect(html).toContain(longSkuNote);
+    expect(html).toContain('Τιμη Ασημιου');
     expect(html.indexOf('Platinum finish')).toBeLessThan(html.indexOf(longSkuNote));
     expect(html).toContain('customer-print-sku-note');
     expect(html).toContain('whitespace-pre-wrap');
