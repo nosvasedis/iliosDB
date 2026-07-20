@@ -2,7 +2,7 @@ import React from 'react';
 import { ImageIcon, ChevronDown, ChevronRight } from 'lucide-react';
 import type { SupplierOrderGroupedNeed, SupplierOrderNeedRequirement } from '../hooks/useSupplierOrderNeeds';
 import { aggregateRequirementsByCustomer, unattributedQty } from '../utils/supplierOrderNeedBreakdown';
-import { quantitiesFromSelection, selectedQtyFromMask } from '../utils/supplierOrderCustomerFilter';
+import { quantitiesFromRequirementSelection } from '../utils/supplierOrderCustomerFilter';
 import { formatOrderId } from '../utils/orderUtils';
 
 type Accent = 'indigo' | 'blue';
@@ -37,8 +37,8 @@ interface Props {
     accent: Accent;
     expanded: boolean;
     onToggleBreakdown: () => void;
-    selectionMask: boolean[];
-    onSelectionChange: (next: boolean[]) => void;
+    selectedRequirementIds: Set<string>;
+    onSelectionChange: (next: Set<string>) => void;
     onAddFiltered: (qty: number, requirements: SupplierOrderNeedRequirement[]) => void;
     onNotifyZero?: () => void;
     layout: 'desktop' | 'mobile';
@@ -49,7 +49,7 @@ export default function PurchaseNeedRow({
     accent,
     expanded,
     onToggleBreakdown,
-    selectionMask,
+    selectedRequirementIds,
     onSelectionChange,
     onAddFiltered,
     onNotifyZero,
@@ -61,23 +61,22 @@ export default function PurchaseNeedRow({
     const lineCount = byCustomer.length + (extra > 0 ? 1 : 0);
     const isDesktop = layout === 'desktop';
 
-    const selectedQty = selectedQtyFromMask(n, selectionMask, extra);
+    const selectedQty = quantitiesFromRequirementSelection(n, selectedRequirementIds).totalQty;
     const addDisabled = selectedQty <= 0;
 
     const setAll = (v: boolean) => {
-        const len = n.requirements.length + (extra > 0 ? 1 : 0);
-        onSelectionChange(new Array(len).fill(v));
+        onSelectionChange(v ? new Set(n.requirements.map((requirement) => requirement.id)) : new Set());
     };
 
-    const toggleAt = (index: number) => {
-        const next = [...selectionMask];
-        if (index < 0 || index >= next.length) return;
-        next[index] = !next[index];
+    const toggleRequirement = (id: string) => {
+        const next = new Set(selectedRequirementIds);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
         onSelectionChange(next);
     };
 
     const handleAdd = () => {
-        const { totalQty, requirements } = quantitiesFromSelection(n, selectionMask, extra);
+        const { totalQty, requirements } = quantitiesFromRequirementSelection(n, selectedRequirementIds);
         if (totalQty <= 0) {
             onNotifyZero?.();
             return;
@@ -108,6 +107,8 @@ export default function PurchaseNeedRow({
                         {n.size && (
                             <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${sizeBadge[accent]}`}>{n.size}</span>
                         )}
+                        {n.cordColor && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-black text-slate-600">Κορδόνι: {n.cordColor}</span>}
+                        {n.enamelColor && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-black text-slate-600">Σμάλτο: {n.enamelColor}</span>}
                     </div>
                     <p className={`text-slate-700 font-bold mt-1 ${isDesktop ? 'text-[11px]' : 'text-[10px]'}`}>
                         <span className="text-slate-900 font-black tabular-nums">{n.totalQty}</span> τμχ συνολικά
@@ -162,8 +163,8 @@ export default function PurchaseNeedRow({
                                                 >
                                                     <input
                                                         type="checkbox"
-                                                        checked={!!selectionMask[i]}
-                                                        onChange={() => toggleAt(i)}
+                                                        checked={selectedRequirementIds.has(r.id)}
+                                                        onChange={() => toggleRequirement(r.id)}
                                                         className="rounded border-slate-300 w-4 h-4 shrink-0 accent-slate-800"
                                                     />
                                                     <span className={`font-semibold text-slate-800 truncate flex-1 min-w-0 ${isDesktop ? 'text-[11px]' : 'text-[10px]'}`}>
@@ -185,8 +186,9 @@ export default function PurchaseNeedRow({
                                                 >
                                                     <input
                                                         type="checkbox"
-                                                        checked={!!selectionMask[n.requirements.length]}
-                                                        onChange={() => toggleAt(n.requirements.length)}
+                                                        checked={false}
+                                                        onChange={() => undefined}
+                                                        disabled
                                                         className="rounded border-slate-300 w-4 h-4 shrink-0 accent-amber-800"
                                                     />
                                                     <span className={`font-bold text-amber-950 flex-1 min-w-0 ${isDesktop ? 'text-[11px]' : 'text-[10px]'}`}>

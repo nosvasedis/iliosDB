@@ -22,6 +22,6 @@ export function unattributedQty(totalQty: number, requirements: SupplierOrderNee
     return Math.max(0, totalQty - attributed);
 }
 
-export function needBreakdownKey(section: 'prod' | 'pend', n: { sku: string; variant: string; size?: string }): string {
-    return `${section}:${n.sku}:${n.variant}:${n.size ?? ''}`;
+export function needBreakdownKey(section: 'prod' | 'pend', n: { sku: string; variant: string; size?: string; cordColor?: string | null; enamelColor?: string | null }): string {
+    return `${section}:${n.sku}:${n.variant}:${n.size ?? ''}:${n.cordColor ?? ''}:${n.enamelColor ?? ''}`;
 }

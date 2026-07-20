@@ -969,6 +969,23 @@ export interface AadeProxyResult {
 
 export type SupplierOrderType = 'Product' | 'Material';
 
+export type SupplierOrderSourceType = 'production_batch' | 'customer_order';
+
+/** Exact demand reserved by a supplier-order line. Stored inside the items JSON payload. */
+export interface SupplierOrderSourceAllocation {
+  id: string;
+  source_type: SupplierOrderSourceType;
+  source_id: string;
+  order_id?: string;
+  line_id?: string | null;
+  customer: string;
+  quantity: number;
+  order_created_at?: string;
+  order_note?: string;
+  item_note?: string;
+  production_note?: string;
+}
+
 export interface SupplierOrderItem {
   id: string;
   item_type: SupplierOrderType;
@@ -979,6 +996,14 @@ export interface SupplierOrderItem {
   total_cost: number;
   notes?: string;
   size_info?: string; // New: Store size for ring orders
+  /** Explicit identity for new rows; legacy rows derive this from item_name. */
+  variant_suffix?: string | null;
+  cord_color?: ProductOptionColor | null;
+  enamel_color?: ProductOptionColor | null;
+  /** Deliberate quantity not backed by a smart-list requirement. */
+  manual_quantity?: number;
+  /** Source reservations backing the derived/smart quantity. */
+  source_allocations?: SupplierOrderSourceAllocation[];
   /** Customer names when the line comes from production/pending needs (order demand). */
   customer_reference?: string;
 }

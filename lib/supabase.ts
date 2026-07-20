@@ -59,7 +59,7 @@ import {
     assertInspectionWorkerRouteAllowed,
     isInspectionModeActive,
 } from './inspectionMode';
-import { addReceivedSizeQuantity, resolveSupplierOrderProductReceiptTarget } from '../features/suppliers/receiptHelpers';
+import { addReceivedSizeQuantity, resolveSupplierOrderProductReceiptTarget, supplierOrderInventoryReceiptQuantity } from '../features/suppliers/receiptHelpers';
 import { buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, getAadeProxyErrorMessage, isEmptyTransmittedDocsResponse, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, parseAadeResponseXml, parseTransmittedDocumentsXml, roundMoney, serializeLegalDocumentForDb, serializeLegalDocumentLineForDb, serializeProformaDocumentForDb, validateLegalDocument } from '../utils/legalDocuments';
 
 // Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
@@ -1973,17 +1973,43 @@ export const api = {
     },
 
     saveSupplierOrder: async (order: SupplierOrder): Promise<void> => {
+        const hasSmartAllocations = order.items.some((item) => (item.source_allocations?.length || 0) > 0);
+        if (!isLocalMode && navigator.onLine && hasSmartAllocations) {
+            const { error } = await supabase.rpc('save_supplier_order_validated', { p_order: order });
+            if (error) throw error;
+            return;
+        }
         await safeMutate('supplier_orders', 'INSERT', order);
     },
 
     updateSupplierOrder: async (order: SupplierOrder): Promise<void> => {
+        const hasSmartAllocations = order.items.some((item) => (item.source_allocations?.length || 0) > 0);
+        if (!isLocalMode && navigator.onLine && hasSmartAllocations) {
+            const { error } = await supabase.rpc('save_supplier_order_validated', { p_order: order });
+            if (error) throw error;
+            return;
+        }
         await safeMutate('supplier_orders', 'UPDATE', order, { match: { id: order.id } });
     },
 
     receiveSupplierOrder: async (order: SupplierOrder): Promise<void> => {
-        // 1. Mark Order as Received
-        const receivedOrder = { ...order, status: 'Received', received_at: new Date().toISOString() };
-        await safeMutate('supplier_orders', 'UPDATE', receivedOrder, { match: { id: order.id } });
+        if (!isLocalMode && !navigator.onLine) {
+            throw new Error('Η παραλαβή εντολής προμηθευτή απαιτεί σύνδεση.');
+        }
+        if (!isLocalMode) {
+            const { data, error } = await supabase.rpc('claim_supplier_order_receipt', { p_order_id: order.id });
+            if (error) throw error;
+            order = data as SupplierOrder;
+        } else {
+            const currentOrder = (await api.getSupplierOrders()).find((candidate) => candidate.id === order.id);
+            if (!currentOrder) throw new Error('Η εντολή προμηθευτή δεν βρέθηκε.');
+            if (currentOrder.status !== 'Pending') {
+                throw new Error('Η εντολή προμηθευτή έχει ήδη παραληφθεί ή κλείσει.');
+            }
+            order = currentOrder;
+            const receivedOrder = { ...order, status: 'Received' as const, received_at: new Date().toISOString() };
+            await safeMutate('supplier_orders', 'UPDATE', receivedOrder, { match: { id: order.id } });
+        }
 
         // 2. Batch-fetch current stock for all products, variants and materials in this order
         const productSkus = [...new Set(order.items.filter(i => i.item_type === 'Product').map(i => i.item_id))];
@@ -2015,48 +2041,77 @@ export const api = {
             variantsBySku.set(v.product_sku, list);
         });
         const materialMap = new Map(materialRows.map(m => [m.id, m.stock_qty ?? 0]));
+        const awaitingBatches = (await api.getProductionBatches()).filter(
+            (batch) => batch.current_stage === ProductionStage.AwaitingDelivery
+        );
+        const awaitingRemainingById = new Map(awaitingBatches.map((batch) => [batch.id, batch.quantity]));
 
         // 3. Apply stock updates in parallel (same logic as before, one update per item)
         const updatePromises: Promise<any>[] = [];
         for (const item of order.items) {
             if (item.item_type === 'Product') {
                 const target = resolveSupplierOrderProductReceiptTarget(item, variantsBySku.get(item.item_id));
+                let transitionedToBatchQty = 0;
+                for (const allocation of item.source_allocations || []) {
+                    if (allocation.source_type !== 'customer_order' || !allocation.order_id) continue;
+                    let allocationRemaining = allocation.quantity;
+                    for (const batch of awaitingBatches) {
+                        if (allocationRemaining <= 0) break;
+                        if (batch.order_id !== allocation.order_id || batch.sku !== target.sku) continue;
+                        if (allocation.line_id && batch.line_id !== allocation.line_id) continue;
+                        if ((batch.variant_suffix || '') !== (target.variantSuffix || '')) continue;
+                        if ((batch.size_info || '') !== (item.size_info || '')) continue;
+                        if ((batch.cord_color || '') !== (item.cord_color || '')) continue;
+                        if ((batch.enamel_color || '') !== (item.enamel_color || '')) continue;
+                        const batchRemaining = awaitingRemainingById.get(batch.id) || 0;
+                        const committed = Math.min(batchRemaining, allocationRemaining);
+                        awaitingRemainingById.set(batch.id, batchRemaining - committed);
+                        allocationRemaining -= committed;
+                        transitionedToBatchQty += committed;
+                    }
+                }
+                // Awaiting-delivery allocations are committed to production batches and must not
+                // become reusable inventory. Manual surplus and genuinely unbatched demand do.
+                const inventoryQuantity = supplierOrderInventoryReceiptQuantity(item, transitionedToBatchQty);
+                if (inventoryQuantity <= 0) continue;
                 const variantKey = target.variantSuffix ? `${target.sku}::${target.variantSuffix}` : null;
                 const variantCurrent = variantKey ? variantMap.get(variantKey) : undefined;
 
                 if (variantKey && variantCurrent && target.variantSuffix) {
                     const variantSuffix = target.variantSuffix;
-                    const nextStockQty = variantCurrent.stock_qty + item.quantity;
-                    const nextSizeMap = addReceivedSizeQuantity(variantCurrent.stock_by_size, item.size_info, item.quantity);
+                    const nextStockQty = variantCurrent.stock_qty + inventoryQuantity;
+                    const nextSizeMap = addReceivedSizeQuantity(variantCurrent.stock_by_size, item.size_info, inventoryQuantity);
                     const updateData: Record<string, any> = { stock_qty: nextStockQty };
                     if (nextSizeMap) updateData.stock_by_size = nextSizeMap;
 
                     updatePromises.push(
                         safeMutate('product_variants', 'UPDATE', updateData, { match: { product_sku: target.sku, suffix: variantSuffix } })
                     );
-                    updatePromises.push(recordStockMovement(target.sku, item.quantity, `Supplier Order #${order.id.slice(0, 6)}`, variantSuffix));
+                    updatePromises.push(recordStockMovement(target.sku, inventoryQuantity, `Supplier Order #${order.id.slice(0, 6)}`, variantSuffix));
                     variantMap.set(variantKey, { stock_qty: nextStockQty, stock_by_size: nextSizeMap || variantCurrent.stock_by_size });
                     continue;
                 }
 
                 const current = productMap.get(target.sku);
                 if (current !== undefined) {
-                    const nextStockQty = current.stock_qty + item.quantity;
-                    const nextSizeMap = addReceivedSizeQuantity(current.stock_by_size, item.size_info, item.quantity);
+                    const nextStockQty = current.stock_qty + inventoryQuantity;
+                    const nextSizeMap = addReceivedSizeQuantity(current.stock_by_size, item.size_info, inventoryQuantity);
                     const updateData: Record<string, any> = { stock_qty: nextStockQty };
                     if (nextSizeMap) updateData.stock_by_size = nextSizeMap;
 
                     updatePromises.push(
                         safeMutate('products', 'UPDATE', updateData, { match: { sku: target.sku } })
                     );
-                    updatePromises.push(recordStockMovement(target.sku, item.quantity, `Supplier Order #${order.id.slice(0, 6)}`));
+                    updatePromises.push(recordStockMovement(target.sku, inventoryQuantity, `Supplier Order #${order.id.slice(0, 6)}`));
                     productMap.set(target.sku, { stock_qty: nextStockQty, stock_by_size: nextSizeMap || current.stock_by_size });
                 }
             } else if (item.item_type === 'Material') {
+                const inventoryQuantity = supplierOrderInventoryReceiptQuantity(item);
+                if (inventoryQuantity <= 0) continue;
                 const current = materialMap.get(item.item_id);
                 if (current !== undefined) {
                     updatePromises.push(
-                        safeMutate('materials', 'UPDATE', { stock_qty: current + item.quantity }, { match: { id: item.item_id } })
+                        safeMutate('materials', 'UPDATE', { stock_qty: current + inventoryQuantity }, { match: { id: item.item_id } })
                     );
                 }
             }

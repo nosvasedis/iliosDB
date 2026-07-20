@@ -1,12 +1,16 @@
 import type { Product, SupplierOrderItem, SupplierOrderType } from '../types';
+import type { SupplierOrderNeedRequirement } from '../features/suppliers/purchaseNeedPlanner';
+import { allocationFromRequirement, supplierOrderItemAllocationQty, supplierOrderItemManualQty } from '../features/suppliers/purchaseNeedPlanner';
 
 /** Grouped need row from production batches or pending orders — fields required to merge into cart. */
 export type GroupedSupplierNeedForMerge = {
     variant: string;
     size?: string;
+    cordColor?: string | null;
+    enamelColor?: string | null;
     totalQty: number;
     product?: Product;
-    requirements?: { customer: string; quantity?: number; orderNote?: string; itemNote?: string; productionNote?: string }[];
+    requirements?: Array<Partial<SupplierOrderNeedRequirement> & { customer: string; quantity?: number; orderNote?: string; itemNote?: string; productionNote?: string }>;
 };
 
 export function customerRefsFromRequirements(requirements?: { customer: string }[]): string | undefined {
@@ -187,6 +191,28 @@ export function supplierOrderNotesFromRequirements(
     return normalizeSupplierItemNotesForDisplay(lines.length ? lines.join('\n') : undefined);
 }
 
+/** Recompute all fields derived from structured source allocations after an allocation is removed. */
+export function rebuildSupplierOrderItemFromAllocations(item: SupplierOrderItem): SupplierOrderItem {
+    const allocations = item.source_allocations || [];
+    const requirements = allocations.map((allocation) => ({
+        customer: allocation.customer,
+        quantity: allocation.quantity,
+        orderNote: allocation.order_note,
+        itemNote: allocation.item_note,
+        productionNote: allocation.production_note,
+    }));
+    const manualQuantity = supplierOrderItemManualQty(item);
+    return {
+        ...item,
+        source_allocations: allocations.length ? allocations : undefined,
+        manual_quantity: manualQuantity,
+        quantity: allocations.reduce((sum, allocation) => sum + allocation.quantity, 0) + manualQuantity,
+        customer_reference: customerRefsFromRequirements(requirements),
+        notes: supplierOrderNotesFromRequirements(requirements),
+        total_cost: 0,
+    };
+}
+
 export function mergeNeedIntoItems(
     prev: SupplierOrderItem[],
     need: GroupedSupplierNeedForMerge,
@@ -200,16 +226,36 @@ export function mergeNeedIntoItems(
         i =>
             i.item_name === name &&
             i.item_type === itemType &&
-            (i.size_info || '') === (finalSize || '')
+            (i.size_info || '') === (finalSize || '') &&
+            (i.cord_color || '') === (need.cordColor || '') &&
+            (i.enamel_color || '') === (need.enamelColor || '')
     );
 
     const refFromNeed = customerRefsFromRequirements(need.requirements);
     const notesFromNeed = supplierOrderNotesFromRequirements(need.requirements);
 
+    const sourcedRequirements = (need.requirements || []).filter(
+        (requirement): requirement is SupplierOrderNeedRequirement =>
+            !!requirement.id && !!requirement.sourceType && !!requirement.sourceId && typeof requirement.quantity === 'number'
+    );
+    const incomingAllocations = sourcedRequirements.map(allocationFromRequirement);
+
     if (existingIdx >= 0) {
         const updated = [...prev];
         const line = { ...updated[existingIdx] };
-        line.quantity += need.totalQty;
+        const priorManualQuantity = supplierOrderItemManualQty(line);
+        const existingAllocations = [...(line.source_allocations || [])];
+        const existingSourceIds = new Set(existingAllocations.map((allocation) => `${allocation.source_type}:${allocation.source_id}`));
+        const newAllocations = incomingAllocations.filter(
+            (allocation) => !existingSourceIds.has(`${allocation.source_type}:${allocation.source_id}`)
+        );
+        line.source_allocations = [...existingAllocations, ...newAllocations];
+        if (incomingAllocations.length === 0) {
+            line.manual_quantity = priorManualQuantity + need.totalQty;
+        } else {
+            line.manual_quantity = priorManualQuantity;
+        }
+        line.quantity = supplierOrderItemAllocationQty(line) + supplierOrderItemManualQty(line);
         line.total_cost = 0;
         line.customer_reference = mergeCustomerReferenceStrings(line.customer_reference, refFromNeed);
         line.notes = normalizeSupplierItemNotesForDisplay(mergeSupplierOrderNotes(line.notes, notesFromNeed));
@@ -229,6 +275,11 @@ export function mergeNeedIntoItems(
             total_cost: 0,
             notes: notesFromNeed,
             size_info: finalSize || undefined,
+            variant_suffix: need.variant || null,
+            cord_color: need.cordColor as SupplierOrderItem['cord_color'],
+            enamel_color: need.enamelColor as SupplierOrderItem['enamel_color'],
+            manual_quantity: incomingAllocations.length > 0 ? 0 : need.totalQty,
+            source_allocations: incomingAllocations.length > 0 ? incomingAllocations : undefined,
             customer_reference: refFromNeed,
         },
     ];

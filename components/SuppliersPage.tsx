@@ -176,7 +176,7 @@ export default function SuppliersPage() {
     };
 
     const handleReceiveOrder = async (order: SupplierOrder) => {
-        const yes = await confirm({ title: 'Παραλαβή', message: 'Θέλετε να παραλάβετε τα προϊόντα; Θα ενημερωθεί το απόθεμα.', confirmText: 'Παραλαβή' });
+        const yes = await confirm({ title: 'Παραλαβή', message: 'Να καταχωριστεί η παραλαβή; Οι δεσμευμένες ανάγκες θα εκπληρωθούν και μόνο τα ελεύθερα/έξτρα τεμάχια θα προστεθούν στο απόθεμα.', confirmText: 'Παραλαβή' });
         if (!yes) return;
         try {
             await api.receiveSupplierOrder(order);
@@ -184,7 +184,7 @@ export default function SuppliersPage() {
             await invalidateProductsAndCatalog(queryClient);
             queryClient.invalidateQueries({ queryKey: ['materials'] });
             showToast("Παραλαβή ολοκληρώθηκε.", "success");
-        } catch (e) { showToast("Σφάλμα παραλαβής.", "error"); }
+        } catch (e: any) { showToast(e?.message || "Σφάλμα παραλαβής.", "error"); }
     };
 
     const handleDeleteOrder = async (orderId: string) => {

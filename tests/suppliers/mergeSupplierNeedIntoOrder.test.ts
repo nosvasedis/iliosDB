@@ -131,4 +131,44 @@ describe('supplier order note merging', () => {
       'Manual supplier note\nCustomer A - Order note: Rush',
     );
   });
+
+  it('does not add the same smart requirement twice', () => {
+    const need = {
+      variant: 'X',
+      totalQty: 2,
+      product,
+      requirements: [{
+        id: 'customer_order:o1:line:l1',
+        sourceType: 'customer_order' as const,
+        sourceId: 'o1:line:l1',
+        orderId: 'o1',
+        lineId: 'l1',
+        customer: 'Customer A',
+        quantity: 2,
+      }],
+    };
+    const once = mergeNeedIntoItems([], need);
+    const twice = mergeNeedIntoItems(once, need);
+
+    expect(twice).toHaveLength(1);
+    expect(twice[0].quantity).toBe(2);
+    expect(twice[0].source_allocations).toHaveLength(1);
+  });
+
+  it('preserves deliberate manual quantity when a smart source merges into the same line', () => {
+    const initial: SupplierOrderItem[] = [{
+      id: 'manual', item_type: 'Product', item_id: product.sku, item_name: `${product.sku}X`, quantity: 3,
+      manual_quantity: 3, unit_cost: 0, total_cost: 0,
+    }];
+    const merged = mergeNeedIntoItems(initial, {
+      variant: 'X', totalQty: 2, product,
+      requirements: [{
+        id: 'production_batch:b1', sourceType: 'production_batch', sourceId: 'b1', orderId: 'o1',
+        customer: 'Customer A', quantity: 2,
+      }],
+    });
+
+    expect(merged[0].manual_quantity).toBe(3);
+    expect(merged[0].quantity).toBe(5);
+  });
 });

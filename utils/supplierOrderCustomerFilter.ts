@@ -33,6 +33,28 @@ export function customerMatchesPurchaseFilter(customerDisplay: string, f: Purcha
     return !f.excludeKeys.has(k);
 }
 
+export function defaultRequirementSelectionIds(
+    need: SupplierOrderGroupedNeed,
+    f: PurchaseOrderCustomerFilter,
+): Set<string> {
+    return new Set(
+        need.requirements
+            .filter((requirement) => customerMatchesPurchaseFilter(requirement.customer, f))
+            .map((requirement) => requirement.id)
+    );
+}
+
+export function quantitiesFromRequirementSelection(
+    need: SupplierOrderGroupedNeed,
+    selectedIds: Set<string>,
+): { totalQty: number; requirements: SupplierOrderNeedRequirement[] } {
+    const requirements = need.requirements.filter((requirement) => selectedIds.has(requirement.id));
+    return {
+        totalQty: requirements.reduce((sum, requirement) => sum + requirement.quantity, 0),
+        requirements,
+    };
+}
+
 export function defaultMaskForNeed(need: SupplierOrderGroupedNeed, extraQty: number, f: PurchaseOrderCustomerFilter): boolean[] {
     const mask = need.requirements.map(r => customerMatchesPurchaseFilter(r.customer, f));
     if (extraQty > 0) {
@@ -58,7 +80,14 @@ export function quantitiesFromSelection(
     }
     if (extraQty > 0 && mask[reqs.length]) {
         sum += extraQty;
-        outReqs.push({ orderId: '', customer: unattributedLabel, quantity: extraQty });
+        outReqs.push({
+            id: `unattributed:${need.sku}:${need.variant}:${need.size || ''}`,
+            sourceType: 'customer_order',
+            sourceId: '',
+            orderId: '',
+            customer: unattributedLabel,
+            quantity: extraQty,
+        });
     }
     return { totalQty: sum, requirements: outReqs };
 }
@@ -70,19 +99,23 @@ export function selectedQtyFromMask(need: SupplierOrderGroupedNeed, mask: boolea
 export function mergeManyNeedsWithCustomerFilter(
     prev: SupplierOrderItem[],
     needs: SupplierOrderGroupedNeed[],
-    f: PurchaseOrderCustomerFilter
+    f: PurchaseOrderCustomerFilter,
+    selectedIdsByNeedKey?: Record<string, string[]>,
+    keyForNeed?: (need: SupplierOrderGroupedNeed) => string,
 ): SupplierOrderItem[] {
     return needs.reduce((acc, n) => {
         if (!n.product) return acc;
-        const extra = unattributedQty(n.totalQty, n.requirements);
-        const mask = defaultMaskForNeed(n, extra, f);
-        const { totalQty, requirements } = quantitiesFromSelection(n, mask, extra);
+        const storedIds = keyForNeed ? selectedIdsByNeedKey?.[keyForNeed(n)] : undefined;
+        const selectedIds = storedIds ? new Set(storedIds) : defaultRequirementSelectionIds(n, f);
+        const { totalQty, requirements } = quantitiesFromRequirementSelection(n, selectedIds);
         if (totalQty <= 0) return acc;
         return mergeNeedIntoItems(
             acc,
             {
                 variant: n.variant,
                 size: n.size,
+                cordColor: n.cordColor,
+                enamelColor: n.enamelColor,
                 totalQty,
                 product: n.product,
                 requirements,

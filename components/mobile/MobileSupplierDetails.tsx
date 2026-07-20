@@ -117,7 +117,7 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
     const handleReceiveOrder = async (order: SupplierOrder) => {
         const yes = await confirm({
             title: 'Παραλαβή',
-            message: 'Θέλετε να παραλάβετε τα προϊόντα; Θα ενημερωθεί το απόθεμα.',
+            message: 'Να καταχωριστεί η παραλαβή; Οι δεσμευμένες ανάγκες θα εκπληρωθούν και μόνο τα ελεύθερα/έξτρα τεμάχια θα προστεθούν στο απόθεμα.',
             confirmText: 'Παραλαβή',
         });
         if (!yes) return;
@@ -127,8 +127,8 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
             await invalidateProductsAndCatalog(queryClient);
             queryClient.invalidateQueries({ queryKey: ['materials'] });
             showToast('Παραλαβή ολοκληρώθηκε.', 'success');
-        } catch {
-            showToast('Σφάλμα παραλαβής.', 'error');
+        } catch (error: any) {
+            showToast(error?.message || 'Σφάλμα παραλαβής.', 'error');
         }
     };
 

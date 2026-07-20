@@ -23,10 +23,10 @@ import { Supplier, SupplierOrder, SupplierOrderItem, SupplierOrderType, Product 
 import { api } from '../../lib/supabase';
 import { useUI } from '../UIProvider';
 import { useSupplierOrderNeeds, type SupplierOrderGroupedNeed } from '../../hooks/useSupplierOrderNeeds';
-import { mergeNeedIntoItems } from '../../utils/mergeSupplierNeedIntoOrder';
-import { needBreakdownKey, unattributedQty } from '../../utils/supplierOrderNeedBreakdown';
+import { mergeNeedIntoItems, rebuildSupplierOrderItemFromAllocations } from '../../utils/mergeSupplierNeedIntoOrder';
+import { needBreakdownKey } from '../../utils/supplierOrderNeedBreakdown';
 import {
-    defaultMaskForNeed,
+    defaultRequirementSelectionIds,
     mergeManyNeedsWithCustomerFilter,
     normCustomerKey,
     purchaseOrderFilterFromTab,
@@ -37,6 +37,8 @@ import {
     getPurchaseOrderLinePresentation,
     shouldShowPurchaseOrderSizeInput,
 } from '../../features/suppliers/purchaseOrderPresentation';
+import { supplierOrderItemAllocationQty, supplierOrderItemManualQty } from '../../features/suppliers/purchaseNeedPlanner';
+import { validateSupplierOrderDraftLive } from '../../features/suppliers/supplierOrderValidation';
 import PurchaseNeedRow from '../PurchaseNeedRow';
 import PurchaseOrderCustomerFilterBar from '../PurchaseOrderCustomerFilterBar';
 
@@ -58,22 +60,27 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
     const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
     const queryClient = useQueryClient();
     const { showToast } = useUI();
-    const { productionNeeds, pendingOrderNeeds } = useSupplierOrderNeeds(supplier);
     const cartSectionRef = useRef<HTMLDivElement>(null);
 
     const [items, setItems] = useState<SupplierOrderItem[]>(() => initialOrder?.items ?? []);
+    const { productionNeeds, pendingOrderNeeds, unassignedNeeds, isLoading: needsLoading } = useSupplierOrderNeeds(
+        supplier,
+        items,
+        initialOrder?.id,
+    );
     const [searchTerm, setSearchTerm] = useState('');
     const [cartSearchTerm, setCartSearchTerm] = useState('');
     const [searchType, setSearchType] = useState<SupplierOrderType>('Product');
     const [notes, setNotes] = useState(() => initialOrder?.notes ?? '');
     const [isSaving, setIsSaving] = useState(false);
+    const [conflictingSourceIds, setConflictingSourceIds] = useState<Set<string>>(() => new Set());
     const [productionNeedsOpen, setProductionNeedsOpen] = useState(true);
     const [pendingNeedsOpen, setPendingNeedsOpen] = useState(true);
     const [needBreakdownOpen, setNeedBreakdownOpen] = useState<Record<string, boolean>>({});
     const [customerFilterExpanded, setCustomerFilterExpanded] = useState(false);
     const [customerFilterTab, setCustomerFilterTab] = useState<PurchaseOrderFilterTab>('all');
     const [customerPickKeys, setCustomerPickKeys] = useState<Set<string>>(() => new Set());
-    const [rowSelectionMasks, setRowSelectionMasks] = useState<Record<string, boolean[]>>({});
+    const [rowSelectionMasks, setRowSelectionMasks] = useState<Record<string, string[]>>({});
 
     const productBySku = useMemo(() => new Map((products || []).map((product) => [product.sku, product])), [products]);
     const totalPieces = useMemo(() => items.reduce((sum, item) => sum + Number(item.quantity || 0), 0), [items]);
@@ -105,19 +112,21 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
         }
     }, [initialOrder?.id]);
 
-    const resolveRowMask = (key: string, need: SupplierOrderGroupedNeed): boolean[] => {
-        const extra = unattributedQty(need.totalQty, need.requirements);
-        const expectedLen = need.requirements.length + (extra > 0 ? 1 : 0);
+    const resolveRowMask = (key: string, need: SupplierOrderGroupedNeed): Set<string> => {
         const stored = rowSelectionMasks[key];
-        if (stored && stored.length === expectedLen) return stored;
-        return defaultMaskForNeed(need, extra, poCustomerFilter);
+        if (stored) {
+            const validIds = new Set(need.requirements.map((requirement) => requirement.id));
+            return new Set(stored.filter((id) => validIds.has(id)));
+        }
+        return defaultRequirementSelectionIds(need, poCustomerFilter);
     };
 
-    const setRowMask = (key: string, need: SupplierOrderGroupedNeed, next: boolean[]) => {
-        const extra = unattributedQty(need.totalQty, need.requirements);
-        const expectedLen = need.requirements.length + (extra > 0 ? 1 : 0);
-        if (next.length !== expectedLen) return;
-        setRowSelectionMasks((previous) => ({ ...previous, [key]: next }));
+    const setRowMask = (key: string, need: SupplierOrderGroupedNeed, next: Set<string>) => {
+        const validIds = new Set(need.requirements.map((requirement) => requirement.id));
+        setRowSelectionMasks((previous) => ({
+            ...previous,
+            [key]: [...next].filter((id) => validIds.has(id)),
+        }));
     };
 
     const toggleCustomerPick = (displayName: string) => {
@@ -130,7 +139,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
         });
     };
 
-    const addManyNeeds = (needs: SupplierOrderGroupedNeed[], label: string) => {
+    const addManyNeeds = (needs: SupplierOrderGroupedNeed[], label: string, keyPrefix: 'prod' | 'pend') => {
         const withProduct = needs.filter((need) => need.product);
         if (withProduct.length === 0) {
             showToast('Δεν υπάρχουν διαθέσιμες γραμμές.', 'error');
@@ -140,7 +149,13 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
             showToast('Επιλέξτε πελάτες στη λειτουργία "Μόνο..." ή αλλάξτε φίλτρο.', 'error');
             return;
         }
-        setItems((previous) => mergeManyNeedsWithCustomerFilter(previous, withProduct, poCustomerFilter));
+        setItems((previous) => mergeManyNeedsWithCustomerFilter(
+            previous,
+            withProduct,
+            poCustomerFilter,
+            rowSelectionMasks,
+            (need) => needBreakdownKey(keyPrefix, need),
+        ));
         showToast(`${label}: προστέθηκαν ποσότητες.`, 'success');
         window.setTimeout(() => cartSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
     };
@@ -215,6 +230,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                     .some((value) => String(value).toLowerCase().includes(q));
             });
     }, [cartSearchTerm, items, productBySku]);
+    const hiddenItemCount = items.length - filteredItems.length;
 
     const addItem = (
         item: any,
@@ -277,6 +293,8 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                 {
                     variant: suffix,
                     size: finalSize || undefined,
+                    cordColor: item.cordColor,
+                    enamelColor: item.enamelColor,
                     totalQty: qty,
                     product,
                     requirements: addOptions?.requirements,
@@ -292,7 +310,12 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
         setItems((previous) => {
             const updated = [...previous];
             const item = { ...updated[index] };
-            if (field === 'qty') item.quantity = Math.max(1, Number(val) || 1);
+            if (field === 'qty') {
+                const allocated = supplierOrderItemAllocationQty(item);
+                const requestedTotal = Math.max(allocated || 1, Number(val) || 1);
+                item.manual_quantity = Math.max(0, requestedTotal - allocated);
+                item.quantity = allocated + item.manual_quantity;
+            }
             else if (field === 'cost') item.unit_cost = Number(val);
             else if (field === 'notes') item.notes = val;
             else if (field === 'size') item.size_info = String(val).trim() || undefined;
@@ -304,7 +327,22 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
 
     const removeItem = (index: number) => setItems((previous) => previous.filter((_, i) => i !== index));
 
+    const removeSourceAllocation = (index: number, allocationId: string) => setItems((previous) => {
+        const next = [...previous];
+        const item = { ...next[index], source_allocations: (next[index].source_allocations || []).filter((allocation) => allocation.id !== allocationId) };
+        const rebuilt = rebuildSupplierOrderItemFromAllocations(item);
+        if (rebuilt.quantity <= 0) return previous.filter((_, itemIndex) => itemIndex !== index);
+        next[index] = rebuilt;
+        return next;
+    });
+
     const handleSave = async () => {
+        if (cartSearchTerm.trim() && hiddenItemCount > 0) {
+            setCartSearchTerm('');
+            cartSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            showToast(`Εμφανίστηκαν ${hiddenItemCount} κρυφές γραμμές. Ελέγξτε τις και πατήστε ξανά αποθήκευση.`, 'info');
+            return;
+        }
         if (items.length === 0) {
             showToast('Η εντολή είναι κενή.', 'error');
             return;
@@ -312,6 +350,18 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
 
         setIsSaving(true);
         try {
+            const conflicts = await validateSupplierOrderDraftLive({
+                supplierId: supplier.id,
+                items,
+                currentSupplierOrderId: initialOrder?.id,
+            });
+            if (conflicts.length > 0) {
+                setConflictingSourceIds(new Set(conflicts.map((conflict) => conflict.sourceId)));
+                showToast(`${conflicts.length} ανάγκ${conflicts.length === 1 ? 'η άλλαξε' : 'ες άλλαξαν'} ή δεσμεύτηκε αλλού. Ελέγξτε τις κόκκινες γραμμές.`, 'error');
+                cartSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                return;
+            }
+            setConflictingSourceIds(new Set());
             if (initialOrder) {
                 await api.updateSupplierOrder({
                     ...initialOrder,
@@ -336,8 +386,8 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                 showToast('Η εντολή δημιουργήθηκε.', 'success');
             }
             onClose();
-        } catch {
-            showToast('Σφάλμα κατά την αποθήκευση.', 'error');
+        } catch (error: any) {
+            showToast(error?.message || 'Σφάλμα κατά την αποθήκευση.', 'error');
         } finally {
             setIsSaving(false);
         }
@@ -398,7 +448,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                                     accent={accent}
                                     expanded={!!needBreakdownOpen[key]}
                                     onToggleBreakdown={() => setNeedBreakdownOpen((previous) => ({ ...previous, [key]: !previous[key] }))}
-                                    selectionMask={resolveRowMask(key, need)}
+                                    selectedRequirementIds={resolveRowMask(key, need)}
                                     onSelectionChange={(next) => setRowMask(key, need, next)}
                                     onAddFiltered={(qty, requirements) =>
                                         addItem(need, 'Product', qty, need.variant, need.size, { requirements })
@@ -473,6 +523,17 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                     layout="mobile"
                 />
 
+                {unassignedNeeds.length > 0 && (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold text-amber-900">
+                        {unassignedNeeds.length} ανάγκ{unassignedNeeds.length === 1 ? 'η δεν έχει' : 'ες δεν έχουν'} ορισμένο προμηθευτή και εξαιρέθηκε από την εντολή.
+                    </div>
+                )}
+                {needsLoading && (
+                    <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-xs font-bold text-slate-500">
+                        <Loader2 size={14} className="animate-spin" /> Υπολογισμός καθαρών αναγκών…
+                    </div>
+                )}
+
                 {renderNeedSection(
                     'Ανάγκες Παραγωγής',
                     'Παρτίδες που περιμένουν παραλαβή.',
@@ -480,7 +541,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                     'indigo',
                     productionNeedsOpen,
                     setProductionNeedsOpen,
-                    () => addManyNeeds(productionNeeds, 'Ανάγκες παραγωγής'),
+                    () => addManyNeeds(productionNeeds, 'Ανάγκες παραγωγής', 'prod'),
                     <Factory size={15} />,
                     'prod',
                 )}
@@ -491,7 +552,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                     'blue',
                     pendingNeedsOpen,
                     setPendingNeedsOpen,
-                    () => addManyNeeds(pendingOrderNeeds, 'Ανάγκες παραγγελιών'),
+                    () => addManyNeeds(pendingOrderNeeds, 'Ανάγκες παραγγελιών', 'pend'),
                     <ShoppingCart size={15} />,
                     'pend',
                 )}
@@ -578,7 +639,10 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                                     <PackageCheck size={15} className="text-emerald-600" />
                                     <h3 className={sectionTitle}>Περιεχόμενα</h3>
                                 </div>
-                                <p className="mt-1 text-xs font-bold text-slate-500">{items.length} γραμμές · {totalPieces} τεμάχια</p>
+                                <p className="mt-1 text-xs font-bold text-slate-500">
+                                    {filteredItems.length}/{items.length} γραμμές ορατές · {totalPieces} τεμάχια
+                                    {hiddenItemCount > 0 ? ` · ${hiddenItemCount} κρυφές` : ''}
+                                </p>
                             </div>
                             {items.length > 0 && (
                                 <button
@@ -606,9 +670,11 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                             const product = item.item_type === 'Product' ? productBySku.get(item.item_id) : undefined;
                             const display = getPurchaseOrderLinePresentation(item, product);
                             const showSizeInput = shouldShowPurchaseOrderSizeInput(product, item);
+                            const allocatedQty = supplierOrderItemAllocationQty(item);
+                            const manualQty = supplierOrderItemManualQty(item);
 
                             return (
-                                <div key={`${item.id}-${index}`} className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+                                <div key={`${item.id}-${index}`} className={`rounded-2xl border bg-white p-3 shadow-sm ${item.source_allocations?.some((allocation) => conflictingSourceIds.has(allocation.source_id)) ? 'border-red-400 ring-2 ring-red-100' : 'border-slate-100'}`}>
                                     <div className="flex items-start justify-between gap-2">
                                         <div className="flex min-w-0 gap-3">
                                             <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
@@ -640,6 +706,20 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                                                         {item.customer_reference}
                                                     </div>
                                                 )}
+                                                {!!item.source_allocations?.length && (
+                                                    <div className="mt-2 flex flex-wrap gap-1">
+                                                        {item.source_allocations.map((allocation) => (
+                                                            <button
+                                                                key={allocation.id}
+                                                                type="button"
+                                                                onClick={() => removeSourceAllocation(index, allocation.id)}
+                                                                className="inline-flex items-center gap-1 rounded-lg border border-indigo-100 bg-indigo-50 px-2 py-1 text-[9px] font-black text-indigo-700"
+                                                            >
+                                                                {allocation.customer} · {allocation.quantity} <X size={9} />
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                         <button type="button" onClick={() => removeItem(index)} className="shrink-0 rounded-xl p-1.5 text-red-400" aria-label="Αφαίρεση">
@@ -649,13 +729,16 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
 
                                     <div className="mt-3 grid grid-cols-12 gap-2">
                                         <div className={showSizeInput ? 'col-span-5' : 'col-span-6'}>
-                                            <label className={`${fieldLabel} mb-1 block`}>Ποσότητα</label>
+                                            <label className={`${fieldLabel} mb-1 block`}>
+                                                {allocatedQty > 0 ? `Έξτρα · ${allocatedQty} δεσμευμένα` : 'Ποσότητα'}
+                                            </label>
                                             <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1">
                                                 <button type="button" onClick={() => updateItem(index, 'qty', item.quantity - 1)} className="h-8 w-8 rounded-lg bg-white font-black text-slate-600 shadow-sm">-</button>
                                                 <input
                                                     type="number"
-                                                    value={item.quantity}
-                                                    onChange={(e) => updateItem(index, 'qty', parseInt(e.target.value, 10) || 1)}
+                                                    min={allocatedQty > 0 ? 0 : 1}
+                                                    value={allocatedQty > 0 ? manualQty : item.quantity}
+                                                    onChange={(e) => updateItem(index, 'qty', allocatedQty + Math.max(0, parseInt(e.target.value, 10) || 0))}
                                                     className="min-w-0 flex-1 bg-transparent text-center text-sm font-black tabular-nums outline-none"
                                                 />
                                                 <button type="button" onClick={() => updateItem(index, 'qty', item.quantity + 1)} className="h-8 w-8 rounded-lg bg-white font-black text-slate-600 shadow-sm">+</button>
@@ -667,6 +750,7 @@ export default function MobilePurchaseOrderBuilder({ supplier, onClose, initialO
                                                 <input
                                                     value={item.size_info || ''}
                                                     onChange={(e) => updateItem(index, 'size', e.target.value)}
+                                                    disabled={allocatedQty > 0}
                                                     placeholder="54"
                                                     aria-label={`Μέγεθος για ${item.item_name}`}
                                                     className="w-full rounded-xl border border-blue-100 bg-blue-50/60 px-2 py-2 text-right font-mono text-xs font-black text-blue-900 outline-none"
