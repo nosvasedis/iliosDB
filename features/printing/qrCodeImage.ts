@@ -5,18 +5,29 @@ import QRCode from 'qrcode';
  * zero-margin geometry and exact encoded value.
  */
 export async function buildLabelQrSvgDataUrl(value: string): Promise<string> {
-  const svg = await QRCode.toString(value, {
-    type: 'svg',
+  const qr = QRCode.create(value, {
     errorCorrectionLevel: 'H',
-    margin: 0,
-    color: {
-      dark: '#000000',
-      light: '#ffffff',
-    },
   });
+  const size = qr.modules.size;
+  const rows: string[] = [];
 
-  const crispSvg = svg.includes('shape-rendering=')
-    ? svg
-    : svg.replace('<svg ', '<svg shape-rendering="crispEdges" ');
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(crispSvg)}`;
+  // Use filled module runs instead of SVG strokes. Some older print drivers
+  // rasterize scaled strokes at one device pixel, producing the washed-out
+  // horizontal lines seen in print preview.
+  for (let y = 0; y < size; y += 1) {
+    let x = 0;
+    while (x < size) {
+      if (!qr.modules.data[y * size + x]) {
+        x += 1;
+        continue;
+      }
+      const start = x;
+      while (x < size && qr.modules.data[y * size + x]) x += 1;
+      const width = x - start;
+      rows.push(`M${start} ${y}h${width}v1h-${width}z`);
+    }
+  }
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" preserveAspectRatio="xMidYMid meet" shape-rendering="crispEdges"><path fill="#ffffff" d="M0 0h${size}v${size}H0z"/><path fill="#000000" d="${rows.join('')}"/></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
