@@ -5,8 +5,18 @@ import { INITIAL_SETTINGS } from '../constants';
 import { transliterateForBarcode } from '../utils/pricingEngine';
 import { fitRetailStoneLabelText, getRetailLabelMetrics, RETAIL_TAIL_GUIDE_WIDTH_MM } from '../utils/retailLabelLayout';
 import { getSizingInfo } from '../utils/sizing';
-import { getStandardLabelPriceMaxWidthMm, fitStandardLabelPriceFontMm } from '../utils/standardLabelLayout';
-import { buildLabelText, composeStandardLabelPriceLine, LabelTextOverrides } from '../features/printing/labelText';
+import {
+    getStandardLabelPriceMaxWidthMm,
+    fitStandardLabelPriceFontMm,
+    STANDARD_LABEL_SEPARATOR_FONT_RATIO,
+    STANDARD_LABEL_SIZE_FONT_RATIO,
+} from '../utils/standardLabelLayout';
+import {
+    buildLabelText,
+    composeStandardLabelPriceLine,
+    formatStandardLabelSize,
+    LabelTextOverrides,
+} from '../features/printing/labelText';
 
 interface Props {
     product: Product;
@@ -84,16 +94,21 @@ const BarcodeView: React.FC<Props> = ({
     
     // Keep label rendering aligned with the app-wide sizing rules.
     const sizingInfo = useMemo(() => getSizingInfo(product), [product]);
+    const standardFormattedSize = useMemo(() => formatStandardLabelSize(
+        labelText.size,
+        sizingInfo?.type,
+    ), [labelText.size, sizingInfo]);
     const standardPriceLine = useMemo(() => composeStandardLabelPriceLine(
         labelText.price,
         labelText.size,
         sizingInfo?.type,
     ), [labelText.price, labelText.size, sizingInfo]);
     const standardPriceFontSize = useMemo(() => fitStandardLabelPriceFontMm(
-        standardPriceLine,
+        labelText.price,
+        standardFormattedSize,
         getStandardLabelPriceMaxWidthMm(activeWidth),
         activeHeight,
-    ), [standardPriceLine, activeWidth, activeHeight]);
+    ), [labelText.price, standardFormattedSize, activeWidth, activeHeight]);
     
     const containerStyle: React.CSSProperties = {
         width: `${activeWidth}mm`,
@@ -272,17 +287,43 @@ const BarcodeView: React.FC<Props> = ({
             </div>
             <div
                 className="w-full grid items-center border-t border-black pt-0.5 leading-none"
-                style={{ gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 3fr) minmax(0, 1fr)', columnGap: '0.6mm' }}
+                style={{ gridTemplateColumns: 'auto minmax(0, 1fr) auto', columnGap: '0.6mm' }}
             >
                  <span className="font-black tracking-[0.1em] text-black uppercase text-left whitespace-nowrap" style={{ fontSize: `${brandFontSize * 0.85}mm` }}>
                     {labelText.brand}
                 </span>
                 <span
                     data-label-price-line="wholesale"
-                    className="font-black text-black text-center min-w-0 overflow-hidden whitespace-nowrap"
+                    aria-label={standardPriceLine}
+                    className="font-black text-black text-center min-w-0 overflow-hidden whitespace-nowrap flex items-baseline justify-center"
                     style={{ fontSize: `${standardPriceFontSize}mm` }}
                 >
-                    {standardPriceLine}
+                    {labelText.price && <span>{labelText.price}</span>}
+                    {labelText.price && standardFormattedSize && (
+                        <span
+                            aria-hidden="true"
+                            style={{
+                                fontSize: `${STANDARD_LABEL_SEPARATOR_FONT_RATIO}em`,
+                                marginLeft: '0.35mm',
+                                marginRight: '0.35mm',
+                            }}
+                        >
+                            /
+                        </span>
+                    )}
+                    {standardFormattedSize && (
+                        <span
+                            style={{
+                                fontSize: `${STANDARD_LABEL_SIZE_FONT_RATIO}em`,
+                                fontStyle: 'italic',
+                                fontWeight: 800,
+                                letterSpacing: '-0.02em',
+                                paddingRight: '0.15mm',
+                            }}
+                        >
+                            {standardFormattedSize}
+                        </span>
+                    )}
                 </span>
                  <span className="font-black text-black text-right whitespace-nowrap" style={{ fontSize: `${brandFontSize * 0.85}mm` }}>{labelText.metal}</span>
             </div>

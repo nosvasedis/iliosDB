@@ -82,6 +82,26 @@ describe('BarcodeView', () => {
     expect(html).not.toContain('19cmcm');
   });
 
+  it('keeps the price large while rendering the size smaller and italicized', () => {
+    const html = renderToStaticMarkup(
+      <BarcodeView
+        product={makeProduct({ sku: 'RN150', prefix: 'RN' })}
+        variant={makeVariant({ suffix: 'P' })}
+        width={50}
+        height={30}
+        format="standard"
+        size="53"
+        showPrice
+        labelOverrides={{ price: '40,30€' }}
+      />,
+    );
+
+    expect(html).toContain('aria-label="40,30€ / No53"');
+    expect(html).toContain('grid-template-columns:auto minmax(0, 1fr) auto');
+    expect(html).toContain('font-size:0.72em;font-style:italic');
+    expect(html).toContain('>No53</span>');
+  });
+
   it('keeps a formatted size visible when standard-label price display is disabled', () => {
     const html = renderToStaticMarkup(
       <BarcodeView
