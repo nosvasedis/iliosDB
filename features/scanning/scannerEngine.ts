@@ -1,4 +1,5 @@
 import { CropRect, ScannerStatus } from './scannerTypes';
+import { SCANNER_COPY } from './scannerCopy';
 
 export interface CoverCropInput {
   videoWidth: number;
@@ -88,28 +89,28 @@ export function describeCameraError(error: unknown): CameraErrorInfo {
   if (name === 'NotAllowedError' || name === 'SecurityError') {
     return {
       status: 'permission-denied',
-      title: 'Camera permission needed',
-      detail: 'Allow camera access in your browser settings, then try again.',
+      title: SCANNER_COPY.errors.permissionTitle,
+      detail: SCANNER_COPY.errors.permissionDetail,
     };
   }
   if (name === 'NotReadableError' || name === 'AbortError') {
     return {
       status: 'camera-busy',
-      title: 'Camera is busy',
-      detail: 'Close other apps using the camera, then retry.',
+      title: SCANNER_COPY.errors.busyTitle,
+      detail: SCANNER_COPY.errors.busyDetail,
     };
   }
   if (name === 'NotFoundError' || name === 'OverconstrainedError') {
     return {
       status: 'camera-unavailable',
-      title: 'No usable camera found',
-      detail: 'Connect or enable a camera, or scan an existing photo.',
+      title: SCANNER_COPY.errors.unavailableTitle,
+      detail: SCANNER_COPY.errors.unavailableDetail,
     };
   }
   return {
     status: 'error',
-    title: 'Camera could not start',
-    detail: 'Please retry or choose a QR photo instead.',
+    title: SCANNER_COPY.errors.genericTitle,
+    detail: SCANNER_COPY.errors.genericDetail,
   };
 }
 
