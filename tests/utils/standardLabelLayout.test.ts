@@ -2,11 +2,18 @@ import { describe, expect, it } from 'vitest';
 import {
   fitStandardLabelPriceFontMm,
   getStandardLabelPriceMaxWidthMm,
+  getStandardLabelSkuLetterSpacingEm,
   STANDARD_LABEL_PRICE_EMERGENCY_MIN_FONT_MM,
   STANDARD_LABEL_PRICE_MAX_FONT_MM,
+  STANDARD_LABEL_SKU_MAX_LETTER_SPACING_EM,
 } from '../../utils/standardLabelLayout';
 
 describe('standard label layout', () => {
+  it('opens up normal SKU tracking while constraining unusually long codes', () => {
+    expect(getStandardLabelSkuLetterSpacingEm('RN150P', 50, 4)).toBe(STANDARD_LABEL_SKU_MAX_LETTER_SPACING_EM);
+    expect(getStandardLabelSkuLetterSpacingEm('EXTREMELY-LONG-SKU-CODE', 35, 4)).toBeLessThan(STANDARD_LABEL_SKU_MAX_LETTER_SPACING_EM);
+  });
+
   it('uses the maximum price font for a normal price on a default label', () => {
     const maxWidth = getStandardLabelPriceMaxWidthMm(50);
     expect(fitStandardLabelPriceFontMm('20,00€', '', maxWidth, 30)).toBe(STANDARD_LABEL_PRICE_MAX_FONT_MM);

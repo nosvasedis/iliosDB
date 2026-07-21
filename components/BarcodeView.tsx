@@ -7,6 +7,7 @@ import { fitRetailStoneLabelText, getRetailLabelMetrics, RETAIL_TAIL_GUIDE_WIDTH
 import { getSizingInfo } from '../utils/sizing';
 import {
     getStandardLabelPriceMaxWidthMm,
+    getStandardLabelSkuLetterSpacingEm,
     fitStandardLabelPriceFontMm,
     STANDARD_LABEL_SEPARATOR_FONT_RATIO,
     STANDARD_LABEL_SIZE_FONT_RATIO,
@@ -91,6 +92,11 @@ const BarcodeView: React.FC<Props> = ({
     const brandFontSize = Math.min(activeHeight * 0.11, activeWidth * 0.16, 2.4);
     // Stone font size slightly increased from 0.10/0.13/2.2 to 0.13/0.15/2.5
     const stoneFontSize = Math.min(activeHeight * 0.13, activeWidth * 0.15, 2.5);
+    const standardSkuLetterSpacing = useMemo(() => getStandardLabelSkuLetterSpacingEm(
+        labelText.displaySku,
+        activeWidth,
+        skuFontSize,
+    ), [labelText.displaySku, activeWidth, skuFontSize]);
     
     // Keep label rendering aligned with the app-wide sizing rules.
     const sizingInfo = useMemo(() => getSizingInfo(product), [product]);
@@ -271,7 +277,11 @@ const BarcodeView: React.FC<Props> = ({
     return (
         <div className="label-container" style={{ ...containerStyle, padding: '0.6mm 0.8mm' }}>
             <div className="w-full text-center leading-none">
-                <span className="font-black block uppercase tracking-tighter text-black" style={{ fontSize: `${skuFontSize}mm` }}>
+                <span
+                    data-label-sku="wholesale"
+                    className="font-black block uppercase text-black whitespace-nowrap overflow-hidden"
+                    style={{ fontSize: `${skuFontSize}mm`, letterSpacing: `${standardSkuLetterSpacing}em` }}
+                >
                     {labelText.displaySku}
                 </span>
             </div>

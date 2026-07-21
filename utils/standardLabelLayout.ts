@@ -3,10 +3,12 @@ export const STANDARD_LABEL_PRICE_MAX_FONT_MM = 3.8;
 export const STANDARD_LABEL_PRICE_EMERGENCY_MIN_FONT_MM = 1.8;
 export const STANDARD_LABEL_SIZE_FONT_RATIO = 0.72;
 export const STANDARD_LABEL_SEPARATOR_FONT_RATIO = 0.78;
+export const STANDARD_LABEL_SKU_MAX_LETTER_SPACING_EM = 0.12;
 
 const STANDARD_LABEL_HORIZONTAL_PADDING_MM = 0.8;
 const STANDARD_LABEL_FOOTER_COLUMN_GAP_MM = 0.6;
 const STANDARD_LABEL_PRICE_COLUMN_RATIO = 3 / 5;
+const STANDARD_LABEL_SKU_WIDTH_SAFETY_MM = 1;
 
 function estimateTextWidthMm(text: string, fontSizeMm: number): number {
   return [...text].reduce((width, character) => {
@@ -25,6 +27,25 @@ export function getStandardLabelPriceMaxWidthMm(labelWidthMm: number): number {
       - (STANDARD_LABEL_FOOTER_COLUMN_GAP_MM * 2),
   );
   return contentWidthMm * STANDARD_LABEL_PRICE_COLUMN_RATIO;
+}
+
+export function getStandardLabelSkuLetterSpacingEm(
+  sku: string,
+  labelWidthMm: number,
+  fontSizeMm: number,
+): number {
+  const characterCount = [...sku].length;
+  if (characterCount < 2 || fontSizeMm <= 0) return 0;
+
+  const availableWidthMm = Math.max(
+    0,
+    labelWidthMm - (STANDARD_LABEL_HORIZONTAL_PADDING_MM * 2) - STANDARD_LABEL_SKU_WIDTH_SAFETY_MM,
+  );
+  const estimatedGlyphWidthMm = characterCount * fontSizeMm * 0.62;
+  const availableTrackingMm = Math.max(0, availableWidthMm - estimatedGlyphWidthMm);
+  const spacingEm = availableTrackingMm / (characterCount - 1) / fontSizeMm;
+
+  return Number(Math.min(STANDARD_LABEL_SKU_MAX_LETTER_SPACING_EM, spacingEm).toFixed(3));
 }
 
 export function fitStandardLabelPriceFontMm(

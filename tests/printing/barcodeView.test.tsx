@@ -97,6 +97,8 @@ describe('BarcodeView', () => {
     );
 
     expect(html).toContain('aria-label="40,30€ / No53"');
+    expect(html).toContain('data-label-sku="wholesale"');
+    expect(html).toContain('letter-spacing:0.12em');
     expect(html).toContain('grid-template-columns:auto minmax(0, 1fr) auto');
     expect(html).toContain('font-size:0.72em;font-style:italic');
     expect(html).toContain('>No53</span>');
