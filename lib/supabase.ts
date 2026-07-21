@@ -40,6 +40,7 @@ import { buildOrderShipmentItemKey, buildStockDeductionEntries, checkStockForOrd
 import { planShipmentBatchRestores } from '../features/orders/shipmentRevertHelpers';
 import { buildTransferPlan } from '../features/orders/transferHelpers';
 import { buildInitialBatchHistoryEntry, canMoveBatchToStage as canMoveBatchToStageHelper } from '../features/production/supabaseHelpers';
+import { getProductionSendOrderStatus } from '../features/production/productionSendPlanner';
 import {
     bindProductionLineIds,
     buildNaturalKeyDemandCount,
@@ -3621,6 +3622,12 @@ export const api = {
     ): Promise<void> => {
         if (itemsToSend.length === 0) return;
 
+        // Starting another production part must not erase existing shipment
+        // history from the order status. This was the source of shipped pieces
+        // appearing as "unbatched" on the Orders screen.
+        const shipmentSnapshot = await getOrderShipmentsSnapshot(orderId);
+        const nextOrderStatus = getProductionSendOrderStatus(shipmentSnapshot.shipments.length);
+
         const ZIRCON_CODES = ['LE', 'PR', 'AK', 'MP', 'KO', 'MV', 'RZ'];
         const NON_ZIRCON_STONE_CODES = ['TKO', 'TPR', 'TMP'];
         const batches: any[] = [];
@@ -3780,8 +3787,7 @@ export const api = {
             );
         }
 
-        // Always ensure order is marked In Production if we send something
-        await safeMutate('orders', 'UPDATE', { status: OrderStatus.InProduction }, { match: { id: orderId } });
+        await safeMutate('orders', 'UPDATE', { status: nextOrderStatus }, { match: { id: orderId } });
     },
 
     // NEW: REVERT FROM PRODUCTION

@@ -1,6 +1,7 @@
 import { Product, ProductVariant } from '../../types';
 import { FINISH_CODES, STONE_CODES_MEN, STONE_CODES_WOMEN } from '../../constants';
 import { formatCurrency, getLabelDisplayPrice } from '../../utils/pricingEngine';
+import { SIZE_TYPE_LENGTH, type ProductSizingInfo } from '../../utils/sizing';
 
 export type LabelFormat = 'standard' | 'simple' | 'retail';
 export type LabelPriceTier = 'wholesale' | 'retail';
@@ -24,6 +25,34 @@ export interface BuiltLabelText {
   price: string;
   metal: string;
   size: string;
+}
+
+export function formatStandardLabelSize(
+  size: string,
+  sizingType: ProductSizingInfo['type'] | undefined,
+): string {
+  const trimmedSize = size.trim();
+  if (!trimmedSize || !sizingType) return '';
+
+  if (sizingType === SIZE_TYPE_LENGTH) {
+    const length = trimmedSize.replace(/\s*cm\s*$/i, '').trim();
+    return length ? `${length}cm` : '';
+  }
+
+  const number = trimmedSize.replace(/^no\.?\s*/i, '').trim();
+  return number ? `No${number}` : '';
+}
+
+export function composeStandardLabelPriceLine(
+  price: string,
+  size: string,
+  sizingType: ProductSizingInfo['type'] | undefined,
+): string {
+  const formattedPrice = price.trim();
+  const formattedSize = formatStandardLabelSize(size, sizingType);
+
+  if (formattedPrice && formattedSize) return `${formattedPrice} / ${formattedSize}`;
+  return formattedPrice || formattedSize;
 }
 
 interface BuildLabelTextInput {

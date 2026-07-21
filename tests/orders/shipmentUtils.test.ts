@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Order, OrderStatus, ProductionStage } from '../../types';
-import { getReadyToShipQuantity, getRemainingOrderItems, getShippedQuantitiesForOrderLines, hasUnaccountedPartialDeliveryQuantity, isOrderFullyShipped, itemKey } from '../../utils/shipmentUtils';
+import { getReadyToShipQuantity, getRemainingOrderItems, getShippedQuantitiesForOrderLines, hasUnaccountedProductionQuantity, isOrderFullyShipped, itemKey } from '../../utils/shipmentUtils';
 
 describe('shipment utils', () => {
   it('attributes shipped quantities to same SKU note variants by line_id', () => {
@@ -119,7 +119,23 @@ describe('shipment utils', () => {
       requires_setting: false,
     }];
 
-    expect(hasUnaccountedPartialDeliveryQuantity(order, currentBatches, 452)).toBe(true);
-    expect(hasUnaccountedPartialDeliveryQuantity(order, currentBatches, 726)).toBe(false);
+    expect(hasUnaccountedProductionQuantity(order, currentBatches, 452)).toBe(true);
+    expect(hasUnaccountedProductionQuantity(order, currentBatches, 726)).toBe(false);
+  });
+
+  it('also verifies an in-production order whose saved status lost its shipment semantics', () => {
+    const order = {
+      id: 'ORD-260117-600',
+      status: OrderStatus.InProduction,
+      items: [{ sku: 'A', quantity: 460, price_at_order: 10 }],
+    } as Order;
+    const batches = [{
+      id: 'part-3', order_id: order.id, sku: 'A', quantity: 186,
+      current_stage: ProductionStage.Waxing, created_at: '', updated_at: '',
+      priority: 'Normal', requires_setting: false,
+    }];
+
+    expect(hasUnaccountedProductionQuantity(order, batches, undefined)).toBe(true);
+    expect(hasUnaccountedProductionQuantity(order, batches, 274)).toBe(false);
   });
 });

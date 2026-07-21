@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { Gender, PlatingType, ProductionType, Product, ProductVariant } from '../../types';
 import {
   buildLabelText,
+  composeStandardLabelPriceLine,
+  formatStandardLabelSize,
   getLabelSourceSku,
   type LabelTextOverrides,
 } from '../../features/printing/labelText';
+import { SIZE_TYPE_LENGTH, SIZE_TYPE_NUMBER } from '../../utils/sizing';
 
 const makeProduct = (overrides: Partial<Product> = {}): Product => ({
   sku: 'DA050',
@@ -45,6 +48,24 @@ const makeVariant = (overrides: Partial<ProductVariant> = {}): ProductVariant =>
 });
 
 describe('label text helpers', () => {
+  it('formats numbered ring sizes without duplicating an existing No prefix', () => {
+    expect(formatStandardLabelSize('53', SIZE_TYPE_NUMBER)).toBe('No53');
+    expect(formatStandardLabelSize('No. 53', SIZE_TYPE_NUMBER)).toBe('No53');
+  });
+
+  it('formats bracelet lengths with exactly one cm suffix', () => {
+    expect(formatStandardLabelSize('19', SIZE_TYPE_LENGTH)).toBe('19cm');
+    expect(formatStandardLabelSize('19cm', SIZE_TYPE_LENGTH)).toBe('19cm');
+    expect(formatStandardLabelSize('19 CM ', SIZE_TYPE_LENGTH)).toBe('19cm');
+  });
+
+  it('composes price and size only with the separators that are needed', () => {
+    expect(composeStandardLabelPriceLine('20,00€', '53', SIZE_TYPE_NUMBER)).toBe('20,00€ / No53');
+    expect(composeStandardLabelPriceLine('20,00€', '', SIZE_TYPE_NUMBER)).toBe('20,00€');
+    expect(composeStandardLabelPriceLine('', '53', SIZE_TYPE_NUMBER)).toBe('No53');
+    expect(composeStandardLabelPriceLine('18,00€', '53', undefined)).toBe('18,00€');
+  });
+
   it('builds standard label text from the current product and variant defaults', () => {
     const text = buildLabelText({
       product: makeProduct(),

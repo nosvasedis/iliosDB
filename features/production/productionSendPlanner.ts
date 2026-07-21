@@ -1,4 +1,4 @@
-import { OrderItem, ProductionBatch } from '../../types';
+import { OrderItem, OrderStatus, ProductionBatch } from '../../types';
 import { buildOrderItemIdentityKey } from '../orders/printHelpers';
 import { getNaturalCatalogKey } from './orderBatchReconcile';
 
@@ -40,6 +40,11 @@ export type ProductionSendSelectionSummary = {
   hiddenSelectedLineCount: number;
   totalPendingQty: number;
 };
+
+/** Preserve partial-delivery semantics when another production part is started. */
+export function getProductionSendOrderStatus(existingShipmentCount: number): OrderStatus {
+  return existingShipmentCount > 0 ? OrderStatus.PartiallyDelivered : OrderStatus.InProduction;
+}
 
 function clampSendQuantity(row: ProductionSendRowInput, value: number): number {
   if (!Number.isFinite(value) || row.remainingQty <= 0) return 0;

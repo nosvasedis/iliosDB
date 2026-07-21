@@ -43,7 +43,7 @@ const makeVariant = (overrides: Partial<ProductVariant> = {}): ProductVariant =>
 });
 
 describe('BarcodeView', () => {
-  it('renders DM ring sizes on standard labels', () => {
+  it('renders a DM ring size inline with the larger standard-label price', () => {
     const html = renderToStaticMarkup(
       <BarcodeView
         product={makeProduct()}
@@ -58,6 +58,64 @@ describe('BarcodeView', () => {
     );
 
     expect(html).toContain('DM036H');
-    expect(html).toContain('53');
+    expect(html).toContain('20,00€ / No53');
+    expect(html).toContain('data-label-price-line="wholesale"');
+    expect(html).toContain('font-size:3.8mm');
+    expect(html).not.toContain('>53</span>');
+  });
+
+  it('renders bracelet sizes with one cm suffix on standard labels', () => {
+    const html = renderToStaticMarkup(
+      <BarcodeView
+        product={makeProduct({ sku: 'BR100', prefix: 'BR', category: 'Bracelet' })}
+        variant={makeVariant()}
+        width={50}
+        height={30}
+        format="standard"
+        size="19cm"
+        showPrice
+        priceTier="wholesale"
+      />,
+    );
+
+    expect(html).toContain('20,00€ / 19cm');
+    expect(html).not.toContain('19cmcm');
+  });
+
+  it('keeps a formatted size visible when standard-label price display is disabled', () => {
+    const html = renderToStaticMarkup(
+      <BarcodeView
+        product={makeProduct()}
+        variant={makeVariant()}
+        width={50}
+        height={30}
+        format="standard"
+        size="53"
+        showPrice={false}
+      />,
+    );
+
+    expect(html).toContain('>No53</span>');
+    expect(html).not.toContain('/ No53');
+  });
+
+  it('preserves the existing standalone size treatment on retail labels', () => {
+    const html = renderToStaticMarkup(
+      <BarcodeView
+        product={makeProduct()}
+        variant={makeVariant()}
+        width={72}
+        height={10}
+        format="retail"
+        size="53"
+        showPrice
+        priceTier="retail"
+      />,
+    );
+
+    expect(html).toContain('60,00€');
+    expect(html).toContain('>53</div>');
+    expect(html).not.toContain('/ No53');
+    expect(html).not.toContain('data-label-price-line="wholesale"');
   });
 });

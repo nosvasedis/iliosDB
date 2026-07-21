@@ -3,11 +3,13 @@ import {
   buildProductionSendItemsFromSelection,
   clearProductionSendSelection,
   getProductionSendSelectionSummary,
+  getProductionSendOrderStatus,
   selectVisibleProductionSendRows,
   unselectVisibleProductionSendRows,
   updateProductionSendQuantity,
   type ProductionSendRowInput,
 } from '../../features/production/productionSendPlanner';
+import { OrderStatus } from '../../types';
 
 const row = (overrides: Partial<ProductionSendRowInput>): ProductionSendRowInput => ({
   sku: 'PN001',
@@ -20,6 +22,11 @@ const row = (overrides: Partial<ProductionSendRowInput>): ProductionSendRowInput
 });
 
 describe('production send selection helpers', () => {
+  it('preserves partial-delivery status when starting a later production part', () => {
+    expect(getProductionSendOrderStatus(0)).toBe(OrderStatus.InProduction);
+    expect(getProductionSendOrderStatus(2)).toBe(OrderStatus.PartiallyDelivered);
+  });
+
   it('selects visible pending rows at their remaining quantity', () => {
     const rows = [
       row({ originalIndex: 0, sku: 'PN001', remainingQty: 3 }),

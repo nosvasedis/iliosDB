@@ -34,7 +34,7 @@ import { useCollections } from '../hooks/api/useCollections';
 import { useAllShipmentItems, useAllShipments, useCustomers, useOrderShipmentsForOrder, useOrdersWithItems } from '../hooks/api/useOrders';
 import { useProductionBatches } from '../hooks/api/useProductionBatches';
 import { ordersRepository } from '../features/orders';
-import { buildShippedQtyByOrderId, getShippedQuantitiesForOrderLines, hasUnaccountedPartialDeliveryQuantity, isOrderFullyShipped, itemKey } from '../utils/shipmentUtils';
+import { buildShippedQtyByOrderId, getShippedQuantitiesForOrderLines, hasUnaccountedProductionQuantity, isOrderFullyShipped, itemKey } from '../utils/shipmentUtils';
 import DesktopPageHeader from './DesktopPageHeader';
 import { SellerPicker } from './OrderBuilder/SellerPicker';
 import { productionRepository } from '../features/production';
@@ -1082,7 +1082,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         const showArchived = activeTab === 'archived';
         return orders
             .filter(order => (order.is_archived === true) === showArchived)
-            .filter(order => hasUnaccountedPartialDeliveryQuantity(
+            .filter(order => hasUnaccountedProductionQuantity(
                 order,
                 batchesByOrderId.get(order.id),
                 globalShippedQtyByOrderId.get(order.id),

@@ -127,20 +127,21 @@ export function buildShippedQtyByOrderId(
 }
 
 /**
- * Whether a partially delivered order still has quantity that is not explained by
- * the currently loaded shipment total and production batches.
+ * Whether a production-tracked order still has quantity that is not explained by
+ * the currently loaded shipment total and production batches. InProduction is
+ * included because older production sends could overwrite PartiallyDelivered.
  *
  * A positive result is also a signal that the global shipment cache should be
  * verified with the order-scoped shipment endpoint. Large shipment tables may
  * temporarily fall back to an older offline snapshot, while the scoped endpoint
  * remains authoritative for the order being displayed.
  */
-export function hasUnaccountedPartialDeliveryQuantity(
+export function hasUnaccountedProductionQuantity(
   order: Order,
   orderBatches: ProductionBatch[] | undefined | null,
   knownShippedQty: number | undefined,
 ): boolean {
-  if (order.status !== OrderStatus.PartiallyDelivered) return false;
+  if (order.status !== OrderStatus.PartiallyDelivered && order.status !== OrderStatus.InProduction) return false;
 
   const itemsTotal = Array.isArray(order.items) && order.items.length > 0
     ? order.items.reduce((sum, item) => sum + (item.quantity || 0), 0)

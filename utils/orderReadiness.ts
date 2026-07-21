@@ -12,6 +12,16 @@ export function orderStatusShowsProductionProgress(status: OrderStatus): boolean
   );
 }
 
+/**
+ * Shipment rows are authoritative even if an older production action left the
+ * saved order status as InProduction. In that case the list must use the partial
+ * delivery model or already shipped pieces are mislabelled as unbatched.
+ */
+export function orderUsesPartialDeliveryProgress(order: Order, shippedQty?: number): boolean {
+  return order.status === OrderStatus.PartiallyDelivered
+    || (order.status === OrderStatus.InProduction && Math.max(0, shippedQty || 0) > 0);
+}
+
 export function getOrderBatches(orderId: string, batches: ProductionBatch[] | undefined | null): ProductionBatch[] {
   if (!batches) return [];
   return batches.filter((batch) => batch.order_id === orderId);
@@ -567,7 +577,7 @@ export function getOrderReadinessPercent(
   if (order.status === OrderStatus.Delivered || order.status === OrderStatus.Ready) return 100;
   if (order.status === OrderStatus.Cancelled) return -1;
   if (isOrderReady(order, batches)) return 100;
-  if (order.status === OrderStatus.PartiallyDelivered) {
+  if (orderUsesPartialDeliveryProgress(order, shippedQty)) {
     return buildPartialDeliveryProgressSegments(order, batches, shippedQty)?.overallCompletePercent ?? 0;
   }
   if (order.status === OrderStatus.InProduction || order.status === OrderStatus.Pending) {

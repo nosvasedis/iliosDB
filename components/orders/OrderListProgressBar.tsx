@@ -7,6 +7,7 @@ import {
   buildOrderProductionStageSegments,
   buildPartialDeliveryProgressSegments,
   orderStatusShowsProductionProgress,
+  orderUsesPartialDeliveryProgress,
 } from '../../utils/orderReadiness';
 import { getProductionStageLabel } from '../../utils/productionStages';
 import {
@@ -90,22 +91,23 @@ function getSegmentPillName(
 function useDesktopExpandedBreakdown(
   order: Order,
   batches: ProductionBatch[] | undefined | null,
-  density: 'desktop' | 'mobile'
+  density: 'desktop' | 'mobile',
+  shippedQty?: number,
 ): DesktopExpandedBreakdown | null {
   return useMemo(() => {
     if (density !== 'desktop') return null;
+    if (orderUsesPartialDeliveryProgress(order, shippedQty)) {
+      const pipeline = buildOrderPipelineProductionStageSegments(order.id, batches);
+      if (!pipeline?.segments.length) return null;
+      return { mode: 'partialPipeline', pipeline };
+    }
     if (order.status === OrderStatus.InProduction || order.status === OrderStatus.Pending) {
       const stageBreakdown = buildOrderProductionStageSegments(order, batches);
       if (!stageBreakdown?.segments.length) return null;
       return { mode: 'inProduction', stageBreakdown };
     }
-    if (order.status === OrderStatus.PartiallyDelivered) {
-      const pipeline = buildOrderPipelineProductionStageSegments(order.id, batches);
-      if (!pipeline?.segments.length) return null;
-      return { mode: 'partialPipeline', pipeline };
-    }
     return null;
-  }, [density, order, batches]);
+  }, [density, order, batches, shippedQty]);
 }
 
 function StageStripAndPills(props: {
@@ -245,15 +247,16 @@ function StageStripAndPillsWithPolishingSplit(props: Parameters<typeof StageStri
  */
 export function OrderListProgressBar({ order, batches, ready, density = 'desktop', shippedQty, showPercentLabel = true }: Props) {
   const [stagesExpanded, setStagesExpanded] = useState(false);
-  const expandedBreakdown = useDesktopExpandedBreakdown(order, batches, density);
+  const expandedBreakdown = useDesktopExpandedBreakdown(order, batches, density, shippedQty);
 
   if (!orderStatusShowsProductionProgress(order.status) || ready) return null;
 
   const h = density === 'desktop' ? 'h-2' : 'h-1.5';
-  const partial =
-    order.status === OrderStatus.PartiallyDelivered ? buildPartialDeliveryProgressSegments(order, batches, shippedQty) : null;
+  const partial = orderUsesPartialDeliveryProgress(order, shippedQty)
+    ? buildPartialDeliveryProgressSegments(order, batches, shippedQty)
+    : null;
   const inProd =
-    (order.status === OrderStatus.InProduction || order.status === OrderStatus.Pending)
+    !partial && (order.status === OrderStatus.InProduction || order.status === OrderStatus.Pending)
       ? buildInProductionCollapsedProgressSegments(order, batches)
       : null;
 

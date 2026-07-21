@@ -5,7 +5,8 @@ import { INITIAL_SETTINGS } from '../constants';
 import { transliterateForBarcode } from '../utils/pricingEngine';
 import { fitRetailStoneLabelText, getRetailLabelMetrics, RETAIL_TAIL_GUIDE_WIDTH_MM } from '../utils/retailLabelLayout';
 import { getSizingInfo } from '../utils/sizing';
-import { buildLabelText, LabelTextOverrides } from '../features/printing/labelText';
+import { getStandardLabelPriceMaxWidthMm, fitStandardLabelPriceFontMm } from '../utils/standardLabelLayout';
+import { buildLabelText, composeStandardLabelPriceLine, LabelTextOverrides } from '../features/printing/labelText';
 
 interface Props {
     product: Product;
@@ -77,13 +78,22 @@ const BarcodeView: React.FC<Props> = ({
     // FONT CALCULATIONS (in mm)
     // Sku font size slightly increased from 0.15/0.14/3.8 to 0.16/0.15/4.0
     const skuFontSize = Math.min(activeHeight * 0.16, activeWidth * 0.15, 4.0);
-    const detailsFontSize = Math.min(activeHeight * 0.12, activeWidth * 0.12, 3.0);
     const brandFontSize = Math.min(activeHeight * 0.11, activeWidth * 0.16, 2.4);
     // Stone font size slightly increased from 0.10/0.13/2.2 to 0.13/0.15/2.5
     const stoneFontSize = Math.min(activeHeight * 0.13, activeWidth * 0.15, 2.5);
     
     // Keep label rendering aligned with the app-wide sizing rules.
-    const isSizedItem = useMemo(() => Boolean(getSizingInfo(product)), [product]);
+    const sizingInfo = useMemo(() => getSizingInfo(product), [product]);
+    const standardPriceLine = useMemo(() => composeStandardLabelPriceLine(
+        labelText.price,
+        labelText.size,
+        sizingInfo?.type,
+    ), [labelText.price, labelText.size, sizingInfo]);
+    const standardPriceFontSize = useMemo(() => fitStandardLabelPriceFontMm(
+        standardPriceLine,
+        getStandardLabelPriceMaxWidthMm(activeWidth),
+        activeHeight,
+    ), [standardPriceLine, activeWidth, activeHeight]);
     
     const containerStyle: React.CSSProperties = {
         width: `${activeWidth}mm`,
@@ -260,26 +270,22 @@ const BarcodeView: React.FC<Props> = ({
                     </span>
                 )}
             </div>
-            <div className="w-full flex items-center justify-between gap-1 border-t border-black pt-0.5 leading-none">
-                 <span className="font-black tracking-[0.1em] text-black uppercase flex-1 text-left" style={{ fontSize: `${brandFontSize * 0.85}mm` }}>
+            <div
+                className="w-full grid items-center border-t border-black pt-0.5 leading-none"
+                style={{ gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 3fr) minmax(0, 1fr)', columnGap: '0.6mm' }}
+            >
+                 <span className="font-black tracking-[0.1em] text-black uppercase text-left whitespace-nowrap" style={{ fontSize: `${brandFontSize * 0.85}mm` }}>
                     {labelText.brand}
                 </span>
-                <span className="font-black text-black flex-1 text-center" style={{ fontSize: `${brandFontSize * 0.85}mm`, whiteSpace: 'nowrap' }}>
-                    {labelText.price}
+                <span
+                    data-label-price-line="wholesale"
+                    className="font-black text-black text-center min-w-0 overflow-hidden whitespace-nowrap"
+                    style={{ fontSize: `${standardPriceFontSize}mm` }}
+                >
+                    {standardPriceLine}
                 </span>
-                 <span className="font-black text-black flex-1 text-right" style={{ fontSize: `${brandFontSize * 0.85}mm` }}>{labelText.metal}</span>
+                 <span className="font-black text-black text-right whitespace-nowrap" style={{ fontSize: `${brandFontSize * 0.85}mm` }}>{labelText.metal}</span>
             </div>
-            {/* Size prominently displayed under the line for rings and bracelets */}
-            {isSizedItem && labelText.size && (
-                <div className="w-full text-center mt-0.5">
-                    <span
-                        className="font-black text-black px-1.5 rounded-[1px] border border-black"
-                        style={{ fontSize: `${detailsFontSize * 1.1}mm`, lineHeight: '1.1' }}
-                    >
-                        {labelText.size}
-                    </span>
-                </div>
-            )}
         </div>
     );
 };

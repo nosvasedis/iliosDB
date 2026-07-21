@@ -11,6 +11,7 @@ import {
   isOrderReady,
   isOrderReadyForShipment,
   orderStatusShowsProductionProgress,
+  orderUsesPartialDeliveryProgress,
 } from '../../utils/orderReadiness';
 
 describe('orderStatusShowsProductionProgress', () => {
@@ -19,6 +20,46 @@ describe('orderStatusShowsProductionProgress', () => {
     expect(orderStatusShowsProductionProgress(OrderStatus.PartiallyDelivered)).toBe(true);
     expect(orderStatusShowsProductionProgress(OrderStatus.Pending)).toBe(false);
     expect(orderStatusShowsProductionProgress(OrderStatus.Delivered)).toBe(false);
+  });
+});
+
+describe('orderUsesPartialDeliveryProgress', () => {
+  it('treats recorded shipments as authoritative when status is stale', () => {
+    const order = {
+      id: 'ORD-260117-600',
+      status: OrderStatus.InProduction,
+      items: [{ sku: 'A', quantity: 460, price_at_order: 10 }],
+    } as Order;
+
+    expect(orderUsesPartialDeliveryProgress(order, 274)).toBe(true);
+    expect(orderUsesPartialDeliveryProgress(order, 0)).toBe(false);
+  });
+
+  it('does not label the 274 shipped pieces of ORD-260117-600 as unbatched', () => {
+    const order = {
+      id: 'ORD-260117-600',
+      status: OrderStatus.InProduction,
+      items: [{ sku: 'A', quantity: 460, price_at_order: 10 }],
+    } as Order;
+    const batches = [
+      {
+        id: 'ready', order_id: order.id, sku: 'A', quantity: 88,
+        current_stage: ProductionStage.Ready, created_at: '', updated_at: '',
+        priority: 'Normal', requires_setting: false,
+      },
+      {
+        id: 'wip', order_id: order.id, sku: 'A', quantity: 98,
+        current_stage: ProductionStage.Waxing, created_at: '', updated_at: '',
+        priority: 'Normal', requires_setting: false,
+      },
+    ];
+
+    const progress = buildPartialDeliveryProgressSegments(order, batches, 274);
+    expect(progress).not.toBeNull();
+    expect(progress!.shippedQty).toBe(274);
+    expect(progress!.batchTotal).toBe(186);
+    expect(progress!.remainderQty).toBe(0);
+    expect(getOrderReadinessPercent(order, batches, 274)).toBe(79);
   });
 });
 
