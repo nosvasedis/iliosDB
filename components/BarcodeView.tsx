@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import QRCode from 'qrcode';
 import { Product, ProductVariant } from '../types';
 import { INITIAL_SETTINGS } from '../constants';
 import { transliterateForBarcode } from '../utils/pricingEngine';
@@ -18,6 +17,7 @@ import {
     formatStandardLabelSize,
     LabelTextOverrides,
 } from '../features/printing/labelText';
+import { buildLabelQrSvgDataUrl } from '../features/printing/qrCodeImage';
 
 interface Props {
     product: Product;
@@ -64,26 +64,22 @@ const BarcodeView: React.FC<Props> = ({
     }), [product, variant, format, size, showPrice, priceTier, labelOverrides]);
 
     useEffect(() => {
+        let cancelled = false;
         if (labelText.sourceSku) {
             const valueToEncode = transliterateForBarcode(labelText.sourceSku);
-            
-            // Generate QR code with high error correction (Level H)
-            QRCode.toDataURL(valueToEncode, {
-                errorCorrectionLevel: 'H',
-                margin: 0,
-                scale: 12, 
-                color: {
-                    dark: '#000000',
-                    light: '#ffffff'
-                }
-            })
+
+            // Vector modules remain sharp when an older printer rasterizes the label.
+            buildLabelQrSvgDataUrl(valueToEncode)
             .then(url => {
-                setQrDataUrl(url);
+                if (!cancelled) setQrDataUrl(url);
             })
             .catch(err => {
                 console.error("QR Code generation failed:", err);
             });
+        } else {
+            setQrDataUrl('');
         }
+        return () => { cancelled = true; };
     }, [labelText.sourceSku]);
 
     // FONT CALCULATIONS (in mm)
@@ -286,7 +282,7 @@ const BarcodeView: React.FC<Props> = ({
                 </span>
             </div>
             <div className="flex-1 w-full flex items-center justify-center overflow-hidden min-h-0 py-0.5">
-                {qrDataUrl && <img src={qrDataUrl} style={{ height: '100%', maxWidth: '100%', objectFit: 'contain', display: 'block' }} alt="QR" />}
+                {qrDataUrl && <img src={qrDataUrl} style={{ height: '100%', maxWidth: '100%', objectFit: 'contain', display: 'block', imageRendering: 'pixelated' }} alt="QR" />}
             </div>
             <div className="w-full text-center leading-[1.1] mb-0.5">
                 {labelText.stone && (
