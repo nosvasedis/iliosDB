@@ -126,6 +126,35 @@ export function buildShippedQtyByOrderId(
   return map;
 }
 
+/**
+ * Whether a partially delivered order still has quantity that is not explained by
+ * the currently loaded shipment total and production batches.
+ *
+ * A positive result is also a signal that the global shipment cache should be
+ * verified with the order-scoped shipment endpoint. Large shipment tables may
+ * temporarily fall back to an older offline snapshot, while the scoped endpoint
+ * remains authoritative for the order being displayed.
+ */
+export function hasUnaccountedPartialDeliveryQuantity(
+  order: Order,
+  orderBatches: ProductionBatch[] | undefined | null,
+  knownShippedQty: number | undefined,
+): boolean {
+  if (order.status !== OrderStatus.PartiallyDelivered) return false;
+
+  const itemsTotal = Array.isArray(order.items) && order.items.length > 0
+    ? order.items.reduce((sum, item) => sum + (item.quantity || 0), 0)
+    : Number(order.item_total_qty || 0);
+  if (itemsTotal <= 0) return false;
+
+  const batchTotal = (orderBatches || []).reduce(
+    (sum, batch) => sum + (batch.order_id === order.id ? (batch.quantity || 0) : 0),
+    0,
+  );
+  const accountedQty = Math.max(0, knownShippedQty || 0) + batchTotal;
+  return accountedQty < itemsTotal;
+}
+
 /** Returns order items with quantities reduced by already-shipped amounts. Items fully shipped are excluded. */
 export function getRemainingOrderItems(
   order: Order,

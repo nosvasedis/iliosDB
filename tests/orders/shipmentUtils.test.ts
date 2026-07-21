@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Order, OrderStatus, ProductionStage } from '../../types';
-import { getReadyToShipQuantity, getRemainingOrderItems, getShippedQuantitiesForOrderLines, isOrderFullyShipped, itemKey } from '../../utils/shipmentUtils';
+import { getReadyToShipQuantity, getRemainingOrderItems, getShippedQuantitiesForOrderLines, hasUnaccountedPartialDeliveryQuantity, isOrderFullyShipped, itemKey } from '../../utils/shipmentUtils';
 
 describe('shipment utils', () => {
   it('attributes shipped quantities to same SKU note variants by line_id', () => {
@@ -99,5 +99,27 @@ describe('shipment utils', () => {
     } as Order;
     expect(isOrderFullyShipped(order, 5)).toBe(true);
     expect(isOrderFullyShipped(order, 3)).toBe(false);
+  });
+
+  it('flags a split order when the global shipment snapshot leaves production falsely unaccounted', () => {
+    const order = {
+      id: 'ORD-260117-600',
+      status: OrderStatus.PartiallyDelivered,
+      items: [{ sku: 'A', quantity: 1000, price_at_order: 10 }],
+    } as Order;
+    const currentBatches = [{
+      id: 'third-part',
+      order_id: order.id,
+      sku: 'A',
+      quantity: 274,
+      current_stage: ProductionStage.Waxing,
+      created_at: '',
+      updated_at: '',
+      priority: 'Normal',
+      requires_setting: false,
+    }];
+
+    expect(hasUnaccountedPartialDeliveryQuantity(order, currentBatches, 452)).toBe(true);
+    expect(hasUnaccountedPartialDeliveryQuantity(order, currentBatches, 726)).toBe(false);
   });
 });

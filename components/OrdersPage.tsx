@@ -20,7 +20,7 @@ import { OrderListProgressBar } from './orders/OrderListProgressBar';
 import ShipmentCreationModal, { ShipmentCreationVariant } from './deliveries/ShipmentCreationModal';
 import ShipmentUndoConfirmationModal from './deliveries/ShipmentUndoConfirmationModal';
 import { invalidateAndRefetchAfterShipmentChange, invalidateOrdersAndBatches } from '../lib/queryInvalidation';
-import { buildPartialOrderFromBatches, buildOrderLabelPrintItems, buildSyntheticAggregatedBatches, getShipmentPrintDecision, getShipmentStageBreakdown, getShipmentSummary, getShipmentValue, buildOrderRevisions, orderMatchesSearch, estimateOrderListRowHeight, canOfferRemainingTransfer } from '../features/orders';
+import { buildPartialOrderFromBatches, buildOrderLabelPrintItems, buildSyntheticAggregatedBatches, getShipmentPrintDecision, getShipmentStageBreakdown, getShipmentSummary, getShipmentValue, buildOrderRevisions, orderMatchesSearch, estimateOrderListRowHeight, canOfferRemainingTransfer, orderKeys } from '../features/orders';
 import DebouncedSearchInput from './orders/DebouncedSearchInput';
 import { getOrderStatusClasses, getOrderStatusLabel, getOrderStatusIcon } from '../features/orders/statusPresentation';
 import { getTagColor } from '../features/orders/tagColors';
@@ -34,7 +34,7 @@ import { useCollections } from '../hooks/api/useCollections';
 import { useAllShipmentItems, useAllShipments, useCustomers, useOrderShipmentsForOrder, useOrdersWithItems } from '../hooks/api/useOrders';
 import { useProductionBatches } from '../hooks/api/useProductionBatches';
 import { ordersRepository } from '../features/orders';
-import { buildShippedQtyByOrderId, getShippedQuantitiesForOrderLines, isOrderFullyShipped, itemKey } from '../utils/shipmentUtils';
+import { buildShippedQtyByOrderId, getShippedQuantitiesForOrderLines, hasUnaccountedPartialDeliveryQuantity, isOrderFullyShipped, itemKey } from '../utils/shipmentUtils';
 import DesktopPageHeader from './DesktopPageHeader';
 import { SellerPicker } from './OrderBuilder/SellerPicker';
 import { productionRepository } from '../features/production';
@@ -944,7 +944,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     const { data: allShipments } = useAllShipments();
     const { data: allShipmentItems } = useAllShipmentItems();
 
-    const shipmentItemsByOrderId = useMemo(() => {
+    const globalShipmentItemsByOrderId = useMemo(() => {
         const map = new Map<string, OrderShipmentItem[]>();
         if (!allShipments || !allShipmentItems) return map;
         const shipmentToOrder = new Map(allShipments.map(s => [s.id, s.order_id]));
@@ -959,7 +959,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     }, [allShipments, allShipmentItems]);
 
     // Precompute total shipped qty per order (for PartiallyDelivered progress bar stripe)
-    const shippedQtyByOrderId = useMemo(
+    const globalShippedQtyByOrderId = useMemo(
         () => buildShippedQtyByOrderId(allShipments, allShipmentItems),
         [allShipments, allShipmentItems],
     );
@@ -1070,6 +1070,52 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         });
         return map;
     }, [enrichedBatches]);
+
+    // The production modal reads shipments through an order-scoped query, while
+    // the list normally uses the global shipment cache. On large datasets the
+    // global full-table read can fall back to an older offline snapshot, which
+    // makes a fully assigned split order appear to have an unbatched remainder.
+    // Verify only partial orders whose globally loaded shipments + batches do not
+    // account for the full order, then use the scoped result as authoritative.
+    const shipmentVerificationOrderIds = useMemo(() => {
+        if (!orders) return [];
+        const showArchived = activeTab === 'archived';
+        return orders
+            .filter(order => (order.is_archived === true) === showArchived)
+            .filter(order => hasUnaccountedPartialDeliveryQuantity(
+                order,
+                batchesByOrderId.get(order.id),
+                globalShippedQtyByOrderId.get(order.id),
+            ))
+            .map(order => order.id);
+    }, [orders, activeTab, batchesByOrderId, globalShippedQtyByOrderId]);
+
+    const verifiedShipmentQueries = ReactQuery.useQueries({
+        queries: shipmentVerificationOrderIds.map(orderId => ({
+            queryKey: orderKeys.shipmentsForOrder(orderId),
+            queryFn: () => ordersRepository.getShipmentsForOrder(orderId),
+            staleTime: 30_000,
+        })),
+    });
+
+    const shipmentItemsByOrderId = useMemo(() => {
+        const map = new Map(globalShipmentItemsByOrderId);
+        verifiedShipmentQueries.forEach((query, index) => {
+            if (!query.data) return;
+            map.set(shipmentVerificationOrderIds[index], query.data.items);
+        });
+        return map;
+    }, [globalShipmentItemsByOrderId, shipmentVerificationOrderIds, verifiedShipmentQueries]);
+
+    const shippedQtyByOrderId = useMemo(() => {
+        const map = new Map(globalShippedQtyByOrderId);
+        verifiedShipmentQueries.forEach((query, index) => {
+            if (!query.data) return;
+            const shippedQty = query.data.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+            map.set(shipmentVerificationOrderIds[index], shippedQty);
+        });
+        return map;
+    }, [globalShippedQtyByOrderId, shipmentVerificationOrderIds, verifiedShipmentQueries]);
 
     const openShipmentModal = useCallback(async (order: Order, variant: ShipmentCreationVariant = 'partial') => {
         const fullOrder = await ensureFullOrderItems(order);
