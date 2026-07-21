@@ -16,6 +16,8 @@ import { retailEndClientPillClass } from '../../utils/retailPresentation';
 import { ordersRepository } from '../../features/orders';
 import { useCustomers, useOrdersWithItems } from '../../hooks/api/useOrders';
 import { useSuppliers } from '../../hooks/api/useSuppliers';
+import MobileCustomerDetails from './MobileCustomerDetails';
+import { resolveCustomerAnalyticsCategory } from '../../features/customers/customerAnalytics';
 
 interface Props {
     mode: 'customers' | 'suppliers';
@@ -40,6 +42,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
 
     // Supplier Detail View
     const [viewSupplier, setViewSupplier] = useState<Supplier | null>(null);
+    const [viewCustomer, setViewCustomer] = useState<Customer | null>(null);
     const [showRetailStats, setShowRetailStats] = useState(false);
 
     // Calculate customer stats (Total Spent Net, etc.)
@@ -85,7 +88,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
         customerOrders.forEach(o => {
             const discountFactor = 1 - ((o.discount_percent || 0) / 100);
             o.items.forEach(item => {
-                const cat = item.product_details?.category || 'Άλλο';
+                const cat = resolveCustomerAnalyticsCategory(item.sku, item.product_details);
                 if (!catStats[cat]) catStats[cat] = { count: 0, value: 0 };
                 catStats[cat].count += item.quantity;
                 catStats[cat].value += (item.price_at_order * item.quantity * discountFactor);
@@ -152,7 +155,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
             if (item.id === RETAIL_CUSTOMER_ID) {
                 setShowRetailStats(true);
             } else {
-                setIsEditing(true);
+                setViewCustomer(item);
             }
         }
     };
@@ -247,6 +250,22 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                     setViewSupplier(null);
                 }}
                 onPrintSupplierOrder={onPrintSupplierOrder}
+            />
+        );
+    }
+
+    if (viewCustomer && orders) {
+        return (
+            <MobileCustomerDetails
+                customer={viewCustomer}
+                orders={orders}
+                onClose={() => setViewCustomer(null)}
+                onEdit={() => {
+                    setEditType('customer');
+                    setEditData({ ...viewCustomer });
+                    setViewCustomer(null);
+                    setIsEditing(true);
+                }}
             />
         );
     }
@@ -597,7 +616,21 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                     {mode === 'suppliers' && item.contact_person && <div className="text-xs text-slate-500 font-medium">{item.contact_person}</div>}
                                 </div>
                             </div>
-                            <button className="p-2 bg-slate-50 text-slate-400 rounded-lg group-hover:bg-slate-100 group-hover:text-blue-500 transition-colors">
+                            <button
+                                type="button"
+                                onClick={event => {
+                                    event.stopPropagation();
+                                    if (mode === 'customers' && item.id !== RETAIL_CUSTOMER_ID) {
+                                        setEditType('customer');
+                                        setEditData({ ...item });
+                                        setIsEditing(true);
+                                    } else {
+                                        handleItemClick(item);
+                                    }
+                                }}
+                                className="p-2 bg-slate-50 text-slate-400 rounded-lg group-hover:bg-slate-100 group-hover:text-blue-500 transition-colors"
+                                aria-label={mode === 'customers' ? 'Επεξεργασία πελάτη' : 'Προβολή προμηθευτή'}
+                            >
                                 <Edit size={16} />
                             </button>
                         </div>

@@ -46,6 +46,8 @@ import { useAllShipmentItems, useAllShipments } from '../hooks/api/useOrders';
 import { useProductionBatches } from '../hooks/api/useProductionBatches';
 import { isOrderReadyForShipment } from '../utils/orderReadiness';
 import TransferRemainingItemsModal from './TransferRemainingItemsModal';
+import CustomerAnalyticsPanel from './customers/CustomerAnalyticsPanel';
+import { resolveCustomerAnalyticsCategory } from '../features/customers/customerAnalytics';
 
 export interface CustomerDetailsModalProps {
     customer: Customer;
@@ -183,7 +185,7 @@ export default function CustomerDetailsModal({
         customerOrders.forEach(o => {
             const discountFactor = 1 - ((o.discount_percent || 0) / 100);
             o.items.forEach(item => {
-                const cat = item.product_details?.category || 'Άλλο';
+                const cat = resolveCustomerAnalyticsCategory(item.sku, item.product_details);
                 if (!catStats[cat]) catStats[cat] = { count: 0, value: 0 };
                 catStats[cat].count += item.quantity;
                 catStats[cat].value += item.price_at_order * item.quantity * discountFactor;
@@ -262,6 +264,20 @@ export default function CustomerDetailsModal({
             if (o.id.toLowerCase().includes(q)) return true;
             const dateStr = new Date(o.created_at).toLocaleDateString('el-GR');
             if (dateStr.toLowerCase().includes(q)) return true;
+            if (o.items.some(item => {
+                const haystack = [
+                    item.sku,
+                    item.variant_suffix,
+                    item.product_details?.category,
+                    item.product_details?.description,
+                ]
+                    .filter(Boolean)
+                    .join(' ')
+                    .toLowerCase()
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '');
+                return haystack.includes(q);
+            })) return true;
             if (isRetailSystemCustomer) {
                 const raw = extractRetailClientFromNotes(o.notes).retailClientLabel || '';
                 const label = raw
@@ -1082,61 +1098,14 @@ export default function CustomerDetailsModal({
                     )}
 
                     {activeTab === 'analytics' && !isRetailSystemCustomer && customer.id && (
-                        <div className="max-w-5xl space-y-5">
-                            <p className="text-sm text-slate-500">
-                                Προτιμήσεις βάσει ιστορικού παραγγελιών (ποσότητες τεμαχίων ανά κατηγορία).
-                            </p>
-                            <div className={`${sectionCard} p-6`}>
-                                <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2 mb-5">
-                                    <Trophy size={16} className="text-amber-500" /> Αγαπημένες κατηγορίες
-                                </h3>
-                                <div className="space-y-4">
-                                    {stats.prefData.length > 0 ? (
-                                        stats.prefData.map((item, index) => (
-                                            <div key={item.name} className="flex items-center gap-4">
-                                                <div
-                                                    className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shadow-sm shrink-0 border ${
-                                                        index === 0
-                                                            ? 'bg-amber-50 text-amber-600 border-amber-200'
-                                                            : index === 1
-                                                              ? 'bg-slate-50 text-slate-600 border-slate-100'
-                                                              : index === 2
-                                                                ? 'bg-orange-50 text-orange-600 border-orange-100'
-                                                                : 'bg-white text-slate-400 border-slate-100'
-                                                    }`}
-                                                >
-                                                    {index + 1}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex justify-between items-end mb-1.5">
-                                                        <span className="font-bold text-slate-700">{item.name}</span>
-                                                        <div className="text-right flex flex-col items-end">
-                                                            <span className="font-mono font-black text-slate-800 text-sm">
-                                                                {formatCurrency(item.value)}
-                                                            </span>
-                                                            <span className="text-[10px] font-bold text-slate-500">
-                                                                {item.count} τεμάχια
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                    <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                                                        <div
-                                                            className="h-full rounded-full bg-gradient-to-r from-blue-400 to-indigo-500 transition-all duration-700"
-                                                            style={{ width: `${item.percentage}%` }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))
-                                    ) : (
-                                        <div className="flex flex-col items-center justify-center text-slate-400 py-10">
-                                            <PieChart size={48} className="opacity-20 mb-3" />
-                                            <p className="font-medium">Δεν υπάρχουν δεδομένα αγορών.</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
+                        <CustomerAnalyticsPanel
+                            customer={customer}
+                            orders={orders}
+                            onOpenOrders={query => {
+                                setOrderQuery(query || '');
+                                setActiveTab('orders');
+                            }}
+                        />
                     )}
 
                     {activeTab === 'orders' && customer.id && (
@@ -1151,7 +1120,7 @@ export default function CustomerDetailsModal({
                                         placeholder={
                                             isRetailSystemCustomer
                                                 ? 'Αναζήτηση: κωδικός παραγγελίας, ημερομηνία, όνομα τελικού πελάτη…'
-                                                : 'Αναζήτηση: κωδικός παραγγελίας ή ημερομηνία…'
+                                                : 'Αναζήτηση: κωδικός, ημερομηνία, SKU ή κατηγορία…'
                                         }
                                         className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm font-medium text-slate-800 outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-500/15"
                                     />
