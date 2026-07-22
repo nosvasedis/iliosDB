@@ -13,6 +13,8 @@ import { invalidateProductsAndCatalog } from '../../lib/queryInvalidation';
 import html2canvas from 'html2canvas';
 import { APP_LOGO, APP_ICON_ONLY } from '../../constants';
 import { getVariantIndexBySuffix } from '../../features/products/productDetailsViewModels';
+import SkuColorizedText from '../SkuColorizedText';
+import { getSkuFinishBadgeSurface, getSkuFinishCardTheme } from '../../utils/skuColoring';
 
 interface Props {
   product: Product;
@@ -33,14 +35,6 @@ const PLATING_LABELS: Record<string, string> = {
     [PlatingType.GoldPlated]: 'Επίχρυσο',
     [PlatingType.TwoTone]: 'Δίχρωμο',
     [PlatingType.Platinum]: 'Επιπλατινωμένο'
-};
-
-const FINISH_COLORS: Record<string, string> = {
-    'X': 'bg-amber-100 text-amber-700 border-amber-200',
-    'P': 'bg-slate-100 text-slate-600 border-slate-200',
-    'D': 'bg-orange-100 text-orange-700 border-orange-200',
-    'H': 'bg-cyan-100 text-cyan-700 border-cyan-200',
-    '': 'bg-emerald-50 text-emerald-700 border-emerald-200'
 };
 
 // Proxy helper to fetch images through Cloudflare and return Base64 for Canvas stability
@@ -104,6 +98,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
       });
   }, [product.variants]);
   const [variantIndex, setVariantIndex] = useState(() => getVariantIndexBySuffix(sortedVariants, initialVariantSuffix));
+  const [variantDirection, setVariantDirection] = useState<'next' | 'previous'>('next');
   const activeVariant = sortedVariants[variantIndex] || null;
 
   useEffect(() => {
@@ -130,8 +125,20 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
       }
   }, [showShareModal, product.image_url]);
 
-  const nextVariant = (e?: React.MouseEvent) => { e?.stopPropagation(); if (sortedVariants.length > 0) setVariantIndex((prev) => (prev + 1) % sortedVariants.length); };
-  const prevVariant = (e?: React.MouseEvent) => { e?.stopPropagation(); if (sortedVariants.length > 0) setVariantIndex((prev) => (prev - 1 + sortedVariants.length) % sortedVariants.length); };
+  const nextVariant = (e?: React.MouseEvent) => {
+      e?.stopPropagation();
+      if (sortedVariants.length > 0) {
+          setVariantDirection('next');
+          setVariantIndex((prev) => (prev + 1) % sortedVariants.length);
+      }
+  };
+  const prevVariant = (e?: React.MouseEvent) => {
+      e?.stopPropagation();
+      if (sortedVariants.length > 0) {
+          setVariantDirection('previous');
+          setVariantIndex((prev) => (prev - 1 + sortedVariants.length) % sortedVariants.length);
+      }
+  };
   
   const displayGender = GENDER_LABELS[product.gender] || product.gender;
   const displayPrice = activeVariant ? (activeVariant.selling_price || 0) : (product.selling_price || 0);
@@ -139,6 +146,8 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
   const displaySku = `${product.sku}${activeVariant?.suffix || ''}`;
 
   const variantDetails = useMemo(() => getVariantComponents(activeVariant?.suffix || '', product.gender), [activeVariant, product.gender]);
+  const activeBadgeSurface = getSkuFinishBadgeSurface(variantDetails.finish.code);
+  const activeCardTheme = getSkuFinishCardTheme(variantDetails.finish.code);
   const displayPlating = variantDetails.finish.name || PLATING_LABELS[product.plating_type] || product.plating_type;
   const displayStone = variantDetails.stone.name;
 
@@ -171,12 +180,6 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
           plating: isGoldOrPlat ? product.labor.plating_cost_x : (isTwoTone ? product.labor.plating_cost_d : 0)
       };
   }, [product, activeVariant]);
-
-  const activeBadgeColor = useMemo(() => {
-      const suffix = activeVariant?.suffix || '';
-      const { finish } = getVariantComponents(suffix, product.gender);
-      return FINISH_COLORS[finish.code] || 'bg-slate-100 text-slate-600 border-slate-200';
-  }, [activeVariant, product.gender]);
 
   const handleImageUpdate = async (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files[0]) {
@@ -349,23 +352,54 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
 
       <div className="flex-1 overflow-y-auto p-5 space-y-6 bg-slate-50 pb-20">
           <div className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
+              <div className={`relative overflow-hidden rounded-xl border p-3 mb-3 shadow-sm ring-1 ring-inset ring-white/60 transition-[background-color,border-color,box-shadow] duration-200 ease-out motion-reduce:transition-none ${activeCardTheme.panel}`}>
+                  <div className={`absolute inset-x-8 top-0 h-px transition-colors duration-200 motion-reduce:transition-none ${activeCardTheme.accent}`} />
                   {variants.length > 0 ? (
                       <div className="flex items-center gap-3 w-full">
-                          <button onClick={prevVariant} className="p-2 bg-slate-100 rounded-lg text-slate-500 active:bg-slate-200"><ChevronLeft size={20}/></button>
+                          <button
+                              type="button"
+                              onClick={prevVariant}
+                              className={`shrink-0 rounded-lg border p-2 shadow-sm transition-[color,background-color,border-color,transform,box-shadow] duration-200 ease-out active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1 motion-reduce:transition-none ${activeCardTheme.control}`}
+                              aria-label="Προηγούμενη παραλλαγή"
+                          >
+                              <ChevronLeft size={20}/>
+                          </button>
                           
                           {/* UPDATED: Prominent Suffix & Description */}
-                          <div className="flex-1 flex flex-col items-center justify-center">
-                              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Παραλλαγή</div>
-                              <div className={`px-4 py-1.5 rounded-xl font-black text-xl border shadow-sm mb-2 ${activeBadgeColor}`}>
-                                  {activeVariant?.suffix || 'ΒΑΣ'}
+                          <div
+                              key={`${variantIndex}-${activeVariant?.suffix || 'base'}`}
+                              className={`min-w-0 flex-1 flex flex-col items-center justify-center ${variantDirection === 'next' ? 'ilios-variant-change-next' : 'ilios-variant-change-previous'}`}
+                          >
+                              <div className={`text-[10px] font-bold uppercase tracking-wider mb-1 transition-colors duration-200 motion-reduce:transition-none ${activeCardTheme.label}`}>Παραλλαγή</div>
+                              <div
+                                  className={`inline-flex min-h-10 items-center justify-center px-4 py-1.5 rounded-xl font-black text-xl border shadow-sm mb-2 transition-[background-color,border-color,box-shadow] duration-200 ease-out motion-reduce:transition-none ${activeBadgeSurface}`}
+                                  aria-label={activeVariant?.suffix || 'ΒΑΣ'}
+                              >
+                                  {activeVariant?.suffix ? (
+                                      <SkuColorizedText
+                                          sku=""
+                                          suffix={activeVariant.suffix}
+                                          gender={product.gender}
+                                          className="text-xl"
+                                          masterClassName="text-slate-700"
+                                      />
+                                  ) : (
+                                      <span className="text-slate-600">ΒΑΣ</span>
+                                  )}
                               </div>
-                              <div className="text-sm text-slate-800 font-bold text-center leading-tight">
+                              <div className="max-w-full text-sm text-slate-800 font-bold text-center leading-tight">
                                   {activeVariant?.description || 'Βασικό'}
                               </div>
                           </div>
                           
-                          <button onClick={nextVariant} className="p-2 bg-slate-100 rounded-lg text-slate-500 active:bg-slate-200"><ChevronRight size={20}/></button>
+                          <button
+                              type="button"
+                              onClick={nextVariant}
+                              className={`shrink-0 rounded-lg border p-2 shadow-sm transition-[color,background-color,border-color,transform,box-shadow] duration-200 ease-out active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-1 motion-reduce:transition-none ${activeCardTheme.control}`}
+                              aria-label="Επόμενη παραλλαγή"
+                          >
+                              <ChevronRight size={20}/>
+                          </button>
                       </div>
                   ) : (
                       <div className="text-center w-full"><div className="text-[10px] font-bold text-slate-400 uppercase">ΕΚΔΟΣΗ</div><div className="font-black text-slate-800 text-xl">MASTER</div></div>
@@ -631,6 +665,27 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
               </div>
           </div>
       )}
+
+      <style>{`
+          @keyframes ilios-variant-change-next {
+              from { opacity: 0.55; transform: translateX(5px) scale(0.99); }
+              to { opacity: 1; transform: translateX(0) scale(1); }
+          }
+          @keyframes ilios-variant-change-previous {
+              from { opacity: 0.55; transform: translateX(-5px) scale(0.99); }
+              to { opacity: 1; transform: translateX(0) scale(1); }
+          }
+          .ilios-variant-change-next {
+              animation: ilios-variant-change-next 180ms cubic-bezier(0.22, 1, 0.36, 1);
+          }
+          .ilios-variant-change-previous {
+              animation: ilios-variant-change-previous 180ms cubic-bezier(0.22, 1, 0.36, 1);
+          }
+          @media (prefers-reduced-motion: reduce) {
+              .ilios-variant-change-next,
+              .ilios-variant-change-previous { animation: none; }
+          }
+      `}</style>
     </div>
   );
 }
