@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import SpecialCreationNote from './SpecialCreationNote';
 import { AssemblyPrintRow, Product, Material, MaterialType, Mold } from '../types';
 import { APP_LOGO } from '../constants';
 import { Layers, User, Hash, MapPin } from 'lucide-react';
@@ -230,11 +231,7 @@ export default function AssemblyPrintView({ rows, allProducts, allMaterials, all
                                                         )}
 
                                                         {/* Notes */}
-                                                        {row.notes && (
-                                                            <span className="text-[8px] font-medium text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-200 line-clamp-2 leading-tight">
-                                                                {row.notes}
-                                                            </span>
-                                                        )}
+                                                        <SpecialCreationNote sku={row.sku} note={row.notes} compact className="mt-0.5" />
 
                                                         {/* Molds (Λάστιχα) — shown when product has molds */}
                                                         {product?.molds && product.molds.length > 0 && (

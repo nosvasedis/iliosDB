@@ -39,6 +39,7 @@ import { productionKeys } from '../features/production/keys';
 import { deliveryKeys } from '../features/deliveries/keys';
 import { invalidateOrdersAndBatches } from '../lib/queryInvalidation';
 import { formatCurrency } from '../utils/pricingEngine';
+import SpecialCreationNote from './SpecialCreationNote';
 import { formatOrderId } from '../utils/orderUtils';
 import { formatShipmentIssueLine } from '../utils/shipmentSafety';
 import { getOrderStatusLabel } from '../features/orders/statusPresentation';
@@ -438,6 +439,7 @@ export default function TransferRemainingItemsModal({ orderA, onClose, onSuccess
                           {item.enamel_color && (
                             <span className="ml-1 text-xs text-slate-400">σμάλτ.: {item.enamel_color}</span>
                           )}
+                          <SpecialCreationNote sku={item.sku} note={item.notes} compact className="mt-1" />
                         </div>
                         <div className="text-right shrink-0">
                           <span className="font-semibold text-slate-800">{item.quantity} τεμ.</span>

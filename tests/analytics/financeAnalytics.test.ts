@@ -490,7 +490,7 @@ describe('buildFinanceAnalytics', () => {
     expect(analytics.labels.legalReconciliation).toBe('Συμφωνία με παραστατικά');
   });
 
-  it('excludes SP special-creation lines from product, collection, and item listings but keeps them in totals', () => {
+  it('includes SP special-creation lines in note-aware product and item listings without changing totals', () => {
     const analytics = buildFinanceAnalytics({
       orders: [
         order({
@@ -498,7 +498,7 @@ describe('buildFinanceAnalytics', () => {
           status: OrderStatus.Delivered,
           items: [
             { sku: 'RING', quantity: 1, price_at_order: 100, line_id: 'line-ring' },
-            { sku: 'SP', quantity: 2, price_at_order: 250, line_id: 'line-sp-a' },
+            { sku: 'SP', quantity: 2, price_at_order: 250, line_id: 'line-sp-a', notes: 'Μονόγραμμα με πέτρα' },
           ],
         }),
       ],
@@ -515,11 +515,78 @@ describe('buildFinanceAnalytics', () => {
     });
 
     expect(analytics.totals.realizedNet).toBe(600);
-    expect(analytics.topProducts.map((row) => row.sku)).toEqual(['RING']);
+    expect(analytics.topProducts.map((row) => row.sku)).toEqual(['SP', 'RING']);
+    expect(analytics.topProducts[0]).toMatchObject({ sku: 'SP', itemNote: 'Μονόγραμμα με πέτρα', quantity: 2 });
     expect(analytics.topCollections.map((row) => row.name)).toEqual(['Άνοιξη']);
     expect(analytics.categoryChartData.map((row) => row.name)).not.toContain('Ειδική δημιουργία');
-    expect(analytics.itemsBreakdown.map((row) => row.sku)).toEqual(['RING']);
+    expect(analytics.itemsBreakdown.map((row) => row.sku)).toEqual(['RING', 'SP']);
     expect(analytics.events.realized.some((row) => row.sku === 'SP')).toBe(true);
+  });
+
+  it('recovers shipment SP notes by line id and never guesses an ambiguous legacy line', () => {
+    const analytics = buildFinanceAnalytics({
+      orders: [
+        order({
+          id: 'sp-order',
+          items: [
+            { sku: 'SP', quantity: 1, price_at_order: 80, line_id: 'sp-a', notes: 'Καρφίτσα ήλιος' },
+            { sku: 'SP', quantity: 1, price_at_order: 90, line_id: 'sp-b', notes: 'Μενταγιόν κύμα' },
+          ],
+        }),
+        order({
+          id: 'sp-legacy',
+          items: [
+            { sku: 'SP', quantity: 1, price_at_order: 100, notes: 'Πρώτη δημιουργία' },
+            { sku: 'SP', quantity: 1, price_at_order: 100, notes: 'Δεύτερη δημιουργία' },
+          ],
+        }),
+      ],
+      shipments: [
+        shipment({ id: 'sp-ship', order_id: 'sp-order' }),
+        shipment({ id: 'sp-legacy-ship', order_id: 'sp-legacy' }),
+      ],
+      shipmentItems: [
+        shipmentItem({ id: 'sp-si-a', shipment_id: 'sp-ship', sku: 'SP', quantity: 1, price_at_order: 80, line_id: 'sp-a' }),
+        shipmentItem({ id: 'sp-si-b', shipment_id: 'sp-ship', sku: 'SP', quantity: 1, price_at_order: 90, line_id: 'sp-b' }),
+        shipmentItem({ id: 'sp-si-legacy', shipment_id: 'sp-legacy-ship', sku: 'SP', quantity: 1, price_at_order: 100 }),
+      ],
+      products: [],
+      materials,
+      settings,
+      period: { mode: 'all_time' },
+      now: new Date('2026-06-12T10:00:00.000Z'),
+    });
+
+    const realized = analytics.events.realized.filter((event) => event.sku === 'SP');
+    expect(realized.find((event) => event.lineId === 'sp-a')?.itemNote).toBe('Καρφίτσα ήλιος');
+    expect(realized.find((event) => event.lineId === 'sp-b')?.itemNote).toBe('Μενταγιόν κύμα');
+    expect(realized.find((event) => event.orderId === 'sp-legacy')?.itemNote).toBeNull();
+  });
+
+  it('aggregates SP notes by normalized text and keeps different creations separate', () => {
+    const analytics = buildFinanceAnalytics({
+      orders: [order({
+        id: 'sp-normalized',
+        status: OrderStatus.Delivered,
+        items: [
+          { sku: 'SP', quantity: 1, price_at_order: 20, notes: '  Μονόγραμμα   με πέτρα  ' },
+          { sku: 'SP', quantity: 2, price_at_order: 20, notes: 'μονόγραμμα με ΠΈΤΡΑ' },
+          { sku: 'SP', quantity: 1, price_at_order: 30, notes: 'Βραχιόλι άπειρο' },
+        ],
+      })],
+      shipments: [],
+      shipmentItems: [],
+      products: [],
+      materials,
+      settings,
+      period: { mode: 'all_time' },
+      now: new Date('2026-06-12T10:00:00.000Z'),
+    });
+
+    const spRows = analytics.topProducts.filter((row) => row.sku === 'SP');
+    expect(spRows).toHaveLength(2);
+    expect(spRows.find((row) => row.itemNote === 'Μονόγραμμα   με πέτρα')).toMatchObject({ quantity: 3, revenue: 60 });
+    expect(spRows.find((row) => row.itemNote === 'Βραχιόλι άπειρο')).toMatchObject({ quantity: 1, revenue: 30 });
   });
 
   it('dedupes identical realized shipment rows (duplicate shipment_item records)', () => {

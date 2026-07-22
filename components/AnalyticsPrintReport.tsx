@@ -4,6 +4,7 @@ import { APP_LOGO } from '../constants';
 import { Award, Boxes, FileText, UserCheck, Users, Wallet } from 'lucide-react';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
 import { printPageMarginWithBaseTop } from '../utils/printPageStyles';
+import SpecialCreationNote from './SpecialCreationNote';
 
 interface Props {
     stats: any;
@@ -54,7 +55,10 @@ function RankingTable({
                         {rows.map((row, index) => (
                             <tr key={`${title}-${row.id ?? row.sku ?? row[nameKey]}-${index}`} className="border-b border-slate-50 last:border-0">
                                 <td className="w-7 px-3 py-1.5 text-center font-black text-slate-400">{index + 1}</td>
-                                <td className="max-w-[110px] px-2 py-1.5 font-bold text-slate-800">{row.sku || row[nameKey]}</td>
+                                <td className="max-w-[110px] px-2 py-1.5 font-bold text-slate-800">
+                                    {row.sku || row[nameKey]}
+                                    <SpecialCreationNote sku={row.sku} note={row.itemNote} compact className="mt-0.5" />
+                                </td>
                                 <td className="px-2 py-1.5 text-right text-slate-500">{row.quantity != null ? `${row.quantity} τεμ.` : row.orders != null ? `${row.orders} παρ.` : ''}</td>
                                 <td className="px-3 py-1.5 text-right font-mono font-black text-slate-900">{formatCurrency(row.revenue)}</td>
                             </tr>
@@ -176,7 +180,7 @@ export default function AnalyticsPrintReport({ stats, title }: Props) {
                         <tbody>
                             {sortedItemsBreakdown.map((item: any, index: number) => (
                                 <tr key={`${item.sku}-${index}`} className="border-b border-slate-50 last:border-0">
-                                    <td className="py-1.5 font-bold text-slate-800">{item.sku}{item.variantSuffix && <span className="ml-1 rounded bg-slate-100 px-1 text-[9px] text-slate-500">{item.variantSuffix}</span>}</td>
+                                    <td className="py-1.5 font-bold text-slate-800">{item.sku}{item.variantSuffix && <span className="ml-1 rounded bg-slate-100 px-1 text-[9px] text-slate-500">{item.variantSuffix}</span>}<SpecialCreationNote sku={item.sku} note={item.itemNote} compact className="mt-0.5" /></td>
                                     <td className="py-1.5 text-center">{item.quantity}</td>
                                     <td className="py-1.5 text-right font-mono">{formatCurrency(item.net ?? item.revenue)}</td>
                                     <td className="py-1.5 text-right font-mono text-slate-500">{formatCurrency(item.estimatedCost ?? item.cost)}</td>

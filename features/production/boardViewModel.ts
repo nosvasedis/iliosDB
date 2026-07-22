@@ -125,6 +125,7 @@ export function enrichProductionBatchesForBoard(
     return {
       ...batch,
       size_info: resolvedSizeInfo,
+      notes: batch.notes || matchingOrderItem?.notes,
       product_details: product,
       product_image: product?.image_url ?? null,
       requires_setting: hasZirconsFromSuffix || hasZirconsFromRecipe || requiresSettingStage(batch.sku),

@@ -14,6 +14,7 @@ import {
     MOVEMENT_OVERLAY_CLASS,
     MOVEMENT_PROGRESS_BAR_CLASS,
 } from './production/movementFeedback';
+import SpecialCreationNote from './SpecialCreationNote';
 
 // Finish/Plating Visuals
 export const FINISH_STYLES: Record<string, { style: string, label: string }> = {
@@ -434,6 +435,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                     <div className="flex items-center gap-1.5 flex-wrap mt-1">
                         {batch.size_info && <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">{batch.size_info}</span>}
                     </div>
+                    <SpecialCreationNote sku={batch.sku} note={batch.notes} compact className="mt-1" />
                 </div>
             </div>
 
@@ -445,7 +447,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                 </div>
             )}
 
-            {batch.notes && !batch.on_hold && (
+            {batch.notes && !batch.on_hold && !isSpecialCreation && (
                 <div className="mb-3 bg-yellow-50 border border-yellow-100 rounded-lg p-2 text-[10px] text-yellow-800 italic leading-tight pointer-events-none">
                     "{batch.notes}"
                 </div>

@@ -191,6 +191,27 @@ describe('customer analytics', () => {
     expect(sortCustomerPerformanceRows(vm.products, 'quantity')[0].sku).toBe('A1');
   });
 
+  it('groups SP performance by normalized note and names the creation in the headline', () => {
+    const vm = buildCustomerAnalytics({
+      customer,
+      allOrders: [order('sp-order', '2026-06-01T00:00:00.000Z', 'SP')],
+      realizedEvents: [
+        event('SP', '2026-06-02T00:00:00.000Z', { orderId: 'sp-order', itemNote: '  Μονόγραμμα   με πέτρα ', quantity: 1, profit: 100 }),
+        event('SP', '2026-06-03T00:00:00.000Z', { orderId: 'sp-order', itemNote: 'μονόγραμμα με ΠΈΤΡΑ', quantity: 2, profit: 120 }),
+        event('SP', '2026-06-04T00:00:00.000Z', { orderId: 'sp-order', itemNote: null, quantity: 1, profit: 10 }),
+      ],
+      backlogEvents: [],
+      products: [],
+      period: '12m',
+      now: new Date('2026-07-01T00:00:00.000Z'),
+    });
+
+    expect(vm.products).toHaveLength(2);
+    expect(vm.products.find(row => row.itemNote?.includes('Μονόγραμμα'))).toMatchObject({ quantity: 3 });
+    expect(vm.products.find(row => row.itemNote == null)).toMatchObject({ quantity: 1 });
+    expect(vm.headline).toContain('Μονόγραμμα');
+  });
+
   it('creates reorder, backlog, reactivation, margin, and peer cross-sell opportunities with evidence', () => {
     const clientOrders = [
       order('o1', '2025-01-01T00:00:00.000Z', 'A1'),

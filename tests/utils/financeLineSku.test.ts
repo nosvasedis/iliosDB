@@ -44,6 +44,12 @@ describe('financeLineSku', () => {
     expect(variantRankingKey('RN045', 'xtg')).toBe('RN045::XTG');
   });
 
+  it('uses the normalized note only for SP ranking identity', () => {
+    expect(variantRankingKey('SP', '', '  ΜΟΝΌΓΡΑΜΜΑ  ')).toBe(variantRankingKey('SP', '', 'μονόγραμμα'));
+    expect(variantRankingKey('SP', '', 'Καρφίτσα')).not.toBe(variantRankingKey('SP', '', 'Μενταγιόν'));
+    expect(variantRankingKey('RN045', 'X', 'ignored')).toBe(variantRankingKey('RN045', 'X'));
+  });
+
   it('splits full sku when variant_suffix is missing', () => {
     const products = [product('RN045', [{ suffix: 'XTG' }, { suffix: 'TG' }])];
     const map = new Map(products.map((p) => [p.sku, p]));

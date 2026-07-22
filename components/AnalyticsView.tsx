@@ -33,6 +33,7 @@ import { useFinanceAnalytics } from '../hooks/api/useFinanceAnalytics';
 import FinancePeriodSelector from './FinancePeriodSelector';
 import DesktopPageHeader from './DesktopPageHeader';
 import IliosLoader from './ui/IliosLoader';
+import SpecialCreationNote from './SpecialCreationNote';
 
 interface Props {
   products: Product[];
@@ -238,9 +239,10 @@ export default function AnalyticsView({ products, onBack, onPrint }: Props) {
           {topProducts.length > 0 ? (
             <div className="space-y-3">
               {topProducts.map((item, index) => (
-                <div key={item.sku} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3">
+                <div key={item.key} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-black text-slate-900">#{index + 1} {item.sku}</p>
+                    <SpecialCreationNote sku={item.sku} note={item.itemNote} compact className="mt-1" />
                     <p className="text-xs font-semibold text-slate-500">{item.quantity} τεμ. · Κέρδος {formatCurrency(item.profit)}</p>
                   </div>
                   <div className="text-right text-sm font-black text-slate-900">{formatCurrency(item.revenue)}</div>

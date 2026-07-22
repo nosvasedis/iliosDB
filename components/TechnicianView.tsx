@@ -5,6 +5,8 @@ import { APP_LOGO } from '../constants';
 import { Hammer, StickyNote } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { buildSkuKey, compareSkuValues } from '../utils/skuSort';
+import { variantRankingKey } from '../utils/financeLineSku';
+import { getSpecialCreationDisplayNote } from '../utils/specialCreationSku';
 
 interface Props {
     batches: ProductionBatch[];
@@ -43,7 +45,7 @@ export default function TechnicianView({ batches }: Props) {
                 }
 
                 // Group by SKU, variant
-                const key = `${batch.sku}-${batch.variant_suffix || ''}`;
+                const key = variantRankingKey(batch.sku, batch.variant_suffix || '', batch.notes);
                 
                 if (map.has(key)) {
                     const existing = map.get(key)!;
@@ -51,14 +53,16 @@ export default function TechnicianView({ batches }: Props) {
                     if(batch.size_info) {
                         existing.sizes[batch.size_info] = (existing.sizes[batch.size_info] || 0) + batch.quantity;
                     }
-                    if(batch.notes) existing.notes.add(batch.notes);
+                    const displayNote = getSpecialCreationDisplayNote(batch.sku, batch.notes) || batch.notes;
+                    if(displayNote) existing.notes.add(displayNote);
                 } else {
                     const sizes: Record<string, number> = {};
                     if(batch.size_info) {
                         sizes[batch.size_info] = batch.quantity;
                     }
                     const notes = new Set<string>();
-                    if(batch.notes) notes.add(batch.notes);
+                    const displayNote = getSpecialCreationDisplayNote(batch.sku, batch.notes) || batch.notes;
+                    if(displayNote) notes.add(displayNote);
 
                     map.set(key, {
                         sku: batch.sku,
@@ -89,7 +93,7 @@ export default function TechnicianView({ batches }: Props) {
 
             <main className="grid grid-cols-3 gap-3">
                 {groupedItems.map(item => (
-                    <div key={item.sku + item.variantSuffix} className="border-2 border-slate-800 rounded-xl p-2 flex flex-col justify-between break-inside-avoid min-h-[8rem] bg-white">
+                    <div key={`${item.sku}${item.variantSuffix}-${Array.from(item.notes).join('|')}`} className="border-2 border-slate-800 rounded-xl p-2 flex flex-col justify-between break-inside-avoid min-h-[8rem] bg-white">
                         {/* Top part: SKU, Description */}
                         <div className="flex justify-between items-start mb-2 border-b border-slate-100 pb-1">
                             <div>

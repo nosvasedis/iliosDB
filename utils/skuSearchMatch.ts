@@ -49,8 +49,11 @@ export function itemMatchesSkuQuery(item: SkuMatchableItem, query: string): bool
 export interface SkuMatchableEvent {
   sku: string;
   variantSuffix?: string | null;
+  itemNote?: string | null;
 }
 
 export function financeEventMatchesSkuQuery(event: SkuMatchableEvent, query: string): boolean {
-  return skuPartsMatchQuery(event.sku, event.variantSuffix, query);
+  if (skuPartsMatchQuery(event.sku, event.variantSuffix, query)) return true;
+  const normalizedQuery = query.trim().toLocaleLowerCase('el-GR');
+  return normalizedQuery.length >= 2 && (event.itemNote || '').toLocaleLowerCase('el-GR').includes(normalizedQuery);
 }

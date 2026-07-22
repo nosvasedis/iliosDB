@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { X, Image as ImageIcon, StickyNote, Box, MapPin, PauseCircle, PlayCircle, User, Edit, History, LayoutList, Layers, Wrench } from 'lucide-react';
 import { formatDecimal } from '../../utils/pricingEngine';
 import SkuColorizedText from '../SkuColorizedText';
+import SpecialCreationNote from '../SpecialCreationNote';
 import { buildBatchBuildData } from '../../utils/batchBuildData';
 import { Material, Mold, ProductionBatch, ProductionStage, Product, ProductionType } from '../../types';
 import { PRODUCTION_STAGES } from '../../utils/productionStages';
@@ -142,6 +143,7 @@ export default function MobileBatchBuildModal({
                         <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
                                 <SkuColorizedText sku={batch.sku} suffix={batch.variant_suffix || ''} gender={product.gender} className="text-base sm:text-lg font-black tracking-tight leading-tight" masterClassName="text-slate-800" />
+                                <SpecialCreationNote sku={batch.sku} note={batch.notes} compact className="mt-1" />
                                 <span className="inline-flex items-center gap-1 shrink-0 rounded-md bg-emerald-100 px-1.5 py-0.5 text-xs font-black text-emerald-800">
                                     ×{batch.quantity}
                                 </span>

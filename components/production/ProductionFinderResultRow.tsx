@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { EnhancedProductionBatch, ProductionBatch, ProductionStage } from '../../types';
 import SkuColorizedText from '../SkuColorizedText';
+import SpecialCreationNote from '../SpecialCreationNote';
 import { formatOrderId } from '../../utils/orderUtils';
 import { getFinderSearchResultSurface } from '../../utils/productionFinderSurfaces';
 import { getBatchAgeInfo } from '../../features/production/selectors';
@@ -134,6 +135,7 @@ function ProductionFinderResultRow({
                                     className="font-black text-lg"
                                     masterClassName={isSpecialBatch ? 'text-violet-900' : 'text-slate-800'}
                                 />
+                                <SpecialCreationNote sku={batch.sku} note={batch.notes} compact />
                                 <span className="bg-slate-900 text-white px-2 py-0.5 rounded-md text-xs font-bold shadow-sm">
                                     x{batch.quantity}
                                 </span>

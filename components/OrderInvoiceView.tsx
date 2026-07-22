@@ -121,7 +121,7 @@ export default function OrderInvoiceView({ order, title, revisionSuffix }: Props
                             {item.enamel_color && <span className="text-[9px] bg-rose-50 px-1 rounded text-rose-700 border border-rose-100 font-bold whitespace-nowrap">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
                         </div>
                         <span className="block text-[9px] text-slate-600 font-medium leading-[1.15] whitespace-normal break-words">{description}</span>
-                        <CustomerPrintSkuNote note={item.notes} />
+                        <CustomerPrintSkuNote sku={item.sku} note={item.notes} />
                     </div>
                 </div>
                 <div className="w-14 text-right font-black text-slate-900 tabular-nums font-sans text-[10px] whitespace-nowrap">

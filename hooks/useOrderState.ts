@@ -10,7 +10,13 @@ import { useUI } from '../components/UIProvider';
 import { useAuth } from '../components/AuthContext';
 import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../utils/retailNotes';
 import { assignMissingOrderLineIds, getOrderItemMatchKey } from '../utils/orderItemMatch';
-import { getSpecialCreationProductStub, isSpecialCreationSku, SPECIAL_CREATION_SKU } from '../utils/specialCreationSku';
+import {
+    cleanSpecialCreationNote,
+    findSpecialCreationItemsMissingNotes,
+    getSpecialCreationProductStub,
+    isSpecialCreationSku,
+    SPECIAL_CREATION_SKU,
+} from '../utils/specialCreationSku';
 import { isXrCordEnamelSku } from '../utils/xrOptions';
 import { generateOrderPriceSyncPreview } from '../utils/productionPricingUtils';
 import {
@@ -645,6 +651,11 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         }
 
         if (skuCode === SPECIAL_CREATION_SKU) {
+            const cleanedNote = cleanSpecialCreationNote(itemNotes);
+            if (!cleanedNote) {
+                showToast('Η σημείωση είναι υποχρεωτική για κάθε ειδική δημιουργία (SP).', 'error');
+                return;
+            }
             const normalized = specialCreationUnitPriceStr.trim().replace(',', '.');
             const unit = parseFloat(normalized);
             if (Number.isNaN(unit) || unit < 0) {
@@ -657,7 +668,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                 quantity: scanQty,
                 price_at_order: rounded,
                 product_details: getSpecialCreationProductStub(),
-                notes: itemNotes || undefined,
+                notes: cleanedNote,
                 line_id: crypto.randomUUID()
             };
             setSelectedItems(prev => [newItem, ...prev]);
@@ -1099,6 +1110,13 @@ export function useOrderState({ initialOrder, products, customers, collections, 
 
     // --- Order Save ---
     const handleSaveOrder = async () => {
+        if (findSpecialCreationItemsMissingNotes(selectedItems).length > 0) {
+            showToast('Συμπληρώστε σημείωση σε κάθε ειδική δημιουργία (SP) πριν την αποθήκευση.', 'error');
+            return;
+        }
+        const itemsReadyForSave = selectedItems.map((item) => isSpecialCreationSku(item.sku)
+            ? { ...item, notes: cleanSpecialCreationNote(item.notes) }
+            : item);
         if (!customerName) { showToast('Το όνομα πελάτη είναι υποχρεωτικό.', 'error'); return; }
         if (selectedItems.length === 0) { showToast('Προσθέστε τουλάχιστον ένα προϊόν.', 'error'); return; }
         setIsSaving(true);
@@ -1111,7 +1129,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
 
             if (initialOrder) {
                 let isNewPart: boolean | undefined = undefined;
-                const itemsWithLineIds = assignMissingOrderLineIds(selectedItems);
+                const itemsWithLineIds = assignMissingOrderLineIds(itemsReadyForSave);
                 const updatedOrder: Order = {
                     ...initialOrder,
                     customer_id: effectiveCustomerId,
@@ -1163,7 +1181,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                     seller_commission_percent: selectedSellerId ? sellerCommissionPercent : undefined,
                     created_at: new Date().toISOString(),
                     status: OrderStatus.Pending,
-                    items: assignMissingOrderLineIds(selectedItems),
+                    items: assignMissingOrderLineIds(itemsReadyForSave),
                     total_price: grandTotal,
                     vat_rate: vatRate,
                     discount_percent: discountPercent,

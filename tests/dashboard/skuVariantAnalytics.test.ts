@@ -49,6 +49,10 @@ describe('skuSearchMatch', () => {
     expect(financeEventMatchesSkuQuery({ sku: 'RN045', variantSuffix: 'XTG' }, 'RN045XTG')).toBe(true);
     expect(financeEventMatchesSkuQuery({ sku: 'RN045', variantSuffix: 'P' }, 'RN045XTG')).toBe(false);
   });
+
+  it('matches SP searches against the item note', () => {
+    expect(financeEventMatchesSkuQuery({ sku: 'SP', variantSuffix: null, itemNote: 'Μενταγιόν κύμα' }, 'κύμα')).toBe(true);
+  });
 });
 
 describe('skuVariantAnalytics', () => {
@@ -108,6 +112,21 @@ describe('skuVariantAnalytics', () => {
       profit: 160,
     }),
   ];
+
+  it('keeps different SP notes separate in selection details', () => {
+    const spEvents = [
+      event({ sku: 'SP', variantSuffix: null, itemNote: 'Καρφίτσα ήλιος', quantity: 2, net: 200 }),
+      event({ sku: 'SP', variantSuffix: null, itemNote: 'Μενταγιόν κύμα', quantity: 3, net: 300 }),
+    ];
+    const detail = buildSkuVariantDetailFromSelection({
+      realized: spEvents,
+      backlog: [],
+      sku: 'SP',
+      itemNote: 'Καρφίτσα ήλιος',
+      matchItemNote: true,
+    });
+    expect(detail).toMatchObject({ itemNote: 'Καρφίτσα ήλιος', summary: { quantity: 2, revenue: 200 } });
+  });
 
   it('resolveSkuInspectTarget returns master aggregate for master-only query with multiple suffixes', () => {
     expect(resolveSkuInspectTarget('RN045', realized)).toEqual({

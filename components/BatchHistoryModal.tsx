@@ -9,6 +9,7 @@ import {
     getProductionTimingStatusLabel,
 } from '../utils/productionTiming';
 import { getProductionStageLabel } from '../utils/productionStages';
+import SpecialCreationNote from './SpecialCreationNote';
 
 interface Props {
     isOpen: boolean;
@@ -171,6 +172,7 @@ export default function BatchHistoryModal({ isOpen, onClose, batch, history }: P
                         <div className="mt-1 text-sm text-slate-500">
                             Ποσότητα: <span className="font-bold text-slate-700">{batch.quantity} τεμ.</span>
                         </div>
+                        <SpecialCreationNote sku={batch.sku} note={batch.notes} className="mt-2" />
                     </div>
                     <button 
                         onClick={onClose} 

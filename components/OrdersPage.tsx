@@ -43,6 +43,7 @@ import { auditRepository } from '../features/audit';
 import { dispatchLiveActivity } from '../hooks/useLiveActivity';
 import { usePrint } from './PrintContext';
 import { getOrderTransferIndicators } from '../utils/transferIndicators';
+import SpecialCreationNote from './SpecialCreationNote';
 
 interface Props {
     products: Product[];
@@ -402,7 +403,10 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                 const oldQuantity = oldItem?.quantity ?? null;
                 const newQuantity = item.quantity;
 
-                if (oldItem && oldPrice === newPrice && oldQuantity === newQuantity) {
+                const oldNote = oldItem?.notes?.trim() || null;
+                const newNote = item.notes?.trim() || null;
+
+                if (oldItem && oldPrice === newPrice && oldQuantity === newQuantity && oldNote === newNote) {
                     return null;
                 }
 
@@ -417,6 +421,8 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                     newPrice,
                     oldQuantity,
                     newQuantity,
+                    oldNote,
+                    newNote,
                     isAdded: !oldItem,
                     isRemoved: false,
                 };
@@ -437,6 +443,8 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                 newPrice: null,
                 oldQuantity: oldItem.quantity,
                 newQuantity: null,
+                oldNote: oldItem.notes?.trim() || null,
+                newNote: null,
                 isAdded: false,
                 isRemoved: true,
             });
@@ -877,6 +885,14 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
                                                         )}
                                                     </div>
                                                     <div className="text-sm text-slate-700 mt-0.5 truncate">{item.productLabel}</div>
+                                                    {item.oldNote !== item.newNote ? (
+                                                        <div className="mt-1 space-y-1">
+                                                            <div><span className="text-[10px] font-bold text-slate-500">Πριν:</span><SpecialCreationNote sku={item.sku} note={item.oldNote} compact className="mt-0.5" /></div>
+                                                            <div><span className="text-[10px] font-bold text-slate-500">Μετά:</span><SpecialCreationNote sku={item.sku} note={item.newNote} compact className="mt-0.5" /></div>
+                                                        </div>
+                                                    ) : (
+                                                        <SpecialCreationNote sku={item.sku} note={item.newNote ?? item.oldNote} compact className="mt-1" />
+                                                    )}
                                                     {item.sizeInfo && <div className="text-xs text-slate-500 mt-0.5">Μέγεθος: {item.sizeInfo}</div>}
 
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 text-xs">

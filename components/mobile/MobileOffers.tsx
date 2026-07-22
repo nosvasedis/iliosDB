@@ -17,6 +17,7 @@ import { generateOrderId } from '../../utils/orderUtils';
 import BarcodeScanner from '../BarcodeScanner';
 import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../../utils/retailNotes';
 import IliosLoader from '../ui/IliosLoader';
+import SpecialCreationNote from '../SpecialCreationNote';
 
 interface Props {
     onPrintOffer: (offer: Offer) => void;
@@ -644,6 +645,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                                         </div>
                                         <div>
                                             <div className="font-black text-slate-800 text-sm">{item.sku}{item.variant_suffix}</div>
+                                            <SpecialCreationNote sku={item.sku} note={item.notes} compact className="mt-1" />
                                             <div className="text-[10px] text-slate-500 font-mono">{formatCurrency(item.price_at_order)} /τεμ</div>
                                         </div>
                                     </div>

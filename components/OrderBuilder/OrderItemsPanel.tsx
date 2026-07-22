@@ -375,11 +375,16 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                 type="text"
                                 value={item.notes || ''}
                                 onChange={e => actions.updateItemNotes(item, e.target.value)}
-                                placeholder="Προσθήκη παρατήρησης είδους..."
+                                required={isSpecialCreationSku(item.sku)}
+                                aria-invalid={isSpecialCreationSku(item.sku) && !item.notes?.trim()}
+                                placeholder={isSpecialCreationSku(item.sku) ? 'Υποχρεωτική περιγραφή ειδικής δημιουργίας…' : 'Προσθήκη παρατήρησης είδους...'}
                                 className="w-full pl-6 py-1 text-[10px] bg-slate-50 border border-transparent hover:border-slate-200 focus:border-emerald-300 focus:bg-white rounded-md outline-none font-medium text-slate-600 transition-all placeholder:italic"
                             />
                             <StickyNote size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-300 group-hover/note:text-emerald-400" />
                         </div>
+                        {isSpecialCreationSku(item.sku) && !item.notes?.trim() && (
+                            <p className="mt-1 text-[10px] font-bold text-rose-600">⚠ SP χωρίς σημείωση — απαιτείται πριν την αποθήκευση.</p>
+                        )}
                     </div>
                     );
                 })}

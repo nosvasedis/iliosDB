@@ -23,7 +23,9 @@ import {
 } from 'lucide-react';
 import { Order, OrderItem, OrderShipment, OrderShipmentItem, Product, ProductionBatch, ProductionStage } from '../../types';
 import SkuColorizedText from '../SkuColorizedText';
+import SpecialCreationNote from '../SpecialCreationNote';
 import { formatCurrency, splitSkuComponents } from '../../utils/pricingEngine';
+import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 import { getSkuFinishTextColor, getSkuStoneTextColor } from '../../utils/skuColoring';
 import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
 import { getOrderDisplayName } from '../../utils/deliveryLabels';
@@ -316,7 +318,7 @@ export default function SkuOrderSearchModal({
   const totalOrders = results.length;
   const totalQty = results.reduce((s, r) => s + r.totalMatchedQty, 0);
   const totalVariants = useMemo(
-    () => new Set(results.flatMap((r) => r.matchedItems.map((m) => m.fullSku))).size,
+    () => new Set(results.flatMap((r) => r.matchedItems.map((m) => m.analyticsKey))).size,
     [results],
   );
   const activeFilters = countActiveSkuOrderSearchFilters(filters);
@@ -327,13 +329,13 @@ export default function SkuOrderSearchModal({
     results.forEach((result) => {
       const seenInOrder = new Set<string>();
       result.matchedItems.forEach((match) => {
-        const row = rows.get(match.fullSku) || { match, qty: 0, orders: 0 };
+        const row = rows.get(match.analyticsKey) || { match, qty: 0, orders: 0 };
         row.qty += match.totalQty;
-        if (!seenInOrder.has(match.fullSku)) {
+        if (!seenInOrder.has(match.analyticsKey)) {
           row.orders += 1;
-          seenInOrder.add(match.fullSku);
+          seenInOrder.add(match.analyticsKey);
         }
-        rows.set(match.fullSku, row);
+        rows.set(match.analyticsKey, row);
       });
     });
     return Array.from(rows.values()).sort((a, b) => b.qty - a.qty).slice(0, 5);
@@ -507,8 +509,8 @@ export default function SkuOrderSearchModal({
           {variantSummary.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {variantSummary.map(({ match, qty, orders: orderCount }) => (
-                <span key={match.fullSku} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600 shadow-sm">
-                  <SkuColorizedText sku={match.item.sku} suffix={match.item.variant_suffix || ''} className="text-[11px]" />
+                <span key={match.analyticsKey} className="inline-flex max-w-full items-start gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600 shadow-sm">
+                  <span className="min-w-0"><SkuColorizedText sku={match.item.sku} suffix={match.item.variant_suffix || ''} className="text-[11px]" /><SpecialCreationNote sku={match.item.sku} note={match.item.notes} compact className="mt-0.5" /></span>
                   <span className="text-slate-300">·</span>
                   <Package size={11} className="text-emerald-600" />
                   {qty}
@@ -794,13 +796,14 @@ function MatchedItemRow({
             {match.totalQty} τεμ.
           </span>
           <FulfillmentBadge match={match} />
-          {item.notes?.trim() && (
+          {item.notes?.trim() && !isSpecialCreationSku(item.sku) && (
             <span className="inline-flex max-w-full items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800">
               <StickyNote size={10} className="shrink-0" />
               <span className="truncate">{item.notes}</span>
             </span>
           )}
         </div>
+        <SpecialCreationNote sku={item.sku} note={item.notes} className="mt-1.5" />
 
         <div className="mt-1.5">
           <SuffixBadges match={match} />

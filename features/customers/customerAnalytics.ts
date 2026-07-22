@@ -1,6 +1,10 @@
 import { Customer, Order, OrderStatus, Product } from '../../types';
 import { FinanceLineEvent } from '../../utils/financeAnalytics';
-import { isSpecialCreationSku } from '../../utils/specialCreationSku';
+import {
+  getSpecialCreationDisplayNote,
+  isSpecialCreationSku,
+} from '../../utils/specialCreationSku';
+import { productRankingKey, variantRankingKey } from '../../utils/financeLineSku';
 
 export type CustomerAnalyticsPeriod = '90d' | '12m' | 'all';
 export type CustomerSuccessMetric = 'profit' | 'revenue' | 'quantity' | 'margin';
@@ -16,6 +20,7 @@ export interface CustomerPerformanceRow {
   key: string;
   sku: string;
   variantSuffix: string;
+  itemNote?: string | null;
   label: string;
   image: string | null;
   category: string;
@@ -201,7 +206,9 @@ function buildPerformanceRows(events: FinanceLineEvent[], products: Product[], v
 
   events.forEach(event => {
     const variant = variantMode ? event.variantSuffix || '' : '';
-    const key = variantMode ? `${event.sku}::${variant}` : event.sku;
+    const key = variantMode
+      ? variantRankingKey(event.sku, variant, event.itemNote)
+      : productRankingKey(event.sku, event.itemNote);
     const product = productMap.get(event.sku);
     const category = categoryForEvent(event, productMap);
     const label = variantMode && variant
@@ -211,6 +218,7 @@ function buildPerformanceRows(events: FinanceLineEvent[], products: Product[], v
       key,
       sku: event.sku,
       variantSuffix: variant,
+      itemNote: event.itemNote,
       label,
       image: event.productImage || product?.image_url || null,
       category,
@@ -351,7 +359,10 @@ function buildBehavior(orders: Order[], realizedEvents: FinanceLineEvent[]) {
   const activeMonths = new Set<string>();
 
   orders.forEach(order => {
-    const skus = Array.from(new Set(order.items.map(item => item.sku).filter(Boolean))).sort();
+    const skus = Array.from(new Set(order.items.map(item => {
+      if (!isSpecialCreationSku(item.sku)) return item.sku;
+      return `${item.sku} — ${getSpecialCreationDisplayNote(item.sku, item.notes)}`;
+    }).filter(Boolean))).sort();
     totalPieces += order.items.reduce((sum, item) => sum + item.quantity, 0);
     totalProducts += skus.length;
     statusCounts.set(order.status, (statusCounts.get(order.status) || 0) + 1);
@@ -529,6 +540,11 @@ export function sortCustomerPerformanceRows(rows: CustomerPerformanceRow[], metr
   return [...rows].sort((a, b) => b[metric] - a[metric] || b.revenue - a.revenue || a.sku.localeCompare(b.sku));
 }
 
+function customerPerformanceDisplayName(row: Pick<CustomerPerformanceRow, 'sku' | 'label' | 'itemNote'>): string {
+  if (!isSpecialCreationSku(row.sku)) return row.label || row.sku;
+  return `${row.sku} — ${getSpecialCreationDisplayNote(row.sku, row.itemNote)}`;
+}
+
 export function buildCustomerAnalytics(input: BuildCustomerAnalyticsInput): CustomerAnalyticsViewModel {
   const now = input.now || new Date();
   const nowTime = now.getTime();
@@ -600,10 +616,10 @@ export function buildCustomerAnalytics(input: BuildCustomerAnalyticsInput): Cust
     .sort((a, b) => a.margin - b.margin)[0];
   if (weakMargin) {
     opportunities.push({
-      id: `margin-${weakMargin.sku}`,
+      id: `margin-${weakMargin.key}`,
       type: 'margin',
       severity: weakMargin.margin < 0 ? 'high' : 'medium',
-      title: `Έλεγχος περιθωρίου · ${weakMargin.sku}`,
+      title: `Έλεγχος περιθωρίου · ${customerPerformanceDisplayName(weakMargin)}`,
       description: `Περιθώριο ${weakMargin.margin.toFixed(1)}% έναντι ${margin.toFixed(1)}% συνολικά για τον πελάτη.`,
       reason: 'Η εκτίμηση χρησιμοποιεί την ιστορική τιμή πώλησης και το καλύτερο διαθέσιμο κόστος προϊόντος.',
       sku: weakMargin.sku,
@@ -616,7 +632,7 @@ export function buildCustomerAnalytics(input: BuildCustomerAnalyticsInput): Cust
 
   const healthRiskText = health.state === 'risk' ? 'Χρειάζεται άμεση επαναπροσέγγιση.' : health.state === 'watch' ? 'Ο ρυθμός αγορών έχει επιβραδυνθεί.' : '';
   const headline = bestProduct
-    ? `Το ${bestProduct.sku} είναι το πιο κερδοφόρο προϊόν για τον πελάτη.`
+    ? `Το ${customerPerformanceDisplayName(bestProduct)} είναι το πιο κερδοφόρο προϊόν για τον πελάτη.`
     : customerOrdersAll.length > 0
       ? 'Υπάρχει ιστορικό παραγγελιών, αλλά όχι ακόμη πραγματοποιημένη πώληση.'
       : 'Δεν υπάρχει ακόμη εμπορικό ιστορικό για αυτόν τον πελάτη.';

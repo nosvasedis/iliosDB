@@ -270,6 +270,7 @@ export default function CustomerDetailsModal({
                     item.variant_suffix,
                     item.product_details?.category,
                     item.product_details?.description,
+                    item.notes,
                 ]
                     .filter(Boolean)
                     .join(' ')

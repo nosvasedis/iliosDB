@@ -1,5 +1,6 @@
 
 import React from 'react';
+import SpecialCreationNote from '../SpecialCreationNote';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { productionKeys, productionRepository } from '../../features/production';
 import { api } from '../../lib/supabase';
@@ -43,6 +44,7 @@ const ClerkBatchCard: React.FC<{ batch: ProductionBatch, onMove: (b: ProductionB
             <div className="flex justify-between items-start">
                 <div>
                     <div className="font-black text-slate-800 text-lg">{batch.sku}{batch.variant_suffix}</div>
+                    <SpecialCreationNote sku={batch.sku} note={batch.notes} compact className="mt-1" />
                     <div className="text-xs text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded w-fit mt-1">
                         {batch.quantity} τεμάχια
                     </div>

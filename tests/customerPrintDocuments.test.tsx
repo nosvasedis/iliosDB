@@ -3,8 +3,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import OfferPrintView from '../components/OfferPrintView';
 import ShipmentInvoiceView from '../components/ShipmentInvoiceView';
+import MergedShipmentInvoiceView from '../components/MergedShipmentInvoiceView';
 import { Gender, OrderStatus, PlatingType, ProductionType } from '../types';
-import { SPECIAL_CREATION_SKU } from '../utils/specialCreationSku';
+import { MISSING_SPECIAL_CREATION_NOTE, SPECIAL_CREATION_SKU } from '../utils/specialCreationSku';
 
 const longSkuNote =
   'Full SKU note that must stay visible on the customer document even when it is long and needs to wrap onto another compact line.';
@@ -252,5 +253,43 @@ describe('customer print documents', () => {
     expect(shipmentHtml).toContain(spNote);
     expect(offerHtml).toContain(`${SPECIAL_CREATION_SKU}</div>`);
     expect(offerHtml).toContain(spNote);
+  });
+
+  it('renders SP notes in merged shipments and warns when a legacy line is ambiguous', () => {
+    const shipment = {
+      id: 'merged-sp-shipment',
+      order_id: 'merged-sp-order',
+      shipment_number: 1,
+      shipped_at: '2026-07-02T10:00:00.000Z',
+      shipped_by: 'Tester',
+      created_at: '2026-07-02T10:00:00.000Z',
+    };
+    const ambiguousOrder = {
+      ...order,
+      id: 'merged-sp-order',
+      items: [
+        { sku: 'SP', quantity: 1, price_at_order: 40, notes: 'Καρφίτσα ήλιος' },
+        { sku: 'SP', quantity: 1, price_at_order: 40, notes: 'Μενταγιόν κύμα' },
+      ],
+    };
+    const html = renderToStaticMarkup(
+      <MergedShipmentInvoiceView
+        payloads={[{
+          order: ambiguousOrder as any,
+          shipment: shipment as any,
+          shipmentItems: [{
+            id: 'merged-item',
+            shipment_id: shipment.id,
+            sku: 'SP',
+            quantity: 1,
+            price_at_order: 40,
+          }],
+        }]}
+        products={[]}
+      />,
+    );
+
+    expect(html).toContain(MISSING_SPECIAL_CREATION_NOTE);
+    expect(html).toContain('customer-print-sku-note');
   });
 });

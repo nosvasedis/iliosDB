@@ -7,6 +7,8 @@ import { GlobalSettings } from '../types';
 import { formatOrderId } from '../utils/orderUtils';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
 import { getProductOptionColorLabel } from '../utils/xrOptions';
+import SpecialCreationNote from './SpecialCreationNote';
+import { isSpecialCreationSku } from '../utils/specialCreationSku';
 
 interface Props {
     data: AggregatedData;
@@ -116,10 +118,11 @@ export default function AggregatedProductionView({ data, settings }: Props) {
                         {batch.product_details?.is_component && <span className="text-[7px] font-bold bg-blue-50 text-blue-600 px-1 rounded border border-blue-100">STX</span>}
                         {batch.product_details?.production_type === ProductionType.Imported && <span className="text-[7px] font-bold bg-purple-50 text-purple-600 px-1 rounded border border-purple-100 uppercase">IMP</span>}
                     </div>
+                    <SpecialCreationNote sku={batch.sku} note={batch.notes} compact className="mt-0.5" />
                     {(batch.product_details?.supplier_sku || batch.notes) && (
                         <div className="flex flex-wrap gap-1 text-[8px]">
                             {batch.product_details?.supplier_sku && <span className="text-slate-400 font-mono">Ref: {batch.product_details.supplier_sku}</span>}
-                            {batch.notes && <span className="text-emerald-700 font-bold italic bg-emerald-50 px-1 rounded flex items-center gap-0.5"><StickyNote size={7}/> {batch.notes}</span>}
+                            {batch.notes && !isSpecialCreationSku(batch.sku) && <span className="text-emerald-700 font-bold italic bg-emerald-50 px-1 rounded flex items-center gap-0.5"><StickyNote size={7}/> {batch.notes}</span>}
                         </div>
                     )}
                 </div>

@@ -41,6 +41,7 @@ import FinancePeriodSelector from './FinancePeriodSelector';
 import DashboardStatCarousel, { type DashboardStatSlide } from './dashboard/DashboardStatCarousel';
 import DashboardOverviewMosaic, { type DashboardNavigatePage, type MosaicLoadingFlags } from './dashboard/DashboardOverviewMosaic';
 import TopVariantsAnalyticsModal from './dashboard/TopVariantsAnalyticsModal';
+import SpecialCreationNote from './SpecialCreationNote';
 import { useOrderDeliveryPlans } from '../hooks/api/useOrderDeliveryPlans';
 import { getAttentionItems } from '../utils/deliveryScheduling';
 import { api } from '../lib/supabase';
@@ -777,9 +778,10 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                   </h3>
                   <div className="space-y-4">
                       {topSoldProducts.map((item) => (
-                          <div key={item.sku} className="flex items-center justify-between p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100">
+                          <div key={item.key} className="flex items-center justify-between gap-3 p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100">
                               <div>
                                   <div className="font-bold text-slate-800">{item.sku}</div>
+                                  <SpecialCreationNote sku={item.sku} note={item.itemNote} compact className="mt-1" />
                                   <div className="text-[10px] text-slate-500">{item.quantity} τμχ</div>
                               </div>
                               <div className="text-right">

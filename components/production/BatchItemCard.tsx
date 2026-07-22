@@ -7,6 +7,7 @@ import {
 import { formatCurrency } from '../../utils/pricingEngine';
 import { getProductOptionColorLabel } from '../../utils/xrOptions';
 import SkuColorizedText from '../SkuColorizedText';
+import SpecialCreationNote from '../SpecialCreationNote';
 import { getSpecialCreationProductStub, isSpecialCreationSku } from '../../utils/specialCreationSku';
 import { groupProductionBatchesByStage } from '../../features/production/workflowSelectors';
 import { buildOrderItemIdentityKey } from '../../features/orders/printHelpers';
@@ -172,7 +173,8 @@ export const BatchItemCard = React.memo(function BatchItemCard({
                         </div>
 
                         {/* Row note */}
-                        {row.notes && (
+                        <SpecialCreationNote sku={row.sku} note={row.notes} compact className="mt-1" />
+                        {row.notes && !isSpecialCreationSku(row.sku) && (
                             <div className="mt-1 flex items-start gap-1 p-1 bg-yellow-50 text-yellow-800 rounded border border-yellow-100 max-w-fit">
                                 <StickyNote size={9} className="shrink-0 mt-0.5" />
                                 <span className="text-[9px] font-bold italic leading-tight">{row.notes}</span>

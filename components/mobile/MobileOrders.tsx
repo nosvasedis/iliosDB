@@ -12,6 +12,7 @@ import { extractRetailClientFromNotes } from '../../utils/retailNotes';
 import { retailEndClientPillClass, retailOrderBagIconClass } from '../../utils/retailPresentation';
 import { useUI } from '../UIProvider';
 import SkuColorizedText from '../SkuColorizedText';
+import SpecialCreationNote from '../SpecialCreationNote';
 import { buildOrderProductionStageSegments, getOrderItemProductionStageBreakdown, groupBatchesByShipment, isOrderReady, isOrderReadyForShipment, orderStatusShowsProductionProgress } from '../../utils/orderReadiness';
 import { OrderListProgressBar } from '../orders/OrderListProgressBar';
 import {
@@ -1128,8 +1129,9 @@ const OrderCard: React.FC<{
                                     </div>
                                     <div className="min-w-0">
                                         <SkuColorizedText sku={item.sku} suffix={item.variant_suffix} gender={product?.gender} className="font-black text-sm tracking-tight" masterClassName={isSP ? 'text-violet-900' : 'text-slate-800'} />
+                                        <SpecialCreationNote sku={item.sku} note={item.notes} compact className="mt-1" />
                                         {item.size_info && <div className="text-[10px] text-slate-400 font-medium mt-0.5">Size: {item.size_info}</div>}
-                                        {item.notes && (
+                                        {item.notes && !isSP && (
                                             <div className="text-[10px] text-emerald-700 italic flex items-center gap-1 mt-0.5 leading-tight font-medium">
                                                 <StickyNote size={9} className="shrink-0" />{item.notes}
                                             </div>

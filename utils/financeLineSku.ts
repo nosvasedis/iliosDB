@@ -1,5 +1,6 @@
 import { Product } from '../types';
 import { findProductByScannedCode, splitSkuComponents } from './pricingEngine';
+import { getSpecialCreationNoteKey, isSpecialCreationSku } from './specialCreationSku';
 
 export interface ResolvedFinanceLineSku {
   masterSku: string;
@@ -11,8 +12,17 @@ export function normalizeVariantSuffix(suffix?: string | null): string {
   return (suffix ?? '').trim().toUpperCase();
 }
 
-export function variantRankingKey(masterSku: string, variantSuffix: string): string {
-  return `${masterSku}::${normalizeVariantSuffix(variantSuffix)}`;
+export function productRankingKey(masterSku: string, itemNote?: string | null): string {
+  return isSpecialCreationSku(masterSku)
+    ? `${masterSku}::note:${getSpecialCreationNoteKey(itemNote)}`
+    : masterSku;
+}
+
+export function variantRankingKey(masterSku: string, variantSuffix: string, itemNote?: string | null): string {
+  const base = `${masterSku}::${normalizeVariantSuffix(variantSuffix)}`;
+  return isSpecialCreationSku(masterSku)
+    ? `${base}::note:${getSpecialCreationNoteKey(itemNote)}`
+    : base;
 }
 
 /**

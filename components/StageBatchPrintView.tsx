@@ -1,4 +1,5 @@
 import React from 'react';
+import { getSpecialCreationDisplayNote } from '../utils/specialCreationSku';
 import { ProductionBatch, Product, Gender } from '../types';
 import { APP_LOGO } from '../constants';
 import { getVariantComponents } from '../utils/pricingEngine';
@@ -282,7 +283,7 @@ export default function StageBatchPrintView({ data, allProducts }: Props) {
 
                                 {/* Notes */}
                                 <td style={{ padding: '7px 8px', color: '#92400e', fontSize: '11px', fontStyle: 'italic', lineHeight: 1.35 }}>
-                                    {batch.notes || ''}
+                                    {getSpecialCreationDisplayNote(batch.sku, batch.notes) || batch.notes || ''}
                                 </td>
                             </tr>
                         );

@@ -3,6 +3,7 @@ import { FinanceLineEvent } from '../../utils/financeAnalytics';
 import { variantRankingKey } from '../../utils/financeLineSku';
 import { financeEventMatchesSkuQuery, normalizeSkuQuery } from '../../utils/skuSearchMatch';
 import { splitSkuComponents } from '../../utils/pricingEngine';
+import { getSpecialCreationNoteKey, isSpecialCreationSku } from '../../utils/specialCreationSku';
 
 export type SkuVariantCustomerRow = {
   id: string;
@@ -30,7 +31,9 @@ export type SkuVariantTimelinePoint = {
 };
 
 export type SkuVariantBreakdownRow = {
+  key: string;
   variantSuffix: string;
+  itemNote?: string | null;
   quantity: number;
   revenue: number;
   profit: number;
@@ -55,6 +58,7 @@ export type SkuVariantDetail = {
   matchKey: string;
   sku: string;
   variantSuffix: string;
+  itemNote?: string | null;
   isMasterAggregate: boolean;
   summary: SkuVariantDetailSummary;
   customers: SkuVariantCustomerRow[];
@@ -68,7 +72,7 @@ export type SkuVariantDetail = {
 export type SkuInspectTarget =
   | { kind: 'none' }
   | { kind: 'master'; sku: string; query: string }
-  | { kind: 'variant'; sku: string; variantSuffix: string; query: string };
+  | { kind: 'variant'; sku: string; variantSuffix: string; itemNote?: string | null; query: string };
 
 function monthKey(dateStr: string): string {
   const d = new Date(dateStr);
@@ -210,19 +214,19 @@ function aggregateTimeline(lines: FinanceLineEvent[]): SkuVariantTimelinePoint[]
 }
 
 function aggregateVariantBreakdown(lines: FinanceLineEvent[]): SkuVariantBreakdownRow[] {
-  const map = new Map<string, { quantity: number; revenue: number; profit: number }>();
+  const map = new Map<string, SkuVariantBreakdownRow>();
 
   lines.forEach((line) => {
     const suffix = (line.variantSuffix || '').toUpperCase();
-    const row = map.get(suffix) || { quantity: 0, revenue: 0, profit: 0 };
+    const key = variantRankingKey(line.sku, suffix, line.itemNote);
+    const row = map.get(key) || { key, variantSuffix: suffix, itemNote: line.itemNote, quantity: 0, revenue: 0, profit: 0 };
     row.quantity += line.quantity;
     row.revenue += line.net;
     row.profit += line.profit;
-    map.set(suffix, row);
+    map.set(key, row);
   });
 
-  return Array.from(map.entries())
-    .map(([variantSuffix, data]) => ({ variantSuffix, ...data }))
+  return Array.from(map.values())
     .sort((a, b) => b.quantity - a.quantity);
 }
 
@@ -240,13 +244,14 @@ export function resolveSkuInspectTarget(query: string, realized: FinanceLineEven
     return { kind: 'variant', sku: master, variantSuffix, query: q };
   }
 
-  const distinctKeys = new Set(matched.map((line) => variantRankingKey(line.sku, line.variantSuffix || '')));
+  const distinctKeys = new Set(matched.map((line) => variantRankingKey(line.sku, line.variantSuffix || '', line.itemNote)));
   if (distinctKeys.size === 1) {
     const line = matched[0];
     return {
       kind: 'variant',
       sku: line.sku,
       variantSuffix: (line.variantSuffix || '').toUpperCase(),
+      itemNote: line.itemNote,
       query: q,
     };
   }
@@ -260,13 +265,17 @@ export function buildSkuVariantDetailFromSelection(args: {
   sku: string;
   variantSuffix?: string;
   isMasterAggregate?: boolean;
+  itemNote?: string | null;
+  matchItemNote?: boolean;
 }): SkuVariantDetail | null {
-  const { realized, backlog, sku, variantSuffix = '', isMasterAggregate = false } = args;
+  const { realized, backlog, sku, variantSuffix = '', isMasterAggregate = false, itemNote, matchItemNote = false } = args;
+  const wantedNoteKey = getSpecialCreationNoteKey(itemNote);
 
   const realizedLines = realized.filter((line) => {
     if (line.sku !== sku) return false;
     if (isMasterAggregate) return true;
-    return (line.variantSuffix || '').toUpperCase() === variantSuffix.toUpperCase();
+    if ((line.variantSuffix || '').toUpperCase() !== variantSuffix.toUpperCase()) return false;
+    return !matchItemNote || getSpecialCreationNoteKey(line.itemNote) === wantedNoteKey;
   });
 
   if (realizedLines.length === 0) return null;
@@ -274,7 +283,8 @@ export function buildSkuVariantDetailFromSelection(args: {
   const backlogLines = backlog.filter((line) => {
     if (line.sku !== sku) return false;
     if (isMasterAggregate) return true;
-    return (line.variantSuffix || '').toUpperCase() === variantSuffix.toUpperCase();
+    if ((line.variantSuffix || '').toUpperCase() !== variantSuffix.toUpperCase()) return false;
+    return !matchItemNote || getSpecialCreationNoteKey(line.itemNote) === wantedNoteKey;
   });
 
   const sortedLines = [...realizedLines].sort(
@@ -285,12 +295,13 @@ export function buildSkuVariantDetailFromSelection(args: {
   const backlogQty = backlogLines.reduce((s, l) => s + l.quantity, 0);
   const backlogNet = backlogLines.reduce((s, l) => s + l.net, 0);
 
-  const matchKey = isMasterAggregate ? sku : variantRankingKey(sku, variantSuffix);
+  const matchKey = isMasterAggregate ? sku : variantRankingKey(sku, variantSuffix, matchItemNote ? itemNote : undefined);
 
   return {
     matchKey,
     sku,
     variantSuffix: isMasterAggregate ? '' : variantSuffix.toUpperCase(),
+    itemNote: matchItemNote ? itemNote : undefined,
     isMasterAggregate,
     summary,
     customers: aggregateCustomers(realizedLines, summary.quantity),
@@ -329,6 +340,8 @@ export function buildSkuVariantDetail(args: {
     backlog,
     sku: target.sku,
     variantSuffix: target.variantSuffix,
+    itemNote: target.itemNote,
+    matchItemNote: isSpecialCreationSku(target.sku),
     isMasterAggregate: false,
   });
 }

@@ -5,6 +5,8 @@ import { ImageIcon, Phone, StickyNote, Calendar, Hash, Truck, Layers } from 'luc
 import { formatOrderId } from '../utils/orderUtils';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
 import { getProductOptionColorLabel } from '../utils/xrOptions';
+import { CustomerPrintSkuNote } from './customerPrintShared';
+import { getSpecialCreationNoteKey, isSpecialCreationSku } from '../utils/specialCreationSku';
 
 export interface ShipmentPayload {
     order: Order;
@@ -17,7 +19,22 @@ interface Props {
     products: Product[];
 }
 
-type MergedItem = Omit<OrderShipmentItem, 'id' | 'shipment_id'> & { quantity: number };
+type MergedItem = Omit<OrderShipmentItem, 'id' | 'shipment_id'> & { quantity: number; itemNote?: string | null };
+
+function findOrderItemNote(order: Order, shipmentItem: OrderShipmentItem): string | null {
+    if (shipmentItem.line_id) {
+        const byLineId = order.items.find((item) => item.line_id === shipmentItem.line_id);
+        if (byLineId) return byLineId.notes?.trim() || null;
+    }
+    const candidates = order.items.filter((item) =>
+        item.sku === shipmentItem.sku
+        && (item.variant_suffix ?? null) === (shipmentItem.variant_suffix ?? null)
+        && (item.size_info ?? null) === (shipmentItem.size_info ?? null)
+        && (item.cord_color ?? null) === (shipmentItem.cord_color ?? null)
+        && (item.enamel_color ?? null) === (shipmentItem.enamel_color ?? null)
+    );
+    return candidates.length === 1 ? candidates[0].notes?.trim() || null : null;
+}
 
 const company = {
     name: 'ILIOS KOSMIMA',
@@ -37,8 +54,9 @@ export default function MergedShipmentInvoiceView({ payloads, products }: Props)
     // Merge items by identity key; keep separate entries when prices differ
     const mergedItems = useMemo<MergedItem[]>(() => {
         const map = new Map<string, MergedItem>();
-        for (const { shipmentItems } of sortedPayloads) {
+        for (const { order: sourceOrder, shipmentItems } of sortedPayloads) {
             for (const item of shipmentItems) {
+                const itemNote = findOrderItemNote(sourceOrder, item);
                 const key = [
                     item.sku,
                     item.variant_suffix ?? '',
@@ -47,13 +65,14 @@ export default function MergedShipmentInvoiceView({ payloads, products }: Props)
                     item.enamel_color ?? '',
                     item.line_id ?? '',
                     String(item.price_at_order),
+                    isSpecialCreationSku(item.sku) ? getSpecialCreationNoteKey(itemNote) : '',
                 ].join('::');
 
                 const existing = map.get(key);
                 if (existing) {
                     existing.quantity += item.quantity;
                 } else {
-                    map.set(key, { ...item });
+                    map.set(key, { ...item, itemNote });
                 }
             }
         }
@@ -153,6 +172,7 @@ export default function MergedShipmentInvoiceView({ payloads, products }: Props)
                         <span className="text-[10px] text-slate-600 truncate max-w-[200px] font-medium">
                             {description}
                         </span>
+                        <CustomerPrintSkuNote sku={item.sku} note={item.itemNote} />
                     </div>
                 </div>
                 <div className="w-8 text-center font-bold text-slate-800 text-[12px]">{item.quantity}</div>

@@ -14,6 +14,7 @@ import { resolveImageUrl } from '../../lib/supabase';
 import { formatCurrency, splitSkuComponents } from '../../utils/pricingEngine';
 import { FinanceLineEvent } from '../../utils/financeAnalytics';
 import SkuColorizedText from '../SkuColorizedText';
+import SpecialCreationNote from '../SpecialCreationNote';
 import SkuVariantDetailPanel from './SkuVariantDetailPanel';
 import SkuModalFiltersPanel from './SkuModalFiltersPanel';
 import {
@@ -43,6 +44,7 @@ import {
   type SkuModalFilterSelection,
 } from '../../features/dashboard/skuModalFilters';
 import { variantRankingKey } from '../../utils/financeLineSku';
+import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 
 const SORT_OPTIONS: { id: VariantAnalyticsSort; label: string }[] = [
   { id: 'quantity', label: 'Τεμάχια' },
@@ -58,7 +60,7 @@ const RANK_STYLES: Record<number, string> = {
 };
 
 /** Fixed virtual row slot — content + gap between cards */
-const ROW_HEIGHT = 132;
+const ROW_HEIGHT = 156;
 
 interface Props {
   realizedEvents: FinanceLineEvent[];
@@ -138,6 +140,7 @@ const VariantListRow = memo(function VariantListRow({
               {isCopied ? <Check size={11} className="text-emerald-600" /> : <Copy size={11} />}
             </span>
           </div>
+          <SpecialCreationNote sku={row.sku} note={row.itemNote} compact className="mt-1.5" />
 
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
@@ -232,7 +235,7 @@ function TopVariantsModalBody({
   );
 
   const selectedRow = useMemo(
-    () => (selectedKey ? displayed.find((r) => variantRankingKey(r.sku, r.variantSuffix) === selectedKey) : null),
+    () => (selectedKey ? displayed.find((r) => r.key === selectedKey) : null),
     [displayed, selectedKey],
   );
 
@@ -247,6 +250,8 @@ function TopVariantsModalBody({
         backlog: filteredBacklog,
         sku: selectedRow.sku,
         variantSuffix: selectedRow.variantSuffix,
+        itemNote: selectedRow.itemNote,
+        matchItemNote: isSpecialCreationSku(selectedRow.sku),
         isMasterAggregate: false,
       });
     }
@@ -272,16 +277,16 @@ function TopVariantsModalBody({
 
   const handleSelectRow = useCallback((row: EnrichedVariantAnalyticsRow) => {
     startTransition(() => {
-      setSelectedKey(variantRankingKey(row.sku, row.variantSuffix));
+      setSelectedKey(row.key);
       setQuery('');
     });
   }, []);
 
-  const handleSelectVariant = useCallback((variantSuffix: string) => {
+  const handleSelectVariant = useCallback((variantSuffix: string, itemNote?: string | null) => {
     if (!inspectDetail) return;
     startTransition(() => {
-      setSelectedKey(variantRankingKey(inspectDetail.sku, variantSuffix));
-      setQuery(inspectDetail.sku + variantSuffix);
+      setSelectedKey(variantRankingKey(inspectDetail.sku, variantSuffix, itemNote));
+      setQuery('');
     });
   }, [inspectDetail]);
 
@@ -382,16 +387,17 @@ function TopVariantsModalBody({
               <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
                 {virtualizer.getVirtualItems().map((virtualRow) => {
                   const row = displayed[virtualRow.index];
-                  const rowKey = variantRankingKey(row.sku, row.variantSuffix);
+                  const rowKey = row.key;
                   return (
                     <div
                       key={rowKey}
+                      ref={virtualizer.measureElement}
+                      data-index={virtualRow.index}
                       style={{
                         position: 'absolute',
                         top: 0,
                         left: 0,
                         width: '100%',
-                        height: ROW_HEIGHT,
                         transform: `translateY(${virtualRow.start}px)`,
                         paddingBottom: 12,
                       }}

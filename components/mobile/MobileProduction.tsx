@@ -7,6 +7,7 @@ import { ChevronDown, ChevronUp, Clock, AlertTriangle, ArrowRight, ArrowLeft, Ch
 import MobileScreenHeader from './MobileScreenHeader';
 import { useUI } from '../UIProvider';
 import SkuColorizedText from '../SkuColorizedText';
+import SpecialCreationNote from '../SpecialCreationNote';
 import MobileBatchBuildModal from './MobileBatchBuildModal';
 import BatchHistoryModal from '../BatchHistoryModal';
 import { formatOrderId } from '../../utils/orderUtils';
@@ -151,6 +152,7 @@ const MobileBatchCard: React.FC<{
                 </div>
                 <div className="min-w-0 flex-1">
                     <SkuColorizedText sku={batch.sku} suffix={batch.variant_suffix || ''} gender={batch.product_details?.gender} className="font-black text-lg tracking-tight" masterClassName={isSpecialCreation ? 'text-violet-900' : 'text-slate-800'} />
+                    <SpecialCreationNote sku={batch.sku} note={batch.notes} compact className="mt-1" />
                     {batch.size_info && <div className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 font-bold inline-block mt-1">{batch.size_info}</div>}
                     {batch.customer_name && <div className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-tight">{batch.customer_name}</div>}
                 </div>
@@ -173,7 +175,7 @@ const MobileBatchCard: React.FC<{
                 </div>
             )}
 
-            {batch.notes && !batch.on_hold && (
+            {batch.notes && !batch.on_hold && !isSpecialCreation && (
                 <div className="mb-3 bg-amber-50 border border-amber-100 rounded-lg p-2.5 flex gap-2">
                     <StickyNote size={14} className="text-amber-500 shrink-0 mt-0.5" />
                     <span className="text-xs text-amber-800 italic font-medium leading-snug">"{batch.notes}"</span>
@@ -1017,6 +1019,7 @@ export default function MobileProduction({ allProducts, onPrintAggregated, onPri
             return {
                 ...b,
                 size_info: resolvedSizeInfo,
+                notes: b.notes || matchingOrderItem?.notes,
                 requires_setting: hasZircons,
                 requires_assembly,
                 product_details: prod,

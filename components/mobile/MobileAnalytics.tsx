@@ -28,6 +28,7 @@ import type { Product } from '../../types';
 import { formatCurrency, formatDecimal } from '../../utils/pricingEngine';
 import { FinancePeriodMode } from '../../utils/financeAnalytics';
 import { useFinanceAnalytics } from '../../hooks/api/useFinanceAnalytics';
+import SpecialCreationNote from '../SpecialCreationNote';
 import FinancePeriodSelector from '../FinancePeriodSelector';
 import MobileScreenHeader from './MobileScreenHeader';
 import IliosLoader from '../ui/IliosLoader';
@@ -216,9 +217,10 @@ export default function MobileAnalytics({ products, onPrint }: Props) {
           {topProducts.length > 0 ? (
             <div className="space-y-2.5">
               {topProducts.map((product, index) => (
-                <div key={product.sku} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-3">
+                <div key={product.key} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-black text-slate-900">#{index + 1} {product.sku}</p>
+                    <SpecialCreationNote sku={product.sku} note={product.itemNote} compact className="mt-1" />
                     <p className="text-[11px] font-bold text-slate-500">{product.quantity} τεμ. · Κέρδος {formatCurrency(product.profit)}</p>
                   </div>
                   <p className="text-sm font-black text-slate-900">{formatCurrency(product.revenue)}</p>

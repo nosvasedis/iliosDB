@@ -276,7 +276,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                     <div className="rounded-2xl border border-violet-200 bg-violet-50/80 p-4 space-y-2">
                         <p className="text-[10px] font-black text-violet-800 uppercase tracking-widest">Ειδική δημιουργία ({SPECIAL_CREATION_SKU})</p>
                         <p className="text-xs text-violet-700 font-medium leading-snug">
-                            Καταχωρήστε την τιμή μονάδας (πριν ΦΠΑ), ποσότητα και προαιρετικές σημειώσεις. Μπορείτε να προσθέσετε πολλές γραμμές SP στην ίδια παραγγελία.
+                            Καταχωρήστε την τιμή μονάδας (πριν ΦΠΑ), ποσότητα και την υποχρεωτική περιγραφή της δημιουργίας. Μπορείτε να προσθέσετε πολλές γραμμές SP στην ίδια παραγγελία.
                         </p>
                         <div>
                             <label className="text-[10px] text-violet-600 font-black uppercase mb-1 ml-0.5 block">Τιμή μονάδας (€)</label>
@@ -292,14 +292,16 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                         </div>
                         <div>
                             <label className="text-[10px] text-violet-600 font-black uppercase mb-1 ml-0.5 block flex items-center gap-1">
-                                <StickyNote size={10} /> Σημειώσεις
+                                <StickyNote size={10} /> Σημείωση SP (υποχρεωτική)
                             </label>
                             <input
                                 type="text"
                                 value={state.itemNotes}
                                 onChange={(e) => setters.setItemNotes(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && actions.executeAddItem()}
-                                placeholder="Προαιρετικές σημειώσεις για αυτή τη γραμμή SP…"
+                                required
+                                aria-label="Υποχρεωτική σημείωση ειδικής δημιουργίας SP"
+                                placeholder="Περιγράψτε τι ακριβώς είναι αυτή η ειδική δημιουργία…"
                                 className="w-full p-3 bg-white border border-violet-200 rounded-xl outline-none focus:ring-4 focus:ring-violet-500/15 text-sm text-slate-900"
                             />
                         </div>

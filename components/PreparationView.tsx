@@ -5,6 +5,7 @@ import { Gem, MapPin, StickyNote } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { buildSkuKey, compareSkuValues } from '../utils/skuSort';
 import { getProductOptionColorLabel } from '../utils/xrOptions';
+import SpecialCreationNote from './SpecialCreationNote';
 
 interface Props {
     batches: ProductionBatch[];
@@ -181,6 +182,7 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                         <div className="flex-1 min-w-0 flex flex-col gap-1">
                                             <div className="leading-tight border-b border-slate-100 pb-1">
                                                 <span className="text-sm font-black text-slate-900 block truncate uppercase">{batch.sku}{batch.variant_suffix || ''}</span>
+                                                <SpecialCreationNote sku={batch.sku} note={batch.notes} compact className="mt-1" />
                                                 <span className="text-[10px] font-bold text-slate-600 truncate block uppercase">{platingDesc}</span>
 
                                                 {batch.size_info && (
@@ -342,6 +344,7 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                         <div className="flex-1 min-w-0 flex flex-col justify-between">
                                             <div>
                                                 <p className="text-sm font-black text-slate-900 tracking-tight leading-tight uppercase">{batch.sku}{batch.variant_suffix || ''}</p>
+                                                <SpecialCreationNote sku={batch.sku} note={batch.notes} compact className="mt-1" />
                                                 {product.supplier_sku && (
                                                     <p className="text-[10px] font-bold text-slate-600 bg-white px-1 rounded border border-slate-200 w-fit mt-1">{product.supplier_sku}</p>
                                                 )}

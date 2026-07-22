@@ -5,6 +5,7 @@ import { ProductionBatch, Product, Material, Mold, ProductionType, ProductionSta
 import { X, Box, MapPin, Info, Image as ImageIcon, Scale, Calculator, StickyNote, MoveRight, Check, PauseCircle, PlayCircle, AlertTriangle, User, Edit, ChevronUp, ChevronDown, History, Loader2 } from 'lucide-react';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
 import SkuColorizedText from './SkuColorizedText';
+import SpecialCreationNote from './SpecialCreationNote';
 import { buildBatchBuildData } from '../utils/batchBuildData';
 import { PRODUCTION_STAGES } from '../utils/productionStages';
 
@@ -217,6 +218,7 @@ export default function BatchBuildModal({ batch, allMaterials, allMolds, allProd
                                     </span>
                                 )}
                             </div>
+                            <SpecialCreationNote sku={batch.sku} note={batch.notes} className="mt-2" />
 
                             {/* NEW: CLIENT NAME DISPLAY */}
                             {batch.customer_name && (

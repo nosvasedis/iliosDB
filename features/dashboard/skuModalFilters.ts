@@ -127,14 +127,14 @@ export function aggregateVariantRankingsFromEvents(events: FinanceLineEvent[]): 
   const map = new Map<string, VariantAgg>();
 
   events.forEach((event) => {
-    if (isSpecialCreationSku(event.sku)) return;
-
-    const key = variantRankingKey(event.sku, event.variantSuffix || '');
+    const key = variantRankingKey(event.sku, event.variantSuffix || '', event.itemNote);
     const row = map.get(key) || {
+      key,
       sku: event.sku,
       variantSuffix: (event.variantSuffix || '').toUpperCase(),
       image: event.productImage,
       category: event.category,
+      itemNote: event.itemNote,
       revenue: 0,
       estimatedCost: 0,
       profit: 0,
@@ -165,10 +165,10 @@ export function buildFilterFacets(
   const genders = new Set<Gender>();
 
   events.forEach((event) => {
-    if (isSpecialCreationSku(event.sku)) return;
-
     const customerKey = event.customerId || event.customerName;
     customers.set(customerKey, event.customerName);
+
+    if (isSpecialCreationSku(event.sku)) return;
 
     categories.add(event.category.split(' ')[0]);
 
@@ -299,7 +299,7 @@ export function buildSlimEnrichedRowsFromEvents(
   const q = query.trim().toLowerCase();
   if (q) {
     rows = rows.filter((row) => {
-      const haystack = [row.sku, row.variantSuffix, row.fullSku, row.category].join(' ').toLowerCase();
+      const haystack = [row.sku, row.variantSuffix, row.fullSku, row.category, row.itemNote || ''].join(' ').toLowerCase();
       return haystack.includes(q);
     });
   }

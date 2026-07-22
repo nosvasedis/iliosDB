@@ -11,6 +11,7 @@ import {
   type ItemFulfillmentKind,
   type ItemShipmentAllocation,
 } from '../../utils/shipmentUtils';
+import { variantRankingKey } from '../../utils/financeLineSku';
 
 export type SkuOrderSearchFilterSelection = {
   customers: Set<string>;
@@ -25,6 +26,7 @@ export type SkuOrderSearchMatchedItem = {
   item: OrderItem;
   totalQty: number;
   fullSku: string;
+  analyticsKey: string;
   finishCode: string;
   finishName: string;
   stoneCode: string;
@@ -202,6 +204,7 @@ function getMatchedItem(
     item,
     totalQty: item.quantity,
     fullSku: buildFullSku(item.sku, suffix),
+    analyticsKey: variantRankingKey(item.sku, suffix, item.notes),
     finishCode: finish.code,
     finishName: finish.name,
     stoneCode: stone.code,
@@ -269,7 +272,7 @@ export function buildSkuOrderSearchResults(
       order,
       matchedItems,
       totalMatchedQty: matchedItems.reduce((sum, match) => sum + match.totalQty, 0),
-      uniqueVariantCount: new Set(matchedItems.map((match) => match.fullSku)).size,
+      uniqueVariantCount: new Set(matchedItems.map((match) => match.analyticsKey)).size,
     });
   }
 

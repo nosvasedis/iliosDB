@@ -13,9 +13,10 @@ import {
 } from '../types';
 import { calculateProductCost, estimateVariantCost } from './pricingEngine';
 import { getShippedQuantitiesForOrderLines, itemKey } from '../utils/shipmentUtils';
-import { isSpecialCreationSku } from './specialCreationSku';
-import { resolveFinanceLineSku, variantRankingKey, normalizeVariantSuffix } from './financeLineSku';
+import { cleanSpecialCreationNote, isSpecialCreationSku } from './specialCreationSku';
+import { productRankingKey, resolveFinanceLineSku, variantRankingKey, normalizeVariantSuffix } from './financeLineSku';
 import { resolveOrderSeller } from './orderSeller';
+import { buildItemIdentityKey } from './itemIdentity';
 
 const RETAIL_CUSTOMER_ID = '00000000-0000-0000-0000-000000000003';
 const RETAIL_CUSTOMER_NAME = 'Λιανική';
@@ -82,6 +83,8 @@ export interface FinanceLineEvent {
   };
   priceOverride: boolean;
   costWarning?: string;
+  /** Note from the originating order line; required to identify SP creations. */
+  itemNote?: string | null;
   /** Order line id when sourced from shipment/order item (helps distinguish twin lines). */
   lineId?: string | null;
 }
@@ -116,15 +119,19 @@ export interface FinanceRankingBase {
 }
 
 export interface FinanceProductRanking extends FinanceRankingBase {
+  key: string;
   sku: string;
   image: string | null;
+  itemNote?: string | null;
 }
 
 export interface FinanceVariantRanking extends FinanceRankingBase {
+  key: string;
   sku: string;
   variantSuffix: string;
   image: string | null;
   category: string;
+  itemNote?: string | null;
 }
 
 export interface FinanceCollectionRanking extends FinanceRankingBase {
@@ -369,6 +376,7 @@ function buildLineEvent(params: {
   productsMap: Map<string, Product>;
   materialsMap: Map<string, Material>;
   sellerById: Map<string, UserProfile>;
+  itemNote?: string | null;
 }): FinanceLineEvent {
   const {
     source,
@@ -385,6 +393,7 @@ function buildLineEvent(params: {
     productsMap,
     materialsMap,
     sellerById,
+    itemNote,
   } = params;
 
   const discountPercent = clampPercent(order.discount_percent);
@@ -419,6 +428,9 @@ function buildLineEvent(params: {
     ? 'Ειδική δημιουργία'
     : (effectiveProduct?.category || product?.category || 'Χωρίς προϊόν');
   const silverWeight = ((effectiveProduct?.weight_g || product?.weight_g || 0) + (effectiveProduct?.secondary_weight_g || product?.secondary_weight_g || 0)) * quantity;
+  const cleanedItemNote = isSpecialCreationSku(resolvedSku.masterSku)
+    ? (cleanSpecialCreationNote(itemNote) || null)
+    : ((itemNote || '').trim() || null);
 
   return {
     source,
@@ -456,8 +468,23 @@ function buildLineEvent(params: {
     },
     priceOverride: Boolean(item.price_override),
     costWarning: unitCost.warning ? `${resolvedSku.masterSku}: ${unitCost.warning}` : undefined,
+    itemNote: cleanedItemNote,
     lineId: item.line_id || null,
   };
+}
+
+function findOriginatingOrderItem(order: Order, item: OrderShipmentItem): OrderItem | undefined {
+  const orderItems = Array.isArray(order.items) ? order.items : [];
+  if (item.line_id) {
+    const byLineId = orderItems.find((candidate) => candidate.line_id === item.line_id);
+    if (byLineId) return byLineId;
+  }
+
+  const targetKey = buildItemIdentityKey({ ...item, line_id: null });
+  const exact = orderItems.filter(
+    (candidate) => buildItemIdentityKey({ ...candidate, line_id: null }) === targetKey,
+  );
+  return exact.length === 1 ? exact[0] : undefined;
 }
 
 /** Fingerprint for byte-identical finance rows (duplicate shipment_item rows, etc.). */
@@ -470,6 +497,7 @@ export function financeEventDedupKey(event: FinanceLineEvent): string {
     event.lineId ?? '',
     event.sku,
     event.variantSuffix ?? '',
+    event.itemNote ?? '',
     event.quantity,
     event.unitPrice,
     event.net,
@@ -566,6 +594,7 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
           productsMap,
           materialsMap,
           sellerById,
+          itemNote: findOriginatingOrderItem(order, shipmentItem)?.notes,
         });
         allRealizedEvents.push(event);
       });
@@ -587,6 +616,7 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
             productsMap,
             materialsMap,
             sellerById,
+            itemNote: item.notes,
           });
           allRealizedEvents.push(event);
         });
@@ -613,6 +643,7 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
           productsMap,
           materialsMap,
           sellerById,
+          itemNote: item.notes,
         }));
       });
     });
@@ -695,34 +726,39 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
   dedupedRealizedEvents.forEach((event) => {
     const isSpecialLine = isSpecialCreationSku(event.sku);
 
-    if (!isSpecialLine) {
-      const productRow = topProductsMap.get(event.sku) || {
+    const productKey = productRankingKey(event.sku, event.itemNote);
+    const productRow = topProductsMap.get(productKey) || {
+        key: productKey,
         sku: event.sku,
         image: event.productImage,
+        itemNote: event.itemNote,
         revenue: 0,
         estimatedCost: 0,
         profit: 0,
         margin: 0,
         quantity: 0,
       };
-      addRankingTotals(productRow, event);
-      topProductsMap.set(event.sku, productRow);
+    addRankingTotals(productRow, event);
+    topProductsMap.set(productKey, productRow);
 
-      const variantKey = variantRankingKey(event.sku, event.variantSuffix || '');
-      const variantRow = topVariantsMap.get(variantKey) || {
+    const variantKey = variantRankingKey(event.sku, event.variantSuffix || '', event.itemNote);
+    const variantRow = topVariantsMap.get(variantKey) || {
+        key: variantKey,
         sku: event.sku,
         variantSuffix: normalizeVariantSuffix(event.variantSuffix),
         image: event.productImage,
         category: event.category,
+        itemNote: event.itemNote,
         revenue: 0,
         estimatedCost: 0,
         profit: 0,
         margin: 0,
         quantity: 0,
       };
-      addRankingTotals(variantRow, event);
-      topVariantsMap.set(variantKey, variantRow);
+    addRankingTotals(variantRow, event);
+    topVariantsMap.set(variantKey, variantRow);
 
+    if (!isSpecialLine) {
       const collectionKey = event.collectionId === null ? 'none' : String(event.collectionId);
       const collectionRow = topCollectionsMap.get(collectionKey) || {
         id: event.collectionId,
@@ -863,8 +899,8 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
       realized: dedupedRealizedEvents,
       backlog: backlogEvents,
     },
-    itemsBreakdown: dedupedRealizedEvents.filter((event) => !isSpecialCreationSku(event.sku)),
-    backlogBreakdown: backlogEvents.filter((event) => !isSpecialCreationSku(event.sku)),
+    itemsBreakdown: dedupedRealizedEvents,
+    backlogBreakdown: backlogEvents,
     topProducts: sortRankings(Array.from(topProductsMap.values())),
     topVariants: sortRankings(Array.from(topVariantsMap.values())),
     topCollections: sortRankings(Array.from(topCollectionsMap.values())),

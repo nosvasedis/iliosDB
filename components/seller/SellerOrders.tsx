@@ -12,6 +12,7 @@ import {
 import { formatCurrency } from '../../utils/pricingEngine';
 import { getOrderStatusClasses, getOrderStatusIcon, getOrderStatusLabel } from '../../features/orders/statusPresentation';
 import IliosLoader from '../ui/IliosLoader';
+import SpecialCreationNote from '../SpecialCreationNote';
 
 interface Props {
     onCreate: () => void;
@@ -68,9 +69,10 @@ const SellerOrderCard: React.FC<{ order: Order; onEdit: (o: Order) => void; onDe
             {expanded && (
                 <div className="bg-slate-50 p-4 border-t border-slate-100 space-y-2">
                     {order.items.map((item, idx) => (
-                        <div key={idx} className="flex justify-between text-xs bg-white p-2.5 rounded-xl border border-slate-100 shadow-sm">
+                        <div key={item.line_id || idx} className="flex justify-between text-xs bg-white p-2.5 rounded-xl border border-slate-100 shadow-sm">
                             <div className="flex items-center gap-2">
                                 <span className="font-black text-slate-800">{item.sku}</span>
+                                <SpecialCreationNote sku={item.sku} note={item.notes} compact />
                                 {item.variant_suffix && (
                                     <span className="text-slate-400 font-bold">{item.variant_suffix}</span>
                                 )}

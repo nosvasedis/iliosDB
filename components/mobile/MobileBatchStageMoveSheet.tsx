@@ -15,6 +15,7 @@ import {
 import { ProductionBatch, ProductionStage } from '../../types';
 import { PRODUCTION_STAGES, ProductionStageColorKey } from '../../utils/productionStages';
 import SkuColorizedText from '../SkuColorizedText';
+import SpecialCreationNote from '../SpecialCreationNote';
 import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 
 const STAGE_ICONS: Record<ProductionStage, LucideIcon> = {
@@ -139,6 +140,7 @@ export default function MobileBatchStageMoveSheet({ isOpen, onClose, batch, onMo
                                     className="text-lg font-black tracking-tight"
                                     masterClassName={isSpecialCreation ? 'text-violet-900' : 'text-slate-900'}
                                 />
+                                <SpecialCreationNote sku={batch.sku} note={batch.notes} compact className="mt-1" />
                             </div>
                             {batch.customer_name ? (
                                 <p className="mt-1 truncate text-xs font-bold text-slate-500">{batch.customer_name}</p>

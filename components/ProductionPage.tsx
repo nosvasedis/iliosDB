@@ -9,6 +9,7 @@ import DesktopPageHeader from './DesktopPageHeader';
 import IliosLoader from './ui/IliosLoader';
 import { useAuth } from './AuthContext';
 import SkuColorizedText from './SkuColorizedText';
+import SpecialCreationNote from './SpecialCreationNote';
 import BatchBuildModal from './BatchBuildModal';
 import ProductionSendModal from './ProductionSendModal';
 import ShipmentCreationModal, { ShipmentCreationVariant } from './deliveries/ShipmentCreationModal';
@@ -2175,6 +2176,7 @@ const StageInspectorModal: React.FC<{
                                                     {descriptor && (
                                                         <p className="text-[11px] font-medium text-slate-500 mt-0.5 leading-relaxed">{descriptor}</p>
                                                     )}
+                                                    <SpecialCreationNote sku={batch.sku} note={batch.notes} compact className="mt-1" />
                                                 </div>
 
                                                 {/* Age pill */}

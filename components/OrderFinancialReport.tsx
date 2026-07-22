@@ -5,6 +5,7 @@ import { AlertTriangle, Box, Coins, Hammer, Package, Target, Truck, Wallet, Weig
 import { formatOrderId } from '../utils/orderUtils';
 import { buildSkuKey, sortBySkuKey } from '../utils/skuSort';
 import { printPageMarginWithBaseTop } from '../utils/printPageStyles';
+import SpecialCreationNote from './SpecialCreationNote';
 
 interface Props {
     stats: any;
@@ -58,6 +59,7 @@ function LineTable({ title, rows, empty, backlog = false }: { title: string; row
                                     {item.sku}
                                     {item.variantSuffix && <span className="ml-1 rounded bg-slate-100 px-1 text-[9px] text-slate-500">{item.variantSuffix}</span>}
                                     {item.priceOverride && <span className="ml-1 font-black text-amber-700">*</span>}
+                                    <SpecialCreationNote sku={item.sku} note={item.itemNote} compact className="mt-0.5" />
                                 </td>
                                 <td className="py-1.5 text-center">{item.quantity}</td>
                                 <td className="py-1.5 text-right font-mono">{formatCurrency(item.net)}</td>

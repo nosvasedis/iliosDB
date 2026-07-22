@@ -68,7 +68,7 @@ export default function OfferPrintView({ offer }: Props) {
                 <div className="flex-1 px-1 min-w-0">
                     <div className="font-black text-slate-900 truncate">{fullSku}</div>
                     <div className="text-slate-500 font-medium text-[9px] leading-[1.15] whitespace-normal break-words">{description}</div>
-                    <CustomerPrintSkuNote note={item.notes} />
+                    <CustomerPrintSkuNote sku={item.sku} note={item.notes} />
                     {item.size_info && <span className="inline-block text-[7px] bg-slate-100 px-1 rounded text-slate-600 border border-slate-200 leading-none mt-0.5">{item.size_info}</span>}
                 </div>
                 <div className="w-14 text-right font-black text-slate-900 font-mono text-[10px] whitespace-nowrap">

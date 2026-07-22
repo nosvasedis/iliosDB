@@ -13,6 +13,7 @@ import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../u
 import DesktopPageHeader from './DesktopPageHeader';
 import DebouncedSearchInput from './orders/DebouncedSearchInput';
 import IliosLoader from './ui/IliosLoader';
+import SpecialCreationNote from './SpecialCreationNote';
 
 // SKU visualizer colors (synced with BatchPrint / Inventory)
 const FINISH_COLORS: Record<string, string> = {
@@ -876,6 +877,7 @@ export default function OffersPage({ products, materials, settings, collections,
                                             </td>
                                             <td className="p-4">
                                                 <div className="font-black text-slate-800">{item.sku}{item.variant_suffix}</div>
+                                                <SpecialCreationNote sku={item.sku} note={item.notes} compact className="mt-1" />
                                                 <div className="text-xs text-slate-500 truncate max-w-[200px]">{item.product_details?.category}</div>
                                             </td>
                                             <td className="p-4 text-center font-mono text-slate-600">{item.product_details?.weight_g}g</td>

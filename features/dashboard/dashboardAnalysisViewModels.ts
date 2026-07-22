@@ -192,6 +192,7 @@ export function filterAndSortEnrichedVariants(
           row.variantSuffix,
           row.fullSku,
           row.category,
+          row.itemNote || '',
           row.finishName,
           row.stoneName,
           row.collectionLabel,

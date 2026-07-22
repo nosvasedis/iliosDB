@@ -25,6 +25,7 @@ import {
   Trophy,
   Wallet,
 } from 'lucide-react';
+import SpecialCreationNote from '../SpecialCreationNote';
 import {
   Bar,
   CartesianGrid,
@@ -411,7 +412,7 @@ export default function CustomerAnalyticsPanel({ customer, orders, isRetailSyste
                               <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
                                 {row.image ? <img src={row.image} alt="" className="h-full w-full object-cover" /> : <Package size={17} className="text-slate-300" />}
                               </div>
-                              <div className="min-w-0"><p className="font-mono text-xs font-black text-slate-900">#{index + 1} {row.label}</p><p className="mt-0.5 text-[10px] font-semibold text-slate-400">{row.collection}</p></div>
+                              <div className="min-w-0"><p className="font-mono text-xs font-black text-slate-900">#{index + 1} {row.label}</p><SpecialCreationNote sku={row.sku} note={row.itemNote} compact className="mt-1" /><p className="mt-0.5 text-[10px] font-semibold text-slate-400">{row.collection}</p></div>
                             </button>
                           </td>
                           <td className="px-3 py-3 text-[11px] font-bold text-slate-600">{row.category}</td>

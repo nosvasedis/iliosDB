@@ -18,6 +18,7 @@ import { formatCurrency } from '../../utils/pricingEngine';
 import { getSkuFinishTextColor, getSkuStoneTextColor } from '../../utils/skuColoring';
 import { getVariantComponents } from '../../utils/pricingEngine';
 import SkuColorizedText from '../SkuColorizedText';
+import SpecialCreationNote from '../SpecialCreationNote';
 import {
   type SkuVariantDetail,
   formatMonthLabel,
@@ -60,7 +61,7 @@ type DetailTab = 'summary' | 'customers' | 'lines' | 'backlog';
 interface Props {
   detail: SkuVariantDetail | null;
   gender?: Gender;
-  onSelectVariant?: (variantSuffix: string) => void;
+  onSelectVariant?: (variantSuffix: string, itemNote?: string | null) => void;
 }
 
 function EmptyState() {
@@ -157,6 +158,7 @@ export default function SkuVariantDetailPanel({ detail, gender, onSelectVariant 
             </span>
           )}
         </div>
+        <SpecialCreationNote sku={detail.sku} note={detail.itemNote} className="mt-2" />
 
         {!detail.isMasterAggregate && (
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -295,12 +297,15 @@ export default function SkuVariantDetailPanel({ detail, gender, onSelectVariant 
                 <div className="space-y-2">
                   {detail.variantBreakdown.map((row) => (
                     <button
-                      key={row.variantSuffix || '__base__'}
+                      key={row.key}
                       type="button"
-                      onClick={() => onSelectVariant?.(row.variantSuffix)}
+                      onClick={() => onSelectVariant?.(row.variantSuffix, row.itemNote)}
                       className="flex w-full items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50/50 px-3 py-2.5 text-left transition-all hover:border-blue-200 hover:bg-blue-50"
                     >
-                      <SkuColorizedText sku={detail.sku} suffix={row.variantSuffix} gender={gender} className="text-sm" />
+                      <div className="min-w-0">
+                        <SkuColorizedText sku={detail.sku} suffix={row.variantSuffix} gender={gender} className="text-sm" />
+                        <SpecialCreationNote sku={detail.sku} note={row.itemNote} compact className="mt-1" />
+                      </div>
                       <div className="shrink-0 text-right">
                         <p className="text-sm font-black text-blue-900">{row.quantity} τεμ.</p>
                         <p className="text-[10px] font-semibold text-blue-600/80">{formatCurrency(row.revenue)}</p>
@@ -394,6 +399,7 @@ export default function SkuVariantDetailPanel({ detail, gender, onSelectVariant 
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-black text-slate-900">{line.customerName}</p>
+                        <SpecialCreationNote sku={line.sku} note={line.itemNote} compact className="mt-1" />
                         <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] font-semibold text-slate-500">
                           <span className="inline-flex items-center gap-0.5 rounded-md bg-white/80 px-1.5 py-0.5">
                             <Clock size={9} className="text-blue-500" />
@@ -466,6 +472,7 @@ export default function SkuVariantDetailPanel({ detail, gender, onSelectVariant 
                 className="rounded-xl border border-indigo-100 border-l-4 border-l-indigo-400 bg-indigo-50/30 p-3"
               >
                 <p className="text-sm font-black text-indigo-950">{line.customerName}</p>
+                <SpecialCreationNote sku={line.sku} note={line.itemNote} compact className="mt-1" />
                 <p className="mt-0.5 text-[10px] text-indigo-700/80">
                   #{line.orderId.slice(-8)} · {line.quantity} τεμ. · {formatCurrency(line.net)}
                 </p>

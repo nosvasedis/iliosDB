@@ -21,7 +21,13 @@ import MobileCustomerForm from './MobileCustomerForm';
 import { SellerPicker } from '../OrderBuilder/SellerPicker';
 import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../../utils/retailNotes';
 import { assignMissingOrderLineIds, getOrderItemMatchKey } from '../../utils/orderItemMatch';
-import { getSpecialCreationProductStub, isSpecialCreationSku, SPECIAL_CREATION_SKU } from '../../utils/specialCreationSku';
+import {
+    cleanSpecialCreationNote,
+    findSpecialCreationItemsMissingNotes,
+    getSpecialCreationProductStub,
+    isSpecialCreationSku,
+    SPECIAL_CREATION_SKU,
+} from '../../utils/specialCreationSku';
 import { PRODUCT_OPTION_COLORS, PRODUCT_OPTION_COLOR_LABELS, getProductOptionColorLabel, isXrCordEnamelSku } from '../../utils/xrOptions';
 import { useCollections } from '../../hooks/api/useCollections';
 import { useCustomers } from '../../hooks/api/useOrders';
@@ -393,6 +399,11 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     };
 
     const handleAddSpecialCreation = () => {
+        const cleanedNote = cleanSpecialCreationNote(itemNotes);
+        if (!cleanedNote) {
+            showToast('Η σημείωση είναι υποχρεωτική για κάθε ειδική δημιουργία (SP).', 'error');
+            return;
+        }
         const normalized = specialCreationUnitPriceStr.trim().replace(',', '.');
         const unit = parseFloat(normalized);
         if (Number.isNaN(unit) || unit < 0) {
@@ -405,7 +416,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             quantity: qty,
             price_at_order: rounded,
             product_details: getSpecialCreationProductStub(),
-            notes: itemNotes || undefined,
+            notes: cleanedNote,
             line_id: crypto.randomUUID()
         };
         setItems(prev => [newItem, ...prev]);
@@ -533,12 +544,18 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const { subtotal, discountAmount, netAmount, vatAmount, grandTotal } = buildMobileOrderBuilderTotals(items, discountPercent, vatRate);
 
     const performOrderSave = useCallback(async (customerNameVal: string, customerPhoneVal: string, customerIdVal: string | null, vatRateVal: number) => {
+        if (findSpecialCreationItemsMissingNotes(items).length > 0) {
+            showToast('Συμπληρώστε σημείωση σε κάθε ειδική δημιουργία (SP) πριν την αποθήκευση.', 'error');
+            return;
+        }
         const isRetailOrder = customerIdVal === RETAIL_CUSTOMER_ID || customerNameVal.trim() === RETAIL_CUSTOMER_NAME;
         const effectiveCustomerId = isRetailOrder ? RETAIL_CUSTOMER_ID : (customerIdVal || undefined);
         const effectiveCustomerName = isRetailOrder ? RETAIL_CUSTOMER_NAME : customerNameVal;
         const effectiveCustomerPhone = isRetailOrder ? '' : customerPhoneVal;
         const composedNotes = isRetailOrder ? composeNotesWithRetailClient(orderNotes, retailClientLabel) : orderNotes;
-        const itemsWithLineIds = assignMissingOrderLineIds(items);
+        const itemsWithLineIds = assignMissingOrderLineIds(items.map((item) => isSpecialCreationSku(item.sku)
+            ? { ...item, notes: cleanSpecialCreationNote(item.notes) }
+            : item));
         const orderPayload: Order = {
             id: initialOrder?.id || generateOrderId(),
             customer_name: effectiveCustomerName,
@@ -586,6 +603,10 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     }, [initialOrder, items, grandTotal, discountPercent, orderNotes, retailClientLabel, attachSeller, isSeller, profile?.id, profile?.full_name, user?.id, user?.email, queryClient, onBack, confirm, mobSelectedSellerId, mobSelectedSellerName, mobSellerCommissionPercent]);
 
     const handleSaveOrder = async () => {
+        if (findSpecialCreationItemsMissingNotes(items).length > 0) {
+            showToast('Συμπληρώστε σημείωση σε κάθε ειδική δημιουργία (SP) πριν την αποθήκευση.', 'error');
+            return;
+        }
         if (items.length === 0) { showToast('Η παραγγελία είναι κενή.', 'error'); return; }
         if (!customerName) {
             setShowCreateClientScreen(true);
@@ -831,13 +852,15 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                             className="w-full p-2.5 rounded-lg border border-violet-200 bg-white font-mono font-bold text-sm"
                                         />
                                         <label className="text-[10px] font-black text-violet-600 uppercase flex items-center gap-1">
-                                            <StickyNote size={10} /> Σημειώσεις
+                                            <StickyNote size={10} /> Σημείωση SP (υποχρεωτική)
                                         </label>
                                         <input
                                             type="text"
                                             value={itemNotes}
                                             onChange={e => setItemNotes(e.target.value)}
-                                            placeholder="Προαιρετικές σημειώσεις για αυτή τη γραμμή…"
+                                            required
+                                            aria-label="Υποχρεωτική σημείωση ειδικής δημιουργίας SP"
+                                            placeholder="Περιγράψτε τι ακριβώς είναι αυτή η ειδική δημιουργία…"
                                             className="w-full p-2.5 rounded-lg border border-violet-200 bg-white text-sm"
                                         />
                                         <button
@@ -1176,8 +1199,10 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                     <StickyNote size={14} className="text-slate-300 ml-1" />
                                     <input
                                         className="flex-1 bg-transparent outline-none text-xs text-slate-600 placeholder-slate-300"
-                                        placeholder="Σημείωση είδους..."
+                                        placeholder={isSpecialCreationSku(item.sku) ? 'Υποχρεωτική περιγραφή ειδικής δημιουργίας…' : 'Σημείωση είδους...'}
                                         value={item.notes || ''}
+                                        required={isSpecialCreationSku(item.sku)}
+                                        aria-invalid={isSpecialCreationSku(item.sku) && !item.notes?.trim()}
                                         onChange={e => {
                                             const newItems = [...items];
                                             newItems[idx].notes = e.target.value;
@@ -1185,6 +1210,9 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                         }}
                                     />
                                 </div>
+                                {isSpecialCreationSku(item.sku) && !item.notes?.trim() && (
+                                    <p className="w-full text-[10px] font-bold text-rose-600">⚠ SP χωρίς σημείωση — απαιτείται πριν την αποθήκευση.</p>
+                                )}
                                 <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg">
                                     <button onClick={() => { const n = [...items]; n[idx].quantity = Math.max(1, n[idx].quantity - 1); setItems(n); }} className="w-6 h-6 bg-white rounded shadow-sm text-slate-600 font-bold">-</button>
                                     <span className="w-4 text-center font-black text-xs">{item.quantity}</span>

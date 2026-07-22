@@ -37,14 +37,15 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
 
     const getOrderItemNoteForShipmentItem = (item: OrderShipmentItem) => {
         const lineMatch = item.line_id ? orderItemsByLineId.get(item.line_id) : undefined;
-        const match = lineMatch || order.items.find((orderItem) =>
+        if (lineMatch) return lineMatch.notes;
+        const matches = order.items.filter((orderItem) =>
             orderItem.sku === item.sku &&
             (orderItem.variant_suffix || null) === (item.variant_suffix || null) &&
             (orderItem.size_info || null) === (item.size_info || null) &&
             (orderItem.cord_color || null) === (item.cord_color || null) &&
             (orderItem.enamel_color || null) === (item.enamel_color || null)
         );
-        return match?.notes;
+        return matches.length === 1 ? matches[0].notes : undefined;
     };
 
     const isShipmentItemOverridden = (item: OrderShipmentItem) => {
@@ -113,7 +114,7 @@ export default function ShipmentInvoiceView({ order, shipment, shipmentItems, pr
                             {item.enamel_color && <span className="text-[9px] bg-rose-50 px-1 rounded text-rose-700 border border-rose-100 font-bold whitespace-nowrap">Σμάλτο: {getProductOptionColorLabel(item.enamel_color)}</span>}
                         </div>
                         <span className="block text-[9px] text-slate-600 font-medium leading-[1.15] whitespace-normal break-words">{description}</span>
-                        <CustomerPrintSkuNote note={getOrderItemNoteForShipmentItem(item)} />
+                        <CustomerPrintSkuNote sku={item.sku} note={getOrderItemNoteForShipmentItem(item)} />
                     </div>
                 </div>
                 <div className="w-14 text-right font-black text-slate-900 tabular-nums text-[10px] whitespace-nowrap">

@@ -8,6 +8,7 @@ import {
 import { ArrowUpRight, Trophy } from 'lucide-react';
 import { formatCurrency } from '../../utils/pricingEngine';
 import SkuColorizedText from '../SkuColorizedText';
+import SpecialCreationNote from '../SpecialCreationNote';
 import type { DashboardPieSlice, DashboardVariantRow } from '../../features/dashboard/dashboardAnalysisViewModels';
 import { FinanceCustomerRanking } from '../../utils/financeAnalytics';
 
@@ -103,17 +104,20 @@ export const MiniVariantList = memo(function MiniVariantList({
       <div className="flex min-h-[9.5rem] flex-col justify-center space-y-1.5 overflow-hidden pr-0.5">
         {items.map((item, index) => (
           <div
-            key={`${item.sku}::${item.variantSuffix}`}
+            key={item.key}
             className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 px-2.5 py-2"
           >
-            <div className="flex min-w-0 items-center gap-2">
+            <div className="flex min-w-0 items-start gap-2">
               <span className="shrink-0 text-[10px] font-black text-slate-400">#{index + 1}</span>
-              <SkuColorizedText
-                sku={item.sku}
-                suffix={item.variantSuffix}
-                gender={item.gender}
-                className="text-xs"
-              />
+              <div className="min-w-0">
+                <SkuColorizedText
+                  sku={item.sku}
+                  suffix={item.variantSuffix}
+                  gender={item.gender}
+                  className="text-xs"
+                />
+                <SpecialCreationNote sku={item.sku} note={item.itemNote} compact className="mt-0.5" />
+              </div>
             </div>
             <div className="shrink-0 text-right">
               <p className="text-xs font-black text-slate-800">{item.quantity} τεμ.</p>

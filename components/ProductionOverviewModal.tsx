@@ -5,6 +5,8 @@ import { ProductionBatch, ProductionStage, Collection } from '../types';
 import { X, ImageIcon, PauseCircle, PlayCircle, StickyNote, Clock, AlertTriangle, Loader2 } from 'lucide-react';
 import { PRODUCTION_STAGES, getProductionStageLabel } from '../utils/productionStages';
 import SkuColorizedText from './SkuColorizedText';
+import SpecialCreationNote from './SpecialCreationNote';
+import { isSpecialCreationSku } from '../utils/specialCreationSku';
 import { getBatchAgeInfo } from '../features/production/selectors';
 import { formatOrderId } from '../utils/orderUtils';
 import { getProductionTimingStatusClasses } from '../utils/productionTiming';
@@ -463,6 +465,7 @@ export default function ProductionOverviewModal({
                                                                 <StickyNote size={11} className="text-amber-400 shrink-0" />
                                                             )}
                                                         </div>
+                                                        <SpecialCreationNote sku={batch.sku} note={batch.notes} compact className="mt-1" />
                                                     </div>
 
                                                     {/* Timing badge */}
@@ -490,7 +493,7 @@ export default function ProductionOverviewModal({
                                                                 <span className="text-[11px] font-bold text-amber-800 truncate">{batch.on_hold_reason}</span>
                                                             </div>
                                                         )}
-                                                        {batch.notes && (
+                                                        {batch.notes && !isSpecialCreationSku(batch.sku) && (
                                                             <div className="bg-yellow-50 border border-yellow-100 rounded-lg px-3 py-1.5 flex items-center gap-1.5">
                                                                 <StickyNote size={11} className="text-yellow-500 shrink-0" />
                                                                 <span className="text-[11px] text-yellow-800 truncate italic">{batch.notes}</span>
