@@ -12,12 +12,14 @@ import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { invalidateProductsAndCatalog } from '../../lib/queryInvalidation';
 import html2canvas from 'html2canvas';
 import { APP_LOGO, APP_ICON_ONLY } from '../../constants';
+import { getVariantIndexBySuffix } from '../../features/products/productDetailsViewModels';
 
 interface Props {
   product: Product;
   onClose: () => void;
   warehouses: Warehouse[];
   setPrintItems?: (items: { product: Product; variant?: ProductVariant; quantity: number, size?: string, format?: 'standard' | 'simple' | 'retail' }[]) => void;
+  initialVariantSuffix?: string;
 }
 
 const GENDER_LABELS: Record<string, string> = {
@@ -66,7 +68,7 @@ const toBase64 = async (url: string): Promise<string | null> => {
     }
 };
 
-export default function MobileProductDetails({ product, onClose, warehouses, setPrintItems }: Props) {
+export default function MobileProductDetails({ product, onClose, warehouses, setPrintItems, initialVariantSuffix }: Props) {
   const { showToast } = useUI();
   const queryClient = useQueryClient();
   const [showShareModal, setShowShareModal] = useState(false);
@@ -91,11 +93,8 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
 
   const variants = product.variants || [];
-  const [variantIndex, setVariantIndex] = useState(0);
-
-  const activeVariant = useMemo(() => {
-      if (variants.length === 0) return null;
-      const sorted = [...variants].sort((a, b) => {
+  const sortedVariants = useMemo(() => {
+      return [...variants].sort((a, b) => {
           const score = (s: string) => {
               if (s === '' || s === 'P') return 1;
               if (s === 'X') return 2;
@@ -103,8 +102,13 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
           };
           return score(a.suffix) - score(b.suffix);
       });
-      return sorted[variantIndex];
-  }, [variants, variantIndex]);
+  }, [product.variants]);
+  const [variantIndex, setVariantIndex] = useState(() => getVariantIndexBySuffix(sortedVariants, initialVariantSuffix));
+  const activeVariant = sortedVariants[variantIndex] || null;
+
+  useEffect(() => {
+      setVariantIndex(getVariantIndexBySuffix(sortedVariants, initialVariantSuffix));
+  }, [product.sku, initialVariantSuffix, sortedVariants]);
 
   useEffect(() => {
       const sku = `${product.sku}${activeVariant?.suffix || ''}`;
@@ -126,8 +130,8 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
       }
   }, [showShareModal, product.image_url]);
 
-  const nextVariant = (e?: React.MouseEvent) => { e?.stopPropagation(); if (variants.length > 0) setVariantIndex((prev) => (prev + 1) % variants.length); };
-  const prevVariant = (e?: React.MouseEvent) => { e?.stopPropagation(); if (variants.length > 0) setVariantIndex((prev) => (prev - 1 + variants.length) % variants.length); };
+  const nextVariant = (e?: React.MouseEvent) => { e?.stopPropagation(); if (sortedVariants.length > 0) setVariantIndex((prev) => (prev + 1) % sortedVariants.length); };
+  const prevVariant = (e?: React.MouseEvent) => { e?.stopPropagation(); if (sortedVariants.length > 0) setVariantIndex((prev) => (prev - 1 + sortedVariants.length) % sortedVariants.length); };
   
   const displayGender = GENDER_LABELS[product.gender] || product.gender;
   const displayPrice = activeVariant ? (activeVariant.selling_price || 0) : (product.selling_price || 0);

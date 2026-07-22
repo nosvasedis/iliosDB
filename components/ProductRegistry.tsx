@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender, PlatingType, ProductionType } from '../types';
 import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, ChevronLeft, ChevronRight, Tag, Puzzle, Gem, Palette, X, Camera, LayoutGrid, List, CheckSquare, Printer, Factory, ShoppingBag, FolderOpen, Lock } from 'lucide-react';
 import ProductDetails from './ProductDetails';
@@ -102,7 +102,7 @@ const ProductCard: React.FC<{
     allProducts: Product[];
     productsMap?: Map<string, Product>;
     materialsMap?: Map<string, Material>;
-    onSelectProduct: React.Dispatch<React.SetStateAction<Product | null>>;
+    onSelectProduct: (product: Product) => void;
     isSelected: boolean;
 }> = React.memo(({ product, settings, materials, allProducts, productsMap, materialsMap, onSelectProduct, isSelected }) => {
     const [viewIndex, setViewIndex] = useState(0);
@@ -337,10 +337,16 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     const [showFiltersSidebar, setShowFiltersSidebar] = useState(false);
     const [showPrintModal, setShowPrintModal] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+    const [selectedVariantSuffix, setSelectedVariantSuffix] = useState<string | undefined>(undefined);
     const [isCreating, setIsCreating] = useState(false);
     const [productToDuplicate, setProductToDuplicate] = useState<Product | null>(null);
     const [showStxOnly, setShowStxOnly] = useState(false);
     const [showScanner, setShowScanner] = useState(false);
+
+    const handleProductSelect = useCallback((product: Product) => {
+        setSelectedVariantSuffix(undefined);
+        setSelectedProduct(product);
+    }, []);
     const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
     const [selectedSkus, setSelectedSkus] = useState<Set<string>>(new Set());
     const [editingPrice, setEditingPrice] = useState<{ sku: string, price: string } | null>(null);
@@ -510,6 +516,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
         if (!products) return;
         const match = findProductByScannedCode(code, products);
         if (match) {
+            setSelectedVariantSuffix(match.variant?.suffix);
             setSelectedProduct(match.product);
             setShowScanner(false);
         } else {
@@ -719,7 +726,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                         allProducts={products}
                                         productsMap={productsMap}
                                         materialsMap={materialsMap}
-                                        onSelectProduct={setSelectedProduct}
+                                        onSelectProduct={handleProductSelect}
                                         isSelected={selectedSkus.has(product.sku)}
                                     />
                                 </div>
@@ -752,14 +759,14 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                                 <button onClick={(e) => { e.stopPropagation(); toggleSelection(item.variantSku); }} className={`text-slate-400 hover:text-emerald-600 transition-colors ${isSelected ? 'text-emerald-600' : ''}`}>
                                                     <CheckSquare size={20} className={isSelected ? 'fill-emerald-100' : ''} />
                                                 </button>
-                                                <div className={`h-12 w-12 rounded-lg shrink-0 cursor-pointer flex items-center justify-center ${isFirstInTeam ? 'bg-slate-100 overflow-hidden' : ''}`} onClick={() => setSelectedProduct(item.product)}>
+                                                <div className={`h-12 w-12 rounded-lg shrink-0 cursor-pointer flex items-center justify-center ${isFirstInTeam ? 'bg-slate-100 overflow-hidden' : ''}`} onClick={() => handleProductSelect(item.product)}>
                                                     {isFirstInTeam ? (
                                                         item.image ? <img src={item.image} alt={item.variantSku} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={16} /></div>
                                                     ) : (
                                                         <div className="w-1.5 h-1.5 rounded-full bg-slate-100"></div>
                                                     )}
                                                 </div>
-                                                <div className="flex-1 min-w-0 pr-4 cursor-pointer" onClick={() => setSelectedProduct(item.product)}>
+                                                <div className="flex-1 min-w-0 pr-4 cursor-pointer" onClick={() => handleProductSelect(item.product)}>
                                                     <div className="font-black text-slate-800 text-sm truncate flex items-center gap-2">
                                                         <SkuColorizedText sku={item.variantSku} gender={item.product.gender} />
                                                     </div>
@@ -992,9 +999,13 @@ export default function ProductRegistry({ setPrintItems }: Props) {
             {selectedProduct && (
                 <ProductDetails
                     product={selectedProduct}
+                    initialVariantSuffix={selectedVariantSuffix}
                     allProducts={products}
                     allMaterials={materials}
-                    onClose={() => setSelectedProduct(null)}
+                    onClose={() => {
+                        setSelectedProduct(null);
+                        setSelectedVariantSuffix(undefined);
+                    }}
                     setPrintItems={setPrintItems || (() => { })}
                     settings={settings}
                     collections={collections}
@@ -1003,12 +1014,13 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                     onDuplicate={(prod) => {
                         setProductToDuplicate(prod);
                         setSelectedProduct(null);
+                        setSelectedVariantSuffix(undefined);
                         setIsCreating(true);
                     }}
                 />
             )}
 
-            {showScanner && <BarcodeScanner onScan={handleGlobalScan} onClose={() => setShowScanner(false)} />}
+            {showScanner && <BarcodeScanner products={products} onScan={handleGlobalScan} onClose={() => setShowScanner(false)} />}
 
             {viewMode === 'table' && selectedSkus.size > 0 && (
                 <div className="fixed bottom-0 left-0 right-0 md:left-72 z-[100] bg-white border-t border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in slide-in-from-bottom-8">

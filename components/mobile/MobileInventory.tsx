@@ -408,7 +408,7 @@ export default function MobileInventory({ products, onProductSelect }: Props) {
             </div>
             </div>
 
-            {showScanner && <BarcodeScanner onScan={handleScan} onClose={() => setShowScanner(false)} />}
+            {showScanner && <BarcodeScanner products={products} onScan={handleScan} onClose={() => setShowScanner(false)} />}
 
             {showQuickManager && (
                 <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-sm flex flex-col justify-center items-center p-4 animate-in zoom-in-95">

@@ -17,5 +17,6 @@ export {
   getSmartVariantPreview,
   getSortedFinishCodes,
   getSortedProductVariants,
+  getVariantIndexBySuffix,
   PLATING_LABELS,
 } from './productDetailsViewModels';

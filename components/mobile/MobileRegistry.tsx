@@ -42,7 +42,7 @@ import IliosLoader from '../ui/IliosLoader';
 
 interface Props {
   products: Product[];
-  onProductSelect: (p: Product) => void;
+  onProductSelect: (product: Product, variantSuffix?: string) => void;
 }
 
 interface CategoryChipProps {
@@ -294,9 +294,9 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
     const handleScan = (code: string) => {
         const match = findProductByScannedCode(code, products);
         if (match) {
-            onProductSelect(match.product);
+            onProductSelect(match.product, match.variant?.suffix);
             setShowScanner(false);
-            showToast(`Βρέθηκε: ${match.product.sku}`, 'success');
+            showToast(`Βρέθηκε: ${match.product.sku}${match.variant?.suffix || ''}`, 'success');
         } else {
             showToast(`Ο κωδικός ${code} δεν βρέθηκε.`, 'error');
         }
@@ -435,6 +435,7 @@ export default function MobileRegistry({ products, onProductSelect }: Props) {
 
             {showScanner && (
                 <BarcodeScanner
+                    products={products}
                     onScan={handleScan}
                     onClose={() => setShowScanner(false)}
                 />

@@ -42,6 +42,7 @@ import {
     getRecipeMaterialSubtitle,
     getSortedFinishCodes,
     getSortedProductVariants,
+    getVariantIndexBySuffix,
     productsRepository,
     saveProductGraph,
 } from '../features/products';
@@ -62,6 +63,7 @@ interface Props {
     allMolds: Mold[];
     viewMode?: 'registry' | 'warehouse';
     onDuplicate?: (product: Product) => void;
+    initialVariantSuffix?: string;
 }
 
 const SmartQuantityInput = React.memo(({
@@ -584,7 +586,7 @@ const BarcodeGallery = React.memo(({ product, variants, onPrint, settings }: { p
     );
 });
 
-export default function ProductDetails({ product, allProducts, allMaterials, onClose, onSave, setPrintItems, settings, collections, allMolds, viewMode = 'registry', onDuplicate }: Props) {
+export default function ProductDetails({ product, allProducts, allMaterials, onClose, onSave, setPrintItems, settings, collections, allMolds, viewMode = 'registry', onDuplicate, initialVariantSuffix }: Props) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
     const { profile } = useAuth();
@@ -593,7 +595,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     const [activeTab, setActiveTab] = useState<'overview' | 'recipe' | 'labor' | 'variants' | 'barcodes'>('overview');
     const [isDeleting, setIsDeleting] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [viewIndex, setViewIndex] = useState(0);
+    const [viewIndex, setViewIndex] = useState(() => getVariantIndexBySuffix(
+        getSortedProductVariants(product, product.variants || []),
+        initialVariantSuffix,
+    ));
     const [isVariantPickerOpen, setIsVariantPickerOpen] = useState(false);
     const variantPickerRef = useRef<HTMLDivElement | null>(null);
 
@@ -641,8 +646,11 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     useEffect(() => {
         setEditedProduct(buildEditableProduct(product));
         setTempSku(product.sku); // Reset SKU field
-        setViewIndex(0);
-    }, [product]);
+        setViewIndex(getVariantIndexBySuffix(
+            getSortedProductVariants(product, product.variants || []),
+            initialVariantSuffix,
+        ));
+    }, [product, initialVariantSuffix]);
 
     useEffect(() => {
         setEditedProduct(prev => {
@@ -774,12 +782,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
     const maxViews = hasVariants ? sortedVariantsList.length : (product.production_type === ProductionType.InHouse ? 1 : 0);
     const showPager = hasVariants && variants.length > 1;
-    const initialViewIndex = 0;
-
-    useEffect(() => {
-        setViewIndex(initialViewIndex);
-    }, [product.sku]);
-
     useEffect(() => {
         setIsVariantPickerOpen(false);
     }, [product.sku, viewIndex]);

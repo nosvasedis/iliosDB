@@ -54,6 +54,20 @@ export function getSortedProductVariants(product: Product, variants: ProductVari
   });
 }
 
+export function getVariantIndexBySuffix(
+  variants: ProductVariant[],
+  suffix?: string,
+): number {
+  if (suffix === undefined) return 0;
+
+  const normalizedSuffix = suffix.trim().toUpperCase();
+  const index = variants.findIndex(
+    (variant) => variant.suffix.trim().toUpperCase() === normalizedSuffix,
+  );
+
+  return index >= 0 ? index : 0;
+}
+
 export function getProductDisplaySummary(product: Product, variants: ProductVariant[]) {
   if (variants.length === 0) {
     return {

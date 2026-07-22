@@ -901,7 +901,7 @@ export default function Inventory({ products, setPrintItems, settings, collectio
                 />
             )}
 
-            {showScanner && <BarcodeScanner onScan={handleGlobalScan} onClose={() => setShowScanner(false)} />}
+            {showScanner && <BarcodeScanner products={products} onScan={handleGlobalScan} onClose={() => setShowScanner(false)} />}
         </div>
     );
 }

@@ -7,6 +7,7 @@ import {
   getProductDisplaySummary,
   getSecondaryWeightLabel,
   getSortedProductVariants,
+  getVariantIndexBySuffix,
 } from '../../features/products/productDetailsViewModels';
 
 const makeProduct = (overrides: Partial<Product>): Product =>
@@ -80,6 +81,24 @@ describe('product details view models', () => {
     const summary = getProductDisplaySummary(product, sorted);
     expect(summary.displayPlating).toBe('Λουστρέ, Πατίνα, Επίχρυσο');
     expect(summary.displayStones).toBe('');
+  });
+
+  it('selects the exact scanned suffix in the sorted variant list', () => {
+    const product = makeProduct({
+      sku: 'RN150',
+      variants: [
+        { suffix: 'XKO', description: 'Gold red stone', stock_qty: 1 },
+        { suffix: '', description: 'Lustre', stock_qty: 1 },
+        { suffix: 'PTG', description: 'Patina tiger eye', stock_qty: 1 },
+      ],
+    });
+    const sorted = getSortedProductVariants(product, product.variants || []);
+
+    expect(sorted.map((variant) => variant.suffix)).toEqual(['', 'PTG', 'XKO']);
+    expect(getVariantIndexBySuffix(sorted, 'xko')).toBe(2);
+    expect(getVariantIndexBySuffix(sorted, '')).toBe(0);
+    expect(getVariantIndexBySuffix(sorted, 'missing')).toBe(0);
+    expect(getVariantIndexBySuffix(sorted)).toBe(0);
   });
 
   it('filters and sorts available molds by the same rules as the editor', () => {

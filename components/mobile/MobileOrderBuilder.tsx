@@ -1346,7 +1346,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                 </div>
             )}
 
-            {showScanner && <BarcodeScanner onScan={handleScan} onClose={() => setShowScanner(false)} />}
+            {showScanner && <BarcodeScanner products={products} onScan={handleScan} onClose={() => setShowScanner(false)} />}
         </div>
     );
 }

@@ -1,4 +1,4 @@
-import React, { Suspense, useState } from 'react';
+import React, { Suspense, useCallback, useState } from 'react';
 import MobileLayout from './components/mobile/MobileLayout';
 import { PrintManager } from './components/PrintManager';
 import { lazyWithChunkRecovery } from './lib/chunkLoadRecovery';
@@ -90,9 +90,15 @@ interface MobileAppProps {
 export default function MobileApp({ isOnline = true, isSyncing = false, pendingItemsCount = 0 }: MobileAppProps) {
   const [activePage, setActivePage] = useState<MobileAdminPage>('dashboard');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedVariantSuffix, setSelectedVariantSuffix] = useState<string | undefined>(undefined);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [pendingDeliveryOrderId, setPendingDeliveryOrderId] = useState<string | null>(null);
   const handleNavigate = (page: string) => setActivePage(page as MobileAdminPage);
+
+  const handleProductSelect = useCallback((product: Product, variantSuffix?: string) => {
+    setSelectedProduct(product);
+    setSelectedVariantSuffix(variantSuffix);
+  }, []);
 
   const [priceListPrintData, setPriceListPrintData] = useState<PriceListPrintData | null>(null);
   const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
@@ -213,9 +219,9 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         onPrintLabels={setPrintItems}
       />
     ),
-    inventory: <MobileInventory products={products} onProductSelect={setSelectedProduct} />,
+    inventory: <MobileInventory products={products} onProductSelect={handleProductSelect} />,
     menu: <MobileMenu onNavigate={handleNavigate} activePage={activePage} />,
-    registry: <MobileRegistry products={products} onProductSelect={setSelectedProduct} />,
+    registry: <MobileRegistry products={products} onProductSelect={handleProductSelect} />,
     'ai-studio': <MobileAiStudio />,
     settings: <MobileSettings />,
     resources: <MobileResources />,
@@ -292,7 +298,11 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         <Suspense fallback={<IliosLoader variant="section" detail="Καρτέλα προϊόντος" />}>
           <MobileProductDetails
             product={selectedProduct}
-            onClose={() => setSelectedProduct(null)}
+            initialVariantSuffix={selectedVariantSuffix}
+            onClose={() => {
+              setSelectedProduct(null);
+              setSelectedVariantSuffix(undefined);
+            }}
             warehouses={warehouses}
             setPrintItems={setPrintItems}
           />

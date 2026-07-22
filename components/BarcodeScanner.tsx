@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { Product } from '../types';
 import {
     AlertTriangle,
     Camera,
@@ -29,11 +30,14 @@ import {
     ScannerStatus,
 } from '../features/scanning/scannerTypes';
 import { SCANNER_COPY, SCANNER_STATUS_COPY } from '../features/scanning/scannerCopy';
+import { findProductByScannedCode } from '../utils/pricingEngine';
+import SkuColorizedText from './SkuColorizedText';
 
 interface Props {
     onScan: (result: string) => void;
     onClose: () => void;
     continuous?: boolean;
+    products?: Product[];
 }
 
 interface BarcodeDetectorResult {
@@ -61,7 +65,7 @@ const EMPTY_CAPABILITIES: ScannerCapabilities = {
     tapToFocus: false,
 };
 
-export default function BarcodeScanner({ onScan, onClose, continuous = false }: Props) {
+export default function BarcodeScanner({ onScan, onClose, continuous = false, products }: Props) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const viewportRef = useRef<HTMLDivElement>(null);
     const reticleRef = useRef<HTMLDivElement>(null);
@@ -659,6 +663,13 @@ export default function BarcodeScanner({ onScan, onClose, continuous = false }: 
     const reticleColor = status === 'success'
         ? 'border-emerald-200'
         : isEnhancing ? 'border-amber-300' : 'border-emerald-400';
+    const lastScanMatch = lastScan && products
+        ? findProductByScannedCode(lastScan, products)
+        : null;
+    const lastScanMaster = lastScanMatch?.product.sku || lastScan;
+    const lastScanSuffix = lastScanMatch
+        ? (lastScanMatch.variant?.suffix || '')
+        : undefined;
 
     return (
         <div
@@ -782,7 +793,15 @@ export default function BarcodeScanner({ onScan, onClose, continuous = false }: 
                             <p className="mt-4 flex items-center gap-2 text-[10px] font-black tracking-[0.24em] text-emerald-200">
                                 <Sparkles size={13} /> {SCANNER_COPY.detected}
                             </p>
-                            <p className="mt-2 max-w-full truncate font-mono text-3xl font-black tracking-tight text-white">{lastScan}</p>
+                            <div className="mt-3 max-w-full rounded-2xl border border-white/80 bg-white px-4 py-2 shadow-[0_10px_35px_rgba(0,0,0,0.28)]">
+                                <SkuColorizedText
+                                    sku={lastScanMaster}
+                                    suffix={lastScanSuffix}
+                                    gender={lastScanMatch?.product.gender}
+                                    className="block break-all text-2xl leading-tight sm:text-3xl"
+                                    masterClassName="text-slate-900"
+                                />
+                            </div>
                             <p className="mt-2 text-xs font-semibold text-white/55">{continuous ? SCANNER_COPY.nextGuidance : SCANNER_COPY.transferring}</p>
                             <div className="mt-5 h-1 w-full overflow-hidden rounded-full bg-white/10">
                                 <div className="ilios-success-progress h-full origin-left rounded-full bg-gradient-to-r from-emerald-400 to-emerald-200" />
@@ -821,7 +840,13 @@ export default function BarcodeScanner({ onScan, onClose, continuous = false }: 
                             <div className="rounded-xl bg-emerald-100 p-2 text-emerald-600"><CheckCircle2 size={20} /></div>
                             <div className="min-w-0 flex-1">
                                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{SCANNER_COPY.lastScan}</p>
-                                <p className="truncate font-mono text-lg font-black">{lastScan}</p>
+                                <SkuColorizedText
+                                    sku={lastScanMaster}
+                                    suffix={lastScanSuffix}
+                                    gender={lastScanMatch?.product.gender}
+                                    className="block truncate text-lg"
+                                    masterClassName="text-slate-900"
+                                />
                             </div>
                         </div>
                     )}
