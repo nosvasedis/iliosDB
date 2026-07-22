@@ -1562,14 +1562,6 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                 allBatches: batches || []
             });
             await invalidateAndRefetchAfterShipmentChange(queryClient, order.id);
-            const shippedQty = items.reduce((s, i) => s + i.quantity, 0);
-            showToast(
-                shipmentModalVariant === 'full'
-                    ? 'Η παραγγελία ολοκληρώθηκε και καταχωρήθηκε η αποστολή επιτυχώς.'
-                    : `Αποστολή ${shippedQty} τεμαχίων καταχωρήθηκε.`,
-                'success'
-            );
-            setShipmentModalOrder(null);
         } catch (e: any) {
             showToast(e?.message || 'Σφάλμα κατά την αποστολή.', 'error');
             throw e;

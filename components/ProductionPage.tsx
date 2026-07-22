@@ -2427,13 +2427,6 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                 allBatches: batches || []
             });
             await invalidateAndRefetchAfterShipmentChange(queryClient, order.id);
-            showToast(
-                shipmentModalVariant === 'full'
-                    ? 'Η παραγγελία ολοκληρώθηκε και καταχωρήθηκε η αποστολή επιτυχώς.'
-                    : `Αποστολή ${items.reduce((s, i) => s + i.quantity, 0)} τεμαχίων καταχωρήθηκε.`,
-                'success'
-            );
-            setShipmentModalOrder(null);
         } catch (e: any) {
             showToast(e?.message || 'Σφάλμα κατά την αποστολή.', 'error');
             throw e;

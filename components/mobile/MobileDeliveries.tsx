@@ -147,8 +147,6 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
         allBatches: batchesQuery.data || []
       });
       await invalidateAndRefetchAfterShipmentChange(queryClient, order.id);
-      showToast(`Αποστολή #${items.reduce((s, i) => s + i.quantity, 0)} τεμαχίων καταχωρήθηκε επιτυχώς.`, 'success');
-      setShipmentItem(null);
       setSelectedItem(null);
       handleRefresh();
     } catch (e: any) {

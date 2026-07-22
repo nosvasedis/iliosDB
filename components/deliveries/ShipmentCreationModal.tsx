@@ -1,6 +1,6 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { X, Truck, Package, Minus, Plus, ImageIcon, StickyNote, CheckCircle2, AlertTriangle, Search, Hash, Sparkles } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { X, Truck, Package, Minus, Plus, ImageIcon, StickyNote, CheckCircle2, AlertTriangle, Search, Hash, Sparkles, Loader2 } from 'lucide-react';
 import { Order, ProductionBatch, Product, OrderShipmentItem } from '../../types';
 import { getReadyToShipItems, computeShipmentValue } from '../../utils/shipmentUtils';
 import { formatShipmentIssueLine, hasBlockingShipmentIssues, ShipmentSafetyIssue, validateShipmentRequest } from '../../utils/shipmentSafety';
@@ -12,6 +12,7 @@ import { api } from '../../lib/supabase';
 import SkuColorizedText from '../SkuColorizedText';
 
 export type ShipmentCreationVariant = 'partial' | 'full';
+type SubmissionState = 'idle' | 'submitting' | 'success' | 'exiting';
 
 interface Props {
   order: Order;
@@ -49,11 +50,27 @@ export default function ShipmentCreationModal({ order, batches, products, delive
     return initial;
   });
   const [notes, setNotes] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [submissionState, setSubmissionState] = useState<SubmissionState>('idle');
   const [safetyIssues, setSafetyIssues] = useState<ShipmentSafetyIssue[]>([]);
   const [safetyError, setSafetyError] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    if (submissionState === 'success') {
+      const fadeTimer = window.setTimeout(() => setSubmissionState('exiting'), 1600);
+      return () => window.clearTimeout(fadeTimer);
+    }
+    if (submissionState === 'exiting') {
+      const closeTimer = window.setTimeout(() => onCloseRef.current(), 300);
+      return () => window.clearTimeout(closeTimer);
+    }
+  }, [submissionState]);
 
   useEffect(() => {
     const timer = setTimeout(() => setSearchTerm(searchInput.trim().toLowerCase()), 250);
@@ -175,7 +192,7 @@ export default function ShipmentCreationModal({ order, batches, products, delive
 
   const handleConfirm = async () => {
     if (totalShippingQty === 0) return;
-    setLoading(true);
+    setSubmissionState('submitting');
     setSafetyIssues([]);
     setSafetyError(null);
     try {
@@ -183,18 +200,78 @@ export default function ShipmentCreationModal({ order, batches, products, delive
       const issues = validateShipmentRequest(order, snapshot.items, batches, shipmentItems);
       if (hasBlockingShipmentIssues(issues)) {
         setSafetyIssues(issues);
+        setSubmissionState('idle');
         return;
       }
       await onConfirm(
         shipmentItems.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color, quantity: i.quantity, price_at_order: i.price_at_order, line_id: i.line_id || null })),
         notes.trim() || null
       );
+      setSubmissionState('success');
     } catch (e: any) {
       setSafetyError(e?.message || 'Δεν μπορεί να γίνει αποστολή ακόμα. Ελέγξτε τα Έτοιμα και το ιστορικό αποστολών.');
-    } finally {
-      setLoading(false);
+      setSubmissionState('idle');
     }
   };
+
+  if (submissionState !== 'idle') {
+    const isComplete = submissionState === 'success' || submissionState === 'exiting';
+    const isExiting = submissionState === 'exiting';
+
+    return (
+      <div
+        className={`fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm transition-opacity duration-300 ${isExiting ? 'opacity-0' : 'opacity-100'}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="shipment-progress-title"
+        aria-live="polite"
+      >
+        <div
+          className={`relative w-full max-w-md overflow-hidden rounded-[2rem] border bg-white shadow-2xl transition-all duration-300 ${
+            isComplete
+              ? 'border-emerald-200 shadow-emerald-950/15'
+              : 'border-slate-200 shadow-slate-950/15'
+          } ${isExiting ? 'scale-95 translate-y-2 opacity-0' : 'scale-100 translate-y-0 opacity-100'}`}
+        >
+          <div className={`absolute inset-x-0 top-0 h-1 ${isComplete ? 'bg-emerald-500' : 'bg-slate-900'}`} />
+          <div className={`absolute inset-0 bg-gradient-to-br ${isComplete ? 'from-emerald-50 via-white to-teal-50/70' : 'from-slate-50 via-white to-emerald-50/40'}`} />
+
+          <div className="relative px-8 py-9 text-center sm:px-10 sm:py-10">
+            <div className="relative mx-auto mb-6 flex h-20 w-20 items-center justify-center">
+              <div className={`absolute inset-0 rounded-full ${isComplete ? 'bg-emerald-100 ring-8 ring-emerald-50' : 'bg-slate-100 ring-8 ring-slate-50'}`} />
+              {isComplete ? (
+                <CheckCircle2 className="relative text-emerald-600 animate-in zoom-in-75 duration-300" size={42} strokeWidth={2.5} />
+              ) : (
+                <Loader2 className="relative animate-spin text-slate-700" size={36} strokeWidth={2.25} />
+              )}
+            </div>
+
+            <p className={`mb-2 text-[11px] font-black uppercase tracking-[0.2em] ${isComplete ? 'text-emerald-700' : 'text-slate-500'}`}>
+              {isComplete ? 'Επιτυχής καταχώρηση' : 'Ενημέρωση συστήματος'}
+            </p>
+            <h3 id="shipment-progress-title" className="text-2xl font-black tracking-tight text-slate-900">
+              {isComplete
+                ? isFullOrderShipment ? 'Παραγγελία ολοκληρώθηκε' : 'Η αποστολή καταχωρήθηκε'
+                : isFullOrderShipment ? 'Ολοκληρώνεται η παραγγελία…' : 'Καταχωρίζεται η αποστολή…'}
+            </h3>
+            <p className="mx-auto mt-3 max-w-sm text-sm font-medium leading-6 text-slate-600">
+              {isComplete
+                ? isFullOrderShipment
+                  ? 'Η αποστολή καταχωρήθηκε επιτυχώς και η παραγγελία μεταφέρθηκε στις ολοκληρωμένες.'
+                  : 'Τα απεσταλμένα τεμάχια και το υπόλοιπο της παραγγελίας ενημερώθηκαν επιτυχώς.'
+                : 'Καταχωρίζουμε την αποστολή και συγχρονίζουμε τα στοιχεία της παραγγελίας.'}
+            </p>
+
+            <div className="mt-6 inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200/80 bg-white/85 px-4 py-2 text-xs font-bold text-slate-600 shadow-sm">
+              <span className="truncate">{formatOrderId(order.id)}</span>
+              <span className="text-slate-300">·</span>
+              <span className="truncate">{order.customer_name}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (readyItems.length === 0) {
     return (
@@ -489,14 +566,14 @@ export default function ShipmentCreationModal({ order, batches, products, delive
               <button onClick={onClose} className="px-5 py-3 rounded-2xl border border-slate-200 text-slate-700 font-bold text-sm">Ακύρωση</button>
               <button
                 onClick={handleConfirm}
-                disabled={totalShippingQty === 0 || loading}
+                disabled={totalShippingQty === 0}
                 className={`px-6 py-3 rounded-2xl text-white font-black text-sm flex items-center gap-2 disabled:opacity-40 transition-colors shadow-md ${
                   isFullOrderShipment
                     ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200/60'
                     : 'bg-amber-500 hover:bg-amber-600 shadow-amber-200/60'
                 }`}
               >
-                {loading ? <span className="animate-spin">⏳</span> : isFullOrderShipment ? <CheckCircle2 size={16} /> : <Truck size={16} />}
+                {isFullOrderShipment ? <CheckCircle2 size={16} /> : <Truck size={16} />}
                 {isFullOrderShipment ? 'Ολοκλήρωση & Αποστολή' : 'Επιβεβαίωση Αποστολής'}
               </button>
             </div>
