@@ -2087,7 +2087,10 @@ export const api = {
 
     getWarehouses: async (): Promise<Warehouse[]> => {
         const data = await fetchFullTable('warehouses', '*', (q) => q.order('created_at'));
-        if (!data || data.length === 0) return [{ id: SYSTEM_IDS.CENTRAL, name: 'Κεντρική Αποθήκη', type: 'Central', is_system: true }, { id: SYSTEM_IDS.SHOWROOM, name: 'Δειγματολόγιο', type: 'Showroom', is_system: true }];
+        if (!data || data.length === 0) return [
+            { id: SYSTEM_IDS.CENTRAL, name: 'Κεντρική Αποθήκη', type: 'Central', category: 'Κεντρική λειτουργία', is_system: true },
+            { id: SYSTEM_IDS.SHOWROOM, name: 'Δειγματολόγιο', type: 'Showroom', category: 'Δειγματολόγιο πλασιέ', is_system: true },
+        ];
         return data as Warehouse[];
     },
 

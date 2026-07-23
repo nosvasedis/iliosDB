@@ -7,6 +7,7 @@ const source = [
   '../../components/inventory/InventoryGuideDialog.tsx',
   '../../components/inventory/InventoryQuickSearch.tsx',
   '../../components/inventory/InventoryPostingDialog.tsx',
+  '../../components/inventory/InventoryCountSessionDialog.tsx',
   '../../components/inventory/InventoryAvailabilityNote.tsx',
   '../../components/suppliers/SupplierReceiptModal.tsx',
   '../../components/mobile/MobileProductDetails.tsx',
@@ -16,6 +17,11 @@ const source = [
   '../../components/ProductRegistry.tsx',
   '../../components/PriceListPage.tsx',
 ].map((path) => readFileSync(new URL(path, import.meta.url), 'utf8')).join('\n');
+
+const workspaceSource = readFileSync(
+  new URL('../../components/inventory/InventoryWorkspace.tsx', import.meta.url),
+  'utf8',
+);
 
 describe('Greek inventory UI language contract', () => {
   it('does not expose known English inventory labels or fallbacks', () => {
@@ -52,5 +58,26 @@ describe('Greek inventory UI language contract', () => {
     expect(source).toContain('Επιβεβαίωση υπολοίπου...');
     expect(source).toContain('Το απόθεμα ενδέχεται να έχει μεταβληθεί');
     expect(source).toContain('Δεν εμφανίζονται προσωρινά ποσότητες, ώστε να μην παρουσιαστούν παλιά στοιχεία');
+  });
+
+  it('keeps the resumable count session fully Greek and explicit about posting state', () => {
+    expect(source).toContain('Συνεδρία Απογραφής');
+    expect(source).toContain('Ρητές μηδενικές');
+    expect(source).toContain('Υποβολή όλων');
+    expect(source).toContain('Η προσθήκη στη συνεδρία δεν αλλάζει ακόμη το απόθεμα');
+    expect(source).not.toContain('Start session');
+    expect(source).not.toContain('Submit batch');
+  });
+
+  it('keeps one primary stock-posting entry point and flexible warehouse terminology', () => {
+    const stockHeaderStart = workspaceSource.indexOf('Αναλυτικά Υπόλοιπα SKU');
+    const stockFiltersStart = workspaceSource.indexOf('Φίλτρο αποθήκης', stockHeaderStart);
+    const stockHeader = workspaceSource.slice(stockHeaderStart, stockFiltersStart);
+
+    expect(stockHeader).not.toContain('Καταχώριση Αποθέματος');
+    expect(stockHeader).toContain('Συνεδρία Απογραφής');
+    expect(workspaceSource).toContain('Κατηγορία / υπεύθυνος');
+    expect(workspaceSource).toContain('Δειγματολόγιο κύριου πλασιέ');
+    expect(workspaceSource).not.toContain("label: 'Κατάστημα'");
   });
 });

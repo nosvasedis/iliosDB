@@ -86,6 +86,10 @@ export function getInventoryOperationLabel(operationType: string): string {
 }
 
 const OPERATION_FAILURE_MESSAGES: Record<InventoryMutationName, string> = {
+  'availability-read': 'Η φόρτωση των υπολοίπων αποθέματος δεν ολοκληρώθηκε. Δεν μεταβλήθηκε κανένα δεδομένο. Ελέγξτε τη σύνδεση και πατήστε «Επανάληψη».',
+  'count-session-start': 'Η Συνεδρία Απογραφής δεν δημιουργήθηκε. Δεν πραγματοποιήθηκε καμία μεταβολή. Ελέγξτε τα στοιχεία και τη σύνδεση και δοκιμάστε ξανά.',
+  'count-session-batch': 'Η παρτίδα της Συνεδρίας Απογραφής δεν καταχωρίστηκε. Δεν πραγματοποιήθηκε καμία μεταβολή για την παρτίδα. Οι καταμετρήσεις παραμένουν αποθηκευμένες και μπορείτε να δοκιμάσετε ξανά.',
+  'count-session-complete': 'Η Συνεδρία Απογραφής δεν ολοκληρώθηκε. Οι ήδη επιβεβαιωμένες παρτίδες παραμένουν καταχωρισμένες. Ελέγξτε τις εκκρεμότητες και δοκιμάστε ξανά.',
   'save-order': 'Η παραγγελία δεν αποθηκεύτηκε και δεν πραγματοποιήθηκε καμία δέσμευση αποθέματος. Ελέγξτε τη σύνδεση και δοκιμάστε ξανά.',
   'release-order': 'Η αποδέσμευση αποθέματος δεν ολοκληρώθηκε. Δεν πραγματοποιήθηκε καμία μεταβολή.',
   'set-order-status': 'Η κατάσταση της παραγγελίας δεν ενημερώθηκε. Δεν πραγματοποιήθηκε καμία μεταβολή αποθέματος.',
@@ -99,6 +103,8 @@ const OPERATION_FAILURE_MESSAGES: Record<InventoryMutationName, string> = {
   'reverse-movement': 'Η ακύρωση κίνησης δεν ολοκληρώθηκε. Δεν πραγματοποιήθηκε καμία μεταβολή στο απόθεμα ή στο Ιστορικό Κινήσεων. Ελέγξτε αν η κίνηση έχει ήδη ακυρωθεί ή αν πρέπει να αναιρεθεί από το αντίστοιχο επιχειρησιακό έγγραφο.',
   'offer-conversion': 'Η προσφορά δεν μετατράπηκε σε παραγγελία. Δεν δημιουργήθηκε παραγγελία και δεν δεσμεύτηκε απόθεμα.',
   'reorder-policy': 'Το σημείο αναπαραγγελίας δεν αποθηκεύτηκε. Δεν πραγματοποιήθηκε καμία μεταβολή.',
+  'warehouse-save': 'Η αποθήκη δεν αποθηκεύτηκε. Δεν πραγματοποιήθηκε καμία μεταβολή. Ελέγξτε την ονομασία, την κατηγορία και τη λειτουργία αποθέματος και δοκιμάστε ξανά.',
+  'warehouse-delete': 'Η αποθήκη δεν διαγράφηκε. Δεν πραγματοποιήθηκε καμία μεταβολή. Ελέγξτε αν διαθέτει υπόλοιπα, δεσμεύσεις ή ιστορικό κινήσεων.',
 };
 
 export class InventoryOperationError extends Error {
@@ -136,10 +142,17 @@ export function toInventoryOperationError(
 }
 
 export function getWarehouseTypeLabel(type: string): string {
-  if (type === 'Central') return INVENTORY_TERMS.centralWarehouse;
-  if (type === 'Showroom') return INVENTORY_TERMS.showroom;
-  if (type === 'Store') return 'Κατάστημα';
-  return 'Λοιπή Αποθήκη';
+  if (type === 'Central') return 'Προεπιλεγμένη Κεντρική';
+  if (type === 'Showroom') return 'Δειγματολόγιο';
+  if (type === 'Store') return 'Αποθηκευτικός χώρος';
+  return 'Λοιπή θέση αποθέματος';
+}
+
+export function getDefaultWarehouseCategory(type: string): string {
+  if (type === 'Central') return 'Κεντρική λειτουργία';
+  if (type === 'Showroom') return 'Δειγματολόγιο πλασιέ';
+  if (type === 'Store') return 'Αποθηκευτικός χώρος';
+  return 'Λοιπή θέση αποθέματος';
 }
 
 const RECONCILIATION_ISSUE_LABELS: Record<string, string> = {

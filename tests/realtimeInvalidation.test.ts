@@ -38,6 +38,10 @@ describe('realtime invalidation mapping', () => {
     expect(getRealtimeInvalidationDomainsForTable('production_batches')).toEqual(['production', 'orders', 'deliveries']);
   });
 
+  it('refreshes warehouse metadata and canonical inventory labels together', () => {
+    expect(getRealtimeInvalidationDomainsForTable('warehouses')).toEqual(['resources', 'inventory']);
+  });
+
   it('groups every core realtime table exactly once', () => {
     const groupedTables = CORE_REALTIME_CHANNEL_GROUPS.flatMap((group) => group.tables);
 

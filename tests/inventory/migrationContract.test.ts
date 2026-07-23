@@ -38,6 +38,30 @@ const movementReversalSql = readFileSync(
   'utf8',
 );
 
+const countSessionSql = readFileSync(
+  new URL(
+    '../../supabase/migrations/20260723095652_inventory_count_sessions.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
+const countSessionIndexesSql = readFileSync(
+  new URL(
+    '../../supabase/migrations/20260723100339_inventory_count_foreign_key_indexes.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
+const flexibleWarehousesSql = readFileSync(
+  new URL(
+    '../../supabase/migrations/20260723102506_flexible_warehouse_management.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
 describe('transactional inventory migration contract', () => {
   it.each([
     'inventory_balances',
@@ -193,5 +217,67 @@ describe('transactional inventory migration contract', () => {
       'REVOKE ALL ON FUNCTION public.reverse_inventory_event_v1(uuid, text, text) FROM PUBLIC, anon;',
     );
     expect(movementReversalSql).not.toMatch(/DELETE\s+FROM\s+public\.inventory_events/i);
+  });
+
+  it('defines server-backed, administrator-only inventory count sessions', () => {
+    [
+      'inventory_count_sessions',
+      'inventory_count_batches',
+      'inventory_count_targets',
+      'inventory_count_entries',
+    ].forEach((table) => {
+      expect(countSessionSql).toContain(`CREATE TABLE public.${table}`);
+      expect(countSessionSql).toContain(`ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY`);
+    });
+    [
+      'start_inventory_count_session_v1',
+      'get_inventory_count_session_v1',
+      'search_inventory_count_targets_v1',
+      'get_inventory_count_target_v1',
+      'post_inventory_count_batch_v1',
+      'complete_inventory_count_session_v1',
+      'abandon_inventory_count_session_v1',
+    ].forEach((rpc) => {
+      expect(countSessionSql).toContain(`FUNCTION public.${rpc}`);
+      expect(countSessionSql).toMatch(new RegExp(`FUNCTION public\\.${rpc}[\\s\\S]*?SECURITY DEFINER`));
+    });
+    expect(countSessionSql).toContain("private.assert_inventory_role(ARRAY['admin'])");
+    expect(countSessionSql).toContain('FROM PUBLIC, anon;');
+    expect(countSessionSql).not.toMatch(/GRANT (INSERT|UPDATE|DELETE).*authenticated/i);
+  });
+
+  it('posts bounded count-session batches through the canonical atomic inventory command', () => {
+    expect(countSessionSql).toContain('v_target_count NOT BETWEEN 1 AND 200');
+    expect(countSessionSql).toContain('jsonb_array_length(p_lines) NOT BETWEEN 1 AND 500');
+    expect(countSessionSql).toContain('public.post_inventory_entries_v1(');
+    expect(countSessionSql).toContain("'count'");
+    expect(countSessionSql).toContain('inventory_count_entries');
+    expect(countSessionSql).toContain('source_event_id');
+    expect(countSessionSql).toContain('παραλείφθηκε υφιστάμενο μέγεθος ή θέση με υπόλοιπο');
+  });
+
+  it('covers every count-session foreign-key lookup used by batch posting and cleanup', () => {
+    expect(countSessionIndexesSql).toContain(
+      'inventory_count_targets_batch_session_idx',
+    );
+    expect(countSessionIndexesSql).toContain(
+      'inventory_count_entries_batch_session_idx',
+    );
+    expect(countSessionIndexesSql).toContain(
+      'inventory_count_entries_target_session_idx',
+    );
+    expect(countSessionIndexesSql).toContain(
+      'inventory_count_entries_warehouse_idx',
+    );
+  });
+
+  it('separates editable warehouse presentation from protected operational roles', () => {
+    expect(flexibleWarehousesSql).toContain('ADD COLUMN IF NOT EXISTS category text');
+    expect(flexibleWarehousesSql).toContain('warehouses_system_role_check');
+    expect(flexibleWarehousesSql).toContain("THEN is_system IS TRUE AND type = 'Central'");
+    expect(flexibleWarehousesSql).toContain("THEN is_system IS TRUE AND type = 'Showroom'");
+    expect(flexibleWarehousesSql).toContain("is_system IS NOT TRUE AND type <> 'Central'");
+    expect(flexibleWarehousesSql).toContain('warehouses_name_normalized_unique_idx');
+    expect(flexibleWarehousesSql).toContain('REVOKE ALL ON TABLE public.warehouses FROM anon');
   });
 });

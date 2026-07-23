@@ -115,6 +115,34 @@ export interface InventoryPostingResult {
   balances: InventoryPostingBalance[];
 }
 
+export interface InventoryCountSessionStartInput {
+  name: string;
+  reason: string;
+  warehouseIds: string[];
+  idempotencyKey: string;
+}
+
+export interface InventoryCountSessionStartResult {
+  sessionId: string;
+  sessionCode: string;
+  totalTargetCount: number;
+  countedTargetCount: number;
+  status: 'active' | 'completed' | 'abandoned';
+  idempotent: boolean;
+}
+
+export interface InventoryCountSessionBatchInput {
+  sessionId: string;
+  lines: InventoryPostingLine[];
+  idempotencyKey: string;
+}
+
+export interface InventoryCountSessionCompleteInput {
+  sessionId: string;
+  idempotencyKey: string;
+  allowPartial?: boolean;
+}
+
 export interface InventoryTransferInput {
   productSku: string;
   variantSuffix: string;
@@ -196,6 +224,10 @@ export interface RevertShipmentInventoryInput {
 }
 
 export type InventoryMutationName =
+  | 'availability-read'
+  | 'count-session-start'
+  | 'count-session-batch'
+  | 'count-session-complete'
   | 'save-order'
   | 'release-order'
   | 'set-order-status'
@@ -208,4 +240,6 @@ export type InventoryMutationName =
   | 'revert-shipment'
   | 'reverse-movement'
   | 'offer-conversion'
-  | 'reorder-policy';
+  | 'reorder-policy'
+  | 'warehouse-save'
+  | 'warehouse-delete';

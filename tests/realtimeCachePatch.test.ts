@@ -6,7 +6,7 @@ import { tryPatchRealtimeCache } from '../lib/realtimeCachePatch';
 import { OrderStatus, ProductionStage } from '../types';
 
 describe('realtime cache patching', () => {
-  it('patches a visible canonical inventory balance immediately and still schedules a view refresh', () => {
+  it('patches a visible canonical inventory balance immediately without a broad view refresh', () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(['products'], [{
       sku: 'KL201',
@@ -52,7 +52,7 @@ describe('realtime cache patching', () => {
       errors: null,
     } as any);
 
-    expect(fullyHandled).toBe(false);
+    expect(fullyHandled).toBe(true);
     expect(queryClient.getQueryData<any[]>(['inventory', 'availability'])?.[0]).toEqual(
       expect.objectContaining({
         productSku: 'KL201',
@@ -66,6 +66,48 @@ describe('realtime cache patching', () => {
     expect(queryClient.getQueryData<any[]>(['products'])?.[0].stock_qty).toBe(0);
     expect(queryClient.getQueryData<any[]>(['products'])?.[0].variants[0]).toEqual(
       expect.objectContaining({ stock_qty: 2, available_qty: 2 }),
+    );
+  });
+
+  it('inserts a newly counted size balance and projects it without a full refetch', () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(['inventory', 'availability'], []);
+    queryClient.setQueryData(['warehouses'], [{
+      id: 'showroom',
+      name: 'Δειγματολόγιο',
+      type: 'Showroom',
+      is_system: true,
+    }]);
+
+    const fullyHandled = tryPatchRealtimeCache(queryClient, {
+      table: 'inventory_balances',
+      eventType: 'INSERT',
+      new: {
+        product_sku: 'KL201',
+        variant_suffix: 'X',
+        size_info: '19CM',
+        warehouse_id: 'showroom',
+        on_hand: 2,
+        reserved: 0,
+        updated_at: '2026-07-23T08:27:06.000Z',
+      },
+      old: {},
+      schema: 'public',
+      commit_timestamp: '2026-07-23T08:27:06.000Z',
+      errors: null,
+    } as any);
+
+    expect(fullyHandled).toBe(true);
+    expect(queryClient.getQueryData<any[]>(['inventory', 'availability'])).toContainEqual(
+      expect.objectContaining({
+        productSku: 'KL201',
+        variantSuffix: 'X',
+        sizeInfo: '19cm',
+        warehouseId: 'showroom',
+        warehouseName: 'Δειγματολόγιο',
+        onHand: 2,
+        available: 2,
+      }),
     );
   });
 

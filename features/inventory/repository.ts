@@ -5,6 +5,10 @@ import type {
   ConvertOfferInventoryInput,
   InventoryAdjustmentInput,
   InventoryAvailability,
+  InventoryCountSessionBatchInput,
+  InventoryCountSessionCompleteInput,
+  InventoryCountSessionStartInput,
+  InventoryCountSessionStartResult,
   InventoryEvent,
   InventoryPostingInput,
   InventoryPostingResult,
@@ -20,6 +24,10 @@ import type {
   RevertShipmentInventoryInput,
 } from './types';
 import { normalizeInventorySizeInfo } from './posting';
+import {
+  loadAllInventoryAvailabilityPages,
+  type InventoryAvailabilityPage,
+} from './availabilityPagination';
 
 type AvailabilityRow = {
   product_sku: string;
@@ -84,17 +92,57 @@ function mapAvailability(row: AvailabilityRow): InventoryAvailability {
   };
 }
 
+function availabilityRowIdentity(row: AvailabilityRow): string {
+  return [
+    row.product_sku,
+    row.variant_suffix || '',
+    normalizeInventorySizeInfo(row.size_info),
+    row.warehouse_id,
+  ].join('\u001f');
+}
+
+function mapInventoryPostingResult(data: unknown): InventoryPostingResult {
+  const result = (data || {}) as any;
+  return {
+    postedCount: Number(result.posted_count || 0),
+    changedCount: Number(result.changed_count || 0),
+    countedZeroCount: Number(result.counted_zero_count || 0),
+    idempotent: Boolean(result.idempotent),
+    balances: Array.isArray(result.balances)
+      ? result.balances.map((row: any) => ({
+        productSku: String(row.product_sku || ''),
+        variantSuffix: String(row.variant_suffix || ''),
+        sizeInfo: normalizeInventorySizeInfo(row.size_info),
+        warehouseId: String(row.warehouse_id || ''),
+        onHand: Number(row.on_hand || 0),
+        reserved: Number(row.reserved || 0),
+        available: Number(row.available || 0),
+      }))
+      : [],
+  };
+}
+
 export const inventoryRepository = {
   async getAvailability(): Promise<InventoryAvailability[]> {
-    const { data, error } = await supabase
-      .from('inventory_availability_v')
-      .select('*')
-      .order('product_sku')
-      .order('variant_suffix')
-      .order('size_info')
-      .order('warehouse_name');
-    if (error) throw toInventoryOperationError('save-order', error);
-    return ((data || []) as AvailabilityRow[]).map(mapAvailability);
+    const rows = await loadAllInventoryAvailabilityPages<AvailabilityRow>(
+      async (from, to, includeCount): Promise<InventoryAvailabilityPage<AvailabilityRow>> => {
+        const { data, error, count } = await supabase
+          .from('inventory_availability_v')
+          .select('*', includeCount ? { count: 'exact' } : undefined)
+          .order('product_sku')
+          .order('variant_suffix')
+          .order('size_info')
+          .order('warehouse_id')
+          .range(from, to);
+        if (error) throw toInventoryOperationError('availability-read', error);
+        return {
+          rows: (data || []) as AvailabilityRow[],
+          totalCount: includeCount ? count : null,
+        };
+      },
+      availabilityRowIdentity,
+    );
+    return rows.map(mapAvailability);
   },
 
   async getMovementHistory(limit = 250): Promise<InventoryEvent[]> {
@@ -270,25 +318,71 @@ export const inventoryRepository = {
       p_idempotency_key: idempotencyKey,
     });
     if (error) throw toInventoryOperationError('inventory-posting', error);
+    return mapInventoryPostingResult(data);
+  },
 
-    const result = (data || {}) as any;
+  async startInventoryCountSession(
+    input: InventoryCountSessionStartInput,
+  ): Promise<InventoryCountSessionStartResult> {
+    assertOnline();
+    const { data, error } = await supabase.rpc('start_inventory_count_session_v1', {
+      p_name: input.name,
+      p_reason: input.reason,
+      p_warehouse_ids: input.warehouseIds,
+      p_idempotency_key: input.idempotencyKey,
+    });
+    if (error) throw toInventoryOperationError('count-session-start', error);
+    const payload = (data || {}) as any;
+    const session = payload.session || {};
+    if (!session.id) {
+      throw toInventoryOperationError(
+        'count-session-start',
+        new Error('Η Συνεδρία Απογραφής δημιουργήθηκε χωρίς έγκυρη επιβεβαίωση. Δεν μεταβλήθηκε κανένα απόθεμα. Ανανεώστε τη σελίδα πριν δοκιμάσετε ξανά.'),
+      );
+    }
     return {
-      postedCount: Number(result.posted_count || 0),
-      changedCount: Number(result.changed_count || 0),
-      countedZeroCount: Number(result.counted_zero_count || 0),
-      idempotent: Boolean(result.idempotent),
-      balances: Array.isArray(result.balances)
-        ? result.balances.map((row: any) => ({
-          productSku: String(row.product_sku || ''),
-          variantSuffix: String(row.variant_suffix || ''),
-          sizeInfo: normalizeInventorySizeInfo(row.size_info),
-          warehouseId: String(row.warehouse_id || ''),
-          onHand: Number(row.on_hand || 0),
-          reserved: Number(row.reserved || 0),
-          available: Number(row.available || 0),
-        }))
-        : [],
+      sessionId: String(session.id),
+      sessionCode: String(session.session_code || ''),
+      totalTargetCount: Number(session.total_target_count || 0),
+      countedTargetCount: Number(session.counted_target_count || 0),
+      status: session.status === 'completed'
+        ? 'completed'
+        : session.status === 'abandoned'
+          ? 'abandoned'
+          : 'active',
+      idempotent: Boolean(payload.idempotent),
     };
+  },
+
+  async postInventoryCountBatch(
+    input: InventoryCountSessionBatchInput,
+  ): Promise<InventoryPostingResult> {
+    assertOnline();
+    const { data, error } = await supabase.rpc('post_inventory_count_batch_v1', {
+      p_session_id: input.sessionId,
+      p_lines: input.lines.map((line) => ({
+        product_sku: line.productSku,
+        variant_suffix: line.variantSuffix || '',
+        size_info: normalizeInventorySizeInfo(line.sizeInfo),
+        warehouse_id: line.warehouseId,
+        quantity: line.quantity,
+      })),
+      p_idempotency_key: input.idempotencyKey,
+    });
+    if (error) throw toInventoryOperationError('count-session-batch', error);
+    return mapInventoryPostingResult(data);
+  },
+
+  async completeInventoryCountSession(
+    input: InventoryCountSessionCompleteInput,
+  ): Promise<void> {
+    assertOnline();
+    const { error } = await supabase.rpc('complete_inventory_count_session_v1', {
+      p_session_id: input.sessionId,
+      p_idempotency_key: input.idempotencyKey,
+      p_allow_partial: Boolean(input.allowPartial),
+    });
+    if (error) throw toInventoryOperationError('count-session-complete', error);
   },
 
   async batchAdjustStock(
@@ -408,18 +502,29 @@ export const inventoryRepository = {
     return { orderId: String((data as any)?.order_id || input.order.id) };
   },
 
-  async saveWarehouse(warehouse: Partial<Warehouse> & { name: string; type: Warehouse['type'] }): Promise<void> {
+  async saveWarehouse(
+    warehouse: Partial<Warehouse> & {
+      name: string;
+      type: Warehouse['type'];
+      category: string;
+    },
+  ): Promise<void> {
     assertOnline();
-    const payload = {
-      ...warehouse,
-      id: warehouse.id || crypto.randomUUID(),
-      is_system: warehouse.is_system || false,
+    const payload: Record<string, unknown> = {
+      name: warehouse.name.trim(),
+      type: warehouse.type,
+      category: warehouse.category.trim(),
+      address: warehouse.address?.trim() || null,
     };
     const query = warehouse.id
       ? supabase.from('warehouses').update(payload).eq('id', warehouse.id)
-      : supabase.from('warehouses').insert(payload);
+      : supabase.from('warehouses').insert({
+        ...payload,
+        id: crypto.randomUUID(),
+        is_system: false,
+      });
     const { error } = await query;
-    if (error) throw toInventoryOperationError('adjustment', error);
+    if (error) throw toInventoryOperationError('warehouse-save', error);
   },
 
   async deleteWarehouse(warehouseId: string): Promise<void> {
@@ -428,7 +533,7 @@ export const inventoryRepository = {
       throw new Error('Οι αποθήκες συστήματος δεν μπορούν να διαγραφούν.');
     }
     const { error } = await supabase.from('warehouses').delete().eq('id', warehouseId);
-    if (error) throw toInventoryOperationError('adjustment', error);
+    if (error) throw toInventoryOperationError('warehouse-delete', error);
   },
 };
 

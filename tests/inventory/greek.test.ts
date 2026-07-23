@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatInventoryDateTime,
+  getDefaultWarehouseCategory,
+  getWarehouseTypeLabel,
   formatInventoryInteger,
   formatInventoryQuantity,
   INVENTORY_TERMS,
@@ -36,6 +38,18 @@ describe('Greek ERP inventory presentation', () => {
     expect(ORDER_STATUS_LABELS.Delivered).toBe('Παραδοθείσα');
     expect(OFFER_STATUS_LABELS.Accepted).toBe('Αποδεκτή');
     expect(Object.values({ ...ORDER_STATUS_LABELS, ...OFFER_STATUS_LABELS }).join(' ')).not.toMatch(/Pending|Ready|Accepted|Declined/);
+  });
+
+  it('presents flexible warehouse roles without the misleading store label', () => {
+    expect(getWarehouseTypeLabel('Central')).toBe('Προεπιλεγμένη Κεντρική');
+    expect(getWarehouseTypeLabel('Showroom')).toBe('Δειγματολόγιο');
+    expect(getWarehouseTypeLabel('Store')).toBe('Αποθηκευτικός χώρος');
+    expect(getDefaultWarehouseCategory('Showroom')).toBe('Δειγματολόγιο πλασιέ');
+    expect([
+      getWarehouseTypeLabel('Central'),
+      getWarehouseTypeLabel('Showroom'),
+      getWarehouseTypeLabel('Store'),
+    ].join(' ')).not.toContain('Κατάστημα');
   });
 
   it('never exposes raw database errors to the operator', () => {

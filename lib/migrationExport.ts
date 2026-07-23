@@ -26,7 +26,7 @@ export const MIGRATION_SCHEMAS: Schema = {
     suppliers: ['id', 'name', 'contact_person', 'phone', 'email', 'address', 'notes'],
     products: ['sku', 'prefix', 'category', 'description', 'gender', 'weight_g', 'secondary_weight_g', 'production_type', 'supplier_id', 'supplier_sku', 'supplier_cost', 'active_price', 'selling_price', 'stock_qty', 'sample_qty', 'is_component', 'created_at'],
     product_variants: ['product_sku', 'suffix', 'description', 'stock_qty', 'active_price', 'selling_price'],
-    warehouses: ['id', 'name', 'type', 'address', 'is_system'],
+    warehouses: ['id', 'name', 'type', 'category', 'address', 'is_system', 'updated_at', 'updated_by'],
     product_stock: ['product_sku', 'warehouse_id', 'variant_suffix', 'size_info', 'quantity'],
     inventory_balances: ['product_sku', 'variant_suffix', 'size_info', 'warehouse_id', 'on_hand', 'reserved', 'version', 'updated_at'],
     inventory_reorder_policies: ['product_sku', 'variant_suffix', 'size_info', 'warehouse_id', 'reorder_point', 'preferred_supplier_id', 'updated_at'],

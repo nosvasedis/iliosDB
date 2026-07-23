@@ -44,7 +44,7 @@ const REALTIME_TABLE_DOMAINS: Record<string, RealtimeInvalidationDomain[]> = {
     collections: ['collections', 'products'],
     materials: ['resources'],
     molds: ['resources'],
-    warehouses: ['resources'],
+    warehouses: ['resources', 'inventory'],
     global_settings: ['settings'],
     orders: ['orders', 'deliveries'],
     order_shipments: ['orders', 'deliveries'],
@@ -373,7 +373,7 @@ function refetchActiveRealtimeDomain(
             return queryClient.refetchQueries({ queryKey: ['offers'], type: 'active' }).then(() => undefined);
         case 'inventory':
             return Promise.all([
-                queryClient.refetchQueries({ queryKey: ['inventory'], type: 'active' }),
+                queryClient.refetchQueries({ queryKey: ['inventory'], type: 'active', stale: true }),
                 queryClient.refetchQueries({ queryKey: ['products'], type: 'active' }),
                 queryClient.refetchQueries({ queryKey: ['productsCatalog'], type: 'active' }),
             ]).then(() => undefined);

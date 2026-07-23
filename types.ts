@@ -190,7 +190,10 @@ export interface Warehouse {
   name: string;
   type: 'Central' | 'Showroom' | 'Store' | 'Other';
   is_system?: boolean;
+  category?: string;
   address?: string;
+  updated_at?: string;
+  updated_by?: string;
 }
 
 export interface WarehouseStock {

@@ -4,8 +4,9 @@ import { orderKeys } from '../features/orders/keys';
 import { productionKeys } from '../features/production/keys';
 import { normalizeInventorySizeInfo } from '../features/inventory/posting';
 import { applyInventoryAvailabilityToProducts } from '../features/inventory/productProjection';
-import type { InventoryAvailability } from '../features/inventory/types';
-import type { BatchStageHistoryEntry, Order, Product, ProductionBatch } from '../types';
+import { mergeInventoryCountTargetedAvailability } from '../features/inventory/countSession';
+import type { InventoryAvailability, InventoryEvent } from '../features/inventory/types';
+import type { BatchStageHistoryEntry, Order, Product, ProductionBatch, Warehouse } from '../types';
 import { isProductGraphRealtimeTable } from './queryInvalidation';
 
 type RealtimeRowPayload = RealtimePostgresChangesPayload<Record<string, unknown>>;
@@ -199,10 +200,33 @@ function patchInventoryAvailabilityFromBalance(
         );
         return true;
     }
-    if (index < 0) return false;
 
     const onHand = Number(rawRow.on_hand || 0);
     const reserved = Number(rawRow.reserved || 0);
+    if (index < 0) {
+        const warehouses = queryClient.getQueryData<Warehouse[]>(['warehouses']) || [];
+        const merged = mergeInventoryCountTargetedAvailability(
+            cached,
+            [{
+                productSku: rawRow.product_sku,
+                variantSuffix,
+                sizeInfo,
+                warehouseId: rawRow.warehouse_id,
+                onHand,
+                reserved,
+                available: onHand - reserved,
+            }],
+            warehouses.map((warehouse) => ({
+                warehouseId: warehouse.id,
+                warehouseName: warehouse.name,
+                warehouseType: warehouse.type,
+            })),
+            rawRow.updated_at,
+        );
+        queryClient.setQueryData(['inventory', 'availability'], merged.rows);
+        return true;
+    }
+
     const current = cached[index];
     const next = [...cached];
     next[index] = {
@@ -214,6 +238,58 @@ function patchInventoryAvailabilityFromBalance(
         updatedAt: rawRow.updated_at || current.updatedAt,
     };
     queryClient.setQueryData(['inventory', 'availability'], next);
+    return true;
+}
+
+function mapRealtimeInventoryEvent(rawRow: Record<string, unknown>): InventoryEvent | null {
+    if (!rawRow.id || !rawRow.product_sku || !rawRow.warehouse_id) return null;
+    return {
+        id: String(rawRow.id),
+        sequenceNo: Number(rawRow.sequence_no || 0),
+        operationType: String(rawRow.operation_type || 'adjustment') as InventoryEvent['operationType'],
+        productSku: String(rawRow.product_sku),
+        variantSuffix: String(rawRow.variant_suffix || ''),
+        sizeInfo: normalizeInventorySizeInfo(String(rawRow.size_info || '')),
+        warehouseId: String(rawRow.warehouse_id),
+        onHandDelta: Number(rawRow.on_hand_delta || 0),
+        reservedDelta: Number(rawRow.reserved_delta || 0),
+        onHandAfter: Number(rawRow.on_hand_after || 0),
+        reservedAfter: Number(rawRow.reserved_after || 0),
+        referenceType: rawRow.reference_type ? String(rawRow.reference_type) : null,
+        referenceId: rawRow.reference_id ? String(rawRow.reference_id) : null,
+        referenceLineId: rawRow.reference_line_id ? String(rawRow.reference_line_id) : null,
+        transferGroupId: rawRow.transfer_group_id ? String(rawRow.transfer_group_id) : null,
+        reversalOf: rawRow.reversal_of ? String(rawRow.reversal_of) : null,
+        actorUserId: rawRow.actor_user_id ? String(rawRow.actor_user_id) : null,
+        actorName: rawRow.actor_name ? String(rawRow.actor_name) : null,
+        reason: String(rawRow.reason || ''),
+        createdAt: String(rawRow.created_at || new Date().toISOString()),
+    };
+}
+
+function patchInventoryEventCache(queryClient: QueryClient, payload: RealtimeRowPayload): boolean {
+    const cached = queryClient.getQueryData<InventoryEvent[]>(['inventory', 'events']);
+    if (!cached) return false;
+    const rawRow = (payload.eventType === 'DELETE' ? payload.old : payload.new) as Record<string, unknown> | undefined;
+    if (!rawRow?.id) return false;
+
+    if (payload.eventType === 'DELETE') {
+        queryClient.setQueryData(
+            ['inventory', 'events'],
+            cached.filter((event) => event.id !== String(rawRow.id)),
+        );
+        return true;
+    }
+
+    const event = mapRealtimeInventoryEvent(rawRow);
+    if (!event) return false;
+    const withoutCurrent = cached.filter((current) => current.id !== event.id);
+    queryClient.setQueryData(
+        ['inventory', 'events'],
+        [event, ...withoutCurrent]
+            .sort((left, right) => right.sequenceNo - left.sequenceNo)
+            .slice(0, 250),
+    );
     return true;
 }
 
@@ -259,9 +335,22 @@ export function tryPatchRealtimeCache(queryClient: QueryClient, payload: Realtim
     if (table === 'inventory_balances') {
         const availabilityPatched = patchInventoryAvailabilityFromBalance(queryClient, payload);
         if (availabilityPatched) projectCanonicalAvailabilityIntoProductCaches(queryClient);
-        // The balance is patched immediately, while the normal invalidation still
-        // refreshes view-derived incoming, demand and policy fields.
-        return false;
+        return availabilityPatched;
+    }
+
+    if (table === 'inventory_events') {
+        const rawRow = (payload.eventType === 'DELETE' ? payload.old : payload.new) as Record<string, unknown> | undefined;
+        const operationType = String(rawRow?.operation_type || '');
+        const eventPatched = patchInventoryEventCache(queryClient, payload);
+        // Physical counts and manual increases affect only the returned balance
+        // and movement history. Both are patched directly, so a full 7,000+ row
+        // availability refetch would be wasteful and can briefly reintroduce stale
+        // values. Other operation types retain broad invalidation for their
+        // reservation, demand, receipt or production projections.
+        if (operationType === 'stock_count' || operationType === 'manual_stock_increase') {
+            return true;
+        }
+        return eventPatched && payload.eventType === 'DELETE';
     }
 
     if (table === 'product_stock') {

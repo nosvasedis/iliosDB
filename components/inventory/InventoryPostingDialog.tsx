@@ -16,6 +16,7 @@ import type {
   InventoryAvailability,
   InventoryPostingLine,
   InventoryPostingMode,
+  InventoryPostingResult,
 } from '../../features/inventory';
 import {
   buildInventoryPostingLines,
@@ -42,7 +43,11 @@ interface InventoryPostingDialogProps {
   profileId?: string;
   initialSelection?: SkuPickerOption | null;
   onRequestScan: () => void;
-  onSaved: () => Promise<InventoryAvailability[]>;
+  onPosted?: (result: InventoryPostingResult) => Promise<void> | void;
+  countSession?: {
+    reason: string;
+    onCollect: (lines: InventoryPostingLine[]) => Promise<void> | void;
+  };
   onPrepareNext: () => void;
   onClose: () => void;
 }
@@ -96,7 +101,8 @@ export default function InventoryPostingDialog({
   profileId,
   initialSelection,
   onRequestScan,
-  onSaved,
+  onPosted,
+  countSession,
   onPrepareNext,
   onClose,
 }: InventoryPostingDialogProps) {
@@ -112,7 +118,7 @@ export default function InventoryPostingDialog({
   const [values, setValues] = useState<Record<string, string>>({});
   const [customSizes, setCustomSizes] = useState<string[]>([]);
   const [customSize, setCustomSize] = useState('');
-  const [reason, setReason] = useState('');
+  const [reason, setReason] = useState(countSession?.reason || '');
   const [saving, setSaving] = useState(false);
   const pickerInputRef = useRef<HTMLInputElement>(null);
   useEscapeToClose(onClose, saving);
@@ -125,6 +131,12 @@ export default function InventoryPostingDialog({
     setValues({});
     setCustomSizes([]);
   }, [initialSelection]);
+
+  useEffect(() => {
+    if (!countSession) return;
+    setMode('count');
+    setReason(countSession.reason);
+  }, [countSession]);
 
   useEffect(() => {
     if (warehouseIds.length > 0 || warehouses.length === 0) return;
@@ -214,7 +226,8 @@ export default function InventoryPostingDialog({
       pickerInputRef.current?.focus();
       return;
     }
-    if (!reason.trim()) {
+    const postingReason = countSession?.reason.trim() || reason.trim();
+    if (!postingReason) {
       showToast('Η αιτιολογία είναι υποχρεωτική για την πλήρη ιχνηλασιμότητα.', 'error');
       return;
     }
@@ -226,29 +239,50 @@ export default function InventoryPostingDialog({
     setSaving(true);
     let mutationCommitted = false;
     try {
+      if (countSession) {
+        await countSession.onCollect(preview.lines);
+        showToast(
+          `${formatInventoryInteger(preview.lines.length)} ${preview.lines.length === 1 ? 'γραμμή προστέθηκε' : 'γραμμές προστέθηκαν'} στη Συνεδρία Απογραφής. Δεν έχει μεταβληθεί ακόμη το απόθεμα.`,
+          'success',
+        );
+        if (typeof window !== 'undefined' && warehouseIds[0]) {
+          window.localStorage.setItem(warehouseStorageKey(profileId), warehouseIds[0]);
+        }
+        if (continueWithNext) {
+          setSelection(null);
+          setSkuQuery('');
+          setValues({});
+          setCustomSizes([]);
+          setPickerOpen(true);
+          onPrepareNext();
+          window.setTimeout(() => pickerInputRef.current?.focus(), 0);
+        } else {
+          onClose();
+        }
+        return;
+      }
+
       const result = await inventoryRepository.postInventoryEntries({
         mode,
         lines: preview.lines,
-        reason: reason.trim(),
+        reason: postingReason,
         idempotencyKey: `inventory-posting:${crypto.randomUUID()}`,
       });
       mutationCommitted = true;
-      const confirmedRows = await onSaved();
+      await onPosted?.(result);
       const allLinesConfirmed = preview.lines.every((line) => {
-        const confirmed = confirmedRows.find((row) => (
+        const confirmed = result.balances.find((row) => (
           row.productSku === line.productSku
           && row.variantSuffix === line.variantSuffix
           && row.sizeInfo === normalizeInventorySizeInfo(line.sizeInfo)
           && row.warehouseId === line.warehouseId
         ));
-        const current = currentFor(line.warehouseId, line.sizeInfo);
-        const expectedOnHand = mode === 'count'
-          ? line.quantity
-          : Number(current?.onHand || 0) + line.quantity;
-        return confirmed?.onHand === expectedOnHand;
+        return Boolean(confirmed) && (
+          mode !== 'count' || confirmed?.onHand === line.quantity
+        );
       });
       if (!allLinesConfirmed) {
-        throw new Error('Η ανανεωμένη ποσότητα δεν επιβεβαιώθηκε από το κανονικό υπόλοιπο.');
+        throw new Error('Η καταχώριση ολοκληρώθηκε στη βάση, αλλά δεν επιστράφηκαν όλα τα επιβεβαιωμένα υπόλοιπα. Μην επαναλάβετε την καταχώριση. Πατήστε «Ανανέωση» για να εμφανιστούν οι ποσότητες.');
       }
       const zeroMessage = result.countedZeroCount > 0
         ? ` Περιλαμβάνονται ${formatInventoryInteger(result.countedZeroCount)} ρητές μηδενικές μετρήσεις.`
@@ -296,10 +330,16 @@ export default function InventoryPostingDialog({
       >
         <header className="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
           <div>
-            <h2 id="inventory-posting-title" className="text-xl font-black text-slate-900">Καταχώριση Αποθέματος</h2>
-            <p className="mt-1 text-sm text-slate-500">Απευθείας απογραφή ή προσθήκη σε μία ή περισσότερες αποθήκες, χωρίς υποχρεωτική ενδιάμεση Κεντρική Αποθήκη.</p>
+            <h2 id="inventory-posting-title" className="text-xl font-black text-slate-900">
+              {countSession ? 'Καταμέτρηση στη Συνεδρία Απογραφής' : 'Καταχώριση Αποθέματος'}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {countSession
+                ? 'Καταχωρίστε τα μετρημένα μεγέθη. Οι γραμμές αποθηκεύονται στη συνεδρία και αποστέλλονται αργότερα σε ελεγχόμενες παρτίδες.'
+                : 'Απευθείας απογραφή ή προσθήκη σε μία ή περισσότερες αποθήκες, χωρίς υποχρεωτική ενδιάμεση Κεντρική Αποθήκη.'}
+            </p>
           </div>
-          <button type="button" onClick={onClose} disabled={saving} aria-label="Κλείσιμο καταχώρισης αποθέματος" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50">
+          <button type="button" onClick={onClose} disabled={saving} aria-label={countSession ? 'Κλείσιμο καταμέτρησης συνεδρίας απογραφής' : 'Κλείσιμο καταχώρισης αποθέματος'} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50">
             <X size={19} />
           </button>
         </header>
@@ -370,7 +410,7 @@ export default function InventoryPostingDialog({
 
           <section aria-labelledby="posting-mode-title">
             <h3 id="posting-mode-title" className="text-sm font-black text-slate-900">2. Τρόπος καταχώρισης</h3>
-            <div className="mt-2 grid gap-2 md:grid-cols-2">
+            <div className={`mt-2 grid gap-2 ${countSession ? '' : 'md:grid-cols-2'}`}>
               <button
                 type="button"
                 onClick={() => setMode('count')}
@@ -380,15 +420,17 @@ export default function InventoryPostingDialog({
                 <strong className="block text-sm text-slate-900">Απογραφή — Ορισμός ακριβούς Φυσικού Αποθέματος</strong>
                 <span className="mt-1 block text-xs leading-5 text-slate-600">Η τιμή αντικαθιστά το τρέχον υπόλοιπο. Κενό σημαίνει «δεν καταμετρήθηκε», ενώ ρητό 0 σημαίνει «καταμετρήθηκε μηδενικό».</span>
               </button>
-              <button
-                type="button"
-                onClick={() => setMode('increase')}
-                aria-pressed={mode === 'increase'}
-                className={`rounded-xl border p-4 text-left ${mode === 'increase' ? 'border-blue-300 bg-blue-50 ring-2 ring-blue-100' : 'border-slate-200 bg-white'}`}
-              >
-                <strong className="block text-sm text-slate-900">Προσθήκη Ποσότητας</strong>
-                <span className="mt-1 block text-xs leading-5 text-slate-600">Η ποσότητα προστίθεται στο υπάρχον Φυσικό Απόθεμα και πρέπει να είναι μεγαλύτερη από μηδέν.</span>
-              </button>
+              {!countSession && (
+                <button
+                  type="button"
+                  onClick={() => setMode('increase')}
+                  aria-pressed={mode === 'increase'}
+                  className={`rounded-xl border p-4 text-left ${mode === 'increase' ? 'border-blue-300 bg-blue-50 ring-2 ring-blue-100' : 'border-slate-200 bg-white'}`}
+                >
+                  <strong className="block text-sm text-slate-900">Προσθήκη Ποσότητας</strong>
+                  <span className="mt-1 block text-xs leading-5 text-slate-600">Η ποσότητα προστίθεται στο υπάρχον Φυσικό Απόθεμα και πρέπει να είναι μεγαλύτερη από μηδέν.</span>
+                </button>
+              )}
             </div>
           </section>
 
@@ -507,17 +549,24 @@ export default function InventoryPostingDialog({
           </section>
 
           <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,.7fr)]" aria-labelledby="posting-review-title">
-            <label className="text-sm font-black text-slate-700">
-              4. Αιτιολογία
-              <textarea
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-                maxLength={500}
-                rows={4}
-                placeholder={mode === 'count' ? 'π.χ. Αρχική φυσική απογραφή 23/07/2026' : 'π.χ. Παραλαβή εκτός εντολής προμηθευτή'}
-                className="mt-2 w-full resize-none rounded-xl border border-slate-200 px-3 py-2.5 font-normal outline-none focus:border-emerald-500"
-              />
-            </label>
+            {countSession ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-black text-slate-700">4. Αιτιολογία συνεδρίας</p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{countSession.reason}</p>
+              </div>
+            ) : (
+              <label className="text-sm font-black text-slate-700">
+                4. Αιτιολογία
+                <textarea
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  maxLength={500}
+                  rows={4}
+                  placeholder={mode === 'count' ? 'π.χ. Αρχική φυσική απογραφή 23/07/2026' : 'π.χ. Παραλαβή εκτός εντολής προμηθευτή'}
+                  className="mt-2 w-full resize-none rounded-xl border border-slate-200 px-3 py-2.5 font-normal outline-none focus:border-emerald-500"
+                />
+              </label>
+            )}
             <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
               <h3 id="posting-review-title" className="flex items-center gap-2 text-sm font-black text-blue-900">
                 <ClipboardList size={17} aria-hidden="true" /> Σύνοψη πριν από την υποβολή
@@ -539,7 +588,7 @@ export default function InventoryPostingDialog({
                     );
                   })}
                   <p className="pt-1 text-xs font-bold text-blue-900">
-                    {formatInventoryInteger(preview.lines.length)} {preview.lines.length === 1 ? 'γραμμή' : 'γραμμές'} θα καταχωριστούν σε μία ατομική συναλλαγή.
+                    {formatInventoryInteger(preview.lines.length)} {preview.lines.length === 1 ? 'γραμμή' : 'γραμμές'} {countSession ? 'θα προστεθούν στη συνεδρία.' : 'θα καταχωριστούν σε μία ατομική συναλλαγή.'}
                   </p>
                 </div>
               ) : (
@@ -552,7 +601,11 @@ export default function InventoryPostingDialog({
 
           <div className="flex items-start gap-2 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-xs leading-5 text-emerald-900">
             <CheckCircle2 size={17} className="mt-0.5 shrink-0" aria-hidden="true" />
-            <p>Όλες οι επιλεγμένες αποθήκες και τα μεγέθη καταχωρίζονται μαζί. Αν αποτύχει μία γραμμή, δεν μεταβάλλεται καμία ποσότητα.</p>
+            <p>
+              {countSession
+                ? 'Η προσθήκη στη συνεδρία δεν αλλάζει ακόμη το απόθεμα. Η μεταβολή γίνεται μόνο όταν αποσταλεί επιτυχώς η αντίστοιχη ατομική παρτίδα.'
+                : 'Όλες οι επιλεγμένες αποθήκες και τα μεγέθη καταχωρίζονται μαζί. Αν αποτύχει μία γραμμή, δεν μεταβάλλεται καμία ποσότητα.'}
+            </p>
           </div>
         </div>
 
@@ -561,20 +614,20 @@ export default function InventoryPostingDialog({
           <button
             type="button"
             onClick={() => submit(true)}
-            disabled={saving || !selection || preview.lines.length === 0 || !reason.trim()}
+            disabled={saving || !selection || preview.lines.length === 0 || !(countSession?.reason.trim() || reason.trim())}
             className={`${BTN_SECONDARY} justify-center disabled:cursor-not-allowed disabled:opacity-45`}
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <ChevronRight size={16} />}
-            Καταχώριση & επόμενο SKU
+            {countSession ? 'Προσθήκη & επόμενο SKU' : 'Καταχώριση & επόμενο SKU'}
           </button>
           <button
             type="button"
             onClick={() => submit(false)}
-            disabled={saving || !selection || preview.lines.length === 0 || !reason.trim()}
+            disabled={saving || !selection || preview.lines.length === 0 || !(countSession?.reason.trim() || reason.trim())}
             className={`${BTN_PRIMARY} justify-center disabled:cursor-not-allowed disabled:opacity-45`}
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <ClipboardList size={16} />}
-            Καταχώριση
+            {countSession ? 'Προσθήκη στη Συνεδρία' : 'Καταχώριση'}
           </button>
         </footer>
       </section>

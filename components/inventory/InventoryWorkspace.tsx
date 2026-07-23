@@ -6,6 +6,7 @@ import {
   Boxes,
   Building2,
   CheckCircle,
+  ClipboardCheck,
   ClipboardList,
   History,
   Loader2,
@@ -39,6 +40,7 @@ import {
   matchesInventoryAvailabilitySearch,
   getInventoryOperationLabel,
   getInventoryEventReversalState,
+  getDefaultWarehouseCategory,
   getWarehouseTypeLabel,
   getReconciliationIssueLabel,
   INVENTORY_TERMS,
@@ -49,7 +51,9 @@ import {
   useInventoryEvents,
   useInventoryReconciliationIssues,
   useInventoryReconciliationStatus,
+  applyInventoryPostingBalances,
   refreshInventoryAvailability,
+  refreshInventoryAuditQueries,
 } from '../../hooks/api/useInventory';
 import { useWarehouses, warehouseKeys } from '../../hooks/api/useWarehouses';
 import { useAuth } from '../AuthContext';
@@ -71,6 +75,7 @@ import InventoryStockExplorer, { type InventoryQuickOperation } from './Inventor
 import InventoryGuideDialog from './InventoryGuideDialog';
 import InventoryQuickSearch from './InventoryQuickSearch';
 import InventoryPostingDialog from './InventoryPostingDialog';
+import InventoryCountSessionDialog from './InventoryCountSessionDialog';
 import { searchSkuProductOptions, type SkuPickerOption } from '../../utils/skuProductPicker';
 
 type InventoryTab = 'overview' | 'stock' | 'movements' | 'warehouses' | 'reconciliation';
@@ -88,6 +93,25 @@ interface OperationDialogState {
   row: InventoryAvailability;
 }
 
+interface WarehouseFormState {
+  id?: string;
+  name: string;
+  type: Warehouse['type'];
+  category: string;
+  address: string;
+  isSystem: boolean;
+}
+
+function createEmptyWarehouseForm(): WarehouseFormState {
+  return {
+    name: '',
+    type: 'Showroom',
+    category: getDefaultWarehouseCategory('Showroom'),
+    address: '',
+    isSystem: false,
+  };
+}
+
 const tabs: Array<{ id: InventoryTab; label: string; icon: React.ElementType }> = [
   { id: 'overview', label: 'Επισκόπηση', icon: Activity },
   { id: 'stock', label: 'Υπόλοιπα', icon: Boxes },
@@ -97,8 +121,9 @@ const tabs: Array<{ id: InventoryTab; label: string; icon: React.ElementType }> 
 ];
 
 const warehouseTypeOptions: Array<{ value: Warehouse['type']; label: string }> = [
-  { value: 'Store', label: 'Κατάστημα' },
-  { value: 'Other', label: 'Λοιπή Αποθήκη' },
+  { value: 'Showroom', label: 'Δειγματολόγιο' },
+  { value: 'Store', label: 'Αποθηκευτικός χώρος' },
+  { value: 'Other', label: 'Λοιπή θέση αποθέματος' },
 ];
 
 function InventoryMetric({ label, value, icon: Icon, tone }: { label: string; value: number; icon: React.ElementType; tone: string }) {
@@ -498,17 +523,21 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
   const [stockFilter, setStockFilter] = useState<StockFilter>('all');
   const [stockSort, setStockSort] = useState<StockSort>('sku');
   const [operation, setOperation] = useState<OperationDialogState | null>(null);
-  const [warehouseForm, setWarehouseForm] = useState<{ id?: string; name: string; type: Warehouse['type'] }>({ name: '', type: 'Store' });
+  const [warehouseForm, setWarehouseForm] = useState<WarehouseFormState>(
+    createEmptyWarehouseForm,
+  );
   const [savingWarehouse, setSavingWarehouse] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
-  const [scannerPurpose, setScannerPurpose] = useState<'navigation' | 'posting'>('navigation');
+  const [scannerPurpose, setScannerPurpose] = useState<'navigation' | 'posting' | 'count-session'>('navigation');
   const [guideOpen, setGuideOpen] = useState(false);
   const [postingOpen, setPostingOpen] = useState(false);
   const [postingSelection, setPostingSelection] = useState<SkuPickerOption | null>(null);
+  const [countSessionOpen, setCountSessionOpen] = useState(false);
+  const [countSessionScannedSelection, setCountSessionScannedSelection] = useState<SkuPickerOption | null>(null);
   const [focusRequest, setFocusRequest] = useState<{ productSku: string; variantSuffix: string; nonce: number } | null>(null);
   const [reversalEvent, setReversalEvent] = useState<InventoryEvent | null>(null);
 
-  const availabilityQuery = useInventoryAvailability({ refetchOnMount: 'always' });
+  const availabilityQuery = useInventoryAvailability();
   const eventsQuery = useInventoryEvents(activeTab === 'overview' || activeTab === 'movements');
   const reconciliationQuery = useInventoryReconciliationStatus(isAdmin);
   const reconciliationIssuesQuery = useInventoryReconciliationIssues(isAdmin && activeTab === 'reconciliation');
@@ -516,6 +545,13 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
   const rows = availabilityQuery.data || [];
   const warehouses = warehousesQuery.data || [];
   const productsBySku = useMemo(() => new Map(products.map((product) => [product.sku, product])), [products]);
+  const countableIdentityCount = useMemo(
+    () => products.reduce(
+      (total, product) => total + Math.max(1, product.variants?.length || 0),
+      0,
+    ),
+    [products],
+  );
   const categories = useMemo(() => (
     Array.from(new Set(products.map((product) => product.category).filter(Boolean)))
       .sort((left, right) => left.localeCompare(right, 'el-GR', { sensitivity: 'base' }))
@@ -632,6 +668,9 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
     if (scannerPurpose === 'posting') {
       setPostingSelection(option);
       setPostingOpen(true);
+    } else if (scannerPurpose === 'count-session') {
+      setCountSessionScannedSelection(option);
+      setCountSessionOpen(true);
     } else {
       focusInventorySelection(option);
     }
@@ -643,12 +682,30 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
       showToast('Η ονομασία αποθήκης είναι υποχρεωτική.', 'error');
       return;
     }
+    if (!warehouseForm.category.trim()) {
+      showToast('Η κατηγορία ή ο υπεύθυνος της αποθήκης είναι υποχρεωτικός.', 'error');
+      return;
+    }
     setSavingWarehouse(true);
     try {
-      await inventoryRepository.saveWarehouse({ ...warehouseForm, name: warehouseForm.name.trim() });
-      await queryClient.invalidateQueries({ queryKey: warehouseKeys.all });
-      setWarehouseForm({ name: '', type: 'Store' });
-      showToast('Η αποθήκη αποθηκεύτηκε επιτυχώς.', 'success');
+      await inventoryRepository.saveWarehouse({
+        id: warehouseForm.id,
+        name: warehouseForm.name,
+        type: warehouseForm.type,
+        category: warehouseForm.category,
+        address: warehouseForm.address,
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: warehouseKeys.all }),
+        refreshInventory(),
+      ]);
+      setWarehouseForm(createEmptyWarehouseForm());
+      showToast(
+        warehouseForm.id
+          ? 'Τα στοιχεία της αποθήκης ενημερώθηκαν σε όλο το ERP.'
+          : 'Η νέα αποθήκη δημιουργήθηκε και είναι διαθέσιμη για απευθείας καταχώριση αποθέματος.',
+        'success',
+      );
     } catch (error: any) {
       showToast(error?.message || 'Η αποθήκη δεν αποθηκεύτηκε. Δεν πραγματοποιήθηκε καμία μεταβολή.', 'error');
     } finally {
@@ -666,7 +723,10 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
     if (!accepted) return;
     try {
       await inventoryRepository.deleteWarehouse(warehouse.id);
-      await queryClient.invalidateQueries({ queryKey: warehouseKeys.all });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: warehouseKeys.all }),
+        refreshInventory(),
+      ]);
       showToast('Η αποθήκη διαγράφηκε.', 'success');
     } catch (error: any) {
       showToast(error?.message || 'Η αποθήκη δεν διαγράφηκε. Ελέγξτε αν διαθέτει υπόλοιπα ή ιστορικό κινήσεων.', 'error');
@@ -881,8 +941,8 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
               <p className="mt-1 text-sm text-slate-600">Λειτουργική ανάλυση κύριου SKU → παραλλαγής → μεγέθους → αποθήκης, με άμεσες ενέργειες καταχώρισης και Ενδοδιακίνησης.</p>
             </div>
             {isAdmin && (
-              <button type="button" onClick={() => openPosting()} className={`${BTN_PRIMARY} shrink-0 justify-center`}>
-                <Plus size={17} aria-hidden="true" /> Καταχώριση Αποθέματος
+              <button type="button" onClick={() => setCountSessionOpen(true)} className={`${BTN_SECONDARY} shrink-0 justify-center`}>
+                <ClipboardCheck size={17} aria-hidden="true" /> Συνεδρία Απογραφής
               </button>
             )}
           </div>
@@ -1011,13 +1071,45 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
         <div className="grid gap-4 px-4 sm:px-0 lg:grid-cols-[1fr_22rem]">
           <div className={`${CARD} divide-y divide-slate-100 overflow-hidden`}>
             {warehouses.map((warehouse) => (
-              <article key={warehouse.id} className="flex items-center gap-3 p-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><Building2 size={18} /></div>
-                <div className="min-w-0 flex-1"><p className="font-black text-slate-900">{warehouse.name}</p><p className="text-xs text-slate-500">{getWarehouseTypeLabel(warehouse.type)}{warehouse.is_system ? ' · Αποθήκη συστήματος' : ''}</p></div>
-                {isAdmin && !warehouse.is_system && (
+              <article key={warehouse.id} className="flex items-start gap-3 p-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><Building2 size={18} aria-hidden="true" /></div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-black text-slate-900">{warehouse.name}</p>
+                    {warehouse.is_system && (
+                      <span className="rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-700">
+                        Προστατευμένη λειτουργία
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-sm font-bold text-slate-700">
+                    {warehouse.category || getDefaultWarehouseCategory(warehouse.type)}
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {getWarehouseTypeLabel(warehouse.type)}
+                    {warehouse.address ? ` · ${warehouse.address}` : ''}
+                  </p>
+                </div>
+                {isAdmin && (
                   <div className="flex gap-1">
-                    <button type="button" onClick={() => setWarehouseForm({ id: warehouse.id, name: warehouse.name, type: warehouse.type })} aria-label={`Επεξεργασία αποθήκης ${warehouse.name}`} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><PencilLine size={16} /></button>
-                    <button type="button" onClick={() => deleteWarehouse(warehouse)} aria-label={`Διαγραφή αποθήκης ${warehouse.name}`} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50"><Trash2 size={16} /></button>
+                    <button
+                      type="button"
+                      onClick={() => setWarehouseForm({
+                        id: warehouse.id,
+                        name: warehouse.name,
+                        type: warehouse.type,
+                        category: warehouse.category || getDefaultWarehouseCategory(warehouse.type),
+                        address: warehouse.address || '',
+                        isSystem: Boolean(warehouse.is_system),
+                      })}
+                      aria-label={`Επεξεργασία αποθήκης ${warehouse.name}`}
+                      className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                    >
+                      <PencilLine size={16} aria-hidden="true" />
+                    </button>
+                    {!warehouse.is_system && (
+                      <button type="button" onClick={() => deleteWarehouse(warehouse)} aria-label={`Διαγραφή αποθήκης ${warehouse.name}`} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50"><Trash2 size={16} aria-hidden="true" /></button>
+                    )}
                   </div>
                 )}
               </article>
@@ -1026,12 +1118,62 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
           {isAdmin && (
             <section className={`${CARD} h-fit p-5`} aria-labelledby="warehouse-form-title">
               <h2 id="warehouse-form-title" className="font-black text-slate-900">{warehouseForm.id ? 'Επεξεργασία αποθήκης' : 'Νέα αποθήκη'}</h2>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                Η ονομασία και η κατηγορία εμφανίζονται παντού στο ERP. Η λειτουργία συστήματος της προεπιλεγμένης Κεντρικής και του κύριου Δειγματολογίου παραμένει προστατευμένη.
+              </p>
               <div className="mt-4 space-y-4">
-                <label className="block text-sm font-bold text-slate-700">Ονομασία<input value={warehouseForm.name} onChange={(event) => setWarehouseForm((current) => ({ ...current, name: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:border-emerald-500" placeholder="π.χ. Υποκατάστημα Αθήνας" /></label>
-                <label className="block text-sm font-bold text-slate-700">Τύπος<select value={warehouseForm.type} onChange={(event) => setWarehouseForm((current) => ({ ...current, type: event.target.value as Warehouse['type'] }))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5">{warehouseTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+                <label className="block text-sm font-bold text-slate-700">
+                  Ονομασία
+                  <input value={warehouseForm.name} onChange={(event) => setWarehouseForm((current) => ({ ...current, name: event.target.value }))} maxLength={120} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:border-emerald-500" placeholder="π.χ. Δειγματολόγιο Μαρίας" />
+                </label>
+                <label className="block text-sm font-bold text-slate-700">
+                  Κατηγορία / υπεύθυνος
+                  <input value={warehouseForm.category} onChange={(event) => setWarehouseForm((current) => ({ ...current, category: event.target.value }))} maxLength={80} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:border-emerald-500" placeholder="π.χ. Δειγματολόγιο κύριου πλασιέ" />
+                </label>
+                {warehouseForm.isSystem ? (
+                  <div>
+                    <p className="text-sm font-bold text-slate-700">Λειτουργία αποθέματος</p>
+                    <div className="mt-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2.5 text-sm font-bold text-blue-900">
+                      {getWarehouseTypeLabel(warehouseForm.type)}
+                    </div>
+                    <p className="mt-1.5 text-xs leading-5 text-slate-500">
+                      Η λειτουργία παραμένει σταθερή ώστε η Κεντρική να είναι πάντα η προεπιλεγμένη αποθήκη και το κύριο Δειγματολόγιο να μην καταναλώνεται αυτόματα.
+                    </p>
+                  </div>
+                ) : (
+                  <label className="block text-sm font-bold text-slate-700">
+                    Λειτουργία αποθέματος
+                    <select
+                      value={warehouseForm.type}
+                      onChange={(event) => {
+                        const nextType = event.target.value as Warehouse['type'];
+                        setWarehouseForm((current) => ({
+                          ...current,
+                          type: nextType,
+                          category: (
+                            !current.category.trim()
+                            || current.category === getDefaultWarehouseCategory(current.type)
+                          )
+                            ? getDefaultWarehouseCategory(nextType)
+                            : current.category,
+                        }));
+                      }}
+                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5"
+                    >
+                      {warehouseTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                    <span className="mt-1.5 block text-xs font-normal leading-5 text-slate-500">
+                      Επιλέξτε «Δειγματολόγιο» για κάθε ξεχωριστό σετ που διατηρεί ένας πλασιέ.
+                    </span>
+                  </label>
+                )}
+                <label className="block text-sm font-bold text-slate-700">
+                  Τοποθεσία / σημείωση
+                  <input value={warehouseForm.address} onChange={(event) => setWarehouseForm((current) => ({ ...current, address: event.target.value }))} maxLength={250} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:border-emerald-500" placeholder="π.χ. Πλασιέ Μαρία · Βαλίτσα 1" />
+                </label>
                 <div className="flex gap-2">
-                  {warehouseForm.id && <button type="button" onClick={() => setWarehouseForm({ name: '', type: 'Store' })} className={`${BTN_SECONDARY} flex-1 justify-center`}>Ακύρωση</button>}
-                  <button type="button" onClick={saveWarehouse} disabled={savingWarehouse} className={`${BTN_PRIMARY} flex-1 justify-center disabled:opacity-50`}>{savingWarehouse ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}{warehouseForm.id ? 'Αποθήκευση' : 'Προσθήκη'}</button>
+                  {warehouseForm.id && <button type="button" onClick={() => setWarehouseForm(createEmptyWarehouseForm())} className={`${BTN_SECONDARY} flex-1 justify-center`}>Ακύρωση</button>}
+                  <button type="button" onClick={saveWarehouse} disabled={savingWarehouse || !warehouseForm.name.trim() || !warehouseForm.category.trim()} className={`${BTN_PRIMARY} flex-1 justify-center disabled:opacity-50`}>{savingWarehouse ? <Loader2 size={16} className="animate-spin" /> : warehouseForm.id ? <PencilLine size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}{warehouseForm.id ? 'Αποθήκευση αλλαγών' : 'Προσθήκη αποθήκης'}</button>
                 </div>
               </div>
             </section>
@@ -1084,6 +1226,7 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
           onClose={() => {
             setScannerOpen(false);
             if (scannerPurpose === 'posting') setPostingOpen(true);
+            if (scannerPurpose === 'count-session') setCountSessionOpen(true);
           }}
         />
       )}
@@ -1100,11 +1243,58 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
             setPostingOpen(false);
             setScannerOpen(true);
           }}
-          onSaved={refreshInventory}
+          onPosted={async (result) => {
+            applyInventoryPostingBalances(queryClient, result.balances, warehouses);
+            await refreshInventoryAuditQueries(queryClient);
+          }}
           onPrepareNext={() => setPostingSelection(null)}
           onClose={() => {
             setPostingOpen(false);
             setPostingSelection(null);
+          }}
+        />
+      )}
+      {countSessionOpen && isAdmin && (
+        <InventoryCountSessionDialog
+          products={products}
+          warehouses={warehouses}
+          availability={navigationRows}
+          profileId={profile?.id}
+          expectedIdentityCount={countableIdentityCount}
+          scannedSelection={countSessionScannedSelection}
+          onRequestScan={() => {
+            setScannerPurpose('count-session');
+            setCountSessionOpen(false);
+            setScannerOpen(true);
+          }}
+          onConsumeScannedSelection={() => setCountSessionScannedSelection(null)}
+          onStart={({ clientSessionId, title, reason, warehouseId }) => (
+            inventoryRepository.startInventoryCountSession({
+              name: title,
+              reason,
+              warehouseIds: [warehouseId],
+              idempotencyKey: clientSessionId,
+            })
+          )}
+          onPostBatch={(sessionId, batch) => inventoryRepository.postInventoryCountBatch({
+            sessionId,
+            lines: batch.input.lines,
+            idempotencyKey: batch.input.idempotencyKey || `inventory-count:${sessionId}:${crypto.randomUUID()}`,
+          })}
+          onApplyBalances={async (balances) => {
+            applyInventoryPostingBalances(queryClient, balances, warehouses);
+            await refreshInventoryAuditQueries(queryClient);
+          }}
+          onComplete={async (session) => {
+            await inventoryRepository.completeInventoryCountSession({
+              sessionId: session.sessionId,
+              idempotencyKey: `inventory-count-complete:${session.sessionId}`,
+            });
+            await refreshInventory();
+          }}
+          onClose={() => {
+            setCountSessionOpen(false);
+            setCountSessionScannedSelection(null);
           }}
         />
       )}
