@@ -1,12 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useDeferredValue, useMemo, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
-  ArrowLeftRight,
+  BookOpen,
   Boxes,
   Building2,
   CheckCircle,
-  ChevronRight,
   ClipboardList,
   History,
   Loader2,
@@ -15,7 +14,6 @@ import {
   Plus,
   Search,
   ScanBarcode,
-  Settings2,
   Trash2,
   TrendingUp,
   Warehouse as WarehouseIcon,
@@ -26,9 +24,12 @@ import type { Product, Warehouse } from '../../types';
 import type { InventoryAvailability, InventoryReconciliationIssue } from '../../features/inventory';
 import {
   calculateInventoryTotals,
+  ensureCatalogInventoryAvailability,
   formatInventoryDateTime,
   formatInventoryInteger,
   formatInventoryQuantity,
+  groupInventoryAvailability,
+  matchesInventoryAvailabilitySearch,
   getInventoryOperationLabel,
   getWarehouseTypeLabel,
   getReconciliationIssueLabel,
@@ -54,9 +55,12 @@ import {
 import { useEscapeToClose } from '../../hooks/useEscapeToClose';
 import BarcodeScanner from '../BarcodeScanner';
 import { findProductByScannedCode } from '../../utils/pricingEngine';
+import InventoryStockExplorer, { type InventoryQuickOperation } from './InventoryStockExplorer';
+import InventoryGuideDialog from './InventoryGuideDialog';
 
 type InventoryTab = 'overview' | 'stock' | 'movements' | 'warehouses' | 'reconciliation';
 type StockFilter = 'all' | 'low' | 'unavailable';
+type StockSort = 'sku' | 'available-asc' | 'available-desc' | 'low-stock';
 
 interface InventoryWorkspaceProps {
   products?: Product[];
@@ -65,7 +69,7 @@ interface InventoryWorkspaceProps {
 }
 
 interface OperationDialogState {
-  kind: 'adjustment' | 'transfer' | 'reorder';
+  kind: InventoryQuickOperation;
   row: InventoryAvailability;
 }
 
@@ -81,12 +85,6 @@ const warehouseTypeOptions: Array<{ value: Warehouse['type']; label: string }> =
   { value: 'Store', label: 'Κατάστημα' },
   { value: 'Other', label: 'Λοιπή Αποθήκη' },
 ];
-
-function quantityTone(value: number, reorderPoint: number): string {
-  if (value <= 0) return 'text-rose-700 bg-rose-50 border-rose-100';
-  if (value <= reorderPoint) return 'text-amber-700 bg-amber-50 border-amber-100';
-  return 'text-emerald-700 bg-emerald-50 border-emerald-100';
-}
 
 function InventoryMetric({ label, value, icon: Icon, tone }: { label: string; value: number; icon: React.ElementType; tone: string }) {
   return (
@@ -135,6 +133,10 @@ function OperationDialog({
   const save = async () => {
     if ((state.kind === 'adjustment' || state.kind === 'transfer') && !reason.trim()) {
       showToast('Η αιτιολογία είναι υποχρεωτική για την πλήρη ιχνηλασιμότητα της κίνησης.', 'error');
+      return;
+    }
+    if (state.kind === 'transfer' && (quantity <= 0 || quantity > state.row.available)) {
+      showToast(`Η ποσότητα ενδοδιακίνησης πρέπει να είναι από 1 έως ${formatInventoryQuantity(state.row.available)}. Δεν πραγματοποιήθηκε καμία μεταβολή.`, 'error');
       return;
     }
     setSaving(true);
@@ -222,6 +224,15 @@ function OperationDialog({
               onChange={(event) => setQuantity(Math.max(0, Number(event.target.value) || 0))}
               className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-lg font-black outline-none focus:border-emerald-500"
             />
+            {state.kind === 'transfer' && state.row.available > 0 && (
+              <button
+                type="button"
+                onClick={() => setQuantity(state.row.available)}
+                className="mt-2 text-xs font-bold text-emerald-700 hover:text-emerald-800"
+              >
+                Επιλογή όλου του διαθέσιμου αποθέματος ({formatInventoryQuantity(state.row.available)})
+              </button>
+            )}
           </label>
           {state.kind !== 'reorder' && (
             <label className="block text-sm font-bold text-slate-700">
@@ -238,6 +249,16 @@ function OperationDialog({
           {state.kind === 'adjustment' && !isAdmin && (
             <p className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-sm font-semibold text-amber-800">
               Η διόρθωση φυσικού αποθέματος επιτρέπεται μόνο σε διαχειριστή.
+            </p>
+          )}
+          {state.kind === 'adjustment' && isAdmin && (
+            <p className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
+              Το Φυσικό Απόθεμα θα αλλάξει από {formatInventoryQuantity(state.row.onHand)} σε {formatInventoryQuantity(quantity)}. Η μεταβολή θα καταγραφεί στο Ιστορικό Κινήσεων.
+            </p>
+          )}
+          {state.kind === 'transfer' && (
+            <p className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
+              Θα μετακινηθούν {formatInventoryQuantity(quantity)} από «{state.row.warehouseName}». Η εξαγωγή και η εισαγωγή θα καταχωριστούν μαζί.
             </p>
           )}
         </div>
@@ -343,12 +364,16 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
   const canOperate = profile?.role === 'admin' || profile?.role === 'user';
   const [activeTab, setActiveTab] = useState<InventoryTab>('overview');
   const [search, setSearch] = useState('');
+  const deferredSearch = useDeferredValue(search);
   const [warehouseFilter, setWarehouseFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [stockFilter, setStockFilter] = useState<StockFilter>('all');
+  const [stockSort, setStockSort] = useState<StockSort>('sku');
   const [operation, setOperation] = useState<OperationDialogState | null>(null);
   const [warehouseForm, setWarehouseForm] = useState<{ id?: string; name: string; type: Warehouse['type'] }>({ name: '', type: 'Store' });
   const [savingWarehouse, setSavingWarehouse] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const availabilityQuery = useInventoryAvailability();
   const eventsQuery = useInventoryEvents(activeTab === 'movements');
@@ -358,20 +383,56 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
   const rows = availabilityQuery.data || [];
   const warehouses = warehousesQuery.data || [];
   const productsBySku = useMemo(() => new Map(products.map((product) => [product.sku, product])), [products]);
+  const categories = useMemo(() => (
+    Array.from(new Set(products.map((product) => product.category).filter(Boolean)))
+      .sort((left, right) => left.localeCompare(right, 'el-GR', { sensitivity: 'base' }))
+  ), [products]);
   const totals = useMemo(() => calculateInventoryTotals(rows), [rows]);
+  const defaultWarehouse = useMemo(
+    () => warehouses.find((warehouse) => warehouse.type === 'Central') || warehouses[0],
+    [warehouses],
+  );
+  const navigationRows = useMemo(
+    () => ensureCatalogInventoryAvailability(rows, products, defaultWarehouse),
+    [rows, products, defaultWarehouse],
+  );
 
   const filteredRows = useMemo(() => {
-    const normalizedSearch = search.trim().toLocaleLowerCase('el-GR');
-    return rows.filter((row) => {
+    return navigationRows.filter((row) => {
       const product = productsBySku.get(row.productSku);
       if (warehouseFilter !== 'all' && row.warehouseId !== warehouseFilter) return false;
-      if (stockFilter === 'low' && row.available > row.reorderPoint) return false;
+      if (categoryFilter !== 'all' && product?.category !== categoryFilter) return false;
+      if (stockFilter === 'low' && !(row.reorderPoint > 0 && row.available <= row.reorderPoint)) return false;
       if (stockFilter === 'unavailable' && row.available > 0) return false;
-      if (!normalizedSearch) return true;
-      return [row.productSku, row.variantSuffix, row.sizeInfo, row.warehouseName, product?.description, product?.category]
-        .some((value) => String(value || '').toLocaleLowerCase('el-GR').includes(normalizedSearch));
+      return matchesInventoryAvailabilitySearch(row, deferredSearch, [product?.description, product?.category]);
     });
-  }, [rows, productsBySku, warehouseFilter, stockFilter, search]);
+  }, [navigationRows, productsBySku, warehouseFilter, categoryFilter, stockFilter, deferredSearch]);
+
+  const groupedRows = useMemo(() => {
+    const groups = groupInventoryAvailability(filteredRows);
+    if (stockSort === 'available-asc') {
+      return groups.sort((left, right) => left.totals.available - right.totals.available);
+    }
+    if (stockSort === 'available-desc') {
+      return groups.sort((left, right) => right.totals.available - left.totals.available);
+    }
+    if (stockSort === 'low-stock') {
+      return groups.sort((left, right) => {
+        const leftLow = left.rows.some((row) => row.reorderPoint > 0 && row.available <= row.reorderPoint);
+        const rightLow = right.rows.some((row) => row.reorderPoint > 0 && row.available <= row.reorderPoint);
+        if (leftLow !== rightLow) return leftLow ? -1 : 1;
+        return left.totals.available - right.totals.available;
+      });
+    }
+    return groups;
+  }, [filteredRows, stockSort]);
+  const hasActiveFilters = Boolean(
+    search.trim()
+    || warehouseFilter !== 'all'
+    || categoryFilter !== 'all'
+    || stockFilter !== 'all'
+    || stockSort !== 'sku',
+  );
 
   const refreshInventory = async () => {
     await Promise.all([
@@ -503,110 +564,68 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
           </div>
 
           <div className={`${CARD} mx-4 p-3 sm:mx-0`}>
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
               <label className={`${SEARCH_CONTAINER_LARGE} min-w-0 flex-1`}>
                 <Search size={17} className="ml-3 text-slate-400" aria-hidden />
                 <span className="sr-only">Αναζήτηση αποθέματος</span>
-                <input value={search} onChange={(event) => setSearch(event.target.value)} className={SEARCH_INPUT_LARGE} placeholder="Αναζήτηση με κωδικό, περιγραφή, μέγεθος ή αποθήκη..." />
+                <input value={search} onChange={(event) => setSearch(event.target.value)} className={SEARCH_INPUT_LARGE} placeholder="Κύριο SKU, παραλλαγή, περιγραφή, μέγεθος ή αποθήκη..." />
               </label>
-              <select value={warehouseFilter} onChange={(event) => setWarehouseFilter(event.target.value)} aria-label="Φίλτρο αποθήκης" className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-700">
-                <option value="all">Όλες οι αποθήκες</option>
-                {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
-              </select>
-              <select value={stockFilter} onChange={(event) => setStockFilter(event.target.value as StockFilter)} aria-label="Φίλτρο διαθεσιμότητας" className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-700">
-                <option value="all">Όλες οι καταστάσεις</option>
-                <option value="low">Στο ή κάτω από το όριο</option>
-                <option value="unavailable">Χωρίς διαθέσιμο απόθεμα</option>
-              </select>
-              <button type="button" onClick={() => setScannerOpen(true)} className={`${BTN_SECONDARY} justify-center`} aria-label="Σάρωση κωδικού είδους">
-                <ScanBarcode size={17} aria-hidden="true" /> Σάρωση
-              </button>
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                <select value={warehouseFilter} onChange={(event) => setWarehouseFilter(event.target.value)} aria-label="Φίλτρο αποθήκης" className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-700">
+                  <option value="all">Όλες οι αποθήκες</option>
+                  {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
+                </select>
+                <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} aria-label="Φίλτρο κατηγορίας προϊόντος" className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-700">
+                  <option value="all">Όλες οι κατηγορίες</option>
+                  {categories.map((category) => <option key={category} value={category}>{category}</option>)}
+                </select>
+                <select value={stockFilter} onChange={(event) => setStockFilter(event.target.value as StockFilter)} aria-label="Φίλτρο διαθεσιμότητας" className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-700">
+                  <option value="all">Όλες οι καταστάσεις</option>
+                  <option value="low">Στο ή κάτω από το όριο</option>
+                  <option value="unavailable">Χωρίς διαθέσιμο απόθεμα</option>
+                </select>
+                <select value={stockSort} onChange={(event) => setStockSort(event.target.value as StockSort)} aria-label="Ταξινόμηση κύριων κωδικών" className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-700">
+                  <option value="sku">SKU, αύξουσα σειρά</option>
+                  <option value="available-asc">Διαθέσιμο, χαμηλότερο πρώτα</option>
+                  <option value="available-desc">Διαθέσιμο, υψηλότερο πρώτα</option>
+                  <option value="low-stock">Χαμηλό απόθεμα πρώτα</option>
+                </select>
+                <button type="button" onClick={() => setScannerOpen(true)} className={`${BTN_SECONDARY} justify-center`} aria-label="Σάρωση κωδικού είδους">
+                  <ScanBarcode size={17} aria-hidden="true" /> Σάρωση
+                </button>
+                <button type="button" onClick={() => setGuideOpen(true)} className={`${BTN_SECONDARY} justify-center`} aria-label="Άνοιγμα οδηγού Αποθήκης και Αποθέματος">
+                  <BookOpen size={17} aria-hidden="true" /> Οδηγός
+                </button>
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearch('');
+                      setWarehouseFilter('all');
+                      setCategoryFilter('all');
+                      setStockFilter('all');
+                      setStockSort('sku');
+                    }}
+                    className={`${BTN_SECONDARY} justify-center text-rose-700`}
+                    aria-label="Καθαρισμός αναζήτησης, φίλτρων και ταξινόμησης"
+                  >
+                    <X size={17} aria-hidden="true" /> Καθαρισμός
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
-          <div className={`${CARD} mx-4 overflow-hidden sm:mx-0`}>
-            {filteredRows.length === 0 ? (
-              <div className="p-10 text-center text-slate-500">
-                <Package className="mx-auto mb-3 text-slate-300" size={32} />
-                <p className="font-bold">Δεν βρέθηκαν υπόλοιπα με τα επιλεγμένα κριτήρια.</p>
-              </div>
-            ) : compact ? (
-              <div className="divide-y divide-slate-100">
-                {filteredRows.map((row) => {
-                  const product = productsBySku.get(row.productSku);
-                  return (
-                    <article key={`${row.productSku}:${row.variantSuffix}:${row.sizeInfo}:${row.warehouseId}`} className="p-4">
-                      <button type="button" onClick={() => product && onProductSelect?.(product)} className="flex w-full items-start gap-3 text-left">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100">
-                          {product?.image_url ? <img src={product.image_url} alt={`Προϊόν ${row.productSku}`} className="h-full w-full object-cover" /> : <Package size={20} className="text-slate-400" />}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="font-black text-slate-900">{row.productSku}{row.variantSuffix}</p>
-                              <p className="mt-0.5 text-xs text-slate-500">{row.warehouseName}{row.sizeInfo ? ` · Μέγεθος ${row.sizeInfo}` : ''}</p>
-                            </div>
-                            {onProductSelect && <ChevronRight size={18} className="text-slate-300" />}
-                          </div>
-                          <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
-                            <div className="rounded-lg bg-slate-50 p-2"><span className="block text-slate-400">Φυσικό</span><strong>{row.onHand}</strong></div>
-                            <div className="rounded-lg bg-indigo-50 p-2 text-indigo-700"><span className="block text-indigo-400">Δεσμευμένο</span><strong>{row.reserved}</strong></div>
-                            <div className={`rounded-lg border p-2 ${quantityTone(row.available, row.reorderPoint)}`}><span className="block opacity-70">Διαθέσιμο</span><strong>{row.available}</strong></div>
-                          </div>
-                        </div>
-                      </button>
-                      {canOperate && (
-                        <div className="mt-3 flex gap-2">
-                          {isAdmin && <button type="button" onClick={() => setOperation({ kind: 'adjustment', row })} className={`${BTN_SECONDARY} flex-1 justify-center px-3 py-2 text-xs`}><PencilLine size={14} /> Διόρθωση</button>}
-                          <button type="button" onClick={() => setOperation({ kind: 'transfer', row })} disabled={row.available <= 0} className={`${BTN_SECONDARY} flex-1 justify-center px-3 py-2 text-xs disabled:opacity-40`}><ArrowLeftRight size={14} /> Ενδοδιακίνηση</button>
-                        </div>
-                      )}
-                    </article>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="border-b border-slate-100 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="px-4 py-3">Είδος</th>
-                      <th className="px-4 py-3">Αποθήκη</th>
-                      <th className="px-4 py-3 text-right">{INVENTORY_TERMS.onHand}</th>
-                      <th className="px-4 py-3 text-right">{INVENTORY_TERMS.reserved}</th>
-                      <th className="px-4 py-3 text-right">{INVENTORY_TERMS.available}</th>
-                      <th className="px-4 py-3 text-right">{INVENTORY_TERMS.incoming}</th>
-                      <th className="px-4 py-3 text-right">{INVENTORY_TERMS.outstandingDemand}</th>
-                      <th className="px-4 py-3 text-right">Ενέργειες</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredRows.map((row) => (
-                      <tr key={`${row.productSku}:${row.variantSuffix}:${row.sizeInfo}:${row.warehouseId}`} className="hover:bg-slate-50/70">
-                        <td className="px-4 py-3">
-                          <p className="font-black text-slate-900">{row.productSku}{row.variantSuffix}</p>
-                          <p className="text-xs text-slate-500">{row.sizeInfo ? `Μέγεθος ${row.sizeInfo}` : 'Χωρίς διάκριση μεγέθους'}</p>
-                        </td>
-                        <td className="px-4 py-3"><p className="font-bold text-slate-700">{row.warehouseName}</p><p className="text-xs text-slate-400">{getWarehouseTypeLabel(row.warehouseType)}</p></td>
-                        <td className="px-4 py-3 text-right font-bold">{formatInventoryInteger(row.onHand)}</td>
-                        <td className="px-4 py-3 text-right font-bold text-indigo-700">{formatInventoryInteger(row.reserved)}</td>
-                        <td className="px-4 py-3 text-right"><span className={`inline-flex min-w-10 justify-center rounded-lg border px-2 py-1 font-black ${quantityTone(row.available, row.reorderPoint)}`}>{formatInventoryInteger(row.available)}</span></td>
-                        <td className="px-4 py-3 text-right font-bold text-blue-700">{formatInventoryInteger(row.incoming)}</td>
-                        <td className="px-4 py-3 text-right font-bold text-amber-700">{formatInventoryInteger(row.outstandingDemand)}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex justify-end gap-1">
-                            {isAdmin && <button type="button" title={INVENTORY_TERMS.adjustment} aria-label={`${INVENTORY_TERMS.adjustment} για ${row.productSku}${row.variantSuffix}`} onClick={() => setOperation({ kind: 'adjustment', row })} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900"><PencilLine size={16} /></button>}
-                            {canOperate && <button type="button" title={INVENTORY_TERMS.transfer} aria-label={`${INVENTORY_TERMS.transfer} για ${row.productSku}${row.variantSuffix}`} disabled={row.available <= 0} onClick={() => setOperation({ kind: 'transfer', row })} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30"><ArrowLeftRight size={16} /></button>}
-                            {isAdmin && <button type="button" title={INVENTORY_TERMS.reorderPoint} aria-label={`${INVENTORY_TERMS.reorderPoint} για ${row.productSku}${row.variantSuffix}`} onClick={() => setOperation({ kind: 'reorder', row })} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900"><Settings2 size={16} /></button>}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          <InventoryStockExplorer
+            groups={groupedRows}
+            productsBySku={productsBySku}
+            compact={compact}
+            isAdmin={isAdmin}
+            canOperate={canOperate}
+            searchTerm={deferredSearch}
+            onOperation={(kind, row) => setOperation({ kind, row })}
+            onProductSelect={onProductSelect}
+          />
         </>
       )}
 
@@ -703,6 +722,7 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
           onClose={() => setScannerOpen(false)}
         />
       )}
+      {guideOpen && <InventoryGuideDialog isAdmin={isAdmin} canOperate={canOperate} onClose={() => setGuideOpen(false)} />}
     </div>
   );
 }
