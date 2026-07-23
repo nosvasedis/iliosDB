@@ -9,6 +9,7 @@ const source = [
   '../../components/inventory/InventoryPostingDialog.tsx',
   '../../components/inventory/InventoryAvailabilityNote.tsx',
   '../../components/suppliers/SupplierReceiptModal.tsx',
+  '../../components/mobile/MobileProductDetails.tsx',
   '../../components/mobile/MobileDashboard.tsx',
   '../../components/employee/EmployeeRegistry.tsx',
   '../../components/mobile/MobileRegistry.tsx',
@@ -45,5 +46,11 @@ describe('Greek inventory UI language contract', () => {
     expect(source).toContain('Δεν πραγματοποιήθηκε καμία μεταβολή');
     expect(source).not.toContain('No results');
     expect(source).not.toContain('Add warehouse');
+  });
+
+  it('keeps mobile stock feedback canonical and operationally explicit', () => {
+    expect(source).toContain('Επιβεβαίωση υπολοίπου...');
+    expect(source).toContain('Το απόθεμα ενδέχεται να έχει μεταβληθεί');
+    expect(source).toContain('Δεν εμφανίζονται προσωρινά ποσότητες, ώστε να μην παρουσιαστούν παλιά στοιχεία');
   });
 });

@@ -2,6 +2,9 @@ import type { QueryClient } from '@tanstack/react-query';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { orderKeys } from '../features/orders/keys';
 import { productionKeys } from '../features/production/keys';
+import { normalizeInventorySizeInfo } from '../features/inventory/posting';
+import { applyInventoryAvailabilityToProducts } from '../features/inventory/productProjection';
+import type { InventoryAvailability } from '../features/inventory/types';
 import type { BatchStageHistoryEntry, Order, Product, ProductionBatch } from '../types';
 import { isProductGraphRealtimeTable } from './queryInvalidation';
 
@@ -130,6 +133,90 @@ function toOrderListRow(row: Order): Order {
     };
 }
 
+function projectCanonicalAvailabilityIntoProductCaches(queryClient: QueryClient): boolean {
+    const availability = queryClient.getQueryData<InventoryAvailability[]>(['inventory', 'availability']);
+    if (!availability) return false;
+    let patched = false;
+
+    queryClient.setQueryData<Product[]>(['products'], (products) => {
+        if (!products) return products;
+        patched = true;
+        return applyInventoryAvailabilityToProducts(products, availability);
+    });
+
+    queryClient.setQueryData<{
+        pages?: Array<{ products?: Product[]; hasMore?: boolean }>;
+        pageParams?: unknown[];
+    }>(['productsCatalog'], (catalog) => {
+        if (!catalog?.pages) return catalog;
+        patched = true;
+        return {
+            ...catalog,
+            pages: catalog.pages.map((page) => ({
+                ...page,
+                products: page.products
+                    ? applyInventoryAvailabilityToProducts(page.products, availability)
+                    : page.products,
+            })),
+        };
+    });
+    return patched;
+}
+
+function patchInventoryAvailabilityFromBalance(
+    queryClient: QueryClient,
+    payload: RealtimeRowPayload,
+): boolean {
+    const cached = queryClient.getQueryData<InventoryAvailability[]>(['inventory', 'availability']);
+    if (!cached) return false;
+
+    const rawRow = (payload.eventType === 'DELETE' ? payload.old : payload.new) as {
+        product_sku?: string;
+        variant_suffix?: string | null;
+        size_info?: string | null;
+        warehouse_id?: string;
+        on_hand?: number | string;
+        reserved?: number | string;
+        updated_at?: string;
+    } | undefined;
+    if (!rawRow?.product_sku || !rawRow.warehouse_id) return false;
+
+    const variantSuffix = rawRow.variant_suffix || '';
+    const sizeInfo = normalizeInventorySizeInfo(rawRow.size_info || '');
+    const matchesIdentity = (row: InventoryAvailability) => (
+        row.productSku === rawRow.product_sku
+        && row.variantSuffix === variantSuffix
+        && row.sizeInfo === sizeInfo
+        && row.warehouseId === rawRow.warehouse_id
+    );
+    const index = cached.findIndex(matchesIdentity);
+
+    if (payload.eventType === 'DELETE') {
+        if (index < 0) return false;
+        queryClient.setQueryData(
+            ['inventory', 'availability'],
+            cached.filter((_, rowIndex) => rowIndex !== index),
+        );
+        return true;
+    }
+    if (index < 0) return false;
+
+    const onHand = Number(rawRow.on_hand || 0);
+    const reserved = Number(rawRow.reserved || 0);
+    const current = cached[index];
+    const next = [...cached];
+    next[index] = {
+        ...current,
+        onHand,
+        reserved,
+        available: onHand - reserved,
+        projectedAvailable: onHand - reserved + current.incoming - current.outstandingDemand,
+        updatedAt: rawRow.updated_at || current.updatedAt,
+    };
+    queryClient.setQueryData(['inventory', 'availability'], next);
+    return true;
+}
+
 function mergeRealtimeOrderRow(existing: Order | undefined, row: Order): Order {
     if (!existing) return row;
     const merged = { ...existing, ...row };
@@ -168,6 +255,14 @@ function patchOrderArray(
 export function tryPatchRealtimeCache(queryClient: QueryClient, payload: RealtimeRowPayload): boolean {
     const table = payload.table;
     if (!table) return false;
+
+    if (table === 'inventory_balances') {
+        const availabilityPatched = patchInventoryAvailabilityFromBalance(queryClient, payload);
+        if (availabilityPatched) projectCanonicalAvailabilityIntoProductCaches(queryClient);
+        // The balance is patched immediately, while the normal invalidation still
+        // refreshes view-derived incoming, demand and policy fields.
+        return false;
+    }
 
     if (table === 'product_stock') {
         return patchProductsFromStockRow(queryClient, payload);

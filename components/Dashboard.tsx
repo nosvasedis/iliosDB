@@ -160,24 +160,22 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
   }
 
   const stats = useMemo(() => {
-    const totalStockQty = products.reduce((acc, p) => acc + p.stock_qty, 0);
-    
+    const productBySku = new Map(products.map(p => [p.sku, p]));
+    const physicalInventoryRows = inventoryAvailability.filter((row) => row.onHand > 0);
+    const totalStockQty = physicalInventoryRows.reduce((sum, row) => sum + row.onHand, 0);
     let totalCostValue = 0; 
     let totalPotentialRevenue = 0; 
     let totalSilverWeight = 0;
-    const productBySku = new Map(products.map(p => [p.sku, p]));
 
-    products.forEach(p => {
-        totalCostValue += (p.active_price * p.stock_qty);
-        totalSilverWeight += (p.weight_g * p.stock_qty);
-        if (!p.is_component) {
-            if (p.variants && p.variants.length > 0) {
-                const maxVarPrice = Math.max(...p.variants.map(v => v.selling_price || 0));
-                totalPotentialRevenue += (maxVarPrice > 0 ? maxVarPrice : p.selling_price) * p.stock_qty;
-            } else {
-                totalPotentialRevenue += p.selling_price * p.stock_qty;
-            }
-        }
+    physicalInventoryRows.forEach((row) => {
+      const product = productBySku.get(row.productSku);
+      if (!product) return;
+      const variant = product.variants?.find((candidate) => candidate.suffix === row.variantSuffix);
+      const cost = variant?.active_price ?? product.active_price;
+      const sellingPrice = variant?.selling_price ?? product.selling_price;
+      totalCostValue += cost * row.onHand;
+      totalSilverWeight += product.weight_g * row.onHand;
+      if (!product.is_component) totalPotentialRevenue += sellingPrice * row.onHand;
     });
 
     const potentialMargin = totalPotentialRevenue - totalCostValue;
@@ -222,25 +220,19 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
       });
     }
 
-    const stockValueBySku = products
-        .filter(p => !p.is_component)
-        .flatMap(p => {
-            if (p.variants && p.variants.length > 0) {
-                return p.variants.map(v => ({
-                    sku: p.sku + v.suffix,
-                    category: p.category,
-                    value: (v.active_price || p.active_price) * v.stock_qty,
-                    qty: v.stock_qty
-                }));
-            }
-            return [{
-                sku: p.sku,
-                category: p.category,
-                value: p.active_price * p.stock_qty,
-                qty: p.stock_qty
-            }];
-        })
-        .filter(i => i.value > 0)
+    const stockValueMap = new Map<string, { sku: string; category: string; value: number; qty: number }>();
+    physicalInventoryRows.forEach((row) => {
+      const product = productBySku.get(row.productSku);
+      if (!product || product.is_component) return;
+      const variant = product.variants?.find((candidate) => candidate.suffix === row.variantSuffix);
+      const sku = `${row.productSku}${row.variantSuffix}`;
+      const current = stockValueMap.get(sku) || { sku, category: product.category, value: 0, qty: 0 };
+      current.value += (variant?.active_price ?? product.active_price) * row.onHand;
+      current.qty += row.onHand;
+      stockValueMap.set(sku, current);
+    });
+    const stockValueBySku = Array.from(stockValueMap.values())
+        .filter(item => item.value > 0)
         .sort((a, b) => b.value - a.value)
         .slice(0, 5);
 
@@ -275,7 +267,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
         silverSold: financeStats?.totals.silverWeightKg ?? 0,
         stonesSold
     };
-  }, [products, orders, batches, financeStats]);
+  }, [products, orders, batches, financeStats, inventoryAvailability]);
 
   const categoryData = useMemo(() => {
       if (!financeStats) return [];

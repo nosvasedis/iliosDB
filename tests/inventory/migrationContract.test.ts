@@ -30,6 +30,14 @@ const smartPostingSql = readFileSync(
   'utf8',
 );
 
+const movementReversalSql = readFileSync(
+  new URL(
+    '../../supabase/migrations/20260723091008_inventory_event_reversal.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
 describe('transactional inventory migration contract', () => {
   it.each([
     'inventory_balances',
@@ -171,5 +179,19 @@ describe('transactional inventory migration contract', () => {
     expect(smartPostingSql).toContain("RETURN v_number_text || 'cm'");
     expect(smartPostingSql).not.toMatch(/UPDATE public\.inventory_balances[\s\S]*SET on_hand = 0/);
     expect(smartPostingSql).not.toContain('location_stock');
+  });
+
+  it('cancels eligible movements through immutable atomic reversal entries', () => {
+    expect(movementReversalSql).toContain('FUNCTION public.reverse_inventory_event_v1');
+    expect(movementReversalSql).toContain("private.assert_inventory_role(ARRAY['admin'])");
+    expect(movementReversalSql).toContain("'movement_reversal'");
+    expect(movementReversalSql).toContain('reversal_of');
+    expect(movementReversalSql).toContain('inventory-transfer-reversal:');
+    expect(movementReversalSql).toContain('FOR UPDATE OF balance');
+    expect(movementReversalSql).toContain('private.sync_legacy_inventory_projection(v_sku)');
+    expect(movementReversalSql).toContain(
+      'REVOKE ALL ON FUNCTION public.reverse_inventory_event_v1(uuid, text, text) FROM PUBLIC, anon;',
+    );
+    expect(movementReversalSql).not.toMatch(/DELETE\s+FROM\s+public\.inventory_events/i);
   });
 });

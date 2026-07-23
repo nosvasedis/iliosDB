@@ -35,7 +35,8 @@ export type InventoryOperationType =
   | 'shipment_issue'
   | 'shipment_reversal'
   | 'legacy_issue_reversal'
-  | 'opening_reconciliation';
+  | 'opening_reconciliation'
+  | 'movement_reversal';
 
 export interface InventoryEvent extends InventoryIdentity {
   id: string;
@@ -125,6 +126,18 @@ export interface InventoryTransferInput {
   idempotencyKey?: string;
 }
 
+export interface ReverseInventoryEventInput {
+  eventId: string;
+  reason: string;
+  idempotencyKey?: string;
+}
+
+export interface ReverseInventoryEventResult {
+  reversedEventIds: string[];
+  reversalEventIds: string[];
+  idempotent: boolean;
+}
+
 export interface InventoryReorderPolicyInput extends InventoryIdentity {
   reorderPoint: number;
   preferredSupplierId?: string | null;
@@ -193,5 +206,6 @@ export type InventoryMutationName =
   | 'supplier-receipt'
   | 'ship-order'
   | 'revert-shipment'
+  | 'reverse-movement'
   | 'offer-conversion'
   | 'reorder-policy';

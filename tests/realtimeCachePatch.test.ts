@@ -6,6 +6,69 @@ import { tryPatchRealtimeCache } from '../lib/realtimeCachePatch';
 import { OrderStatus, ProductionStage } from '../types';
 
 describe('realtime cache patching', () => {
+  it('patches a visible canonical inventory balance immediately and still schedules a view refresh', () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(['products'], [{
+      sku: 'KL201',
+      stock_qty: 0,
+      sample_qty: 0,
+      variants: [{ suffix: 'X', stock_qty: 0 }],
+    }]);
+    queryClient.setQueryData(['inventory', 'availability'], [{
+      productSku: 'KL201',
+      variantSuffix: 'X',
+      sizeInfo: '',
+      warehouseId: 'central',
+      warehouseName: 'Κεντρική Αποθήκη',
+      warehouseType: 'Central',
+      onHand: 0,
+      reserved: 0,
+      available: 0,
+      incoming: 0,
+      outstandingDemand: 0,
+      productionDemand: 0,
+      purchaseDemand: 0,
+      projectedAvailable: 0,
+      reorderPoint: 0,
+      preferredSupplierId: null,
+      updatedAt: '2026-07-23T08:00:00.000Z',
+    }]);
+
+    const fullyHandled = tryPatchRealtimeCache(queryClient, {
+      table: 'inventory_balances',
+      eventType: 'UPDATE',
+      new: {
+        product_sku: 'KL201',
+        variant_suffix: 'X',
+        size_info: '',
+        warehouse_id: 'central',
+        on_hand: 2,
+        reserved: 0,
+        updated_at: '2026-07-23T08:27:06.000Z',
+      },
+      old: {},
+      schema: 'public',
+      commit_timestamp: '2026-07-23T08:27:06.000Z',
+      errors: null,
+    } as any);
+
+    expect(fullyHandled).toBe(false);
+    expect(queryClient.getQueryData<any[]>(['inventory', 'availability'])?.[0]).toEqual(
+      expect.objectContaining({
+        productSku: 'KL201',
+        variantSuffix: 'X',
+        onHand: 2,
+        available: 2,
+        projectedAvailable: 2,
+        updatedAt: '2026-07-23T08:27:06.000Z',
+      }),
+    );
+    expect(queryClient.getQueryData<any[]>(['products'])?.[0].stock_qty).toBe(0);
+    expect(queryClient.getQueryData<any[]>(['products'])?.[0].variants[0]).toEqual(
+      expect.objectContaining({ stock_qty: 2, available_qty: 2 }),
+    );
+  });
+
   it('keeps optimized order list rows summary-only while patching full order caches', () => {
     const queryClient = new QueryClient();
     const order = {

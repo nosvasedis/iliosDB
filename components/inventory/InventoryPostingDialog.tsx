@@ -42,7 +42,7 @@ interface InventoryPostingDialogProps {
   profileId?: string;
   initialSelection?: SkuPickerOption | null;
   onRequestScan: () => void;
-  onSaved: () => Promise<void>;
+  onSaved: () => Promise<InventoryAvailability[]>;
   onPrepareNext: () => void;
   onClose: () => void;
 }
@@ -224,6 +224,7 @@ export default function InventoryPostingDialog({
     }
 
     setSaving(true);
+    let mutationCommitted = false;
     try {
       const result = await inventoryRepository.postInventoryEntries({
         mode,
@@ -231,7 +232,24 @@ export default function InventoryPostingDialog({
         reason: reason.trim(),
         idempotencyKey: `inventory-posting:${crypto.randomUUID()}`,
       });
-      await onSaved();
+      mutationCommitted = true;
+      const confirmedRows = await onSaved();
+      const allLinesConfirmed = preview.lines.every((line) => {
+        const confirmed = confirmedRows.find((row) => (
+          row.productSku === line.productSku
+          && row.variantSuffix === line.variantSuffix
+          && row.sizeInfo === normalizeInventorySizeInfo(line.sizeInfo)
+          && row.warehouseId === line.warehouseId
+        ));
+        const current = currentFor(line.warehouseId, line.sizeInfo);
+        const expectedOnHand = mode === 'count'
+          ? line.quantity
+          : Number(current?.onHand || 0) + line.quantity;
+        return confirmed?.onHand === expectedOnHand;
+      });
+      if (!allLinesConfirmed) {
+        throw new Error('Η ανανεωμένη ποσότητα δεν επιβεβαιώθηκε από το κανονικό υπόλοιπο.');
+      }
       const zeroMessage = result.countedZeroCount > 0
         ? ` Περιλαμβάνονται ${formatInventoryInteger(result.countedZeroCount)} ρητές μηδενικές μετρήσεις.`
         : '';
@@ -255,7 +273,9 @@ export default function InventoryPostingDialog({
       }
     } catch (error) {
       showToast(
-        error instanceof Error
+        mutationCommitted
+          ? 'Η καταχώριση ολοκληρώθηκε στη βάση, αλλά η ανανεωμένη ποσότητα δεν επιβεβαιώθηκε στην οθόνη. Το απόθεμα ενδέχεται να έχει μεταβληθεί· πατήστε «Ανανέωση» πριν επαναλάβετε την καταχώριση.'
+          : error instanceof Error
           ? error.message
           : 'Η καταχώριση αποθέματος δεν ολοκληρώθηκε. Δεν πραγματοποιήθηκε καμία μεταβολή.',
         'error',

@@ -15,7 +15,15 @@ import { APP_LOGO, APP_ICON_ONLY } from '../../constants';
 import { getVariantIndexBySuffix } from '../../features/products/productDetailsViewModels';
 import SkuColorizedText from '../SkuColorizedText';
 import { getSkuFinishBadgeSurface, getSkuFinishCardTheme } from '../../utils/skuColoring';
-import { inventoryRepository } from '../../features/inventory';
+import {
+  inventoryRepository,
+  summarizeInventorySelectionByWarehouse,
+  type InventoryAvailability,
+} from '../../features/inventory';
+import {
+  refreshInventoryAvailability,
+  useInventoryAvailability,
+} from '../../hooks/api/useInventory';
 import { useAuth } from '../AuthContext';
 
 interface Props {
@@ -78,9 +86,11 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
   const { data: materials } = useQuery({ queryKey: ['materials'], queryFn: api.getMaterials });
   const { data: allProducts } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
   const { data: molds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
+  const availabilityQuery = useInventoryAvailability();
 
   const [transferModal, setTransferModal] = useState<{ sourceId: string; targetId: string; qty: number; reason: string } | null>(null);
   const [adjustModal, setAdjustModal] = useState<{ warehouseId: string; type: 'add' | 'set' | 'remove'; qty: number; reason: string } | null>(null);
+  const [stockMutationPending, setStockMutationPending] = useState(false);
   
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [localImageUrl, setLocalImageUrl] = useState<string | null>(product.image_url);
@@ -149,6 +159,22 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
   const displayPrice = activeVariant ? (activeVariant.selling_price || 0) : (product.selling_price || 0);
   const displayLabel = activeVariant ? (activeVariant.description || '') : product.category;
   const displaySku = `${product.sku}${activeVariant?.suffix || ''}`;
+  const inventoryByWarehouse = useMemo(() => {
+      const summaries = summarizeInventorySelectionByWarehouse(
+          availabilityQuery.data || [],
+          product.sku,
+          activeVariant?.suffix || '',
+      );
+      return new Map(summaries.map((summary) => [summary.warehouseId, summary]));
+  }, [availabilityQuery.data, product.sku, activeVariant?.suffix]);
+
+  const stockForWarehouse = (warehouseId: string) => inventoryByWarehouse.get(warehouseId) || {
+      warehouseId,
+      warehouseName: warehouses.find((warehouse) => warehouse.id === warehouseId)?.name || '',
+      onHand: 0,
+      reserved: 0,
+      available: 0,
+  };
 
   const variantDetails = useMemo(() => getVariantComponents(activeVariant?.suffix || '', product.gender), [activeVariant, product.gender]);
   const activeBadgeSurface = getSkuFinishBadgeSurface(variantDetails.finish.code);
@@ -257,9 +283,20 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
 
   // ... (Adjust/Transfer Handlers remain the same)
   const handleAdjustStock = async () => {
-      if (!adjustModal) return;
+      if (!adjustModal || stockMutationPending) return;
       const { warehouseId, type, qty } = adjustModal;
       const finalQty = type === 'remove' ? -qty : qty;
+      const currentRow = (availabilityQuery.data || []).find((row) => (
+          row.productSku === product.sku
+          && row.variantSuffix === (activeVariant?.suffix || '')
+          && row.sizeInfo === ''
+          && row.warehouseId === warehouseId
+      ));
+      const expectedOnHand = type === 'set'
+          ? qty
+          : Number(currentRow?.onHand || 0) + finalQty;
+      let mutationCommitted = false;
+      setStockMutationPending(true);
       try {
           await inventoryRepository.adjustStock({
               productSku: product.sku,
@@ -270,15 +307,45 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
               quantity: type === 'set' ? qty : finalQty,
               reason: adjustModal.reason,
           });
-          await invalidateProductsAndCatalog(queryClient);
-          showToast("Η διόρθωση αποθέματος καταχωρίστηκε.", "success"); setAdjustModal(null);
-      } catch (e: any) { showToast(e?.message || "Η διόρθωση δεν ολοκληρώθηκε. Δεν πραγματοποιήθηκε καμία μεταβολή.", "error"); }
+          mutationCommitted = true;
+          const confirmedRows = await refreshInventoryAvailability(queryClient);
+          const confirmedRow = confirmedRows.find((row) => (
+              row.productSku === product.sku
+              && row.variantSuffix === (activeVariant?.suffix || '')
+              && row.sizeInfo === ''
+              && row.warehouseId === warehouseId
+          ));
+          if (!confirmedRow || confirmedRow.onHand !== expectedOnHand) {
+              throw new Error('Η νέα ποσότητα δεν επιβεβαιώθηκε από το κανονικό υπόλοιπο.');
+          }
+          showToast("Η διόρθωση αποθέματος καταχωρίστηκε και το υπόλοιπο ενημερώθηκε.", "success");
+          setAdjustModal(null);
+      } catch (e: any) {
+          showToast(
+              mutationCommitted
+                  ? "Η καταχώριση ολοκληρώθηκε στη βάση, αλλά η ανανεωμένη ποσότητα δεν επιβεβαιώθηκε στην οθόνη. Το απόθεμα ενδέχεται να έχει μεταβληθεί· πατήστε «Ανανέωση» πριν επαναλάβετε την ενέργεια."
+                  : (e?.message || "Η διόρθωση δεν ολοκληρώθηκε. Δεν πραγματοποιήθηκε καμία μεταβολή."),
+              "error",
+          );
+      } finally {
+          setStockMutationPending(false);
+      }
   };
 
   const handleTransferStock = async () => {
-      if (!transferModal) return;
+      if (!transferModal || stockMutationPending) return;
       const { sourceId, targetId, qty } = transferModal;
       if (sourceId === targetId) return;
+      const identityMatches = (row: InventoryAvailability, warehouseId: string) => (
+          row.productSku === product.sku
+          && row.variantSuffix === (activeVariant?.suffix || '')
+          && row.sizeInfo === ''
+          && row.warehouseId === warehouseId
+      );
+      const sourceBefore = (availabilityQuery.data || []).find((row) => identityMatches(row, sourceId));
+      const targetBefore = (availabilityQuery.data || []).find((row) => identityMatches(row, targetId));
+      let mutationCommitted = false;
+      setStockMutationPending(true);
       try {
           await inventoryRepository.transferStock({
               productSku: product.sku,
@@ -289,11 +356,32 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
               quantity: qty,
               reason: transferModal.reason,
           });
-          await invalidateProductsAndCatalog(queryClient); showToast("Η ενδοδιακίνηση ολοκληρώθηκε.", "success"); setTransferModal(null);
-      } catch (e: any) { showToast(e?.message || "Η ενδοδιακίνηση δεν ολοκληρώθηκε. Δεν πραγματοποιήθηκε καμία μεταβολή.", "error"); }
+          mutationCommitted = true;
+          const confirmedRows = await refreshInventoryAvailability(queryClient);
+          const sourceAfter = confirmedRows.find((row) => identityMatches(row, sourceId));
+          const targetAfter = confirmedRows.find((row) => identityMatches(row, targetId));
+          const sourceConfirmed = sourceAfter?.onHand === Number(sourceBefore?.onHand || 0) - qty;
+          const targetConfirmed = targetAfter?.onHand === Number(targetBefore?.onHand || 0) + qty;
+          if (!sourceConfirmed || !targetConfirmed) {
+              throw new Error('Τα νέα υπόλοιπα της ενδοδιακίνησης δεν επιβεβαιώθηκαν.');
+          }
+          showToast("Η ενδοδιακίνηση ολοκληρώθηκε και τα υπόλοιπα ενημερώθηκαν.", "success");
+          setTransferModal(null);
+      } catch (e: any) {
+          showToast(
+              mutationCommitted
+                  ? "Η ενδοδιακίνηση ολοκληρώθηκε στη βάση, αλλά τα ανανεωμένα υπόλοιπα δεν επιβεβαιώθηκαν στην οθόνη. Πατήστε «Ανανέωση» πριν επαναλάβετε την ενέργεια."
+                  : (e?.message || "Η ενδοδιακίνηση δεν ολοκληρώθηκε. Δεν πραγματοποιήθηκε καμία μεταβολή."),
+              "error",
+          );
+      } finally {
+          setStockMutationPending(false);
+      }
   };
 
-  const renderStockRow = (whId: string, onHand: number, reserved: number, available: number, isSystem: boolean, label: string) => (
+  const renderStockRow = (whId: string, isSystem: boolean, label: string) => {
+      const { onHand, reserved, available } = stockForWarehouse(whId);
+      return (
       <div key={whId} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
           <div className="flex items-center gap-3">
               <div className={`p-2 rounded-xl ${isSystem ? (label.includes('Κεντρική') ? 'bg-slate-100 text-slate-600' : 'bg-purple-50 text-purple-600') : 'bg-blue-50 text-blue-600'}`}>
@@ -314,7 +402,8 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
               {isAdmin && <button aria-label={`Διόρθωση αποθέματος στην ${label}`} onClick={() => setAdjustModal({ warehouseId: whId, type: 'set', qty: onHand, reason: '' })} className="p-2.5 bg-slate-50 text-slate-600 rounded-xl border border-slate-200 active:scale-95 transition-transform"><Settings2 size={20}/></button>}
           </div>
       </div>
-  );
+      );
+  };
 
   return (
     <div className="fixed inset-0 z-[100] bg-slate-50 flex flex-col animate-in slide-in-from-bottom-full duration-300 overflow-hidden">
@@ -426,31 +515,40 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
 
           {activeTab === 'stock' && (
               <div className="space-y-3 animate-in fade-in slide-in-from-right-2">
-                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-2"><MapPin size={12}/> Διαχείριση Αποθέματος</h3>
-                  {renderStockRow(
-                      SYSTEM_IDS.CENTRAL,
-                      activeVariant ? activeVariant.stock_qty : product.stock_qty,
-                      activeVariant ? (activeVariant.reserved_qty || 0) : (product.reserved_qty || 0),
-                      activeVariant ? (activeVariant.available_qty ?? activeVariant.stock_qty) : (product.available_qty ?? product.stock_qty),
-                      true,
-                      'Κεντρική Αποθήκη',
+                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-2">
+                      <MapPin size={12}/> Διαχείριση Αποθέματος
+                      {availabilityQuery.isFetching && <Loader2 size={12} className="animate-spin" aria-label="Ανανέωση υπολοίπων"/>}
+                  </h3>
+                  {availabilityQuery.isLoading ? (
+                      <div className="rounded-2xl border border-slate-100 bg-white p-5 text-center text-sm font-bold text-slate-500" role="status">
+                          <Loader2 size={18} className="mx-auto mb-2 animate-spin" aria-hidden="true"/> Φόρτωση κανονικών υπολοίπων...
+                      </div>
+                  ) : availabilityQuery.isError ? (
+                      <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm text-rose-800" role="alert">
+                          <p className="font-bold">Τα υπόλοιπα αποθέματος δεν φορτώθηκαν. Δεν εμφανίζονται προσωρινά ποσότητες, ώστε να μην παρουσιαστούν παλιά στοιχεία.</p>
+                          <button type="button" onClick={() => availabilityQuery.refetch()} className="mt-3 rounded-xl bg-rose-700 px-4 py-2 font-bold text-white">
+                              Ανανέωση υπολοίπων
+                          </button>
+                      </div>
+                  ) : (
+                      <>
+                          {renderStockRow(
+                              SYSTEM_IDS.CENTRAL,
+                              true,
+                              warehouses.find((warehouse) => warehouse.id === SYSTEM_IDS.CENTRAL)?.name || 'Κεντρική Αποθήκη',
+                          )}
+                          {renderStockRow(
+                              SYSTEM_IDS.SHOWROOM,
+                              true,
+                              warehouses.find((warehouse) => warehouse.id === SYSTEM_IDS.SHOWROOM)?.name || 'Δειγματολόγιο',
+                          )}
+                          {warehouses.filter(w => !w.is_system).map(w => renderStockRow(
+                              w.id,
+                              false,
+                              w.name,
+                          ))}
+                      </>
                   )}
-                  {renderStockRow(
-                      SYSTEM_IDS.SHOWROOM,
-                      activeVariant ? (activeVariant.location_stock?.[SYSTEM_IDS.SHOWROOM] || 0) : product.sample_qty,
-                      activeVariant ? (activeVariant.location_reserved?.[SYSTEM_IDS.SHOWROOM] || 0) : (product.location_reserved?.[SYSTEM_IDS.SHOWROOM] || 0),
-                      activeVariant ? (activeVariant.location_available?.[SYSTEM_IDS.SHOWROOM] ?? activeVariant.location_stock?.[SYSTEM_IDS.SHOWROOM] ?? 0) : (product.location_available?.[SYSTEM_IDS.SHOWROOM] ?? product.sample_qty),
-                      true,
-                      'Εκθετήριο',
-                  )}
-                  {warehouses.filter(w => !w.is_system).map(w => renderStockRow(
-                      w.id,
-                      activeVariant ? (activeVariant.location_stock?.[w.id] || 0) : (product.location_stock?.[w.id] || 0),
-                      activeVariant ? (activeVariant.location_reserved?.[w.id] || 0) : (product.location_reserved?.[w.id] || 0),
-                      activeVariant ? (activeVariant.location_available?.[w.id] ?? activeVariant.location_stock?.[w.id] ?? 0) : (product.location_available?.[w.id] ?? product.location_stock?.[w.id] ?? 0),
-                      false,
-                      w.name,
-                  ))}
               </div>
           )}
 
@@ -668,12 +766,14 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
       {transferModal && (
           <div className="fixed inset-0 z-[160] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in zoom-in-95">
               <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4">
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-100"><h3 className="font-black text-lg text-slate-800">Ενδοδιακίνηση</h3><button aria-label="Κλείσιμο" onClick={() => setTransferModal(null)}><X size={20} className="text-slate-400"/></button></div>
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-100"><h3 className="font-black text-lg text-slate-800">Ενδοδιακίνηση</h3><button aria-label="Κλείσιμο" onClick={() => { if (!stockMutationPending) setTransferModal(null); }} disabled={stockMutationPending}><X size={20} className="text-slate-400"/></button></div>
                   <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Αποθήκη Προέλευσης</label><div className="p-3 bg-slate-100 rounded-xl font-bold text-slate-600 border border-slate-200">{warehouses.find(w => w.id === transferModal.sourceId)?.name}</div></div>
                   <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Αποθήκη Προορισμού</label><select value={transferModal.targetId} onChange={e => setTransferModal({...transferModal, targetId: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/20">{warehouses.filter(w => w.id !== transferModal.sourceId).map(w => (<option key={w.id} value={w.id}>{w.name}</option>))}</select></div>
                   <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Ποσότητα</label><input type="number" min="1" value={transferModal.qty} onChange={e => setTransferModal({...transferModal, qty: parseInt(e.target.value) || 1})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-none focus:ring-2 focus:ring-blue-500/20"/></div>
                   <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Αιτιολογία</label><textarea value={transferModal.reason} onChange={e => setTransferModal({...transferModal, reason: e.target.value})} rows={2} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20" placeholder="Καταχωρίστε την αιτία της ενδοδιακίνησης..."/></div>
-                  <button onClick={handleTransferStock} disabled={!transferModal.reason.trim()} className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 disabled:opacity-50"><ArrowRightLeft size={20}/> Καταχώριση</button>
+                  <button onClick={handleTransferStock} disabled={stockMutationPending || !transferModal.reason.trim()} className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 disabled:opacity-50">
+                      {stockMutationPending ? <><Loader2 size={20} className="animate-spin"/> Επιβεβαίωση υπολοίπων...</> : <><ArrowRightLeft size={20}/> Καταχώριση</>}
+                  </button>
               </div>
           </div>
       )}
@@ -681,12 +781,14 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
       {adjustModal && (
           <div className="fixed inset-0 z-[160] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in zoom-in-95">
               <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4">
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-100"><h3 className="font-black text-lg text-slate-800">Διόρθωση Αποθέματος</h3><button aria-label="Κλείσιμο" onClick={() => setAdjustModal(null)}><X size={20} className="text-slate-400"/></button></div>
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-100"><h3 className="font-black text-lg text-slate-800">Διόρθωση Αποθέματος</h3><button aria-label="Κλείσιμο" onClick={() => { if (!stockMutationPending) setAdjustModal(null); }} disabled={stockMutationPending}><X size={20} className="text-slate-400"/></button></div>
                   <div className="text-center text-sm font-bold text-slate-500 mb-2">{warehouses.find(w => w.id === adjustModal.warehouseId)?.name}</div>
                   {adjustModal.type === 'set' ? (<div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Νέο Φυσικό Απόθεμα</label><input type="number" min="0" value={adjustModal.qty} onChange={e => setAdjustModal({...adjustModal, qty: parseInt(e.target.value) || 0})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-none focus:ring-2 focus:ring-slate-500/20"/></div>) : (<div className="grid grid-cols-2 gap-3"><button onClick={() => setAdjustModal({...adjustModal, type: 'add'})} className={`p-3 rounded-xl font-bold border transition-all ${adjustModal.type === 'add' ? 'bg-emerald-50 border-emerald-500 text-emerald-700 ring-2 ring-emerald-200' : 'bg-white border-slate-200 text-slate-500'}`}>Προσθήκη (+)</button><button onClick={() => setAdjustModal({...adjustModal, type: 'remove'})} className={`p-3 rounded-xl font-bold border transition-all ${adjustModal.type === 'remove' ? 'bg-rose-50 border-rose-500 text-rose-700 ring-2 ring-rose-200' : 'bg-white border-slate-200 text-slate-500'}`}>Αφαίρεση (-)</button></div>)}
                   {adjustModal.type !== 'set' && (<div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Ποσότητα</label><input type="number" min="1" value={adjustModal.qty} onChange={e => setAdjustModal({...adjustModal, qty: parseInt(e.target.value) || 1})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-none focus:ring-2 focus:ring-slate-500/20"/></div>)}
                   <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Αιτιολογία</label><textarea value={adjustModal.reason} onChange={e => setAdjustModal({...adjustModal, reason: e.target.value})} rows={2} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-slate-500/20" placeholder="Καταχωρίστε την αιτία της διόρθωσης..."/></div>
-                  <button onClick={handleAdjustStock} disabled={!adjustModal.reason.trim()} className={`w-full py-3.5 rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 text-white disabled:opacity-50 ${adjustModal.type === 'add' ? 'bg-emerald-600' : (adjustModal.type === 'remove' ? 'bg-rose-600' : 'bg-slate-900')}`}><Save size={20}/> Καταχώριση</button>
+                  <button onClick={handleAdjustStock} disabled={stockMutationPending || !adjustModal.reason.trim()} className={`w-full py-3.5 rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 text-white disabled:opacity-50 ${adjustModal.type === 'add' ? 'bg-emerald-600' : (adjustModal.type === 'remove' ? 'bg-rose-600' : 'bg-slate-900')}`}>
+                      {stockMutationPending ? <><Loader2 size={20} className="animate-spin"/> Επιβεβαίωση υπολοίπου...</> : <><Save size={20}/> Καταχώριση</>}
+                  </button>
               </div>
           </div>
       )}

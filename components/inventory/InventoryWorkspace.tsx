@@ -2,23 +2,33 @@ import React, { useDeferredValue, useMemo, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
+  ArrowRight,
   Boxes,
   Building2,
   CheckCircle,
   ClipboardList,
   History,
   Loader2,
+  LockKeyhole,
+  MapPin,
   Package,
   PencilLine,
   Plus,
+  RotateCcw,
+  ShieldCheck,
   Trash2,
   TrendingUp,
+  UserRound,
   Warehouse as WarehouseIcon,
   X,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Product, Warehouse } from '../../types';
-import type { InventoryAvailability, InventoryReconciliationIssue } from '../../features/inventory';
+import type {
+  InventoryAvailability,
+  InventoryEvent,
+  InventoryReconciliationIssue,
+} from '../../features/inventory';
 import {
   calculateInventoryTotals,
   ensureCatalogInventoryAvailability,
@@ -28,12 +38,19 @@ import {
   groupInventoryAvailability,
   matchesInventoryAvailabilitySearch,
   getInventoryOperationLabel,
+  getInventoryEventReversalState,
   getWarehouseTypeLabel,
   getReconciliationIssueLabel,
   INVENTORY_TERMS,
   inventoryRepository,
 } from '../../features/inventory';
-import { useInventoryAvailability, useInventoryEvents, useInventoryReconciliationIssues, useInventoryReconciliationStatus, inventoryKeys } from '../../hooks/api/useInventory';
+import {
+  useInventoryAvailability,
+  useInventoryEvents,
+  useInventoryReconciliationIssues,
+  useInventoryReconciliationStatus,
+  refreshInventoryAvailability,
+} from '../../hooks/api/useInventory';
 import { useWarehouses, warehouseKeys } from '../../hooks/api/useWarehouses';
 import { useAuth } from '../AuthContext';
 import { useUI } from '../UIProvider';
@@ -111,7 +128,7 @@ function OperationDialog({
   warehouses: Warehouse[];
   isAdmin: boolean;
   onClose: () => void;
-  onSaved: () => Promise<void>;
+  onSaved: () => Promise<unknown>;
 }) {
   const { showToast } = useUI();
   const [quantity, setQuantity] = useState(state.kind === 'adjustment' ? state.row.onHand : state.kind === 'reorder' ? state.row.reorderPoint : 1);
@@ -277,7 +294,120 @@ function OperationDialog({
   );
 }
 
-function ReconciliationIssueCard({ issue, warehouses, onResolved }: { issue: InventoryReconciliationIssue; warehouses: Warehouse[]; onResolved: () => Promise<void> }) {
+function MovementReversalDialog({
+  event,
+  events,
+  onClose,
+  onSaved,
+}: {
+  event: InventoryEvent;
+  events: InventoryEvent[];
+  onClose: () => void;
+  onSaved: () => Promise<unknown>;
+}) {
+  const { showToast } = useUI();
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const reversalState = getInventoryEventReversalState(event, events, true);
+  useEscapeToClose(onClose, saving);
+
+  const submit = async () => {
+    if (!reason.trim()) {
+      showToast('Η αιτιολογία ακύρωσης είναι υποχρεωτική για την πλήρη ιχνηλασιμότητα.', 'error');
+      return;
+    }
+    setSaving(true);
+    try {
+      await inventoryRepository.reverseMovementEvent({
+        eventId: event.id,
+        reason,
+        idempotencyKey: `movement-reversal:${event.id}:${crypto.randomUUID()}`,
+      });
+      await onSaved();
+      showToast(
+        reversalState.isTransfer
+          ? 'Η Ενδοδιακίνηση ακυρώθηκε ατομικά και ενημερώθηκαν και οι δύο αποθήκες.'
+          : 'Η κίνηση ακυρώθηκε και το προηγούμενο υπόλοιπο επανήλθε.',
+        'success',
+      );
+      onClose();
+    } catch (error) {
+      showToast(
+        error instanceof Error
+          ? error.message
+          : 'Η ακύρωση κίνησης δεν ολοκληρώθηκε. Δεν πραγματοποιήθηκε καμία μεταβολή.',
+        'error',
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[510] flex items-center justify-center bg-slate-950/55 p-4" role="presentation" onMouseDown={() => { if (!saving) onClose(); }}>
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="movement-reversal-title"
+        className="w-full max-w-lg rounded-2xl border border-slate-100 bg-white shadow-2xl"
+        onMouseDown={(mouseEvent) => mouseEvent.stopPropagation()}
+      >
+        <header className="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
+          <div>
+            <h2 id="movement-reversal-title" className="text-lg font-black text-slate-900">Ακύρωση Κίνησης Αποθέματος</h2>
+            <p className="mt-1 font-mono text-sm font-bold text-slate-600">
+              {event.productSku}{event.variantSuffix}{event.sizeInfo ? ` · Μέγεθος ${event.sizeInfo}` : ''}
+            </p>
+          </div>
+          <button type="button" onClick={onClose} disabled={saving} aria-label="Κλείσιμο ακύρωσης κίνησης" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50">
+            <X size={18} />
+          </button>
+        </header>
+        <div className="space-y-4 p-5">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+            <p className="font-black">{getInventoryOperationLabel(event.operationType)}</p>
+            <p className="mt-1">{event.reason}</p>
+            <p className="mt-2 text-xs text-slate-500">
+              Μεταβολή Φυσικού Αποθέματος: {event.onHandDelta > 0 ? '+' : ''}{formatInventoryInteger(event.onHandDelta)}
+            </p>
+          </div>
+          <div className="flex gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-950">
+            <ShieldCheck className="mt-0.5 shrink-0" size={19} aria-hidden="true" />
+            <p>
+              {reversalState.explanation} Η αρχική εγγραφή δεν διαγράφεται· θα επισημανθεί ως ακυρωμένη και θα δημιουργηθεί πλήρως συσχετισμένη αντιλογιστική κίνηση.
+            </p>
+          </div>
+          <label className="block text-sm font-bold text-slate-700">
+            Αιτιολογία ακύρωσης
+            <textarea
+              autoFocus
+              value={reason}
+              onChange={(changeEvent) => setReason(changeEvent.target.value)}
+              rows={3}
+              maxLength={500}
+              placeholder="Καταχωρίστε τον επιχειρησιακό λόγο της ακύρωσης..."
+              className="mt-2 w-full resize-none rounded-xl border border-slate-200 px-3 py-2.5 outline-none focus:border-rose-500"
+            />
+          </label>
+        </div>
+        <footer className="flex gap-3 border-t border-slate-100 p-5">
+          <button type="button" onClick={onClose} disabled={saving} className={`${BTN_SECONDARY} flex-1 justify-center disabled:opacity-50`}>Διατήρηση Κίνησης</button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={saving || !reason.trim()}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-rose-700 px-4 py-2.5 text-sm font-black text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
+            Επιβεβαίωση Ακύρωσης
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function ReconciliationIssueCard({ issue, warehouses, onResolved }: { issue: InventoryReconciliationIssue; warehouses: Warehouse[]; onResolved: () => Promise<unknown> }) {
   const { showToast } = useUI();
   const needsTarget = issue.issueType === 'negative_opening_balance' || issue.issueType === 'duplicate_location_rows';
   const needsWarehouse = issue.issueType === 'unknown_warehouse';
@@ -376,9 +506,10 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
   const [postingOpen, setPostingOpen] = useState(false);
   const [postingSelection, setPostingSelection] = useState<SkuPickerOption | null>(null);
   const [focusRequest, setFocusRequest] = useState<{ productSku: string; variantSuffix: string; nonce: number } | null>(null);
+  const [reversalEvent, setReversalEvent] = useState<InventoryEvent | null>(null);
 
-  const availabilityQuery = useInventoryAvailability();
-  const eventsQuery = useInventoryEvents(activeTab === 'movements');
+  const availabilityQuery = useInventoryAvailability({ refetchOnMount: 'always' });
+  const eventsQuery = useInventoryEvents(activeTab === 'overview' || activeTab === 'movements');
   const reconciliationQuery = useInventoryReconciliationStatus(isAdmin);
   const reconciliationIssuesQuery = useInventoryReconciliationIssues(isAdmin && activeTab === 'reconciliation');
   const warehousesQuery = useWarehouses();
@@ -390,6 +521,36 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
       .sort((left, right) => left.localeCompare(right, 'el-GR', { sensitivity: 'base' }))
   ), [products]);
   const totals = useMemo(() => calculateInventoryTotals(rows), [rows]);
+  const events = eventsQuery.data || [];
+  const warehouseNames = useMemo(
+    () => new Map(warehouses.map((warehouse) => [warehouse.id, warehouse.name])),
+    [warehouses],
+  );
+  const warehouseSummaries = useMemo(() => {
+    const byWarehouse = new Map<string, InventoryAvailability[]>();
+    rows.forEach((row) => {
+      const current = byWarehouse.get(row.warehouseId);
+      if (current) current.push(row);
+      else byWarehouse.set(row.warehouseId, [row]);
+    });
+    return Array.from(byWarehouse.entries())
+      .map(([warehouseId, warehouseRows]) => ({
+        warehouseId,
+        warehouseName: warehouseRows[0]?.warehouseName || warehouseNames.get(warehouseId) || 'Αποθήκη',
+        totals: calculateInventoryTotals(warehouseRows),
+      }))
+      .sort((left, right) => right.totals.onHand - left.totals.onHand);
+  }, [rows, warehouseNames]);
+  const exceptionRows = useMemo(
+    () => rows
+      .filter((row) => (
+        (row.reorderPoint > 0 && row.available <= row.reorderPoint)
+        || row.projectedAvailable < 0
+      ))
+      .sort((left, right) => left.projectedAvailable - right.projectedAvailable)
+      .slice(0, 6),
+    [rows],
+  );
   const defaultWarehouse = useMemo(
     () => warehouses.find((warehouse) => warehouse.type === 'Central') || warehouses[0],
     [warehouses],
@@ -437,10 +598,7 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
   );
 
   const refreshInventory = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: inventoryKeys.all }),
-      queryClient.invalidateQueries({ queryKey: ['products'] }),
-    ]);
+    return refreshInventoryAvailability(queryClient);
   };
 
   const focusInventorySelection = (option: SkuPickerOption) => {
@@ -594,7 +752,7 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
         </div>
       )}
 
-      {(activeTab === 'overview' || activeTab === 'stock') && (
+      {activeTab === 'overview' && (
         <>
           <div className="grid grid-cols-2 gap-3 px-4 sm:grid-cols-3 lg:grid-cols-6 sm:px-0">
             <InventoryMetric label={INVENTORY_TERMS.onHand} value={totals.onHand} icon={Package} tone="bg-slate-100 text-slate-700" />
@@ -603,6 +761,130 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
             <InventoryMetric label={INVENTORY_TERMS.incoming} value={totals.incoming} icon={TrendingUp} tone="bg-blue-50 text-blue-700" />
             <InventoryMetric label={INVENTORY_TERMS.outstandingDemand} value={totals.outstandingDemand} icon={Activity} tone="bg-amber-50 text-amber-700" />
             <InventoryMetric label="Κάτω από Σημείο Αναπαραγγελίας" value={totals.lowStockCount} icon={AlertTriangle} tone="bg-rose-50 text-rose-700" />
+          </div>
+
+          <div className="grid gap-4 px-4 sm:px-0 xl:grid-cols-[1.1fr_0.9fr]">
+            <section className={`${CARD} overflow-hidden`} aria-labelledby="inventory-control-center-title">
+              <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 p-5">
+                <div>
+                  <h2 id="inventory-control-center-title" className="font-black text-slate-900">Κέντρο Ελέγχου Αποθέματος</h2>
+                  <p className="mt-1 text-sm text-slate-600">Εξαιρέσεις που απαιτούν προτεραιότητα, όχι κατάλογος όλων των SKU.</p>
+                </div>
+                <button type="button" onClick={() => setActiveTab('stock')} className={`${BTN_SECONDARY} justify-center`}>
+                  Αναλυτικά Υπόλοιπα <ArrowRight size={16} aria-hidden="true" />
+                </button>
+              </header>
+              {exceptionRows.length === 0 ? (
+                <div className="flex items-start gap-3 p-5 text-emerald-800">
+                  <CheckCircle className="mt-0.5 shrink-0" size={20} aria-hidden="true" />
+                  <div>
+                    <p className="font-black">Δεν υπάρχουν άμεσες εξαιρέσεις αποθέματος.</p>
+                    <p className="mt-1 text-sm text-emerald-700">Δεν εντοπίστηκαν αρνητικές προβλέψεις ή είδη κάτω από ενεργό Σημείο Αναπαραγγελίας.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {exceptionRows.map((row) => (
+                    <button
+                      key={`${row.productSku}:${row.variantSuffix}:${row.sizeInfo}:${row.warehouseId}`}
+                      type="button"
+                      onClick={() => {
+                        setListSearch(`${row.productSku}${row.variantSuffix}`);
+                        setActiveTab('stock');
+                        setFocusRequest({ productSku: row.productSku, variantSuffix: row.variantSuffix, nonce: Date.now() });
+                      }}
+                      className="flex w-full items-center gap-3 p-4 text-left transition hover:bg-slate-50"
+                    >
+                      <AlertTriangle size={18} className="shrink-0 text-amber-600" aria-hidden="true" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-mono text-sm font-black text-slate-900">{row.productSku}{row.variantSuffix}{row.sizeInfo ? ` · ${row.sizeInfo}` : ''}</span>
+                        <span className="mt-0.5 block text-xs text-slate-500">{row.warehouseName}</span>
+                      </span>
+                      <span className="text-right">
+                        <span className="block text-sm font-black text-rose-700">{formatInventoryInteger(row.available)} διαθέσιμα</span>
+                        <span className="block text-xs text-slate-500">Πρόβλεψη {formatInventoryInteger(row.projectedAvailable)}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className={`${CARD} overflow-hidden`} aria-labelledby="warehouse-distribution-title">
+              <header className="border-b border-slate-100 p-5">
+                <h2 id="warehouse-distribution-title" className="font-black text-slate-900">Κατανομή ανά Αποθήκη</h2>
+                <p className="mt-1 text-sm text-slate-600">Συγκεντρωτική εικόνα Φυσικού και Διαθέσιμου Αποθέματος.</p>
+              </header>
+              <div className="divide-y divide-slate-100">
+                {warehouseSummaries.map((summary) => (
+                  <button
+                    key={summary.warehouseId}
+                    type="button"
+                    onClick={() => {
+                      setWarehouseFilter(summary.warehouseId);
+                      setActiveTab('stock');
+                    }}
+                    className="flex w-full items-center gap-3 p-4 text-left transition hover:bg-slate-50"
+                  >
+                    <MapPin size={18} className="shrink-0 text-slate-500" aria-hidden="true" />
+                    <span className="min-w-0 flex-1 font-bold text-slate-800">{summary.warehouseName}</span>
+                    <span className="text-right text-xs text-slate-500">
+                      <strong className="block text-sm text-slate-900">{formatInventoryInteger(summary.totals.onHand)} φυσικά</strong>
+                      {formatInventoryInteger(summary.totals.available)} διαθέσιμα
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          </div>
+
+          <section className={`${CARD} mx-4 overflow-hidden sm:mx-0`} aria-labelledby="recent-inventory-movements-title">
+            <header className="flex items-center justify-between gap-3 border-b border-slate-100 p-5">
+              <div>
+                <h2 id="recent-inventory-movements-title" className="font-black text-slate-900">Πρόσφατες Κινήσεις</h2>
+                <p className="mt-1 text-sm text-slate-600">Οι τελευταίες καταχωρίσεις που επηρέασαν ή δέσμευσαν απόθεμα.</p>
+              </div>
+              <button type="button" onClick={() => setActiveTab('movements')} className={`${BTN_SECONDARY} justify-center`}>
+                Πλήρες Ιστορικό <ArrowRight size={16} aria-hidden="true" />
+              </button>
+            </header>
+            {eventsQuery.isLoading ? (
+              <div className="flex items-center justify-center gap-2 p-8 text-slate-500"><Loader2 size={18} className="animate-spin" /> Φόρτωση πρόσφατων κινήσεων...</div>
+            ) : events.length === 0 ? (
+              <p className="p-8 text-center text-sm font-semibold text-slate-500">Δεν υπάρχουν ακόμη καταχωρισμένες κινήσεις.</p>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {events.slice(0, 5).map((event) => (
+                  <div key={event.id} className="flex items-center gap-3 p-4">
+                    <History size={17} className="shrink-0 text-slate-500" aria-hidden="true" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-black text-slate-900">{getInventoryOperationLabel(event.operationType)}</p>
+                      <p className="truncate font-mono text-xs text-slate-500">{event.productSku}{event.variantSuffix}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`font-black ${event.onHandDelta > 0 ? 'text-emerald-700' : event.onHandDelta < 0 ? 'text-rose-700' : 'text-slate-600'}`}>{event.onHandDelta > 0 ? '+' : ''}{formatInventoryInteger(event.onHandDelta)}</p>
+                      <p className="text-xs text-slate-400">{formatInventoryDateTime(event.createdAt)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </>
+      )}
+
+      {activeTab === 'stock' && (
+        <>
+          <div className={`${CARD} mx-4 flex flex-col gap-3 p-5 sm:mx-0 lg:flex-row lg:items-center lg:justify-between`}>
+            <div>
+              <h2 className="font-black text-slate-900">Αναλυτικά Υπόλοιπα SKU</h2>
+              <p className="mt-1 text-sm text-slate-600">Λειτουργική ανάλυση κύριου SKU → παραλλαγής → μεγέθους → αποθήκης, με άμεσες ενέργειες καταχώρισης και Ενδοδιακίνησης.</p>
+            </div>
+            {isAdmin && (
+              <button type="button" onClick={() => openPosting()} className={`${BTN_PRIMARY} shrink-0 justify-center`}>
+                <Plus size={17} aria-hidden="true" /> Καταχώριση Αποθέματος
+              </button>
+            )}
           </div>
 
           <div className={`${CARD} mx-4 p-3 sm:mx-0`}>
@@ -674,20 +956,52 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
             <div className="p-10 text-center text-slate-500"><History className="mx-auto mb-3 text-slate-300" /><p className="font-bold">Δεν υπάρχουν καταχωρισμένες κινήσεις.</p></div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {(eventsQuery.data || []).map((event) => (
-                <article key={event.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600"><History size={18} /></div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2"><p className="font-black text-slate-900">{getInventoryOperationLabel(event.operationType)}</p><span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs font-bold text-slate-600">{event.productSku}{event.variantSuffix}</span></div>
-                    <p className="mt-1 text-sm text-slate-600">{event.reason}</p>
-                    <p className="mt-1 text-xs text-slate-400">{formatInventoryDateTime(event.createdAt)}{event.referenceId ? ` · Αναφορά ${event.referenceId}` : ''}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className={`font-black ${event.onHandDelta > 0 ? 'text-emerald-700' : event.onHandDelta < 0 ? 'text-rose-700' : 'text-slate-600'}`}>{event.onHandDelta > 0 ? '+' : ''}{formatInventoryInteger(event.onHandDelta)}</p>
-                    <p className="text-xs text-slate-400">Υπόλοιπο {formatInventoryInteger(event.onHandAfter)}</p>
-                  </div>
-                </article>
-              ))}
+              {(eventsQuery.data || []).map((event) => {
+                const reversalState = getInventoryEventReversalState(event, events, isAdmin);
+                return (
+                  <article key={event.id} className={`flex flex-col gap-3 p-4 sm:flex-row sm:items-center ${reversalState.isReversed ? 'bg-slate-50/70' : ''}`}>
+                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${reversalState.isReversal ? 'bg-blue-50 text-blue-700' : reversalState.isReversed ? 'bg-slate-200 text-slate-500' : 'bg-slate-100 text-slate-600'}`}>
+                      {reversalState.isReversal ? <RotateCcw size={18} aria-hidden="true" /> : <History size={18} aria-hidden="true" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-black text-slate-900">{getInventoryOperationLabel(event.operationType)}</p>
+                        <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs font-bold text-slate-600">{event.productSku}{event.variantSuffix}</span>
+                        {reversalState.isReversed && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-black uppercase text-slate-600">Ακυρωμένη</span>}
+                        {reversalState.isReversal && <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-black uppercase text-blue-700">Αντιλογιστική</span>}
+                      </div>
+                      <p className="mt-1 text-sm text-slate-600">{event.reason}</p>
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                        <span>{formatInventoryDateTime(event.createdAt)}</span>
+                        <span className="inline-flex items-center gap-1"><MapPin size={12} aria-hidden="true" /> {warehouseNames.get(event.warehouseId) || 'Μη αναγνωρισμένη αποθήκη'}</span>
+                        {event.sizeInfo && <span>Μέγεθος {event.sizeInfo}</span>}
+                        <span className="inline-flex items-center gap-1"><UserRound size={12} aria-hidden="true" /> {event.actorName || 'Χρήστης συστήματος'}</span>
+                        {event.referenceId && <span>Αναφορά {event.referenceId}</span>}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 sm:justify-end">
+                      <div className="text-right">
+                        <p className={`font-black ${event.onHandDelta > 0 ? 'text-emerald-700' : event.onHandDelta < 0 ? 'text-rose-700' : 'text-slate-600'}`}>{event.onHandDelta > 0 ? '+' : ''}{formatInventoryInteger(event.onHandDelta)}</p>
+                        <p className="text-xs text-slate-400">Υπόλοιπο {formatInventoryInteger(event.onHandAfter)}</p>
+                      </div>
+                      {reversalState.canReverse ? (
+                        <button
+                          type="button"
+                          onClick={() => setReversalEvent(event)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-black text-rose-700 transition hover:bg-rose-50"
+                          aria-label={`Ακύρωση κίνησης ${event.productSku}${event.variantSuffix}`}
+                        >
+                          <RotateCcw size={14} aria-hidden="true" /> Ακύρωση
+                        </button>
+                      ) : !reversalState.isReversal && !reversalState.isReversed ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1.5 text-[11px] font-bold text-slate-500" title={reversalState.explanation}>
+                          <LockKeyhole size={13} aria-hidden="true" /> Αναίρεση από το έγγραφο
+                        </span>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           )}
         </div>
@@ -750,6 +1064,17 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
           isAdmin={isAdmin}
           onClose={() => setOperation(null)}
           onSaved={refreshInventory}
+        />
+      )}
+      {reversalEvent && (
+        <MovementReversalDialog
+          event={reversalEvent}
+          events={events}
+          onClose={() => setReversalEvent(null)}
+          onSaved={async () => {
+            await refreshInventory();
+            return eventsQuery.refetch();
+          }}
         />
       )}
       {scannerOpen && (

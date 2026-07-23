@@ -12,6 +12,8 @@ import type {
   InventoryReconciliationIssue,
   InventoryReorderPolicyInput,
   InventoryReservation,
+  ReverseInventoryEventInput,
+  ReverseInventoryEventResult,
   InventoryTransferInput,
   SaveOrderInventoryResult,
   ShipOrderInventoryInput,
@@ -324,6 +326,22 @@ export const inventoryRepository = {
       p_idempotency_key: input.idempotencyKey || operationKey(`transfer:${input.productSku}`),
     });
     if (error) throw toInventoryOperationError('transfer', error);
+  },
+
+  async reverseMovementEvent(input: ReverseInventoryEventInput): Promise<ReverseInventoryEventResult> {
+    assertOnline();
+    const { data, error } = await supabase.rpc('reverse_inventory_event_v1', {
+      p_event_id: input.eventId,
+      p_reason: input.reason.trim(),
+      p_idempotency_key: input.idempotencyKey || operationKey(`movement-reversal:${input.eventId}`),
+    });
+    if (error) throw toInventoryOperationError('reverse-movement', error);
+    const result = (data || {}) as any;
+    return {
+      reversedEventIds: Array.isArray(result.reversed_event_ids) ? result.reversed_event_ids.map(String) : [],
+      reversalEventIds: Array.isArray(result.reversal_event_ids) ? result.reversal_event_ids.map(String) : [],
+      idempotent: Boolean(result.idempotent),
+    };
   },
 
   async setReorderPolicy(input: InventoryReorderPolicyInput): Promise<void> {
