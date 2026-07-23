@@ -10,8 +10,14 @@ type RawStockRow = {
   product_sku: string;
   variant_suffix?: string | null;
   warehouse_id: string;
-  quantity: number;
+  quantity?: number | null;
+  on_hand?: number | null;
+  reserved?: number | null;
+  size_info?: string | null;
 };
+
+const stockQuantity = (row: RawStockRow): number => Number(row.on_hand ?? row.quantity ?? 0);
+const reservedQuantity = (row: RawStockRow): number => Number(row.reserved ?? 0);
 
 type RawVariantRow = {
   product_sku: string;
@@ -172,27 +178,62 @@ function mapProductRow(
   options: { includeRecipes: boolean; includeMolds: boolean; includeCreatedAt: boolean },
 ): Product {
   const customStock: Record<string, number> = {};
+  const customReserved: Record<string, number> = {};
+  const customAvailable: Record<string, number> = {};
   const pStock = maps.stockMap.get(row.sku) || [];
   pStock.forEach((stockRow) => {
-    customStock[stockRow.warehouse_id] = stockRow.quantity;
+    customStock[stockRow.warehouse_id] = (customStock[stockRow.warehouse_id] || 0) + stockQuantity(stockRow);
+    customReserved[stockRow.warehouse_id] = (customReserved[stockRow.warehouse_id] || 0) + reservedQuantity(stockRow);
+    customAvailable[stockRow.warehouse_id] = (customAvailable[stockRow.warehouse_id] || 0) + stockQuantity(stockRow) - reservedQuantity(stockRow);
   });
-  customStock[context.centralWarehouseId] = Number(row.stock_qty || 0);
-  customStock[context.showroomWarehouseId] = Number(row.sample_qty || 0);
+  if (!(context.centralWarehouseId in customStock)) customStock[context.centralWarehouseId] = Number(row.stock_qty || 0);
+  if (!(context.showroomWarehouseId in customStock)) customStock[context.showroomWarehouseId] = Number(row.sample_qty || 0);
+  Object.entries(customStock).forEach(([warehouseId, onHand]) => {
+    if (!(warehouseId in customReserved)) customReserved[warehouseId] = 0;
+    if (!(warehouseId in customAvailable)) customAvailable[warehouseId] = onHand;
+  });
+  const productCentralSizeMap = Object.fromEntries(
+    pStock
+      .filter((stockRow) => stockRow.warehouse_id === context.centralWarehouseId && !!stockRow.size_info)
+      .map((stockRow) => [stockRow.size_info as string, stockQuantity(stockRow)])
+  );
+  const productShowroomSizeMap = Object.fromEntries(
+    pStock
+      .filter((stockRow) => stockRow.warehouse_id === context.showroomWarehouseId && !!stockRow.size_info)
+      .map((stockRow) => [stockRow.size_info as string, stockQuantity(stockRow)])
+  );
 
   const baseVariants = maps.variantMap.get(row.sku) || [];
   const variants: ProductVariant[] = baseVariants.map((variantRow) => {
     const vCustomStock: Record<string, number> = {};
+    const vCustomReserved: Record<string, number> = {};
+    const vCustomAvailable: Record<string, number> = {};
     const vStock = maps.stockMap.get(`${row.sku}::${variantRow.suffix}`) || [];
     vStock.forEach((stockRow) => {
-      vCustomStock[stockRow.warehouse_id] = stockRow.quantity;
+      vCustomStock[stockRow.warehouse_id] = (vCustomStock[stockRow.warehouse_id] || 0) + stockQuantity(stockRow);
+      vCustomReserved[stockRow.warehouse_id] = (vCustomReserved[stockRow.warehouse_id] || 0) + reservedQuantity(stockRow);
+      vCustomAvailable[stockRow.warehouse_id] = (vCustomAvailable[stockRow.warehouse_id] || 0) + stockQuantity(stockRow) - reservedQuantity(stockRow);
     });
-    vCustomStock[context.centralWarehouseId] = Number(variantRow.stock_qty || 0);
+    if (!(context.centralWarehouseId in vCustomStock)) vCustomStock[context.centralWarehouseId] = Number(variantRow.stock_qty || 0);
+    Object.entries(vCustomStock).forEach(([warehouseId, onHand]) => {
+      if (!(warehouseId in vCustomReserved)) vCustomReserved[warehouseId] = 0;
+      if (!(warehouseId in vCustomAvailable)) vCustomAvailable[warehouseId] = onHand;
+    });
+    const variantCentralSizeMap = Object.fromEntries(
+      vStock
+        .filter((stockRow) => stockRow.warehouse_id === context.centralWarehouseId && !!stockRow.size_info)
+        .map((stockRow) => [stockRow.size_info as string, stockQuantity(stockRow)])
+    );
     return {
       suffix: variantRow.suffix,
       description: variantRow.description || '',
-      stock_qty: variantRow.stock_qty ?? 0,
-      stock_by_size: variantRow.stock_by_size || {},
+      stock_qty: vCustomStock[context.centralWarehouseId] || 0,
+      stock_by_size: Object.keys(variantCentralSizeMap).length > 0 ? variantCentralSizeMap : (variantRow.stock_by_size || {}),
       location_stock: vCustomStock,
+      reserved_qty: vCustomReserved[context.centralWarehouseId] || 0,
+      available_qty: vCustomAvailable[context.centralWarehouseId] || 0,
+      location_reserved: vCustomReserved,
+      location_available: vCustomAvailable,
       active_price: variantRow.active_price != null ? Number(variantRow.active_price) : null,
       selling_price: variantRow.selling_price != null ? Number(variantRow.selling_price) : null,
       selling_price_manual_override: !!variantRow.selling_price_manual_override,
@@ -235,11 +276,15 @@ function mapProductRow(
     draft_price: Number(row.draft_price || 0),
     selling_price: Number(row.selling_price || 0),
     selling_price_manual_override: !!row.selling_price_manual_override,
-    stock_qty: Number(row.stock_qty || 0),
-    sample_qty: Number(row.sample_qty || 0),
-    stock_by_size: row.stock_by_size || {},
-    sample_stock_by_size: row.sample_stock_by_size || {},
+    stock_qty: customStock[context.centralWarehouseId] || 0,
+    sample_qty: customStock[context.showroomWarehouseId] || 0,
+    stock_by_size: Object.keys(productCentralSizeMap).length > 0 ? productCentralSizeMap : (row.stock_by_size || {}),
+    sample_stock_by_size: Object.keys(productShowroomSizeMap).length > 0 ? productShowroomSizeMap : (row.sample_stock_by_size || {}),
     location_stock: customStock,
+    reserved_qty: customReserved[context.centralWarehouseId] || 0,
+    available_qty: customAvailable[context.centralWarehouseId] || 0,
+    location_reserved: customReserved,
+    location_available: customAvailable,
     molds,
     is_component: !!row.is_component,
     variants,

@@ -17,7 +17,7 @@ const genderFilters: { label: string; value: 'All' | Gender; icon: React.ReactNo
     { label: 'Όλα', value: 'All', icon: <Layers size={16} /> },
     { label: 'Ανδρικά', value: Gender.Men, icon: <User size={16} /> },
     { label: 'Γυναικεία', value: Gender.Women, icon: <User size={16} /> },
-    { label: 'Unisex', value: Gender.Unisex, icon: <Users size={16} /> },
+    { label: 'Ουδέτερα', value: Gender.Unisex, icon: <Users size={16} /> },
 ];
 
 const platingFilters = [
@@ -82,7 +82,9 @@ const ProductCard: React.FC<{ product: Product; onClick: () => void }> = ({ prod
     const wholesalePrice = currentVariant ? (currentVariant.selling_price || product.selling_price || 0) : (product.selling_price || 0);
     const displayRetailPrice = wholesalePrice * 3.0;
     
-    const stockQty = currentVariant ? currentVariant.stock_qty : product.stock_qty;
+    const stockQty = currentVariant
+        ? (currentVariant.available_qty ?? currentVariant.stock_qty)
+        : (product.available_qty ?? product.stock_qty);
 
     const nextView = (e: React.MouseEvent) => {
         e.stopPropagation();

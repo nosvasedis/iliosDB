@@ -18,16 +18,12 @@ import BarcodeScanner from '../BarcodeScanner';
 import { composeNotesWithRetailClient, extractRetailClientFromNotes } from '../../utils/retailNotes';
 import IliosLoader from '../ui/IliosLoader';
 import SpecialCreationNote from '../SpecialCreationNote';
+import InventoryAvailabilityNote from '../inventory/InventoryAvailabilityNote';
+import { OFFER_STATUS_LABELS } from '../../features/inventory';
 
 interface Props {
     onPrintOffer: (offer: Offer) => void;
 }
-
-const STATUS_LABELS: Record<string, string> = {
-    'Pending': 'Εκκρεμεί',
-    'Accepted': 'Εγκρίθηκε',
-    'Declined': 'Απορρίφθηκε'
-};
 
 const STATUS_STYLES: Record<string, string> = {
     'Pending': 'bg-amber-50 text-amber-700 border-amber-200',
@@ -179,15 +175,13 @@ export default function MobileOffers({ onPrintOffer }: Props) {
             });
             const data = await response.json();
 
-            if (!response.ok) {
-                throw new Error(data.error || 'API Error');
-            }
+            if (!response.ok) throw new Error('Η ενημέρωση της τιμής αργύρου δεν ολοκληρώθηκε.');
 
             const price = parseFloat(data.price.toFixed(3));
             setCustomSilverPrice(price);
             showToast(`Τιμή: ${formatDecimal(price, 3)} €/g`, 'success');
-        } catch (e: any) {
-            showToast(`Σφάλμα: ${e.message}`, "error");
+        } catch {
+            showToast('Η τιμή αργύρου δεν ενημερώθηκε. Η προηγούμενη τιμή παραμένει αμετάβλητη. Ελέγξτε τη σύνδεση και δοκιμάστε ξανά.', "error");
         } finally {
             setIsFetchingPrice(false);
         }
@@ -395,7 +389,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
         try {
             const orderId = generateOrderId();
             const isRetailOrder = offer.customer_id === RETAIL_CUSTOMER_ID || offer.customer_name === RETAIL_CUSTOMER_NAME;
-            await api.saveOrder({
+            const orderPayload = {
                 id: orderId,
                 customer_id: isRetailOrder ? RETAIL_CUSTOMER_ID : offer.customer_id,
                 customer_name: isRetailOrder ? RETAIL_CUSTOMER_NAME : offer.customer_name,
@@ -408,14 +402,13 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                 discount_percent: offer.discount_percent,
                 custom_silver_rate: offer.custom_silver_price,
                 notes: offer.notes || ''
-            } as any);
-
-            await api.updateOffer({ ...offer, status: 'Accepted' });
+            } as any;
+            await api.convertOfferToOrder(offer, orderPayload);
             queryClient.invalidateQueries({ queryKey: ['offers'] });
             queryClient.invalidateQueries({ queryKey: ['orders'] });
-            showToast("Η παραγγελία δημιουργήθηκε!", "success");
-        } catch (e) {
-            showToast("Σφάλμα μετατροπής.", "error");
+            showToast("Η παραγγελία δημιουργήθηκε και το διαθέσιμο απόθεμα δεσμεύτηκε.", "success");
+        } catch (e: any) {
+            showToast(e?.message || "Η προσφορά δεν μετατράπηκε. Δεν δημιουργήθηκε παραγγελία και δεν δεσμεύτηκε απόθεμα.", "error");
         }
     };
 
@@ -425,7 +418,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
             await api.updateOffer({ ...offer, status: 'Declined' });
             queryClient.invalidateQueries({ queryKey: ['offers'] });
             showToast("Η προσφορά απορρίφθηκε.", "info");
-        } catch (e) { showToast("Σφάλμα.", "error"); }
+        } catch { showToast("Η προσφορά δεν απορρίφθηκε. Δεν πραγματοποιήθηκε καμία μεταβολή. Δοκιμάστε ξανά.", "error"); }
     };
 
     const handleDeleteOffer = async (id: string) => {
@@ -434,7 +427,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
             await api.deleteOffer(id);
             queryClient.invalidateQueries({ queryKey: ['offers'] });
             showToast("Διαγράφηκε.", "success");
-        } catch (e) { showToast("Σφάλμα.", "error"); }
+        } catch { showToast("Η προσφορά δεν διαγράφηκε. Δεν πραγματοποιήθηκε καμία μεταβολή. Δοκιμάστε ξανά.", "error"); }
     };
 
     // ---------------- UI RENDERING ----------------
@@ -647,6 +640,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                                             <div className="font-black text-slate-800 text-sm">{item.sku}{item.variant_suffix}</div>
                                             <SpecialCreationNote sku={item.sku} note={item.notes} compact className="mt-1" />
                                             <div className="text-[10px] text-slate-500 font-mono">{formatCurrency(item.price_at_order)} /τεμ</div>
+                                            <InventoryAvailabilityNote item={item} product={item.product_details} mode="offer" compact />
                                         </div>
                                     </div>
                                     <button onClick={() => removeItem(idx)} className="text-red-400 p-1"><X size={16} /></button>
@@ -720,7 +714,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                         onClick={() => setFilterStatus(s)}
                         className={`flex-1 py-2 px-3 rounded-lg text-[10px] font-bold uppercase transition-all whitespace-nowrap ${filterStatus === s ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
                     >
-                        {s === 'ALL' ? 'Ολες' : STATUS_LABELS[s]}
+                        {s === 'ALL' ? 'Όλες' : OFFER_STATUS_LABELS[s]}
                     </button>
                 ))}
             </div>
@@ -743,7 +737,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                                     <div className="text-[10px] text-slate-400 font-mono">#{offer.id.slice(0, 8)}</div>
                                 </div>
                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase ${STATUS_STYLES[offer.status]}`}>
-                                    {STATUS_LABELS[offer.status]}
+                                    {OFFER_STATUS_LABELS[offer.status]}
                                 </span>
                             </div>
                             <div className="flex justify-between items-end border-t border-slate-50 pt-2 mt-2">

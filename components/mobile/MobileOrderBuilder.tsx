@@ -39,6 +39,7 @@ import {
     PRODUCTION_EDIT_CHOICE_MESSAGE,
     PRODUCTION_EDIT_NEW_PART_HINT,
 } from '../../features/production/orderProductionEdit';
+import InventoryAvailabilityNote from '../inventory/InventoryAvailabilityNote';
 import {
     buildMobileOrderBuilderCustomerSuggestions,
     buildMobileOrderBuilderEditFinishOptions,
@@ -1194,6 +1195,15 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                     </div>
                                 </div>
                             </div>
+                            {!isSpecialCreationSku(item.sku) && (
+                                <InventoryAvailabilityNote
+                                    item={item}
+                                    product={item.product_details}
+                                    mode="order"
+                                    orderId={initialOrder?.id}
+                                    compact
+                                />
+                            )}
                             <div className="flex items-center gap-3 pt-2 border-t border-slate-50">
                                 <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-100 flex-1">
                                     <StickyNote size={14} className="text-slate-300 ml-1" />

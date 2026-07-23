@@ -36,7 +36,7 @@ import { formatShipmentIssueLine, hasBlockingShipmentIssues, validateReadyMatche
 import { isSpecialCreationSku } from '../utils/specialCreationSku';
 import { assignMissingOrderLineIds } from '../utils/orderItemMatch';
 import { orderNeedsProductionEditDialog } from '../features/production/orderProductionEdit';
-import { buildOrderShipmentItemKey, buildStockDeductionEntries, checkStockForOrderItems as checkStockForOrderItemsHelper, getOrderShipmentsSnapshotFromTables } from '../features/orders/supabaseHelpers';
+import { buildOrderShipmentItemKey, checkStockForOrderItems as checkStockForOrderItemsHelper, getOrderShipmentsSnapshotFromTables } from '../features/orders/supabaseHelpers';
 import { planShipmentBatchRestores } from '../features/orders/shipmentRevertHelpers';
 import { buildTransferPlan } from '../features/orders/transferHelpers';
 import { buildInitialBatchHistoryEntry, canMoveBatchToStage as canMoveBatchToStageHelper } from '../features/production/supabaseHelpers';
@@ -61,6 +61,7 @@ import {
     isInspectionModeActive,
 } from './inspectionMode';
 import { addReceivedSizeQuantity, resolveSupplierOrderProductReceiptTarget, supplierOrderInventoryReceiptQuantity } from '../features/suppliers/receiptHelpers';
+import { getGreekOperationalErrorMessage } from '../features/inventory/greek';
 import { buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, getAadeProxyErrorMessage, isEmptyTransmittedDocsResponse, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, parseAadeResponseXml, parseTransmittedDocumentsXml, roundMoney, serializeLegalDocumentForDb, serializeLegalDocumentLineForDb, serializeProformaDocumentForDb, validateLegalDocument } from '../utils/legalDocuments';
 
 // Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
@@ -892,54 +893,16 @@ function buildBatchIdentityPayloadFromOrderItem(
     return payload;
 }
 
-async function restoreStockForBatch(batch: ProductionBatch): Promise<void> {
-    if (batch.type !== 'Από Stock') return;
-
-    const products = (await getCachedProducts()) ?? await api.getProducts();
-    const product = products.find((item) => item.sku === batch.sku);
-    if (!product) {
-        throw new Error(`Δεν βρέθηκε προϊόν για επαναφορά stock (${batch.sku}).`);
+async function deleteProductionBatchWithInventory(batchId: string): Promise<string | null> {
+    const { data, error } = await supabase.rpc('delete_production_batch_inventory_v1', {
+        p_batch_id: batchId,
+        p_idempotency_key: `production-batch-delete:${batchId}:${crypto.randomUUID()}`,
+    });
+    if (error) {
+        const { toInventoryOperationError } = await import('../features/inventory');
+        throw toInventoryOperationError('release-order', error);
     }
-
-    if (batch.variant_suffix) {
-        const variant = product.variants?.find((item) => item.suffix === batch.variant_suffix);
-        if (!variant) {
-            throw new Error(`Δεν βρέθηκε παραλλαγή για επαναφορά stock (${batch.sku}${batch.variant_suffix}).`);
-        }
-
-        const updateData: any = {
-            stock_qty: (variant.stock_qty || 0) + batch.quantity
-        };
-
-        if (batch.size_info) {
-            const nextBySize = { ...(variant.stock_by_size || {}) };
-            nextBySize[batch.size_info] = (nextBySize[batch.size_info] || 0) + batch.quantity;
-            updateData.stock_by_size = nextBySize;
-        }
-
-        await safeMutate('product_variants', 'UPDATE', updateData, {
-            match: { product_sku: batch.sku, suffix: batch.variant_suffix }
-        });
-    } else {
-        const updateData: any = {
-            stock_qty: (product.stock_qty || 0) + batch.quantity
-        };
-
-        if (batch.size_info) {
-            const nextBySize = { ...(product.stock_by_size || {}) };
-            nextBySize[batch.size_info] = (nextBySize[batch.size_info] || 0) + batch.quantity;
-            updateData.stock_by_size = nextBySize;
-        }
-
-        await safeMutate('products', 'UPDATE', updateData, { match: { sku: batch.sku } });
-    }
-
-    await recordStockMovement(
-        batch.sku,
-        batch.quantity,
-        `Επαναφορά από παραγωγή — Παραγγελία #${(batch.order_id || '').slice(0, 12) || 'χωρίς κωδικό'}`,
-        batch.variant_suffix || undefined
-    );
+    return data ? String(data) : null;
 }
 
 async function syncOrderStatusAfterBatchChange(orderId?: string): Promise<void> {
@@ -1064,6 +1027,13 @@ export const uploadProductImage = async (file: Blob, sku: string): Promise<strin
 
 export const deleteProduct = async (sku: string, imageUrl?: string | null): Promise<{ success: boolean; error?: string }> => {
     try {
+        if (!isLocalMode) {
+            const { error: inventoryGuardError } = await supabase.rpc('assert_product_inventory_retirable_v1', {
+                p_product_sku: sku,
+                p_operation: 'delete',
+            });
+            if (inventoryGuardError) throw inventoryGuardError;
+        }
         await safeMutate('product_variants', 'DELETE', null, { match: { product_sku: sku } });
         await safeMutate('recipes', 'DELETE', null, { match: { parent_sku: sku } });
         await safeMutate('product_molds', 'DELETE', null, { match: { product_sku: sku } });
@@ -1074,13 +1044,14 @@ export const deleteProduct = async (sku: string, imageUrl?: string | null): Prom
         if (error) throw error;
         return { success: true };
     } catch (e: any) {
-        return { success: false, error: e.message };
+        return {
+            success: false,
+            error: getGreekOperationalErrorMessage(
+                e,
+                'Το προϊόν δεν διαγράφηκε. Δεν πραγματοποιήθηκε καμία μεταβολή αποθέματος. Ελέγξτε τις συνδεδεμένες κινήσεις και δοκιμάστε ξανά.',
+            ),
+        };
     }
-};
-
-export const recordStockMovement = async (sku: string, change: number, reason: string, variantSuffix?: string) => {
-    const data = { product_sku: sku, variant_suffix: variantSuffix || null, change_amount: change, reason: reason, created_at: new Date().toISOString() };
-    await safeMutate('stock_movements', 'INSERT', data);
 };
 
 /** Check stock availability for order items (pure function, no DB call — reads from in-memory products). */
@@ -1089,19 +1060,6 @@ export function checkStockForOrderItems(
     allProducts: Product[]
 ): Array<{ sku: string; variant_suffix: string | null; size_info: string | null; cord_color?: string | null; enamel_color?: string | null; line_id?: string | null; requested_qty: number; available_in_stock: number }> {
     return checkStockForOrderItemsHelper(itemsToSend, allProducts);
-}
-
-/** Deduct stock for items fulfilled from inventory when sending an order to production. */
-export async function deductStockForOrder(
-    orderId: string,
-    items: { sku: string; variant_suffix: string | null; qty: number; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null }[],
-    allProducts: Product[]
-): Promise<void> {
-    const entries = buildStockDeductionEntries(orderId, items, allProducts);
-    for (const entry of entries) {
-        await safeMutate(entry.table, 'UPDATE', entry.updateData, { match: entry.match });
-        await recordStockMovement(entry.sku, -entry.qty, entry.movementReason, entry.variantSuffix || undefined);
-    }
 }
 
 export const api = {
@@ -1993,131 +1951,9 @@ export const api = {
         await safeMutate('supplier_orders', 'UPDATE', order, { match: { id: order.id } });
     },
 
-    receiveSupplierOrder: async (order: SupplierOrder): Promise<void> => {
-        if (!isLocalMode && !navigator.onLine) {
-            throw new Error('Η παραλαβή εντολής προμηθευτή απαιτεί σύνδεση.');
-        }
-        if (!isLocalMode) {
-            const { data, error } = await supabase.rpc('claim_supplier_order_receipt', { p_order_id: order.id });
-            if (error) throw error;
-            order = data as SupplierOrder;
-        } else {
-            const currentOrder = (await api.getSupplierOrders()).find((candidate) => candidate.id === order.id);
-            if (!currentOrder) throw new Error('Η εντολή προμηθευτή δεν βρέθηκε.');
-            if (currentOrder.status !== 'Pending') {
-                throw new Error('Η εντολή προμηθευτή έχει ήδη παραληφθεί ή κλείσει.');
-            }
-            order = currentOrder;
-            const receivedOrder = { ...order, status: 'Received' as const, received_at: new Date().toISOString() };
-            await safeMutate('supplier_orders', 'UPDATE', receivedOrder, { match: { id: order.id } });
-        }
-
-        // 2. Batch-fetch current stock for all products, variants and materials in this order
-        const productSkus = [...new Set(order.items.filter(i => i.item_type === 'Product').map(i => i.item_id))];
-        const materialIds = [...new Set(order.items.filter(i => i.item_type === 'Material').map(i => i.item_id))];
-
-        let productRows: { sku: string; stock_qty: number; stock_by_size?: Record<string, number> | null }[] = [];
-        let variantRows: { product_sku: string; suffix: string; stock_qty: number; stock_by_size?: Record<string, number> | null }[] = [];
-        let materialRows: { id: string; stock_qty: number }[] = [];
-
-        if (productSkus.length > 0) {
-            const [{ data }, { data: variants }] = await Promise.all([
-                supabase.from('products').select('sku, stock_qty, stock_by_size').in('sku', productSkus),
-                supabase.from('product_variants').select('product_sku, suffix, stock_qty, stock_by_size').in('product_sku', productSkus),
-            ]);
-            productRows = data || [];
-            variantRows = variants || [];
-        }
-        if (materialIds.length > 0) {
-            const { data } = await supabase.from('materials').select('id, stock_qty').in('id', materialIds);
-            materialRows = data || [];
-        }
-
-        const productMap = new Map(productRows.map(p => [p.sku, { stock_qty: p.stock_qty ?? 0, stock_by_size: p.stock_by_size || {} }]));
-        const variantsBySku = new Map<string, typeof variantRows>();
-        const variantMap = new Map(variantRows.map(v => [`${v.product_sku}::${v.suffix}`, { stock_qty: v.stock_qty ?? 0, stock_by_size: v.stock_by_size || {} }]));
-        variantRows.forEach(v => {
-            const list = variantsBySku.get(v.product_sku) || [];
-            list.push(v);
-            variantsBySku.set(v.product_sku, list);
-        });
-        const materialMap = new Map(materialRows.map(m => [m.id, m.stock_qty ?? 0]));
-        const awaitingBatches = (await api.getProductionBatches()).filter(
-            (batch) => batch.current_stage === ProductionStage.AwaitingDelivery
-        );
-        const awaitingRemainingById = new Map(awaitingBatches.map((batch) => [batch.id, batch.quantity]));
-
-        // 3. Apply stock updates in parallel (same logic as before, one update per item)
-        const updatePromises: Promise<any>[] = [];
-        for (const item of order.items) {
-            if (item.item_type === 'Product') {
-                const target = resolveSupplierOrderProductReceiptTarget(item, variantsBySku.get(item.item_id));
-                let transitionedToBatchQty = 0;
-                for (const allocation of item.source_allocations || []) {
-                    if (allocation.source_type !== 'customer_order' || !allocation.order_id) continue;
-                    let allocationRemaining = allocation.quantity;
-                    for (const batch of awaitingBatches) {
-                        if (allocationRemaining <= 0) break;
-                        if (batch.order_id !== allocation.order_id || batch.sku !== target.sku) continue;
-                        if (allocation.line_id && batch.line_id !== allocation.line_id) continue;
-                        if ((batch.variant_suffix || '') !== (target.variantSuffix || '')) continue;
-                        if ((batch.size_info || '') !== (item.size_info || '')) continue;
-                        if ((batch.cord_color || '') !== (item.cord_color || '')) continue;
-                        if ((batch.enamel_color || '') !== (item.enamel_color || '')) continue;
-                        const batchRemaining = awaitingRemainingById.get(batch.id) || 0;
-                        const committed = Math.min(batchRemaining, allocationRemaining);
-                        awaitingRemainingById.set(batch.id, batchRemaining - committed);
-                        allocationRemaining -= committed;
-                        transitionedToBatchQty += committed;
-                    }
-                }
-                // Awaiting-delivery allocations are committed to production batches and must not
-                // become reusable inventory. Manual surplus and genuinely unbatched demand do.
-                const inventoryQuantity = supplierOrderInventoryReceiptQuantity(item, transitionedToBatchQty);
-                if (inventoryQuantity <= 0) continue;
-                const variantKey = target.variantSuffix ? `${target.sku}::${target.variantSuffix}` : null;
-                const variantCurrent = variantKey ? variantMap.get(variantKey) : undefined;
-
-                if (variantKey && variantCurrent && target.variantSuffix) {
-                    const variantSuffix = target.variantSuffix;
-                    const nextStockQty = variantCurrent.stock_qty + inventoryQuantity;
-                    const nextSizeMap = addReceivedSizeQuantity(variantCurrent.stock_by_size, item.size_info, inventoryQuantity);
-                    const updateData: Record<string, any> = { stock_qty: nextStockQty };
-                    if (nextSizeMap) updateData.stock_by_size = nextSizeMap;
-
-                    updatePromises.push(
-                        safeMutate('product_variants', 'UPDATE', updateData, { match: { product_sku: target.sku, suffix: variantSuffix } })
-                    );
-                    updatePromises.push(recordStockMovement(target.sku, inventoryQuantity, `Supplier Order #${order.id.slice(0, 6)}`, variantSuffix));
-                    variantMap.set(variantKey, { stock_qty: nextStockQty, stock_by_size: nextSizeMap || variantCurrent.stock_by_size });
-                    continue;
-                }
-
-                const current = productMap.get(target.sku);
-                if (current !== undefined) {
-                    const nextStockQty = current.stock_qty + inventoryQuantity;
-                    const nextSizeMap = addReceivedSizeQuantity(current.stock_by_size, item.size_info, inventoryQuantity);
-                    const updateData: Record<string, any> = { stock_qty: nextStockQty };
-                    if (nextSizeMap) updateData.stock_by_size = nextSizeMap;
-
-                    updatePromises.push(
-                        safeMutate('products', 'UPDATE', updateData, { match: { sku: target.sku } })
-                    );
-                    updatePromises.push(recordStockMovement(target.sku, inventoryQuantity, `Supplier Order #${order.id.slice(0, 6)}`));
-                    productMap.set(target.sku, { stock_qty: nextStockQty, stock_by_size: nextSizeMap || current.stock_by_size });
-                }
-            } else if (item.item_type === 'Material') {
-                const inventoryQuantity = supplierOrderInventoryReceiptQuantity(item);
-                if (inventoryQuantity <= 0) continue;
-                const current = materialMap.get(item.item_id);
-                if (current !== undefined) {
-                    updatePromises.push(
-                        safeMutate('materials', 'UPDATE', { stock_qty: current + inventoryQuantity }, { match: { id: item.item_id } })
-                    );
-                }
-            }
-        }
-        await Promise.all(updatePromises);
+    receiveSupplierOrder: async (order: SupplierOrder, warehouseId?: string): Promise<void> => {
+        const { inventoryRepository } = await import('../features/inventory/repository');
+        await inventoryRepository.receiveSupplierOrder(order, warehouseId);
     },
 
     deleteSupplierOrder: async (id: string): Promise<void> => {
@@ -2179,7 +2015,8 @@ export const api = {
             fetchFullTable('recipes', '*', (q) => q.order('parent_sku')),
             fetchFullTable('product_molds', '*', (q) => q.order('product_sku').order('mold_code')),
             fetchFullTable('product_collections', '*', (q) => q.order('product_sku').order('collection_id')),
-            fetchFullTable('product_stock', '*', (q) => q.order('product_sku').order('variant_suffix', { nullsFirst: true }))
+            fetchFullTable('inventory_balances', '*', (q) => q.order('product_sku').order('variant_suffix').order('size_info'))
+                .catch(() => fetchFullTable('product_stock', '*', (q) => q.order('product_sku').order('variant_suffix', { nullsFirst: true })))
         ]);
         return mapProductsWithRelations(
             prodWithSuppliers as any,
@@ -2222,14 +2059,16 @@ export const api = {
             const [varRes, collRes, stockRes] = await Promise.all([
                 supabase.from('product_variants').select('*').in('product_sku', skus),
                 supabase.from('product_collections').select('*').in('product_sku', skus),
-                supabase.from('product_stock').select('*').in('product_sku', skus)
+                supabase.from('inventory_balances').select('*').in('product_sku', skus)
             ]);
             const products: Product[] = mapCatalogProductsWithRelations(
                 prodWithSuppliers as any,
                 {
                     variants: varRes.data || [],
                     collections: collRes.data || [],
-                    stock: stockRes.data || [],
+                    stock: stockRes.error
+                      ? ((await supabase.from('product_stock').select('*').in('product_sku', skus)).data || [])
+                      : (stockRes.data || []),
                 },
                 {
                     publicImageBaseUrl: R2_PUBLIC_URL,
@@ -2316,7 +2155,7 @@ export const api = {
     getProductionBoardBatches: async (): Promise<ProductionBatch[]> => {
         return fetchFullTable(
             'production_batches',
-            'id,order_id,sku,variant_suffix,quantity,current_stage,created_at,updated_at,priority,type,notes,requires_setting,requires_assembly,size_info,cord_color,enamel_color,line_id,on_hold,on_hold_reason,pending_dispatch',
+            'id,order_id,sku,variant_suffix,quantity,current_stage,created_at,updated_at,priority,type,notes,requires_setting,requires_assembly,size_info,cord_color,enamel_color,line_id,on_hold,on_hold_reason,pending_dispatch,fulfillment_source,legacy_inventory_issued',
             (q) => q.order('created_at', { ascending: false })
         );
     },
@@ -2350,6 +2189,17 @@ export const api = {
         if (isLocalMode) {
             // ... (Same as before)
             return;
+        }
+
+        const { error: inventoryGuardError } = await supabase.rpc('assert_product_inventory_retirable_v1', {
+            p_product_sku: oldSku,
+            p_operation: 'rename',
+        });
+        if (inventoryGuardError) {
+            throw new Error(getGreekOperationalErrorMessage(
+                inventoryGuardError,
+                'Ο κωδικός προϊόντος δεν μετονομάστηκε. Δεν πραγματοποιήθηκε καμία μεταβολή. Ελέγξτε το απόθεμα και το ιστορικό κινήσεων και δοκιμάστε ξανά.',
+            ));
         }
 
         const { data: product } = await supabase.from('products').select('*').eq('sku', oldSku).single();
@@ -2509,8 +2359,8 @@ export const api = {
     },
     saveOrder: async (o: Order): Promise<void> => {
         const normalizedOrder = { ...o, items: assignMissingOrderLineIds(o.items) };
-        // noSelect: orders RLS allows INSERT but blocks read-back → causes PGRST204 with .select()
-        await safeMutate('orders', 'INSERT', normalizedOrder, { noSelect: true });
+        const { inventoryRepository } = await import('../features/inventory/repository');
+        await inventoryRepository.saveOrderAndReserve(normalizedOrder);
     },
 
     saveOrderDeliveryPlan: async (plan: OrderDeliveryPlan, reminders: OrderDeliveryReminder[]): Promise<void> => {
@@ -2614,6 +2464,9 @@ export const api = {
         notes?: string | null;
         allBatches: ProductionBatch[];
     }): Promise<OrderShipment> => {
+        if (isLocalMode || typeof navigator === 'undefined' || !navigator.onLine) {
+            throw new Error('Η αποστολή δεν καταχωρίστηκε. Οι κινήσεις αποθέματος απαιτούν ενεργή σύνδεση. Δεν πραγματοποιήθηκε καμία μεταβολή. Συνδεθείτε και δοκιμάστε ξανά.');
+        }
         const now = new Date().toISOString();
         const existingShipmentSnapshot = await getOrderShipmentsSnapshot(params.orderId);
         const shipmentNumber = existingShipmentSnapshot.shipments.reduce(
@@ -2760,7 +2613,7 @@ export const api = {
 
         // Online: one Postgres transaction (row locks + server-side ready-stock check)
         if (!isLocalMode && navigator.onLine) {
-            const { data, error } = await supabase.rpc('create_partial_shipment_v1', {
+            const { data, error } = await supabase.rpc('create_partial_shipment_v2', {
                 p_order_id: params.orderId,
                 p_shipped_by: params.shippedBy,
                 p_items: buildPartialShipmentRpcItems(params.items),
@@ -2768,8 +2621,14 @@ export const api = {
                 p_notes: params.notes || null,
                 p_next_plan: nextPlan ? sanitizeDeliveryPlanData(nextPlan) : null,
                 p_next_reminders: nextPlanReminders.map(sanitizeDeliveryReminderData),
+                p_idempotency_key: `shipment:${shipmentId}`,
             });
-            if (error) throw new Error(error.message);
+            if (error) {
+                throw new Error(getGreekOperationalErrorMessage(
+                    error,
+                    'Η αποστολή δεν ολοκληρώθηκε. Δεν πραγματοποιήθηκε καμία μεταβολή σε απόθεμα, παραγωγή ή παραγγελία. Ελέγξτε τις έτοιμες ποσότητες και δοκιμάστε ξανά.',
+                ));
+            }
             return mapRpcPartialShipmentResult((data || {}) as Record<string, unknown>);
         }
 
@@ -2824,6 +2683,9 @@ export const api = {
         orderId: string;
         revertedBy: string;
     }): Promise<void> => {
+        if (isLocalMode || typeof navigator === 'undefined' || !navigator.onLine) {
+            throw new Error('Η αναίρεση αποστολής δεν καταχωρίστηκε. Οι κινήσεις αποθέματος απαιτούν ενεργή σύνδεση. Δεν πραγματοποιήθηκε καμία μεταβολή. Συνδεθείτε και δοκιμάστε ξανά.');
+        }
         const now = new Date().toISOString();
 
         const snapshot = await getOrderShipmentsSnapshot(params.orderId);
@@ -2835,11 +2697,17 @@ export const api = {
         const itemCount = shipmentItems.reduce((sum, i) => sum + i.quantity, 0);
 
         if (!isLocalMode && navigator.onLine) {
-            const { error } = await supabase.rpc('revert_partial_shipment_v1', {
+            const { error } = await supabase.rpc('revert_partial_shipment_v2', {
                 p_order_id: params.orderId,
                 p_shipment_id: params.shipmentId,
+                p_idempotency_key: `shipment-revert:${params.shipmentId}`,
             });
-            if (error) throw new Error(error.message);
+            if (error) {
+                throw new Error(getGreekOperationalErrorMessage(
+                    error,
+                    'Η αναίρεση αποστολής δεν ολοκληρώθηκε. Δεν πραγματοποιήθηκε καμία μεταβολή σε απόθεμα, παραγωγή ή παραγγελία. Ελέγξτε ότι πρόκειται για την τελευταία αποστολή και δοκιμάστε ξανά.',
+                ));
+            }
             await api.logAction(params.revertedBy, 'Αναίρεση Μερικής Αποστολής', {
                 orderId: params.orderId,
                 shipmentId: params.shipmentId,
@@ -2928,7 +2796,8 @@ export const api = {
     // NEW: Modified updateOrder to check for production batch sync
     updateOrder: async (o: Order, isNewPart?: boolean): Promise<void> => {
         const normalizedOrder = { ...o, items: assignMissingOrderLineIds(o.items) };
-        await safeMutate('orders', 'UPDATE', normalizedOrder, { match: { id: normalizedOrder.id }, noSelect: true });
+        const { inventoryRepository } = await import('../features/inventory/repository');
+        await inventoryRepository.saveOrderAndReserve(normalizedOrder);
 
         const reconcileIsNewPart = isNewPart ?? (
             orderNeedsProductionEditDialog(normalizedOrder.status) ? false : undefined
@@ -2937,8 +2806,8 @@ export const api = {
     },
 
     deleteOrder: async (id: string): Promise<void> => {
-        await safeMutate('production_batches', 'DELETE', null, { match: { order_id: id } });
-        await safeMutate('orders', 'DELETE', null, { match: { id: id } });
+        const { inventoryRepository } = await import('../features/inventory/repository');
+        await inventoryRepository.deleteOrder(id);
     },
 
     updateBatchStage: async (id: string, stage: ProductionStage, userName?: string, pendingDispatch?: boolean): Promise<void> => {
@@ -3042,8 +2911,7 @@ export const api = {
         const batch = await getBatchSnapshot(id);
         if (!batch) return;
 
-        await restoreStockForBatch(batch);
-        await safeMutate('production_batches', 'DELETE', null, { match: { id } });
+        await deleteProductionBatchWithInventory(id);
         await syncOrderStatusAfterBatchChange(batch.order_id);
     },
 
@@ -3235,7 +3103,8 @@ export const api = {
     },
 
     updateOrderStatus: async (id: string, status: OrderStatus): Promise<void> => {
-        await safeMutate('orders', 'UPDATE', { status }, { match: { id: id } });
+        const { inventoryRepository } = await import('../features/inventory/repository');
+        await inventoryRepository.setOrderStatus(id, status);
         if (status === OrderStatus.Delivered || status === OrderStatus.Cancelled) {
             const now = new Date().toISOString();
             const planUpdate: Record<string, any> = {
@@ -3448,7 +3317,6 @@ export const api = {
         const allKeys = new Set([...Object.keys(demandMap), ...Object.keys(supplyMap)]);
         const batchesToInsert: Record<string, unknown>[] = [];
         const batchIdsToDelete: string[] = [];
-        const stockBatchesToRestore: ProductionBatch[] = [];
         const batchUpdates: {
             id: string;
             quantity: number;
@@ -3498,7 +3366,6 @@ export const api = {
                     if (surplus <= 0) break;
                     if (batch.quantity <= surplus) {
                         batchIdsToDelete.push(batch.id);
-                        if (batch.type === 'Από Stock') stockBatchesToRestore.push(batch);
                         surplus -= batch.quantity;
                     } else {
                         const now = new Date().toISOString();
@@ -3534,14 +3401,7 @@ export const api = {
 
         if (batchIdsToDelete.length > 0) {
             changed = true;
-            for (const batch of stockBatchesToRestore) {
-                await restoreStockForBatch(batch);
-            }
-            await Promise.all(
-                batchIdsToDelete.map((id) =>
-                    safeMutate('production_batches', 'DELETE', null, { match: { id }, noSelect: true })
-                ),
-            );
+            await Promise.all(batchIdsToDelete.map((id) => deleteProductionBatchWithInventory(id)));
         }
 
         if (batchUpdates.length > 0) {
@@ -3593,6 +3453,9 @@ export const api = {
     },
 
     sendOrderToProduction: async (orderId: string, allProducts: Product[], allMaterials: Material[]): Promise<void> => {
+        if (isLocalMode || typeof navigator === 'undefined' || !navigator.onLine) {
+            throw new Error('Η αποστολή προς παραγωγή δεν καταχωρίστηκε. Απαιτείται ενεργή σύνδεση και δεν πραγματοποιήθηκε καμία μεταβολή. Συνδεθείτε και δοκιμάστε ξανά.');
+        }
         let order: Order | null = null;
         try {
             const { data } = await supabase.from('orders').select('*').eq('id', orderId).single();
@@ -3602,14 +3465,52 @@ export const api = {
             order = localOrders?.find(o => o.id === orderId) || null;
         }
 
-        if (!order) throw new Error("Order not found.");
+        if (!order) throw new Error('Η παραγγελία δεν βρέθηκε. Δεν πραγματοποιήθηκε καμία μεταβολή.');
 
-        // Mark as In Production first
-        await safeMutate('orders', 'UPDATE', { status: OrderStatus.InProduction }, { match: { id: orderId } });
-
-        // Delegate to the bulletproof reconciliation logic
-        // This prevents the "Four instead of Two" issue by checking existing supply first.
-        await api.reconcileOrderBatches(order);
+        const { data: reservationRows, error: reservationError } = await supabase
+            .from('inventory_reservations')
+            .select('order_line_id,quantity')
+            .eq('order_id', orderId)
+            .eq('state', 'active');
+        if (reservationError) {
+            throw new Error(getGreekOperationalErrorMessage(
+                reservationError,
+                'Η αποστολή προς παραγωγή δεν ολοκληρώθηκε, επειδή δεν ήταν δυνατή η ανάγνωση των δεσμεύσεων αποθέματος. Δεν πραγματοποιήθηκε καμία μεταβολή.',
+            ));
+        }
+        const reservedByLine = new Map<string, number>();
+        for (const row of reservationRows || []) {
+            reservedByLine.set(row.order_line_id, (reservedByLine.get(row.order_line_id) || 0) + Number(row.quantity || 0));
+        }
+        const itemsToSend = order.items.map((item) => ({
+            sku: item.sku,
+            variant: item.variant_suffix || null,
+            qty: item.quantity,
+            size_info: item.size_info,
+            cord_color: item.cord_color,
+            enamel_color: item.enamel_color,
+            notes: item.notes,
+            line_id: item.line_id || null,
+        }));
+        const stockFulfilledItems = order.items.flatMap((item) => {
+            const quantity = item.line_id ? Math.min(item.quantity, reservedByLine.get(item.line_id) || 0) : 0;
+            return quantity > 0 ? [{
+                sku: item.sku,
+                variant_suffix: item.variant_suffix || null,
+                qty: quantity,
+                size_info: item.size_info || null,
+                cord_color: item.cord_color || null,
+                enamel_color: item.enamel_color || null,
+                line_id: item.line_id || null,
+            }] : [];
+        });
+        await api.sendPartialOrderToProduction(
+            orderId,
+            itemsToSend,
+            allProducts,
+            allMaterials,
+            stockFulfilledItems,
+        );
     },
 
     // NEW: PARTIAL SEND TO PRODUCTION
@@ -3621,6 +3522,9 @@ export const api = {
         stockFulfilledItems?: { sku: string, variant_suffix: string | null, qty: number, size_info?: string | null, cord_color?: string | null, enamel_color?: string | null, line_id?: string | null }[]
     ): Promise<void> => {
         if (itemsToSend.length === 0) return;
+        if (isLocalMode || typeof navigator === 'undefined' || !navigator.onLine) {
+            throw new Error('Η αποστολή προς παραγωγή δεν καταχωρίστηκε. Απαιτείται ενεργή σύνδεση και δεν πραγματοποιήθηκε καμία μεταβολή. Συνδεθείτε και δοκιμάστε ξανά.');
+        }
 
         // Starting another production part must not erase existing shipment
         // history from the order status. This was the source of shipped pieces
@@ -3634,6 +3538,19 @@ export const api = {
         const existingBatches = await fetchBatchesByOrderId(orderId);
         const plannedItemsToSend = planNonDuplicateProductionSendItems(itemsToSend, existingBatches);
         const plannedQtyByStockKey = new Map<string, number>();
+        const existingInventoryQtyByStockKey = new Map<string, number>();
+        for (const batch of existingBatches) {
+            if (batch.fulfillment_source !== 'inventory_reserved') continue;
+            const key = buildItemIdentityKey({
+                sku: batch.sku,
+                variant_suffix: batch.variant_suffix,
+                size_info: batch.size_info,
+                cord_color: batch.cord_color as any,
+                enamel_color: batch.enamel_color as any,
+                line_id: batch.line_id ?? null,
+            });
+            existingInventoryQtyByStockKey.set(key, (existingInventoryQtyByStockKey.get(key) || 0) + batch.quantity);
+        }
         for (const item of plannedItemsToSend) {
             const key = buildItemIdentityKey({
                 sku: item.sku,
@@ -3655,7 +3572,8 @@ export const api = {
                 line_id: item.line_id ?? null
             });
             const remaining = plannedQtyByStockKey.get(key) || 0;
-            const qty = Math.min(item.qty, remaining);
+            const undispatchedReservation = Math.max(0, item.qty - (existingInventoryQtyByStockKey.get(key) || 0));
+            const qty = Math.min(undispatchedReservation, remaining);
             plannedQtyByStockKey.set(key, Math.max(0, remaining - qty));
             return qty > 0 ? [{ ...item, qty }] : [];
         });
@@ -3746,6 +3664,8 @@ export const api = {
                     line_id: item.line_id ?? null,
                     priority: 'Normal',
                     type: 'Από Stock' as BatchType,
+                    fulfillment_source: 'inventory_reserved',
+                    legacy_inventory_issued: false,
                     requires_setting: hasZircons,
                     requires_assembly,
                     created_at: now,
@@ -3769,6 +3689,8 @@ export const api = {
                     line_id: item.line_id ?? null,
                     priority: 'Normal',
                     type: 'Νέα',
+                    fulfillment_source: 'production',
+                    legacy_inventory_issued: false,
                     requires_setting: hasZircons,
                     requires_assembly,
                     created_at: now,
@@ -3777,17 +3699,18 @@ export const api = {
             }
         }
 
-        if (batches.length > 0) {
-            await safeMutate('production_batches', 'UPSERT', batches);
-            await safeMutate(
-                'batch_stage_history',
-                'INSERT',
-                batches.map((batch) => buildInitialBatchHistoryEntry(batch)),
-                { noSelect: true }
-            );
+        const { error } = await supabase.rpc('dispatch_order_to_production_inventory_v1', {
+            p_order_id: orderId,
+            p_batches: batches,
+            p_order_status: nextOrderStatus,
+            p_idempotency_key: `production-dispatch:${orderId}:${crypto.randomUUID()}`,
+        });
+        if (error) {
+            throw new Error(getGreekOperationalErrorMessage(
+                error,
+                'Η αποστολή προς παραγωγή δεν ολοκληρώθηκε. Δεν δημιουργήθηκε καμία παρτίδα και η παραγγελία παρέμεινε αμετάβλητη. Ελέγξτε τις δεσμεύσεις και δοκιμάστε ξανά.',
+            ));
         }
-
-        await safeMutate('orders', 'UPDATE', { status: nextOrderStatus }, { match: { id: orderId } });
     },
 
     // NEW: REVERT FROM PRODUCTION
@@ -3797,23 +3720,21 @@ export const api = {
             throw new Error('Δεν μπορεί να γίνει πλήρης επαναφορά παραγωγής σε παραγγελία με καταχωρημένες αποστολές.');
         }
 
-        const orderBatches = await fetchBatchesByOrderId(orderId);
-        for (const batch of orderBatches) {
-            await restoreStockForBatch(batch);
+        const { error } = await supabase.rpc('revert_order_production_inventory_v1', {
+            p_order_id: orderId,
+            p_idempotency_key: `production-order-revert:${orderId}:${crypto.randomUUID()}`,
+        });
+        if (error) {
+            const { toInventoryOperationError } = await import('../features/inventory');
+            throw toInventoryOperationError('release-order', error);
         }
-
-        // 1. Delete all batches
-        await safeMutate('production_batches', 'DELETE', null, { match: { order_id: orderId } });
-        // 2. Set order status back to Pending
-        await safeMutate('orders', 'UPDATE', { status: OrderStatus.Pending }, { match: { id: orderId }, noSelect: true });
     },
 
     revertProductionBatch: async (batchId: string): Promise<void> => {
         const batch = await getBatchSnapshot(batchId);
         if (!batch) throw new Error('Η παρτίδα δεν βρέθηκε.');
 
-        await restoreStockForBatch(batch);
-        await safeMutate('production_batches', 'DELETE', null, { match: { id: batchId } });
+        await deleteProductionBatchWithInventory(batchId);
         await syncOrderStatusAfterBatchChange(batch.order_id);
     },
 
@@ -4323,6 +4244,11 @@ export const api = {
     saveOffer: async (offer: Offer): Promise<void> => { await safeMutate('offers', 'INSERT', offer); },
     updateOffer: async (offer: Offer): Promise<void> => { await safeMutate('offers', 'UPDATE', offer, { match: { id: offer.id } }); },
     deleteOffer: async (id: string): Promise<void> => { await safeMutate('offers', 'DELETE', null, { match: { id } }); },
+    convertOfferToOrder: async (offer: Offer, order: Order): Promise<string> => {
+        const { inventoryRepository } = await import('../features/inventory/repository');
+        const result = await inventoryRepository.convertOfferToOrder({ offer, order });
+        return result.orderId;
+    },
 
     // Archive an order
     archiveOrder: async (orderId: string, archive: boolean): Promise<void> => {

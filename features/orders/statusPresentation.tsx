@@ -1,36 +1,10 @@
 import React from 'react';
 import { CheckCircle, Clock, Package, PackageCheck, Truck, XCircle } from 'lucide-react';
 import { OrderStatus } from '../../types';
+import { ORDER_STATUS_LABELS as ERP_ORDER_STATUS_LABELS } from '../inventory/greek';
 
 export type OrderStatusLabelVariant = 'default' | 'mobileCompact' | 'seller';
 export type OrderStatusStyleVariant = 'default' | 'mobileDashboard' | 'seller' | 'employeeDashboard';
-
-const ORDER_STATUS_LABELS: Record<OrderStatusLabelVariant, Record<OrderStatus, string>> = {
-  default: {
-    [OrderStatus.Pending]: 'Εκκρεμεί',
-    [OrderStatus.InProduction]: 'Σε Παραγωγή',
-    [OrderStatus.Ready]: 'Έτοιμο',
-    [OrderStatus.PartiallyDelivered]: 'Μερική Παράδοση',
-    [OrderStatus.Delivered]: 'Παραδόθηκε',
-    [OrderStatus.Cancelled]: 'Ακυρώθηκε'
-  },
-  mobileCompact: {
-    [OrderStatus.Pending]: 'Εκκρεμεί',
-    [OrderStatus.InProduction]: 'Παραγωγή',
-    [OrderStatus.Ready]: 'Έτοιμο',
-    [OrderStatus.PartiallyDelivered]: 'Μερική Παράδοση',
-    [OrderStatus.Delivered]: 'Παραδόθηκε',
-    [OrderStatus.Cancelled]: 'Ακυρώθηκε'
-  },
-  seller: {
-    [OrderStatus.Pending]: 'Εκκρεμής',
-    [OrderStatus.InProduction]: 'Σε Παραγωγή',
-    [OrderStatus.Ready]: 'Έτοιμη',
-    [OrderStatus.PartiallyDelivered]: 'Μερική Παράδοση',
-    [OrderStatus.Delivered]: 'Παραδόθηκε',
-    [OrderStatus.Cancelled]: 'Ακυρώθηκε'
-  }
-};
 
 const ORDER_STATUS_STYLES: Record<OrderStatusStyleVariant, Record<OrderStatus, string>> = {
   default: {
@@ -67,8 +41,8 @@ const ORDER_STATUS_STYLES: Record<OrderStatusStyleVariant, Record<OrderStatus, s
   }
 };
 
-export const getOrderStatusLabel = (status: OrderStatus, variant: OrderStatusLabelVariant = 'default'): string =>
-  ORDER_STATUS_LABELS[variant][status] ?? status;
+export const getOrderStatusLabel = (status: OrderStatus, _variant: OrderStatusLabelVariant = 'default'): string =>
+  ERP_ORDER_STATUS_LABELS[status] ?? 'Άγνωστη κατάσταση παραγγελίας';
 
 export const getOrderStatusClasses = (status: OrderStatus, variant: OrderStatusStyleVariant = 'default'): string =>
   ORDER_STATUS_STYLES[variant][status] ?? ORDER_STATUS_STYLES.default[status];

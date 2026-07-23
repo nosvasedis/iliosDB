@@ -15,7 +15,7 @@ describe('order item matching', () => {
 
     expect(normalized[0].line_id).toBe('line-1');
     expect(normalized[1].line_id).toBe('line-2');
-    expect(normalized[2].line_id).toBeUndefined();
+    expect(normalized[2].line_id).toBe('line-3');
     expect(getOrderItemMatchKey(normalized[0])).not.toBe(getOrderItemMatchKey(normalized[1]));
   });
 

@@ -11,6 +11,7 @@ import DesktopPurchaseOrderBuilder from './DesktopPurchaseOrderBuilder';
 import { usePrint } from './PrintContext';
 import { getSupplierOrderStatusClasses, getSupplierOrderStatusIcon, getSupplierOrderStatusLabel } from '../features/suppliers/statusPresentation';
 import DesktopPageHeader from './DesktopPageHeader';
+import SupplierReceiptModal from './suppliers/SupplierReceiptModal';
 
 const MATERIAL_TYPE_LABELS: Record<string, string> = {
     'Stone': 'Πέτρα',
@@ -97,6 +98,7 @@ export default function SuppliersPage() {
     const [editingOrder, setEditingOrder] = useState<SupplierOrder | null>(null);
     const [viewOrderId, setViewOrderId] = useState<string | null>(null);
     const [orderToPrint, setOrderToPrint] = useState<SupplierOrder | null>(null);
+    const [receiptOrder, setReceiptOrder] = useState<SupplierOrder | null>(null);
 
     const filteredSuppliers = useMemo(() => {
         if (!suppliers) return [];
@@ -175,16 +177,19 @@ export default function SuppliersPage() {
         } catch (e) { showToast("Σφάλμα.", "error"); }
     };
 
-    const handleReceiveOrder = async (order: SupplierOrder) => {
-        const yes = await confirm({ title: 'Παραλαβή', message: 'Να καταχωριστεί η παραλαβή; Οι δεσμευμένες ανάγκες θα εκπληρωθούν και μόνο τα ελεύθερα/έξτρα τεμάχια θα προστεθούν στο απόθεμα.', confirmText: 'Παραλαβή' });
-        if (!yes) return;
-        try {
-            await api.receiveSupplierOrder(order);
-            queryClient.invalidateQueries({ queryKey: ['supplier_orders'] });
-            await invalidateProductsAndCatalog(queryClient);
-            queryClient.invalidateQueries({ queryKey: ['materials'] });
-            showToast("Παραλαβή ολοκληρώθηκε.", "success");
-        } catch (e: any) { showToast(e?.message || "Σφάλμα παραλαβής.", "error"); }
+    const handleReceiveOrder = (order: SupplierOrder) => setReceiptOrder(order);
+
+    const confirmSupplierReceipt = async (warehouseId: string) => {
+        if (!receiptOrder) return;
+        await api.receiveSupplierOrder(receiptOrder, warehouseId);
+        await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ['supplier_orders'] }),
+            invalidateProductsAndCatalog(queryClient),
+            queryClient.invalidateQueries({ queryKey: ['materials'] }),
+            queryClient.invalidateQueries({ queryKey: ['inventory'] }),
+        ]);
+        setReceiptOrder(null);
+        showToast("Η παραλαβή αποθέματος ολοκληρώθηκε επιτυχώς.", "success");
     };
 
     const handleDeleteOrder = async (orderId: string) => {
@@ -558,6 +563,13 @@ export default function SuppliersPage() {
                             setIsCreatingOrder(false);
                             setEditingOrder(null);
                         }}
+                    />
+                )}
+                {receiptOrder && (
+                    <SupplierReceiptModal
+                        order={receiptOrder}
+                        onClose={() => setReceiptOrder(null)}
+                        onConfirm={confirmSupplierReceipt}
                     />
                 )}
             </div>

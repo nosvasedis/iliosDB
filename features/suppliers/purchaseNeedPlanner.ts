@@ -145,7 +145,7 @@ function stockForRequirement(requirement: WorkingRequirement): number {
     const bySize = variant?.stock_by_size || product.stock_by_size;
     return Math.max(0, Number(bySize?.[requirement.size] || 0));
   }
-  return Math.max(0, Number(variant ? variant.stock_qty : product.stock_qty || 0));
+  return Math.max(0, Number(variant ? (variant.available_qty ?? variant.stock_qty) : (product.available_qty ?? product.stock_qty) || 0));
 }
 
 function consumeRequirement(requirement: WorkingRequirement, quantity: number): number {

@@ -15,6 +15,7 @@ export type RealtimeInvalidationDomain =
     | 'pricing'
     | 'supplierOrders'
     | 'offers'
+    | 'inventory'
     | 'legal';
 
 const PRODUCT_GRAPH_TABLES = new Set([
@@ -35,6 +36,11 @@ const REALTIME_TABLE_DOMAINS: Record<string, RealtimeInvalidationDomain[]> = {
     product_molds: ['products'],
     product_collections: ['products', 'collections'],
     stock_movements: ['products'],
+    inventory_balances: ['inventory', 'products'],
+    inventory_reservations: ['inventory', 'orders'],
+    inventory_events: ['inventory'],
+    inventory_reorder_policies: ['inventory'],
+    inventory_reconciliation_issues: ['inventory'],
     collections: ['collections', 'products'],
     materials: ['resources'],
     molds: ['resources'],
@@ -156,6 +162,13 @@ export function invalidateSupplierOrders(queryClient: QueryClient): Promise<void
 
 export function invalidateOffers(queryClient: QueryClient): Promise<void> {
     return queryClient.invalidateQueries({ queryKey: ['offers'] }).then(() => undefined);
+}
+
+export function invalidateInventory(queryClient: QueryClient): Promise<void> {
+    return Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['inventory'] }),
+        invalidateProductsAndCatalog(queryClient),
+    ]).then(() => undefined);
 }
 
 export function invalidateLegal(queryClient: QueryClient): Promise<void> {
@@ -358,6 +371,12 @@ function refetchActiveRealtimeDomain(
             return queryClient.refetchQueries({ queryKey: ['supplier_orders'], type: 'active' }).then(() => undefined);
         case 'offers':
             return queryClient.refetchQueries({ queryKey: ['offers'], type: 'active' }).then(() => undefined);
+        case 'inventory':
+            return Promise.all([
+                queryClient.refetchQueries({ queryKey: ['inventory'], type: 'active' }),
+                queryClient.refetchQueries({ queryKey: ['products'], type: 'active' }),
+                queryClient.refetchQueries({ queryKey: ['productsCatalog'], type: 'active' }),
+            ]).then(() => undefined);
         case 'legal':
             return Promise.all([
                 queryClient.refetchQueries({ queryKey: ['legal_settings'], type: 'active' }),
@@ -413,6 +432,8 @@ export function invalidateRealtimeDomain(
             return invalidateSupplierOrders(queryClient);
         case 'offers':
             return invalidateOffers(queryClient);
+        case 'inventory':
+            return invalidateInventory(queryClient);
         case 'legal':
             return invalidateLegal(queryClient);
         default:

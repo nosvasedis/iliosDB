@@ -3,6 +3,7 @@ import {
   buildPartialDeliveryProgressSegments,
   isOrderReadyForShipment,
 } from '../../utils/orderReadiness';
+import type { InventoryAvailability } from '../inventory';
 
 export interface ProductionPulseSummary {
   delayed: number;
@@ -127,6 +128,22 @@ export function buildInventoryRiskRows(products: Product[], limit = 3): {
   };
 }
 
+export function buildCanonicalInventoryRiskRows(
+  availability: InventoryAvailability[],
+  limit = 3,
+): { totalLowStock: number; rows: InventoryRiskRow[] } {
+  const rows = availability
+    .filter((row) => row.reorderPoint > 0 && row.available <= row.reorderPoint)
+    .map((row) => ({
+      sku: row.productSku,
+      suffix: row.variantSuffix,
+      stock: row.available,
+      label: [row.productSku + row.variantSuffix, row.sizeInfo, row.warehouseName].filter(Boolean).join(' · '),
+    }))
+    .sort((a, b) => a.stock - b.stock || a.label.localeCompare(b.label, 'el'));
+  return { totalLowStock: rows.length, rows: rows.slice(0, limit) };
+}
+
 export function buildDemandPressureRows(
   products: Product[],
   orders: Order[] | undefined,
@@ -189,6 +206,24 @@ export function buildDemandPressureRows(
     totalPressure: rows.length,
     rows: rows.slice(0, limit),
   };
+}
+
+export function buildCanonicalDemandPressureRows(
+  availability: InventoryAvailability[],
+  limit = 3,
+): { totalPressure: number; rows: DemandPressureRow[] } {
+  const rows = availability
+    .filter((row) => row.outstandingDemand > row.available)
+    .map((row) => ({
+      sku: row.productSku,
+      suffix: row.variantSuffix,
+      demand: row.outstandingDemand,
+      stock: row.available,
+      gap: row.outstandingDemand - row.available,
+      label: [row.productSku + row.variantSuffix, row.sizeInfo, row.warehouseName].filter(Boolean).join(' · '),
+    }))
+    .sort((a, b) => b.gap - a.gap || a.label.localeCompare(b.label, 'el'));
+  return { totalPressure: rows.length, rows: rows.slice(0, limit) };
 }
 
 export function buildOffersSummary(offers: Offer[] | undefined): OffersPipelineSummary {

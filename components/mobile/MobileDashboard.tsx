@@ -132,7 +132,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
                 iconElement={<img src={APP_ICON_ONLY} alt="" className="h-7 w-7 object-contain" />}
                 iconWrapClassName="border-slate-200/80 bg-white p-1 shadow-sm"
                 title="Αρχική"
-                subtitle={`Καλησπέρα, ${profile?.full_name?.split(' ')[0] || 'User'} · Ilios ERP`}
+                subtitle={`Καλησπέρα, ${profile?.full_name?.split(' ')[0] || 'Χρήστη'} · Ilios ERP`}
             />
 
             <div className="space-y-6 p-5 pt-4">
@@ -145,7 +145,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
 
             {/* Quick Actions Grid */}
             <div>
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 ml-1">Γρηγορες Ενεργειες</h3>
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 ml-1">Γρήγορες Ενέργειες</h3>
                 <div className="grid grid-cols-4 gap-3">
                     <QuickAction
                         icon={<Plus size={20} />}
@@ -155,7 +155,7 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
                     />
                     <QuickAction
                         icon={<ScanBarcode size={20} />}
-                        label="Scan Stock"
+                        label="Σάρωση Αποθέματος"
                         color="bg-blue-100 text-blue-700"
                         onClick={() => onNavigate && onNavigate('inventory')}
                     />

@@ -95,7 +95,9 @@ const CatalogueCard = React.memo(({ product }: CardProps) => {
     const displayPrice = currentVariant
         ? (currentVariant.selling_price || product.selling_price || 0)
         : (product.selling_price || 0);
-    const stockQty = currentVariant ? (currentVariant.stock_qty || 0) : (product.stock_qty || 0);
+    const stockQty = currentVariant
+        ? (currentVariant.available_qty ?? currentVariant.stock_qty ?? 0)
+        : (product.available_qty ?? product.stock_qty ?? 0);
 
     const goToIndex = useCallback((newIdx: number, dir: 'left' | 'right') => {
         if (isAnimating.current || newIdx === viewIndex) return;
@@ -350,7 +352,8 @@ export default function SellerCatalog({ products: productsProp }: Props) {
             const matchStoneSpecific = !selectedStone || (p.variants && p.variants.some(v => getVariantComponents(v.suffix, p.gender).stone.code === selectedStone));
             const matchStoneMode = stoneFilterMode === 'All' || (stoneFilterMode === 'with' && hasAnyStone(p)) || (stoneFilterMode === 'without' && !hasAnyStone(p));
             const matchProductionType = selectedProductionType === 'All' || p.production_type === selectedProductionType;
-            const totalStock = (p.stock_qty || 0) + (p.variants?.reduce((s, v) => s + (v.stock_qty || 0), 0) || 0);
+            const totalStock = (p.available_qty ?? p.stock_qty ?? 0)
+                + (p.variants?.reduce((s, v) => s + (v.available_qty ?? v.stock_qty ?? 0), 0) || 0);
             const matchStock = !onlyInStock || totalStock > 0;
             return matchSearch && matchGroup && matchGender && matchCollection && matchFinish && matchStoneSpecific && matchStoneMode && matchProductionType && matchStock;
         }).sort((a, b) => {

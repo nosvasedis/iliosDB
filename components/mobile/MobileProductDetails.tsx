@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Product, ProductVariant, Warehouse, Gender, PlatingType, MaterialType, RecipeItem } from '../../types';
 import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy, ArrowRightLeft, PlusCircle, Settings2, ArrowRight, Save, Hammer, Box, Flame, Gem, Coins, ChevronDown, ChevronUp, Palette, Info, Package, Download, Loader2, Sparkles, Layers, Ruler, Camera } from 'lucide-react';
 import { formatCurrency, getVariantComponents, transliterateForBarcode } from '../../utils/pricingEngine';
-import { SYSTEM_IDS, CLOUDFLARE_WORKER_URL, recordStockMovement, supabase, api, R2_PUBLIC_URL, AUTH_KEY_SECRET, uploadProductImage } from '../../lib/supabase';
+import { SYSTEM_IDS, CLOUDFLARE_WORKER_URL, supabase, api, R2_PUBLIC_URL, AUTH_KEY_SECRET, uploadProductImage } from '../../lib/supabase';
 import { ACCEPTED_IMAGE_INPUT_TYPES, compressImage } from '../../utils/imageHelpers';
 import { productsRepository } from '../../features/products/repository';
 import BarcodeView from '../BarcodeView';
@@ -15,6 +15,8 @@ import { APP_LOGO, APP_ICON_ONLY } from '../../constants';
 import { getVariantIndexBySuffix } from '../../features/products/productDetailsViewModels';
 import SkuColorizedText from '../SkuColorizedText';
 import { getSkuFinishBadgeSurface, getSkuFinishCardTheme } from '../../utils/skuColoring';
+import { inventoryRepository } from '../../features/inventory';
+import { useAuth } from '../AuthContext';
 
 interface Props {
   product: Product;
@@ -27,7 +29,7 @@ interface Props {
 const GENDER_LABELS: Record<string, string> = {
     [Gender.Men]: 'Ανδρικό',
     [Gender.Women]: 'Γυναικείο',
-    [Gender.Unisex]: 'Unisex'
+    [Gender.Unisex]: 'Ουδέτερο'
 };
 
 const PLATING_LABELS: Record<string, string> = {
@@ -64,6 +66,9 @@ const toBase64 = async (url: string): Promise<string | null> => {
 
 export default function MobileProductDetails({ product, onClose, warehouses, setPrintItems, initialVariantSuffix }: Props) {
   const { showToast } = useUI();
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
+  const canTransfer = isAdmin || profile?.role === 'user';
   const queryClient = useQueryClient();
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareTab, setShareTab] = useState<'card' | 'qr'>('card');
@@ -74,8 +79,8 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
   const { data: allProducts } = useQuery({ queryKey: ['products'], queryFn: api.getProducts });
   const { data: molds } = useQuery({ queryKey: ['molds'], queryFn: api.getMolds });
 
-  const [transferModal, setTransferModal] = useState<{ sourceId: string; targetId: string; qty: number } | null>(null);
-  const [adjustModal, setAdjustModal] = useState<{ warehouseId: string; type: 'add' | 'set' | 'remove'; qty: number } | null>(null);
+  const [transferModal, setTransferModal] = useState<{ sourceId: string; targetId: string; qty: number; reason: string } | null>(null);
+  const [adjustModal, setAdjustModal] = useState<{ warehouseId: string; type: 'add' | 'set' | 'remove'; qty: number; reason: string } | null>(null);
   
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [localImageUrl, setLocalImageUrl] = useState<string | null>(product.image_url);
@@ -255,22 +260,19 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
       if (!adjustModal) return;
       const { warehouseId, type, qty } = adjustModal;
       const finalQty = type === 'remove' ? -qty : qty;
-      const whName = warehouses.find(w => w.id === warehouseId)?.name || 'Unknown';
       try {
-          const isCentral = warehouseId === SYSTEM_IDS.CENTRAL;
-          const isShowroom = warehouseId === SYSTEM_IDS.SHOWROOM;
-          if (activeVariant) {
-              if (isCentral) await supabase.from('product_variants').update({ stock_qty: type === 'set' ? qty : Math.max(0, (activeVariant.stock_qty || 0) + finalQty) }).match({ product_sku: product.sku, suffix: activeVariant.suffix });
-              else await supabase.from('product_stock').upsert({ product_sku: product.sku, variant_suffix: activeVariant.suffix, warehouse_id: warehouseId, quantity: type === 'set' ? qty : Math.max(0, (activeVariant.location_stock?.[warehouseId] || 0) + finalQty) }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
-          } else {
-              if (isCentral) await supabase.from('products').update({ stock_qty: type === 'set' ? qty : Math.max(0, (product.stock_qty || 0) + finalQty) }).eq('sku', product.sku);
-              else if (isShowroom) await supabase.from('products').update({ sample_qty: type === 'set' ? qty : Math.max(0, (product.sample_qty || 0) + finalQty) }).eq('sku', product.sku);
-              else await supabase.from('product_stock').upsert({ product_sku: product.sku, variant_suffix: null, warehouse_id: warehouseId, quantity: type === 'set' ? qty : Math.max(0, (product.location_stock?.[warehouseId] || 0) + finalQty) }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
-          }
-          await recordStockMovement(product.sku, type === 'set' ? 0 : finalQty, type === 'set' ? `Stock Set: ${whName}` : `Manual Adj: ${whName}`, activeVariant?.suffix || undefined);
-          invalidateProductsAndCatalog(queryClient);
-          showToast("Ενημερώθηκε.", "success"); setAdjustModal(null);
-      } catch (e) { showToast("Σφάλμα.", "error"); }
+          await inventoryRepository.adjustStock({
+              productSku: product.sku,
+              variantSuffix: activeVariant?.suffix || '',
+              sizeInfo: '',
+              warehouseId,
+              mode: type === 'set' ? 'set' : 'delta',
+              quantity: type === 'set' ? qty : finalQty,
+              reason: adjustModal.reason,
+          });
+          await invalidateProductsAndCatalog(queryClient);
+          showToast("Η διόρθωση αποθέματος καταχωρίστηκε.", "success"); setAdjustModal(null);
+      } catch (e: any) { showToast(e?.message || "Η διόρθωση δεν ολοκληρώθηκε. Δεν πραγματοποιήθηκε καμία μεταβολή.", "error"); }
   };
 
   const handleTransferStock = async () => {
@@ -278,24 +280,20 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
       const { sourceId, targetId, qty } = transferModal;
       if (sourceId === targetId) return;
       try {
-          const sku = product.sku; const suffix = activeVariant?.suffix || null;
-          const update = async (whId: string, delta: number) => {
-               if (activeVariant) {
-                   if (whId === SYSTEM_IDS.CENTRAL) await supabase.from('product_variants').update({ stock_qty: Math.max(0, activeVariant.stock_qty + delta) }).match({ product_sku: sku, suffix: suffix });
-                   else await supabase.from('product_stock').upsert({ product_sku: sku, variant_suffix: suffix, warehouse_id: whId, quantity: Math.max(0, (activeVariant.location_stock?.[whId] || 0) + delta) }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
-               } else {
-                   if (whId === SYSTEM_IDS.CENTRAL) await supabase.from('products').update({ stock_qty: Math.max(0, product.stock_qty + delta) }).eq('sku', sku);
-                   else if (whId === SYSTEM_IDS.SHOWROOM) await supabase.from('products').update({ sample_qty: Math.max(0, product.sample_qty + delta) }).eq('sku', sku);
-                   else await supabase.from('product_stock').upsert({ product_sku: sku, variant_suffix: null, warehouse_id: whId, quantity: Math.max(0, (product.location_stock?.[whId] || 0) + delta) }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
-               }
-          };
-          await update(sourceId, -qty); await update(targetId, qty);
-          await recordStockMovement(sku, qty, `Transfer: ${warehouses.find(w=>w.id===sourceId)?.name} -> ${warehouses.find(w=>w.id===targetId)?.name}`, suffix || undefined);
-          invalidateProductsAndCatalog(queryClient); showToast("Ολοκληρώθηκε.", "success"); setTransferModal(null);
-      } catch (e) { showToast("Σφάλμα.", "error"); }
+          await inventoryRepository.transferStock({
+              productSku: product.sku,
+              variantSuffix: activeVariant?.suffix || '',
+              sizeInfo: '',
+              sourceWarehouseId: sourceId,
+              destinationWarehouseId: targetId,
+              quantity: qty,
+              reason: transferModal.reason,
+          });
+          await invalidateProductsAndCatalog(queryClient); showToast("Η ενδοδιακίνηση ολοκληρώθηκε.", "success"); setTransferModal(null);
+      } catch (e: any) { showToast(e?.message || "Η ενδοδιακίνηση δεν ολοκληρώθηκε. Δεν πραγματοποιήθηκε καμία μεταβολή.", "error"); }
   };
 
-  const renderStockRow = (whId: string, qty: number, isSystem: boolean, label: string) => (
+  const renderStockRow = (whId: string, onHand: number, reserved: number, available: number, isSystem: boolean, label: string) => (
       <div key={whId} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
           <div className="flex items-center gap-3">
               <div className={`p-2 rounded-xl ${isSystem ? (label.includes('Κεντρική') ? 'bg-slate-100 text-slate-600' : 'bg-purple-50 text-purple-600') : 'bg-blue-50 text-blue-600'}`}>
@@ -303,13 +301,17 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
               </div>
               <div>
                   <div className="text-[10px] font-bold text-slate-400 uppercase">{label}</div>
-                  <div className="text-xl font-black text-slate-800">{qty}</div>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs font-bold text-slate-600">
+                      <span>Φυσικό: <strong className="text-slate-900">{onHand}</strong></span>
+                      <span>Δεσμευμένο: <strong className="text-amber-700">{reserved}</strong></span>
+                      <span>Διαθέσιμο: <strong className="text-emerald-700">{available}</strong></span>
+                  </div>
               </div>
           </div>
           <div className="flex gap-2">
-              <button onClick={() => setAdjustModal({ warehouseId: whId, type: 'add', qty: 1 })} className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 active:scale-95 transition-transform"><PlusCircle size={20}/></button>
-              <button onClick={() => setTransferModal({ sourceId: whId, targetId: warehouses.find(w => w.id !== whId)?.id || '', qty: 1 })} className="p-2.5 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 active:scale-95 transition-transform" disabled={qty <= 0}><ArrowRightLeft size={20}/></button>
-              <button onClick={() => setAdjustModal({ warehouseId: whId, type: 'set', qty: qty })} className="p-2.5 bg-slate-50 text-slate-600 rounded-xl border border-slate-200 active:scale-95 transition-transform"><Settings2 size={20}/></button>
+              {isAdmin && <button aria-label={`Προσθήκη αποθέματος στην ${label}`} onClick={() => setAdjustModal({ warehouseId: whId, type: 'add', qty: 1, reason: '' })} className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 active:scale-95 transition-transform"><PlusCircle size={20}/></button>}
+              {canTransfer && <button aria-label={`Ενδοδιακίνηση από ${label}`} onClick={() => setTransferModal({ sourceId: whId, targetId: warehouses.find(w => w.id !== whId)?.id || '', qty: 1, reason: '' })} className="p-2.5 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 active:scale-95 transition-transform" disabled={available <= 0}><ArrowRightLeft size={20}/></button>}
+              {isAdmin && <button aria-label={`Διόρθωση αποθέματος στην ${label}`} onClick={() => setAdjustModal({ warehouseId: whId, type: 'set', qty: onHand, reason: '' })} className="p-2.5 bg-slate-50 text-slate-600 rounded-xl border border-slate-200 active:scale-95 transition-transform"><Settings2 size={20}/></button>}
           </div>
       </div>
   );
@@ -425,9 +427,30 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
           {activeTab === 'stock' && (
               <div className="space-y-3 animate-in fade-in slide-in-from-right-2">
                   <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-2"><MapPin size={12}/> Διαχείριση Αποθέματος</h3>
-                  {renderStockRow(SYSTEM_IDS.CENTRAL, activeVariant ? activeVariant.stock_qty : product.stock_qty, true, 'Κεντρική Αποθήκη')}
-                  {renderStockRow(SYSTEM_IDS.SHOWROOM, activeVariant ? (activeVariant.location_stock?.[SYSTEM_IDS.SHOWROOM] || 0) : product.sample_qty, true, 'Δειγματολόγιο')}
-                  {warehouses.filter(w => !w.is_system).map(w => renderStockRow(w.id, activeVariant ? (activeVariant.location_stock?.[w.id] || 0) : (product.location_stock?.[w.id] || 0), false, w.name))}
+                  {renderStockRow(
+                      SYSTEM_IDS.CENTRAL,
+                      activeVariant ? activeVariant.stock_qty : product.stock_qty,
+                      activeVariant ? (activeVariant.reserved_qty || 0) : (product.reserved_qty || 0),
+                      activeVariant ? (activeVariant.available_qty ?? activeVariant.stock_qty) : (product.available_qty ?? product.stock_qty),
+                      true,
+                      'Κεντρική Αποθήκη',
+                  )}
+                  {renderStockRow(
+                      SYSTEM_IDS.SHOWROOM,
+                      activeVariant ? (activeVariant.location_stock?.[SYSTEM_IDS.SHOWROOM] || 0) : product.sample_qty,
+                      activeVariant ? (activeVariant.location_reserved?.[SYSTEM_IDS.SHOWROOM] || 0) : (product.location_reserved?.[SYSTEM_IDS.SHOWROOM] || 0),
+                      activeVariant ? (activeVariant.location_available?.[SYSTEM_IDS.SHOWROOM] ?? activeVariant.location_stock?.[SYSTEM_IDS.SHOWROOM] ?? 0) : (product.location_available?.[SYSTEM_IDS.SHOWROOM] ?? product.sample_qty),
+                      true,
+                      'Εκθετήριο',
+                  )}
+                  {warehouses.filter(w => !w.is_system).map(w => renderStockRow(
+                      w.id,
+                      activeVariant ? (activeVariant.location_stock?.[w.id] || 0) : (product.location_stock?.[w.id] || 0),
+                      activeVariant ? (activeVariant.location_reserved?.[w.id] || 0) : (product.location_reserved?.[w.id] || 0),
+                      activeVariant ? (activeVariant.location_available?.[w.id] ?? activeVariant.location_stock?.[w.id] ?? 0) : (product.location_available?.[w.id] ?? product.location_stock?.[w.id] ?? 0),
+                      false,
+                      w.name,
+                  ))}
               </div>
           )}
 
@@ -645,11 +668,12 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
       {transferModal && (
           <div className="fixed inset-0 z-[160] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in zoom-in-95">
               <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4">
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-100"><h3 className="font-black text-lg text-slate-800">Μεταφορά</h3><button onClick={() => setTransferModal(null)}><X size={20} className="text-slate-400"/></button></div>
-                  <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Από</label><div className="p-3 bg-slate-100 rounded-xl font-bold text-slate-600 border border-slate-200">{warehouses.find(w => w.id === transferModal.sourceId)?.name}</div></div>
-                  <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Προς</label><select value={transferModal.targetId} onChange={e => setTransferModal({...transferModal, targetId: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/20">{warehouses.filter(w => w.id !== transferModal.sourceId).map(w => (<option key={w.id} value={w.id}>{w.name}</option>))}</select></div>
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-100"><h3 className="font-black text-lg text-slate-800">Ενδοδιακίνηση</h3><button aria-label="Κλείσιμο" onClick={() => setTransferModal(null)}><X size={20} className="text-slate-400"/></button></div>
+                  <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Αποθήκη Προέλευσης</label><div className="p-3 bg-slate-100 rounded-xl font-bold text-slate-600 border border-slate-200">{warehouses.find(w => w.id === transferModal.sourceId)?.name}</div></div>
+                  <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Αποθήκη Προορισμού</label><select value={transferModal.targetId} onChange={e => setTransferModal({...transferModal, targetId: e.target.value})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/20">{warehouses.filter(w => w.id !== transferModal.sourceId).map(w => (<option key={w.id} value={w.id}>{w.name}</option>))}</select></div>
                   <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Ποσότητα</label><input type="number" min="1" value={transferModal.qty} onChange={e => setTransferModal({...transferModal, qty: parseInt(e.target.value) || 1})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-none focus:ring-2 focus:ring-blue-500/20"/></div>
-                  <button onClick={handleTransferStock} className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2"><ArrowRightLeft size={20}/> Εκτέλεση</button>
+                  <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Αιτιολογία</label><textarea value={transferModal.reason} onChange={e => setTransferModal({...transferModal, reason: e.target.value})} rows={2} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20" placeholder="Καταχωρίστε την αιτία της ενδοδιακίνησης..."/></div>
+                  <button onClick={handleTransferStock} disabled={!transferModal.reason.trim()} className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 disabled:opacity-50"><ArrowRightLeft size={20}/> Καταχώριση</button>
               </div>
           </div>
       )}
@@ -657,11 +681,12 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
       {adjustModal && (
           <div className="fixed inset-0 z-[160] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in zoom-in-95">
               <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4">
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-100"><h3 className="font-black text-lg text-slate-800">{adjustModal.type === 'add' ? 'Προσθήκη' : (adjustModal.type === 'remove' ? 'Αφαίρεση' : 'Διόρθωση')}</h3><button onClick={() => setAdjustModal(null)}><X size={20} className="text-slate-400"/></button></div>
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-100"><h3 className="font-black text-lg text-slate-800">Διόρθωση Αποθέματος</h3><button aria-label="Κλείσιμο" onClick={() => setAdjustModal(null)}><X size={20} className="text-slate-400"/></button></div>
                   <div className="text-center text-sm font-bold text-slate-500 mb-2">{warehouses.find(w => w.id === adjustModal.warehouseId)?.name}</div>
-                  {adjustModal.type === 'set' ? (<div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Νέο Υπόλοιπο (Set)</label><input type="number" min="0" value={adjustModal.qty} onChange={e => setAdjustModal({...adjustModal, qty: parseInt(e.target.value) || 0})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-none focus:ring-2 focus:ring-slate-500/20"/></div>) : (<div className="grid grid-cols-2 gap-3"><button onClick={() => setAdjustModal({...adjustModal, type: 'add'})} className={`p-3 rounded-xl font-bold border transition-all ${adjustModal.type === 'add' ? 'bg-emerald-50 border-emerald-500 text-emerald-700 ring-2 ring-emerald-200' : 'bg-white border-slate-200 text-slate-500'}`}>Προσθήκη (+)</button><button onClick={() => setAdjustModal({...adjustModal, type: 'remove'})} className={`p-3 rounded-xl font-bold border transition-all ${adjustModal.type === 'remove' ? 'bg-rose-50 border-rose-500 text-rose-700 ring-2 ring-rose-200' : 'bg-white border-slate-200 text-slate-500'}`}>Αφαίρεση (-)</button></div>)}
+                  {adjustModal.type === 'set' ? (<div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Νέο Φυσικό Απόθεμα</label><input type="number" min="0" value={adjustModal.qty} onChange={e => setAdjustModal({...adjustModal, qty: parseInt(e.target.value) || 0})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-none focus:ring-2 focus:ring-slate-500/20"/></div>) : (<div className="grid grid-cols-2 gap-3"><button onClick={() => setAdjustModal({...adjustModal, type: 'add'})} className={`p-3 rounded-xl font-bold border transition-all ${adjustModal.type === 'add' ? 'bg-emerald-50 border-emerald-500 text-emerald-700 ring-2 ring-emerald-200' : 'bg-white border-slate-200 text-slate-500'}`}>Προσθήκη (+)</button><button onClick={() => setAdjustModal({...adjustModal, type: 'remove'})} className={`p-3 rounded-xl font-bold border transition-all ${adjustModal.type === 'remove' ? 'bg-rose-50 border-rose-500 text-rose-700 ring-2 ring-rose-200' : 'bg-white border-slate-200 text-slate-500'}`}>Αφαίρεση (-)</button></div>)}
                   {adjustModal.type !== 'set' && (<div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Ποσότητα</label><input type="number" min="1" value={adjustModal.qty} onChange={e => setAdjustModal({...adjustModal, qty: parseInt(e.target.value) || 1})} className="w-full p-3 bg-white border border-slate-200 rounded-xl font-black text-2xl text-center outline-none focus:ring-2 focus:ring-slate-500/20"/></div>)}
-                  <button onClick={handleAdjustStock} className={`w-full py-3.5 rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 text-white ${adjustModal.type === 'add' ? 'bg-emerald-600' : (adjustModal.type === 'remove' ? 'bg-rose-600' : 'bg-slate-900')}`}><Save size={20}/> Αποθήκευση</button>
+                  <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Αιτιολογία</label><textarea value={adjustModal.reason} onChange={e => setAdjustModal({...adjustModal, reason: e.target.value})} rows={2} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-slate-500/20" placeholder="Καταχωρίστε την αιτία της διόρθωσης..."/></div>
+                  <button onClick={handleAdjustStock} disabled={!adjustModal.reason.trim()} className={`w-full py-3.5 rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 text-white disabled:opacity-50 ${adjustModal.type === 'add' ? 'bg-emerald-600' : (adjustModal.type === 'remove' ? 'bg-rose-600' : 'bg-slate-900')}`}><Save size={20}/> Καταχώριση</button>
               </div>
           </div>
       )}

@@ -47,7 +47,8 @@ export default function EmployeeProductDetails({ product, onClose, warehouses, s
         });
     }, [variants]);
 
-    const totalStock = (product.stock_qty || 0) + variants.reduce((acc, v) => acc + (v.stock_qty || 0), 0);
+    const totalStock = (product.available_qty ?? product.stock_qty ?? 0)
+        + variants.reduce((acc, v) => acc + (v.available_qty ?? v.stock_qty ?? 0), 0);
 
     const handlePrintLabel = (variant: ProductVariant | null, format: 'standard' | 'retail') => {
         if (!setPrintItems) return;
@@ -148,8 +149,8 @@ export default function EmployeeProductDetails({ product, onClose, warehouses, s
                                             </div>
                                         </td>
                                         <td className="p-4 text-center hidden sm:table-cell">
-                                            {v.stock_qty > 0 ? (
-                                                <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-bold text-xs">{v.stock_qty}</span>
+                                            {(v.available_qty ?? v.stock_qty) > 0 ? (
+                                                <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-bold text-xs">{v.available_qty ?? v.stock_qty}</span>
                                             ) : <span className="text-slate-300">-</span>}
                                         </td>
                                         <td className="p-4 text-right font-black text-lg text-slate-800">
@@ -175,8 +176,8 @@ export default function EmployeeProductDetails({ product, onClose, warehouses, s
                                             </div>
                                         </td>
                                         <td className="p-4 text-center hidden sm:table-cell">
-                                            {product.stock_qty > 0 ? (
-                                                <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-bold text-xs">{product.stock_qty}</span>
+                                            {(product.available_qty ?? product.stock_qty) > 0 ? (
+                                                <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-bold text-xs">{product.available_qty ?? product.stock_qty}</span>
                                             ) : <span className="text-slate-300">-</span>}
                                         </td>
                                         <td className="p-4 text-right font-black text-lg text-slate-800">

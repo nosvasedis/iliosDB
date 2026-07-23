@@ -80,7 +80,9 @@ export function checkStockForOrderItems(
         available = stockBySize[item.size_info] || 0;
       }
     } else {
-      available = variant ? (variant.stock_qty || 0) : (product.stock_qty || 0);
+      available = variant
+        ? (variant.available_qty ?? variant.stock_qty ?? 0)
+        : (product.available_qty ?? product.stock_qty ?? 0);
     }
 
     return {

@@ -8,6 +8,7 @@ import MobilePurchaseOrderBuilder from './MobilePurchaseOrderBuilder';
 import { getSupplierOrderStatusClasses, getSupplierOrderStatusIcon, getSupplierOrderStatusLabel } from '../../features/suppliers/statusPresentation';
 import { invalidateProductsAndCatalog } from '../../lib/queryInvalidation';
 import { useUI } from '../UIProvider';
+import SupplierReceiptModal from '../suppliers/SupplierReceiptModal';
 
 const MATERIAL_TYPE_LABELS: Record<string, string> = {
     Stone: 'Πέτρα',
@@ -36,6 +37,7 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
     const [viewTab, setViewTab] = useState<'info' | 'orders' | 'products' | 'materials'>('orders');
     const [viewOrderId, setViewOrderId] = useState<string | null>(null);
     const [productSearchTerm, setProductSearchTerm] = useState('');
+    const [receiptOrder, setReceiptOrder] = useState<SupplierOrder | null>(null);
 
     const supplierOrders = orders?.filter(o => o.supplier_id === supplier.id) || [];
 
@@ -114,22 +116,19 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
         }
     };
 
-    const handleReceiveOrder = async (order: SupplierOrder) => {
-        const yes = await confirm({
-            title: 'Παραλαβή',
-            message: 'Να καταχωριστεί η παραλαβή; Οι δεσμευμένες ανάγκες θα εκπληρωθούν και μόνο τα ελεύθερα/έξτρα τεμάχια θα προστεθούν στο απόθεμα.',
-            confirmText: 'Παραλαβή',
-        });
-        if (!yes) return;
-        try {
-            await api.receiveSupplierOrder(order);
-            queryClient.invalidateQueries({ queryKey: ['supplier_orders'] });
-            await invalidateProductsAndCatalog(queryClient);
-            queryClient.invalidateQueries({ queryKey: ['materials'] });
-            showToast('Παραλαβή ολοκληρώθηκε.', 'success');
-        } catch (error: any) {
-            showToast(error?.message || 'Σφάλμα παραλαβής.', 'error');
-        }
+    const handleReceiveOrder = (order: SupplierOrder) => setReceiptOrder(order);
+
+    const confirmSupplierReceipt = async (warehouseId: string) => {
+        if (!receiptOrder) return;
+        await api.receiveSupplierOrder(receiptOrder, warehouseId);
+        await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ['supplier_orders'] }),
+            invalidateProductsAndCatalog(queryClient),
+            queryClient.invalidateQueries({ queryKey: ['materials'] }),
+            queryClient.invalidateQueries({ queryKey: ['inventory'] }),
+        ]);
+        setReceiptOrder(null);
+        showToast('Η παραλαβή αποθέματος ολοκληρώθηκε επιτυχώς.', 'success');
     };
 
     const viewOrder = viewOrderId ? supplierOrders.find(o => o.id === viewOrderId) : undefined;
@@ -510,6 +509,13 @@ export default function MobileSupplierDetails({ supplier, onClose, onEditSupplie
                         </div>
                     </div>
                 </div>
+            )}
+            {receiptOrder && (
+                <SupplierReceiptModal
+                    order={receiptOrder}
+                    onClose={() => setReceiptOrder(null)}
+                    onConfirm={confirmSupplierReceipt}
+                />
             )}
         </div>
     );

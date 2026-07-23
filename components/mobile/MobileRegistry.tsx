@@ -88,7 +88,7 @@ const genderFilters: { label: string; value: 'All' | Gender; icon: React.ReactNo
     { label: 'Όλα', value: 'All', icon: <Layers size={14} /> },
     { label: 'Ανδρικά', value: Gender.Men, icon: <User size={14} /> },
     { label: 'Γυναικεία', value: Gender.Women, icon: <User size={14} /> },
-    { label: 'Unisex', value: Gender.Unisex, icon: <Users size={14} /> },
+    { label: 'Ουδέτερα', value: Gender.Unisex, icon: <Users size={14} /> },
 ];
 
 const platingFilters = [
@@ -130,7 +130,8 @@ const RegistryCard: React.FC<{ product: Product; onClick: () => void }> = ({ pro
     const displayPrice = currentVariant ? (currentVariant.selling_price || 0) : (product.selling_price || 0);
     const displayLabel = currentVariant ? (currentVariant.description || currentVariant.suffix) : product.category;
 
-    const totalStock = (product.stock_qty || 0) + (product.variants?.reduce((sum, v) => sum + (v.stock_qty || 0), 0) || 0);
+    const totalStock = (product.available_qty ?? product.stock_qty ?? 0)
+        + (product.variants?.reduce((sum, v) => sum + (v.available_qty ?? v.stock_qty ?? 0), 0) || 0);
 
     const nextVariant = (e: React.MouseEvent) => {
         e.stopPropagation();

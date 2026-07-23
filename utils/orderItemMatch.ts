@@ -1,6 +1,5 @@
 import { OrderItem } from '../types';
 import { buildItemIdentityKey } from './itemIdentity';
-import { isSpecialCreationSku } from './specialCreationSku';
 
 /** Unique key for merging/editing lines. SP lines always use `line_id` so multiples never collapse. */
 export function getOrderItemMatchKey(
@@ -16,35 +15,19 @@ function defaultLineIdFactory(): string {
   return crypto.randomUUID();
 }
 
-function needsPerLineIdentity(item: OrderItem, collisionKeys: Set<string>): boolean {
-  return isSpecialCreationSku(item.sku) || collisionKeys.has(buildItemIdentityKey({ ...item, line_id: null }));
-}
-
-/** Assign stable line_id to rows that must never collapse into the same catalog identity. */
+/**
+ * Assign a stable identity to every order row.
+ *
+ * Inventory reservations and shipment reversals are line-level ERP operations;
+ * relying on a derived SKU key would merge repeated rows and release or issue
+ * the wrong quantity. The collision scan remains for backward-compatible match
+ * keys, but every persisted row now receives a line id.
+ */
 export function assignMissingOrderLineIds(
   items: OrderItem[],
   createLineId: LineIdFactory = defaultLineIdFactory
 ): OrderItem[] {
-  const notesByNaturalKey = new Map<string, Set<string>>();
-
-  for (const item of items) {
-    if (isSpecialCreationSku(item.sku)) continue;
-    const key = buildItemIdentityKey({ ...item, line_id: null });
-    const notes = notesByNaturalKey.get(key) || new Set<string>();
-    notes.add(item.notes || '');
-    notesByNaturalKey.set(key, notes);
-  }
-
-  const noteCollisionKeys = new Set(
-    Array.from(notesByNaturalKey.entries())
-      .filter(([, notes]) => notes.size > 1)
-      .map(([key]) => key)
-  );
-
-  return items.map((row) => {
-    if (!needsPerLineIdentity(row, noteCollisionKeys) || row.line_id) return row;
-    return { ...row, line_id: createLineId() };
-  });
+  return items.map((row) => row.line_id ? row : { ...row, line_id: createLineId() });
 }
 
 /** Assign stable line_id to legacy rows that require per-line identity. */

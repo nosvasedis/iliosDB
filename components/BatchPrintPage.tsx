@@ -8,7 +8,8 @@ import { extractSkusFromImage } from '../lib/gemini';
 import { analyzeSku, getVariantComponents, formatCurrency, findProductByScannedCode, expandSkuRange, splitSkuComponents } from '../utils/pricingEngine';
 import BarcodeView from './BarcodeView';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, SYSTEM_IDS, recordStockMovement, supabase } from '../lib/supabase';
+import { api, SYSTEM_IDS } from '../lib/supabase';
+import { inventoryRepository } from '../features/inventory';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 import DesktopPageHeader from './DesktopPageHeader';
 import { parseBatchLabelInputLine } from '../features/printing/batchLabelInput';
@@ -322,7 +323,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
             return;
         }
 
-        const warehouseName = warehouses?.find(w => w.id === targetWarehouse)?.name || 'Unknown';
+        const warehouseName = warehouses?.find(w => w.id === targetWarehouse)?.name || 'Μη αναγνωρισμένη αποθήκη';
 
         const confirmed = await confirm({
             title: `Καταχώρηση στο ${warehouseName}`,
@@ -335,56 +336,15 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
 
         setIsCommitting(true);
         try {
-            let successCount = 0;
-
-            for (const item of items) {
-                const { product, variant, quantity } = item;
-                const sku = product.sku;
-                const suffix = variant?.suffix || null;
-
-                // Logic differs based on warehouse type and variant existence
-                if (variant) {
-                    // It's a Variant
-                    if (targetWarehouse === SYSTEM_IDS.CENTRAL) {
-                        await supabase.from('product_variants')
-                            .update({ stock_qty: (variant.stock_qty || 0) + quantity })
-                            .match({ product_sku: sku, suffix: suffix });
-                    } else {
-                        // Showroom or Other Warehouse (Stored in product_stock)
-                        const currentQty = variant.location_stock?.[targetWarehouse] || 0;
-                        await supabase.from('product_stock').upsert({
-                            product_sku: sku,
-                            variant_suffix: suffix,
-                            warehouse_id: targetWarehouse,
-                            quantity: currentQty + quantity
-                        }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
-                    }
-                } else {
-                    // It's a Master/Simple Product
-                    if (targetWarehouse === SYSTEM_IDS.CENTRAL) {
-                        await supabase.from('products')
-                            .update({ stock_qty: (product.stock_qty || 0) + quantity })
-                            .eq('sku', sku);
-                    } else if (targetWarehouse === SYSTEM_IDS.SHOWROOM) {
-                        // Master showroom stock is stored on product table
-                        await supabase.from('products')
-                            .update({ sample_qty: (product.sample_qty || 0) + quantity })
-                            .eq('sku', sku);
-                    } else {
-                        // Other warehouse
-                        const currentQty = product.location_stock?.[targetWarehouse] || 0;
-                        await supabase.from('product_stock').upsert({
-                            product_sku: sku,
-                            variant_suffix: null,
-                            warehouse_id: targetWarehouse,
-                            quantity: currentQty + quantity
-                        }, { onConflict: 'product_sku, warehouse_id, variant_suffix' });
-                    }
-                }
-
-                await recordStockMovement(sku, quantity, `Batch Print Import: ${warehouseName}`, suffix || undefined);
-                successCount++;
-            }
+            const successCount = await inventoryRepository.batchAdjustStock(
+                items.map(({ product, variant, quantity }) => ({
+                    productSku: product.sku,
+                    variantSuffix: variant?.suffix || '',
+                    quantity,
+                })),
+                targetWarehouse,
+                `Μαζική παραλαβή αποθέματος από την εκτύπωση ετικετών στην αποθήκη «${warehouseName}».`,
+            );
 
             await invalidateProductsAndCatalog(queryClient);
 
@@ -399,11 +359,11 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                 details: logDetails
             }, ...prev].slice(0, 50));
 
-            showToast(`Επιτυχής προσθήκη ${successCount} ειδών στο ${warehouseName}!`, "success");
+            showToast(`Η μαζική παραλαβή ολοκληρώθηκε: ${successCount} είδη καταχωρίστηκαν στην αποθήκη «${warehouseName}».`, "success");
 
         } catch (e) {
             console.error(e);
-            showToast("Σφάλμα κατά την καταχώρηση.", "error");
+            showToast(e instanceof Error ? e.message : "Η μαζική παραλαβή δεν ολοκληρώθηκε. Δεν πραγματοποιήθηκε καμία μεταβολή.", "error");
         } finally {
             setIsCommitting(false);
         }

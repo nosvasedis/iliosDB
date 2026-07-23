@@ -10,6 +10,7 @@ import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 import { getOrderItemMatchKey } from '../../utils/orderItemMatch';
 import PriceSyncPreviewModal from '../PriceSyncPreviewModal';
 import { useUI } from '../UIProvider';
+import InventoryAvailabilityNote from '../inventory/InventoryAvailabilityNote';
 
 interface Props {
     orderState: ReturnType<typeof useOrderState>;
@@ -369,6 +370,16 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                 </div>
                             )}
                         </div>
+
+                        {!isSpecialCreationSku(item.sku) && (
+                            <InventoryAvailabilityNote
+                                item={item}
+                                product={item.product_details}
+                                mode="order"
+                                orderId={state.orderId || undefined}
+                                compact
+                            />
+                        )}
 
                         <div className="relative group/note">
                             <input

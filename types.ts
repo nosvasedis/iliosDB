@@ -92,6 +92,12 @@ export interface ProductVariant {
   stock_qty: number;
   stock_by_size?: Record<string, number>; // e.g. { "52": 10, "54": 5 }
   location_stock?: Record<string, number>;
+  /** Canonical reserved quantity in the Central warehouse. */
+  reserved_qty?: number;
+  /** Canonical available quantity in the Central warehouse. */
+  available_qty?: number;
+  location_reserved?: Record<string, number>;
+  location_available?: Record<string, number>;
   active_price?: number | null;
   selling_price?: number | null;
   selling_price_manual_override?: boolean;
@@ -135,6 +141,12 @@ export interface Product {
   sample_stock_by_size?: Record<string, number>;
 
   location_stock?: Record<string, number>;
+  /** Canonical reserved quantity in the Central warehouse. */
+  reserved_qty?: number;
+  /** Canonical available quantity in the Central warehouse. */
+  available_qty?: number;
+  location_reserved?: Record<string, number>;
+  location_available?: Record<string, number>;
 
   // Manufacturing
   molds: ProductMold[];
@@ -211,6 +223,8 @@ export interface OrderItem {
   notes?: string;
   /** Stable row id for systemic SKU SP so multiple special lines never merge. */
   line_id?: string;
+  /** Explicit fulfillment warehouse; Central is used when omitted on legacy rows. */
+  warehouse_id?: string;
 }
 
 export interface Order {
@@ -234,6 +248,8 @@ export interface Order {
   tags?: string[]; // E.g. ['Exhibition A', 'Seller B']
   is_archived?: boolean;
   price_change_log?: PriceChangeRecord[];
+  /** Offer that created this order through the atomic conversion workflow. */
+  source_offer_id?: string;
   /** Populated on list queries that omit the items JSON blob. */
   item_count?: number;
   item_total_qty?: number;
@@ -473,6 +489,8 @@ export interface Offer {
   total_price: number; // Final price after discount
   notes?: string;
   vat_rate?: number; // 0.24, 0.17, 0.00
+  /** Populated once the offer is atomically converted; prevents duplicate orders. */
+  converted_order_id?: string;
 }
 
 export interface Customer {
@@ -522,6 +540,10 @@ export interface ProductionBatch {
   enamel_color?: ProductOptionColor;
   /** Matches order line `line_id` (required for multiple SP rows). */
   line_id?: string | null;
+  /** Identifies whether shipment is backed by production, a live reservation, or a legacy early issue. */
+  fulfillment_source?: 'production' | 'inventory_reserved' | 'legacy_inventory_issued';
+  /** True only for pre-migration stock batches whose quantity was deducted before shipment. */
+  legacy_inventory_issued?: boolean;
 
   product_image?: string | null;
   product_details?: Product;
@@ -1018,6 +1040,8 @@ export interface SupplierOrder {
   items: SupplierOrderItem[];
   notes?: string;
   received_at?: string;
+  /** Warehouse selected for the physical receipt; defaults to Central for legacy orders. */
+  receipt_warehouse_id?: string;
 }
 
 export interface AuditLog {

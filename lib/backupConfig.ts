@@ -67,12 +67,16 @@ export const BACKUP_TABLE_REGISTRY: TableRegistryEntry[] = [
     { table: 'product_molds',            displayName: 'Product_Molds',            label: 'Καλούπια Προϊόντων',          category: 'catalog',    primaryKey: 'product_sku', primaryKeyType: 'string',  conflictTarget: 'product_sku,mold_code', includeInCsv: true,  dependsOn: ['products', 'molds'] },
     { table: 'product_collections',      displayName: 'Product_Collections',      label: 'Συλλογές Προϊόντων',          category: 'catalog',    primaryKey: 'product_sku', primaryKeyType: 'string',  conflictTarget: 'product_sku,collection_id', includeInCsv: true,  dependsOn: ['products', 'collections'] },
     { table: 'product_stock',            displayName: 'Product_Stock',            label: 'Απόθεμα ανά Αποθήκη',        category: 'catalog',    primaryKey: 'product_sku', primaryKeyType: 'string',  includeInCsv: true,  dependsOn: ['products', 'warehouses'] },
+    { table: 'inventory_balances',       displayName: 'Inventory_Balances',       label: 'Υπόλοιπα Αποθήκης',          category: 'catalog',    primaryKey: 'product_sku', primaryKeyType: 'string',  conflictTarget: 'product_sku,variant_suffix,size_info,warehouse_id', includeInCsv: true, dependsOn: ['products', 'warehouses'] },
+    { table: 'inventory_reorder_policies', displayName: 'Inventory_Reorder_Policies', label: 'Πολιτικές Αναπαραγγελίας', category: 'catalog', primaryKey: 'product_sku', primaryKeyType: 'string', conflictTarget: 'product_sku,variant_suffix,size_info,warehouse_id', includeInCsv: true, dependsOn: ['products', 'warehouses', 'suppliers'] },
     { table: 'stock_movements',          displayName: 'Stock_Movements',          label: 'Κινήσεις Αποθέματος',          category: 'catalog',    primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true,  dependsOn: ['products', 'warehouses'] },
     { table: 'orders',                   displayName: 'Orders',                   label: 'Παραγγελίες',                 category: 'orders',     primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true,  dependsOn: ['customers'] },
+    { table: 'inventory_reservations',   displayName: 'Inventory_Reservations',   label: 'Δεσμεύσεις Αποθέματος',      category: 'orders',     primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true, dependsOn: ['orders', 'products', 'warehouses'] },
     { table: 'order_delivery_plans',     displayName: 'Order_Delivery_Plans',     label: 'Σχέδια Παράδοσης',            category: 'orders',     primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true,  dependsOn: ['orders'] },
     { table: 'order_delivery_reminders', displayName: 'Order_Delivery_Reminders', label: 'Υπενθυμίσεις Παράδοσης',      category: 'orders',     primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true,  dependsOn: ['orders'] },
     { table: 'order_shipments',          displayName: 'Order_Shipments',          label: 'Αποστολές',                   category: 'orders',     primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true,  dependsOn: ['orders'] },
     { table: 'order_shipment_items',     displayName: 'Order_Shipment_Items',     label: 'Είδη Αποστολής',              category: 'orders',     primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true,  dependsOn: ['order_shipments'] },
+    { table: 'inventory_shipment_allocations', displayName: 'Inventory_Shipment_Allocations', label: 'Κατανομές Εξαγωγών Αποθέματος', category: 'orders', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['order_shipments', 'inventory_reservations'] },
     { table: 'legal_settings',           displayName: 'Legal_Settings',           label: 'Νομικές Ρυθμίσεις',           category: 'legal',      primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: false },
     { table: 'legal_numbering_sequences',displayName: 'Legal_Numbering',          label: 'Αρίθμηση Εγγράφων',            category: 'legal',      primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true  },
     { table: 'legal_sync_runs',          displayName: 'Legal_Sync_Runs',          label: 'Εκτελέσεις Συγχρονισμού',     category: 'history',    primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: false },
@@ -92,6 +96,10 @@ export const BACKUP_TABLE_REGISTRY: TableRegistryEntry[] = [
     { table: 'price_snapshots',          displayName: 'Price_Snapshots',          label: 'Αντίγραφα Τιμών',             category: 'pricing',    primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true  },
     { table: 'price_snapshot_items',     displayName: 'Price_Snapshot_Items',     label: 'Γραμμές Αντιγράφων Τιμών',    category: 'pricing',    primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true,  dependsOn: ['price_snapshots'] },
     { table: 'audit_logs',               displayName: 'Audit_Logs',               label: 'Καταγραφή Ενεργειών',         category: 'history',    primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: false },
+    { table: 'inventory_events',         displayName: 'Inventory_Events',         label: 'Ιστορικό Κινήσεων Αποθέματος', category: 'history', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['products', 'warehouses'] },
+    { table: 'inventory_command_results', displayName: 'Inventory_Command_Results', label: 'Ασφαλείς Επαναλήψεις Κινήσεων Αποθέματος', category: 'history', primaryKey: 'idempotency_key', primaryKeyType: 'string', includeInCsv: false },
+    { table: 'inventory_cutover_balance_snapshot', displayName: 'Inventory_Cutover_Snapshot', label: 'Στιγμιότυπο Υπολοίπων Μετάβασης', category: 'history', primaryKey: 'snapshot_id', primaryKeyType: 'uuid', conflictTarget: 'snapshot_id,product_sku,variant_suffix,size_info,warehouse_id', includeInCsv: true },
+    { table: 'inventory_reconciliation_issues', displayName: 'Inventory_Reconciliation', label: 'Έλεγχοι Συμφωνίας Αποθέματος', category: 'history', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['products', 'warehouses'] },
 ];
 
 export const ALL_BACKUP_TABLE_NAMES = BACKUP_TABLE_REGISTRY.map((e) => e.table);
@@ -103,6 +111,10 @@ export const HISTORY_TABLES = new Set([
     'legal_delivery_events',
     'legal_audit_log',
     'batch_stage_history',
+    'inventory_events',
+    'inventory_command_results',
+    'inventory_cutover_balance_snapshot',
+    'inventory_reconciliation_issues',
 ]);
 
 // ─── Config & local extras ───────────────────────────────────────────────────

@@ -32,7 +32,9 @@ export default function SellerImageLightbox({ item, onClose }: Props) {
     const displayPrice = currentVariant
         ? (currentVariant.selling_price || product.selling_price || 0)
         : (product.selling_price || 0);
-    const stockQty = currentVariant ? currentVariant.stock_qty : product.stock_qty;
+    const stockQty = currentVariant
+        ? (currentVariant.available_qty ?? currentVariant.stock_qty)
+        : (product.available_qty ?? product.stock_qty);
 
     const { finish, stone } = getVariantComponents(currentVariant?.suffix || '', product.gender);
     const finishLabel = FINISH_CODES[finish.code] ?? (finish.code || 'Λουστρέ');

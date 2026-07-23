@@ -54,7 +54,7 @@ const genderFilters: { label: string; value: 'All' | Gender; icon: React.ReactNo
     { label: 'Όλα', value: 'All', icon: <Layers size={16} /> },
     { label: 'Ανδρικά', value: Gender.Men, icon: <User size={16} /> },
     { label: 'Γυναικεία', value: Gender.Women, icon: <User size={16} /> },
-    { label: 'Unisex', value: Gender.Unisex, icon: <UsersIcon size={16} /> },
+    { label: 'Ουδέτερα', value: Gender.Unisex, icon: <UsersIcon size={16} /> },
 ];
 
 const platingFilters = [

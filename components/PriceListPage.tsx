@@ -17,7 +17,7 @@ interface Props {
 const genderOptions = [
     { label: 'Αντρικά', value: Gender.Men, icon: <User size={16}/> },
     { label: 'Γυναικεία', value: Gender.Women, icon: <User size={16}/> },
-    { label: 'Unisex', value: Gender.Unisex, icon: <Users size={16}/> }
+    { label: 'Ουδέτερα', value: Gender.Unisex, icon: <Users size={16}/> }
 ];
 
 type SidebarTab = 'filters' | 'collections' | 'manual';

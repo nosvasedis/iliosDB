@@ -47,11 +47,12 @@ import { getAttentionItems } from '../utils/deliveryScheduling';
 import { api } from '../lib/supabase';
 import {
   buildProductionPulse,
-  buildInventoryRiskRows,
-  buildDemandPressureRows,
+  buildCanonicalInventoryRiskRows,
+  buildCanonicalDemandPressureRows,
   buildOffersSummary,
   buildReadyOrdersSummary,
 } from '../features/dashboard/dashboardMosaicViewModels';
+import { useInventoryAvailability } from '../hooks/api/useInventory';
 import { DASHBOARD_TERM_HINTS } from '../features/dashboard/dashboardTermHints';
 import { buildShippedQtyByOrderId } from '../utils/shipmentUtils';
 import { useSellers } from '../hooks/api/useSellers';
@@ -129,6 +130,7 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
     queryKey: ['offers'],
     queryFn: api.getOffers,
   });
+  const { data: inventoryAvailability = [] } = useInventoryAvailability();
   const { analytics: financeStats, isLoading: financeLoading } = useFinanceAnalytics({
     products,
     settings,
@@ -395,8 +397,18 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
 
   const deliveryAttention = useMemo(() => getAttentionItems(deliveryItems), [deliveryItems]);
   const productionPulse = useMemo(() => buildProductionPulse(batches), [batches]);
-  const inventoryRisk = useMemo(() => buildInventoryRiskRows(products), [products]);
-  const demandPressure = useMemo(() => buildDemandPressureRows(products, orders), [products, orders]);
+  const inventoryRisk = useMemo(
+    () => buildCanonicalInventoryRiskRows(inventoryAvailability),
+    [inventoryAvailability],
+  );
+  const inventoryPolicyRows = useMemo(
+    () => buildCanonicalInventoryRiskRows(inventoryAvailability, 10).rows,
+    [inventoryAvailability],
+  );
+  const demandPressure = useMemo(
+    () => buildCanonicalDemandPressureRows(inventoryAvailability),
+    [inventoryAvailability],
+  );
   const offersPipeline = useMemo(() => buildOffersSummary(offers), [offers]);
   const shippedQtyByOrderId = useMemo(
     () => buildShippedQtyByOrderId(allShipments, allShipmentItems),
@@ -809,18 +821,21 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                               </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-50">
-                              {products.filter(p => p.stock_qty < 5).slice(0, 10).map(p => (
-                                  <tr key={p.sku} className="hover:bg-slate-50/50 transition-colors">
-                                      <td className="p-4 font-bold text-slate-800">{p.sku}</td>
-                                      <td className="p-4 text-slate-500">{p.category}</td>
-                                      <td className="p-4 text-center font-black">{p.stock_qty}</td>
+                              {inventoryPolicyRows.map(row => (
+                                  <tr key={row.label} className="hover:bg-slate-50/50 transition-colors">
+                                      <td className="p-4 font-bold text-slate-800">{row.label}</td>
+                                      <td className="p-4 text-slate-500">{products.find(product => product.sku === row.sku)?.category || '—'}</td>
+                                      <td className="p-4 text-center font-black">{row.stock}</td>
                                       <td className="p-4">
-                                          <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase ${p.stock_qty === 0 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                                              {p.stock_qty === 0 ? 'Εξαντλημένο' : 'Χαμηλό'}
+                                          <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase ${row.stock === 0 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                                              {row.stock === 0 ? 'Μη διαθέσιμο' : 'Κάτω από το σημείο αναπαραγγελίας'}
                                           </span>
                                       </td>
                                   </tr>
                               ))}
+                              {inventoryPolicyRows.length === 0 && (
+                                  <tr><td colSpan={4} className="p-8 text-center text-sm font-semibold text-slate-400">Δεν υπάρχουν είδη κάτω από το Σημείο Αναπαραγγελίας.</td></tr>
+                              )}
                           </tbody>
                       </table>
                   </div>

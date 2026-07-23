@@ -14,6 +14,8 @@ import DesktopPageHeader from './DesktopPageHeader';
 import DebouncedSearchInput from './orders/DebouncedSearchInput';
 import IliosLoader from './ui/IliosLoader';
 import SpecialCreationNote from './SpecialCreationNote';
+import InventoryAvailabilityNote from './inventory/InventoryAvailabilityNote';
+import { OFFER_STATUS_LABELS } from '../features/inventory';
 
 // SKU visualizer colors (synced with BatchPrint / Inventory)
 const FINISH_COLORS: Record<string, string> = {
@@ -30,12 +32,6 @@ const STONE_TEXT_COLORS: Record<string, string> = {
     'LE': 'text-slate-400', 'PR': 'text-green-500', 'KO': 'text-red-500', 'MV': 'text-purple-400',
     'RZ': 'text-pink-500', 'AK': 'text-cyan-300', 'XAL': 'text-stone-400', 'SD': 'text-blue-800',
     'AX': 'text-emerald-700'
-};
-
-const OFFER_STATUS_LABELS: Record<OfferStatus, string> = {
-    Pending: 'Εκκρεμεί',
-    Accepted: 'Αποδοχή',
-    Declined: 'Απόρριψη',
 };
 
 function getOfferStatusClasses(status: OfferStatus): string {
@@ -173,15 +169,13 @@ export default function OffersPage({ products, materials, settings, collections,
             });
             const data = await response.json();
 
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to fetch price');
-            }
+            if (!response.ok) throw new Error('Η ενημέρωση της τιμής αργύρου δεν ολοκληρώθηκε.');
 
             const finalPrice = parseFloat(data.price.toFixed(3));
             setCustomSilverPrice(finalPrice);
             showToast(`Τιμή: ${formatDecimal(finalPrice, 3)} €/g`, 'success');
-        } catch (error: any) {
-            showToast(`Σφάλμα: ${error.message}`, 'error');
+        } catch {
+            showToast('Η τιμή αργύρου δεν ενημερώθηκε. Η προηγούμενη τιμή παραμένει αμετάβλητη. Ελέγξτε τη σύνδεση και δοκιμάστε ξανά.', 'error');
         } finally {
             setIsFetchingPrice(false);
         }
@@ -465,16 +459,13 @@ export default function OffersPage({ products, materials, settings, collections,
                 discount_percent: offer.discount_percent
             };
 
-            await api.saveOrder(orderPayload as any);
-
-            // 2. Update Offer Status
-            await api.updateOffer({ ...offer, status: 'Accepted' });
+            await api.convertOfferToOrder(offer, orderPayload as any);
 
             queryClient.invalidateQueries({ queryKey: ['orders'] });
             queryClient.invalidateQueries({ queryKey: ['offers'] });
-            showToast("Η προσφορά μετατράπηκε σε παραγγελία επιτυχώς!", "success");
-        } catch (e) {
-            showToast("Σφάλμα μετατροπής.", "error");
+            showToast("Η προσφορά μετατράπηκε σε παραγγελία και το διαθέσιμο απόθεμα δεσμεύτηκε επιτυχώς.", "success");
+        } catch (e: any) {
+            showToast(e?.message || "Η προσφορά δεν μετατράπηκε. Δεν δημιουργήθηκε παραγγελία και δεν δεσμεύτηκε απόθεμα.", "error");
         }
     };
 
@@ -484,7 +475,7 @@ export default function OffersPage({ products, materials, settings, collections,
             await api.updateOffer({ ...offer, status: 'Declined' });
             queryClient.invalidateQueries({ queryKey: ['offers'] });
             showToast("Η προσφορά απορρίφθηκε.", "info");
-        } catch (e) { showToast("Σφάλμα.", "error"); }
+        } catch { showToast("Η προσφορά δεν απορρίφθηκε. Δεν πραγματοποιήθηκε καμία μεταβολή. Δοκιμάστε ξανά.", "error"); }
     };
 
     const handleDeleteOffer = async (id: string) => {
@@ -493,7 +484,7 @@ export default function OffersPage({ products, materials, settings, collections,
             await api.deleteOffer(id);
             queryClient.invalidateQueries({ queryKey: ['offers'] });
             showToast("Διαγράφηκε.", "success");
-        } catch (e) { showToast("Σφάλμα.", "error"); }
+        } catch { showToast("Η προσφορά δεν διαγράφηκε. Δεν πραγματοποιήθηκε καμία μεταβολή. Δοκιμάστε ξανά.", "error"); }
     };
 
     // --- SKU Visualizers (same as Μαζική Εκτύπωση) ---
@@ -879,6 +870,7 @@ export default function OffersPage({ products, materials, settings, collections,
                                                 <div className="font-black text-slate-800">{item.sku}{item.variant_suffix}</div>
                                                 <SpecialCreationNote sku={item.sku} note={item.notes} compact className="mt-1" />
                                                 <div className="text-xs text-slate-500 truncate max-w-[200px]">{item.product_details?.category}</div>
+                                                <InventoryAvailabilityNote item={item} product={item.product_details} mode="offer" compact />
                                             </td>
                                             <td className="p-4 text-center font-mono text-slate-600">{item.product_details?.weight_g}g</td>
                                             <td className="p-4 text-right font-mono font-bold text-slate-700">{formatCurrency(item.price_at_order)}</td>

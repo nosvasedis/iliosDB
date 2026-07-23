@@ -54,6 +54,11 @@ export const CORE_REALTIME_TABLES = [
   'price_snapshots',
   'price_snapshot_items',
   'stock_movements',
+  'inventory_balances',
+  'inventory_reservations',
+  'inventory_events',
+  'inventory_reorder_policies',
+  'inventory_reconciliation_issues',
 ] as const;
 
 const CHANNEL_NAME = 'realtime:app-data';
@@ -81,6 +86,17 @@ export const CORE_REALTIME_CHANNEL_GROUPS: readonly RealtimeChannelGroup[] = [
       'product_collections',
       'collections',
       'stock_movements',
+    ],
+  },
+  {
+    id: 'inventory',
+    channelName: `${CHANNEL_NAME}:inventory`,
+    tables: [
+      'inventory_balances',
+      'inventory_reservations',
+      'inventory_events',
+      'inventory_reorder_policies',
+      'inventory_reconciliation_issues',
     ],
   },
   {
