@@ -1,4 +1,5 @@
 import { ProductOptionColor } from '../types';
+import { normalizeInventorySizeInfo } from '../features/inventory/posting';
 
 export interface ItemIdentityLike {
   sku: string;
@@ -13,7 +14,7 @@ export function buildItemIdentityKey(item: ItemIdentityLike): string {
   const base = [
     item.sku,
     item.variant_suffix || '',
-    item.size_info || '',
+    normalizeInventorySizeInfo(item.size_info),
     item.cord_color || '',
     item.enamel_color || ''
   ].join('::');
@@ -23,7 +24,7 @@ export function buildItemIdentityKey(item: ItemIdentityLike): string {
 export function getItemIdentityParts(item: ItemIdentityLike) {
   return {
     variant_suffix: item.variant_suffix || null,
-    size_info: item.size_info || null,
+    size_info: normalizeInventorySizeInfo(item.size_info) || null,
     cord_color: item.cord_color || null,
     enamel_color: item.enamel_color || null
   };

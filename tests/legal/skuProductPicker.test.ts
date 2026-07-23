@@ -96,6 +96,11 @@ const products = [
 ];
 
 describe('sku product picker search', () => {
+  it('ranks an exact full variant SKU first', () => {
+    const options = searchSkuProductOptions(products, 'RNG001DLE', 8);
+    expect(options[0]?.displaySku).toBe('RNG001DLE');
+  });
+
   it('returns variant rows with suffix-specific prices', () => {
     const options = searchSkuProductOptions(products, 'RNG001D', 8);
     const variant = options.find((option) => option.displaySku === 'RNG001DLE');

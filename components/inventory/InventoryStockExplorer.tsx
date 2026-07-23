@@ -8,6 +8,7 @@ import {
   Image as ImageIcon,
   Package,
   PencilLine,
+  ClipboardPlus,
   Settings2,
 } from 'lucide-react';
 import type { Product } from '../../types';
@@ -34,7 +35,9 @@ interface InventoryStockExplorerProps {
   isAdmin: boolean;
   canOperate: boolean;
   searchTerm: string;
+  focusRequest?: { productSku: string; variantSuffix: string; nonce: number } | null;
   onOperation: (kind: InventoryQuickOperation, row: InventoryAvailability) => void;
+  onPost: (row: InventoryAvailability) => void;
   onProductSelect?: (product: Product) => void;
 }
 
@@ -86,11 +89,13 @@ function StockActionButtons({
   isAdmin,
   canOperate,
   onOperation,
+  onPost,
 }: {
   row: InventoryAvailability;
   isAdmin: boolean;
   canOperate: boolean;
   onOperation: InventoryStockExplorerProps['onOperation'];
+  onPost: InventoryStockExplorerProps['onPost'];
 }) {
   if (!isAdmin && !canOperate) {
     return <span className="text-xs font-semibold text-slate-400">Μόνο προβολή</span>;
@@ -98,6 +103,16 @@ function StockActionButtons({
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-1.5">
+      {isAdmin && (
+        <button
+          type="button"
+          onClick={() => onPost(row)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs font-bold text-emerald-800 hover:border-emerald-300 hover:bg-emerald-100"
+        >
+          <ClipboardPlus size={14} aria-hidden="true" />
+          Καταχώριση
+        </button>
+      )}
       {isAdmin && (
         <button
           type="button"
@@ -168,17 +183,25 @@ function VariantBreakdown({
   isAdmin,
   canOperate,
   onOperation,
+  onPost,
+  focusedVariantSuffix,
 }: {
   group: InventorySkuGroup;
   product?: Product;
   isAdmin: boolean;
   canOperate: boolean;
   onOperation: InventoryStockExplorerProps['onOperation'];
+  onPost: InventoryStockExplorerProps['onPost'];
+  focusedVariantSuffix?: string | null;
 }) {
   return (
     <div className="space-y-3">
       {group.variants.map((variant) => (
-        <section key={variant.variantSuffix || 'base'} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <section
+          key={variant.variantSuffix || 'base'}
+          data-inventory-variant={`${group.productSku}::${variant.variantSuffix}`}
+          className={`overflow-hidden rounded-xl border bg-white transition ${focusedVariantSuffix === variant.variantSuffix ? 'border-emerald-300 ring-2 ring-emerald-100' : 'border-slate-200'}`}
+        >
           <VariantHeader variant={variant} product={product} />
           <div className="divide-y divide-slate-100">
             {variant.rows.map((row) => (
@@ -216,7 +239,7 @@ function VariantBreakdown({
                     <strong className="tabular-nums text-slate-800">{formatInventoryInteger(row.projectedAvailable)}</strong>
                   </div>
                 </div>
-                <StockActionButtons row={row} isAdmin={isAdmin} canOperate={canOperate} onOperation={onOperation} />
+                <StockActionButtons row={row} isAdmin={isAdmin} canOperate={canOperate} onOperation={onOperation} onPost={onPost} />
               </div>
             ))}
           </div>
@@ -234,7 +257,9 @@ function DesktopSkuRow({
   canOperate,
   onToggle,
   onOperation,
+  onPost,
   onProductSelect,
+  focusedVariantSuffix,
 }: {
   group: InventorySkuGroup;
   product?: Product;
@@ -243,7 +268,9 @@ function DesktopSkuRow({
   canOperate: boolean;
   onToggle: () => void;
   onOperation: InventoryStockExplorerProps['onOperation'];
+  onPost: InventoryStockExplorerProps['onPost'];
   onProductSelect?: (product: Product) => void;
+  focusedVariantSuffix?: string | null;
 }) {
   return (
     <>
@@ -300,7 +327,7 @@ function DesktopSkuRow({
       {expanded && (
         <tr>
           <td colSpan={8} className="border-y border-emerald-100 bg-slate-50/70 p-4">
-            <VariantBreakdown group={group} product={product} isAdmin={isAdmin} canOperate={canOperate} onOperation={onOperation} />
+            <VariantBreakdown group={group} product={product} isAdmin={isAdmin} canOperate={canOperate} onOperation={onOperation} onPost={onPost} focusedVariantSuffix={focusedVariantSuffix} />
           </td>
         </tr>
       )}
@@ -316,7 +343,9 @@ function CompactSkuCard({
   canOperate,
   onToggle,
   onOperation,
+  onPost,
   onProductSelect,
+  focusedVariantSuffix,
 }: {
   group: InventorySkuGroup;
   product?: Product;
@@ -325,7 +354,9 @@ function CompactSkuCard({
   canOperate: boolean;
   onToggle: () => void;
   onOperation: InventoryStockExplorerProps['onOperation'];
+  onPost: InventoryStockExplorerProps['onPost'];
   onProductSelect?: (product: Product) => void;
+  focusedVariantSuffix?: string | null;
 }) {
   return (
     <article className={`${CARD} overflow-hidden`}>
@@ -368,7 +399,7 @@ function CompactSkuCard({
       </div>
       {expanded && (
         <div className="border-t border-emerald-100 bg-slate-50 p-3">
-          <VariantBreakdown group={group} product={product} isAdmin={isAdmin} canOperate={canOperate} onOperation={onOperation} />
+          <VariantBreakdown group={group} product={product} isAdmin={isAdmin} canOperate={canOperate} onOperation={onOperation} onPost={onPost} focusedVariantSuffix={focusedVariantSuffix} />
         </div>
       )}
     </article>
@@ -445,7 +476,9 @@ export default function InventoryStockExplorer({
   isAdmin,
   canOperate,
   searchTerm,
+  focusRequest,
   onOperation,
+  onPost,
   onProductSelect,
 }: InventoryStockExplorerProps) {
   const [expandedSkus, setExpandedSkus] = useState<Set<string>>(() => new Set());
@@ -468,6 +501,26 @@ export default function InventoryStockExplorer({
       return next;
     });
   }, [groups, searchTerm]);
+
+  useEffect(() => {
+    if (!focusRequest) return;
+    const groupIndex = groups.findIndex((group) => group.productSku === focusRequest.productSku);
+    if (groupIndex < 0) return;
+    setPage(Math.floor(groupIndex / pageSize) + 1);
+    setExpandedSkus((current) => {
+      if (current.has(focusRequest.productSku)) return current;
+      const next = new Set(current);
+      next.add(focusRequest.productSku);
+      return next;
+    });
+    const timeoutId = window.setTimeout(() => {
+      const identity = `${focusRequest.productSku}::${focusRequest.variantSuffix}`;
+      const target = Array.from(document.querySelectorAll<HTMLElement>('[data-inventory-variant]'))
+        .find((element) => element.dataset.inventoryVariant === identity);
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [focusRequest, groups, pageSize]);
 
   const visibleGroups = useMemo(() => {
     const start = (safePage - 1) * pageSize;
@@ -527,7 +580,9 @@ export default function InventoryStockExplorer({
               canOperate={canOperate}
               onToggle={() => toggleSku(group.productSku)}
               onOperation={onOperation}
+              onPost={onPost}
               onProductSelect={onProductSelect}
+              focusedVariantSuffix={focusRequest?.productSku === group.productSku ? focusRequest.variantSuffix : null}
             />
           ))}
         </div>
@@ -557,7 +612,9 @@ export default function InventoryStockExplorer({
                   canOperate={canOperate}
                   onToggle={() => toggleSku(group.productSku)}
                   onOperation={onOperation}
+                  onPost={onPost}
                   onProductSelect={onProductSelect}
+                  focusedVariantSuffix={focusRequest?.productSku === group.productSku ? focusRequest.variantSuffix : null}
                 />
               ))}
             </tbody>

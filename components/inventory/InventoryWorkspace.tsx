@@ -2,7 +2,6 @@ import React, { useDeferredValue, useMemo, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
-  BookOpen,
   Boxes,
   Building2,
   CheckCircle,
@@ -12,8 +11,6 @@ import {
   Package,
   PencilLine,
   Plus,
-  Search,
-  ScanBarcode,
   Trash2,
   TrendingUp,
   Warehouse as WarehouseIcon,
@@ -48,8 +45,6 @@ import {
   BTN_SECONDARY,
   CARD,
   PAGE_CONTAINER,
-  SEARCH_CONTAINER_LARGE,
-  SEARCH_INPUT_LARGE,
   belowTabButton,
 } from '../ui/designTokens';
 import { useEscapeToClose } from '../../hooks/useEscapeToClose';
@@ -57,6 +52,9 @@ import BarcodeScanner from '../BarcodeScanner';
 import { findProductByScannedCode } from '../../utils/pricingEngine';
 import InventoryStockExplorer, { type InventoryQuickOperation } from './InventoryStockExplorer';
 import InventoryGuideDialog from './InventoryGuideDialog';
+import InventoryQuickSearch from './InventoryQuickSearch';
+import InventoryPostingDialog from './InventoryPostingDialog';
+import { searchSkuProductOptions, type SkuPickerOption } from '../../utils/skuProductPicker';
 
 type InventoryTab = 'overview' | 'stock' | 'movements' | 'warehouses' | 'reconciliation';
 type StockFilter = 'all' | 'low' | 'unavailable';
@@ -363,8 +361,8 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
   const isAdmin = profile?.role === 'admin';
   const canOperate = profile?.role === 'admin' || profile?.role === 'user';
   const [activeTab, setActiveTab] = useState<InventoryTab>('overview');
-  const [search, setSearch] = useState('');
-  const deferredSearch = useDeferredValue(search);
+  const [listSearch, setListSearch] = useState('');
+  const deferredSearch = useDeferredValue(listSearch);
   const [warehouseFilter, setWarehouseFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [stockFilter, setStockFilter] = useState<StockFilter>('all');
@@ -373,7 +371,11 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
   const [warehouseForm, setWarehouseForm] = useState<{ id?: string; name: string; type: Warehouse['type'] }>({ name: '', type: 'Store' });
   const [savingWarehouse, setSavingWarehouse] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerPurpose, setScannerPurpose] = useState<'navigation' | 'posting'>('navigation');
   const [guideOpen, setGuideOpen] = useState(false);
+  const [postingOpen, setPostingOpen] = useState(false);
+  const [postingSelection, setPostingSelection] = useState<SkuPickerOption | null>(null);
+  const [focusRequest, setFocusRequest] = useState<{ productSku: string; variantSuffix: string; nonce: number } | null>(null);
 
   const availabilityQuery = useInventoryAvailability();
   const eventsQuery = useInventoryEvents(activeTab === 'movements');
@@ -427,7 +429,7 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
     return groups;
   }, [filteredRows, stockSort]);
   const hasActiveFilters = Boolean(
-    search.trim()
+    listSearch.trim()
     || warehouseFilter !== 'all'
     || categoryFilter !== 'all'
     || stockFilter !== 'all'
@@ -441,16 +443,41 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
     ]);
   };
 
+  const focusInventorySelection = (option: SkuPickerOption) => {
+    setListSearch(option.displaySku);
+    setActiveTab('stock');
+    setFocusRequest({
+      productSku: option.sku,
+      variantSuffix: option.variant_suffix || '',
+      nonce: Date.now(),
+    });
+    if (option.product) onProductSelect?.(option.product);
+  };
+
+  const openPosting = (option?: SkuPickerOption | null) => {
+    setPostingSelection(option || null);
+    setPostingOpen(true);
+  };
+
   const handleScan = (code: string) => {
     const match = findProductByScannedCode(code, products);
     if (!match) {
       showToast(`Ο κωδικός «${code}» δεν αντιστοιχεί σε καταχωρισμένο είδος αποθέματος.`, 'warning');
       return;
     }
-    setSearch(`${match.product.sku}${match.variant?.suffix || ''}`);
-    setActiveTab('stock');
+    const fullSku = `${match.product.sku}${match.variant?.suffix || ''}`;
+    const option = searchSkuProductOptions(products, fullSku, 1)[0];
+    if (!option) {
+      showToast(`Ο κωδικός «${code}» δεν μπορεί να επιλεγεί χωρίς συγκεκριμένη παραλλαγή.`, 'warning');
+      return;
+    }
+    if (scannerPurpose === 'posting') {
+      setPostingSelection(option);
+      setPostingOpen(true);
+    } else {
+      focusInventorySelection(option);
+    }
     setScannerOpen(false);
-    onProductSelect?.(match.product);
   };
 
   const saveWarehouse = async () => {
@@ -542,6 +569,21 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
 
       {compact && <div className="px-4">{headerTabs}</div>}
 
+      <InventoryQuickSearch
+        products={products}
+        availability={navigationRows}
+        profileId={profile?.id}
+        isAdmin={isAdmin}
+        focusedSelection={focusRequest}
+        onSelect={focusInventorySelection}
+        onPost={openPosting}
+        onScan={() => {
+          setScannerPurpose('navigation');
+          setScannerOpen(true);
+        }}
+        onGuide={() => setGuideOpen(true)}
+      />
+
       {isAdmin && (reconciliationQuery.data?.blockingCount || 0) > 0 && (
         <div className="mx-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 sm:mx-0" role="alert">
           <AlertTriangle className="mt-0.5 shrink-0" size={19} />
@@ -565,11 +607,6 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
 
           <div className={`${CARD} mx-4 p-3 sm:mx-0`}>
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-              <label className={`${SEARCH_CONTAINER_LARGE} min-w-0 flex-1`}>
-                <Search size={17} className="ml-3 text-slate-400" aria-hidden />
-                <span className="sr-only">Αναζήτηση αποθέματος</span>
-                <input value={search} onChange={(event) => setSearch(event.target.value)} className={SEARCH_INPUT_LARGE} placeholder="Κύριο SKU, παραλλαγή, περιγραφή, μέγεθος ή αποθήκη..." />
-              </label>
               <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                 <select value={warehouseFilter} onChange={(event) => setWarehouseFilter(event.target.value)} aria-label="Φίλτρο αποθήκης" className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-700">
                   <option value="all">Όλες οι αποθήκες</option>
@@ -590,17 +627,11 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
                   <option value="available-desc">Διαθέσιμο, υψηλότερο πρώτα</option>
                   <option value="low-stock">Χαμηλό απόθεμα πρώτα</option>
                 </select>
-                <button type="button" onClick={() => setScannerOpen(true)} className={`${BTN_SECONDARY} justify-center`} aria-label="Σάρωση κωδικού είδους">
-                  <ScanBarcode size={17} aria-hidden="true" /> Σάρωση
-                </button>
-                <button type="button" onClick={() => setGuideOpen(true)} className={`${BTN_SECONDARY} justify-center`} aria-label="Άνοιγμα οδηγού Αποθήκης και Αποθέματος">
-                  <BookOpen size={17} aria-hidden="true" /> Οδηγός
-                </button>
                 {hasActiveFilters && (
                   <button
                     type="button"
                     onClick={() => {
-                      setSearch('');
+                      setListSearch('');
                       setWarehouseFilter('all');
                       setCategoryFilter('all');
                       setStockFilter('all');
@@ -623,7 +654,13 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
             isAdmin={isAdmin}
             canOperate={canOperate}
             searchTerm={deferredSearch}
+            focusRequest={focusRequest}
             onOperation={(kind, row) => setOperation({ kind, row })}
+            onPost={(row) => {
+              const option = searchSkuProductOptions(products, `${row.productSku}${row.variantSuffix}`, 1)[0];
+              if (option) openPosting(option);
+              else showToast('Δεν ήταν δυνατή η ασφαλής επιλογή της παραλλαγής. Αναζητήστε ξανά το πλήρες SKU.', 'error');
+            }}
             onProductSelect={onProductSelect}
           />
         </>
@@ -719,10 +756,33 @@ export default function InventoryWorkspace({ products = [], compact = false, onP
         <BarcodeScanner
           products={products}
           onScan={handleScan}
-          onClose={() => setScannerOpen(false)}
+          onClose={() => {
+            setScannerOpen(false);
+            if (scannerPurpose === 'posting') setPostingOpen(true);
+          }}
         />
       )}
       {guideOpen && <InventoryGuideDialog isAdmin={isAdmin} canOperate={canOperate} onClose={() => setGuideOpen(false)} />}
+      {postingOpen && isAdmin && (
+        <InventoryPostingDialog
+          products={products}
+          warehouses={warehouses}
+          availability={navigationRows}
+          profileId={profile?.id}
+          initialSelection={postingSelection}
+          onRequestScan={() => {
+            setScannerPurpose('posting');
+            setPostingOpen(false);
+            setScannerOpen(true);
+          }}
+          onSaved={refreshInventory}
+          onPrepareNext={() => setPostingSelection(null)}
+          onClose={() => {
+            setPostingOpen(false);
+            setPostingSelection(null);
+          }}
+        />
+      )}
     </div>
   );
 }

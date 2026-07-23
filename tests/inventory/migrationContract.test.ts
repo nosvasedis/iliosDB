@@ -22,6 +22,14 @@ const initialZeroInventorySql = readFileSync(
   'utf8',
 );
 
+const smartPostingSql = readFileSync(
+  new URL(
+    '../../supabase/migrations/20260723081226_inventory_smart_posting.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
 describe('transactional inventory migration contract', () => {
   it.each([
     'inventory_balances',
@@ -142,5 +150,26 @@ describe('transactional inventory migration contract', () => {
     expect(initialZeroInventorySql).toContain("sample_stock_by_size = '{}'::jsonb");
     expect(initialZeroInventorySql).toContain("SET on_hand = 0");
     expect(initialZeroInventorySql).toContain("state = 'released'");
+  });
+
+  it('defines the locked-down atomic multi-location posting RPC', () => {
+    expect(smartPostingSql).toContain('FUNCTION public.post_inventory_entries_v1');
+    expect(smartPostingSql).toContain("private.assert_inventory_role(ARRAY['admin'])");
+    expect(smartPostingSql).toContain('pg_advisory_xact_lock');
+    expect(smartPostingSql).toContain('inventory_command_results');
+    expect(smartPostingSql).toContain('ORDER BY balance.product_sku, balance.variant_suffix, balance.size_info, balance.warehouse_id');
+    expect(smartPostingSql).toContain('FOR UPDATE OF balance');
+    expect(smartPostingSql).toContain("'stock_count'");
+    expect(smartPostingSql).toContain("'manual_stock_increase'");
+    expect(smartPostingSql).toContain('private.sync_legacy_inventory_projection(v_sku)');
+    expect(smartPostingSql).toContain('REVOKE ALL ON FUNCTION public.post_inventory_entries_v1(text, jsonb, text, text) FROM PUBLIC, anon;');
+    expect(smartPostingSql).toContain('GRANT EXECUTE ON FUNCTION public.post_inventory_entries_v1(text, jsonb, text, text) TO authenticated, service_role;');
+  });
+
+  it('normalizes inventory sizes without modifying existing balances', () => {
+    expect(smartPostingSql).toContain('FUNCTION private.normalize_inventory_size');
+    expect(smartPostingSql).toContain("RETURN v_number_text || 'cm'");
+    expect(smartPostingSql).not.toMatch(/UPDATE public\.inventory_balances[\s\S]*SET on_hand = 0/);
+    expect(smartPostingSql).not.toContain('location_stock');
   });
 });

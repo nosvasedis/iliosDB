@@ -6,6 +6,8 @@ import type {
   InventoryAdjustmentInput,
   InventoryAvailability,
   InventoryEvent,
+  InventoryPostingInput,
+  InventoryPostingResult,
   InventoryReconciliationStatus,
   InventoryReconciliationIssue,
   InventoryReorderPolicyInput,
@@ -15,6 +17,7 @@ import type {
   ShipOrderInventoryInput,
   RevertShipmentInventoryInput,
 } from './types';
+import { normalizeInventorySizeInfo } from './posting';
 
 type AvailabilityRow = {
   product_sku: string;
@@ -47,11 +50,21 @@ function assertOnline(): void {
   }
 }
 
+function normalizeOrderInventoryIdentities(order: Order): Order {
+  return {
+    ...order,
+    items: order.items.map((item) => ({
+      ...item,
+      size_info: normalizeInventorySizeInfo(item.size_info) || undefined,
+    })),
+  };
+}
+
 function mapAvailability(row: AvailabilityRow): InventoryAvailability {
   return {
     productSku: row.product_sku,
     variantSuffix: row.variant_suffix || '',
-    sizeInfo: row.size_info || '',
+    sizeInfo: normalizeInventorySizeInfo(row.size_info),
     warehouseId: row.warehouse_id,
     warehouseName: row.warehouse_name,
     warehouseType: row.warehouse_type,
@@ -95,7 +108,7 @@ export const inventoryRepository = {
       operationType: row.operation_type,
       productSku: row.product_sku,
       variantSuffix: row.variant_suffix || '',
-      sizeInfo: row.size_info || '',
+      sizeInfo: normalizeInventorySizeInfo(row.size_info),
       warehouseId: row.warehouse_id,
       onHandDelta: Number(row.on_hand_delta || 0),
       reservedDelta: Number(row.reserved_delta || 0),
@@ -126,7 +139,7 @@ export const inventoryRepository = {
       orderLineId: row.order_line_id,
       productSku: row.product_sku,
       variantSuffix: row.variant_suffix || '',
-      sizeInfo: row.size_info || '',
+      sizeInfo: normalizeInventorySizeInfo(row.size_info),
       warehouseId: row.warehouse_id,
       initialQuantity: Number(row.initial_quantity || 0),
       quantity: Number(row.quantity || 0),
@@ -163,7 +176,7 @@ export const inventoryRepository = {
       severity: row.severity,
       productSku: row.product_sku,
       variantSuffix: row.variant_suffix || '',
-      sizeInfo: row.size_info || '',
+      sizeInfo: normalizeInventorySizeInfo(row.size_info),
       warehouseId: row.warehouse_id,
       expectedQuantity: row.expected_quantity == null ? null : Number(row.expected_quantity),
       actualQuantity: row.actual_quantity == null ? null : Number(row.actual_quantity),
@@ -187,7 +200,7 @@ export const inventoryRepository = {
   async saveOrderAndReserve(order: Order, idempotencyKey = operationKey(`order:${order.id}`)): Promise<SaveOrderInventoryResult> {
     assertOnline();
     const { data, error } = await supabase.rpc('save_order_with_inventory_v1', {
-      p_order: order,
+      p_order: normalizeOrderInventoryIdentities(order),
       p_idempotency_key: idempotencyKey,
     });
     if (error) throw toInventoryOperationError('save-order', error);
@@ -229,7 +242,7 @@ export const inventoryRepository = {
     const { error } = await supabase.rpc('adjust_inventory_stock_v1', {
       p_product_sku: input.productSku,
       p_variant_suffix: input.variantSuffix || '',
-      p_size_info: input.sizeInfo || '',
+      p_size_info: normalizeInventorySizeInfo(input.sizeInfo),
       p_warehouse_id: input.warehouseId,
       p_mode: input.mode,
       p_quantity: input.quantity,
@@ -237,6 +250,43 @@ export const inventoryRepository = {
       p_idempotency_key: input.idempotencyKey || operationKey(`adjustment:${input.productSku}`),
     });
     if (error) throw toInventoryOperationError('adjustment', error);
+  },
+
+  async postInventoryEntries(input: InventoryPostingInput): Promise<InventoryPostingResult> {
+    assertOnline();
+    const idempotencyKey = input.idempotencyKey || operationKey('inventory-posting');
+    const { data, error } = await supabase.rpc('post_inventory_entries_v1', {
+      p_mode: input.mode,
+      p_lines: input.lines.map((line) => ({
+        product_sku: line.productSku,
+        variant_suffix: line.variantSuffix || '',
+        size_info: normalizeInventorySizeInfo(line.sizeInfo),
+        warehouse_id: line.warehouseId,
+        quantity: line.quantity,
+      })),
+      p_reason: input.reason,
+      p_idempotency_key: idempotencyKey,
+    });
+    if (error) throw toInventoryOperationError('inventory-posting', error);
+
+    const result = (data || {}) as any;
+    return {
+      postedCount: Number(result.posted_count || 0),
+      changedCount: Number(result.changed_count || 0),
+      countedZeroCount: Number(result.counted_zero_count || 0),
+      idempotent: Boolean(result.idempotent),
+      balances: Array.isArray(result.balances)
+        ? result.balances.map((row: any) => ({
+          productSku: String(row.product_sku || ''),
+          variantSuffix: String(row.variant_suffix || ''),
+          sizeInfo: normalizeInventorySizeInfo(row.size_info),
+          warehouseId: String(row.warehouse_id || ''),
+          onHand: Number(row.on_hand || 0),
+          reserved: Number(row.reserved || 0),
+          available: Number(row.available || 0),
+        }))
+        : [],
+    };
   },
 
   async batchAdjustStock(
@@ -250,7 +300,7 @@ export const inventoryRepository = {
       p_items: items.map((item) => ({
         product_sku: item.productSku,
         variant_suffix: item.variantSuffix || '',
-        size_info: item.sizeInfo || '',
+        size_info: normalizeInventorySizeInfo(item.sizeInfo),
         quantity: item.quantity,
       })),
       p_warehouse_id: warehouseId,
@@ -266,7 +316,7 @@ export const inventoryRepository = {
     const { error } = await supabase.rpc('transfer_inventory_stock_v1', {
       p_product_sku: input.productSku,
       p_variant_suffix: input.variantSuffix || '',
-      p_size_info: input.sizeInfo || '',
+      p_size_info: normalizeInventorySizeInfo(input.sizeInfo),
       p_source_warehouse_id: input.sourceWarehouseId,
       p_destination_warehouse_id: input.destinationWarehouseId,
       p_quantity: input.quantity,
@@ -281,7 +331,7 @@ export const inventoryRepository = {
     const { error } = await supabase.rpc('set_inventory_reorder_policy_v1', {
       p_product_sku: input.productSku,
       p_variant_suffix: input.variantSuffix || '',
-      p_size_info: input.sizeInfo || '',
+      p_size_info: normalizeInventorySizeInfo(input.sizeInfo),
       p_warehouse_id: input.warehouseId,
       p_reorder_point: input.reorderPoint,
       p_preferred_supplier_id: input.preferredSupplierId || null,
@@ -304,7 +354,10 @@ export const inventoryRepository = {
     const { data, error } = await supabase.rpc('create_partial_shipment_v2', {
       p_order_id: input.orderId,
       p_shipped_by: input.shippedBy,
-      p_items: input.items,
+      p_items: input.items.map((item) => ({
+        ...item,
+        size_info: normalizeInventorySizeInfo(item.size_info) || null,
+      })),
       p_delivery_plan_id: input.deliveryPlanId || null,
       p_notes: input.notes || null,
       p_next_plan: input.nextPlan || null,
@@ -330,7 +383,7 @@ export const inventoryRepository = {
     assertOnline();
     const { data, error } = await supabase.rpc('convert_offer_to_order_v1', {
       p_offer_id: input.offer.id,
-      p_order: input.order,
+      p_order: normalizeOrderInventoryIdentities(input.order),
       p_idempotency_key: input.idempotencyKey || operationKey(`offer:${input.offer.id}`),
     });
     if (error) throw toInventoryOperationError('offer-conversion', error);

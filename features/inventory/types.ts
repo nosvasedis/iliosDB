@@ -27,6 +27,8 @@ export type InventoryOperationType =
   | 'order_reservation'
   | 'reservation_release'
   | 'adjustment'
+  | 'stock_count'
+  | 'manual_stock_increase'
   | 'transfer_out'
   | 'transfer_in'
   | 'supplier_receipt'
@@ -83,6 +85,33 @@ export interface InventoryAdjustmentInput extends InventoryIdentity {
   quantity: number;
   reason: string;
   idempotencyKey?: string;
+}
+
+export type InventoryPostingMode = 'count' | 'increase';
+
+export interface InventoryPostingLine extends InventoryIdentity {
+  quantity: number;
+}
+
+export interface InventoryPostingInput {
+  mode: InventoryPostingMode;
+  lines: InventoryPostingLine[];
+  reason: string;
+  idempotencyKey?: string;
+}
+
+export interface InventoryPostingBalance extends InventoryIdentity {
+  onHand: number;
+  reserved: number;
+  available: number;
+}
+
+export interface InventoryPostingResult {
+  postedCount: number;
+  changedCount: number;
+  countedZeroCount: number;
+  idempotent: boolean;
+  balances: InventoryPostingBalance[];
 }
 
 export interface InventoryTransferInput {
@@ -159,6 +188,7 @@ export type InventoryMutationName =
   | 'set-order-status'
   | 'delete-order'
   | 'adjustment'
+  | 'inventory-posting'
   | 'transfer'
   | 'supplier-receipt'
   | 'ship-order'

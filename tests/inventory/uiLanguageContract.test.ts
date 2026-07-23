@@ -5,6 +5,8 @@ const source = [
   '../../components/inventory/InventoryWorkspace.tsx',
   '../../components/inventory/InventoryStockExplorer.tsx',
   '../../components/inventory/InventoryGuideDialog.tsx',
+  '../../components/inventory/InventoryQuickSearch.tsx',
+  '../../components/inventory/InventoryPostingDialog.tsx',
   '../../components/inventory/InventoryAvailabilityNote.tsx',
   '../../components/suppliers/SupplierReceiptModal.tsx',
   '../../components/mobile/MobileDashboard.tsx',
@@ -33,5 +35,15 @@ describe('Greek inventory UI language contract', () => {
     expect(source).toContain('Αποθήκη Προέλευσης');
     expect(source).toContain('Πρώτη φυσική απογραφή σε κενό σύστημα');
     expect(source).not.toContain('No Image');
+  });
+
+  it('keeps immediate search and smart posting fully Greek and operational', () => {
+    expect(source).toContain('Αναζήτηση SKU ή παραλλαγής…');
+    expect(source).toContain('Καταχώριση & επόμενο SKU');
+    expect(source).toContain('Απογραφή — Ορισμός ακριβούς Φυσικού Αποθέματος');
+    expect(source).toContain('Προσθήκη δεύτερης αποθήκης');
+    expect(source).toContain('Δεν πραγματοποιήθηκε καμία μεταβολή');
+    expect(source).not.toContain('No results');
+    expect(source).not.toContain('Add warehouse');
   });
 });
