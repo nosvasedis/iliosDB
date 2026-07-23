@@ -18,6 +18,15 @@ export interface InventoryAvailability extends InventoryIdentity {
   productionDemand: number;
   purchaseDemand: number;
   projectedAvailable: number;
+  /** Quantity on active order lines before subtracting shipments. */
+  openOrderQuantity?: number;
+  /** Quantity already shipped for the currently active order lines. */
+  shippedQuantity?: number;
+  /** Customer quantity still to be fulfilled after shipments. */
+  remainingOrderQuantity?: number;
+  /** Remaining customer quantity already covered by active reservations. */
+  allocatedQuantity?: number;
+  latestShippedAt?: string | null;
   reorderPoint: number;
   preferredSupplierId: string | null;
   updatedAt: string;

@@ -25,6 +25,10 @@ const row = (overrides: Partial<InventoryAvailability> = {}): InventoryAvailabil
   productionDemand: 3,
   purchaseDemand: 1,
   projectedAvailable: 5,
+  openOrderQuantity: 10,
+  shippedQuantity: 4,
+  remainingOrderQuantity: 6,
+  allocatedQuantity: 2,
   reorderPoint: 5,
   preferredSupplierId: null,
   updatedAt: '2026-07-22T10:00:00.000Z',
@@ -45,6 +49,10 @@ describe('canonical inventory selectors', () => {
       incoming: 4,
       outstandingDemand: 8,
       projectedAvailable: 5,
+      openOrderQuantity: 20,
+      shippedQuantity: 8,
+      remainingOrderQuantity: 12,
+      allocatedQuantity: 4,
     });
     expect(totals.available).toBe(totals.onHand - totals.reserved);
   });

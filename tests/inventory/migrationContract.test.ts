@@ -62,6 +62,14 @@ const flexibleWarehousesSql = readFileSync(
   'utf8',
 );
 
+const shipmentAwareDemandSql = readFileSync(
+  new URL(
+    '../../supabase/migrations/20260723105559_shipment_aware_inventory_demand.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
 describe('transactional inventory migration contract', () => {
   it.each([
     'inventory_balances',
@@ -279,5 +287,52 @@ describe('transactional inventory migration contract', () => {
     expect(flexibleWarehousesSql).toContain("is_system IS NOT TRUE AND type <> 'Central'");
     expect(flexibleWarehousesSql).toContain('warehouses_name_normalized_unique_idx');
     expect(flexibleWarehousesSql).toContain('REVOKE ALL ON TABLE public.warehouses FROM anon');
+  });
+
+  it('subtracts modern and legacy shipments from canonical inventory demand', () => {
+    expect(shipmentAwareDemandSql).toContain('VIEW public.inventory_order_demand_v');
+    expect(shipmentAwareDemandSql).toContain('WITH (security_invoker = true)');
+    expect(shipmentAwareDemandSql).toContain('stable_line_identity');
+    expect(shipmentAwareDemandSql).toContain(
+      'COALESCE(line.product_sku, shipment_item.sku)',
+    );
+    expect(shipmentAwareDemandSql).toContain(
+      "COALESCE(shipment_item.line_id::text, '') <> ''",
+    );
+    expect(shipmentAwareDemandSql).toContain('shipped_by_identity');
+    expect(shipmentAwareDemandSql).toContain('reserved_by_identity');
+    expect(shipmentAwareDemandSql).toMatch(
+      /ordered\.ordered_quantity\s+- COALESCE\(shipped\.shipped_quantity, 0\)\s+- COALESCE\(reserved\.reserved_quantity, 0\)/,
+    );
+    expect(shipmentAwareDemandSql).toContain("'Partially Delivered'");
+    expect(shipmentAwareDemandSql).not.toMatch(
+      /order_row\.status IN \([\s\S]*?'Delivered'/,
+    );
+  });
+
+  it('keeps shipment-aware demand visible before the first physical balance', () => {
+    expect(shipmentAwareDemandSql).toContain('identity_universe');
+    expect(shipmentAwareDemandSql).toContain(
+      "'00000000-0000-0000-0000-000000000001'::uuid",
+    );
+    expect(shipmentAwareDemandSql).toContain('COALESCE(balance.on_hand, 0)');
+    expect(shipmentAwareDemandSql).toContain(
+      'open_order_quantity',
+    );
+    expect(shipmentAwareDemandSql).toContain(
+      'shipped_quantity',
+    );
+    expect(shipmentAwareDemandSql).toContain(
+      'remaining_order_quantity',
+    );
+    expect(shipmentAwareDemandSql).toContain(
+      'allocated_quantity',
+    );
+    expect(shipmentAwareDemandSql).toContain(
+      'REVOKE ALL ON public.inventory_order_demand_v FROM PUBLIC, anon',
+    );
+    expect(shipmentAwareDemandSql).toContain(
+      'GRANT SELECT ON public.inventory_order_demand_v TO authenticated, service_role',
+    );
   });
 });

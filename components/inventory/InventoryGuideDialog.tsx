@@ -96,7 +96,18 @@ export default function InventoryGuideDialog({ isAdmin, canOperate, onClose }: I
                 <div><dt className="inline font-black">{INVENTORY_TERMS.onHand}:</dt> <dd className="inline">ό,τι υπάρχει πραγματικά στη θέση.</dd></div>
                 <div><dt className="inline font-black">{INVENTORY_TERMS.reserved}:</dt> <dd className="inline">ό,τι έχει δεσμευτεί από παραγγελίες.</dd></div>
                 <div><dt className="inline font-black">{INVENTORY_TERMS.available}:</dt> <dd className="inline">φυσικό μείον δεσμευμένο.</dd></div>
-                <div><dt className="inline font-black">{INVENTORY_TERMS.projectedAvailable}:</dt> <dd className="inline">διαθέσιμο μαζί με αναμενόμενα και ανεκτέλεστη ζήτηση.</dd></div>
+                <div>
+                  <dt className="inline font-black">{INVENTORY_TERMS.outstandingDemand}:</dt>{' '}
+                  <dd className="inline">
+                    το πραγματικό ακάλυπτο υπόλοιπο ενεργών παραγγελιών, αφού αφαιρεθούν όσα έχουν ήδη αποσταλεί και όσα καλύπτονται από ενεργές δεσμεύσεις.
+                  </dd>
+                </div>
+                <div>
+                  <dt className="inline font-black">{INVENTORY_TERMS.projectedAvailable}:</dt>{' '}
+                  <dd className="inline">
+                    διαθέσιμο απόθεμα μαζί με τις αναμενόμενες παραλαβές, μείον μόνο την πραγματικά ανεκτέλεστη ζήτηση.
+                  </dd>
+                </div>
               </dl>
             </article>
           </section>

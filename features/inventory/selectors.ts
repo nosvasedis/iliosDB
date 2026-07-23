@@ -8,6 +8,10 @@ export interface InventoryTotals {
   incoming: number;
   outstandingDemand: number;
   projectedAvailable: number;
+  openOrderQuantity: number;
+  shippedQuantity: number;
+  remainingOrderQuantity: number;
+  allocatedQuantity: number;
   lowStockCount: number;
 }
 
@@ -36,6 +40,10 @@ export function calculateInventoryTotals(rows: InventoryAvailability[]): Invento
     totals.incoming += row.incoming;
     totals.outstandingDemand += row.outstandingDemand;
     totals.projectedAvailable += row.projectedAvailable;
+    totals.openOrderQuantity += row.openOrderQuantity || 0;
+    totals.shippedQuantity += row.shippedQuantity || 0;
+    totals.remainingOrderQuantity += row.remainingOrderQuantity || 0;
+    totals.allocatedQuantity += row.allocatedQuantity || 0;
     if (row.reorderPoint > 0 && row.available <= row.reorderPoint) totals.lowStockCount += 1;
     return totals;
   }, {
@@ -45,6 +53,10 @@ export function calculateInventoryTotals(rows: InventoryAvailability[]): Invento
     incoming: 0,
     outstandingDemand: 0,
     projectedAvailable: 0,
+    openOrderQuantity: 0,
+    shippedQuantity: 0,
+    remainingOrderQuantity: 0,
+    allocatedQuantity: 0,
     lowStockCount: 0,
   });
 }
@@ -178,6 +190,11 @@ export function ensureCatalogInventoryAvailability(
         productionDemand: 0,
         purchaseDemand: 0,
         projectedAvailable: 0,
+        openOrderQuantity: 0,
+        shippedQuantity: 0,
+        remainingOrderQuantity: 0,
+        allocatedQuantity: 0,
+        latestShippedAt: null,
         reorderPoint: 0,
         preferredSupplierId: null,
         updatedAt: '',

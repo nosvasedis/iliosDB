@@ -172,6 +172,19 @@ function VariantHeader({ variant, product }: { variant: InventoryVariantGroup; p
         <span className="text-slate-600">Φυσικό {formatInventoryInteger(variant.totals.onHand)}</span>
         <span className="text-indigo-700">Δεσμευμένο {formatInventoryInteger(variant.totals.reserved)}</span>
         <span className="text-emerald-700">Διαθέσιμο {formatInventoryInteger(variant.totals.available)}</span>
+        {variant.totals.openOrderQuantity > 0 && (
+          <>
+            <span className="text-blue-700">
+              Ενεργές παραγγελίες {formatInventoryInteger(variant.totals.openOrderQuantity)}
+            </span>
+            <span className="text-cyan-700">
+              Ήδη αποσταλμένα {formatInventoryInteger(variant.totals.shippedQuantity)}
+            </span>
+            <span className="text-amber-700">
+              Ανεκτέλεστα {formatInventoryInteger(variant.totals.outstandingDemand)}
+            </span>
+          </>
+        )}
       </div>
     </div>
   );
@@ -207,13 +220,20 @@ function VariantBreakdown({
             {variant.rows.map((row) => (
               <div
                 key={inventoryIdentityKey(row)}
-                className="grid gap-3 px-4 py-3 lg:grid-cols-[minmax(11rem,1.2fr)_repeat(5,minmax(5rem,.55fr))_minmax(15rem,1.4fr)] lg:items-center"
+                className="grid gap-3 px-4 py-3 lg:grid-cols-[minmax(13rem,1.35fr)_repeat(6,minmax(5rem,.55fr))_minmax(15rem,1.4fr)] lg:items-center"
               >
                 <div>
                   <p className="font-bold text-slate-800">{row.warehouseName}</p>
                   <p className="mt-0.5 text-xs text-slate-500">
                     {row.sizeInfo ? `Μέγεθος ${row.sizeInfo}` : 'Χωρίς διάκριση μεγέθους'} · {getWarehouseTypeLabel(row.warehouseType)}
                   </p>
+                  {(row.openOrderQuantity || 0) > 0 && (
+                    <p className="mt-1 text-[11px] font-semibold leading-5 text-slate-500">
+                      Ενεργές παραγγελίες {formatInventoryInteger(row.openOrderQuantity || 0)}
+                      {' · '}Ήδη αποσταλμένα {formatInventoryInteger(row.shippedQuantity || 0)}
+                      {' · '}Καλυμμένα με δέσμευση {formatInventoryInteger(row.allocatedQuantity || 0)}
+                    </p>
+                  )}
                 </div>
                 <div className="grid grid-cols-3 gap-2 lg:contents">
                   <div className="text-center lg:text-right">
@@ -233,6 +253,13 @@ function VariantBreakdown({
                   <div className="text-center lg:text-right">
                     <span className="block text-[11px] font-bold uppercase text-blue-400 lg:hidden">Αναμενόμενο</span>
                     <strong className="tabular-nums text-blue-700">{formatInventoryInteger(row.incoming)}</strong>
+                  </div>
+                  <div
+                    className="text-center lg:text-right"
+                    title="Η ποσότητα που απομένει μετά την αφαίρεση των ήδη αποσταλμένων και των ενεργών δεσμεύσεων."
+                  >
+                    <span className="block text-[11px] font-bold uppercase text-amber-500 lg:hidden">Ανεκτέλεστη</span>
+                    <strong className="tabular-nums text-amber-700">{formatInventoryInteger(row.outstandingDemand)}</strong>
                   </div>
                   <div className="text-center lg:text-right">
                     <span className="block text-[11px] font-bold uppercase text-slate-400 lg:hidden">Πρόβλεψη</span>
@@ -300,8 +327,21 @@ function DesktopSkuRow({
           </span>
         </td>
         <td className="px-4 py-3 text-right text-xs font-bold">
-          <p className="text-blue-700">Αναμ. +{formatInventoryInteger(group.totals.incoming)}</p>
-          <p className="mt-1 text-amber-700">Ζήτηση −{formatInventoryInteger(group.totals.outstandingDemand)}</p>
+          <p className="text-blue-700">Αναμενόμενα +{formatInventoryInteger(group.totals.incoming)}</p>
+          {group.totals.openOrderQuantity > 0 && (
+            <>
+              <p className="mt-1 text-cyan-700">
+                Αποσταλμένα {formatInventoryInteger(group.totals.shippedQuantity)}
+                {' / '}
+                {formatInventoryInteger(group.totals.openOrderQuantity)}
+              </p>
+              <p className="mt-1 text-slate-500">
+                Υπόλοιπο {formatInventoryInteger(group.totals.remainingOrderQuantity)}
+                {' · '}Δεσμ. {formatInventoryInteger(group.totals.allocatedQuantity)}
+              </p>
+            </>
+          )}
+          <p className="mt-1 text-amber-700">Ανεκτέλεστα −{formatInventoryInteger(group.totals.outstandingDemand)}</p>
         </td>
         <td className="px-4 py-3 text-right font-black tabular-nums text-slate-800">{formatInventoryInteger(group.totals.projectedAvailable)}</td>
         <td className="px-4 py-3">
@@ -387,6 +427,22 @@ function CompactSkuCard({
           <strong className="tabular-nums">{formatInventoryInteger(group.totals.available)}</strong>
         </div>
       </div>
+      {group.totals.openOrderQuantity > 0 && (
+        <div className="grid grid-cols-2 gap-2 border-t border-slate-100 bg-slate-50/70 px-4 py-3 text-xs">
+          <p className="font-bold text-cyan-700">
+            Ήδη αποσταλμένα {formatInventoryInteger(group.totals.shippedQuantity)}
+            {' / '}
+            {formatInventoryInteger(group.totals.openOrderQuantity)}
+          </p>
+          <p className="text-right font-bold text-amber-700">
+            Ανεκτέλεστη ζήτηση {formatInventoryInteger(group.totals.outstandingDemand)}
+          </p>
+          <p className="col-span-2 text-[11px] font-semibold text-slate-500">
+            Υπόλοιπο προς εκπλήρωση {formatInventoryInteger(group.totals.remainingOrderQuantity)}
+            {' · '}Καλυμμένο με δέσμευση {formatInventoryInteger(group.totals.allocatedQuantity)}
+          </p>
+        </div>
+      )}
       <div className="flex gap-2 border-t border-slate-100 px-4 py-3">
         {product && onProductSelect && (
           <button type="button" onClick={() => onProductSelect(product)} className={`${BTN_SECONDARY} flex-1 justify-center px-3 py-2 text-xs`}>

@@ -80,18 +80,21 @@ describe('query invalidation helpers', () => {
 
     await invalidateShipmentUndoQueries(queryClient, 'order-1');
 
-    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(20);
+    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(23);
     expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: orderKeys.all });
     expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: orderKeys.list() });
     expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(3, { queryKey: orderKeys.productionBoard() });
-    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(13, { queryKey: orderKeys.shipments() });
-    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(14, { queryKey: orderKeys.shipmentsForOrder('order-1') });
-    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(15, { queryKey: orderKeys.shipmentItems() });
-    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(16, { queryKey: ['order-shipments'] });
-    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(17, { queryKey: deliveryKeys.plans() });
-    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(18, { queryKey: deliveryKeys.reminders() });
-    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(19, { queryKey: deliveryKeys.shipments() });
-    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(20, { queryKey: deliveryKeys.shipmentItems() });
+    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(13, { queryKey: ['inventory'] });
+    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(14, { queryKey: ['products'] });
+    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(15, { queryKey: ['productsCatalog'] });
+    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(16, { queryKey: orderKeys.shipments() });
+    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(17, { queryKey: orderKeys.shipmentsForOrder('order-1') });
+    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(18, { queryKey: orderKeys.shipmentItems() });
+    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(19, { queryKey: ['order-shipments'] });
+    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(20, { queryKey: deliveryKeys.plans() });
+    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(21, { queryKey: deliveryKeys.reminders() });
+    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(22, { queryKey: deliveryKeys.shipments() });
+    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(23, { queryKey: deliveryKeys.shipmentItems() });
   });
 
   it('invalidates shipment caches then refetches active order/production/delivery queries', async () => {

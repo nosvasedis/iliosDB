@@ -29,8 +29,8 @@ const PRODUCT_GRAPH_TABLES = new Set([
 ]);
 
 const REALTIME_TABLE_DOMAINS: Record<string, RealtimeInvalidationDomain[]> = {
-    products: ['products'],
-    product_variants: ['products'],
+    products: ['products', 'inventory'],
+    product_variants: ['products', 'inventory'],
     product_stock: ['products'],
     recipes: ['products'],
     product_molds: ['products'],
@@ -46,9 +46,9 @@ const REALTIME_TABLE_DOMAINS: Record<string, RealtimeInvalidationDomain[]> = {
     molds: ['resources'],
     warehouses: ['resources', 'inventory'],
     global_settings: ['settings'],
-    orders: ['orders', 'deliveries'],
-    order_shipments: ['orders', 'deliveries'],
-    order_shipment_items: ['orders', 'deliveries'],
+    orders: ['orders', 'deliveries', 'inventory'],
+    order_shipments: ['orders', 'deliveries', 'inventory'],
+    order_shipment_items: ['orders', 'deliveries', 'inventory'],
     order_delivery_plans: ['deliveries', 'orders'],
     order_delivery_reminders: ['deliveries', 'orders'],
     production_batches: ['production', 'orders', 'deliveries'],
@@ -57,7 +57,7 @@ const REALTIME_TABLE_DOMAINS: Record<string, RealtimeInvalidationDomain[]> = {
     customers: ['contacts', 'orders', 'deliveries'],
     suppliers: ['contacts', 'products'],
     profiles: ['contacts'],
-    supplier_orders: ['supplierOrders'],
+    supplier_orders: ['supplierOrders', 'inventory'],
     offers: ['offers'],
     legal_settings: ['legal'],
     legal_numbering_sequences: ['legal'],
@@ -245,7 +245,10 @@ export function invalidateOrdersAndBatches(queryClient: QueryClient): Promise<vo
  * does not wait for realtime or a page reload.
  */
 export async function invalidateAndRefetchAfterOrderMutation(queryClient: QueryClient): Promise<void> {
-    await invalidateOrdersAndBatches(queryClient);
+    await Promise.all([
+        invalidateOrdersAndBatches(queryClient),
+        invalidateInventory(queryClient),
+    ]);
     await Promise.all([
         queryClient.refetchQueries({ queryKey: orderKeys.all, type: 'active' }),
         queryClient.refetchQueries({ queryKey: orderKeys.list(), type: 'active' }),
@@ -254,12 +257,14 @@ export async function invalidateAndRefetchAfterOrderMutation(queryClient: QueryC
         queryClient.refetchQueries({ queryKey: productionKeys.boardBatches(), type: 'active' }),
         queryClient.refetchQueries({ queryKey: productionKeys.batchHistoryEntries(), type: 'active' }),
         queryClient.refetchQueries({ queryKey: productionKeys.boardBatchHistoryEntries(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: ['inventory'], type: 'active' }),
     ]);
 }
 
 export function invalidateShipmentUndoQueries(queryClient: QueryClient, orderId?: string): Promise<void> {
     return Promise.all([
         invalidateOrdersAndBatches(queryClient),
+        invalidateInventory(queryClient),
         queryClient.invalidateQueries({ queryKey: orderKeys.shipments() }),
         orderId ? queryClient.invalidateQueries({ queryKey: orderKeys.shipmentsForOrder(orderId) }) : Promise.resolve(),
         queryClient.invalidateQueries({ queryKey: orderKeys.shipmentItems() }),
@@ -292,6 +297,7 @@ export async function invalidateAndRefetchAfterShipmentChange(
         queryClient.refetchQueries({ queryKey: deliveryKeys.shipmentItems(), type: 'active' }),
         queryClient.refetchQueries({ queryKey: deliveryKeys.plans(), type: 'active' }),
         queryClient.refetchQueries({ queryKey: deliveryKeys.reminders(), type: 'active' }),
+        queryClient.refetchQueries({ queryKey: ['inventory'], type: 'active' }),
         ...(orderId
             ? [queryClient.refetchQueries({ queryKey: orderKeys.shipmentsForOrder(orderId), type: 'active' })]
             : []),
@@ -312,6 +318,7 @@ export function refetchRealtimeActiveQueries(queryClient: QueryClient): Promise<
         'production',
         'deliveries',
         'resources',
+        'inventory',
     ]);
 }
 

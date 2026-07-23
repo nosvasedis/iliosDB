@@ -44,6 +44,11 @@ type AvailabilityRow = {
   production_demand: number | string;
   purchase_demand: number | string;
   projected_available: number | string;
+  open_order_quantity?: number | string;
+  shipped_quantity?: number | string;
+  remaining_order_quantity?: number | string;
+  allocated_quantity?: number | string;
+  latest_shipped_at?: string | null;
   reorder_point: number | string;
   preferred_supplier_id: string | null;
   updated_at: string;
@@ -86,6 +91,11 @@ function mapAvailability(row: AvailabilityRow): InventoryAvailability {
     productionDemand: Number(row.production_demand || 0),
     purchaseDemand: Number(row.purchase_demand || 0),
     projectedAvailable: Number(row.projected_available || 0),
+    openOrderQuantity: Number(row.open_order_quantity || 0),
+    shippedQuantity: Number(row.shipped_quantity || 0),
+    remainingOrderQuantity: Number(row.remaining_order_quantity || 0),
+    allocatedQuantity: Number(row.allocated_quantity || 0),
+    latestShippedAt: row.latest_shipped_at || null,
     reorderPoint: Number(row.reorder_point || 0),
     preferredSupplierId: row.preferred_supplier_id,
     updatedAt: row.updated_at,

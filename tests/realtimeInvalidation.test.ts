@@ -16,8 +16,8 @@ import {
 } from '../hooks/api/useRealtimeInvalidation';
 
 describe('realtime invalidation mapping', () => {
-  it('maps product variant changes to the product/catalog domain', async () => {
-    expect(getRealtimeInvalidationDomainsForTable('product_variants')).toEqual(['products']);
+  it('maps product variant changes to product/catalog and inventory demand', async () => {
+    expect(getRealtimeInvalidationDomainsForTable('product_variants')).toEqual(['products', 'inventory']);
 
     const queryClient = {
       invalidateQueries: vi.fn().mockResolvedValue(undefined),
@@ -30,8 +30,11 @@ describe('realtime invalidation mapping', () => {
     expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(2, { queryKey: ['productsCatalog'] });
   });
 
-  it('maps shipment table changes to order and delivery surfaces', () => {
-    expect(getRealtimeInvalidationDomainsForTable('order_shipment_items')).toEqual(['orders', 'deliveries']);
+  it('maps shipment table changes to orders, deliveries, and canonical inventory demand', () => {
+    expect(getRealtimeInvalidationDomainsForTable('order_shipment_items')).toEqual(['orders', 'deliveries', 'inventory']);
+    expect(getRealtimeInvalidationDomainsForTable('order_shipments')).toEqual(['orders', 'deliveries', 'inventory']);
+    expect(getRealtimeInvalidationDomainsForTable('orders')).toEqual(['orders', 'deliveries', 'inventory']);
+    expect(getRealtimeInvalidationDomainsForTable('supplier_orders')).toEqual(['supplierOrders', 'inventory']);
   });
 
   it('maps production batch changes to every visible dependent surface', () => {
