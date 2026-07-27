@@ -65,9 +65,13 @@ function assertOnline(): void {
   }
 }
 
-function normalizeOrderInventoryIdentities(order: Order): Order {
+export function normalizeOrderInventoryIdentities(order: Order): Order {
+  const writableOrder = { ...order };
+  delete writableOrder.item_count;
+  delete writableOrder.item_total_qty;
+
   return {
-    ...order,
+    ...writableOrder,
     items: order.items.map((item) => ({
       ...item,
       size_info: normalizeInventorySizeInfo(item.size_info) || undefined,

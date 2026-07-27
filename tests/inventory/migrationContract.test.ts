@@ -70,6 +70,22 @@ const shipmentAwareDemandSql = readFileSync(
   'utf8',
 );
 
+const generatedOrderColumnsFixSql = readFileSync(
+  new URL(
+    '../../supabase/migrations/20260727075547_fix_order_inventory_generated_columns.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
+const generatedOrderColumnsHardeningSql = readFileSync(
+  new URL(
+    '../../supabase/migrations/20260727080231_harden_order_inventory_generated_columns_fix.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
 describe('transactional inventory migration contract', () => {
   it.each([
     'inventory_balances',
@@ -141,6 +157,32 @@ describe('transactional inventory migration contract', () => {
   it('constrains seller reservations to the seller own order', () => {
     expect(sql).toContain("private.current_app_role() = 'seller'");
     expect(sql).toContain("COALESCE(p_order->>'seller_id', '')");
+  });
+
+  it('creates new orders without writing generated summary columns', () => {
+    const insertColumns = generatedOrderColumnsFixSql.match(
+      /INSERT INTO public\.orders\s*\(([\s\S]*?)\)\s*VALUES/,
+    )?.[1];
+
+    expect(insertColumns).toBeTruthy();
+    expect(insertColumns).not.toContain('item_count');
+    expect(insertColumns).not.toContain('item_total_qty');
+    expect(generatedOrderColumnsFixSql).not.toContain(
+      'INSERT INTO public.orders SELECT (v_order).*',
+    );
+    expect(generatedOrderColumnsFixSql).toContain(
+      "COALESCE(v_order.status, 'Pending')",
+    );
+    expect(generatedOrderColumnsFixSql).toContain(
+      "COALESCE(v_order.tags, '{}'::text[])",
+    );
+    expect(generatedOrderColumnsFixSql).toContain(
+      'REVOKE ALL ON FUNCTION private.save_order_with_inventory_core(jsonb, text)',
+    );
+    expect(generatedOrderColumnsHardeningSql).toContain(
+      'FROM PUBLIC, anon, authenticated;',
+    );
+    expect(generatedOrderColumnsHardeningSql).toContain('TO service_role;');
   });
 
   it('does not seed from the client-derived location_stock mapping', () => {
