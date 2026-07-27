@@ -49,6 +49,27 @@ describe('shipment safety', () => {
     ]);
   });
 
+  it('ships legacy Ready batches after uniquely binding them to stable order lines', () => {
+    const o = order({
+      status: OrderStatus.InProduction,
+      items: [
+        { sku: 'RN307', variant_suffix: 'P', size_info: '62', quantity: 1, price_at_order: 100, line_id: 'line-p-62' },
+        { sku: 'RN307', variant_suffix: 'D', quantity: 2, price_at_order: 90, line_id: 'line-d' },
+      ],
+    });
+    const batches = [
+      readyBatch({ id: 'batch-p', sku: 'RN307', variant_suffix: 'P', size_info: '62', quantity: 1, line_id: null }),
+      readyBatch({ id: 'batch-d', sku: 'RN307', variant_suffix: 'D', quantity: 2, line_id: null }),
+    ];
+
+    const items = getReadyToShipItems(o.id, batches, o.items);
+    expect(items).toEqual([
+      expect.objectContaining({ sku: 'RN307', variant_suffix: 'P', size_info: '62', quantity: 1, line_id: 'line-p-62' }),
+      expect.objectContaining({ sku: 'RN307', variant_suffix: 'D', quantity: 2, line_id: 'line-d' }),
+    ]);
+    expect(validateShipmentRequest(o, [], batches, items)).toEqual([]);
+  });
+
   it('blocks shipment requests that exceed the remaining quantity', () => {
     const o = order({
       items: [{ sku: 'SP001', quantity: 2, price_at_order: 10, line_id: 'line-a' }],

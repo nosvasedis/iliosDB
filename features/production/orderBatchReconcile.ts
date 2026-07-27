@@ -205,6 +205,77 @@ export type LineIdBindingResult = {
   batchLineIdUpdates: Array<{ batchId: string; line_id: string }>;
 };
 
+type CatalogIdentityCandidate = {
+  sku: string;
+  variant_suffix?: string | null;
+  size_info?: string | null;
+  cord_color?: string | null;
+  enamel_color?: string | null;
+  notes?: string | null;
+  line_id?: string | null;
+};
+
+function normalizedNotes(value: string | null | undefined): string {
+  return (value || '').trim().toLocaleLowerCase('el-GR');
+}
+
+/**
+ * Resolve a legacy row to an existing order line only when the catalog identity
+ * is unambiguous. Notes may disambiguate duplicated custom/special lines, but
+ * the function never guesses between multiple candidates.
+ */
+export function resolveUniqueOrderLineId(
+  candidate: CatalogIdentityCandidate,
+  orderItems: ReconcileCatalogItem[],
+): string | null {
+  if (candidate.line_id) return candidate.line_id;
+
+  const matches = orderItems.filter(
+    (item) => Boolean(item.line_id) && catalogIdentityMatches(candidate, item),
+  );
+  if (matches.length === 1) return matches[0].line_id || null;
+  if (matches.length <= 1) return null;
+
+  const candidateNotes = normalizedNotes(candidate.notes);
+  const noteMatches = matches.filter((item) => normalizedNotes(item.notes) === candidateNotes);
+  return noteMatches.length === 1 ? noteMatches[0].line_id || null : null;
+}
+
+export type LegacyBatchLineIdBindingResult = {
+  batches: ProductionBatch[];
+  batchLineIdUpdates: Array<{ batchId: string; line_id: string }>;
+  unresolvedBatchIds: string[];
+};
+
+/**
+ * Attach stable order-line ids to legacy production batches in memory.
+ * Persistence is deliberately left to the caller/database transaction.
+ */
+export function bindLegacyBatchLineIds(
+  orderItems: ReconcileCatalogItem[],
+  batches: ProductionBatch[],
+): LegacyBatchLineIdBindingResult {
+  const batchLineIdUpdates: Array<{ batchId: string; line_id: string }> = [];
+  const unresolvedBatchIds: string[] = [];
+
+  const resolvedBatches = batches.map((batch) => {
+    if (batch.line_id) return batch;
+    const lineId = resolveUniqueOrderLineId(batch, orderItems);
+    if (!lineId) {
+      unresolvedBatchIds.push(batch.id);
+      return batch;
+    }
+    batchLineIdUpdates.push({ batchId: batch.id, line_id: lineId });
+    return { ...batch, line_id: lineId };
+  });
+
+  return {
+    batches: resolvedBatches,
+    batchLineIdUpdates,
+    unresolvedBatchIds,
+  };
+}
+
 /** Bind stable line_id values between order rows and existing batches before reconciliation. */
 export function bindProductionLineIds(items: OrderItem[], batches: ProductionBatch[]): LineIdBindingResult {
   const batchLineIdUpdates: Array<{ batchId: string; line_id: string }> = [];
@@ -242,7 +313,13 @@ export type BatchIdentitySubstitution = {
 };
 
 export function catalogIdentityMatches(
-  batch: Pick<ProductionBatch, 'sku' | 'variant_suffix' | 'size_info' | 'cord_color' | 'enamel_color'>,
+  batch: {
+    sku: string;
+    variant_suffix?: string | null;
+    size_info?: string | null;
+    cord_color?: string | null;
+    enamel_color?: string | null;
+  },
   item: ReconcileCatalogItem,
 ): boolean {
   return (

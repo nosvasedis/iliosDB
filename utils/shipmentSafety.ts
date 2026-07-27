@@ -1,6 +1,10 @@
 import { Order, OrderDeliveryPlan, OrderShipmentItem, ProductionBatch, ProductionStage } from '../types';
 import { buildItemIdentityKey, ItemIdentityLike } from './itemIdentity';
 import { getShippedQuantitiesForOrderLines } from './shipmentUtils';
+import {
+  bindLegacyBatchLineIds,
+  resolveUniqueOrderLineId,
+} from '../features/production/orderBatchReconcile';
 
 export type ShipmentSafetySeverity = 'error' | 'warning';
 
@@ -118,8 +122,8 @@ export function getRemainingQuantityLines(
   batches: ProductionBatch[],
 ): QuantityLine[] {
   const shipped = getShippedQuantitiesForOrderLines(order.items, shipmentItems);
-
-  const ready = getReadyQuantityMap(order.id, batches);
+  const resolvedBatches = bindLegacyBatchLineIds(order.items, batches).batches;
+  const ready = getReadyQuantityMap(order.id, resolvedBatches);
   const lines: QuantityLine[] = [];
 
   order.items.forEach((item) => {
@@ -154,14 +158,19 @@ export function validateShipmentRequest(
   const issues: ShipmentSafetyIssue[] = [];
   const lines = getRemainingQuantityLines(order, shipmentItems, batches);
   const lineByKey = new Map(lines.map((line) => [keyFor(line), line]));
+  const resolvedRequestedItems = requestedItems.map((item) => (
+    item.line_id
+      ? item
+      : { ...item, line_id: resolveUniqueOrderLineId(item, order.items) }
+  ));
 
   const selected = new Map<string, number>();
-  requestedItems.forEach((item) => addToMap(selected, keyFor(item), quantity(item.quantity)));
+  resolvedRequestedItems.forEach((item) => addToMap(selected, keyFor(item), quantity(item.quantity)));
 
   for (const [key, selectedQty] of selected.entries()) {
     const line = lineByKey.get(key);
     if (!line) {
-      const item = requestedItems.find((candidate) => keyFor(candidate) === key)!;
+      const item = resolvedRequestedItems.find((candidate) => keyFor(candidate) === key)!;
       issues.push({
         key,
         severity: 'error',
@@ -205,7 +214,8 @@ export function validateReadyMatchesRemainingForTransfer(
   shipmentItems: OrderShipmentItem[],
   batches: ProductionBatch[],
 ): ShipmentSafetyIssue[] {
-  const lines = getRemainingQuantityLines(order, shipmentItems, batches);
+  const resolvedBatches = bindLegacyBatchLineIds(order.items, batches).batches;
+  const lines = getRemainingQuantityLines(order, shipmentItems, resolvedBatches);
   const issues = lines
     .filter((line) => line.remainingQty > 0 && line.readyQty !== line.remainingQty)
     .map((line) => issueFromLine(
@@ -218,10 +228,10 @@ export function validateReadyMatchesRemainingForTransfer(
     ));
 
   const knownRemainingKeys = new Set(lines.filter((line) => line.remainingQty > 0).map((line) => keyFor(line)));
-  const ready = getReadyQuantityMap(order.id, batches);
+  const ready = getReadyQuantityMap(order.id, resolvedBatches);
   for (const [key, readyQty] of ready.entries()) {
     if (readyQty <= 0 || knownRemainingKeys.has(key)) continue;
-    const batch = batches.find((candidate) => candidate.order_id === order.id && candidate.current_stage === ProductionStage.Ready && keyFor(candidate) === key);
+    const batch = resolvedBatches.find((candidate) => candidate.order_id === order.id && candidate.current_stage === ProductionStage.Ready && keyFor(candidate) === key);
     issues.push({
       key,
       severity: 'error',

@@ -86,6 +86,14 @@ const generatedOrderColumnsHardeningSql = readFileSync(
   'utf8',
 );
 
+const legacyShipmentLineIdsSql = readFileSync(
+  new URL(
+    '../../supabase/migrations/20260727093052_bind_legacy_shipment_line_ids.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
 describe('transactional inventory migration contract', () => {
   it.each([
     'inventory_balances',
@@ -375,6 +383,41 @@ describe('transactional inventory migration contract', () => {
     );
     expect(shipmentAwareDemandSql).toContain(
       'GRANT SELECT ON public.inventory_order_demand_v TO authenticated, service_role',
+    );
+  });
+
+  it('binds legacy production batches only to unambiguous stable order lines', () => {
+    expect(legacyShipmentLineIdsSql).toContain(
+      'FUNCTION private.resolve_order_line_id_v1',
+    );
+    expect(legacyShipmentLineIdsSql).toContain('IF v_candidate_count = 1');
+    expect(legacyShipmentLineIdsSql).toContain('IF v_candidate_count > 1');
+    expect(legacyShipmentLineIdsSql).toContain(
+      "lower(btrim(coalesce(item->>'notes', ''))) = v_candidate_notes",
+    );
+    expect(legacyShipmentLineIdsSql).toContain(
+      "nullif(btrim(coalesce(b.line_id, '')), '') IS NULL",
+    );
+    expect(legacyShipmentLineIdsSql).not.toMatch(
+      /UPDATE public\.production_batches[\s\S]*SET quantity\s*=/,
+    );
+  });
+
+  it('prepares shipment line ids inside the same locked and idempotent transaction', () => {
+    expect(legacyShipmentLineIdsSql).toContain(
+      'FUNCTION private.prepare_shipment_line_ids_v1',
+    );
+    expect(legacyShipmentLineIdsSql).toContain('ORDER BY id');
+    expect(legacyShipmentLineIdsSql).toContain('FOR UPDATE');
+    expect(legacyShipmentLineIdsSql).toContain(
+      'v_items := private.prepare_shipment_line_ids_v1(p_order_id, p_items)',
+    );
+    expect(legacyShipmentLineIdsSql).toContain(
+      'public.create_partial_shipment_inventory_core_v1',
+    );
+    expect(legacyShipmentLineIdsSql).toContain('pg_advisory_xact_lock');
+    expect(legacyShipmentLineIdsSql).toContain(
+      'REVOKE ALL ON FUNCTION public.create_partial_shipment_v2(text, text, jsonb, uuid, text, jsonb, jsonb, text) FROM PUBLIC, anon',
     );
   });
 });

@@ -29,7 +29,10 @@ interface Props {
 export default function ShipmentCreationModal({ order, batches, products, deliveryPlanId, userName, variant = 'partial', onConfirm, onClose }: Props) {
   const isFullOrderShipment = variant === 'full';
   const orderItems = useMemo(() => Array.isArray(order.items) ? order.items : [], [order.items]);
-  const readyItems = useMemo(() => getReadyToShipItems(order.id, batches), [order.id, batches]);
+  const readyItems = useMemo(
+    () => getReadyToShipItems(order.id, batches, orderItems),
+    [order.id, batches, orderItems],
+  );
   const getItemIdentityKey = (item: { sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null; line_id?: string | null }) =>
     buildItemIdentityKey({
       sku: item.sku,

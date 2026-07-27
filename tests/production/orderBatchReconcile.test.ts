@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { OrderItem, ProductionBatch, ProductionStage } from '../../types';
 import {
   bindProductionLineIds,
+  bindLegacyBatchLineIds,
   planNonDuplicateProductionSendItems,
   planLineIdIdentityMorphs,
   planSameSkuIdentitySubstitutions,
+  resolveUniqueOrderLineId,
 } from '../../features/production/orderBatchReconcile';
 
 const baseBatch = {
@@ -30,6 +32,56 @@ describe('order batch reconciliation planning', () => {
     const result = bindProductionLineIds(items, batches);
     expect(result.items[0].line_id).toBeTruthy();
     expect(result.batchLineIdUpdates).toEqual([{ batchId: 'batch-1', line_id: result.items[0].line_id }]);
+  });
+
+  it('binds a legacy batch to the unique existing order line without changing quantities', () => {
+    const items: OrderItem[] = [
+      { sku: 'RN307', variant_suffix: 'P', size_info: '62', quantity: 1, price_at_order: 100, line_id: 'line-p-62' },
+      { sku: 'RN307', variant_suffix: 'D', quantity: 2, price_at_order: 90, line_id: 'line-d' },
+    ];
+    const batches: ProductionBatch[] = [
+      { ...baseBatch, id: 'batch-p', sku: 'RN307', variant_suffix: 'P', size_info: '62', quantity: 1, line_id: null },
+      { ...baseBatch, id: 'batch-d', sku: 'RN307', variant_suffix: 'D', quantity: 2, line_id: null },
+    ];
+
+    const result = bindLegacyBatchLineIds(items, batches);
+
+    expect(result.unresolvedBatchIds).toEqual([]);
+    expect(result.batchLineIdUpdates).toEqual([
+      { batchId: 'batch-p', line_id: 'line-p-62' },
+      { batchId: 'batch-d', line_id: 'line-d' },
+    ]);
+    expect(result.batches.map(({ line_id, quantity }) => ({ line_id, quantity }))).toEqual([
+      { line_id: 'line-p-62', quantity: 1 },
+      { line_id: 'line-d', quantity: 2 },
+    ]);
+  });
+
+  it('never guesses a line id when the natural identity is ambiguous', () => {
+    const items: OrderItem[] = [
+      { sku: 'SP001', quantity: 1, price_at_order: 100, line_id: 'line-a' },
+      { sku: 'SP001', quantity: 1, price_at_order: 120, line_id: 'line-b' },
+    ];
+    const batch = { ...baseBatch, id: 'batch-ambiguous', sku: 'SP001', quantity: 1, line_id: null };
+
+    expect(resolveUniqueOrderLineId(batch, items)).toBeNull();
+    expect(bindLegacyBatchLineIds(items, [batch])).toEqual({
+      batches: [batch],
+      batchLineIdUpdates: [],
+      unresolvedBatchIds: ['batch-ambiguous'],
+    });
+  });
+
+  it('uses exact notes only to disambiguate duplicated natural identities', () => {
+    const items: OrderItem[] = [
+      { sku: 'SP001', quantity: 1, price_at_order: 100, notes: 'Μονόγραμμα Α', line_id: 'line-a' },
+      { sku: 'SP001', quantity: 1, price_at_order: 120, notes: 'Μονόγραμμα Β', line_id: 'line-b' },
+    ];
+
+    expect(resolveUniqueOrderLineId(
+      { sku: 'SP001', notes: '  μονόγραμμα β ', line_id: null },
+      items,
+    )).toBe('line-b');
   });
 
   it('plans a line-id morph when catalog identity changes on the same row', () => {

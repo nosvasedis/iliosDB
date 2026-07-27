@@ -43,6 +43,7 @@ import { buildInitialBatchHistoryEntry, canMoveBatchToStage as canMoveBatchToSta
 import { getProductionSendOrderStatus } from '../features/production/productionSendPlanner';
 import {
     bindProductionLineIds,
+    bindLegacyBatchLineIds,
     buildNaturalKeyDemandCount,
     buildShippedByDemandKey,
     demandKeyForItem,
@@ -50,6 +51,7 @@ import {
     planNonDuplicateProductionSendItems,
     planSameSkuIdentitySubstitutions,
     supplyKeyForBatch,
+    resolveUniqueOrderLineId,
     type ReconcileCatalogItem,
 } from '../features/production/orderBatchReconcile';
 import { mapCatalogProductsWithRelations, mapProductsWithRelations, resolveProductImageUrl, attachSuppliersToProductRows } from '../features/products/mappers';
@@ -2472,6 +2474,14 @@ export const api = {
         }
         const now = new Date().toISOString();
         const existingShipmentSnapshot = await getOrderShipmentsSnapshot(params.orderId);
+        const orderSnapshot = await getOrderSnapshot(params.orderId);
+        if (!orderSnapshot) throw new Error('Η παραγγελία δεν βρέθηκε. Δεν έγινε αποστολή.');
+        const effectiveItems = params.items.map((item) => (
+            item.line_id
+                ? item
+                : { ...item, line_id: resolveUniqueOrderLineId(item, orderSnapshot.items) }
+        ));
+        const effectiveBatches = bindLegacyBatchLineIds(orderSnapshot.items, params.allBatches).batches;
         const shipmentNumber = existingShipmentSnapshot.shipments.reduce(
             (maxNumber, shipment) => Math.max(maxNumber, shipment.shipment_number || 0),
             0
@@ -2487,7 +2497,7 @@ export const api = {
             notes: params.notes || null,
             created_at: now
         };
-        const shipmentItems: OrderShipmentItem[] = params.items.map(item => ({
+        const shipmentItems: OrderShipmentItem[] = effectiveItems.map(item => ({
             id: crypto.randomUUID(),
             shipment_id: shipmentId,
             sku: item.sku,
@@ -2500,13 +2510,11 @@ export const api = {
             line_id: item.line_id || null
         }));
 
-        const orderSnapshot = await getOrderSnapshot(params.orderId);
-        if (!orderSnapshot) throw new Error('Η παραγγελία δεν βρέθηκε. Δεν έγινε αποστολή.');
         const shipmentIssues = validateShipmentRequest(
             orderSnapshot,
             existingShipmentSnapshot.items,
-            params.allBatches,
-            params.items,
+            effectiveBatches,
+            effectiveItems,
         );
         if (hasBlockingShipmentIssues(shipmentIssues)) {
             throw new Error([
@@ -2516,9 +2524,9 @@ export const api = {
             ].join('\n'));
         }
 
-        const orderBatches = params.allBatches.filter(b => b.order_id === params.orderId);
+        const orderBatches = effectiveBatches.filter(b => b.order_id === params.orderId);
         const batchMutations: Array<{ method: 'UPDATE' | 'DELETE'; data: any; match: Record<string, any> }> = [];
-        for (const item of params.items) {
+        for (const item of effectiveItems) {
             let remainingToShip = item.quantity;
             const matchingReadyBatches = orderBatches
                 .filter(b =>
@@ -2619,7 +2627,7 @@ export const api = {
             const { data, error } = await supabase.rpc('create_partial_shipment_v2', {
                 p_order_id: params.orderId,
                 p_shipped_by: params.shippedBy,
-                p_items: buildPartialShipmentRpcItems(params.items),
+                p_items: buildPartialShipmentRpcItems(effectiveItems),
                 p_delivery_plan_id: params.deliveryPlanId || null,
                 p_notes: params.notes || null,
                 p_next_plan: nextPlan ? sanitizeDeliveryPlanData(nextPlan) : null,

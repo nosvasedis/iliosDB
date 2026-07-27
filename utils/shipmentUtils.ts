@@ -1,6 +1,6 @@
 
 import { Order, OrderItem, OrderShipment, OrderShipmentItem, OrderStatus, ProductionBatch, ProductionStage } from '../types';
-import { catalogIdentityMatches } from '../features/production/orderBatchReconcile';
+import { bindLegacyBatchLineIds, catalogIdentityMatches, ReconcileCatalogItem } from '../features/production/orderBatchReconcile';
 import { buildItemIdentityKey } from './itemIdentity';
 
 type OrderLineForShipment = Pick<
@@ -189,8 +189,10 @@ export function getRemainingOrderItems(
 export function getReadyToShipItems(
   orderId: string,
   batches: ProductionBatch[],
+  orderItems?: ReconcileCatalogItem[],
 ): Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null; quantity: number; batchIds: string[]; line_id?: string | null }> {
-  const orderBatches = batches.filter(b => b.order_id === orderId && b.current_stage === ProductionStage.Ready);
+  const resolvedBatches = orderItems ? bindLegacyBatchLineIds(orderItems, batches).batches : batches;
+  const orderBatches = resolvedBatches.filter(b => b.order_id === orderId && b.current_stage === ProductionStage.Ready);
   const groupMap = new Map<string, { sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null; quantity: number; batchIds: string[]; line_id?: string | null }>();
 
   for (const batch of orderBatches) {
