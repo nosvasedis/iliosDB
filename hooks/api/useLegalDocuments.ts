@@ -71,7 +71,7 @@ export const useSaveAadeCredentials = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: AadeCredentialSavePayload) => legalRepository.saveCredentials(payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: legalKeys.credentials() }),
+    onSuccess: (status) => queryClient.setQueryData(legalKeys.credentials(), status),
   });
 };
 

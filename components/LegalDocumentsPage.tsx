@@ -517,11 +517,6 @@ export default function LegalDocumentsPage({
     proformas: proformas.filter((document) => document.status === 'draft').length,
   }), [legalDocuments, proformas]);
 
-  const hasDevValidation = useMemo(
-    () => legalDocuments.some((document) => document.status === 'issued'),
-    [legalDocuments]
-  );
-
   const validationIssues = useMemo(() => {
     if (!draftBundle) return [];
     return validateLegalDocument(draftBundle.document, draftBundle.lines);
@@ -1212,7 +1207,6 @@ export default function LegalDocumentsPage({
       });
       setCredentialDraft({ userId: '', subscriptionKey: '' });
       setCloudflareBootstrapDraft({ apiToken: '', accountId: '' });
-      await refetchCredentialStatus();
       showToast(`Τα AADE credentials για ${credentialEnvironment.toUpperCase()} αποθηκεύτηκαν με ασφάλεια στο Cloudflare Worker.`, 'success');
     } catch (error: any) {
       showToast(error?.message || 'Δεν αποθηκεύτηκαν τα AADE credentials.', 'error');
@@ -1220,10 +1214,6 @@ export default function LegalDocumentsPage({
   };
 
   const handleEnvironmentChange = (value: string) => {
-    if (value === 'prod' && !hasDevValidation) {
-      showToast('Η παραγωγή ανοίγει μετά από επιτυχή έκδοση στο dev περιβάλλον.', 'warning');
-      return;
-    }
     setSettingsDraft((current) => ({ ...current, environment: value === 'prod' ? 'prod' : 'dev' }));
   };
 
@@ -2319,6 +2309,9 @@ export default function LegalDocumentsPage({
                 {credentialStatus?.workerCanStoreSecrets ? 'Μπορεί να αποθηκεύσει' : 'Χρειάζεται ρύθμιση'}
               </div>
             </div>
+          </div>
+          <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-bold text-sky-800">
+            Τα περιβάλλοντα είναι ανεξάρτητα. Για πραγματική έκδοση αρκεί το AADE PROD να εμφανίζεται ως «Έτοιμο»· δεν απαιτείται προηγούμενη έκδοση στο Dev.
           </div>
 
           {missingSecretManager.length > 0 && (
