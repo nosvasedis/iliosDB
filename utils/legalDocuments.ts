@@ -103,6 +103,54 @@ export const AADE_VAT_CATEGORY_OPTIONS = [
 /** Practical subset for invoice line rows (excludes category 8 — accounting entries, not sales invoices). */
 export const AADE_VAT_CATEGORY_LINE_OPTIONS = AADE_VAT_CATEGORY_OPTIONS.filter((option) => option.category !== 8);
 
+/**
+ * Official myDATA vatExemptionCategory values.
+ * Source: myDATA REST API v2.0.1, Appendix 8.3, current VAT Code (ν. 5144/2024).
+ */
+export const AADE_VAT_EXEMPTION_CATEGORY_OPTIONS = [
+  { category: 1, description: 'Χωρίς ΦΠΑ - άρθρο 2 και 3 του Κώδικα ΦΠΑ' },
+  { category: 2, description: 'Χωρίς ΦΠΑ - άρθρο 5 του Κώδικα ΦΠΑ' },
+  { category: 3, description: 'Χωρίς ΦΠΑ - άρθρο 17 του Κώδικα ΦΠΑ' },
+  { category: 4, description: 'Χωρίς ΦΠΑ - άρθρο 18 του Κώδικα ΦΠΑ' },
+  { category: 5, description: 'Χωρίς ΦΠΑ - άρθρο 21 του Κώδικα ΦΠΑ' },
+  { category: 6, description: 'Χωρίς ΦΠΑ - άρθρο 24 του Κώδικα ΦΠΑ' },
+  { category: 7, description: 'Χωρίς ΦΠΑ - άρθρο 27 του Κώδικα ΦΠΑ' },
+  { category: 8, description: 'Χωρίς ΦΠΑ - άρθρο 29 του Κώδικα ΦΠΑ' },
+  { category: 9, description: 'Χωρίς ΦΠΑ - άρθρο 30 του Κώδικα ΦΠΑ' },
+  { category: 10, description: 'Χωρίς ΦΠΑ - άρθρο 31 του Κώδικα ΦΠΑ' },
+  { category: 11, description: 'Χωρίς ΦΠΑ - άρθρο 32 του Κώδικα ΦΠΑ' },
+  { category: 12, description: 'Χωρίς ΦΠΑ - άρθρο 32 του Κώδικα ΦΠΑ - Πλοία Ανοικτής Θαλάσσης του Κώδικα ΦΠΑ' },
+  { category: 13, description: 'Χωρίς ΦΠΑ - άρθρο 32.1.γ. του Κώδικα ΦΠΑ - Πλοία Ανοικτής Θαλάσσης του Κώδικα ΦΠΑ' },
+  { category: 14, description: 'Χωρίς ΦΠΑ - άρθρο 33 του Κώδικα ΦΠΑ' },
+  { category: 15, description: 'Χωρίς ΦΠΑ - άρθρο 44 του Κώδικα ΦΠΑ' },
+  { category: 16, description: 'Χωρίς ΦΠΑ - άρθρο 45 του Κώδικα ΦΠΑ' },
+  { category: 17, description: 'Χωρίς ΦΠΑ - άρθρο 47 του Κώδικα ΦΠΑ' },
+  { category: 18, description: 'Χωρίς ΦΠΑ - άρθρο 48 του Κώδικα ΦΠΑ' },
+  { category: 19, description: 'Χωρίς ΦΠΑ - άρθρο 54 του Κώδικα ΦΠΑ' },
+  { category: 20, description: 'ΦΠΑ εμπεριεχόμενος - άρθρο 50 του Κώδικα ΦΠΑ' },
+  { category: 21, description: 'ΦΠΑ εμπεριεχόμενος - άρθρο 51 του Κώδικα ΦΠΑ' },
+  { category: 22, description: 'ΦΠΑ εμπεριεχόμενος - άρθρο 52 του Κώδικα ΦΠΑ' },
+  { category: 23, description: 'ΦΠΑ εμπεριεχόμενος - άρθρο 53 του Κώδικα ΦΠΑ' },
+  { category: 24, description: 'Χωρίς ΦΠΑ - άρθρο 8 του Κώδικα ΦΠΑ' },
+  { category: 25, description: 'Χωρίς ΦΠΑ - ΠΟΛ.1029/1995' },
+  { category: 26, description: 'Χωρίς ΦΠΑ - ΠΟΛ.1167/2015' },
+  { category: 27, description: 'Λοιπές Εξαιρέσεις ΦΠΑ' },
+  { category: 28, description: 'Χωρίς ΦΠΑ - άρθρο 29 περ. β’ παρ.1 του Κώδικα ΦΠΑ (Tax Free)' },
+  { category: 29, description: 'Χωρίς ΦΠΑ - άρθρο 56 του Κώδικα ΦΠΑ (OSS_μη ενωσιακό καθεστώς)' },
+  { category: 30, description: 'Χωρίς ΦΠΑ - άρθρο 57 του Κώδικα ΦΠΑ (OSS_ενωσιακό καθεστώς)' },
+  { category: 31, description: 'Χωρίς ΦΠΑ - άρθρο 58 του Κώδικα ΦΠΑ (IOSS)' },
+] as const;
+
+export function isAadeVatExemptionCategory(value: number | null | undefined): value is number {
+  return AADE_VAT_EXEMPTION_CATEGORY_OPTIONS.some((option) => option.category === value);
+}
+
+export function getAadeVatExemptionCategoryLabel(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '';
+  const option = AADE_VAT_EXEMPTION_CATEGORY_OPTIONS.find((item) => item.category === value);
+  return option ? `${option.category} - ${option.description}` : `Μη έγκυρος κωδικός ${value}`;
+}
+
 export const AADE_REVENUE_CLASSIFICATION_COMBINATIONS: Partial<Record<AadeDocumentType, Array<[string, string]>>> = {
   '1.1': [
     ['category1_1', 'E3_561_001'],
@@ -1186,7 +1234,10 @@ export function buildDefaultDeliveryDetails(settings: LegalSettings, customer?: 
 }
 
 function vatCategoryToExemption(vatRate: number, settings: LegalSettings): number | null {
-  return Math.abs(vatRate) < 0.001 ? settings.default_vat_exemption_category || null : null;
+  if (Math.abs(vatRate) >= 0.001) return null;
+  return isAadeVatExemptionCategory(settings.default_vat_exemption_category)
+    ? settings.default_vat_exemption_category
+    : null;
 }
 
 export function validateLegalDocument(document: LegalDocument, lines: LegalDocumentLine[] = document.lines || []): LegalValidationIssue[] {
@@ -1219,6 +1270,17 @@ export function validateLegalDocument(document: LegalDocument, lines: LegalDocum
   }
   if (document.aade_document_type === '5.1') {
     issues.push({ field: 'aade_document_type', severity: 'error', message: 'Το 5.1 είναι συσχετιζόμενο πιστωτικό και απαιτεί σύνδεση με αρχικό παραστατικό/ΜΑΡΚ. Χρησιμοποιήστε 5.2 για μη συσχετιζόμενο πιστωτικό από αυτή την οθόνη.' });
+  }
+  if (
+    document.vat_exemption_category !== null
+    && document.vat_exemption_category !== undefined
+    && !isAadeVatExemptionCategory(document.vat_exemption_category)
+  ) {
+    issues.push({
+      field: 'vat_exemption_category',
+      severity: 'error',
+      message: 'Η αιτία απαλλαγής ΦΠΑ πρέπει να είναι επίσημος κωδικός myDATA από 1 έως 31.',
+    });
   }
 
   for (const line of lines) {

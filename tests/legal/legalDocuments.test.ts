@@ -4,8 +4,10 @@ import {
   AADE_REVENUE_CLASSIFICATION_COMBINATIONS,
   AADE_VAT_CATEGORY_LINE_OPTIONS,
   AADE_VAT_CATEGORY_OPTIONS,
+  AADE_VAT_EXEMPTION_CATEGORY_OPTIONS,
   formatAadeIncomeCategoryLabel,
   formatAadeIncomeTypeLabel,
+  getAadeVatExemptionCategoryLabel,
   getAllowedIncomeTypeOptions,
   applyLegalDocumentDeliveryToggle,
   buildAadeInvoiceXml,
@@ -30,6 +32,7 @@ import {
   parseTransmittedDocumentsXml,
   recalculateLegalDocument,
   recalculateProforma,
+  isAadeVatExemptionCategory,
   isValidGreekVatNumber,
   validateLegalDocument,
   vatRateToAadeCategory,
@@ -128,6 +131,15 @@ describe('legal document helpers', () => {
     expect(PAYMENT_METHOD_CODES).toEqual([5, 1, 2, 3, 4, 6, 7, 8]);
     expect(AADE_VAT_CATEGORY_OPTIONS.map((option) => option.category)).toEqual([1, 4, 2, 5, 3, 6, 9, 7, 8, 10]);
     expect(AADE_VAT_CATEGORY_LINE_OPTIONS.map((option) => option.category)).toEqual([1, 4, 2, 5, 3, 6, 9, 7, 10]);
+    expect(AADE_VAT_EXEMPTION_CATEGORY_OPTIONS.map((option) => option.category)).toEqual(
+      Array.from({ length: 31 }, (_, index) => index + 1),
+    );
+    expect(getAadeVatExemptionCategoryLabel(16)).toBe('16 - Χωρίς ΦΠΑ - άρθρο 45 του Κώδικα ΦΠΑ');
+    expect(getAadeVatExemptionCategoryLabel(31)).toContain('IOSS');
+    expect(isAadeVatExemptionCategory(1)).toBe(true);
+    expect(isAadeVatExemptionCategory(31)).toBe(true);
+    expect(isAadeVatExemptionCategory(0)).toBe(false);
+    expect(isAadeVatExemptionCategory(-1)).toBe(false);
     expect(AADE_REVENUE_CLASSIFICATION_COMBINATIONS['1.1']).toContainEqual(['category1_2', 'E3_561_001']);
     expect(AADE_REVENUE_CLASSIFICATION_COMBINATIONS['9.3']).toEqual([['category3', '']]);
     expect(formatAadeIncomeTypeLabel('E3_561_001')).toBe('Χονδρικές πωλήσεις σε επαγγελματίες (E3_561_001)');
@@ -182,6 +194,23 @@ describe('legal document helpers', () => {
     expect(validateLegalDocument(zeroVatDocument, zeroVatDocument.lines).some((issue) =>
       issue.field.includes('vat_exemption')
     )).toBe(true);
+  });
+
+  it('blocks VAT exemption values outside the official myDATA 1-31 list', () => {
+    const zeroVatDocument = buildLegalDocumentFromOrder({
+      order: { ...baseOrder, vat_rate: 0 },
+      customer,
+      products: [product],
+      settings: { ...settings, default_vat_exemption_category: 16 },
+      kind: 'invoice',
+    });
+
+    const issues = validateLegalDocument(
+      { ...zeroVatDocument, vat_exemption_category: -1 },
+      zeroVatDocument.lines,
+    );
+
+    expect(issues.some((issue) => issue.field === 'vat_exemption_category')).toBe(true);
   });
 
   it('builds AADE invoice XML with payment, VAT and classification payloads', () => {

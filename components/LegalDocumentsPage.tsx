@@ -85,6 +85,7 @@ import {
   isOfficialLegalDocumentPrint,
   AADE_INCOME_CATEGORY_OPTIONS,
   AADE_INCOME_TYPE_OPTIONS,
+  AADE_VAT_EXEMPTION_CATEGORY_OPTIONS,
   AADE_VAT_CATEGORY_LINE_OPTIONS,
   AADE_VAT_CATEGORY_OPTIONS,
   DEFAULT_LEGAL_SETTINGS,
@@ -266,6 +267,39 @@ const SelectInput = ({
   </label>
 );
 
+const VatExemptionCategorySelect = ({
+  label = 'Αιτία απαλλαγής ΦΠΑ',
+  value,
+  onChange,
+}: {
+  label?: string;
+  value: number | null | undefined;
+  onChange: (value: number | null) => void;
+}) => {
+  const hasInvalidStoredValue = value !== null
+    && value !== undefined
+    && !AADE_VAT_EXEMPTION_CATEGORY_OPTIONS.some((option) => option.category === value);
+
+  return (
+    <SelectInput
+      label={label}
+      value={value ?? ''}
+      onChange={(nextValue) => onChange(nextValue ? Number(nextValue) : null)}
+      help="Επίσημες αιτίες myDATA v2.0.1, Παράρτημα 8.3 (ισχύων Κώδικας ΦΠΑ, ν. 5144/2024). Υποχρεωτικό όταν η κατηγορία ΦΠΑ γραμμής είναι 7 (0%)."
+    >
+      <option value="">Επιλέξτε αιτία απαλλαγής...</option>
+      {hasInvalidStoredValue && (
+        <option value={value}>Μη έγκυρος αποθηκευμένος κωδικός: {value}</option>
+      )}
+      {AADE_VAT_EXEMPTION_CATEGORY_OPTIONS.map((option) => (
+        <option key={option.category} value={option.category}>
+          {option.category} - {option.description}
+        </option>
+      ))}
+    </SelectInput>
+  );
+};
+
 const ActionButton = ({
   children,
   onClick,
@@ -322,6 +356,8 @@ export default function LegalDocumentsPage({
   const [creationSource, setCreationSource] = useState<DocumentCreationSource>('order');
   const [draftBundle, setDraftBundle] = useState<{ document: LegalDocument; lines: LegalDocumentLine[] } | null>(null);
   const [proformaBundle, setProformaBundle] = useState<{ document: ProformaDocument; lines: ProformaDocumentLine[] } | null>(null);
+  const [legalSkuFocusLineId, setLegalSkuFocusLineId] = useState<string | null>(null);
+  const [proformaSkuFocusLineId, setProformaSkuFocusLineId] = useState<string | null>(null);
   const [archiveSearch, setArchiveSearch] = useState('');
   const [proformaSearch, setProformaSearch] = useState('');
   const [proformaStatusFilter, setProformaStatusFilter] = useState<'all' | ProformaDocument['status']>('all');
@@ -611,6 +647,53 @@ export default function LegalDocumentsPage({
         ...getLegalCatalogLineDetails(product, settingsDraft, selection.variant_suffix, '1.1'),
       };
     }), settingsDraft));
+  };
+
+  const appendLegalLineAfter = (lineId: string) => {
+    if (!draftBundle || !isLegalDocumentEditable(draftBundle.document)) return;
+    const newLine = createManualLegalDocumentLine({
+      documentId: draftBundle.document.id,
+      lineNumber: draftBundle.lines.length + 1,
+      settings: settingsDraft,
+      vatRate: draftBundle.document.vat_rate ?? 0.24,
+      aadeDocumentType: draftBundle.document.aade_document_type,
+    });
+    setLegalSkuFocusLineId(newLine.id);
+    updateDraftBundle((current, lines) => {
+      const currentIndex = lines.findIndex((line) => line.id === lineId);
+      const insertionIndex = currentIndex >= 0 ? currentIndex + 1 : lines.length;
+      const nextLines = [
+        ...lines.slice(0, insertionIndex),
+        newLine,
+        ...lines.slice(insertionIndex),
+      ];
+      return recalculateLegalDocument(current, nextLines, settingsDraft);
+    });
+  };
+
+  const appendProformaLineAfter = (lineId: string) => {
+    if (!proformaBundle) return;
+    const baseLine = createManualLegalDocumentLine({
+      documentId: proformaBundle.document.id,
+      lineNumber: proformaBundle.lines.length + 1,
+      settings: settingsDraft,
+      vatRate: proformaBundle.document.vat_rate ?? 0.24,
+    });
+    const newLine: ProformaDocumentLine = {
+      ...baseLine,
+      proforma_id: proformaBundle.document.id,
+    };
+    setProformaSkuFocusLineId(newLine.id);
+    updateProformaBundle((current, lines) => {
+      const currentIndex = lines.findIndex((line) => line.id === lineId);
+      const insertionIndex = currentIndex >= 0 ? currentIndex + 1 : lines.length;
+      const nextLines = [
+        ...lines.slice(0, insertionIndex),
+        newLine,
+        ...lines.slice(insertionIndex),
+      ];
+      return recalculateProforma(current, nextLines, settingsDraft);
+    });
   };
 
   const applyLegalVatProfile = (vatRate: number) => {
@@ -1280,7 +1363,10 @@ export default function LegalDocumentsPage({
             <TextInput label="Αριθμός" value={document.counterpart.address?.number || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, address: { ...(current.counterpart.address || {}), number: value } } }))} />
             <TextInput label="Τ.Κ." value={document.counterpart.address?.postal_code || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, address: { ...(current.counterpart.address || {}), postal_code: value } } }))} />
             <TextInput label="Πόλη" value={document.counterpart.address?.city || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, address: { ...(current.counterpart.address || {}), city: value } } }))} />
-            <TextInput label="Αιτία απαλλαγής ΦΠΑ" type="number" value={document.vat_exemption_category || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, vat_exemption_category: value ? Number(value) : null }))} />
+            <VatExemptionCategorySelect
+              value={document.vat_exemption_category}
+              onChange={(value) => updateDraftDocument((current) => ({ ...current, vat_exemption_category: value }))}
+            />
           </fieldset>
 
           {(isStandaloneDeliveryNote || canToggleDelivery) && (
@@ -1391,6 +1477,8 @@ export default function LegalDocumentsPage({
                         variantSuffix={line.variant_suffix}
                         products={products}
                         onSelect={(selection) => applyCatalogToLegalLine(line.id, selection)}
+                        onEnterCommit={() => appendLegalLineAfter(line.id)}
+                        autoFocus={legalSkuFocusLineId === line.id}
                         inputClassName="px-1.5 py-1"
                         compact
                       />
@@ -1705,7 +1793,11 @@ export default function LegalDocumentsPage({
             <SelectInput label="Καθεστώς ΦΠΑ" value={document.vat_rate ?? 0.24} onChange={(value) => applyProformaVatProfile(Number(value))} help="Το προφίλ ΦΠΑ του προτιμολογίου. Κάθε γραμμή μπορεί να αλλαχθεί ξεχωριστά.">
               {vatRateOptions.map((option) => <option key={option.category} value={option.value}>{option.label}</option>)}
             </SelectInput>
-            <TextInput label="Απαλλαγή ΦΠΑ" type="number" value={document.vat_exemption_category || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, vat_exemption_category: value ? Number(value) : null }, lines, settingsDraft))} />
+            <VatExemptionCategorySelect
+              label="Αιτία απαλλαγής ΦΠΑ"
+              value={document.vat_exemption_category}
+              onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, vat_exemption_category: value }, lines, settingsDraft))}
+            />
             <TextInput label="Σημειώσεις" value={document.notes || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, notes: value }, lines, settingsDraft))} />
           </div>
         </section>
@@ -1756,6 +1848,8 @@ export default function LegalDocumentsPage({
                         variantSuffix={line.variant_suffix}
                         products={products}
                         onSelect={(selection) => applyCatalogToProformaLine(line.id, selection)}
+                        onEnterCommit={() => appendProformaLineAfter(line.id)}
+                        autoFocus={proformaSkuFocusLineId === line.id}
                       />
                     </td>
                     <td className="px-3 py-2"><input value={line.item_code || ''} onChange={(event) => updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((item) => item.id === line.id ? { ...item, item_code: event.target.value } : item), settingsDraft))} className="w-28 rounded-lg border border-slate-200 px-2 py-1 font-mono text-xs outline-none" /></td>
@@ -2310,7 +2404,11 @@ export default function LegalDocumentsPage({
             <SelectInput label="Προεπιλογή πληρωμής" value={settingsDraft.default_payment_method} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_payment_method: Number(value) }))}>
               {PAYMENT_METHOD_CODES.map((code) => <option key={code} value={code}>{PAYMENT_METHOD_LABELS[code]}</option>)}
             </SelectInput>
-            <TextInput label="Προεπιλογή απαλλαγής ΦΠΑ" type="number" value={settingsDraft.default_vat_exemption_category || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_vat_exemption_category: value ? Number(value) : null }))} help="Συμπληρώνεται μόνο όταν η γραμμή έχει ΦΠΑ 0% και απαιτείται αιτία απαλλαγής." />
+            <VatExemptionCategorySelect
+              label="Προεπιλογή αιτίας απαλλαγής ΦΠΑ"
+              value={settingsDraft.default_vat_exemption_category}
+              onChange={(value) => setSettingsDraft((current) => ({ ...current, default_vat_exemption_category: value }))}
+            />
           </div>
           <div className="mt-4 grid gap-4 md:grid-cols-4">
             <SelectInput label="Προεπιλογή πώλησης" value={settingsDraft.default_income_classification_type} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_income_classification_type: value, inhouse_income_classification_type: value, imported_income_classification_type: value }))} help="Ο χαρακτηρισμός εσόδου που θα μπαίνει αυτόματα στις γραμμές. Ο κωδικός ΑΑΔΕ φαίνεται σε παρένθεση.">

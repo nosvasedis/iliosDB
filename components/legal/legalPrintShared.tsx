@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { Calendar, Hash } from 'lucide-react';
 import { APP_LOGO } from '../../constants';
-import { AADE_VAT_CATEGORY_OPTIONS } from '../../utils/legalDocuments';
+import { AADE_VAT_CATEGORY_OPTIONS, getAadeVatExemptionCategoryLabel } from '../../utils/legalDocuments';
 import { LegalDeliveryDetails, LegalDocumentLine, LegalParty, LegalIssuerSettings } from '../../types';
 
 /** Same brand block as OrderInvoiceView (Παραγγελία / Προσφορά PDF). */
@@ -352,7 +352,7 @@ export function LegalPrintTotalsSection(props: {
           <div><span className="font-bold uppercase text-slate-500">Τρόπος πληρωμής</span> · {props.paymentMethodLabel}</div>
         )}
         {props.vatExemptionCategory && (
-          <div><span className="font-bold uppercase text-slate-500">Αιτία απαλλαγής ΦΠΑ</span> · {props.vatExemptionCategory}</div>
+          <div><span className="font-bold uppercase text-slate-500">Αιτία απαλλαγής ΦΠΑ</span> · {getAadeVatExemptionCategoryLabel(props.vatExemptionCategory)}</div>
         )}
         {props.revenueClassificationText && (
           <div><span className="font-bold uppercase text-slate-500">Χαρακτηρισμοί</span> · {props.revenueClassificationText}</div>

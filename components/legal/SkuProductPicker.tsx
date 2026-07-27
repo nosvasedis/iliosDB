@@ -24,6 +24,10 @@ interface SkuProductPickerProps {
   variantSuffix?: string | null;
   products: Product[];
   onSelect: (selection: SkuProductSelection) => void;
+  /** Called only after Enter successfully commits a valid SKU selection. */
+  onEnterCommit?: () => void;
+  /** Focus this picker's input after it is mounted as the next rapid-entry row. */
+  autoFocus?: boolean;
   className?: string;
   inputClassName?: string;
   placeholder?: string;
@@ -36,6 +40,8 @@ export default function SkuProductPicker({
   variantSuffix = null,
   products,
   onSelect,
+  onEnterCommit,
+  autoFocus = false,
   className = '',
   inputClassName = '',
   placeholder = 'Πληκτρολογήστε SKU...',
@@ -56,6 +62,15 @@ export default function SkuProductPicker({
   useEffect(() => {
     setInputValue(displayValue);
   }, [displayValue]);
+
+  useEffect(() => {
+    if (!autoFocus) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [autoFocus]);
 
   const options = useMemo(
     () => searchSkuProductOptions(products, inputValue),
@@ -129,10 +144,11 @@ export default function SkuProductPicker({
     return false;
   };
 
-  const commitSelection = (selection: SkuProductSelection) => {
+  const commitSelection = (selection: SkuProductSelection, advanceAfterCommit = false) => {
     ignoreBlurUntilRef.current = Date.now() + 250;
     setInputValue(selection.displaySku);
     onSelect(selection);
+    if (advanceAfterCommit) onEnterCommit?.();
     setOpen(false);
   };
 
@@ -180,12 +196,12 @@ export default function SkuProductPicker({
     if (event.key === 'Enter') {
       event.preventDefault();
       if (open && options.length > 0) {
-        commitSelection(selectionFromOption(options[highlightIndex] || options[0]));
+        commitSelection(selectionFromOption(options[highlightIndex] || options[0]), true);
         return;
       }
       if (rejectInvalidMaster(inputValue)) return;
       const resolved = resolveTypedSkuSelection(inputValue, products);
-      if (resolved) commitSelection(resolved);
+      if (resolved) commitSelection(resolved, true);
       return;
     }
     if (event.key === 'Escape') {
