@@ -1051,6 +1051,7 @@ export function serializeLegalDocumentLineForDb(
     income_classification: line.income_classification,
     source_order_line_key: line.source_order_line_key ?? null,
     line_id: line.line_id ?? null,
+    source_metadata: line.source_metadata ?? {},
     created_at: line.created_at ?? new Date().toISOString(),
   };
 }
@@ -1540,7 +1541,7 @@ function decodeXmlEntities(value: string): string {
 }
 
 function findXmlValue(xml: string, tag: string): string | undefined {
-  const match = xml.match(new RegExp(`<(?:\\w+:)?${tag}>([\\s\\S]*?)</(?:\\w+:)?${tag}>`, 'i'));
+  const match = xml.match(new RegExp(`<(?:\\w+:)?${tag}\\b[^>]*>([\\s\\S]*?)</(?:\\w+:)?${tag}>`, 'i'));
   return match?.[1] ? decodeXmlEntities(match[1]).trim() : undefined;
 }
 
@@ -1599,6 +1600,26 @@ function xmlNumber(value: string | undefined, fallback = 0): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function parseTransmittedParty(block: string): LegalParty | undefined {
+  if (!block) return undefined;
+  const addressBlock = findXmlBlocks(block, 'address')[0] || '';
+  const party: LegalParty = {
+    vat_number: findXmlValue(block, 'vatNumber') || null,
+    country: findXmlValue(block, 'country') || 'GR',
+    branch: Math.trunc(xmlNumber(findXmlValue(block, 'branch'), 0)),
+    name: findFirstXmlValue(block, ['name', 'businessName']) || null,
+    address: addressBlock
+      ? {
+          street: findXmlValue(addressBlock, 'street') || null,
+          number: findXmlValue(addressBlock, 'number') || null,
+          postal_code: findFirstXmlValue(addressBlock, ['postalCode', 'postal_code']) || null,
+          city: findXmlValue(addressBlock, 'city') || null,
+        }
+      : null,
+  };
+  return party;
+}
+
 export function parseTransmittedDocumentsXml(xml: string): AadeTransmittedDocsParseResult {
   const text = normalizeAadeResponseXml(xml);
   const invoiceBlocks = findXmlBlocks(text, 'invoice');
@@ -1615,9 +1636,14 @@ export function parseTransmittedDocumentsXml(xml: string): AadeTransmittedDocsPa
           vatCategory: Math.trunc(xmlNumber(findXmlValue(line, 'vatCategory'), 1)),
           vatAmount,
           itemCode: findXmlValue(line, 'itemCode') || null,
+          itemDescription: findXmlValue(line, 'itemDescr') || null,
+          lineComments: findXmlValue(line, 'lineComments') || null,
           quantity: xmlNumber(findXmlValue(line, 'quantity'), 0) || null,
+          measurementUnit: Math.trunc(xmlNumber(findXmlValue(line, 'measurementUnit'), 0)) || null,
         };
       });
+      const issuer = parseTransmittedParty(findXmlBlocks(invoice, 'issuer')[0] || '');
+      const counterpart = parseTransmittedParty(findXmlBlocks(invoice, 'counterpart')[0] || '');
       const totals: LegalTotals = {
         net: roundMoney(xmlNumber(findXmlValue(invoice, 'totalNetValue'), lines.reduce((sum, line) => sum + line.netValue, 0))),
         vat: roundMoney(xmlNumber(findXmlValue(invoice, 'totalVatAmount'), lines.reduce((sum, line) => sum + line.vatAmount, 0))),
@@ -1633,8 +1659,10 @@ export function parseTransmittedDocumentsXml(xml: string): AadeTransmittedDocsPa
         aa: findXmlValue(invoice, 'aa'),
         issueDate: findXmlValue(invoice, 'issueDate'),
         invoiceType,
-        issuerVat: findXmlValue(findXmlBlocks(invoice, 'issuer')[0] || '', 'vatNumber'),
-        counterpartVat: findXmlValue(findXmlBlocks(invoice, 'counterpart')[0] || '', 'vatNumber'),
+        issuer,
+        counterpart,
+        issuerVat: issuer?.vat_number || undefined,
+        counterpartVat: counterpart?.vat_number || undefined,
         cancelledByMark: findXmlValue(invoice, 'cancelledByMark') || null,
         totals,
         lines,
@@ -1783,7 +1811,9 @@ const GREEK_SERIES_CHAR_MAP: Record<string, string> = {
   Μ: 'M',
   Ν: 'N',
   Ο: 'O',
+  Π: 'P',
   Ρ: 'P',
+  Σ: 'S',
   Τ: 'T',
   Υ: 'Y',
   Χ: 'X',
@@ -1800,8 +1830,8 @@ export function normalizeLegalSeriesKey(series: string | null | undefined): stri
 }
 
 export function parseLegalDocumentAa(aa: string | null | undefined): number | null {
-  const digits = String(aa || '').trim().replace(/\D/g, '');
-  if (!digits) return null;
+  const digits = String(aa || '').trim();
+  if (!/^\d+$/.test(digits)) return null;
   const parsed = Number.parseInt(digits, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
@@ -1831,6 +1861,14 @@ export interface LegalNumberingAlignmentProposal {
 
 export interface LegalNumberingAlignmentPlan {
   proposals: LegalNumberingAlignmentProposal[];
+  notices: string[];
+  alreadyAligned: Array<{
+    documentKind: LegalDocumentKind;
+    series: string;
+    nextAa: number;
+    documentCount: number;
+  }>;
+  /** Kept for compatibility; separate historical series are informational, not warnings. */
   warnings: string[];
 }
 
@@ -1838,7 +1876,8 @@ export function buildLegalNumberingAlignmentPlan(
   documents: LegalDocument[],
   sequences: LegalNumberingSequence[],
 ): LegalNumberingAlignmentPlan {
-  const warnings: string[] = [];
+  const notices: string[] = [];
+  const alreadyAligned: LegalNumberingAlignmentPlan['alreadyAligned'] = [];
   const proposals: LegalNumberingAlignmentProposal[] = [];
   const numberingDocuments = documents.filter(isLegalDocumentNumberingRelevant);
 
@@ -1862,22 +1901,49 @@ export function buildLegalNumberingAlignmentPlan(
 
     for (const [foreignSeries, count] of otherSeries.entries()) {
       if (normalizeLegalSeriesKey(foreignSeries) === sequenceKey) continue;
-      warnings.push(
-        `Στο αρχείο υπάρχουν ${count} παραστατικά σειράς «${foreignSeries}» (${LEGAL_DOCUMENT_KIND_LABELS[sequence.document_kind]}), ενώ η ενεργή σειρά ERP είναι «${sequence.series}».`,
+      const noSeriesExplanation = normalizeLegalSeriesKey(foreignSeries) === '0'
+        ? ' Η σειρά «0» σημαίνει «χωρίς σειρά» σύμφωνα με το myDATA και διατηρείται σε ξεχωριστό namespace αρίθμησης.'
+        : ' Η ιστορική σειρά διατηρείται χωριστά και δεν επηρεάζει την ενεργή αρίθμηση.';
+      notices.push(
+        `${count} ${count === 1 ? 'ιστορικό παραστατικό' : 'ιστορικά παραστατικά'} σειράς «${foreignSeries}» (${LEGAL_DOCUMENT_KIND_LABELS[sequence.document_kind]}) ${count === 1 ? 'διατηρείται' : 'διατηρούνται'} χωριστά από την ενεργή σειρά ERP «${sequence.series}».${noSeriesExplanation}`,
       );
     }
 
-    if (!matching.length) continue;
+    if (!matching.length) {
+      alreadyAligned.push({
+        documentKind: sequence.document_kind,
+        series: sequence.series,
+        nextAa: sequence.next_aa,
+        documentCount: 0,
+      });
+      continue;
+    }
 
     const maxIssuedAa = matching.reduce((max, document) => {
       const parsed = parseLegalDocumentAa(document.aa);
       return parsed && parsed > max ? parsed : max;
     }, 0);
 
-    if (!maxIssuedAa) continue;
+    if (!maxIssuedAa) {
+      alreadyAligned.push({
+        documentKind: sequence.document_kind,
+        series: sequence.series,
+        nextAa: sequence.next_aa,
+        documentCount: matching.length,
+      });
+      continue;
+    }
 
     const proposedNextAa = maxIssuedAa + 1;
-    if (proposedNextAa <= sequence.next_aa) continue;
+    if (proposedNextAa <= sequence.next_aa) {
+      alreadyAligned.push({
+        documentKind: sequence.document_kind,
+        series: sequence.series,
+        nextAa: sequence.next_aa,
+        documentCount: matching.length,
+      });
+      continue;
+    }
 
     proposals.push({
       sequenceId: sequence.id,
@@ -1892,31 +1958,45 @@ export function buildLegalNumberingAlignmentPlan(
 
   return {
     proposals,
-    warnings: Array.from(new Set(warnings)),
+    notices: Array.from(new Set(notices)),
+    alreadyAligned,
+    warnings: [],
   };
 }
 
 export function formatLegalNumberingAlignmentMessage(plan: LegalNumberingAlignmentPlan): string {
-  const lines: string[] = [
-    'Βρέθηκαν παραστατικά στο Αρχείο με μεγαλύτερη αρίθμηση από το τρέχον «Επόμενο».',
-    '',
-  ];
+  const lines: string[] = [];
 
-  if (plan.warnings.length) {
-    lines.push('Προσοχή:');
-    plan.warnings.forEach((warning) => lines.push(`• ${warning}`));
+  if (plan.proposals.length) {
+    lines.push('Αλλαγές αρίθμησης', '');
+    plan.proposals.forEach((proposal) => {
+      lines.push(
+        `${LEGAL_DOCUMENT_KIND_LABELS[proposal.documentKind]} · σειρά ${proposal.series}`,
+        `  Μέγιστος αριθμός αρχείου: ${proposal.series}-${proposal.maxIssuedAa} (${proposal.documentCount} εγγραφές)`,
+        `  Επόμενο ERP: ${proposal.currentNextAa} → ${proposal.proposedNextAa}`,
+        '',
+      );
+    });
+  }
+
+  if (plan.alreadyAligned.length) {
+    lines.push('Ήδη ευθυγραμμισμένα');
+    plan.alreadyAligned.forEach((item) => {
+      lines.push(`• ${LEGAL_DOCUMENT_KIND_LABELS[item.documentKind]} · σειρά ${item.series} · επόμενο ${item.nextAa}`);
+    });
     lines.push('');
   }
 
-  plan.proposals.forEach((proposal) => {
-    lines.push(
-      `${LEGAL_DOCUMENT_KIND_LABELS[proposal.documentKind]} · σειρά ${proposal.series}`,
-      `  Μέγιστος: ${proposal.series}-${proposal.maxIssuedAa} (${proposal.documentCount} εγγραφές)`,
-      `  Τρέχον Επόμενο: ${proposal.currentNextAa} → προτεινόμενο: ${proposal.proposedNextAa}`,
-      '',
-    );
-  });
+  if (plan.notices.length) {
+    lines.push('Άλλες ιστορικές σειρές');
+    plan.notices.forEach((notice) => lines.push(`• ${notice}`));
+    lines.push('');
+  }
 
-  lines.push('Να ενημερωθεί η αρίθμηση; Το «Επόμενο» δεν θα μειωθεί ποτέ αυτόματα.');
+  if (plan.proposals.length) {
+    lines.push('Να ενημερωθεί η αρίθμηση; Το «Επόμενο» δεν μειώνεται ποτέ αυτόματα.');
+  } else {
+    lines.push('Δεν απαιτείται αλλαγή στην ενεργή αρίθμηση ERP.');
+  }
   return lines.join('\n');
 }

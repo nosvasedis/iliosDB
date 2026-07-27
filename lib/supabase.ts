@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, OrderItem, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, BatchStageHistoryEntry, SyncOfflineResult, LegalSettings, LegalNumberingSequence, LegalCarrier, LegalDocument, LegalDocumentLine, LegalTransmission, LegalDeliveryEvent, AadeProxyResult, AadeCredentialStatus, AadeCredentialSavePayload, ProformaDocument, ProformaDocumentLine, LegalSyncParams, LegalSyncRun, AadeDocumentType } from '../types';
+import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, OrderItem, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, BatchStageHistoryEntry, SyncOfflineResult, LegalSettings, LegalNumberingSequence, LegalCarrier, LegalDocument, LegalDocumentLine, LegalTransmission, LegalDeliveryEvent, AadeProxyResult, AadeCredentialStatus, AadeCredentialSavePayload, ProformaDocument, ProformaDocumentLine, LegalSyncParams, LegalSyncRun, AadeDocumentType, LegalExternalItemAlias } from '../types';
 import { INITIAL_SETTINGS, MOCK_MATERIALS, requiresAssemblyStage, requiresSettingStage } from '../constants';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { offlineDb } from './offlineDb';
@@ -65,6 +65,7 @@ import {
 import { addReceivedSizeQuantity, resolveSupplierOrderProductReceiptTarget, supplierOrderInventoryReceiptQuantity } from '../features/suppliers/receiptHelpers';
 import { getGreekOperationalErrorMessage } from '../features/inventory/greek';
 import { buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, getAadeProxyErrorMessage, isEmptyTransmittedDocsResponse, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, parseAadeResponseXml, parseTransmittedDocumentsXml, roundMoney, serializeLegalDocumentForDb, serializeLegalDocumentLineForDb, serializeProformaDocumentForDb, validateLegalDocument } from '../utils/legalDocuments';
+import { buildArchivedDocumentEnrichment, LEGAL_ARCHIVE_PARSE_VERSION } from '../features/legal/archive';
 
 // Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
 export const R2_PUBLIC_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
@@ -353,6 +354,7 @@ const TABLE_DEFAULT_ORDER: Record<string, (query: any) => any> = {
     product_stock: (q) => q.order('product_sku').order('variant_suffix', { nullsFirst: true }),
     legal_documents: (q) => q.order('created_at', { ascending: false }),
     legal_document_lines: (q) => q.order('line_number'),
+    legal_external_item_aliases: (q) => q.order('normalized_item_code'),
     legal_transmissions: (q) => q.order('created_at', { ascending: false }),
     legal_delivery_events: (q) => q.order('created_at', { ascending: false }),
     legal_sync_runs: (q) => q.order('started_at', { ascending: false }),
@@ -1185,6 +1187,149 @@ export const api = {
         return rows as LegalDocumentLine[];
     },
 
+    getAllLegalDocumentLines: async (): Promise<LegalDocumentLine[]> => {
+        const rows = await fetchFullTable(
+            'legal_document_lines',
+            '*',
+            (q) => q.order('document_id').order('line_number', { ascending: true }),
+        );
+        return rows as LegalDocumentLine[];
+    },
+
+    getLegalExternalItemAliases: async (): Promise<LegalExternalItemAlias[]> => {
+        const rows = await fetchFullTable(
+            'legal_external_item_aliases',
+            '*',
+            (q) => q.order('normalized_item_code', { ascending: true }),
+        );
+        return rows as LegalExternalItemAlias[];
+    },
+
+    saveLegalExternalItemAlias: async (
+        alias: LegalExternalItemAlias,
+        userName?: string | null,
+    ): Promise<void> => {
+        const now = new Date().toISOString();
+        await safeMutate('legal_external_item_aliases', 'UPSERT', {
+            ...alias,
+            updated_by: userName || alias.updated_by || null,
+            updated_at: now,
+            created_by: alias.created_by || userName || null,
+            created_at: alias.created_at || now,
+        }, { onConflict: 'external_source,normalized_item_code', noSelect: true });
+        await safeMutate('legal_audit_log', 'INSERT', {
+            document_id: null,
+            action: 'archive_item_alias_saved',
+            user_name: userName || null,
+            details: {
+                external_source: alias.external_source,
+                item_code: alias.raw_item_code,
+                product_sku: alias.product_sku,
+                variant_suffix: alias.variant_suffix || null,
+            },
+        }, { noSelect: true });
+    },
+
+    deleteLegalExternalItemAlias: async (
+        alias: LegalExternalItemAlias,
+        userName?: string | null,
+    ): Promise<void> => {
+        await safeMutate('legal_external_item_aliases', 'DELETE', null, { match: { id: alias.id }, noSelect: true });
+        await safeMutate('legal_audit_log', 'INSERT', {
+            document_id: null,
+            action: 'archive_item_alias_deleted',
+            user_name: userName || null,
+            details: {
+                external_source: alias.external_source,
+                item_code: alias.raw_item_code,
+                product_sku: alias.product_sku,
+                variant_suffix: alias.variant_suffix || null,
+            },
+        }, { noSelect: true });
+    },
+
+    linkLegalArchiveCustomer: async (
+        source: 'legal' | 'proforma',
+        documentId: string,
+        customerId: string | null,
+        userName?: string | null,
+    ): Promise<void> => {
+        const table = source === 'legal' ? 'legal_documents' : 'proforma_documents';
+        await safeMutate(table, 'UPDATE', {
+            counterpart_customer_id: customerId,
+            updated_at: new Date().toISOString(),
+        }, { match: { id: documentId }, noSelect: true });
+        await safeMutate('legal_audit_log', 'INSERT', {
+            document_id: source === 'legal' ? documentId : null,
+            action: customerId ? 'archive_customer_linked' : 'archive_customer_unlinked',
+            user_name: userName || null,
+            details: { source, source_document_id: documentId, customer_id: customerId },
+        }, { noSelect: true });
+    },
+
+    linkLegalArchiveOrder: async (
+        source: 'legal' | 'proforma',
+        documentId: string,
+        orderId: string | null,
+        userName?: string | null,
+        method: 'automatic' | 'manual' = 'manual',
+    ): Promise<void> => {
+        const table = source === 'legal' ? 'legal_documents' : 'proforma_documents';
+        await safeMutate(table, 'UPDATE', {
+            order_id: orderId,
+            updated_at: new Date().toISOString(),
+        }, { match: { id: documentId }, noSelect: true });
+        await safeMutate('legal_audit_log', 'INSERT', {
+            document_id: source === 'legal' ? documentId : null,
+            action: orderId ? 'archive_order_linked' : 'archive_order_unlinked',
+            user_name: userName || null,
+            details: { source, source_document_id: documentId, order_id: orderId, method },
+        }, { noSelect: true });
+    },
+
+    enrichLegalArchiveDocuments: async (): Promise<number> => {
+        const [documents, allLines] = await Promise.all([
+            api.getLegalDocuments(),
+            api.getAllLegalDocumentLines(),
+        ]);
+        const pending = documents.filter((document) =>
+            document.external_source === 'aade_sync'
+            && !!document.raw_xml
+            && Number(document.archive_parse_version || 0) < LEGAL_ARCHIVE_PARSE_VERSION,
+        );
+        if (!pending.length) return 0;
+
+        const linesByDocument = new Map<string, LegalDocumentLine[]>();
+        allLines.forEach((line) => {
+            linesByDocument.set(line.document_id, [...(linesByDocument.get(line.document_id) || []), line]);
+        });
+
+        let enrichedCount = 0;
+        for (let offset = 0; offset < pending.length; offset += 25) {
+            const batch = pending.slice(offset, offset + 25);
+            await Promise.all(batch.map(async (document) => {
+                const enriched = buildArchivedDocumentEnrichment(document, linesByDocument.get(document.id) || []);
+                if (!enriched) return;
+                await Promise.all(enriched.lines.map((line) =>
+                    safeMutate(
+                        'legal_document_lines',
+                        'UPDATE',
+                        serializeLegalDocumentLineForDb(line, document.id),
+                        { match: { id: line.id }, noSelect: true },
+                    ),
+                ));
+                await safeMutate('legal_documents', 'UPDATE', {
+                    issuer: enriched.document.issuer,
+                    counterpart: enriched.document.counterpart,
+                    archive_parse_version: LEGAL_ARCHIVE_PARSE_VERSION,
+                    updated_at: new Date().toISOString(),
+                }, { match: { id: document.id }, noSelect: true });
+                enrichedCount += 1;
+            }));
+        }
+        return enrichedCount;
+    },
+
     getLegalTransmissions: async (documentId: string): Promise<LegalTransmission[]> => {
         const rows = await fetchRowsByFilter(
             'legal_transmissions',
@@ -1242,6 +1387,18 @@ export const api = {
                 order: (q) => q.order('line_number', { ascending: true }),
                 localFilter: (row) => row.proforma_id === proformaId,
             }
+        );
+        return (rows || []).map((row: any) => ({
+            ...row,
+            document_id: row.document_id || row.proforma_id,
+        })) as ProformaDocumentLine[];
+    },
+
+    getAllProformaDocumentLines: async (): Promise<ProformaDocumentLine[]> => {
+        const rows = await fetchFullTable(
+            'proforma_document_lines',
+            '*',
+            (q) => q.order('proforma_id').order('line_number', { ascending: true }),
         );
         return (rows || []).map((row: any) => ({
             ...row,
@@ -1425,14 +1582,14 @@ export const api = {
                             line_number: line.lineNumber,
                             sku: line.itemCode || 'AADE',
                             variant_suffix: null,
-                            description: line.itemCode || `AADE γραμμή ${line.lineNumber}`,
+                            description: line.itemDescription || line.itemCode || `AADE γραμμή ${line.lineNumber}`,
                             quantity,
                             unit_price: roundMoney(netValue / quantity),
                             net_value: netValue,
                             vat_category: line.vatCategory,
                             vat_amount: roundMoney(line.vatAmount),
                             gross_value: roundMoney(line.netValue + line.vatAmount),
-                            measurement_unit: 1,
+                            measurement_unit: line.measurementUnit || 1,
                             item_code: line.itemCode || null,
                             income_classification: {
                                 classification_category: settings.default_income_classification_category,
@@ -1441,12 +1598,19 @@ export const api = {
                             },
                             source_order_line_key: null,
                             line_id: null,
+                            source_metadata: {
+                                item_description: line.itemDescription || null,
+                                line_comments: line.lineComments || null,
+                                raw_item_code: line.itemCode || null,
+                                parser_version: LEGAL_ARCHIVE_PARSE_VERSION,
+                            },
                             created_at: now,
                         };
                     });
                     const documentPayload: LegalDocument = {
                         id: documentId,
                         order_id: existing?.order_id || null,
+                        counterpart_customer_id: existing?.counterpart_customer_id || null,
                         shipment_id: existing?.shipment_id || null,
                         source_kind: 'aade_sync',
                         document_kind: documentKind,
@@ -1457,14 +1621,16 @@ export const api = {
                         issue_date: transmitted.issueDate || existing?.issue_date || new Date().toISOString().slice(0, 10),
                         issuer: {
                             ...settings.issuer,
+                            ...(transmitted.issuer || {}),
                             vat_number: transmitted.issuerVat || settings.issuer.vat_number,
                         },
                         counterpart: {
+                            ...(transmitted.counterpart || {}),
                             vat_number: transmitted.counterpartVat || null,
-                            country: 'GR',
-                            branch: 0,
-                            name: existing?.counterpart?.name || transmitted.counterpartVat || 'Συγχρονισμένος λήπτης',
-                            address: existing?.counterpart?.address || null,
+                            country: transmitted.counterpart?.country || 'GR',
+                            branch: transmitted.counterpart?.branch || 0,
+                            name: transmitted.counterpart?.name || existing?.counterpart?.name || transmitted.counterpartVat || 'Συγχρονισμένος λήπτης',
+                            address: transmitted.counterpart?.address || existing?.counterpart?.address || null,
                             phone: existing?.counterpart?.phone || null,
                             email: existing?.counterpart?.email || null,
                         },
@@ -1495,6 +1661,7 @@ export const api = {
                         external_source: 'aade_sync',
                         synced_at: now,
                         sync_run_id: runId,
+                        archive_parse_version: LEGAL_ARCHIVE_PARSE_VERSION,
                         local_notes: existing?.local_notes || null,
                         created_by: existing?.created_by || params.userName || null,
                         created_at: existing?.created_at || now,

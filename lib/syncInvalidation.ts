@@ -41,6 +41,7 @@ const TABLE_DOMAIN_MAP: Record<string, RealtimeInvalidationDomain[]> = {
     legal_carriers: ['legal'],
     legal_documents: ['legal', 'orders', 'deliveries'],
     legal_document_lines: ['legal'],
+    legal_external_item_aliases: ['legal'],
     legal_transmissions: ['legal'],
     legal_delivery_events: ['legal', 'deliveries'],
     legal_sync_runs: ['legal'],

@@ -28,16 +28,19 @@ import {
   XCircle,
   type LucideIcon,
 } from 'lucide-react';
-import { Customer, Product, LegalCarrier, LegalDocument, LegalDocumentKind, LegalDocumentLine, LegalEnvironment, LegalSettings, ProformaDocument, ProformaDocumentLine } from '../types';
+import { Customer, Product, LegalArchiveLineMatch, LegalArchiveRecord, LegalCarrier, LegalDocument, LegalDocumentKind, LegalDocumentLine, LegalEnvironment, LegalExternalItemAlias, LegalSettings, ProformaDocument, ProformaDocumentLine } from '../types';
 import DesktopPageHeader from './DesktopPageHeader';
 import SkuProductPicker, { SkuProductSelection } from './legal/SkuProductPicker';
 import ProformaConvertModal from './legal/ProformaConvertModal';
 import IncomeClassificationTypeSelect from './legal/IncomeClassificationTypeSelect';
+import LegalArchiveWorkspace from './legal/LegalArchiveWorkspace';
 import { useUI } from './UIProvider';
 import { useAuth } from './AuthContext';
 import { useAllShipmentItems, useAllShipments, useCustomers, useOrdersWithItems } from '../hooks/api/useOrders';
 import {
   useCancelLegalDocument,
+  useAllLegalDocumentLines,
+  useAllProformaDocumentLines,
   useConfirmLegalDelivery,
   useAadeCredentialStatus,
   useLegalCarriers,
@@ -63,10 +66,22 @@ import {
   useDeleteLegalDocument,
   useMarkProformaConverted,
   useInspectionExitPinStatus,
+  useLegalExternalItemAliases,
+  useEnrichLegalArchive,
+  useSaveLegalItemAlias,
+  useDeleteLegalItemAlias,
+  useLinkLegalArchiveCustomer,
+  useLinkLegalArchiveOrder,
   useSetInspectionExitPin,
 } from '../hooks/api/useLegalDocuments';
 import { isInspectionModeActive } from '../lib/inspectionMode';
-import { legalKeys, legalRepository } from '../features/legal';
+import {
+  buildLegalArchiveRecords,
+  LEGAL_ARCHIVE_PARSE_VERSION,
+  legalKeys,
+  legalRepository,
+  normalizeExternalItemCode,
+} from '../features/legal';
 import {
   applyLegalDocumentDeliveryToggle,
   buildDefaultDeliveryDetails,
@@ -402,13 +417,21 @@ export default function LegalDocumentsPage({
   const { data: sequences = [] } = useLegalNumberingSequences();
   const { data: carriers = [] } = useLegalCarriers();
   const { data: legalDocuments = [], isLoading: loadingDocuments } = useLegalDocuments();
+  const { data: allLegalDocumentLines = [], isLoading: loadingArchiveLines } = useAllLegalDocumentLines();
   const { data: proformas = [], isLoading: loadingProformas } = useProformaDocuments();
+  const { data: allProformaDocumentLines = [], isLoading: loadingArchiveProformaLines } = useAllProformaDocumentLines();
+  const { data: legalItemAliases = [], isLoading: loadingLegalItemAliases } = useLegalExternalItemAliases();
   const { data: syncRuns = [] } = useLegalSyncRuns();
 
   const saveSettings = useSaveLegalSettings();
   const saveAadeCredentials = useSaveAadeCredentials();
   const { data: inspectionPinConfigured } = useInspectionExitPinStatus();
   const setInspectionExitPin = useSetInspectionExitPin();
+  const enrichLegalArchive = useEnrichLegalArchive();
+  const saveLegalItemAlias = useSaveLegalItemAlias();
+  const deleteLegalItemAlias = useDeleteLegalItemAlias();
+  const linkLegalArchiveCustomer = useLinkLegalArchiveCustomer();
+  const linkLegalArchiveOrder = useLinkLegalArchiveOrder();
   const saveSequence = useSaveLegalSequence();
   const saveCarrier = useSaveLegalCarrier();
   const saveDraft = useSaveLegalDraft();
@@ -567,6 +590,64 @@ export default function LegalDocumentsPage({
       ].filter(Boolean).join(' ').toLowerCase().includes(needle);
     });
   }, [proformaSearch, proformaStatusFilter, proformas, legalDocumentById]);
+
+  const archiveRecords = useMemo(
+    () => buildLegalArchiveRecords({
+      legalDocuments,
+      legalLines: allLegalDocumentLines,
+      proformas,
+      proformaLines: allProformaDocumentLines,
+      customers,
+      products,
+      orders,
+      aliases: legalItemAliases,
+    }),
+    [
+      legalDocuments,
+      allLegalDocumentLines,
+      proformas,
+      allProformaDocumentLines,
+      customers,
+      products,
+      orders,
+      legalItemAliases,
+    ],
+  );
+
+  const archiveAutoLinkingRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (activeTab !== 'archive' || enrichLegalArchive.isPending) return;
+    const needsEnrichment = legalDocuments.some((document) =>
+      document.external_source === 'aade_sync'
+      && !!document.raw_xml
+      && Number(document.archive_parse_version || 0) < LEGAL_ARCHIVE_PARSE_VERSION,
+    );
+    if (!needsEnrichment) return;
+    void enrichLegalArchive.mutateAsync().catch((error: any) => {
+      showToast(error?.message || 'Δεν ολοκληρώθηκε η ευρετηρίαση του αρχείου AADE.', 'warning');
+    });
+  }, [activeTab, legalDocuments, enrichLegalArchive.isPending]);
+
+  useEffect(() => {
+    if (activeTab !== 'archive' || linkLegalArchiveOrder.isPending) return;
+    const candidate = archiveRecords.find((record) =>
+      !!record.autoOrderCandidate
+      && !record.linkedOrder
+      && !archiveAutoLinkingRef.current.has(record.key),
+    );
+    if (!candidate?.autoOrderCandidate) return;
+    archiveAutoLinkingRef.current.add(candidate.key);
+    void linkLegalArchiveOrder.mutateAsync({
+      source: candidate.source,
+      documentId: candidate.id,
+      orderId: candidate.autoOrderCandidate.id,
+      userName,
+      method: 'automatic',
+    }).catch(() => {
+      archiveAutoLinkingRef.current.delete(candidate.key);
+    });
+  }, [activeTab, archiveRecords, linkLegalArchiveOrder.isPending, userName]);
 
   const deliveryDocuments = useMemo(
     () => legalDocuments.filter((document) =>
@@ -998,8 +1079,14 @@ export default function LegalDocumentsPage({
     const plan = buildLegalNumberingAlignmentPlan(documents, activeSequences);
 
     if (!plan.proposals.length) {
-      if (plan.warnings.length) {
-        showToast(plan.warnings[0], 'warning');
+      if (plan.notices.length) {
+        const alignedSeries = plan.alreadyAligned.map((item) => `«${item.series}»`);
+        const alignmentSummary = alignedSeries.length === 1
+          ? `Η σειρά ${alignedSeries[0]} είναι ήδη ευθυγραμμισμένη.`
+          : alignedSeries.length > 1
+            ? `Οι σειρές ${alignedSeries.join(', ')} είναι ήδη ευθυγραμμισμένες.`
+            : 'Η αρίθμηση ERP είναι ήδη ευθυγραμμισμένη.';
+        showToast(`${alignmentSummary} ${plan.notices[0]}`, 'info');
       } else if (!options?.silentIfUpToDate) {
         showToast('Η αρίθμηση είναι ήδη συγχρονισμένη με το Αρχείο.', 'info');
       }
@@ -1889,6 +1976,83 @@ export default function LegalDocumentsPage({
     );
   };
 
+  const handleArchiveCustomerLink = async (record: LegalArchiveRecord, customerId: string | null) => {
+    try {
+      await linkLegalArchiveCustomer.mutateAsync({
+        source: record.source,
+        documentId: record.id,
+        customerId,
+        userName,
+      });
+      showToast(customerId ? 'Ο πελάτης συνδέθηκε με το παραστατικό.' : 'Η σύνδεση πελάτη αφαιρέθηκε.', 'success');
+    } catch (error: any) {
+      showToast(error?.message || 'Δεν αποθηκεύτηκε η σύνδεση πελάτη.', 'error');
+    }
+  };
+
+  const handleArchiveOrderLink = async (record: LegalArchiveRecord, orderId: string | null) => {
+    try {
+      await linkLegalArchiveOrder.mutateAsync({
+        source: record.source,
+        documentId: record.id,
+        orderId,
+        userName,
+        method: 'manual',
+      });
+      showToast(orderId ? 'Η παραγγελία συνδέθηκε με το παραστατικό.' : 'Η σύνδεση παραγγελίας αφαιρέθηκε.', 'success');
+    } catch (error: any) {
+      showToast(error?.message || 'Δεν αποθηκεύτηκε η σύνδεση παραγγελίας.', 'error');
+    }
+  };
+
+  const handleArchiveAliasSave = async (
+    record: LegalArchiveRecord,
+    match: LegalArchiveLineMatch,
+    productSku: string,
+    variantSuffix: string,
+  ) => {
+    if (!match.rawItemCode) return;
+    const externalSource = record.source === 'legal'
+      ? ((record.document as LegalDocument).external_source || 'ilios')
+      : 'proforma';
+    const now = new Date().toISOString();
+    const alias: LegalExternalItemAlias = {
+      id: match.alias?.id || crypto.randomUUID(),
+      external_source: externalSource,
+      normalized_item_code: normalizeExternalItemCode(match.rawItemCode),
+      raw_item_code: match.rawItemCode,
+      product_sku: productSku,
+      variant_suffix: variantSuffix || null,
+      created_by: match.alias?.created_by || userName,
+      updated_by: userName,
+      created_at: match.alias?.created_at || now,
+      updated_at: now,
+    };
+    try {
+      await saveLegalItemAlias.mutateAsync({ alias, userName });
+      showToast(`Ο κωδικός ${match.rawItemCode} θα αναγνωρίζεται ως ${productSku}${variantSuffix || ''}.`, 'success');
+    } catch (error: any) {
+      showToast(error?.message || 'Δεν αποθηκεύτηκε η αντιστοίχιση κωδικού.', 'error');
+    }
+  };
+
+  const handleArchiveAliasDelete = async (alias: LegalExternalItemAlias) => {
+    const ok = await confirm({
+      title: 'Αφαίρεση μαθημένης αντιστοίχισης',
+      message: `Να αφαιρεθεί η αντιστοίχιση ${alias.raw_item_code} → ${alias.product_sku}${alias.variant_suffix || ''};`,
+      confirmText: 'Αφαίρεση',
+      cancelText: 'Πίσω',
+      isDestructive: true,
+    });
+    if (!ok) return;
+    try {
+      await deleteLegalItemAlias.mutateAsync({ alias, userName });
+      showToast('Η μαθημένη αντιστοίχιση αφαιρέθηκε.', 'success');
+    } catch (error: any) {
+      showToast(error?.message || 'Δεν αφαιρέθηκε η αντιστοίχιση.', 'error');
+    }
+  };
+
   const renderProformaArchiveSection = () => (
     <section className="rounded-lg border border-slate-200 bg-white">
       <div className="flex flex-col gap-4 border-b border-slate-100 p-4">
@@ -2076,7 +2240,7 @@ export default function LegalDocumentsPage({
     </tr>
   );
 
-  const renderArchiveTab = () => (
+  const renderArchiveTabLegacy = () => (
     <div className="space-y-4">
       <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
         <span className="font-black">Αρχείο</span> — όλα τα πρόχειρα, εκδοθέντα και ακυρωμένα παραστατικά και προτιμολόγια.
@@ -2129,6 +2293,55 @@ export default function LegalDocumentsPage({
     </section>
     {renderProformaArchiveSection()}
     </div>
+  );
+
+  const renderArchiveTab = () => (
+    <LegalArchiveWorkspace
+      records={archiveRecords}
+      customers={customers}
+      products={products}
+      orders={orders}
+      loading={
+        loadingDocuments
+        || loadingProformas
+        || loadingArchiveLines
+        || loadingArchiveProformaLines
+        || loadingLegalItemAliases
+      }
+      initialQuery={archiveSearch}
+      mutating={
+        submitDocument.isPending
+        || cancelDocument.isPending
+        || deleteLegalDocument.isPending
+        || deleteProforma.isPending
+        || voidProforma.isPending
+        || saveDraft.isPending
+        || saveLegalItemAlias.isPending
+        || deleteLegalItemAlias.isPending
+        || linkLegalArchiveCustomer.isPending
+        || linkLegalArchiveOrder.isPending
+      }
+      onCreate={() => {
+        setDraftBundle(null);
+        setProformaBundle(null);
+        setActiveTab('new');
+      }}
+      onOpenLegal={(document) => void handleOpenLegalDocument(document)}
+      onPrintLegal={(document) => void handlePrint(document)}
+      onSubmitLegal={(document) => void handleSubmitLegalDocument(document)}
+      onCancelLegal={(document) => void handleCancel(document)}
+      onDeleteLegal={(document) => void handleDeleteLegalDocument(document)}
+      onEditProforma={(document) => void handleEditProforma(document)}
+      onPrintProforma={(document) => void handlePrintProforma(document)}
+      onConvertProforma={(document) => void openConvertModal(document)}
+      onVoidProforma={(document) => void handleVoidProforma(document)}
+      onDeleteProforma={(document) => void handleDeleteProforma(document)}
+      onLinkCustomer={(record, customerId) => void handleArchiveCustomerLink(record, customerId)}
+      onLinkOrder={(record, orderId) => void handleArchiveOrderLink(record, orderId)}
+      onSaveAlias={(record, match, productSku, variantSuffix) =>
+        void handleArchiveAliasSave(record, match, productSku, variantSuffix)}
+      onDeleteAlias={(alias) => void handleArchiveAliasDelete(alias)}
+    />
   );
 
   const renderSyncTab = () => (

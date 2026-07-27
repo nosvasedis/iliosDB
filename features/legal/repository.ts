@@ -13,6 +13,7 @@ import {
   LegalSyncRun,
   ProformaDocument,
   ProformaDocumentLine,
+  LegalExternalItemAlias,
 } from '../../types';
 
 export const legalRepository = {
@@ -26,6 +27,26 @@ export const legalRepository = {
   saveCarrier: (carrier: LegalCarrier): Promise<void> => api.saveLegalCarrier(carrier),
   getDocuments: (): Promise<LegalDocument[]> => api.getLegalDocuments(),
   getDocumentLines: (documentId: string): Promise<LegalDocumentLine[]> => api.getLegalDocumentLines(documentId),
+  getAllDocumentLines: (): Promise<LegalDocumentLine[]> => api.getAllLegalDocumentLines(),
+  getItemAliases: (): Promise<LegalExternalItemAlias[]> => api.getLegalExternalItemAliases(),
+  saveItemAlias: (alias: LegalExternalItemAlias, userName?: string | null): Promise<void> =>
+    api.saveLegalExternalItemAlias(alias, userName),
+  deleteItemAlias: (alias: LegalExternalItemAlias, userName?: string | null): Promise<void> =>
+    api.deleteLegalExternalItemAlias(alias, userName),
+  linkArchiveCustomer: (
+    source: 'legal' | 'proforma',
+    documentId: string,
+    customerId: string | null,
+    userName?: string | null,
+  ): Promise<void> => api.linkLegalArchiveCustomer(source, documentId, customerId, userName),
+  linkArchiveOrder: (
+    source: 'legal' | 'proforma',
+    documentId: string,
+    orderId: string | null,
+    userName?: string | null,
+    method?: 'automatic' | 'manual',
+  ): Promise<void> => api.linkLegalArchiveOrder(source, documentId, orderId, userName, method),
+  enrichArchive: (): Promise<number> => api.enrichLegalArchiveDocuments(),
   getTransmissions: (documentId: string): Promise<LegalTransmission[]> => api.getLegalTransmissions(documentId),
   getDeliveryEvents: (documentId: string): Promise<LegalDeliveryEvent[]> => api.getLegalDeliveryEvents(documentId),
   getSyncRuns: (): Promise<LegalSyncRun[]> => api.getLegalSyncRuns(),
@@ -33,6 +54,7 @@ export const legalRepository = {
   syncTransmittedDocuments: (params: LegalSyncParams): Promise<LegalSyncRun> => api.syncTransmittedLegalDocuments(params),
   getProformas: (): Promise<ProformaDocument[]> => api.getProformaDocuments(),
   getProformaLines: (proformaId: string): Promise<ProformaDocumentLine[]> => api.getProformaDocumentLines(proformaId),
+  getAllProformaLines: (): Promise<ProformaDocumentLine[]> => api.getAllProformaDocumentLines(),
   saveProforma: (document: ProformaDocument, lines: ProformaDocumentLine[]): Promise<void> =>
     api.saveProformaDraft(document, lines),
   voidProforma: (documentId: string): Promise<void> => api.voidProformaDocument(documentId),

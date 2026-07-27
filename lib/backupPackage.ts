@@ -66,6 +66,7 @@ const ENTITY_LABELS_EL: Record<string, string> = {
     production_batches: 'Παρτίδες παραγωγής',
     legal_documents: 'Νομικά παραστατικά',
     legal_document_lines: 'Γραμμές νομικών παραστατικών',
+    legal_external_item_aliases: 'Αντιστοιχίσεις εξωτερικών κωδικών',
     legal_payments: 'Πληρωμές',
 };
 

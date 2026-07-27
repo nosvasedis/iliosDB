@@ -787,12 +787,19 @@ export interface LegalDocumentLine {
   income_classification: LegalIncomeClassification;
   source_order_line_key?: string | null;
   line_id?: string | null;
+  source_metadata?: {
+    item_description?: string | null;
+    line_comments?: string | null;
+    raw_item_code?: string | null;
+    parser_version?: number;
+  } | null;
   created_at?: string;
 }
 
 export interface LegalDocument {
   id: string;
   order_id?: string | null;
+  counterpart_customer_id?: string | null;
   shipment_id?: string | null;
   source_kind: LegalSourceKind;
   document_kind: LegalDocumentKind;
@@ -824,6 +831,7 @@ export interface LegalDocument {
   external_source?: LegalExternalSource | null;
   synced_at?: string | null;
   sync_run_id?: string | null;
+  archive_parse_version?: number;
   local_notes?: string | null;
   created_by?: string | null;
   created_at: string;
@@ -838,6 +846,7 @@ export interface ProformaDocumentLine extends LegalDocumentLine {
 export interface ProformaDocument {
   id: string;
   order_id?: string | null;
+  counterpart_customer_id?: string | null;
   shipment_id?: string | null;
   source_kind: LegalSourceKind;
   document_kind: 'proforma';
@@ -935,7 +944,10 @@ export interface AadeTransmittedLine {
   vatCategory: number;
   vatAmount: number;
   itemCode?: string | null;
+  itemDescription?: string | null;
+  lineComments?: string | null;
   quantity?: number | null;
+  measurementUnit?: number | null;
 }
 
 export interface AadeTransmittedDocument {
@@ -946,12 +958,95 @@ export interface AadeTransmittedDocument {
   aa?: string;
   issueDate?: string;
   invoiceType: AadeDocumentType | string;
+  issuer?: LegalParty;
+  counterpart?: LegalParty;
   issuerVat?: string;
   counterpartVat?: string;
   cancelledByMark?: string | null;
   totals: LegalTotals;
   lines: AadeTransmittedLine[];
   rawXml: string;
+}
+
+export type LegalArchiveSource = 'legal' | 'proforma';
+export type LegalArchiveMatchState = 'matched' | 'partial' | 'unmatched' | 'ambiguous';
+export type LegalArchiveDatePreset =
+  | 'all'
+  | 'today'
+  | 'current_month'
+  | 'previous_month'
+  | 'last_3_months'
+  | 'last_6_months'
+  | 'last_12_months'
+  | 'specific_month'
+  | 'custom';
+export type LegalArchiveSort =
+  | 'date_desc'
+  | 'date_asc'
+  | 'gross_desc'
+  | 'gross_asc'
+  | 'customer_asc';
+
+export interface LegalExternalItemAlias {
+  id: string;
+  external_source: string;
+  normalized_item_code: string;
+  raw_item_code: string;
+  product_sku: string;
+  variant_suffix?: string | null;
+  created_by?: string | null;
+  updated_by?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface LegalArchiveFilterState {
+  scope: 'all' | LegalArchiveSource;
+  query: string;
+  datePreset: LegalArchiveDatePreset;
+  dateFrom: string;
+  dateTo: string;
+  month: string;
+  customerId: string;
+  customerQuery: string;
+  documentKind: 'all' | LegalDocumentKind | 'proforma';
+  status: 'all' | LegalDocumentStatus | ProformaStatus;
+  externalSource: 'all' | LegalExternalSource | 'proforma';
+  matchState: 'all' | LegalArchiveMatchState;
+  productSku: string;
+  sort: LegalArchiveSort;
+}
+
+export interface LegalArchiveCustomerMatch {
+  state: 'matched' | 'unmatched' | 'ambiguous';
+  customer?: Customer;
+  candidates: Customer[];
+  method: 'manual' | 'vat' | 'none';
+}
+
+export interface LegalArchiveLineMatch {
+  line: LegalDocumentLine | ProformaDocumentLine;
+  product?: Product;
+  masterSku?: string;
+  variantSuffix?: string;
+  method: 'alias' | 'catalog' | 'order' | 'none';
+  alias?: LegalExternalItemAlias;
+  rawItemCode?: string | null;
+}
+
+export interface LegalArchiveRecord {
+  id: string;
+  key: string;
+  source: LegalArchiveSource;
+  document: LegalDocument | ProformaDocument;
+  lines: Array<LegalDocumentLine | ProformaDocumentLine>;
+  customerMatch: LegalArchiveCustomerMatch;
+  lineMatches: LegalArchiveLineMatch[];
+  matchState: LegalArchiveMatchState;
+  linkedOrder?: Order;
+  autoOrderCandidate?: Order;
+  suggestedOrders: Order[];
+  searchText: string;
 }
 
 export interface AadeTransmittedCancellation {

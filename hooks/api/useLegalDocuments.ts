@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AadeCredentialSavePayload, LegalCarrier, LegalDocument, LegalDocumentLine, LegalNumberingSequence, LegalSettings, LegalSyncParams, ProformaDocument, ProformaDocumentLine } from '../../types';
+import { AadeCredentialSavePayload, LegalCarrier, LegalDocument, LegalDocumentLine, LegalExternalItemAlias, LegalNumberingSequence, LegalSettings, LegalSyncParams, ProformaDocument, ProformaDocumentLine } from '../../types';
 import { legalKeys, legalRepository } from '../../features/legal';
 
 export const useLegalSettings = () =>
@@ -40,6 +40,18 @@ export const useLegalDocumentLines = (documentId: string | null | undefined) =>
     enabled: !!documentId,
   });
 
+export const useAllLegalDocumentLines = () =>
+  useQuery({
+    queryKey: legalKeys.archiveLines(),
+    queryFn: legalRepository.getAllDocumentLines,
+  });
+
+export const useLegalExternalItemAliases = () =>
+  useQuery({
+    queryKey: legalKeys.itemAliases(),
+    queryFn: legalRepository.getItemAliases,
+  });
+
 export const useLegalSyncRuns = () =>
   useQuery({
     queryKey: legalKeys.syncRuns(),
@@ -58,6 +70,84 @@ export const useProformaDocumentLines = (proformaId: string | null | undefined) 
     queryFn: () => (proformaId ? legalRepository.getProformaLines(proformaId) : Promise.resolve([])),
     enabled: !!proformaId,
   });
+
+export const useAllProformaDocumentLines = () =>
+  useQuery({
+    queryKey: legalKeys.archiveProformaLines(),
+    queryFn: legalRepository.getAllProformaLines,
+  });
+
+export const useEnrichLegalArchive = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: legalRepository.enrichArchive,
+    onSuccess: (count) => {
+      if (!count) return;
+      queryClient.invalidateQueries({ queryKey: legalKeys.documents() });
+      queryClient.invalidateQueries({ queryKey: legalKeys.archiveLines() });
+    },
+  });
+};
+
+export const useSaveLegalItemAlias = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ alias, userName }: { alias: LegalExternalItemAlias; userName?: string | null }) =>
+      legalRepository.saveItemAlias(alias, userName),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: legalKeys.itemAliases() }),
+  });
+};
+
+export const useDeleteLegalItemAlias = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ alias, userName }: { alias: LegalExternalItemAlias; userName?: string | null }) =>
+      legalRepository.deleteItemAlias(alias, userName),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: legalKeys.itemAliases() }),
+  });
+};
+
+export const useLinkLegalArchiveCustomer = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      source,
+      documentId,
+      customerId,
+      userName,
+    }: {
+      source: 'legal' | 'proforma';
+      documentId: string;
+      customerId: string | null;
+      userName?: string | null;
+    }) => legalRepository.linkArchiveCustomer(source, documentId, customerId, userName),
+    onSuccess: (_, variables) => queryClient.invalidateQueries({
+      queryKey: variables.source === 'legal' ? legalKeys.documents() : legalKeys.proformas(),
+    }),
+  });
+};
+
+export const useLinkLegalArchiveOrder = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      source,
+      documentId,
+      orderId,
+      userName,
+      method,
+    }: {
+      source: 'legal' | 'proforma';
+      documentId: string;
+      orderId: string | null;
+      userName?: string | null;
+      method?: 'automatic' | 'manual';
+    }) => legalRepository.linkArchiveOrder(source, documentId, orderId, userName, method),
+    onSuccess: (_, variables) => queryClient.invalidateQueries({
+      queryKey: variables.source === 'legal' ? legalKeys.documents() : legalKeys.proformas(),
+    }),
+  });
+};
 
 export const useSaveLegalSettings = () => {
   const queryClient = useQueryClient();
@@ -98,6 +188,7 @@ export const useSaveLegalDraft = () => {
       legalRepository.saveDraft(document, lines),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: legalKeys.documents() });
+      queryClient.invalidateQueries({ queryKey: legalKeys.archiveLines() });
     },
   });
 };
@@ -109,6 +200,7 @@ export const useSaveProformaDraft = () => {
       legalRepository.saveProforma(document, lines),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: legalKeys.proformas() });
+      queryClient.invalidateQueries({ queryKey: legalKeys.archiveProformaLines() });
     },
   });
 };
@@ -126,7 +218,10 @@ export const useDeleteProformaDocument = () => {
   return useMutation({
     mutationFn: ({ documentId, userName }: { documentId: string; userName?: string | null }) =>
       legalRepository.deleteProforma(documentId, userName),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: legalKeys.proformas() }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: legalKeys.proformas() });
+      queryClient.invalidateQueries({ queryKey: legalKeys.archiveProformaLines() });
+    },
   });
 };
 
@@ -137,6 +232,7 @@ export const useDeleteLegalDocument = () => {
       legalRepository.deleteDocument(documentId, userName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: legalKeys.documents() });
+      queryClient.invalidateQueries({ queryKey: legalKeys.archiveLines() });
     },
   });
 };
@@ -156,6 +252,7 @@ export const useSyncTransmittedLegalDocuments = () => {
     mutationFn: (params: LegalSyncParams) => legalRepository.syncTransmittedDocuments(params),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: legalKeys.documents() });
+      queryClient.invalidateQueries({ queryKey: legalKeys.archiveLines() });
       queryClient.invalidateQueries({ queryKey: legalKeys.syncRuns() });
     },
   });
