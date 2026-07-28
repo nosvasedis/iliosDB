@@ -10,6 +10,7 @@ import type {
   Product,
   ProformaDocument,
   ProformaDocumentLine,
+  UserProfile,
 } from '../../types';
 import {
   buildArchivedDocumentEnrichment,
@@ -115,6 +116,7 @@ function buildRecords(options: {
   aliases?: LegalExternalItemAlias[];
   proformas?: ProformaDocument[];
   proformaLines?: ProformaDocumentLine[];
+  sellers?: UserProfile[];
 } = {}) {
   return buildLegalArchiveRecords({
     legalDocuments: options.documents ?? [legalDocument()],
@@ -125,6 +127,7 @@ function buildRecords(options: {
     products: options.products ?? [product()],
     orders: options.orders ?? [order()],
     aliases: options.aliases ?? [],
+    sellers: options.sellers ?? [],
   });
 }
 
@@ -179,6 +182,30 @@ describe('legal archive intelligence', () => {
     });
   });
 
+  it('recognizes Prisma code 000 as the real Μεταφορικά catalog service', () => {
+    const shipping = product({
+      sku: '000',
+      prefix: '000',
+      category: 'Υπηρεσίες',
+      description: 'Μεταφορικά',
+      weight_g: 0,
+    });
+    const [record] = buildRecords({
+      lines: [legalLine({
+        sku: '000',
+        item_code: '000',
+        description: 'ΜΕΤΑΦΟΡΙΚΑ',
+      })],
+      products: [product(), shipping],
+    });
+    expect(record.lineMatches[0]).toMatchObject({
+      method: 'catalog',
+      masterSku: '000',
+      product: { description: 'Μεταφορικά' },
+    });
+    expect(record.matchState).toBe('matched');
+  });
+
   it('marks duplicate VAT matches as ambiguous instead of guessing', () => {
     const [record] = buildRecords({
       customers: [
@@ -189,6 +216,31 @@ describe('legal archive intelligence', () => {
     expect(record.customerMatch.state).toBe('ambiguous');
     expect(record.customerMatch.candidates).toHaveLength(2);
     expect(record.matchState).toBe('ambiguous');
+  });
+
+  it('resolves duplicate VAT rows when exactly one customer name also matches', () => {
+    const [record] = buildRecords({
+      documents: [legalDocument({
+        counterpart: {
+          vat_number: '094259216',
+          country: 'GR',
+          branch: 0,
+          name: 'ΝΙΚΗ ΑΡΓΥΡΙΟΥ',
+        },
+      })],
+      customers: [
+        customer(),
+        customer({ id: 'customer-retail', full_name: 'Λιανική' }),
+      ],
+    });
+
+    expect(record.customerMatch).toMatchObject({
+      state: 'matched',
+      method: 'vat_name',
+      customer: { id: 'customer-1' },
+      recommendedCustomer: { id: 'customer-1' },
+    });
+    expect(record.matchState).toBe('matched');
   });
 
   it('offers an automatic order link only for a unique exact customer, total, SKU, and quantity match', () => {
@@ -231,8 +283,81 @@ describe('legal archive intelligence', () => {
       vat: 24,
       gross: 124,
       matched: 1,
+      reviewable: 1,
       needsReview: 0,
+      operational: 0,
     });
+  });
+
+  it('treats pure delivery notes as operational records outside commercial matching quality', () => {
+    const [record] = buildRecords({
+      documents: [legalDocument({
+        document_kind: 'delivery_note',
+        aade_document_type: '9.3',
+        counterpart: { vat_number: '999999999', country: 'GR', branch: 0 },
+        totals: { net: 0, vat: 0, gross: 0, quantity: 200 },
+      })],
+      lines: [legalLine({
+        sku: 'BRS',
+        item_code: 'BRS',
+        quantity: 200,
+        net_value: 0,
+        vat_amount: 0,
+        gross_value: 0,
+      })],
+      customers: [],
+      orders: [],
+    });
+
+    expect(record.matchState).toBe('operational');
+    expect(record.autoOrderCandidate).toBeUndefined();
+    expect(record.suggestedOrders).toEqual([]);
+    expect(getLegalArchiveStats([record])).toEqual({
+      count: 1,
+      net: 0,
+      vat: 0,
+      gross: 0,
+      matched: 0,
+      reviewable: 0,
+      needsReview: 0,
+      operational: 1,
+    });
+    expect(filterLegalArchiveRecords([record], {
+      ...createDefaultLegalArchiveFilters(),
+      matchState: 'operational',
+    })).toEqual([record]);
+  });
+
+  it('matches seller names in delivery notes regardless of surname-first order or patronymic', () => {
+    const seller: UserProfile = {
+      id: 'seller-1',
+      email: 'seller@example.com',
+      full_name: 'Αλέξανδρος Παπαϊωαννίδης',
+      is_approved: true,
+      role: 'seller',
+    };
+    const [record] = buildRecords({
+      documents: [legalDocument({
+        document_kind: 'delivery_note',
+        aade_document_type: '9.3',
+        counterpart: {
+          vat_number: '034008024',
+          country: 'GR',
+          branch: 0,
+          name: 'ΠΑΠΑΪΩΑΝΝΙΔΗΣ ΑΛΕΞΑΝΔΡΟΣ ΑΡΙΣΤΕΙΔΗΣ',
+        },
+      })],
+      sellers: [seller],
+      customers: [],
+      orders: [],
+    });
+
+    expect(record.sellerMatch).toMatchObject({
+      state: 'matched',
+      method: 'name',
+      seller: { id: 'seller-1' },
+    });
+    expect(record.autoSellerCandidate?.id).toBe('seller-1');
   });
 
   it('builds and filters a bulk archive index without per-document repository reads', () => {

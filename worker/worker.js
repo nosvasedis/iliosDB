@@ -577,6 +577,13 @@ const AADE_SECRET_NAMES = {
   prod: { userId: 'AADE_USER_ID_PROD', subscriptionKey: 'AADE_SUBSCRIPTION_KEY_PROD' },
 };
 
+const AADE_REGISTRY_SECRET_NAMES = {
+  username: 'AADE_REGISTRY_USERNAME',
+  password: 'AADE_REGISTRY_PASSWORD',
+};
+
+const AADE_REGISTRY_ENDPOINT = 'https://www1.gsis.gr/wsaade/RgWsPublic2/RgWsPublic2';
+
 function resolveSecretManager(env, payload = {}) {
   const apiToken = String(payload.cloudflareApiToken || env.CLOUDFLARE_API_TOKEN || '').trim();
   const accountId = String(payload.cloudflareAccountId || env.CLOUDFLARE_ACCOUNT_ID || '').trim();
@@ -602,16 +609,30 @@ function getCredentialPresence(env, environment) {
   return { userId, subscriptionKey, ready: userId && subscriptionKey, missing };
 }
 
-export function getAadeCredentialStatus(env, optimisticEnvironment) {
+function getRegistryCredentialPresence(env) {
+  const username = !!String(env.AADE_REGISTRY_USERNAME || '').trim();
+  const password = !!String(env.AADE_REGISTRY_PASSWORD || '').trim();
+  const missing = [];
+  if (!username) missing.push(AADE_REGISTRY_SECRET_NAMES.username);
+  if (!password) missing.push(AADE_REGISTRY_SECRET_NAMES.password);
+  return { username, password, ready: username && password, missing };
+}
+
+export function getAadeCredentialStatus(env, optimisticEnvironment, optimisticRegistry = false) {
   const manager = getCloudflareSecretManager(env);
   const dev = getCredentialPresence(env, 'dev');
   const prod = getCredentialPresence(env, 'prod');
+  const registry = optimisticRegistry
+    ? { username: true, password: true, ready: true, missing: [] }
+    : getRegistryCredentialPresence(env);
   const status = {
     dev,
     prod,
+    registry,
     workerCanStoreSecrets: manager.missing.length === 0,
     missingWorkerSecretManager: manager.missing,
     missingAadeCredentials: [...dev.missing, ...prod.missing],
+    missingRegistryCredentials: registry.missing,
     checkedAt: new Date().toISOString(),
   };
   if (optimisticEnvironment === 'dev' || optimisticEnvironment === 'prod') {
@@ -619,6 +640,126 @@ export function getAadeCredentialStatus(env, optimisticEnvironment) {
     status.missingAadeCredentials = [...status.dev.missing, ...status.prod.missing];
   }
   return status;
+}
+
+function findXmlBlock(xml, tag) {
+  const match = String(xml || '').match(new RegExp(`<(?:\\w+:)?${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</(?:\\w+:)?${tag}>`, 'i'));
+  return match?.[1] || '';
+}
+
+function findXmlBlocks(xml, tag) {
+  return Array.from(String(xml || '').matchAll(
+    new RegExp(`<(?:\\w+:)?${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</(?:\\w+:)?${tag}>`, 'gi'),
+  )).map((match) => match[1]);
+}
+
+export function buildAadeRegistryEnvelope({ username, password, vatNumber, requestedByVat, referenceDate }) {
+  const asOnDate = referenceDate ? `<ns3:as_on_date>${xmlEscape(referenceDate)}</ns3:as_on_date>` : '';
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<env:Envelope xmlns:env="http://www.w3.org/2003/05/soap-envelope"',
+    ' xmlns:ns1="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"',
+    ' xmlns:ns2="http://rgwspublic2/RgWsPublic2Service"',
+    ' xmlns:ns3="http://rgwspublic2/RgWsPublic2">',
+    '<env:Header><ns1:Security><ns1:UsernameToken>',
+    `<ns1:Username>${xmlEscape(username)}</ns1:Username>`,
+    `<ns1:Password>${xmlEscape(password)}</ns1:Password>`,
+    '</ns1:UsernameToken></ns1:Security></env:Header>',
+    '<env:Body><ns2:rgWsPublic2AfmMethod><ns2:INPUT_REC>',
+    requestedByVat
+      ? `<ns3:afm_called_by>${xmlEscape(requestedByVat)}</ns3:afm_called_by>`
+      : '<ns3:afm_called_by/>',
+    `<ns3:afm_called_for>${xmlEscape(vatNumber)}</ns3:afm_called_for>`,
+    asOnDate,
+    '</ns2:INPUT_REC></ns2:rgWsPublic2AfmMethod></env:Body>',
+    '</env:Envelope>',
+  ].join('');
+}
+
+export function parseAadeRegistryResponse(xml) {
+  const resultBlock = findXmlBlock(xml, 'rg_ws_public2_result_rtType') || findXmlBlock(xml, 'result');
+  const errorBlock = findXmlBlock(resultBlock, 'error_rec');
+  const errorCode = findXmlValue(errorBlock, 'error_code');
+  const errorDescription = findXmlValue(errorBlock, 'error_descr');
+  if (errorCode || errorDescription) {
+    const error = new Error(errorDescription || `Σφάλμα μητρώου ΑΑΔΕ ${errorCode}`);
+    error.code = errorCode || 'AADE_REGISTRY_ERROR';
+    throw error;
+  }
+
+  const basic = findXmlBlock(resultBlock, 'basic_rec');
+  const caller = findXmlBlock(resultBlock, 'afm_called_by_rec');
+  const activityTable = findXmlBlock(resultBlock, 'firm_act_tab');
+  const activeFlag = findXmlValue(basic, 'deactivation_flag');
+  const activeDescription = findXmlValue(basic, 'deactivation_flag_descr');
+  const normalizedActiveDescription = String(activeDescription || '').toLocaleUpperCase('el-GR');
+  const active = activeFlag === '1'
+    || (normalizedActiveDescription.includes('ΕΝΕΡΓ') && !normalizedActiveDescription.includes('ΑΠΕΝΕΡΓ'))
+      ? true
+      : activeFlag === '2' || normalizedActiveDescription.includes('ΑΠΕΝΕΡΓ')
+        ? false
+        : null;
+  const normalVatFlag = String(findXmlValue(basic, 'normal_vat_system_flag') || '').toUpperCase();
+  const activities = findXmlBlocks(activityTable, 'item').map((item) => ({
+    code: findXmlValue(item, 'firm_act_code') || '',
+    description: findXmlValue(item, 'firm_act_descr') || '',
+    kind: findXmlValue(item, 'firm_act_kind') || null,
+    kindDescription: findXmlValue(item, 'firm_act_kind_descr') || null,
+  })).filter((activity) => activity.code || activity.description);
+
+  return {
+    vatNumber: findXmlValue(basic, 'afm') || '',
+    referenceDate: findXmlValue(caller, 'as_on_date') || new Date().toISOString().slice(0, 10),
+    callSequenceId: findXmlValue(resultBlock, 'call_seq_id') || null,
+    active,
+    activeDescription: activeDescription || null,
+    taxOfficeCode: findXmlValue(basic, 'doy') || null,
+    taxOfficeDescription: findXmlValue(basic, 'doy_descr') || null,
+    personType: findXmlValue(basic, 'i_ni_flag_descr') || null,
+    businessStatus: findXmlValue(basic, 'firm_flag_descr') || null,
+    businessName: findXmlValue(basic, 'onomasia') || null,
+    tradeName: findXmlValue(basic, 'commer_title') || null,
+    legalStatus: findXmlValue(basic, 'legal_status_descr') || null,
+    registrationDate: findXmlValue(basic, 'regist_date') || null,
+    stopDate: findXmlValue(basic, 'stop_date') || null,
+    normalVatRegime: normalVatFlag === 'Y' ? true : normalVatFlag === 'N' ? false : null,
+    address: {
+      street: findXmlValue(basic, 'postal_address') || null,
+      number: findXmlValue(basic, 'postal_address_no') || null,
+      postalCode: findXmlValue(basic, 'postal_zip_code') || null,
+      city: findXmlValue(basic, 'postal_area_description') || null,
+    },
+    activities,
+  };
+}
+
+export async function callAadeRegistry(env, payload) {
+  const username = String(env.AADE_REGISTRY_USERNAME || '').trim();
+  const password = String(env.AADE_REGISTRY_PASSWORD || '').trim();
+  if (!username || !password) {
+    const missing = getRegistryCredentialPresence(env).missing;
+    throw new Error(`Δεν έχουν ρυθμιστεί οι ειδικοί κωδικοί Μητρώου ΑΑΔΕ (${missing.join(', ')}).`);
+  }
+  const body = buildAadeRegistryEnvelope({
+    username,
+    password,
+    vatNumber: payload.vatNumber,
+    requestedByVat: payload.requestedByVat,
+    referenceDate: payload.referenceDate,
+  });
+  const response = await fetch(AADE_REGISTRY_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/soap+xml',
+      'Content-Type': 'application/soap+xml; charset=utf-8; action="http://rgwspublic2/RgWsPublic2Service:rgWsPublic2AfmMethod"',
+    },
+    body,
+  });
+  const responseText = await response.text();
+  if (!response.ok) {
+    throw new Error(`Η υπηρεσία Μητρώου ΑΑΔΕ δεν απάντησε επιτυχώς (${response.status}).`);
+  }
+  return parseAadeRegistryResponse(responseText);
 }
 
 async function putWorkerSecretWithManager(manager, name, text) {
@@ -800,6 +941,65 @@ async function handleAadeRoute(request, env, corsHeaders, url) {
       return jsonResponse({ ok: true, status }, 200, corsHeaders);
     } catch (error) {
       return jsonResponse({ error: error?.message || 'AADE credential configuration failed.' }, 500, corsHeaders);
+    }
+  }
+
+  if (url.pathname === '/aade/configure-registry-credentials') {
+    if (request.method !== 'POST') {
+      return jsonResponse({ error: 'Η αποθήκευση κωδικών Μητρώου απαιτεί POST.' }, 405, corsHeaders);
+    }
+    const payload = await request.json().catch(() => ({}));
+    const username = String(payload.username || '').trim();
+    const password = String(payload.password || '').trim();
+    if (!username || !password) {
+      return jsonResponse({ error: 'Απαιτούνται όνομα χρήστη και κωδικός των ειδικών κωδικών Μητρώου ΑΑΔΕ.' }, 400, corsHeaders);
+    }
+    const manager = resolveSecretManager(env, payload);
+    if (manager.missing.length > 0) {
+      return jsonResponse({
+        error: `Συμπληρώστε ${manager.missing.join(' και ')} στην πρώτη αποθήκευση.`,
+      }, 400, corsHeaders);
+    }
+    try {
+      if (!String(env.CLOUDFLARE_API_TOKEN || '').trim() && payload.cloudflareApiToken) {
+        await putWorkerSecretWithManager(manager, 'CLOUDFLARE_API_TOKEN', String(payload.cloudflareApiToken).trim());
+      }
+      if (!String(env.CLOUDFLARE_ACCOUNT_ID || '').trim() && payload.cloudflareAccountId) {
+        await putWorkerSecretWithManager(manager, 'CLOUDFLARE_ACCOUNT_ID', String(payload.cloudflareAccountId).trim());
+      }
+      await putWorkerSecretWithManager(manager, AADE_REGISTRY_SECRET_NAMES.username, username);
+      await putWorkerSecretWithManager(manager, AADE_REGISTRY_SECRET_NAMES.password, password);
+      const status = getAadeCredentialStatus(env, undefined, true);
+      status.workerCanStoreSecrets = true;
+      status.missingWorkerSecretManager = [];
+      return jsonResponse({ ok: true, status }, 200, corsHeaders);
+    } catch (error) {
+      return jsonResponse({ error: error?.message || 'Δεν αποθηκεύτηκαν οι κωδικοί Μητρώου ΑΑΔΕ.' }, 500, corsHeaders);
+    }
+  }
+
+  if (url.pathname === '/aade/lookup-vat-registry') {
+    if (request.method !== 'POST') {
+      return jsonResponse({ error: 'Ο έλεγχος ΑΦΜ απαιτεί POST.' }, 405, corsHeaders);
+    }
+    const payload = await request.json().catch(() => ({}));
+    const vatNumber = String(payload.vatNumber || '').replace(/^EL/i, '').replace(/\D/g, '');
+    const requestedByVat = String(payload.requestedByVat || '').replace(/^EL/i, '').replace(/\D/g, '');
+    const referenceDate = String(payload.referenceDate || '').trim();
+    if (!/^\d{9}$/.test(vatNumber)) {
+      return jsonResponse({ error: 'Το ΑΦΜ πρέπει να αποτελείται από 9 ψηφία.' }, 400, corsHeaders);
+    }
+    if (requestedByVat && !/^\d{9}$/.test(requestedByVat)) {
+      return jsonResponse({ error: 'Το ΑΦΜ που χρεώνεται την αναζήτηση δεν είναι έγκυρο.' }, 400, corsHeaders);
+    }
+    if (referenceDate && !/^\d{4}-\d{2}-\d{2}$/.test(referenceDate)) {
+      return jsonResponse({ error: 'Η ημερομηνία αναφοράς δεν είναι έγκυρη.' }, 400, corsHeaders);
+    }
+    try {
+      const result = await callAadeRegistry(env, { vatNumber, requestedByVat, referenceDate });
+      return jsonResponse({ ok: true, result }, 200, corsHeaders);
+    } catch (error) {
+      return jsonResponse({ error: error?.message || 'Ο έλεγχος ΑΦΜ στην ΑΑΔΕ απέτυχε.' }, 502, corsHeaders);
     }
   }
 

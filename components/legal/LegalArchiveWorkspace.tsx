@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   BadgeCheck,
   Ban,
+  Building2,
   CalendarDays,
   ChevronDown,
   ChevronLeft,
@@ -10,12 +11,15 @@ import {
   ChevronUp,
   Copy,
   Edit3,
+  FileClock,
   FileText,
   Link2,
   Loader2,
+  PackageCheck,
   PackageSearch,
   Plus,
   Printer,
+  ReceiptText,
   RefreshCw,
   RotateCcw,
   Search,
@@ -23,20 +27,27 @@ import {
   SlidersHorizontal,
   Sparkles,
   Trash2,
+  Truck,
+  Undo2,
   Users,
+  UserCheck,
   WalletCards,
   X,
 } from 'lucide-react';
 import {
+  AadeVatRegistryResult,
   Customer,
   LegalArchiveFilterState,
   LegalArchiveLineMatch,
   LegalArchiveRecord,
   LegalDocument,
   LegalExternalItemAlias,
+  LegalOrderLineAllocation,
+  LegalOrderLinkMode,
   Order,
   Product,
   ProformaDocument,
+  UserProfile,
 } from '../../types';
 import {
   createDefaultLegalArchiveFilters,
@@ -48,16 +59,16 @@ import {
   canPrintProforma,
   getLegalDocumentDisplayNumber,
   isOfficialLegalDocumentPrint,
-  LEGAL_DOCUMENT_KIND_LABELS,
 } from '../../utils/legalDocuments';
 import { formatOrderId } from '../../utils/orderUtils';
 
 const PAGE_SIZE = 50;
 
-const money = (value: number) => new Intl.NumberFormat('el-GR', {
+const euroFormatter = new Intl.NumberFormat('el-GR', {
   style: 'currency',
   currency: 'EUR',
-}).format(Number(value || 0));
+});
+const money = (value: number) => euroFormatter.format(Number(value || 0));
 
 const legalStatusLabel: Record<LegalDocument['status'], string> = {
   draft: 'Πρόχειρο',
@@ -95,16 +106,17 @@ const documentKindFilterLabel: Record<LegalArchiveFilterState['documentKind'], s
 };
 
 const matchFilterLabel: Record<LegalArchiveFilterState['matchState'], string> = {
-  all: 'Όλα τα matches',
-  matched: 'Πλήρη matches',
-  partial: 'Μερικά matches',
-  ambiguous: 'Ασαφή matches',
-  unmatched: 'Χωρίς match',
+  all: 'Όλες οι αντιστοιχίσεις',
+  matched: 'Πλήρως αντιστοιχισμένα',
+  partial: 'Μερικώς αντιστοιχισμένα',
+  ambiguous: 'Διπλές εγγραφές ΑΦΜ',
+  unmatched: 'Χωρίς αντιστοίχιση',
+  operational: 'Λειτουργικά παραστατικά',
 };
 
 const externalSourceFilterLabel: Record<LegalArchiveFilterState['externalSource'], string> = {
   all: 'Όλες οι πηγές',
-  aade_sync: 'Συγχρονισμός AADE',
+  aade_sync: 'Συγχρονισμός ΑΑΔΕ',
   ilios: 'Έκδοση Ilios',
   proforma: 'Προτιμολόγια',
 };
@@ -134,16 +146,82 @@ const matchPresentation = {
     icon: Sparkles,
   },
   ambiguous: {
-    label: 'Ασαφές',
+    label: 'Διπλή εγγραφή ΑΦΜ',
     className: 'border-orange-200 bg-orange-50 text-orange-700',
     icon: AlertTriangle,
   },
   unmatched: {
-    label: 'Χρειάζεται έλεγχο',
+    label: 'Δεν βρέθηκε αντιστοίχιση',
     className: 'border-red-200 bg-red-50 text-red-700',
     icon: AlertTriangle,
   },
+  operational: {
+    label: 'Λειτουργικό παραστατικό',
+    className: 'border-sky-200 bg-sky-50 text-sky-700',
+    icon: Truck,
+  },
 } as const;
+
+const externalSourcePresentation: Record<LegalArchiveFilterState['externalSource'], string> = {
+  all: 'Όλες οι πηγές',
+  aade_sync: 'Συγχρονισμός ΑΑΔΕ',
+  ilios: 'Έκδοση Ilios',
+  proforma: 'Προτιμολόγιο',
+};
+
+const documentPresentation = {
+  invoice: {
+    label: 'Τιμολόγιο Πώλησης',
+    icon: ReceiptText,
+    badge: 'border-emerald-200 bg-emerald-100 text-emerald-900',
+    row: 'border-l-4 border-l-emerald-500 bg-emerald-50/35 hover:bg-emerald-50/75',
+    openRow: 'border-l-4 border-l-emerald-600 bg-emerald-50/80',
+    mobile: 'border-l-4 border-l-emerald-500 bg-emerald-50/35',
+    number: 'text-emerald-900',
+  },
+  credit: {
+    label: 'Πιστωτικό Τιμολόγιο',
+    icon: Undo2,
+    badge: 'border-rose-200 bg-rose-100 text-rose-900',
+    row: 'border-l-4 border-l-rose-500 bg-rose-50/35 hover:bg-rose-50/75',
+    openRow: 'border-l-4 border-l-rose-600 bg-rose-50/80',
+    mobile: 'border-l-4 border-l-rose-500 bg-rose-50/35',
+    number: 'text-rose-900',
+  },
+  delivery_note: {
+    label: 'Δελτίο Αποστολής',
+    icon: Truck,
+    badge: 'border-sky-200 bg-sky-100 text-sky-800',
+    row: 'border-l-4 border-l-sky-300 bg-sky-50/20 hover:bg-sky-50/55',
+    openRow: 'border-l-4 border-l-sky-400 bg-sky-50/65',
+    mobile: 'border-l-4 border-l-sky-300 bg-sky-50/20',
+    number: 'text-sky-800',
+  },
+  invoice_delivery: {
+    label: 'Τιμολόγιο - Δελτίο Αποστολής',
+    icon: PackageCheck,
+    badge: 'border-teal-200 bg-teal-100 text-teal-900',
+    row: 'border-l-4 border-l-teal-500 bg-teal-50/35 hover:bg-teal-50/75',
+    openRow: 'border-l-4 border-l-teal-600 bg-teal-50/80',
+    mobile: 'border-l-4 border-l-teal-500 bg-teal-50/35',
+    number: 'text-teal-900',
+  },
+  proforma: {
+    label: 'Προτιμολόγιο',
+    icon: FileClock,
+    badge: 'border-violet-200 bg-violet-100 text-violet-900',
+    row: 'border-l-4 border-l-violet-400 bg-violet-50/30 hover:bg-violet-50/70',
+    openRow: 'border-l-4 border-l-violet-500 bg-violet-50/75',
+    mobile: 'border-l-4 border-l-violet-400 bg-violet-50/30',
+    number: 'text-violet-900',
+  },
+} as const;
+
+function getDocumentPresentation(record: LegalArchiveRecord) {
+  return record.source === 'proforma'
+    ? documentPresentation.proforma
+    : documentPresentation[(record.document as LegalDocument).document_kind];
+}
 
 interface AliasEditorProps {
   record: LegalArchiveRecord;
@@ -168,7 +246,7 @@ function AliasEditor({ record, match, products, busy, onSave, onDelete }: AliasE
   if (!match.rawItemCode) {
     return (
       <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500">
-        Η AADE δεν παρέχει itemCode για αυτή τη γραμμή. Δεν δημιουργείται τεχνητό SKU· συνδέστε παραγγελία για ασφαλή αναγνώριση.
+        Η ΑΑΔΕ δεν παρέχει κωδικό είδους για αυτή τη γραμμή. Δεν δημιουργείται τεχνητός κωδικός προϊόντος· συνδέστε παραγγελία για ασφαλή αναγνώριση.
       </div>
     );
   }
@@ -176,7 +254,7 @@ function AliasEditor({ record, match, products, busy, onSave, onDelete }: AliasE
   return (
     <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(110px,180px)_auto]">
       <label className="min-w-0">
-        <span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-slate-500">Προϊόν ERP</span>
+        <span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-slate-500">Προϊόν καταλόγου</span>
         <input
           value={productSku}
           onChange={(event) => {
@@ -184,7 +262,7 @@ function AliasEditor({ record, match, products, busy, onSave, onDelete }: AliasE
             setVariantSuffix('');
           }}
           list={listId}
-          placeholder="SKU ή περιγραφή"
+          placeholder="Κωδικός ή περιγραφή"
           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
         />
         <datalist id={listId}>
@@ -231,11 +309,292 @@ function AliasEditor({ record, match, products, busy, onSave, onDelete }: AliasE
   );
 }
 
+function VatRegistryCard({
+  vatNumber,
+  ready,
+  onLookup,
+}: {
+  vatNumber?: string | null;
+  ready: boolean;
+  onLookup: (vatNumber: string, referenceDate?: string) => Promise<AadeVatRegistryResult>;
+}) {
+  const [referenceDate, setReferenceDate] = useState('');
+  const [result, setResult] = useState<AadeVatRegistryResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const normalizedVat = String(vatNumber || '').replace(/^EL/i, '').replace(/\D/g, '');
+
+  const runLookup = async () => {
+    if (!normalizedVat) return;
+    setLoading(true);
+    setError('');
+    try {
+      setResult(await onLookup(normalizedVat, referenceDate || undefined));
+    } catch (lookupError: any) {
+      setResult(null);
+      setError(lookupError?.message || 'Ο έλεγχος ΑΦΜ στην ΑΑΔΕ απέτυχε.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50/50 p-3">
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="min-w-40">
+          <span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-indigo-700">
+            Ημερομηνία αναφοράς
+          </span>
+          <input
+            type="date"
+            value={referenceDate}
+            onChange={(event) => setReferenceDate(event.target.value)}
+            className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => void runLookup()}
+          disabled={!ready || normalizedVat.length !== 9 || loading}
+          className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-black text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+        >
+          {loading ? <Loader2 size={14} className="animate-spin" /> : <Building2 size={14} />}
+          Έλεγχος στην ΑΑΔΕ
+        </button>
+        <span className="text-[11px] font-medium text-indigo-800">
+          {ready ? 'Επίσημο Μητρώο Επιχειρήσεων' : 'Ρυθμίστε πρώτα τους ειδικούς κωδικούς Μητρώου'}
+        </span>
+      </div>
+
+      {error && (
+        <div className="mt-3 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700">
+          {error}
+        </div>
+      )}
+
+      {result && (
+        <div className="mt-3 space-y-3 rounded-lg border border-indigo-100 bg-white p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`rounded-full border px-2 py-1 text-xs font-black ${
+              result.active === true
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                : result.active === false
+                  ? 'border-red-200 bg-red-50 text-red-700'
+                  : 'border-slate-200 bg-slate-50 text-slate-600'
+            }`}>
+              {result.active === true ? 'Ενεργό ΑΦΜ' : result.active === false ? 'Ανενεργό ΑΦΜ' : 'Άγνωστη κατάσταση'}
+            </span>
+            <span className="text-xs font-bold text-slate-500">
+              Στοιχεία στις {result.referenceDate}
+            </span>
+          </div>
+          <div>
+            <div className="font-black text-slate-900">{result.businessName || 'Χωρίς διαθέσιμη επωνυμία'}</div>
+            {result.tradeName && <div className="text-sm font-bold text-slate-600">{result.tradeName}</div>}
+          </div>
+          <div className="grid gap-2 text-xs sm:grid-cols-2">
+            <div><span className="font-black text-slate-500">ΔΟΥ:</span> {result.taxOfficeCode || '—'} {result.taxOfficeDescription || ''}</div>
+            <div><span className="font-black text-slate-500">Μορφή:</span> {result.legalStatus || result.personType || '—'}</div>
+            <div><span className="font-black text-slate-500">Ιδιότητα:</span> {result.businessStatus || '—'}</div>
+            <div><span className="font-black text-slate-500">Κανονικό καθεστώς ΦΠΑ:</span> {result.normalVatRegime === true ? 'Ναι' : result.normalVatRegime === false ? 'Όχι' : '—'}</div>
+            <div><span className="font-black text-slate-500">Έναρξη:</span> {result.registrationDate || '—'}</div>
+            <div><span className="font-black text-slate-500">Διακοπή:</span> {result.stopDate || '—'}</div>
+            <div className="sm:col-span-2">
+              <span className="font-black text-slate-500">Έδρα:</span>{' '}
+              {[result.address.street, result.address.number, result.address.postalCode, result.address.city].filter(Boolean).join(', ') || '—'}
+            </div>
+          </div>
+          {result.activities.length > 0 && (
+            <div>
+              <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-slate-500">Δραστηριότητες</div>
+              <div className="space-y-1">
+                {result.activities.map((activity, index) => (
+                  <div key={`${activity.code}-${index}`} className="rounded-md bg-slate-50 px-2 py-1.5 text-xs text-slate-700">
+                    <span className="font-mono font-black">{activity.code}</span>
+                    {' · '}{activity.description}
+                    {activity.kindDescription ? ` · ${activity.kindDescription}` : ''}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function orderLineKey(order: Order, index: number): string {
+  const item = order.items[index];
+  return item.line_id || `${index}:${item.sku}:${item.variant_suffix || ''}`;
+}
+
+function OrderLinkEditor({
+  record,
+  orders,
+  busy,
+  onSave,
+}: {
+  record: LegalArchiveRecord;
+  orders: Order[];
+  busy: boolean;
+  onSave: (
+    link: { orderId: string; mode: LegalOrderLinkMode; allocations: LegalOrderLineAllocation[] } | null,
+  ) => void;
+}) {
+  const storedMode = record.document.order_link_mode || 'whole';
+  const storedAllocations = record.document.order_line_allocations || [];
+  const [orderId, setOrderId] = useState(record.linkedOrder?.id || '');
+  const [mode, setMode] = useState<LegalOrderLinkMode>(storedMode);
+  const [allocations, setAllocations] = useState<LegalOrderLineAllocation[]>(storedAllocations);
+  const selectedOrder = orders.find((order) => order.id === orderId);
+
+  useEffect(() => {
+    setOrderId(record.linkedOrder?.id || '');
+    setMode(record.document.order_link_mode || 'whole');
+    setAllocations(record.document.order_line_allocations || []);
+  }, [
+    record.key,
+    record.linkedOrder?.id,
+    record.document.order_link_mode,
+    record.document.order_line_allocations,
+  ]);
+
+  const toggleLine = (order: Order, index: number) => {
+    const item = order.items[index];
+    const key = orderLineKey(order, index);
+    setAllocations((current) => current.some((allocation) => allocation.orderLineKey === key)
+      ? current.filter((allocation) => allocation.orderLineKey !== key)
+      : [...current, {
+          orderLineKey: key,
+          sku: item.sku,
+          variantSuffix: item.variant_suffix || null,
+          quantity: Number(item.quantity || 0),
+        }]);
+  };
+
+  const setLineQuantity = (key: string, quantity: number, maximum: number) => {
+    const safeQuantity = Math.max(0, Math.min(maximum, quantity || 0));
+    setAllocations((current) => current.map((allocation) =>
+      allocation.orderLineKey === key ? { ...allocation, quantity: safeQuantity } : allocation
+    ));
+  };
+
+  return (
+    <div className="space-y-3">
+      <select
+        value={orderId}
+        onChange={(event) => {
+          setOrderId(event.target.value);
+          setMode('whole');
+          setAllocations([]);
+        }}
+        disabled={busy}
+        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-sky-500"
+      >
+        <option value="">Επιλέξτε παραγγελία</option>
+        {orders.map((order) => (
+          <option key={order.id} value={order.id}>
+            {formatOrderId(order.id)} · {order.created_at.slice(0, 10)} · {money(order.total_price)}
+            {record.autoOrderCandidate?.id === order.id ? ' · πλήρης συμφωνία' : ''}
+          </option>
+        ))}
+      </select>
+
+      {selectedOrder && (
+        <>
+          <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1">
+            <button
+              type="button"
+              onClick={() => {
+                setMode('whole');
+                setAllocations([]);
+              }}
+              className={`rounded-md px-2 py-2 text-xs font-black ${mode === 'whole' ? 'bg-white text-sky-800 shadow-sm' : 'text-slate-500'}`}
+            >
+              Ολόκληρη παραγγελία
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('partial')}
+              className={`rounded-md px-2 py-2 text-xs font-black ${mode === 'partial' ? 'bg-white text-sky-800 shadow-sm' : 'text-slate-500'}`}
+            >
+              Επιλεγμένες γραμμές
+            </button>
+          </div>
+
+          {mode === 'partial' && (
+            <div className="max-h-56 space-y-1 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
+              {selectedOrder.items.map((item, index) => {
+                const key = orderLineKey(selectedOrder, index);
+                const allocation = allocations.find((candidate) => candidate.orderLineKey === key);
+                return (
+                  <div key={key} className="grid grid-cols-[auto_minmax(0,1fr)_76px] items-center gap-2 rounded-md px-2 py-1.5 hover:bg-slate-50">
+                    <input
+                      type="checkbox"
+                      checked={!!allocation}
+                      onChange={() => toggleLine(selectedOrder, index)}
+                      className="h-4 w-4 accent-sky-600"
+                    />
+                    <div className="min-w-0 text-xs">
+                      <div className="truncate font-black text-slate-800">{item.sku}{item.variant_suffix || ''}</div>
+                      <div className="truncate text-slate-500">{item.product_details?.description || item.notes || 'Γραμμή παραγγελίας'}</div>
+                    </div>
+                    <input
+                      type="number"
+                      min="0"
+                      max={item.quantity}
+                      step="0.01"
+                      disabled={!allocation}
+                      value={allocation?.quantity ?? ''}
+                      onChange={(event) => setLineQuantity(key, Number(event.target.value), Number(item.quantity || 0))}
+                      aria-label={`Ποσότητα ${item.sku}`}
+                      className="w-full rounded-md border border-slate-200 px-2 py-1 text-right text-xs font-black disabled:bg-slate-100"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={busy || (mode === 'partial' && !allocations.some((allocation) => allocation.quantity > 0))}
+              onClick={() => onSave({
+                orderId: selectedOrder.id,
+                mode,
+                allocations: mode === 'partial'
+                  ? allocations.filter((allocation) => allocation.quantity > 0)
+                  : [],
+              })}
+              className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-black text-white hover:bg-sky-700 disabled:bg-slate-300"
+            >
+              Αποθήκευση σύνδεσης
+            </button>
+            {record.linkedOrder && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onSave(null)}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-50"
+              >
+                Αφαίρεση
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 interface LegalArchiveWorkspaceProps {
   records: LegalArchiveRecord[];
   customers: Customer[];
   products: Product[];
-  orders: Order[];
+  sellers: UserProfile[];
+  registryLookupReady: boolean;
   loading: boolean;
   mutating: boolean;
   initialQuery?: string;
@@ -251,7 +610,12 @@ interface LegalArchiveWorkspaceProps {
   onVoidProforma: (document: ProformaDocument) => void;
   onDeleteProforma: (document: ProformaDocument) => void;
   onLinkCustomer: (record: LegalArchiveRecord, customerId: string | null) => void;
-  onLinkOrder: (record: LegalArchiveRecord, orderId: string | null) => void;
+  onLinkOrder: (
+    record: LegalArchiveRecord,
+    link: { orderId: string; mode: LegalOrderLinkMode; allocations: LegalOrderLineAllocation[] } | null,
+  ) => void;
+  onLinkSeller: (record: LegalArchiveRecord, sellerId: string | null) => void;
+  onLookupVat: (vatNumber: string, referenceDate?: string) => Promise<AadeVatRegistryResult>;
   onSaveAlias: (record: LegalArchiveRecord, match: LegalArchiveLineMatch, productSku: string, variantSuffix: string) => void;
   onDeleteAlias: (alias: LegalExternalItemAlias) => void;
 }
@@ -291,13 +655,20 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
   const [filters, setFilters] = useState<LegalArchiveFilterState>(createDefaultLegalArchiveFilters);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [editingAliases, setEditingAliases] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
+  const deferredFilters = useDeferredValue(filters);
 
   const filtered = useMemo(
-    () => filterLegalArchiveRecords(props.records, filters),
-    [props.records, filters],
+    () => filterLegalArchiveRecords(props.records, deferredFilters),
+    [props.records, deferredFilters],
   );
   const stats = useMemo(() => getLegalArchiveStats(filtered), [filtered]);
+  const sourceCounts = useMemo(() => props.records.reduce((counts, record) => {
+    counts.all += 1;
+    counts[record.source] += 1;
+    return counts;
+  }, { all: 0, legal: 0, proforma: 0 }), [props.records]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRecords = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
@@ -389,9 +760,25 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
   const renderMatchBadge = (record: LegalArchiveRecord) => {
     const presentation = matchPresentation[record.matchState];
     const Icon = presentation.icon;
+    const unresolvedLines = record.lineMatches.filter((line) => !line.product).length;
+    const customerMissing = record.customerMatch.state === 'unmatched';
+    const label = record.matchState === 'partial'
+      ? customerMissing && unresolvedLines
+        ? `Λείπουν πελάτης και ${unresolvedLines} ${unresolvedLines === 1 ? 'προϊόν' : 'προϊόντα'}`
+        : customerMissing
+          ? 'Δεν συνδέθηκε πελάτης'
+          : `${unresolvedLines} ${unresolvedLines === 1 ? 'προϊόν χωρίς αντιστοίχιση' : 'προϊόντα χωρίς αντιστοίχιση'}`
+      : record.matchState === 'ambiguous'
+        ? 'Πολλαπλές εγγραφές με ίδιο ΑΦΜ'
+        : presentation.label;
     return (
-      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-black ${presentation.className}`}>
-        <Icon size={12} /> {presentation.label}
+      <span
+        title={record.matchState === 'operational'
+          ? 'Το Δελτίο Αποστολής είναι παραστατικό διακίνησης και δεν επηρεάζει την αξιολόγηση εμπορικών αντιστοιχίσεων.'
+          : undefined}
+        className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-black ${presentation.className}`}
+      >
+        <Icon size={12} /> {label}
       </span>
     );
   };
@@ -456,9 +843,8 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
   };
 
   const renderDetails = (record: LegalArchiveRecord) => {
-    const customerOrders = record.customerMatch.customer
-      ? props.orders.filter((order) => order.customer_id === record.customerMatch.customer?.id)
-      : record.suggestedOrders;
+    const customerOrders = record.customerOrders;
+    const isOperationalDeliveryNote = record.matchState === 'operational';
     const externalSource = record.source === 'proforma'
       ? 'proforma'
       : ((record.document as LegalDocument).external_source || 'ilios');
@@ -472,32 +858,114 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
           <section className="rounded-xl border border-slate-200 bg-white p-4">
             <div className="mb-3 flex items-center gap-2">
               <Users size={17} className="text-emerald-600" />
-              <h3 className="font-black text-slate-900">Αντιστοίχιση πελάτη</h3>
+              <h3 className="font-black text-slate-900">
+                {isOperationalDeliveryNote ? 'Σύνδεση Πλασιέ' : 'Αντιστοίχιση πελάτη'}
+              </h3>
             </div>
-            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-              <select
-                value={record.customerMatch.customer?.id || ''}
-                onChange={(event) => props.onLinkCustomer(record, event.target.value || null)}
-                disabled={props.mutating}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-emerald-500"
-              >
-                <option value="">Δεν έχει αντιστοιχιστεί</option>
-                {props.customers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.full_name} · ΑΦΜ {customer.vat_number || '—'}
-                  </option>
-                ))}
-              </select>
-              <span className="inline-flex items-center rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">
-                {record.customerMatch.method === 'manual'
-                  ? 'Χειροκίνητη σύνδεση'
-                  : record.customerMatch.method === 'vat'
-                    ? 'Ακριβές ΑΦΜ'
-                    : record.customerMatch.state === 'ambiguous'
-                      ? `${record.customerMatch.candidates.length} πιθανοί πελάτες`
-                      : 'Χωρίς match'}
-              </span>
-            </div>
+            {isOperationalDeliveryNote ? (
+              <>
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                  <select
+                    value={record.sellerMatch.seller?.id || ''}
+                    onChange={(event) => props.onLinkSeller(record, event.target.value || null)}
+                    disabled={props.mutating}
+                    className="w-full rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-sky-500"
+                  >
+                    <option value="">Δεν έχει συνδεθεί με Πλασιέ</option>
+                    {props.sellers.map((seller) => (
+                      <option key={seller.id} value={seller.id}>{seller.full_name}</option>
+                    ))}
+                  </select>
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800">
+                    <UserCheck size={14} />
+                    {record.sellerMatch.method === 'manual'
+                      ? 'Επιβεβαιωμένη σύνδεση'
+                      : record.sellerMatch.method === 'name'
+                        ? 'Ακριβής συμφωνία ονόματος'
+                        : record.sellerMatch.state === 'suggested'
+                          ? 'Υπάρχει πρόταση'
+                          : 'Χωρίς Πλασιέ'}
+                  </span>
+                </div>
+                {!record.sellerMatch.seller && record.sellerMatch.candidates.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {record.sellerMatch.candidates.slice(0, 3).map((seller) => (
+                      <button
+                        key={seller.id}
+                        type="button"
+                        onClick={() => props.onLinkSeller(record, seller.id)}
+                        disabled={props.mutating}
+                        className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-left text-xs font-black text-sky-900 hover:bg-sky-100"
+                      >
+                        Σύνδεση με {seller.full_name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                  <select
+                    value={record.customerMatch.customer?.id || ''}
+                    onChange={(event) => props.onLinkCustomer(record, event.target.value || null)}
+                    disabled={props.mutating}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-emerald-500"
+                  >
+                    <option value="">Δεν έχει αντιστοιχιστεί</option>
+                    {props.customers.map((customer) => (
+                      <option key={customer.id} value={customer.id}>
+                        {customer.full_name} · ΑΦΜ {customer.vat_number || '—'}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="inline-flex items-center rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">
+                    {record.customerMatch.method === 'manual'
+                      ? 'Χειροκίνητη σύνδεση'
+                      : record.customerMatch.method === 'vat'
+                        ? 'Ακριβές ΑΦΜ'
+                        : record.customerMatch.method === 'vat_name'
+                          ? 'Ακριβές ΑΦΜ και επωνυμία'
+                          : record.customerMatch.state === 'ambiguous'
+                            ? 'Διπλή εγγραφή ίδιου ΑΦΜ'
+                            : 'Χωρίς αντιστοίχιση'}
+                  </span>
+                </div>
+                {record.customerMatch.state === 'ambiguous' && record.customerMatch.candidates.length > 0 && (
+                  <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                    <div className="mb-2 text-xs font-bold text-amber-900">
+                      {record.customerMatch.explanation}. Επιλέξτε τη σωστή εγγραφή:
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {record.customerMatch.candidates.slice(0, 4).map((customer) => (
+                        <button
+                          key={customer.id}
+                          type="button"
+                          onClick={() => props.onLinkCustomer(record, customer.id)}
+                          disabled={props.mutating}
+                          className={`rounded-lg border bg-white p-3 text-left transition hover:border-emerald-400 hover:bg-emerald-50 ${
+                            record.customerMatch.recommendedCustomer?.id === customer.id
+                              ? 'border-emerald-300 ring-1 ring-emerald-100'
+                              : 'border-slate-200'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="truncate text-xs font-black text-slate-900">{customer.full_name}</span>
+                            {record.customerMatch.recommendedCustomer?.id === customer.id && (
+                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black text-emerald-700">
+                                Προτεινόμενο
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1 text-[11px] font-bold text-slate-500">ΑΦΜ {customer.vat_number || '—'}</div>
+                          <div className="mt-2 text-[11px] font-black text-emerald-700">Σύνδεση πελάτη</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
             <div className="mt-2 text-xs text-slate-500">
               Πηγή: {record.document.counterpart?.name || 'χωρίς επωνυμία'} · ΑΦΜ {record.document.counterpart?.vat_number || '—'}
             </div>
@@ -510,36 +978,47 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
               {' · '}
               {record.document.counterpart?.country || 'GR'} / υποκ. {record.document.counterpart?.branch ?? 0}
             </div>
+            <VatRegistryCard
+              vatNumber={record.document.counterpart?.vat_number}
+              ready={props.registryLookupReady}
+              onLookup={props.onLookupVat}
+            />
           </section>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-4">
+          <section className={`rounded-xl border p-4 ${isOperationalDeliveryNote ? 'border-sky-200 bg-sky-50/60' : 'border-slate-200 bg-white'}`}>
             <div className="mb-3 flex items-center gap-2">
-              <Link2 size={17} className="text-sky-600" />
-              <h3 className="font-black text-slate-900">Σύνδεση παραγγελίας</h3>
+              {isOperationalDeliveryNote ? <Truck size={17} className="text-sky-600" /> : <Link2 size={17} className="text-sky-600" />}
+              <h3 className="font-black text-slate-900">
+                {isOperationalDeliveryNote ? 'Χειρισμός Δελτίου Αποστολής' : 'Σύνδεση παραγγελίας'}
+              </h3>
             </div>
-            <select
-              value={record.linkedOrder?.id || ''}
-              onChange={(event) => props.onLinkOrder(record, event.target.value || null)}
-              disabled={props.mutating}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-sky-500"
-            >
-              <option value="">Χωρίς συνδεδεμένη παραγγελία</option>
-              {customerOrders.map((order) => (
-                <option key={order.id} value={order.id}>
-                  {formatOrderId(order.id)} · {order.created_at.slice(0, 10)} · {money(order.total_price)}
-                  {record.autoOrderCandidate?.id === order.id ? ' · 100% match' : ''}
-                </option>
-              ))}
-            </select>
-            <div className="mt-2 text-xs font-medium text-slate-500">
-              {record.linkedOrder
-                ? 'Επιβεβαιωμένη σύνδεση ERP.'
-                : record.autoOrderCandidate
-                  ? 'Βρέθηκε μοναδική πλήρης συμφωνία πελάτη, αξίας, SKU και ποσοτήτων.'
-                  : record.suggestedOrders.length
-                    ? `${record.suggestedOrders.length} παραγγελίες έχουν ίδιο πελάτη και συνολική αξία· απαιτείται επιβεβαίωση.`
-                    : 'Δεν βρέθηκε ασφαλής πρόταση. Δεν γίνεται αυτόματο guessing.'}
-            </div>
+            {isOperationalDeliveryNote ? (
+              <p className="text-sm font-medium leading-6 text-sky-900">
+                Πρόκειται για λειτουργικό παραστατικό διακίνησης. Ο αντισυμβαλλόμενος και οι συγκεντρωτικοί κωδικοί ειδών
+                εμφανίζονται για πληροφόρηση, χωρίς να απαιτείται σύνδεση με πελάτη, προϊόν ή παραγγελία και χωρίς να
+                επηρεάζεται η αξιολόγηση των εμπορικών παραστατικών.
+              </p>
+            ) : (
+              <>
+                <OrderLinkEditor
+                  record={record}
+                  orders={customerOrders}
+                  busy={props.mutating}
+                  onSave={(link) => props.onLinkOrder(record, link)}
+                />
+                <div className="mt-2 text-xs font-medium text-slate-500">
+                  {record.linkedOrder
+                    ? record.document.order_link_mode === 'partial'
+                      ? `${record.document.order_line_allocations?.length || 0} επιλεγμένες γραμμές συνδέονται με την παραγγελία.`
+                      : 'Ολόκληρη η παραγγελία είναι συνδεδεμένη.'
+                    : record.autoOrderCandidate
+                      ? 'Βρέθηκε μοναδική πλήρης συμφωνία πελάτη, αξίας, κωδικών προϊόντων και ποσοτήτων.'
+                      : record.suggestedOrders.length
+                        ? `${record.suggestedOrders.length} παραγγελίες έχουν ίδιο πελάτη και συνολική αξία· απαιτείται επιβεβαίωση.`
+                        : 'Δεν βρέθηκε ασφαλής πρόταση. Δεν γίνεται αυθαίρετη αυτόματη αντιστοίχιση.'}
+                </div>
+              </>
+            )}
           </section>
         </div>
 
@@ -548,7 +1027,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
             <div>
               <h3 className="font-black text-slate-900">Γραμμές και προϊόντα</h3>
               <div className="text-xs font-medium text-slate-500">
-                {record.lines.length} γραμμές · πηγή {externalSource}
+                {record.lines.length} γραμμές · πηγή {externalSourcePresentation[externalSource]}
               </div>
             </div>
             <PackageSearch size={19} className="text-slate-400" />
@@ -557,43 +1036,68 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
             {record.lineMatches.length === 0 ? (
               <div className="p-6 text-center text-sm font-medium text-slate-500">Δεν υπάρχουν αποθηκευμένες γραμμές.</div>
             ) : record.lineMatches.map((match) => (
-              <div key={match.line.id} className="space-y-3 p-4">
-                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_110px_130px]">
+              <div key={match.line.id} className="space-y-2 p-3">
+                <div className="grid items-start gap-3 md:grid-cols-[minmax(0,1fr)_72px_105px]">
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-md bg-slate-100 px-2 py-1 font-mono text-xs font-black text-slate-700">
-                        {match.rawItemCode || 'χωρίς itemCode'}
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[11px]">
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono font-black text-slate-700">
+                        {match.rawItemCode || 'χωρίς κωδικό είδους'}
                       </span>
                       {match.product ? (
-                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">
-                          {match.masterSku}{match.variantSuffix || ''} · {match.method === 'alias' ? 'μαθημένο alias' : match.method === 'order' ? 'από παραγγελία' : 'κατάλογος'}
+                        <span className="inline-flex min-w-0 items-center gap-1 font-black text-emerald-700">
+                          <ChevronRight size={12} />
+                          <span className="font-mono">{match.masterSku}{match.variantSuffix || ''}</span>
+                          <span className="truncate font-sans font-bold text-emerald-600">
+                            ({match.method === 'alias' ? 'κανόνας' : match.method === 'order' ? 'παραγγελία' : 'κατάλογος'})
+                          </span>
+                        </span>
+                      ) : isOperationalDeliveryNote ? (
+                        <span className="font-bold text-sky-700">
+                          Κατηγορία διακίνησης
                         </span>
                       ) : (
-                        <span className="rounded-full border border-red-200 bg-red-50 px-2 py-1 text-[10px] font-black text-red-700">
+                        <span className="font-black text-red-700">
                           Χρειάζεται αντιστοίχιση
                         </span>
                       )}
+                      {record.source === 'legal' && !isOperationalDeliveryNote && match.product && match.rawItemCode && (
+                        <button
+                          type="button"
+                          onClick={() => setEditingAliases((current) => {
+                            const next = new Set(current);
+                            if (next.has(match.line.id)) next.delete(match.line.id);
+                            else next.add(match.line.id);
+                            return next;
+                          })}
+                          className="ml-1 rounded px-1.5 py-0.5 font-black text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                        >
+                          {editingAliases.has(match.line.id) ? 'Κλείσιμο' : 'Αλλαγή'}
+                        </button>
+                      )}
                     </div>
-                    <div className="mt-2 font-bold text-slate-800">
+                    <div className="mt-1 truncate text-sm font-bold text-slate-800" title={match.product?.description || match.line.source_metadata?.item_description || match.line.description}>
                       {match.product?.description || match.line.source_metadata?.item_description || match.line.description}
                     </div>
-                    <div className="mt-1 text-xs text-slate-500">
+                    <div className="mt-0.5 truncate text-[11px] text-slate-500">
                       {match.product?.category || 'Άγνωστη κατηγορία'}
                       {match.line.source_metadata?.line_comments ? ` · ${match.line.source_metadata.line_comments}` : ''}
                     </div>
                   </div>
-                  <div className="text-sm">
-                    <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">Ποσότητα</div>
-                    <div className="mt-1 font-black text-slate-800">{match.line.quantity}</div>
-                    <div className="text-xs text-slate-500">Μ.Μ. {match.line.measurement_unit || 1}</div>
+                  <div className="text-right text-xs">
+                    <div className="text-[9px] font-black uppercase tracking-wide text-slate-400">Ποσ.</div>
+                    <div className="font-black text-slate-800">{match.line.quantity}</div>
+                    <div className="text-[10px] text-slate-500">Μ.Μ. {match.line.measurement_unit || 1}</div>
                   </div>
-                  <div className="text-right text-sm">
-                    <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">Καθαρή / Σύνολο</div>
-                    <div className="mt-1 font-bold text-slate-700">{money(match.line.net_value)}</div>
+                  <div className="text-right text-xs">
+                    <div className="text-[9px] font-black uppercase tracking-wide text-slate-400">Καθαρή / Σύνολο</div>
+                    <div className="font-bold text-slate-600">{money(match.line.net_value)}</div>
                     <div className="font-black text-slate-900">{money(match.line.gross_value)}</div>
                   </div>
                 </div>
-                {record.source === 'legal' && (
+                {record.source === 'legal'
+                  && !isOperationalDeliveryNote
+                  && (!match.product || editingAliases.has(match.line.id))
+                  && (
                   <AliasEditor
                     record={record}
                     match={match}
@@ -618,7 +1122,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
           <div className="text-xs font-medium text-slate-500">
             {record.source === 'legal' && (record.document as LegalDocument).aade_uid
               ? `UID ${(record.document as LegalDocument).aade_uid}`
-              : 'Εσωτερική εγγραφή ERP'}
+              : 'Εσωτερική εγγραφή συστήματος'}
           </div>
           {renderActions(record)}
         </div>
@@ -651,9 +1155,9 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
 
           <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-slate-100/80 p-1 sm:flex sm:w-fit">
             {([
-              ['all', 'Όλα', props.records.length],
-              ['legal', 'myDATA', props.records.filter((record) => record.source === 'legal').length],
-              ['proforma', 'Προτιμολόγια', props.records.filter((record) => record.source === 'proforma').length],
+              ['all', 'Όλα', sourceCounts.all],
+              ['legal', 'myDATA', sourceCounts.legal],
+              ['proforma', 'Προτιμολόγια', sourceCounts.proforma],
             ] as const).map(([scope, label, count]) => (
               <button
                 key={scope}
@@ -672,7 +1176,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
               <input
                 value={filters.query}
                 onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))}
-                placeholder="Αναζήτηση σε πελάτη, ΑΦΜ, MARK, αριθμό, SKU ή προϊόν…"
+                placeholder="Αναζήτηση σε πελάτη, ΑΦΜ, MARK, αριθμό, κωδικό ή προϊόν…"
                 className="min-h-11 w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-10 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
               />
               {filters.query && (
@@ -785,22 +1289,23 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                 <option value="submitted">Υποβληθέντα</option>
                 <option value="issued">Εκδοθέντα</option>
                 <option value="failed">Αποτυχημένα</option>
-                <option value="cancelled">Ακυρωμένα AADE</option>
+                <option value="cancelled">Ακυρωμένα στην ΑΑΔΕ</option>
                 <option value="converted">Μετατραπέντα</option>
-                <option value="void">Ακυρωμένα proforma</option>
+                <option value="void">Ακυρωμένα προτιμολόγια</option>
               </select>
               <select value={filters.externalSource} onChange={(event) => setFilters((current) => ({ ...current, externalSource: event.target.value as LegalArchiveFilterState['externalSource'] }))} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700">
                 <option value="all">Όλες οι πηγές</option>
-                <option value="aade_sync">Συγχρονισμός AADE</option>
+                <option value="aade_sync">Συγχρονισμός ΑΑΔΕ</option>
                 <option value="ilios">Έκδοση Ilios</option>
                 <option value="proforma">Προτιμολόγια</option>
               </select>
               <select value={filters.matchState} onChange={(event) => setFilters((current) => ({ ...current, matchState: event.target.value as LegalArchiveFilterState['matchState'] }))} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700">
-                <option value="all">Όλα τα matches</option>
-                <option value="matched">Πλήρη</option>
-                <option value="partial">Μερικά</option>
-                <option value="ambiguous">Ασαφή</option>
-                <option value="unmatched">Χωρίς match</option>
+                <option value="all">Όλες οι αντιστοιχίσεις</option>
+                <option value="matched">Πλήρως αντιστοιχισμένα</option>
+                <option value="partial">Μερικώς αντιστοιχισμένα</option>
+                <option value="ambiguous">Διπλές εγγραφές ίδιου ΑΦΜ</option>
+                <option value="unmatched">Χωρίς αντιστοίχιση</option>
+                <option value="operational">Λειτουργικά παραστατικά</option>
               </select>
               <select value={filters.productSku} onChange={(event) => setFilters((current) => ({ ...current, productSku: event.target.value }))} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700">
                 <option value="">Όλα τα προϊόντα</option>
@@ -844,9 +1349,9 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
           { label: 'ΦΠΑ', value: money(stats.vat), icon: CalendarDays, tone: 'text-violet-700', bg: 'bg-violet-50 border-violet-200' },
           { label: 'Σύνολο', value: money(stats.gross), icon: WalletCards, tone: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
           {
-            label: 'Ποιότητα match',
-            value: stats.count ? `${Math.round((stats.matched / stats.count) * 100)}%` : '—',
-            detail: `${stats.matched} πλήρη · ${stats.needsReview} για έλεγχο`,
+            label: 'Αντιστοίχιση εμπορικών',
+            value: stats.reviewable ? `${stats.matched} από ${stats.reviewable}` : '—',
+            detail: `${stats.needsReview} χρειάζονται έλεγχο${stats.operational ? ` · ${stats.operational} λειτουργικά εκτός αξιολόγησης` : ''}`,
             icon: stats.needsReview ? AlertTriangle : BadgeCheck,
             tone: stats.needsReview ? 'text-amber-700' : 'text-emerald-700',
             bg: stats.needsReview ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200',
@@ -863,9 +1368,27 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
       </div>
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-          <div className="text-sm font-bold text-slate-600">
-            {filtered.length} από {props.records.length} εγγραφές
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-sm font-bold text-slate-600">
+              {filtered.length} από {props.records.length} εγγραφές
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2" aria-label="Χρωματική σήμανση τύπων παραστατικών">
+              {([
+                documentPresentation.invoice,
+                documentPresentation.invoice_delivery,
+                documentPresentation.credit,
+                documentPresentation.delivery_note,
+                documentPresentation.proforma,
+              ] as const).map((presentation) => {
+                const Icon = presentation.icon;
+                return (
+                  <span key={presentation.label} className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-black ${presentation.badge}`}>
+                    <Icon size={11} /> {presentation.label}
+                  </span>
+                );
+              })}
+            </div>
           </div>
           {activeFilterCount > 0 && (
             <button type="button" onClick={resetFilters} className="inline-flex items-center gap-1 text-xs font-black text-emerald-700 hover:text-emerald-800">
@@ -893,7 +1416,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                   <tr>
                     <th className="w-10 px-3 py-3" />
                     <th className="px-3 py-3">Ημερομηνία / Παραστατικό</th>
-                    <th className="px-3 py-3">Πελάτης</th>
+                    <th className="px-3 py-3">Αντισυμβαλλόμενος / πελάτης</th>
                     <th className="px-3 py-3">Κατάσταση</th>
                     <th className="px-3 py-3">Προϊόντα</th>
                     <th className="px-3 py-3 text-right">Σύνολο</th>
@@ -904,12 +1427,11 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                   {pageRecords.map((record) => {
                     const document = record.document;
                     const open = expanded.has(record.key);
-                    const label = record.source === 'legal'
-                      ? LEGAL_DOCUMENT_KIND_LABELS[(document as LegalDocument).document_kind]
-                      : 'Προτιμολόγιο';
+                    const presentation = getDocumentPresentation(record);
+                    const DocumentIcon = presentation.icon;
                     return (
                       <React.Fragment key={record.key}>
-                        <tr className={`border-b border-slate-100 align-top transition ${open ? 'bg-emerald-50/30' : 'bg-white hover:bg-slate-50/70'}`}>
+                        <tr className={`border-b border-slate-100 align-top transition-colors ${open ? presentation.openRow : presentation.row}`}>
                           <td className="px-3 py-3">
                             <button
                               type="button"
@@ -923,16 +1445,18 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                           </td>
                           <td className="px-3 py-3">
                             <div className="font-black text-slate-950">{document.issue_date}</div>
-                            <button type="button" onClick={() => toggleExpanded(record.key)} className="mt-1 text-left font-black text-emerald-800 hover:underline">
+                            <button type="button" onClick={() => toggleExpanded(record.key)} className={`mt-1 text-left font-black hover:underline ${presentation.number}`}>
                               {getLegalDocumentDisplayNumber(document)}
                             </button>
                             <div className="mt-1 flex flex-wrap gap-1">
-                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${record.source === 'legal' ? 'bg-emerald-100 text-emerald-800' : 'bg-sky-100 text-sky-800'}`}>{record.source === 'legal' ? 'myDATA' : 'Proforma'}</span>
-                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">{label}</span>
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${record.source === 'legal' ? 'bg-emerald-100 text-emerald-800' : 'bg-violet-100 text-violet-800'}`}>{record.source === 'legal' ? 'myDATA' : 'Προτιμολόγιο'}</span>
+                              <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${presentation.badge}`}>
+                                <DocumentIcon size={11} /> {presentation.label}
+                              </span>
                             </div>
                           </td>
                           <td className="px-3 py-3">
-                            <div className="font-bold text-slate-800">{record.customerMatch.customer?.full_name || document.counterpart?.name || 'Άγνωστος πελάτης'}</div>
+                            <div className="font-bold text-slate-800">{record.customerMatch.customer?.full_name || document.counterpart?.name || 'Άγνωστος αντισυμβαλλόμενος'}</div>
                             <div className="mt-1 font-mono text-xs text-slate-500">ΑΦΜ {document.counterpart?.vat_number || '—'}</div>
                             <div className="mt-2">{renderMatchBadge(record)}</div>
                           </td>
@@ -950,7 +1474,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                             <div className="flex max-w-64 flex-wrap gap-1">
                               {record.lineMatches.slice(0, 3).map((match) => (
                                 <span key={match.line.id} className={`rounded-lg border px-2 py-1 font-mono text-[10px] font-black ${match.product ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
-                                  {match.product ? `${match.masterSku}${match.variantSuffix || ''}` : match.rawItemCode || 'χωρίς SKU'}
+                                  {match.product ? `${match.masterSku}${match.variantSuffix || ''}` : match.rawItemCode || 'χωρίς κωδικό'}
                                 </span>
                               ))}
                               {record.lineMatches.length > 3 && <span className="px-1 py-1 text-[10px] font-bold text-slate-400">+{record.lineMatches.length - 3}</span>}
@@ -974,8 +1498,10 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
               {pageRecords.map((record) => {
                 const document = record.document;
                 const open = expanded.has(record.key);
+                const presentation = getDocumentPresentation(record);
+                const DocumentIcon = presentation.icon;
                 return (
-                  <article key={record.key} className="bg-white">
+                  <article key={record.key} className={presentation.mobile}>
                     <button
                       type="button"
                       onClick={() => toggleExpanded(record.key)}
@@ -985,8 +1511,10 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-black text-slate-950">{getLegalDocumentDisplayNumber(document)}</span>
-                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${record.source === 'legal' ? 'bg-emerald-100 text-emerald-800' : 'bg-sky-100 text-sky-800'}`}>{record.source === 'legal' ? 'myDATA' : 'Proforma'}</span>
+                            <span className={`font-black ${presentation.number}`}>{getLegalDocumentDisplayNumber(document)}</span>
+                            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black ${presentation.badge}`}>
+                              <DocumentIcon size={11} /> {presentation.label}
+                            </span>
                           </div>
                           <div className="mt-1 text-xs font-bold text-slate-500">{document.issue_date}</div>
                         </div>
@@ -995,7 +1523,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                           {open ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
                         </div>
                       </div>
-                      <div className="mt-3 font-bold text-slate-800">{record.customerMatch.customer?.full_name || document.counterpart?.name || 'Άγνωστος πελάτης'}</div>
+                      <div className="mt-3 font-bold text-slate-800">{record.customerMatch.customer?.full_name || document.counterpart?.name || 'Άγνωστος αντισυμβαλλόμενος'}</div>
                       <div className="mt-1 font-mono text-xs text-slate-500">ΑΦΜ {document.counterpart?.vat_number || '—'}</div>
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         <span className={`inline-flex rounded-lg border px-2 py-1 text-xs font-black ${statusClass[document.status]}`}>

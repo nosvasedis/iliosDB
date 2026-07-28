@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, OrderItem, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, BatchStageHistoryEntry, SyncOfflineResult, LegalSettings, LegalNumberingSequence, LegalCarrier, LegalDocument, LegalDocumentLine, LegalTransmission, LegalDeliveryEvent, AadeProxyResult, AadeCredentialStatus, AadeCredentialSavePayload, ProformaDocument, ProformaDocumentLine, LegalSyncParams, LegalSyncRun, AadeDocumentType, LegalExternalItemAlias } from '../types';
+import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, OrderItem, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, BatchStageHistoryEntry, SyncOfflineResult, LegalSettings, LegalNumberingSequence, LegalCarrier, LegalDocument, LegalDocumentLine, LegalTransmission, LegalDeliveryEvent, AadeProxyResult, AadeCredentialStatus, AadeCredentialSavePayload, AadeRegistryCredentialSavePayload, AadeVatRegistryResult, ProformaDocument, ProformaDocumentLine, LegalSyncParams, LegalSyncRun, AadeDocumentType, LegalExternalItemAlias, LegalOrderLinkMode, LegalOrderLineAllocation } from '../types';
 import { INITIAL_SETTINGS, MOCK_MATERIALS, requiresAssemblyStage, requiresSettingStage } from '../constants';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { offlineDb } from './offlineDb';
@@ -1273,17 +1273,46 @@ export const api = {
         orderId: string | null,
         userName?: string | null,
         method: 'automatic' | 'manual' = 'manual',
+        linkMode: LegalOrderLinkMode = 'whole',
+        allocations: LegalOrderLineAllocation[] = [],
     ): Promise<void> => {
         const table = source === 'legal' ? 'legal_documents' : 'proforma_documents';
         await safeMutate(table, 'UPDATE', {
             order_id: orderId,
+            order_link_mode: orderId ? linkMode : 'whole',
+            order_line_allocations: orderId && linkMode === 'partial' ? allocations : [],
             updated_at: new Date().toISOString(),
         }, { match: { id: documentId }, noSelect: true });
         await safeMutate('legal_audit_log', 'INSERT', {
             document_id: source === 'legal' ? documentId : null,
             action: orderId ? 'archive_order_linked' : 'archive_order_unlinked',
             user_name: userName || null,
-            details: { source, source_document_id: documentId, order_id: orderId, method },
+            details: {
+                source,
+                source_document_id: documentId,
+                order_id: orderId,
+                method,
+                link_mode: orderId ? linkMode : null,
+                allocations: orderId && linkMode === 'partial' ? allocations : [],
+            },
+        }, { noSelect: true });
+    },
+
+    linkLegalArchiveSeller: async (
+        documentId: string,
+        sellerId: string | null,
+        userName?: string | null,
+        method: 'automatic' | 'manual' = 'manual',
+    ): Promise<void> => {
+        await safeMutate('legal_documents', 'UPDATE', {
+            counterpart_seller_id: sellerId,
+            updated_at: new Date().toISOString(),
+        }, { match: { id: documentId }, noSelect: true });
+        await safeMutate('legal_audit_log', 'INSERT', {
+            document_id: documentId,
+            action: sellerId ? 'archive_seller_linked' : 'archive_seller_unlinked',
+            user_name: userName || null,
+            details: { seller_id: sellerId, method },
         }, { noSelect: true });
     },
 
@@ -1533,6 +1562,44 @@ export const api = {
         let updatedCount = 0;
         let nextPartitionKey: string | undefined;
         let nextRowKey: string | undefined;
+        const existingDocuments = await api.getLegalDocuments();
+        const documentsByMark = new Map(
+            existingDocuments
+                .filter((document) => !!document.aade_mark)
+                .map((document) => [String(document.aade_mark), document]),
+        );
+        const updatedDocumentIds = new Set<string>();
+        const applyCancellation = async (
+            invoiceMark: string,
+            cancellationMark?: string,
+            cancellationDate?: string,
+        ) => {
+            const matching = documentsByMark.get(String(invoiceMark));
+            if (!matching) return;
+            const now = new Date().toISOString();
+            const cancelledAt = cancellationDate || matching.cancelled_at || now;
+            const resolvedCancellationMark = cancellationMark || matching.cancellation_mark || null;
+            const { error } = await supabase.from('legal_documents').update({
+                status: 'cancelled',
+                cancellation_mark: resolvedCancellationMark,
+                cancelled_at: cancelledAt,
+                synced_at: now,
+                sync_run_id: runId,
+                updated_at: now,
+            }).eq('id', matching.id);
+            if (error) throw error;
+            const updated = {
+                ...matching,
+                status: 'cancelled' as const,
+                cancellation_mark: resolvedCancellationMark,
+                cancelled_at: cancelledAt,
+                synced_at: now,
+                sync_run_id: runId,
+                updated_at: now,
+            };
+            documentsByMark.set(String(invoiceMark), updated);
+            updatedDocumentIds.add(matching.id);
+        };
         try {
             do {
                 const query = buildAadeTransmittedDocsQuery(params, { nextPartitionKey, nextRowKey });
@@ -1565,14 +1632,15 @@ export const api = {
                     throw new Error(getAadeProxyErrorMessage(result, `Ο συγχρονισμός AADE απέτυχε (${result.status})`));
                 }
 
-                const existingDocuments = await api.getLegalDocuments();
                 for (const transmitted of parsed.documents) {
-                    const existing = existingDocuments.find((document) => document.aade_mark === transmitted.mark);
+                    const existing = documentsByMark.get(String(transmitted.mark));
                     const documentId = existing?.id || crypto.randomUUID();
                     const now = new Date().toISOString();
                     const documentKind = getDocumentKindFromAadeType(transmitted.invoiceType as AadeDocumentType);
                     const cancellation = parsed.cancellations.find((item) => item.invoiceMark === transmitted.mark);
-                    const isCancelled = !!cancellation || !!transmitted.cancelledByMark;
+                    const isCancelled = existing?.status === 'cancelled'
+                        || !!cancellation
+                        || !!transmitted.cancelledByMark;
                     const lines: LegalDocumentLine[] = transmitted.lines.map((line) => {
                         const quantity = line.quantity || 1;
                         const netValue = roundMoney(line.netValue);
@@ -1610,7 +1678,10 @@ export const api = {
                     const documentPayload: LegalDocument = {
                         id: documentId,
                         order_id: existing?.order_id || null,
+                        order_link_mode: existing?.order_link_mode || 'whole',
+                        order_line_allocations: existing?.order_line_allocations || [],
                         counterpart_customer_id: existing?.counterpart_customer_id || null,
+                        counterpart_seller_id: existing?.counterpart_seller_id || null,
                         shipment_id: existing?.shipment_id || null,
                         source_kind: 'aade_sync',
                         document_kind: documentKind,
@@ -1656,7 +1727,7 @@ export const api = {
                         submitted_at: existing?.submitted_at || null,
                         cancelled_at: isCancelled
                             ? (cancellation?.cancellationDate || existing?.cancelled_at || now)
-                            : null,
+                            : existing?.cancelled_at || null,
                         printed_at: existing?.printed_at || null,
                         external_source: 'aade_sync',
                         synced_at: now,
@@ -1671,37 +1742,99 @@ export const api = {
                     const normalizedDocument: Record<string, unknown> = { ...documentPayload };
                     delete normalizedDocument.lines;
                     if (existing) {
-                        await supabase.from('legal_documents').update(normalizedDocument).eq('id', documentId);
-                        updatedCount += 1;
+                        const { error } = await supabase.from('legal_documents').update(normalizedDocument).eq('id', documentId);
+                        if (error) throw error;
+                        updatedDocumentIds.add(documentId);
                     } else {
-                        await supabase.from('legal_documents').insert(normalizedDocument);
+                        const { error } = await supabase.from('legal_documents').insert(normalizedDocument);
+                        if (error) throw error;
                         importedCount += 1;
                     }
-                    await supabase.from('legal_document_lines').delete().eq('document_id', documentId);
+                    documentsByMark.set(String(transmitted.mark), documentPayload);
+                    const { error: deleteLinesError } = await supabase.from('legal_document_lines').delete().eq('document_id', documentId);
+                    if (deleteLinesError) throw deleteLinesError;
                     if (lines.length) {
-                        await supabase.from('legal_document_lines').insert(
+                        const { error: insertLinesError } = await supabase.from('legal_document_lines').insert(
                             lines.map((line) => serializeLegalDocumentLineForDb(line, documentId)),
                         );
+                        if (insertLinesError) throw insertLinesError;
                     }
                 }
 
                 for (const cancellation of parsed.cancellations) {
-                    const matching = (await api.getLegalDocuments()).find((document) => document.aade_mark === cancellation.invoiceMark);
-                    if (!matching) continue;
-                    await supabase.from('legal_documents').update({
-                        status: 'cancelled',
-                        cancellation_mark: cancellation.cancellationMark || matching.cancellation_mark,
-                        cancelled_at: cancellation.cancellationDate || new Date().toISOString(),
-                        synced_at: new Date().toISOString(),
-                        sync_run_id: runId,
-                        updated_at: new Date().toISOString(),
-                    }).eq('id', matching.id);
-                    updatedCount += 1;
+                    await applyCancellation(
+                        cancellation.invoiceMark,
+                        cancellation.cancellationMark,
+                        cancellation.cancellationDate,
+                    );
                 }
 
                 nextPartitionKey = parsed.nextPartitionKey;
                 nextRowKey = parsed.nextRowKey;
             } while (nextPartitionKey && nextRowKey);
+
+            // AADE date filters refer to the original document issue date. A document
+            // issued by Prisma (or another ERP) can therefore be cancelled much later
+            // and fall outside the user's selected date range. Run a cancellation-only
+            // full MARK sweep so existing local documents can never remain falsely issued.
+            let auditPartitionKey: string | undefined;
+            let auditRowKey: string | undefined;
+            let auditPage = 0;
+            do {
+                const auditQuery = buildAadeTransmittedDocsQuery({
+                    ...params,
+                    dateFrom: undefined,
+                    dateTo: undefined,
+                    markFrom: '0',
+                    receiverVatNumber: undefined,
+                    invType: undefined,
+                    maxMark: undefined,
+                }, {
+                    nextPartitionKey: auditPartitionKey,
+                    nextRowKey: auditRowKey,
+                });
+                const auditResult = await api.callAadeProxy('/aade/request-transmitted-docs', {
+                    environment: params.environment,
+                    query: auditQuery,
+                });
+                const auditParsed = parseTransmittedDocumentsXml(auditResult.responseText || '');
+                const auditEmpty = isEmptyTransmittedDocsResponse(auditResult, auditParsed);
+                await supabase.from('legal_transmissions').insert({
+                    document_id: null,
+                    action: 'request_cancellation_audit',
+                    endpoint: auditResult.endpoint,
+                    environment: params.environment,
+                    status: auditResult.ok || auditEmpty ? 'success' : 'failed',
+                    request_payload: JSON.stringify(auditQuery),
+                    response_payload: auditResult.responseText,
+                    error_message: auditResult.ok || auditEmpty
+                        ? null
+                        : getAadeProxyErrorMessage(auditResult, `Ο έλεγχος ακυρώσεων AADE απέτυχε (${auditResult.status})`),
+                });
+                if (auditEmpty) break;
+                if (!auditResult.ok) {
+                    throw new Error(getAadeProxyErrorMessage(
+                        auditResult,
+                        `Ο έλεγχος ακυρώσεων AADE απέτυχε (${auditResult.status})`,
+                    ));
+                }
+                for (const cancellation of auditParsed.cancellations) {
+                    await applyCancellation(
+                        cancellation.invoiceMark,
+                        cancellation.cancellationMark,
+                        cancellation.cancellationDate,
+                    );
+                }
+                for (const transmitted of auditParsed.documents) {
+                    if (!transmitted.cancelledByMark) continue;
+                    await applyCancellation(transmitted.mark, transmitted.cancelledByMark);
+                }
+                auditPartitionKey = auditParsed.nextPartitionKey;
+                auditRowKey = auditParsed.nextRowKey;
+                auditPage += 1;
+            } while (auditPartitionKey && auditRowKey && auditPage < 200);
+
+            updatedCount = updatedDocumentIds.size;
 
             const finishedAt = new Date().toISOString();
             await supabase.from('legal_sync_runs').update({
@@ -1990,6 +2123,44 @@ export const api = {
         const data = await parseWorkerJsonResponse(response);
         if (!response.ok) throw new Error(data?.error || `Αποτυχία αποθήκευσης AADE credentials (${response.status}).`);
         return (data?.status || data) as AadeCredentialStatus;
+    },
+
+    saveAadeRegistryCredentials: async (
+        payload: AadeRegistryCredentialSavePayload,
+    ): Promise<AadeCredentialStatus> => {
+        assertInspectionWorkerRouteAllowed('/aade/configure-registry-credentials');
+        if (!AUTH_KEY_SECRET) throw new Error('Λείπει το κλειδί Worker Auth από τη ρύθμιση του IliosERP.');
+        const response = await fetch(`${CLOUDFLARE_WORKER_URL}/aade/configure-registry-credentials`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: AUTH_KEY_SECRET },
+            body: JSON.stringify(payload),
+        });
+        const data = await parseWorkerJsonResponse(response);
+        if (!response.ok) throw new Error(data?.error || `Αποτυχία αποθήκευσης κωδικών Μητρώου ΑΑΔΕ (${response.status}).`);
+        return (data?.status || data) as AadeCredentialStatus;
+    },
+
+    lookupAadeVatRegistry: async (payload: {
+        vatNumber: string;
+        requestedByVat?: string | null;
+        referenceDate?: string | null;
+    }): Promise<AadeVatRegistryResult> => {
+        assertInspectionWorkerRouteAllowed('/aade/lookup-vat-registry');
+        if (!AUTH_KEY_SECRET) throw new Error('Λείπει το κλειδί Worker Auth από τη ρύθμιση του IliosERP.');
+        const vatNumber = payload.vatNumber.replace(/^EL/i, '').replace(/\D/g, '');
+        if (!/^\d{9}$/.test(vatNumber)) throw new Error('Το ΑΦΜ πρέπει να αποτελείται από 9 ψηφία.');
+        const response = await fetch(`${CLOUDFLARE_WORKER_URL}/aade/lookup-vat-registry`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: AUTH_KEY_SECRET },
+            body: JSON.stringify({
+                vatNumber,
+                requestedByVat: payload.requestedByVat || undefined,
+                referenceDate: payload.referenceDate || undefined,
+            }),
+        });
+        const data = await parseWorkerJsonResponse(response);
+        if (!response.ok) throw new Error(data?.error || `Ο έλεγχος ΑΦΜ στην ΑΑΔΕ απέτυχε (${response.status}).`);
+        return (data?.result || data) as AadeVatRegistryResult;
     },
 
     hasInspectionExitPin: async (): Promise<boolean> => {

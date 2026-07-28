@@ -9,11 +9,15 @@ import {
   LegalTransmission,
   AadeCredentialSavePayload,
   AadeCredentialStatus,
+  AadeRegistryCredentialSavePayload,
+  AadeVatRegistryResult,
   LegalSyncParams,
   LegalSyncRun,
   ProformaDocument,
   ProformaDocumentLine,
   LegalExternalItemAlias,
+  LegalOrderLinkMode,
+  LegalOrderLineAllocation,
 } from '../../types';
 
 export const legalRepository = {
@@ -21,6 +25,13 @@ export const legalRepository = {
   saveSettings: (settings: LegalSettings): Promise<void> => api.saveLegalSettings(settings),
   getCredentialStatus: (): Promise<AadeCredentialStatus> => api.getAadeCredentialStatus(),
   saveCredentials: (payload: AadeCredentialSavePayload): Promise<AadeCredentialStatus> => api.saveAadeCredentials(payload),
+  saveRegistryCredentials: (payload: AadeRegistryCredentialSavePayload): Promise<AadeCredentialStatus> =>
+    api.saveAadeRegistryCredentials(payload),
+  lookupVatRegistry: (payload: {
+    vatNumber: string;
+    requestedByVat?: string | null;
+    referenceDate?: string | null;
+  }): Promise<AadeVatRegistryResult> => api.lookupAadeVatRegistry(payload),
   getSequences: (): Promise<LegalNumberingSequence[]> => api.getLegalNumberingSequences(),
   saveSequence: (sequence: LegalNumberingSequence): Promise<void> => api.saveLegalNumberingSequence(sequence),
   getCarriers: (): Promise<LegalCarrier[]> => api.getLegalCarriers(),
@@ -45,7 +56,23 @@ export const legalRepository = {
     orderId: string | null,
     userName?: string | null,
     method?: 'automatic' | 'manual',
-  ): Promise<void> => api.linkLegalArchiveOrder(source, documentId, orderId, userName, method),
+    linkMode?: LegalOrderLinkMode,
+    allocations?: LegalOrderLineAllocation[],
+  ): Promise<void> => api.linkLegalArchiveOrder(
+    source,
+    documentId,
+    orderId,
+    userName,
+    method,
+    linkMode,
+    allocations,
+  ),
+  linkArchiveSeller: (
+    documentId: string,
+    sellerId: string | null,
+    userName?: string | null,
+    method?: 'automatic' | 'manual',
+  ): Promise<void> => api.linkLegalArchiveSeller(documentId, sellerId, userName, method),
   enrichArchive: (): Promise<number> => api.enrichLegalArchiveDocuments(),
   getTransmissions: (documentId: string): Promise<LegalTransmission[]> => api.getLegalTransmissions(documentId),
   getDeliveryEvents: (documentId: string): Promise<LegalDeliveryEvent[]> => api.getLegalDeliveryEvents(documentId),

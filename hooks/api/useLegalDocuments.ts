@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AadeCredentialSavePayload, LegalCarrier, LegalDocument, LegalDocumentLine, LegalExternalItemAlias, LegalNumberingSequence, LegalSettings, LegalSyncParams, ProformaDocument, ProformaDocumentLine } from '../../types';
+import { AadeCredentialSavePayload, AadeRegistryCredentialSavePayload, LegalCarrier, LegalDocument, LegalDocumentLine, LegalExternalItemAlias, LegalNumberingSequence, LegalOrderLineAllocation, LegalOrderLinkMode, LegalSettings, LegalSyncParams, ProformaDocument, ProformaDocumentLine } from '../../types';
 import { legalKeys, legalRepository } from '../../features/legal';
 
 export const useLegalSettings = () =>
@@ -136,16 +136,46 @@ export const useLinkLegalArchiveOrder = () => {
       orderId,
       userName,
       method,
+      linkMode,
+      allocations,
     }: {
       source: 'legal' | 'proforma';
       documentId: string;
       orderId: string | null;
       userName?: string | null;
       method?: 'automatic' | 'manual';
-    }) => legalRepository.linkArchiveOrder(source, documentId, orderId, userName, method),
+      linkMode?: LegalOrderLinkMode;
+      allocations?: LegalOrderLineAllocation[];
+    }) => legalRepository.linkArchiveOrder(
+      source,
+      documentId,
+      orderId,
+      userName,
+      method,
+      linkMode,
+      allocations,
+    ),
     onSuccess: (_, variables) => queryClient.invalidateQueries({
       queryKey: variables.source === 'legal' ? legalKeys.documents() : legalKeys.proformas(),
     }),
+  });
+};
+
+export const useLinkLegalArchiveSeller = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      documentId,
+      sellerId,
+      userName,
+      method,
+    }: {
+      documentId: string;
+      sellerId: string | null;
+      userName?: string | null;
+      method?: 'automatic' | 'manual';
+    }) => legalRepository.linkArchiveSeller(documentId, sellerId, userName, method),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: legalKeys.documents() }),
   });
 };
 
@@ -161,6 +191,15 @@ export const useSaveAadeCredentials = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: AadeCredentialSavePayload) => legalRepository.saveCredentials(payload),
+    onSuccess: (status) => queryClient.setQueryData(legalKeys.credentials(), status),
+  });
+};
+
+export const useSaveAadeRegistryCredentials = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: AadeRegistryCredentialSavePayload) =>
+      legalRepository.saveRegistryCredentials(payload),
     onSuccess: (status) => queryClient.setQueryData(legalKeys.credentials(), status),
   });
 };

@@ -9,7 +9,19 @@ import {
 import { getRealtimeInvalidationDomainsForTable } from '../../lib/queryInvalidation';
 
 const migration = readFileSync(
-  new URL('../../supabase/migrations/20260727110027_legal_archive_intelligence.sql', import.meta.url),
+  new URL('../../supabase/migrations/20260728085650_legal_archive_intelligence.sql', import.meta.url),
+  'utf8',
+);
+const shippingProductMigration = readFileSync(
+  new URL('../../supabase/migrations/20260728093002_add_shipping_service_product.sql', import.meta.url),
+  'utf8',
+);
+const archiveRelationshipsMigration = readFileSync(
+  new URL('../../supabase/migrations/20260728101952_legal_archive_relationships.sql', import.meta.url),
+  'utf8',
+);
+const archiveWorkspaceSource = readFileSync(
+  new URL('../../components/legal/LegalArchiveWorkspace.tsx', import.meta.url),
   'utf8',
 );
 
@@ -37,5 +49,39 @@ describe('legal archive database contract', () => {
     expect(INSPECTION_ALLOWED_QUERY_ROOTS.has('legal_external_item_aliases')).toBe(true);
     expect(INSPECTION_REALTIME_TABLES).toContain('legal_external_item_aliases');
     expect(getRealtimeInvalidationDomainsForTable('legal_external_item_aliases')).toContain('legal');
+  });
+
+  it('seeds Prisma code 000 as the non-stock Μεταφορικά catalog service', () => {
+    expect(shippingProductMigration).toMatch(/insert into public\.products/i);
+    expect(shippingProductMigration).toContain("'000'");
+    expect(shippingProductMigration).toContain("'Μεταφορικά'");
+    expect(shippingProductMigration).toContain("'Υπηρεσίες'");
+    expect(shippingProductMigration).toMatch(/on conflict \(sku\) do update/i);
+  });
+
+  it('persists seller matching and whole or partial order allocations', () => {
+    expect(archiveRelationshipsMigration).toMatch(/counterpart_seller_id uuid/i);
+    expect(archiveRelationshipsMigration).toMatch(/order_link_mode text not null default 'whole'/i);
+    expect(archiveRelationshipsMigration).toMatch(/order_line_allocations jsonb not null default '\[\]'/i);
+    expect(archiveRelationshipsMigration).toMatch(/check \(order_link_mode in \('whole', 'partial'\)\)/i);
+    expect(archiveRelationshipsMigration).toMatch(/jsonb_typeof\(order_line_allocations\) = 'array'/i);
+  });
+
+  it('keeps all archive-facing matching language in end-user Greek', () => {
+    [
+      'Ποιότητα match',
+      'Όλα τα matches',
+      'Πλήρη matches',
+      'Μερικά matches',
+      'Χωρίς match',
+      'guessing',
+      'μαθημένο alias',
+      'χωρίς itemCode',
+      'χωρίς SKU',
+      'Proforma',
+    ].forEach((forbiddenCopy) => {
+      expect(archiveWorkspaceSource).not.toContain(`'${forbiddenCopy}'`);
+      expect(archiveWorkspaceSource).not.toContain(`>${forbiddenCopy}<`);
+    });
   });
 });

@@ -28,7 +28,7 @@ import {
   XCircle,
   type LucideIcon,
 } from 'lucide-react';
-import { Customer, Product, LegalArchiveLineMatch, LegalArchiveRecord, LegalCarrier, LegalDocument, LegalDocumentKind, LegalDocumentLine, LegalEnvironment, LegalExternalItemAlias, LegalSettings, ProformaDocument, ProformaDocumentLine } from '../types';
+import { AadeVatRegistryResult, Customer, Product, LegalArchiveLineMatch, LegalArchiveRecord, LegalCarrier, LegalDocument, LegalDocumentKind, LegalDocumentLine, LegalEnvironment, LegalExternalItemAlias, LegalOrderLineAllocation, LegalOrderLinkMode, LegalSettings, ProformaDocument, ProformaDocumentLine } from '../types';
 import DesktopPageHeader from './DesktopPageHeader';
 import SkuProductPicker, { SkuProductSelection } from './legal/SkuProductPicker';
 import ProformaConvertModal from './legal/ProformaConvertModal';
@@ -55,6 +55,7 @@ import {
   useSaveProformaDraft,
   useSaveLegalCarrier,
   useSaveAadeCredentials,
+  useSaveAadeRegistryCredentials,
   useSaveLegalDraft,
   useSaveLegalSequence,
   useSaveLegalSettings,
@@ -72,8 +73,10 @@ import {
   useDeleteLegalItemAlias,
   useLinkLegalArchiveCustomer,
   useLinkLegalArchiveOrder,
+  useLinkLegalArchiveSeller,
   useSetInspectionExitPin,
 } from '../hooks/api/useLegalDocuments';
+import { useSellers } from '../hooks/api/useSellers';
 import { isInspectionModeActive } from '../lib/inspectionMode';
 import {
   buildLegalArchiveRecords,
@@ -191,6 +194,8 @@ const credentialSecretLabel = (name: string) => {
   if (name === 'AADE_SUBSCRIPTION_KEY_DEV') return 'Λείπει Subscription Key για δοκιμές';
   if (name === 'AADE_USER_ID_PROD') return 'Λείπει User ID παραγωγής';
   if (name === 'AADE_SUBSCRIPTION_KEY_PROD') return 'Λείπει Subscription Key παραγωγής';
+  if (name === 'AADE_REGISTRY_USERNAME') return 'Λείπει όνομα χρήστη Μητρώου ΑΑΔΕ';
+  if (name === 'AADE_REGISTRY_PASSWORD') return 'Λείπει κωδικός Μητρώου ΑΑΔΕ';
   if (name === 'CLOUDFLARE_API_TOKEN') return 'Λείπει Cloudflare API Token για αποθήκευση μυστικών';
   if (name === 'CLOUDFLARE_ACCOUNT_ID') return 'Λείπει Cloudflare Account ID';
   return name;
@@ -396,6 +401,7 @@ export default function LegalDocumentsPage({
   const [newCarrier, setNewCarrier] = useState({ name: '', vat_number: '', vehicle_number: '', phone: '' });
   const [credentialEnvironment, setCredentialEnvironment] = useState<LegalEnvironment>('dev');
   const [credentialDraft, setCredentialDraft] = useState({ userId: '', subscriptionKey: '' });
+  const [registryCredentialDraft, setRegistryCredentialDraft] = useState({ username: '', password: '' });
   const [cloudflareBootstrapDraft, setCloudflareBootstrapDraft] = useState({ apiToken: '', accountId: '' });
   const [deliveryPaneOpen, setDeliveryPaneOpen] = useState(false);
   const [showInspectionPinSection, setShowInspectionPinSection] = useState(false);
@@ -410,6 +416,7 @@ export default function LegalDocumentsPage({
 
   const { data: orders = [], isLoading: loadingOrders } = useOrdersWithItems();
   const { data: customers = [] } = useCustomers();
+  const { data: sellers = [], isLoading: loadingSellers } = useSellers();
   const { data: shipments = [] } = useAllShipments();
   const { data: shipmentItems = [] } = useAllShipmentItems();
   const { data: legalSettings } = useLegalSettings();
@@ -425,6 +432,7 @@ export default function LegalDocumentsPage({
 
   const saveSettings = useSaveLegalSettings();
   const saveAadeCredentials = useSaveAadeCredentials();
+  const saveAadeRegistryCredentials = useSaveAadeRegistryCredentials();
   const { data: inspectionPinConfigured } = useInspectionExitPinStatus();
   const setInspectionExitPin = useSetInspectionExitPin();
   const enrichLegalArchive = useEnrichLegalArchive();
@@ -432,6 +440,7 @@ export default function LegalDocumentsPage({
   const deleteLegalItemAlias = useDeleteLegalItemAlias();
   const linkLegalArchiveCustomer = useLinkLegalArchiveCustomer();
   const linkLegalArchiveOrder = useLinkLegalArchiveOrder();
+  const linkLegalArchiveSeller = useLinkLegalArchiveSeller();
   const saveSequence = useSaveLegalSequence();
   const saveCarrier = useSaveLegalCarrier();
   const saveDraft = useSaveLegalDraft();
@@ -548,6 +557,7 @@ export default function LegalDocumentsPage({
   const activeCredentialStatus = credentialStatus?.[settingsDraft.environment];
   const missingSecretManager = credentialStatus?.missingWorkerSecretManager || [];
   const missingAadeCredentials = credentialStatus?.missingAadeCredentials || [];
+  const missingRegistryCredentials = credentialStatus?.missingRegistryCredentials || [];
 
   const filteredArchive = useMemo(() => {
     const needle = archiveSearch.trim().toLowerCase();
@@ -601,6 +611,7 @@ export default function LegalDocumentsPage({
       products,
       orders,
       aliases: legalItemAliases,
+      sellers,
     }),
     [
       legalDocuments,
@@ -611,10 +622,12 @@ export default function LegalDocumentsPage({
       products,
       orders,
       legalItemAliases,
+      sellers,
     ],
   );
 
   const archiveAutoLinkingRef = useRef(new Set<string>());
+  const archiveAutoSellerLinkingRef = useRef(new Set<string>());
 
   useEffect(() => {
     if (activeTab !== 'archive' || enrichLegalArchive.isPending) return;
@@ -644,10 +657,32 @@ export default function LegalDocumentsPage({
       orderId: candidate.autoOrderCandidate.id,
       userName,
       method: 'automatic',
+      linkMode: 'whole',
+      allocations: [],
     }).catch(() => {
       archiveAutoLinkingRef.current.delete(candidate.key);
     });
   }, [activeTab, archiveRecords, linkLegalArchiveOrder.isPending, userName]);
+
+  useEffect(() => {
+    if (activeTab !== 'archive' || linkLegalArchiveSeller.isPending) return;
+    const candidate = archiveRecords.find((record) =>
+      record.source === 'legal'
+      && !!record.autoSellerCandidate
+      && !(record.document as LegalDocument).counterpart_seller_id
+      && !archiveAutoSellerLinkingRef.current.has(record.key),
+    );
+    if (!candidate?.autoSellerCandidate) return;
+    archiveAutoSellerLinkingRef.current.add(candidate.key);
+    void linkLegalArchiveSeller.mutateAsync({
+      documentId: candidate.id,
+      sellerId: candidate.autoSellerCandidate.id,
+      userName,
+      method: 'automatic',
+    }).catch(() => {
+      archiveAutoSellerLinkingRef.current.delete(candidate.key);
+    });
+  }, [activeTab, archiveRecords, linkLegalArchiveSeller.isPending, userName]);
 
   const deliveryDocuments = useMemo(
     () => legalDocuments.filter((document) =>
@@ -1302,6 +1337,33 @@ export default function LegalDocumentsPage({
 
   const handleEnvironmentChange = (value: string) => {
     setSettingsDraft((current) => ({ ...current, environment: value === 'prod' ? 'prod' : 'dev' }));
+  };
+
+  const handleSaveAadeRegistryCredentials = async () => {
+    const username = registryCredentialDraft.username.trim();
+    const password = registryCredentialDraft.password.trim();
+    const cloudflareApiToken = cloudflareBootstrapDraft.apiToken.trim();
+    const cloudflareAccountId = cloudflareBootstrapDraft.accountId.trim();
+    if (!username || !password) {
+      showToast('Συμπληρώστε τους ειδικούς κωδικούς της υπηρεσίας Μητρώου ΑΑΔΕ.', 'warning');
+      return;
+    }
+    if (!credentialStatus?.workerCanStoreSecrets && (!cloudflareApiToken || !cloudflareAccountId)) {
+      showToast('Στην πρώτη ρύθμιση χρειάζονται και Cloudflare API Token + Account ID.', 'warning');
+      return;
+    }
+    try {
+      await saveAadeRegistryCredentials.mutateAsync({
+        username,
+        password,
+        ...(!credentialStatus?.workerCanStoreSecrets ? { cloudflareApiToken, cloudflareAccountId } : {}),
+      });
+      setRegistryCredentialDraft({ username: '', password: '' });
+      setCloudflareBootstrapDraft({ apiToken: '', accountId: '' });
+      showToast('Οι ειδικοί κωδικοί Μητρώου ΑΑΔΕ αποθηκεύτηκαν με ασφάλεια.', 'success');
+    } catch (error: any) {
+      showToast(error?.message || 'Δεν αποθηκεύτηκαν οι κωδικοί Μητρώου ΑΑΔΕ.', 'error');
+    }
   };
 
   const handleAddCarrier = async () => {
@@ -1990,20 +2052,60 @@ export default function LegalDocumentsPage({
     }
   };
 
-  const handleArchiveOrderLink = async (record: LegalArchiveRecord, orderId: string | null) => {
+  const handleArchiveOrderLink = async (
+    record: LegalArchiveRecord,
+    link: {
+      orderId: string;
+      mode: LegalOrderLinkMode;
+      allocations: LegalOrderLineAllocation[];
+    } | null,
+  ) => {
     try {
       await linkLegalArchiveOrder.mutateAsync({
         source: record.source,
         documentId: record.id,
-        orderId,
+        orderId: link?.orderId || null,
         userName,
         method: 'manual',
+        linkMode: link?.mode || 'whole',
+        allocations: link?.allocations || [],
       });
-      showToast(orderId ? 'Η παραγγελία συνδέθηκε με το παραστατικό.' : 'Η σύνδεση παραγγελίας αφαιρέθηκε.', 'success');
+      showToast(
+        link
+          ? link.mode === 'partial'
+            ? 'Οι επιλεγμένες γραμμές της παραγγελίας συνδέθηκαν με το παραστατικό.'
+            : 'Ολόκληρη η παραγγελία συνδέθηκε με το παραστατικό.'
+          : 'Η σύνδεση παραγγελίας αφαιρέθηκε.',
+        'success',
+      );
     } catch (error: any) {
       showToast(error?.message || 'Δεν αποθηκεύτηκε η σύνδεση παραγγελίας.', 'error');
     }
   };
+
+  const handleArchiveSellerLink = async (record: LegalArchiveRecord, sellerId: string | null) => {
+    if (record.source !== 'legal') return;
+    try {
+      await linkLegalArchiveSeller.mutateAsync({
+        documentId: record.id,
+        sellerId,
+        userName,
+        method: 'manual',
+      });
+      showToast(sellerId ? 'Ο Πλασιέ συνδέθηκε με το Δελτίο Αποστολής.' : 'Η σύνδεση Πλασιέ αφαιρέθηκε.', 'success');
+    } catch (error: any) {
+      showToast(error?.message || 'Δεν αποθηκεύτηκε η σύνδεση Πλασιέ.', 'error');
+    }
+  };
+
+  const handleArchiveVatLookup = async (
+    vatNumber: string,
+    referenceDate?: string,
+  ): Promise<AadeVatRegistryResult> => legalRepository.lookupVatRegistry({
+    vatNumber,
+    requestedByVat: settingsDraft.issuer.vat_number,
+    referenceDate: referenceDate || undefined,
+  });
 
   const handleArchiveAliasSave = async (
     record: LegalArchiveRecord,
@@ -2300,13 +2402,15 @@ export default function LegalDocumentsPage({
       records={archiveRecords}
       customers={customers}
       products={products}
-      orders={orders}
+      sellers={sellers}
+      registryLookupReady={!!credentialStatus?.registry?.ready}
       loading={
         loadingDocuments
         || loadingProformas
         || loadingArchiveLines
         || loadingArchiveProformaLines
         || loadingLegalItemAliases
+        || loadingSellers
       }
       initialQuery={archiveSearch}
       mutating={
@@ -2320,6 +2424,7 @@ export default function LegalDocumentsPage({
         || deleteLegalItemAlias.isPending
         || linkLegalArchiveCustomer.isPending
         || linkLegalArchiveOrder.isPending
+        || linkLegalArchiveSeller.isPending
       }
       onCreate={() => {
         setDraftBundle(null);
@@ -2337,7 +2442,9 @@ export default function LegalDocumentsPage({
       onVoidProforma={(document) => void handleVoidProforma(document)}
       onDeleteProforma={(document) => void handleDeleteProforma(document)}
       onLinkCustomer={(record, customerId) => void handleArchiveCustomerLink(record, customerId)}
-      onLinkOrder={(record, orderId) => void handleArchiveOrderLink(record, orderId)}
+      onLinkOrder={(record, link) => void handleArchiveOrderLink(record, link)}
+      onLinkSeller={(record, sellerId) => void handleArchiveSellerLink(record, sellerId)}
+      onLookupVat={handleArchiveVatLookup}
       onSaveAlias={(record, match, productSku, variantSuffix) =>
         void handleArchiveAliasSave(record, match, productSku, variantSuffix)}
       onDeleteAlias={(alias) => void handleArchiveAliasDelete(alias)}
@@ -2501,7 +2608,7 @@ export default function LegalDocumentsPage({
             </ActionButton>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-4">
             {(['dev', 'prod'] as LegalEnvironment[]).map((environment) => {
               const status = credentialStatus?.[environment];
               const ready = !!status?.ready;
@@ -2515,6 +2622,13 @@ export default function LegalDocumentsPage({
                 </div>
               );
             })}
+            <div className={`rounded-lg border px-3 py-2 ${credentialStatus?.registry?.ready ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+              <div className="text-[10px] font-black uppercase">Μητρώο ΑΦΜ ΑΑΔΕ</div>
+              <div className="mt-1 flex items-center gap-2 text-sm font-black">
+                {credentialStatus?.registry?.ready ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+                {credentialStatus?.registry?.ready ? 'Έτοιμο' : 'Χρειάζεται ειδικούς κωδικούς'}
+              </div>
+            </div>
             <div className={`rounded-lg border px-3 py-2 ${credentialStatus?.workerCanStoreSecrets ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
               <div className="text-[10px] font-black uppercase">Cloudflare Secrets</div>
               <div className="mt-1 flex items-center gap-2 text-sm font-black">
@@ -2584,6 +2698,55 @@ export default function LegalDocumentsPage({
               Ενεργό περιβάλλον {settingsDraft.environment.toUpperCase()}: {activeCredentialStatus?.ready ? 'έτοιμο για myDATA' : 'δεν θα επιτρέψει αποστολή'}
             </span>
             <span>Τα credentials δεν εμφανίζονται ξανά μετά την αποθήκευση.</span>
+          </div>
+
+          <div className="mt-5 rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="font-black text-indigo-950">Επίσημος έλεγχος Μητρώου ΑΦΜ</div>
+                <p className="mt-1 max-w-3xl text-xs font-medium leading-5 text-indigo-800">
+                  Είναι ξεχωριστή υπηρεσία από το myDATA. Επιστρέφει ενεργό ή ανενεργό ΑΦΜ, επωνυμία,
+                  διακριτικό τίτλο, ΔΟΥ, νομική μορφή, ημερομηνίες έναρξης/διακοπής, έδρα, καθεστώς ΦΠΑ
+                  και δραστηριότητες. Η αναζήτηση γίνεται μόνο όταν τη ζητήσει ο χρήστης.
+                </p>
+              </div>
+              <span className={`rounded-lg border px-2 py-1 text-xs font-black ${credentialStatus?.registry?.ready ? 'border-emerald-200 bg-white text-emerald-700' : 'border-amber-200 bg-white text-amber-800'}`}>
+                {credentialStatus?.registry?.ready ? 'Διαθέσιμο' : 'Δεν έχει ρυθμιστεί'}
+              </span>
+            </div>
+            {missingRegistryCredentials.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {missingRegistryCredentials.map((name) => (
+                  <span key={name} className="rounded-lg border border-amber-200 bg-white px-2 py-1 text-xs font-bold text-amber-800">
+                    {credentialSecretLabel(name)}
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+              <TextInput
+                label="Όνομα χρήστη ειδικών κωδικών"
+                value={registryCredentialDraft.username}
+                onChange={(value) => setRegistryCredentialDraft((current) => ({ ...current, username: value }))}
+                help="Ο ειδικός κωδικός της υπηρεσίας «Αναζήτηση Βασικών Στοιχείων Μητρώου Επιχειρήσεων»."
+              />
+              <TextInput
+                label="Κωδικός ειδικών κωδικών"
+                type="password"
+                value={registryCredentialDraft.password}
+                onChange={(value) => setRegistryCredentialDraft((current) => ({ ...current, password: value }))}
+                help="Δεν είναι ο κωδικός TAXISnet ούτε το Subscription Key του myDATA."
+              />
+              <ActionButton
+                onClick={handleSaveAadeRegistryCredentials}
+                disabled={saveAadeRegistryCredentials.isPending}
+              >
+                {saveAadeRegistryCredentials.isPending
+                  ? <Loader2 size={16} className="animate-spin" />
+                  : <Save size={16} />}
+                Αποθήκευση
+              </ActionButton>
+            </div>
           </div>
         </section>
 

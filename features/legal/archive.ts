@@ -11,6 +11,7 @@ import {
   Product,
   ProformaDocument,
   ProformaDocumentLine,
+  UserProfile,
 } from '../../types';
 import { normalizeGreekForSearch } from '../../utils/greekSearch';
 import { normalizeVatNumber, parseTransmittedDocumentsXml } from '../../utils/legalDocuments';
@@ -113,7 +114,95 @@ function resolveCustomer(
     return { state: 'matched' as const, customer: candidates[0], candidates, method: 'vat' as const };
   }
   if (candidates.length > 1) {
-    return { state: 'ambiguous' as const, candidates, method: 'none' as const };
+    const sourceName = normalizeGreekForSearch(document.counterpart?.name || '');
+    const exactNameMatches = sourceName
+      ? candidates.filter((candidate) => normalizeGreekForSearch(candidate.full_name) === sourceName)
+      : [];
+    if (exactNameMatches.length === 1) {
+      return {
+        state: 'matched' as const,
+        customer: exactNameMatches[0],
+        candidates,
+        recommendedCustomer: exactNameMatches[0],
+        method: 'vat_name' as const,
+        explanation: 'Μοναδική συμφωνία ΑΦΜ και επωνυμίας',
+      };
+    }
+    const ranked = [...candidates].sort((left, right) => {
+      const leftName = normalizeGreekForSearch(left.full_name);
+      const rightName = normalizeGreekForSearch(right.full_name);
+      const leftGeneric = leftName === 'λιανικη' ? 1 : 0;
+      const rightGeneric = rightName === 'λιανικη' ? 1 : 0;
+      if (leftGeneric !== rightGeneric) return leftGeneric - rightGeneric;
+      const leftContained = sourceName && sourceName.includes(leftName) ? 1 : 0;
+      const rightContained = sourceName && sourceName.includes(rightName) ? 1 : 0;
+      if (leftContained !== rightContained) return rightContained - leftContained;
+      return String(right.created_at || '').localeCompare(String(left.created_at || ''));
+    });
+    return {
+      state: 'ambiguous' as const,
+      candidates: ranked,
+      recommendedCustomer: ranked[0],
+      method: 'none' as const,
+      explanation: 'Το ΑΦΜ είναι ακριβές, αλλά υπάρχει διπλή εγγραφή στο πελατολόγιο',
+    };
+  }
+  return { state: 'unmatched' as const, candidates: [], method: 'none' as const };
+}
+
+function normalizedNameTokens(value?: string | null): string[] {
+  return normalizeGreekForSearch(value || '')
+    .split(/\s+/)
+    .filter((token) => token.length > 2);
+}
+
+function resolveSeller(
+  document: LegalDocument | ProformaDocument,
+  sellerById: Map<string, UserProfile>,
+  sellers: UserProfile[],
+) {
+  if (document.document_kind !== 'delivery_note') {
+    return { state: 'not_applicable' as const, candidates: [], method: 'none' as const };
+  }
+  const legalDocument = document as LegalDocument;
+  if (legalDocument.counterpart_seller_id) {
+    const manual = sellerById.get(legalDocument.counterpart_seller_id);
+    if (manual) {
+      return { state: 'matched' as const, seller: manual, candidates: [manual], method: 'manual' as const };
+    }
+  }
+
+  const sourceTokens = new Set(normalizedNameTokens(document.counterpart?.name));
+  if (!sourceTokens.size) {
+    return { state: 'unmatched' as const, candidates: [], method: 'none' as const };
+  }
+  const ranked = sellers
+    .map((seller) => {
+      const sellerTokens = normalizedNameTokens(seller.full_name);
+      const matches = sellerTokens.filter((token) => sourceTokens.has(token)).length;
+      return {
+        seller,
+        exact: sellerTokens.length >= 2 && matches === sellerTokens.length,
+        score: sellerTokens.length ? matches / sellerTokens.length : 0,
+      };
+    })
+    .filter((candidate) => candidate.score >= 0.5)
+    .sort((left, right) => Number(right.exact) - Number(left.exact) || right.score - left.score);
+  const exact = ranked.filter((candidate) => candidate.exact);
+  if (exact.length === 1) {
+    return {
+      state: 'matched' as const,
+      seller: exact[0].seller,
+      candidates: ranked.map((candidate) => candidate.seller),
+      method: 'name' as const,
+    };
+  }
+  if (ranked.length) {
+    return {
+      state: 'suggested' as const,
+      candidates: ranked.map((candidate) => candidate.seller),
+      method: 'none' as const,
+    };
   }
   return { state: 'unmatched' as const, candidates: [], method: 'none' as const };
 }
@@ -253,6 +342,7 @@ function buildRecordSearchText(record: Omit<LegalArchiveRecord, 'searchText'>): 
     document.counterpart?.vat_number,
     record.customerMatch.customer?.full_name,
     record.customerMatch.customer?.vat_number,
+    record.sellerMatch.seller?.full_name,
     record.linkedOrder?.id,
     record.source === 'legal' ? (document as LegalDocument).aade_mark : null,
     record.source === 'legal' ? (document as LegalDocument).aade_uid : null,
@@ -271,6 +361,7 @@ export function buildLegalArchiveRecords(params: {
   products: Product[];
   orders: Order[];
   aliases: LegalExternalItemAlias[];
+  sellers?: UserProfile[];
 }): LegalArchiveRecord[] {
   const legalLinesByDocument = new Map<string, LegalDocumentLine[]>();
   params.legalLines.forEach((line) => {
@@ -295,6 +386,8 @@ export function buildLegalArchiveRecords(params: {
     customersByVat.set(vat, [...(customersByVat.get(vat) || []), customer]);
   });
   const orderById = new Map(params.orders.map((order) => [order.id, order]));
+  const sellers = params.sellers || [];
+  const sellerById = new Map(sellers.map((seller) => [seller.id, seller]));
   const ordersByCustomer = new Map<string, Order[]>();
   params.orders.forEach((order) => {
     if (!order.customer_id) return;
@@ -309,9 +402,14 @@ export function buildLegalArchiveRecords(params: {
       alias,
     ]),
   );
-  const orderItemAggregates = new Map(
-    params.orders.map((order) => [order.id, aggregateOrderItems(order, params.products, productsMap)]),
-  );
+  const orderItemAggregates = new Map<string, Map<string, number>>();
+  const getOrderItemAggregate = (order: Order) => {
+    const cached = orderItemAggregates.get(order.id);
+    if (cached) return cached;
+    const aggregate = aggregateOrderItems(order, params.products, productsMap);
+    orderItemAggregates.set(order.id, aggregate);
+    return aggregate;
+  };
   const catalogByCode = new Map<string, { product: Product; variantSuffix: string }>();
   params.products.forEach((product) => {
     const identities = [
@@ -345,7 +443,10 @@ export function buildLegalArchiveRecords(params: {
   ];
 
   return inputs.map(({ source, document, lines }) => {
+    const isOperationalDeliveryNote = source === 'legal'
+      && (document as LegalDocument).document_kind === 'delivery_note';
     const customerMatch = resolveCustomer(document, customerById, customersByVat);
+    const sellerMatch = resolveSeller(document, sellerById, sellers);
     const linkedOrder = document.order_id ? orderById.get(document.order_id) : undefined;
     const lineMatches = resolveLineMatches({
       source,
@@ -358,19 +459,20 @@ export function buildLegalArchiveRecords(params: {
       linkedOrder,
     });
     const resolvedLines = lineMatches.filter((match) => match.method !== 'none').length;
-    let matchState: LegalArchiveMatchState = 'unmatched';
-    if (customerMatch.state === 'ambiguous') matchState = 'ambiguous';
+    let matchState: LegalArchiveMatchState = isOperationalDeliveryNote ? 'operational' : 'unmatched';
+    if (!isOperationalDeliveryNote && customerMatch.state === 'ambiguous') matchState = 'ambiguous';
     else if (
-      customerMatch.state === 'matched'
+      !isOperationalDeliveryNote
+      && customerMatch.state === 'matched'
       && lineMatches.length > 0
       && resolvedLines === lineMatches.length
     ) matchState = 'matched';
-    else if (customerMatch.state === 'matched' || resolvedLines > 0) matchState = 'partial';
+    else if (!isOperationalDeliveryNote && (customerMatch.state === 'matched' || resolvedLines > 0)) matchState = 'partial';
 
     const customerOrders = customerMatch.customer
       ? ordersByCustomer.get(customerMatch.customer.id) || []
       : [];
-    const suggestedOrders = customerOrders
+    const suggestedOrders = isOperationalDeliveryNote ? [] : customerOrders
       .filter((order) =>
         Math.round(Number(order.total_price || 0) * 100)
         === Math.round(Number(document.totals.gross || 0) * 100)
@@ -383,7 +485,7 @@ export function buildLegalArchiveRecords(params: {
     const strictMatches = resolvedAggregate
       ? suggestedOrders.filter((order) => equalQuantityMaps(
           resolvedAggregate,
-          orderItemAggregates.get(order.id) || new Map(),
+          getOrderItemAggregate(order),
         ))
       : [];
 
@@ -394,10 +496,18 @@ export function buildLegalArchiveRecords(params: {
       document,
       lines,
       customerMatch,
+      sellerMatch,
       lineMatches,
       matchState,
       linkedOrder,
       autoOrderCandidate: !linkedOrder && strictMatches.length === 1 ? strictMatches[0] : undefined,
+      autoSellerCandidate: source === 'legal'
+        && !(document as LegalDocument).counterpart_seller_id
+        && sellerMatch.state === 'matched'
+        && sellerMatch.method === 'name'
+          ? sellerMatch.seller
+          : undefined,
+      customerOrders,
       suggestedOrders,
     };
     return { ...withoutSearch, searchText: buildRecordSearchText(withoutSearch) };
@@ -468,8 +578,21 @@ export function getLegalArchiveStats(records: LegalArchiveRecord[]) {
     vat: current.vat + Number(record.document.totals.vat || 0),
     gross: current.gross + Number(record.document.totals.gross || 0),
     matched: current.matched + (record.matchState === 'matched' ? 1 : 0),
-    needsReview: current.needsReview + (record.matchState === 'matched' ? 0 : 1),
-  }), { count: 0, net: 0, vat: 0, gross: 0, matched: 0, needsReview: 0 });
+    reviewable: current.reviewable + (record.matchState === 'operational' ? 0 : 1),
+    needsReview: current.needsReview + (
+      record.matchState === 'matched' || record.matchState === 'operational' ? 0 : 1
+    ),
+    operational: current.operational + (record.matchState === 'operational' ? 1 : 0),
+  }), {
+    count: 0,
+    net: 0,
+    vat: 0,
+    gross: 0,
+    matched: 0,
+    reviewable: 0,
+    needsReview: 0,
+    operational: 0,
+  });
   return {
     ...stats,
     net: Math.round(stats.net * 100) / 100,

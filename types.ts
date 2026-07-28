@@ -665,9 +665,11 @@ export interface AadeEnvironmentCredentialStatus {
 export interface AadeCredentialStatus {
   dev: AadeEnvironmentCredentialStatus;
   prod: AadeEnvironmentCredentialStatus;
+  registry: AadeRegistryCredentialStatus;
   workerCanStoreSecrets: boolean;
   missingWorkerSecretManager: string[];
   missingAadeCredentials: string[];
+  missingRegistryCredentials: string[];
   checkedAt?: string;
 }
 
@@ -678,6 +680,53 @@ export interface AadeCredentialSavePayload {
   /** One-time bootstrap when Worker secret manager is not configured yet. */
   cloudflareApiToken?: string;
   cloudflareAccountId?: string;
+}
+
+export interface AadeRegistryCredentialStatus {
+  username: boolean;
+  password: boolean;
+  ready: boolean;
+  missing?: string[];
+}
+
+export interface AadeRegistryCredentialSavePayload {
+  username: string;
+  password: string;
+  /** One-time bootstrap when Worker secret manager is not configured yet. */
+  cloudflareApiToken?: string;
+  cloudflareAccountId?: string;
+}
+
+export interface AadeVatRegistryActivity {
+  code: string;
+  description: string;
+  kind?: string | null;
+  kindDescription?: string | null;
+}
+
+export interface AadeVatRegistryResult {
+  vatNumber: string;
+  referenceDate: string;
+  callSequenceId?: string | null;
+  active: boolean | null;
+  activeDescription?: string | null;
+  taxOfficeCode?: string | null;
+  taxOfficeDescription?: string | null;
+  personType?: string | null;
+  businessStatus?: string | null;
+  businessName?: string | null;
+  tradeName?: string | null;
+  legalStatus?: string | null;
+  registrationDate?: string | null;
+  stopDate?: string | null;
+  normalVatRegime: boolean | null;
+  address: {
+    street?: string | null;
+    number?: string | null;
+    postalCode?: string | null;
+    city?: string | null;
+  };
+  activities: AadeVatRegistryActivity[];
 }
 
 export interface LegalPartyAddress {
@@ -799,7 +848,10 @@ export interface LegalDocumentLine {
 export interface LegalDocument {
   id: string;
   order_id?: string | null;
+  order_link_mode?: LegalOrderLinkMode;
+  order_line_allocations?: LegalOrderLineAllocation[];
   counterpart_customer_id?: string | null;
+  counterpart_seller_id?: string | null;
   shipment_id?: string | null;
   source_kind: LegalSourceKind;
   document_kind: LegalDocumentKind;
@@ -846,6 +898,8 @@ export interface ProformaDocumentLine extends LegalDocumentLine {
 export interface ProformaDocument {
   id: string;
   order_id?: string | null;
+  order_link_mode?: LegalOrderLinkMode;
+  order_line_allocations?: LegalOrderLineAllocation[];
   counterpart_customer_id?: string | null;
   shipment_id?: string | null;
   source_kind: LegalSourceKind;
@@ -969,7 +1023,7 @@ export interface AadeTransmittedDocument {
 }
 
 export type LegalArchiveSource = 'legal' | 'proforma';
-export type LegalArchiveMatchState = 'matched' | 'partial' | 'unmatched' | 'ambiguous';
+export type LegalArchiveMatchState = 'matched' | 'partial' | 'unmatched' | 'ambiguous' | 'operational';
 export type LegalArchiveDatePreset =
   | 'all'
   | 'today'
@@ -1021,7 +1075,25 @@ export interface LegalArchiveCustomerMatch {
   state: 'matched' | 'unmatched' | 'ambiguous';
   customer?: Customer;
   candidates: Customer[];
-  method: 'manual' | 'vat' | 'none';
+  recommendedCustomer?: Customer;
+  method: 'manual' | 'vat' | 'vat_name' | 'none';
+  explanation?: string;
+}
+
+export type LegalOrderLinkMode = 'whole' | 'partial';
+
+export interface LegalOrderLineAllocation {
+  orderLineKey: string;
+  sku: string;
+  variantSuffix?: string | null;
+  quantity: number;
+}
+
+export interface LegalArchiveSellerMatch {
+  state: 'matched' | 'suggested' | 'unmatched' | 'not_applicable';
+  seller?: UserProfile;
+  candidates: UserProfile[];
+  method: 'manual' | 'name' | 'none';
 }
 
 export interface LegalArchiveLineMatch {
@@ -1041,10 +1113,13 @@ export interface LegalArchiveRecord {
   document: LegalDocument | ProformaDocument;
   lines: Array<LegalDocumentLine | ProformaDocumentLine>;
   customerMatch: LegalArchiveCustomerMatch;
+  sellerMatch: LegalArchiveSellerMatch;
   lineMatches: LegalArchiveLineMatch[];
   matchState: LegalArchiveMatchState;
   linkedOrder?: Order;
   autoOrderCandidate?: Order;
+  autoSellerCandidate?: UserProfile;
+  customerOrders: Order[];
   suggestedOrders: Order[];
   searchText: string;
 }

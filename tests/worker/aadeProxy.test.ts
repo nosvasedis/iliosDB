@@ -1,5 +1,12 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import worker, { buildEndpoint, callAadeXml, getAadeCredentialStatus } from '../../worker/worker.js';
+import worker, {
+  buildAadeRegistryEnvelope,
+  buildEndpoint,
+  callAadeRegistry,
+  callAadeXml,
+  getAadeCredentialStatus,
+  parseAadeRegistryResponse,
+} from '../../worker/worker.js';
 
 const env = {
   AUTH_KEY_SECRET: 'secret',
@@ -9,6 +16,8 @@ const env = {
   AADE_SUBSCRIPTION_KEY_PROD: 'key-prod',
   CLOUDFLARE_API_TOKEN: 'cf-token',
   CLOUDFLARE_ACCOUNT_ID: 'cf-account',
+  AADE_REGISTRY_USERNAME: 'registry-user',
+  AADE_REGISTRY_PASSWORD: 'registry-password',
 };
 
 afterEach(() => {
@@ -34,6 +43,96 @@ describe('AADE Worker proxy', () => {
       'AADE_SUBSCRIPTION_KEY_PROD',
     ]);
     expect(status.missingWorkerSecretManager).toEqual(['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID']);
+    expect(status.registry.ready).toBe(false);
+    expect(status.missingRegistryCredentials).toEqual([
+      'AADE_REGISTRY_USERNAME',
+      'AADE_REGISTRY_PASSWORD',
+    ]);
+  });
+
+  it('builds the official SOAP 1.2 registry request without exposing malformed XML', () => {
+    const xml = buildAadeRegistryEnvelope({
+      username: 'user&name',
+      password: 'p<ass',
+      vatNumber: '090165560',
+      requestedByVat: '123456789',
+      referenceDate: '2026-07-28',
+    });
+
+    expect(xml).toContain('http://www.w3.org/2003/05/soap-envelope');
+    expect(xml).toContain('<ns1:Username>user&amp;name</ns1:Username>');
+    expect(xml).toContain('<ns1:Password>p&lt;ass</ns1:Password>');
+    expect(xml).toContain('<ns3:afm_called_for>090165560</ns3:afm_called_for>');
+    expect(xml).toContain('<ns3:as_on_date>2026-07-28</ns3:as_on_date>');
+  });
+
+  it('parses every official registry field including activity rows', () => {
+    const result = parseAadeRegistryResponse(`<?xml version="1.0"?>
+      <env:Envelope xmlns:env="http://www.w3.org/2003/05/soap-envelope">
+        <env:Body><srvc:rgWsPublic2AfmMethodResponse>
+          <srvc:result><rg_ws_public2_result_rtType>
+            <call_seq_id>862701698</call_seq_id>
+            <error_rec><error_code/><error_descr/></error_rec>
+            <afm_called_by_rec><as_on_date>2026-07-28</as_on_date></afm_called_by_rec>
+            <basic_rec>
+              <afm>090165560</afm><doy>1104</doy><doy_descr>Δ ΑΘΗΝΩΝ</doy_descr>
+              <i_ni_flag_descr>ΜΗ ΦΠ</i_ni_flag_descr>
+              <deactivation_flag>1</deactivation_flag>
+              <deactivation_flag_descr>ΕΝΕΡΓΟΣ ΑΦΜ</deactivation_flag_descr>
+              <firm_flag_descr>ΕΠΙΤΗΔΕΥΜΑΤΙΑΣ</firm_flag_descr>
+              <onomasia>ΔΟΚΙΜΑΣΤΙΚΗ ΕΠΙΧΕΙΡΗΣΗ</onomasia>
+              <commer_title>ΔΟΚΙΜΗ</commer_title>
+              <legal_status_descr>ΙΚΕ</legal_status_descr>
+              <postal_address>ΕΡΜΟΥ</postal_address><postal_address_no>1</postal_address_no>
+              <postal_zip_code>10563</postal_zip_code><postal_area_description>ΑΘΗΝΑ</postal_area_description>
+              <regist_date>2020-01-02</regist_date><stop_date/>
+              <normal_vat_system_flag>Y</normal_vat_system_flag>
+            </basic_rec>
+            <firm_act_tab><item>
+              <firm_act_code>47770000</firm_act_code>
+              <firm_act_descr>ΛΙΑΝΙΚΟ ΕΜΠΟΡΙΟ</firm_act_descr>
+              <firm_act_kind>1</firm_act_kind>
+              <firm_act_kind_descr>ΚΥΡΙΑ</firm_act_kind_descr>
+            </item></firm_act_tab>
+          </rg_ws_public2_result_rtType></srvc:result>
+        </srvc:rgWsPublic2AfmMethodResponse></env:Body>
+      </env:Envelope>`);
+
+    expect(result).toMatchObject({
+      vatNumber: '090165560',
+      active: true,
+      businessName: 'ΔΟΚΙΜΑΣΤΙΚΗ ΕΠΙΧΕΙΡΗΣΗ',
+      tradeName: 'ΔΟΚΙΜΗ',
+      normalVatRegime: true,
+      registrationDate: '2020-01-02',
+      address: { street: 'ΕΡΜΟΥ', number: '1', postalCode: '10563', city: 'ΑΘΗΝΑ' },
+    });
+    expect(result.activities).toEqual([{
+      code: '47770000',
+      description: 'ΛΙΑΝΙΚΟ ΕΜΠΟΡΙΟ',
+      kind: '1',
+      kindDescription: 'ΚΥΡΙΑ',
+    }]);
+  });
+
+  it('calls the official registry endpoint with SOAP 1.2 credentials', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(`
+      <rg_ws_public2_result_rtType>
+        <error_rec><error_code/><error_descr/></error_rec>
+        <afm_called_by_rec><as_on_date>2026-07-28</as_on_date></afm_called_by_rec>
+        <basic_rec><afm>090165560</afm><deactivation_flag>2</deactivation_flag>
+          <deactivation_flag_descr>ΑΠΕΝΕΡΓΟΠΟΙΗΜΕΝΟΣ ΑΦΜ</deactivation_flag_descr>
+          <normal_vat_system_flag>N</normal_vat_system_flag></basic_rec>
+        <firm_act_tab></firm_act_tab>
+      </rg_ws_public2_result_rtType>`, { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await callAadeRegistry(env, { vatNumber: '090165560' });
+
+    expect(result.active).toBe(false);
+    expect(result.normalVatRegime).toBe(false);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://www1.gsis.gr/wsaade/RgWsPublic2/RgWsPublic2');
+    expect(fetchMock.mock.calls[0][1].headers['Content-Type']).toContain('application/soap+xml');
   });
 
   it('builds RequestTransmittedDocs query endpoints', () => {

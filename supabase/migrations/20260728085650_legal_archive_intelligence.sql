@@ -1,4 +1,4 @@
--- Smart legal archive: persistent counterpart links, safe AADE enrichment metadata,
+-- Smart legal archive: persistent counterpart links, versioned AADE enrichment metadata,
 -- and learned mappings from external item codes to the Ilios catalog.
 
 ALTER TABLE public.legal_documents
