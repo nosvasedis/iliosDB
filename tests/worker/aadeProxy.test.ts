@@ -6,6 +6,7 @@ import worker, {
   callAadeXml,
   getAadeCredentialStatus,
   parseAadeRegistryResponse,
+  validateAadeRegistryReferenceDate,
 } from '../../worker/worker.js';
 
 const env = {
@@ -133,6 +134,39 @@ describe('AADE Worker proxy', () => {
     expect(result.normalVatRegime).toBe(false);
     expect(fetchMock.mock.calls[0][0]).toBe('https://www1.gsis.gr/wsaade/RgWsPublic2/RgWsPublic2');
     expect(fetchMock.mock.calls[0][1].headers['Content-Type']).toContain('application/soap+xml');
+  });
+
+  it('enforces the registry historical-date limit of three years', () => {
+    const now = new Date('2026-07-29T12:00:00.000Z');
+    expect(validateAadeRegistryReferenceDate('2023-07-29', now)).toBe('2023-07-29');
+    expect(() => validateAadeRegistryReferenceDate('2023-07-28', now)).toThrow(/τρία έτη/i);
+    expect(() => validateAadeRegistryReferenceDate('2026-07-30', now)).toThrow(/μελλοντική/i);
+    expect(() => validateAadeRegistryReferenceDate('2026-02-30', now)).toThrow(/έγκυρη/i);
+  });
+
+  it('tests registry credentials against the issuer VAT before reporting ready', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(`
+      <rg_ws_public2_result_rtType>
+        <error_rec><error_code/><error_descr/></error_rec>
+        <afm_called_by_rec><as_on_date>2026-07-29</as_on_date></afm_called_by_rec>
+        <basic_rec><afm>094259216</afm><deactivation_flag>1</deactivation_flag>
+          <deactivation_flag_descr>ΕΝΕΡΓΟΣ ΑΦΜ</deactivation_flag_descr>
+          <onomasia>ILIOS TEST</onomasia></basic_rec>
+        <firm_act_tab></firm_act_tab>
+      </rg_ws_public2_result_rtType>`, { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await worker.fetch(new Request('https://worker.example/aade/test-registry-connection', {
+      method: 'POST',
+      headers: { Authorization: 'secret', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestedByVat: '094259216' }),
+    }), env);
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.ok).toBe(true);
+    expect(data.verifiedAt).toBeTruthy();
+    expect(data.result).toMatchObject({ vatNumber: '094259216', active: true });
   });
 
   it('builds RequestTransmittedDocs query endpoints', () => {

@@ -392,9 +392,11 @@ describe('legal archive intelligence', () => {
         </counterpart>
         <invoiceHeader><series>TIM</series><aa>44</aa><issueDate>2026-06-10</issueDate><invoiceType>9.3</invoiceType></invoiceHeader>
         <invoiceDetails>
-          <lineNumber>1</lineNumber><quantity>2</quantity><measurementUnit>1</measurementUnit>
+          <lineNumber>1</lineNumber><itemCode>RNG001</itemCode><itemDescr>Δαχτυλίδι Ήλιος</itemDescr>
+          <quantity>2</quantity><measurementUnit>1</measurementUnit>
           <netValue>100</netValue><vatCategory>1</vatCategory><vatAmount>24</vatAmount>
-          <itemDescr>Δαχτυλίδι Ήλιος</itemDescr><itemCode>RNG001</itemCode><lineComments>Μέγεθος 54</lineComments>
+          <lineComments>Μέγεθος 54</lineComments>
+          <incomeClassification><classificationType>E3_561_001</classificationType><classificationCategory>category1_1</classificationCategory><amount>100</amount></incomeClassification>
         </invoiceDetails>
         <invoiceSummary><totalNetValue>100</totalNetValue><totalVatAmount>24</totalVatAmount><totalGrossValue>124</totalGrossValue></invoiceSummary>
         <uid>UID-44</uid><mark>400000044</mark>
@@ -411,21 +413,36 @@ describe('legal archive intelligence', () => {
       lineComments: 'Μέγεθος 54',
       quantity: 2,
       measurementUnit: 1,
+      incomeClassification: {
+        classification_category: 'category1_1',
+        classification_type: 'E3_561_001',
+        amount: 100,
+      },
     });
 
     const enriched = buildArchivedDocumentEnrichment(
       legalDocument({ raw_xml: rawXml, archive_parse_version: 0 }),
       [legalLine({ sku: 'AADE', item_code: null, description: 'AADE γραμμή 1' })],
     );
-    expect(enriched?.document.archive_parse_version).toBe(1);
+    expect(enriched?.document.archive_parse_version).toBe(2);
     expect(enriched?.document.counterpart.name).toBe('ΝΙΚΗ ΑΡΓΥΡΙΟΥ');
     expect(enriched?.lines[0]).toMatchObject({
       sku: 'RNG001',
       item_code: 'RNG001',
       description: 'Δαχτυλίδι Ήλιος',
+      income_classification: {
+        classification_category: 'category1_1',
+        classification_type: 'E3_561_001',
+        amount: 100,
+      },
       source_metadata: {
         line_comments: 'Μέγεθος 54',
-        parser_version: 1,
+        income_classifications: [{
+          classification_category: 'category1_1',
+          classification_type: 'E3_561_001',
+          amount: 100,
+        }],
+        parser_version: 2,
       },
     });
   });

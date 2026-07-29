@@ -7,6 +7,7 @@ import {
   LegalDocument,
   LegalDocumentKind,
   LegalDocumentLine,
+  LegalNumberingAlignmentPreview,
   LegalNumberingSequence,
   LegalIncomeClassification,
   LegalParty,
@@ -22,7 +23,6 @@ import {
   Product,
   ProformaDocument,
   ProformaDocumentLine,
-  ProductionType,
 } from '../types';
 
 export const LEGAL_SETTINGS_ID = '00000000-0000-0000-0000-000000000091';
@@ -567,16 +567,58 @@ function isAllowedIncomeClassification(documentType: AadeDocumentType, item: Leg
   return combinations.some(([allowedCategory, allowedType]) => allowedCategory === category && allowedType === type);
 }
 
-function getIncomeClassification(product: Product | undefined, settings: LegalSettings, amount: number, documentType?: AadeDocumentType): LegalIncomeClassification {
-  const imported = product?.production_type === ProductionType.Imported;
-  return normalizeIncomeClassificationForDocumentType(documentType, {
-    classification_category: imported
-      ? settings.imported_income_classification_category
-      : settings.inhouse_income_classification_category,
-    classification_type: imported
-      ? settings.imported_income_classification_type
-      : settings.inhouse_income_classification_type,
-    amount: roundMoney(amount),
+export const LEGAL_ITEM_CLASSIFICATION_OVERRIDES: Readonly<Record<string, {
+  classification_category: string;
+  classification_type: string;
+}>> = Object.freeze({
+  '000': {
+    classification_category: 'category1_3',
+    classification_type: 'E3_561_001',
+  },
+});
+
+export function normalizeLegalItemCode(value?: string | null): string {
+  return String(value || '').trim().toUpperCase().replace(/\s+/g, '');
+}
+
+export function resolveLegalIncomeClassification(params: {
+  settings: LegalSettings;
+  amount: number;
+  documentType?: AadeDocumentType;
+  itemCode?: string | null;
+  product?: Product;
+  existing?: LegalIncomeClassification | null;
+}): LegalIncomeClassification {
+  const amount = roundMoney(params.amount);
+  if (params.documentType === '9.3') {
+    return {
+      classification_category: 'category3',
+      classification_type: '',
+      amount,
+    };
+  }
+
+  const normalizedItemCode = normalizeLegalItemCode(params.itemCode || params.product?.sku);
+  const override = LEGAL_ITEM_CLASSIFICATION_OVERRIDES[normalizedItemCode];
+  if (override) return { ...override, amount };
+
+  // Production type describes the operational source of an item, not its
+  // myDATA revenue category. Ilios catalog items are goods for resale.
+  if (params.product) {
+    return {
+      classification_category: 'category1_1',
+      classification_type: 'E3_561_001',
+      amount,
+    };
+  }
+
+  return normalizeIncomeClassificationForDocumentType(params.documentType, {
+    ...(params.existing || {
+      classification_category: params.settings.default_income_classification_category,
+      classification_type: params.settings.default_income_classification_type,
+      amount,
+    }),
+    amount,
   });
 }
 
@@ -597,7 +639,13 @@ export function getLegalCatalogLineDetails(
     item_code: product.sku + (suffix || ''),
     description: getLegalProductLineDescription(product),
     unit_price: unitPrice,
-    income_classification: getIncomeClassification(product, settings, unitPrice, aadeDocumentType),
+    income_classification: resolveLegalIncomeClassification({
+      product,
+      settings,
+      amount: unitPrice,
+      documentType: aadeDocumentType,
+      itemCode: product.sku,
+    }),
   };
 }
 
@@ -654,7 +702,13 @@ function buildLinesFromOrderItems(params: {
     const unitPrice = Number((item as OrderItem).price_at_order ?? (item as OrderShipmentItem).price_at_order ?? 0);
     const netValue = roundMoney(unitPrice * item.quantity * discountFactor);
     const vatAmount = roundMoney(netValue * params.vatRate);
-    const incomeClassification = getIncomeClassification(product, params.settings, netValue, params.aadeDocumentType);
+    const incomeClassification = resolveLegalIncomeClassification({
+      product,
+      settings: params.settings,
+      amount: netValue,
+      documentType: params.aadeDocumentType,
+      itemCode: product?.sku || item.sku,
+    });
     return {
       id: buildLineId(params.documentId, index),
       document_id: params.documentId,
@@ -725,9 +779,13 @@ export function recalculateLegalLine(
     gross_value: roundMoney(netValue + vatAmount),
     measurement_unit: Number(line.measurement_unit) || 1,
     item_code: line.item_code || line.sku,
-    income_classification: normalizeIncomeClassificationForDocumentType(aadeDocumentType, {
-      ...(line.income_classification || defaultIncomeClassificationForDocumentType(settings, netValue, aadeDocumentType)),
+    income_classification: resolveLegalIncomeClassification({
+      settings,
       amount: netValue,
+      documentType: aadeDocumentType,
+      itemCode: line.item_code || line.sku,
+      existing: line.income_classification
+        || defaultIncomeClassificationForDocumentType(settings, netValue, aadeDocumentType),
     }),
   };
 }
@@ -1251,7 +1309,7 @@ export function validateLegalDocument(document: LegalDocument, lines: LegalDocum
     issues.push({
       field: 'issuer.vat_number',
       severity: 'error',
-      message: 'Ο ΑΦΜ εκδότη δεν είναι έγκυρος ελληνικός ΑΦΜ. Στο myDATA dev/prod χρειάζεται ο πραγματικός ΑΦΜ της εγγραφής REST API (ίδιος με το AADE User ID).',
+      message: 'Ο ΑΦΜ εκδότη δεν είναι έγκυρος ελληνικός ΑΦΜ. Στο myDATA Δοκιμών/Παραγωγής χρειάζεται ο πραγματικός ΑΦΜ της εγγραφής API (ίδιος με το αναγνωριστικό χρήστη ΑΑΔΕ).',
     });
   }
   if (!normalizeVatNumber(document.counterpart.vat_number)) {
@@ -1260,7 +1318,7 @@ export function validateLegalDocument(document: LegalDocument, lines: LegalDocum
     issues.push({
       field: 'counterpart.vat_number',
       severity: 'error',
-      message: 'Ο ΑΦΜ πελάτη δεν είναι έγκυρος ελληνικός ΑΦΜ. Η ΑΑΔΕ δεν δέχεται πλαστικούς αριθμούς (π.χ. 999999999), ούτε στο dev.',
+      message: 'Ο ΑΦΜ πελάτη δεν είναι έγκυρος ελληνικός ΑΦΜ. Η ΑΑΔΕ δεν δέχεται πλασματικούς αριθμούς (π.χ. 999999999), ούτε στο περιβάλλον Δοκιμών.',
     });
   }
   if (!document.issue_date) {
@@ -1387,7 +1445,7 @@ function buildHeaderXml(document: LegalDocument): string {
   const isDelivery = documentIncludesDeliveryNote(document);
   const delivery = document.delivery;
   const header = [
-    xmlTag('series', document.series || ''),
+    xmlTag('series', document.series?.trim() || '0'),
     xmlTag('aa', document.aa || ''),
     xmlTag('issueDate', document.issue_date),
     xmlTag('invoiceType', document.aade_document_type),
@@ -1396,12 +1454,12 @@ function buildHeaderXml(document: LegalDocument): string {
     isDelivery ? xmlTag('dispatchTime', toXmlTime(delivery?.dispatch_time)) : '',
     isDelivery ? xmlTag('vehicleNumber', delivery?.vehicle_number || delivery?.carrier_vehicle_number) : '',
     isDelivery ? xmlTag('movePurpose', delivery?.move_purpose) : '',
-    isDelivery && delivery?.move_purpose === 19 ? xmlTag('otherMovePurposeTitle', delivery?.move_purpose_title || 'Λοιπή διακίνηση') : '',
-    isDelivery ? xmlTag('isDeliveryNote', 'true') : '',
     isDelivery ? `<otherDeliveryNoteHeader>${[
       buildAddressXml('loadingAddress', delivery?.loading_address),
       buildAddressXml('deliveryAddress', delivery?.delivery_address),
     ].join('')}</otherDeliveryNoteHeader>` : '',
+    isDelivery ? xmlTag('isDeliveryNote', 'true') : '',
+    isDelivery && delivery?.move_purpose === 19 ? xmlTag('otherMovePurposeTitle', delivery?.move_purpose_title || 'Λοιπή διακίνηση') : '',
   ].join('');
   return `<invoiceHeader>${header}</invoiceHeader>`;
 }
@@ -1418,15 +1476,18 @@ function buildLineXml(line: LegalDocumentLine, document: LegalDocument): string 
   const canSendDeliveryLineFields = document.document_kind === 'delivery_note' || document.document_kind === 'invoice_delivery';
   return `<invoiceDetails>${[
     xmlTag('lineNumber', line.line_number),
+    canSendDeliveryLineFields && line.item_code ? xmlTag('itemCode', line.item_code.slice(0, 50)) : '',
+    canSendDeliveryLineFields ? xmlTag('itemDescr', line.description.slice(0, 300)) : '',
     xmlTag('quantity', line.quantity),
     xmlTag('measurementUnit', line.measurement_unit),
     xmlTag('netValue', xmlMoney(line.net_value)),
     xmlTag('vatCategory', line.vat_category),
     xmlTag('vatAmount', xmlMoney(line.vat_amount)),
     line.vat_category === 7 ? xmlTag('vatExemptionCategory', document.vat_exemption_category) : '',
+    line.source_metadata?.line_comments
+      ? xmlTag('lineComments', line.source_metadata.line_comments)
+      : '',
     buildIncomeClassificationXml(line.income_classification),
-    canSendDeliveryLineFields ? xmlTag('itemDescr', line.description.slice(0, 300)) : '',
-    canSendDeliveryLineFields && line.item_code ? xmlTag('itemCode', line.item_code) : '',
   ].join('')}</invoiceDetails>`;
 }
 
@@ -1630,6 +1691,17 @@ export function parseTransmittedDocumentsXml(xml: string): AadeTransmittedDocsPa
       const lines = findXmlBlocks(invoice, 'invoiceDetails').map((line) => {
         const netValue = xmlNumber(findXmlValue(line, 'netValue'));
         const vatAmount = xmlNumber(findXmlValue(line, 'vatAmount'));
+        const incomeClassifications = findXmlBlocks(line, 'incomeClassification')
+          .map((classification): LegalIncomeClassification | null => {
+            const classificationCategory = findXmlValue(classification, 'classificationCategory');
+            if (!classificationCategory) return null;
+            return {
+              classification_category: classificationCategory,
+              classification_type: findXmlValue(classification, 'classificationType') || '',
+              amount: roundMoney(xmlNumber(findXmlValue(classification, 'amount'), netValue)),
+            };
+          })
+          .filter((classification): classification is LegalIncomeClassification => !!classification);
         return {
           lineNumber: Math.trunc(xmlNumber(findXmlValue(line, 'lineNumber'), 1)),
           netValue,
@@ -1640,6 +1712,8 @@ export function parseTransmittedDocumentsXml(xml: string): AadeTransmittedDocsPa
           lineComments: findXmlValue(line, 'lineComments') || null,
           quantity: xmlNumber(findXmlValue(line, 'quantity'), 0) || null,
           measurementUnit: Math.trunc(xmlNumber(findXmlValue(line, 'measurementUnit'), 0)) || null,
+          incomeClassification: incomeClassifications[0] || null,
+          incomeClassifications,
         };
       });
       const issuer = parseTransmittedParty(findXmlBlocks(invoice, 'issuer')[0] || '');
@@ -1687,14 +1761,112 @@ export function parseTransmittedDocumentsXml(xml: string): AadeTransmittedDocsPa
   };
 }
 
-export function isOfficialLegalDocumentPrint(document: LegalDocument): boolean {
-  return document.status === 'issued' && !!document.aade_mark && !!document.qr_url;
+const legalPrintMoneyMatches = (left: number, right: number) =>
+  Math.abs(roundMoney(left) - roundMoney(right)) <= 0.01;
+
+export function getLegalOfficialPrintValidationIssues(
+  document: LegalDocument,
+  suppliedLines?: LegalDocumentLine[],
+): LegalValidationIssue[] {
+  const issues: LegalValidationIssue[] = [];
+  const knownLines = suppliedLines ?? document.lines;
+  const lines = knownLines || [];
+  const validateLines = Array.isArray(knownLines);
+  const issuerName = document.issuer.business_name || document.issuer.name;
+  const issuerAddress = document.issuer.address;
+  const counterpartRequired = document.document_kind !== 'delivery_note' && document.aade_document_type !== '9.3';
+
+  if (document.status !== 'issued' && document.status !== 'cancelled') {
+    issues.push({ field: 'status', severity: 'error', message: 'Το παραστατικό δεν βρίσκεται σε νόμιμη κατάσταση έκδοσης.' });
+  }
+  if (!document.aade_mark?.trim()) {
+    issues.push({ field: 'aade_mark', severity: 'error', message: 'Λείπει το MARK της ΑΑΔΕ.' });
+  }
+  if (!document.qr_url?.trim()) {
+    issues.push({ field: 'qr_url', severity: 'error', message: 'Λείπει το QR της ΑΑΔΕ.' });
+  }
+  if (document.status === 'cancelled' && !document.cancellation_mark?.trim()) {
+    issues.push({ field: 'cancellation_mark', severity: 'error', message: 'Λείπει το MARK ακύρωσης.' });
+  }
+  if (!issuerName?.trim()) {
+    issues.push({ field: 'issuer.name', severity: 'error', message: 'Λείπει η επωνυμία του εκδότη.' });
+  }
+  if (!normalizeVatNumber(document.issuer.vat_number)) {
+    issues.push({ field: 'issuer.vat_number', severity: 'error', message: 'Λείπει το ΑΦΜ του εκδότη.' });
+  }
+  if (!issuerAddress || (!issuerAddress.street?.trim() && !issuerAddress.city?.trim())) {
+    issues.push({ field: 'issuer.address', severity: 'error', message: 'Λείπει η διεύθυνση του εκδότη.' });
+  }
+  if (counterpartRequired) {
+    if (!document.counterpart.name?.trim()) {
+      issues.push({ field: 'counterpart.name', severity: 'error', message: 'Λείπει η επωνυμία του αντισυμβαλλομένου.' });
+    }
+    if (!normalizeVatNumber(document.counterpart.vat_number)) {
+      issues.push({ field: 'counterpart.vat_number', severity: 'error', message: 'Λείπει το ΑΦΜ του αντισυμβαλλομένου.' });
+    }
+    if (!document.counterpart.address
+      || (!document.counterpart.address.street?.trim() && !document.counterpart.address.city?.trim())) {
+      issues.push({ field: 'counterpart.address', severity: 'error', message: 'Λείπει η διεύθυνση του αντισυμβαλλομένου.' });
+    }
+  }
+  if (!document.series?.trim()) {
+    issues.push({ field: 'series', severity: 'error', message: 'Λείπει η σειρά του παραστατικού.' });
+  }
+  if (!document.aa?.trim() || !/^\d+$/.test(document.aa.trim()) || Number(document.aa) < 1) {
+    issues.push({ field: 'aa', severity: 'error', message: 'Λείπει έγκυρος Α/Α του παραστατικού.' });
+  }
+  if (!document.issue_date || Number.isNaN(new Date(document.issue_date).getTime())) {
+    issues.push({ field: 'issue_date', severity: 'error', message: 'Λείπει έγκυρη ημερομηνία έκδοσης.' });
+  }
+  if (validateLines && !lines.length) {
+    issues.push({ field: 'lines', severity: 'error', message: 'Το παραστατικό δεν έχει γραμμές.' });
+  }
+
+  if (validateLines) lines.forEach((line, index) => {
+    const lineLabel = `Γραμμή ${line.line_number || index + 1}`;
+    if (!line.description?.trim()) {
+      issues.push({ field: `lines.${index}.description`, severity: 'error', message: `${lineLabel}: λείπει η περιγραφή.` });
+    }
+    if (!Number.isFinite(line.quantity) || line.quantity <= 0) {
+      issues.push({ field: `lines.${index}.quantity`, severity: 'error', message: `${lineLabel}: μη έγκυρη ποσότητα.` });
+    }
+    if (!Number.isInteger(line.measurement_unit) || line.measurement_unit <= 0) {
+      issues.push({ field: `lines.${index}.measurement_unit`, severity: 'error', message: `${lineLabel}: λείπει έγκυρη μονάδα μέτρησης.` });
+    }
+    if (![line.net_value, line.vat_amount, line.gross_value].every(Number.isFinite)
+      || !legalPrintMoneyMatches(line.net_value + line.vat_amount, line.gross_value)) {
+      issues.push({ field: `lines.${index}.totals`, severity: 'error', message: `${lineLabel}: οι αξίες δεν συμφωνούν.` });
+    }
+  });
+
+  if (validateLines && lines.length) {
+    const lineTotals = lines.reduce((totals, line) => ({
+      net: totals.net + line.net_value,
+      vat: totals.vat + line.vat_amount,
+      gross: totals.gross + line.gross_value,
+    }), { net: 0, vat: 0, gross: 0 });
+    if (!legalPrintMoneyMatches(lineTotals.net, document.totals.net)
+      || !legalPrintMoneyMatches(lineTotals.vat, document.totals.vat)
+      || !legalPrintMoneyMatches(lineTotals.gross, document.totals.gross)
+      || !legalPrintMoneyMatches(document.totals.net + document.totals.vat, document.totals.gross)) {
+      issues.push({ field: 'totals', severity: 'error', message: 'Τα σύνολα δεν συμφωνούν με τις γραμμές του παραστατικού.' });
+    }
+  }
+
+  return issues;
 }
 
-export function canPrintLegalDocument(document: LegalDocument): boolean {
+export function isOfficialLegalDocumentPrint(
+  document: LegalDocument,
+  lines?: LegalDocumentLine[],
+): boolean {
+  return getLegalOfficialPrintValidationIssues(document, lines).length === 0;
+}
+
+export function canPrintLegalDocument(document: LegalDocument, lines?: LegalDocumentLine[]): boolean {
   if (document.status === 'submitted') return false;
-  if (isOfficialLegalDocumentPrint(document)) return true;
-  if (document.status === 'cancelled') return !!document.aade_mark;
+  if (isOfficialLegalDocumentPrint(document, lines)) return true;
+  if (document.status === 'cancelled') return false;
   return document.status === 'draft' || document.status === 'failed';
 }
 
@@ -1803,6 +1975,7 @@ export function getProformaDeletePrompt(document: ProformaDocument): LegalDocume
 const GREEK_SERIES_CHAR_MAP: Record<string, string> = {
   Α: 'A',
   Β: 'B',
+  Δ: 'D',
   Ε: 'E',
   Ζ: 'Z',
   Η: 'H',
@@ -1821,7 +1994,7 @@ const GREEK_SERIES_CHAR_MAP: Record<string, string> = {
 
 /** Normalizes invoice series for comparison (e.g. ΤΙΜ vs TIM). */
 export function normalizeLegalSeriesKey(series: string | null | undefined): string {
-  return String(series || '')
+  return String(series || '0')
     .trim()
     .toUpperCase()
     .split('')
@@ -1885,6 +2058,7 @@ export function buildLegalNumberingAlignmentPlan(
     const sequenceKey = normalizeLegalSeriesKey(sequence.series);
     const matching = numberingDocuments.filter((document) =>
       document.document_kind === sequence.document_kind
+      && document.aade_document_type === sequence.aade_document_type
       && normalizeLegalSeriesKey(document.series) === sequenceKey,
     );
 
@@ -1892,6 +2066,7 @@ export function buildLegalNumberingAlignmentPlan(
     numberingDocuments
       .filter((document) =>
         document.document_kind === sequence.document_kind
+        && document.aade_document_type === sequence.aade_document_type
         && normalizeLegalSeriesKey(document.series) !== sequenceKey,
       )
       .forEach((document) => {
@@ -1997,6 +2172,84 @@ export function formatLegalNumberingAlignmentMessage(plan: LegalNumberingAlignme
     lines.push('Να ενημερωθεί η αρίθμηση; Το «Επόμενο» δεν μειώνεται ποτέ αυτόματα.');
   } else {
     lines.push('Δεν απαιτείται αλλαγή στην ενεργή αρίθμηση ERP.');
+  }
+  return lines.join('\n');
+}
+
+export function formatLegalNumberingAlignmentPreview(
+  preview: LegalNumberingAlignmentPreview,
+): string {
+  const lines: string[] = [];
+  const describe = (item: LegalNumberingAlignmentPreview['changes'][number]) =>
+    `${LEGAL_DOCUMENT_KIND_LABELS[item.document_kind]} · σειρά «${item.series}» · τύπος ${item.aade_document_type}`;
+
+  lines.push('Αλλαγές', '');
+  if (preview.changes.length) {
+    preview.changes.forEach((item) => {
+      lines.push(
+        describe(item),
+        `  Αρχείο: μέγιστος Α/Α ${item.max_aa ?? '—'} (${item.document_count} εγγραφές)`,
+        `  Επόμενο ERP: ${item.current_next_aa} → ${item.proposed_next_aa}`,
+        '',
+      );
+    });
+  } else {
+    lines.push('• Δεν απαιτείται καμία αλλαγή.', '');
+  }
+
+  lines.push('Ήδη ασφαλείς σειρές', '');
+  if (preview.already_safe.length) {
+    preview.already_safe.forEach((item) => {
+      lines.push(
+        `• ${describe(item)} · επόμενο ${item.current_next_aa} · μέγιστος Α/Α ${item.max_aa ?? '—'}`,
+      );
+    });
+  } else {
+    lines.push('• Καμία σειρά με υπάρχον ιστορικό.', '');
+  }
+  lines.push('');
+
+  lines.push('Νέες σειρές χωρίς ιστορικό', '');
+  if (preview.new_namespaces.length) {
+    preview.new_namespaces.forEach((item) => {
+      lines.push(
+        `• ${describe(item)} · επόμενο ${item.current_next_aa}. Δεν υπάρχει παραστατικό στον ίδιο χώρο αρίθμησης.`,
+      );
+    });
+  } else {
+    lines.push('• Καμία.', '');
+  }
+  lines.push('');
+
+  lines.push('Άλλες ιστορικές σειρές', '');
+  if (preview.historical_series.length) {
+    preview.historical_series.forEach((item) => {
+      const namespaceText = item.is_no_series_namespace
+        ? 'χωρίς σειρά σύμφωνα με το myDATA'
+        : 'ξεχωριστός ιστορικός χώρος αρίθμησης';
+      const statusLabels: Partial<Record<LegalDocument['status'], string>> = {
+        draft: 'Πρόχειρα',
+        submitted: 'Σε αποστολή',
+        issued: 'Εκδοθέντα',
+        failed: 'Αποτυχημένα',
+        cancelled: 'Ακυρωμένα',
+      };
+      const statusText = Object.entries(item.status_counts || {})
+        .map(([status, count]) => `${statusLabels[status as LegalDocument['status']] || status}: ${count}`)
+        .join(', ');
+      lines.push(
+        `• ${LEGAL_DOCUMENT_KIND_LABELS[item.document_kind]} · σειρά «${item.series}» · ${item.document_count} εγγραφές · μέγιστος Α/Α ${item.max_aa ?? '—'}`,
+        `  ${namespaceText}. Δεν επηρεάζει την ενεργή σειρά «${item.active_series}».${statusText ? ` Καταστάσεις: ${statusText}.` : ''}`,
+      );
+    });
+  } else {
+    lines.push('• Καμία.', '');
+  }
+
+  if (preview.changes.length) {
+    lines.push('', 'Η εφαρμογή επανελέγχει τα τρέχοντα δεδομένα και δεν μειώνει ποτέ το «Επόμενο».');
+  } else {
+    lines.push('', 'Οι ενεργές σειρές είναι ασφαλείς. Οι νέες σειρές ξεκινούν ανεξάρτητα από τους ιστορικούς χώρους αρίθμησης.');
   }
   return lines.join('\n');
 }

@@ -11,7 +11,6 @@ import {
   LegalPrintAadePanel,
   LegalPrintCustomerBar,
   LegalPrintDeliverySection,
-  LegalPrintFooter,
   LegalPrintHeader,
   LegalPrintLinesTable,
   LegalPrintPage,
@@ -31,13 +30,21 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
     .map((item) => `${formatAadeIncomeCategoryLabel(item.classification_category)} · ${formatAadeIncomeTypeLabel(item.classification_type)} ${formatPrintMoney(item.amount, document.currency)}`)
     .join(', ');
 
-  const isOfficialPrint = isOfficialLegalDocumentPrint(document);
+  const isOfficialPrint = isOfficialLegalDocumentPrint(document, lines);
+  const footerText = isOfficialPrint
+    ? document.status === 'cancelled'
+      ? `Το παραστατικό είχε διαβιβαστεί επιτυχώς στη myDATA και στη συνέχεια ακυρώθηκε. MARK ακύρωσης: ${document.cancellation_mark || '-'}`
+      : 'Το παρόν εκτυπώνεται από το IliosERP μετά από επιτυχή διαβίβαση στη myDATA. Το QR και το MARK επιβεβαιώνουν την καταχώρηση στην ΑΑΔΕ.'
+    : 'Πρόχειρη εκτύπωση εσωτερικής χρήσης IliosERP. Για φορολογική ισχύ απαιτείται υποβολή και αποδοχή στη myDATA.';
 
   return (
     <LegalPrintPage>
       <LegalPrintHeader
         title={kindLabel.toUpperCase()}
         documentNumber={getLegalDocumentDisplayNumber(document)}
+        issuer={document.issuer}
+        series={document.series}
+        aa={document.aa}
         issueDate={document.issue_date}
         documentTypeCode={document.aade_document_type}
         statusBadge={document.status === 'cancelled' ? (
@@ -85,13 +92,8 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
         paymentMethodLabel={PAYMENT_METHOD_LABELS[document.payment_method_code] || String(document.payment_method_code)}
         vatExemptionCategory={document.vat_exemption_category}
         revenueClassificationText={revenueClassificationText}
+        footerText={footerText}
       />
-
-      <LegalPrintFooter>
-        {isOfficialPrint
-          ? 'Το παρόν εκτυπώνεται από το IliosERP μετά από επιτυχή διαβίβαση στη myDATA. Το QR και το MARK επιβεβαιώνουν την καταχώρηση στην ΑΑΔΕ.'
-          : 'Πρόχειρη εκτύπωση εσωτερικής χρήσης IliosERP. Για φορολογική ισχύ απαιτείται υποβολή και αποδοχή στη myDATA.'}
-      </LegalPrintFooter>
     </LegalPrintPage>
   );
 };

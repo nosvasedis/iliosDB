@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, OrderItem, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, BatchStageHistoryEntry, SyncOfflineResult, LegalSettings, LegalNumberingSequence, LegalCarrier, LegalDocument, LegalDocumentLine, LegalTransmission, LegalDeliveryEvent, AadeProxyResult, AadeCredentialStatus, AadeCredentialSavePayload, AadeRegistryCredentialSavePayload, AadeVatRegistryResult, ProformaDocument, ProformaDocumentLine, LegalSyncParams, LegalSyncRun, AadeDocumentType, LegalExternalItemAlias, LegalOrderLinkMode, LegalOrderLineAllocation } from '../types';
+import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, OrderItem, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, BatchStageHistoryEntry, SyncOfflineResult, LegalSettings, LegalNumberingSequence, LegalNumberingAlignmentPreview, LegalNumberingAlignmentResult, LegalCarrier, LegalDocument, LegalDocumentLine, LegalTransmission, LegalDeliveryEvent, AadeProxyResult, AadeCredentialStatus, AadeCredentialSavePayload, AadeRegistryCredentialSavePayload, AadeVatRegistryResult, LegalRegistryConnectionStatus, ProformaDocument, ProformaDocumentLine, LegalSyncParams, LegalSyncRun, AadeDocumentType, LegalExternalItemAlias, LegalOrderLinkMode, LegalOrderLineAllocation } from '../types';
 import { INITIAL_SETTINGS, MOCK_MATERIALS, requiresAssemblyStage, requiresSettingStage } from '../constants';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { offlineDb } from './offlineDb';
@@ -64,7 +64,7 @@ import {
 } from './inspectionMode';
 import { addReceivedSizeQuantity, resolveSupplierOrderProductReceiptTarget, supplierOrderInventoryReceiptQuantity } from '../features/suppliers/receiptHelpers';
 import { getGreekOperationalErrorMessage } from '../features/inventory/greek';
-import { buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, getAadeProxyErrorMessage, isEmptyTransmittedDocsResponse, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, parseAadeResponseXml, parseTransmittedDocumentsXml, roundMoney, serializeLegalDocumentForDb, serializeLegalDocumentLineForDb, serializeProformaDocumentForDb, validateLegalDocument } from '../utils/legalDocuments';
+import { buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, getAadeProxyErrorMessage, groupIncomeClassifications, isEmptyTransmittedDocsResponse, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, parseAadeResponseXml, parseTransmittedDocumentsXml, resolveLegalIncomeClassification, roundMoney, serializeLegalDocumentForDb, serializeLegalDocumentLineForDb, serializeProformaDocumentForDb, validateLegalDocument } from '../utils/legalDocuments';
 import { buildArchivedDocumentEnrichment, LEGAL_ARCHIVE_PARSE_VERSION } from '../features/legal/archive';
 
 // Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
@@ -1160,6 +1160,30 @@ export const api = {
         }, { onConflict: 'id', noSelect: true });
     },
 
+    previewLegalNumberingAlignment: async (): Promise<LegalNumberingAlignmentPreview> => {
+        if (isLocalMode || !navigator.onLine) {
+            throw new Error('Η ευθυγράμμιση απαιτεί ζωντανή σύνδεση με το Supabase.');
+        }
+        assertInspectionRpcAllowed('preview_legal_numbering_alignment');
+        const { data, error } = await supabase.rpc('preview_legal_numbering_alignment');
+        if (error) throw new Error(error.message || 'Δεν δημιουργήθηκε η προεπισκόπηση αρίθμησης.');
+        return data as LegalNumberingAlignmentPreview;
+    },
+
+    applyLegalNumberingAlignment: async (
+        expectedPreviewToken: string,
+    ): Promise<LegalNumberingAlignmentResult> => {
+        if (isLocalMode || !navigator.onLine) {
+            throw new Error('Η ευθυγράμμιση απαιτεί ζωντανή σύνδεση με το Supabase.');
+        }
+        assertInspectionRpcAllowed('apply_legal_numbering_alignment');
+        const { data, error } = await supabase.rpc('apply_legal_numbering_alignment', {
+            p_expected_preview_token: expectedPreviewToken,
+        });
+        if (error) throw new Error(error.message || 'Δεν εφαρμόστηκε η ευθυγράμμιση αρίθμησης.');
+        return data as LegalNumberingAlignmentResult;
+    },
+
     getLegalCarriers: async (): Promise<LegalCarrier[]> => {
         const rows = await fetchFullTable('legal_carriers', '*', (q) => q.order('is_default', { ascending: false }).order('name'));
         return rows as LegalCarrier[];
@@ -1336,25 +1360,24 @@ export const api = {
         let enrichedCount = 0;
         for (let offset = 0; offset < pending.length; offset += 25) {
             const batch = pending.slice(offset, offset + 25);
-            await Promise.all(batch.map(async (document) => {
+            const enrichedBatch = batch.map((document) => {
                 const enriched = buildArchivedDocumentEnrichment(document, linesByDocument.get(document.id) || []);
-                if (!enriched) return;
-                await Promise.all(enriched.lines.map((line) =>
-                    safeMutate(
-                        'legal_document_lines',
-                        'UPDATE',
-                        serializeLegalDocumentLineForDb(line, document.id),
-                        { match: { id: line.id }, noSelect: true },
-                    ),
-                ));
-                await safeMutate('legal_documents', 'UPDATE', {
-                    issuer: enriched.document.issuer,
+                return enriched ? { document, enriched } : null;
+            }).filter((item): item is NonNullable<typeof item> => !!item);
+            if (!enrichedBatch.length) continue;
+
+            assertInspectionRpcAllowed('apply_legal_archive_reindex_batch');
+            const { data, error } = await supabase.rpc('apply_legal_archive_reindex_batch', {
+                p_documents: enrichedBatch.map(({ document, enriched }) => ({
+                    id: document.id,
                     counterpart: enriched.document.counterpart,
                     archive_parse_version: LEGAL_ARCHIVE_PARSE_VERSION,
-                    updated_at: new Date().toISOString(),
-                }, { match: { id: document.id }, noSelect: true });
-                enrichedCount += 1;
-            }));
+                })),
+                p_lines: enrichedBatch.flatMap(({ document, enriched }) =>
+                    enriched.lines.map((line) => serializeLegalDocumentLineForDb(line, document.id))),
+            });
+            if (error) throw new Error(error.message || 'Αποτυχία ομαδικής επανευρετηρίασης Αρχείου.');
+            enrichedCount += Number(data || enrichedBatch.length);
         }
         return enrichedCount;
     },
@@ -1644,6 +1667,13 @@ export const api = {
                     const lines: LegalDocumentLine[] = transmitted.lines.map((line) => {
                         const quantity = line.quantity || 1;
                         const netValue = roundMoney(line.netValue);
+                        const incomeClassification = line.incomeClassification
+                            || resolveLegalIncomeClassification({
+                                settings,
+                                amount: netValue,
+                                documentType: transmitted.invoiceType as AadeDocumentType,
+                                itemCode: line.itemCode,
+                            });
                         return {
                             id: existing ? crypto.randomUUID() : crypto.randomUUID(),
                             document_id: documentId,
@@ -1659,17 +1689,14 @@ export const api = {
                             gross_value: roundMoney(line.netValue + line.vatAmount),
                             measurement_unit: line.measurementUnit || 1,
                             item_code: line.itemCode || null,
-                            income_classification: {
-                                classification_category: settings.default_income_classification_category,
-                                classification_type: settings.default_income_classification_type,
-                                amount: netValue,
-                            },
+                            income_classification: incomeClassification,
                             source_order_line_key: null,
                             line_id: null,
                             source_metadata: {
                                 item_description: line.itemDescription || null,
                                 line_comments: line.lineComments || null,
                                 raw_item_code: line.itemCode || null,
+                                income_classifications: line.incomeClassifications || [],
                                 parser_version: LEGAL_ARCHIVE_PARSE_VERSION,
                             },
                             created_at: now,
@@ -1690,7 +1717,7 @@ export const api = {
                         series: transmitted.series || existing?.series || null,
                         aa: transmitted.aa || existing?.aa || null,
                         issue_date: transmitted.issueDate || existing?.issue_date || new Date().toISOString().slice(0, 10),
-                        issuer: {
+                        issuer: existing?.issuer || {
                             ...settings.issuer,
                             ...(transmitted.issuer || {}),
                             vat_number: transmitted.issuerVat || settings.issuer.vat_number,
@@ -1710,11 +1737,13 @@ export const api = {
                         currency: existing?.currency || 'EUR',
                         vat_rate: existing?.vat_rate || null,
                         vat_exemption_category: existing?.vat_exemption_category || null,
-                        revenue_classification: [{
-                            classification_category: settings.default_income_classification_category,
-                            classification_type: settings.default_income_classification_type,
-                            amount: transmitted.totals.net,
-                        }],
+                        revenue_classification: groupIncomeClassifications(
+                            transmitted.lines.flatMap((sourceLine, index) =>
+                                (sourceLine.incomeClassifications?.length
+                                    ? sourceLine.incomeClassifications
+                                    : [lines[index].income_classification]
+                                ).map((income_classification) => ({ income_classification }))),
+                        ),
                         totals: transmitted.totals,
                         aade_uid: transmitted.uid || existing?.aade_uid || null,
                         aade_mark: transmitted.mark,
@@ -1887,23 +1916,25 @@ export const api = {
         if (existing.status === 'cancelled') throw new Error('Το παραστατικό έχει ακυρωθεί.');
 
         const lines = await api.getLegalDocumentLines(documentId);
-        let document: LegalDocument = { ...existing, lines };
+        let document: LegalDocument = {
+            ...existing,
+            issuer: existing.series && existing.aa ? existing.issuer : settings.issuer,
+            lines,
+        };
         const issues = validateLegalDocument(document, lines).filter((issue) => issue.severity === 'error');
         if (issues.length > 0) throw new Error(issues.map((issue) => issue.message).join('\n'));
 
-        if (!document.series || !document.aa) {
-            const sequences = await api.getLegalNumberingSequences();
-            const sequence = sequences.find((item) =>
-                item.is_active &&
-                item.document_kind === document.document_kind &&
-                item.aade_document_type === document.aade_document_type
-            );
-            if (!sequence) throw new Error('Δεν υπάρχει ενεργή σειρά αρίθμησης για αυτόν τον τύπο παραστατικού.');
-            const { data, error } = await supabase.rpc('allocate_legal_document_number', { p_sequence_id: sequence.id });
-            if (error) throw new Error(error.message);
-            const allocated = Array.isArray(data) ? data[0] : data;
-            document = { ...document, series: allocated?.series || sequence.series, aa: allocated?.aa || String(sequence.next_aa) };
+        assertInspectionRpcAllowed('prepare_legal_document_submission');
+        const { data: preparedData, error: prepareError } = await supabase.rpc(
+            'prepare_legal_document_submission',
+            { p_document_id: document.id },
+        );
+        if (prepareError) throw new Error(prepareError.message || 'Δεν δεσμεύτηκε αριθμός παραστατικού.');
+        const prepared = (Array.isArray(preparedData) ? preparedData[0] : preparedData) as LegalDocument | null;
+        if (!prepared?.series || !prepared?.aa) {
+            throw new Error('Η βάση δεν επέστρεψε έγκυρη σειρά και Α/Α.');
         }
+        document = { ...document, ...prepared, lines };
 
         const rawXml = buildAadeInvoiceXml(document, lines);
         const submittedAt = new Date().toISOString();
@@ -2140,6 +2171,33 @@ export const api = {
         return (data?.status || data) as AadeCredentialStatus;
     },
 
+    testAadeRegistryConnection: async (
+        requestedByVat: string,
+    ): Promise<LegalRegistryConnectionStatus> => {
+        assertInspectionWorkerRouteAllowed('/aade/test-registry-connection');
+        if (!AUTH_KEY_SECRET) throw new Error('Λείπει το κλειδί Worker Auth από τη ρύθμιση του IliosERP.');
+        const normalizedVat = requestedByVat.replace(/^EL/i, '').replace(/\D/g, '');
+        if (!/^\d{9}$/.test(normalizedVat)) {
+            throw new Error('Συμπληρώστε έγκυρο ΑΦΜ εκδότη πριν τον έλεγχο σύνδεσης.');
+        }
+        const response = await fetch(`${CLOUDFLARE_WORKER_URL}/aade/test-registry-connection`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: AUTH_KEY_SECRET },
+            body: JSON.stringify({ requestedByVat: normalizedVat }),
+        });
+        const data = await parseWorkerJsonResponse(response);
+        if (!response.ok) {
+            throw new Error(data?.error || `Ο έλεγχος σύνδεσης Μητρώου ΑΑΔΕ απέτυχε (${response.status}).`);
+        }
+        return {
+            configured: true,
+            verified: true,
+            verifiedAt: data?.verifiedAt || new Date().toISOString(),
+            message: 'Η σύνδεση με το Μητρώο ΑΑΔΕ επαληθεύτηκε.',
+            result: (data?.result || null) as AadeVatRegistryResult | null,
+        };
+    },
+
     lookupAadeVatRegistry: async (payload: {
         vatNumber: string;
         requestedByVat?: string | null;
@@ -2149,6 +2207,21 @@ export const api = {
         if (!AUTH_KEY_SECRET) throw new Error('Λείπει το κλειδί Worker Auth από τη ρύθμιση του IliosERP.');
         const vatNumber = payload.vatNumber.replace(/^EL/i, '').replace(/\D/g, '');
         if (!/^\d{9}$/.test(vatNumber)) throw new Error('Το ΑΦΜ πρέπει να αποτελείται από 9 ψηφία.');
+        if (payload.referenceDate) {
+            const referenceDate = new Date(`${payload.referenceDate}T00:00:00.000Z`);
+            const today = new Date();
+            const todayUtc = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+            const earliest = new Date(todayUtc);
+            earliest.setUTCFullYear(earliest.getUTCFullYear() - 3);
+            if (
+                Number.isNaN(referenceDate.getTime())
+                || referenceDate.toISOString().slice(0, 10) !== payload.referenceDate
+                || referenceDate > todayUtc
+                || referenceDate < earliest
+            ) {
+                throw new Error('Η ημερομηνία αναφοράς πρέπει να είναι από σήμερα έως και τρία έτη πίσω.');
+            }
+        }
         const response = await fetch(`${CLOUDFLARE_WORKER_URL}/aade/lookup-vat-registry`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: AUTH_KEY_SECRET },

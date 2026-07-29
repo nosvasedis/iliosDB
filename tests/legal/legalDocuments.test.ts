@@ -23,6 +23,7 @@ import {
   canPrintLegalDocument,
   canPrintProforma,
   convertProformaToLegalDraft,
+  getLegalOfficialPrintValidationIssues,
   isOfficialLegalDocumentPrint,
   serializeLegalDocumentLineForDb,
   createManualLegalDocumentLine,
@@ -265,8 +266,45 @@ describe('legal document helpers', () => {
     expect(xml).toContain('<dispatchDate>');
     expect(xml).toContain('<itemDescr>Δαχτυλίδι</itemDescr>');
     expect(xml).toContain('<itemCode>RNG001</itemCode>');
-    expect(xml.indexOf('<incomeClassification>')).toBeLessThan(xml.indexOf('<itemDescr>'));
-    expect(xml.indexOf('<itemDescr>')).toBeLessThan(xml.indexOf('<itemCode>'));
+    expect(xml.indexOf('<itemCode>')).toBeLessThan(xml.indexOf('<itemDescr>'));
+    expect(xml.indexOf('<itemDescr>')).toBeLessThan(xml.indexOf('<quantity>'));
+    expect(xml.indexOf('<quantity>')).toBeLessThan(xml.indexOf('<incomeClassification>'));
+  });
+
+  it('serializes an omitted series as the official no-series namespace 0', () => {
+    const document = buildLegalDocumentFromOrder({
+      order: baseOrder,
+      customer,
+      products: [product],
+      settings,
+      kind: 'invoice',
+    });
+    const xml = buildAadeInvoiceXml({ ...document, series: '', aa: '1' }, document.lines);
+
+    expect(xml).toContain('<series>0</series>');
+  });
+
+  it('classifies catalog shipping code 000 centrally as category1_3', () => {
+    const shippingProduct = { ...product, sku: '000', description: 'Μεταφορικά' };
+    const shippingOrder = {
+      ...baseOrder,
+      items: [{ ...baseOrder.items[0], sku: '000', quantity: 1, price_at_order: 5 }],
+    };
+    const document = buildLegalDocumentFromOrder({
+      order: shippingOrder,
+      customer,
+      products: [shippingProduct],
+      settings,
+      kind: 'invoice',
+    });
+
+    expect(document.lines![0].income_classification).toMatchObject({
+      classification_category: 'category1_3',
+      classification_type: 'E3_561_001',
+      amount: 5,
+    });
+    expect(buildAadeInvoiceXml({ ...document, series: 'TIM', aa: '1' }, document.lines))
+      .toContain('<icls:classificationCategory>category1_3</icls:classificationCategory>');
   });
 
   it('uses the official non-E3 classification for delivery notes', () => {
@@ -340,18 +378,26 @@ describe('legal document helpers', () => {
     });
     expect(canPrintLegalDocument(document)).toBe(true);
     expect(isOfficialLegalDocumentPrint(document)).toBe(false);
+    const issuedDocument = {
+      ...document,
+      status: 'issued',
+      series: 'TIM',
+      aa: '1',
+      aade_mark: parsed.invoiceMark,
+      qr_url: parsed.qrUrl,
+    } as LegalDocument;
+    expect(isOfficialLegalDocumentPrint(issuedDocument, document.lines)).toBe(true);
+    expect(getLegalOfficialPrintValidationIssues(issuedDocument, document.lines)).toEqual([]);
+    expect(canPrintLegalDocument(issuedDocument, document.lines)).toBe(true);
     expect(isOfficialLegalDocumentPrint({
-      ...document,
-      status: 'issued',
-      aade_mark: parsed.invoiceMark,
-      qr_url: parsed.qrUrl,
-    })).toBe(true);
-    expect(canPrintLegalDocument({
-      ...document,
-      status: 'issued',
-      aade_mark: parsed.invoiceMark,
-      qr_url: parsed.qrUrl,
-    })).toBe(true);
+      ...issuedDocument,
+      totals: { ...issuedDocument.totals, gross: issuedDocument.totals.gross + 1 },
+    }, document.lines)).toBe(false);
+    expect(isOfficialLegalDocumentPrint({
+      ...issuedDocument,
+      status: 'cancelled',
+      cancellation_mark: '500000001',
+    }, document.lines)).toBe(true);
   });
 
   it('recalculates manually edited document lines and document totals', () => {
@@ -383,7 +429,11 @@ describe('legal document helpers', () => {
     expect(updated.lines[0].vat_amount).toBe(19.2);
     expect(updated.lines[1].net_value).toBe(30);
     expect(updated.document.totals).toMatchObject({ net: 110, vat: 26.4, gross: 136.4, quantity: 4 });
-    expect(updated.document.revenue_classification[0].amount).toBe(110);
+    expect(updated.document.revenue_classification.reduce((sum, item) => sum + item.amount, 0)).toBe(110);
+    expect(updated.document.revenue_classification).toEqual(expect.arrayContaining([
+      expect.objectContaining({ classification_category: 'category1_1', amount: 80 }),
+      expect.objectContaining({ classification_category: settings.default_income_classification_category, amount: 30 }),
+    ]));
   });
 
   it('preserves manually selected AADE VAT categories when recalculating lines', () => {
@@ -731,6 +781,9 @@ describe('legal document helpers', () => {
     expect(normalizeLegalSeriesKey('ΤΙΜ')).toBe('TIM');
     expect(normalizeLegalSeriesKey('tim')).toBe('TIM');
     expect(normalizeLegalSeriesKey('ΤΙΜ ')).toBe('TIM');
+    expect(normalizeLegalSeriesKey('ΔΑ')).toBe('DA');
+    expect(normalizeLegalSeriesKey('ΤΔΑ')).toBe('TDA');
+    expect(normalizeLegalSeriesKey('ΠΙΣ')).toBe('PIS');
   });
 
   it('parses legal document aa values', () => {
@@ -749,9 +802,9 @@ describe('legal document helpers', () => {
       is_active: true,
     }];
     const documents = [
-      { id: '1', document_kind: 'invoice', series: 'TIM', aa: '412', status: 'issued' },
-      { id: '2', document_kind: 'invoice', series: 'ΤΙΜ', aa: '2', status: 'issued' },
-      { id: '3', document_kind: 'invoice', series: 'ΤΙΜ', aa: '3', status: 'cancelled' },
+      { id: '1', document_kind: 'invoice', aade_document_type: '1.1', series: 'TIM', aa: '412', status: 'issued' },
+      { id: '2', document_kind: 'invoice', aade_document_type: '1.1', series: 'ΤΙΜ', aa: '2', status: 'issued' },
+      { id: '3', document_kind: 'invoice', aade_document_type: '1.1', series: 'ΤΙΜ', aa: '3', status: 'cancelled' },
     ] as LegalDocument[];
 
     const plan = buildLegalNumberingAlignmentPlan(documents, sequences);

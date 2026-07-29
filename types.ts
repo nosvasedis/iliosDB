@@ -689,6 +689,14 @@ export interface AadeRegistryCredentialStatus {
   missing?: string[];
 }
 
+export interface LegalRegistryConnectionStatus {
+  configured: boolean;
+  verified: boolean;
+  verifiedAt?: string | null;
+  message?: string | null;
+  result?: AadeVatRegistryResult | null;
+}
+
 export interface AadeRegistryCredentialSavePayload {
   username: string;
   password: string;
@@ -748,7 +756,12 @@ export interface LegalParty {
 
 export interface LegalIssuerSettings extends LegalParty {
   business_name?: string | null;
+  trade_name?: string | null;
   activity?: string | null;
+  doy?: string | null;
+  legal_form?: string | null;
+  gemi?: string | null;
+  registry_verified_at?: string | null;
 }
 
 export interface LegalDeliveryDetails {
@@ -807,6 +820,52 @@ export interface LegalNumberingSequence {
   updated_at?: string;
 }
 
+export interface LegalNumberingAlignmentEntry {
+  sequence_id: string;
+  document_kind: LegalDocumentKind;
+  aade_document_type: AadeDocumentType;
+  series: string;
+  series_key: string;
+  current_next_aa: number;
+  max_aa?: number | null;
+  proposed_next_aa: number;
+  document_count: number;
+}
+
+export interface LegalNumberingHistoricalSeries {
+  active_sequence_id: string;
+  document_kind: LegalDocumentKind;
+  aade_document_type: AadeDocumentType;
+  active_series: string;
+  series: string;
+  series_key: string;
+  document_count: number;
+  max_aa?: number | null;
+  status_counts: Partial<Record<LegalDocumentStatus, number>>;
+  is_no_series_namespace: boolean;
+}
+
+export interface LegalNumberingAlignmentPreview {
+  preview_token: string;
+  generated_at: string;
+  changes: LegalNumberingAlignmentEntry[];
+  already_safe: LegalNumberingAlignmentEntry[];
+  new_namespaces: LegalNumberingAlignmentEntry[];
+  historical_series: LegalNumberingHistoricalSeries[];
+}
+
+export interface LegalNumberingAlignmentAppliedEntry {
+  sequence_id: string;
+  series: string;
+  old_next_aa: number;
+  new_next_aa: number;
+}
+
+export interface LegalNumberingAlignmentResult {
+  applied: LegalNumberingAlignmentAppliedEntry[];
+  preview: LegalNumberingAlignmentPreview;
+}
+
 export interface LegalCarrier {
   id: string;
   name: string;
@@ -840,6 +899,7 @@ export interface LegalDocumentLine {
     item_description?: string | null;
     line_comments?: string | null;
     raw_item_code?: string | null;
+    income_classifications?: LegalIncomeClassification[];
     parser_version?: number;
   } | null;
   created_at?: string;
@@ -890,6 +950,9 @@ export interface LegalDocument {
   updated_at: string;
   lines?: LegalDocumentLine[];
 }
+
+/** Result returned after atomic number allocation and issuer snapshotting. */
+export type LegalSubmissionPreparationResult = LegalDocument;
 
 export interface ProformaDocumentLine extends LegalDocumentLine {
   proforma_id: string;
@@ -1002,6 +1065,8 @@ export interface AadeTransmittedLine {
   lineComments?: string | null;
   quantity?: number | null;
   measurementUnit?: number | null;
+  incomeClassification?: LegalIncomeClassification | null;
+  incomeClassifications?: LegalIncomeClassification[];
 }
 
 export interface AadeTransmittedDocument {

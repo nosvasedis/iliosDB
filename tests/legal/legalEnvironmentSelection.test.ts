@@ -19,7 +19,7 @@ describe('AADE environment selection contract', () => {
       "setSettingsDraft((current) => ({ ...current, environment: value === 'prod' ? 'prod' : 'dev' }));",
     );
     expect(pageSource).toContain(
-      'Για πραγματική έκδοση αρκεί το AADE PROD να εμφανίζεται ως «Έτοιμο»',
+      'Για πραγματική έκδοση αρκεί το myDATA Παραγωγής να εμφανίζεται ως «Έτοιμο»',
     );
   });
 

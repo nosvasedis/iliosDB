@@ -41,6 +41,7 @@ import {
   LegalArchiveLineMatch,
   LegalArchiveRecord,
   LegalDocument,
+  LegalDocumentLine,
   LegalExternalItemAlias,
   LegalOrderLineAllocation,
   LegalOrderLinkMode,
@@ -313,16 +314,24 @@ function VatRegistryCard({
   vatNumber,
   ready,
   onLookup,
+  onApply,
 }: {
   vatNumber?: string | null;
   ready: boolean;
   onLookup: (vatNumber: string, referenceDate?: string) => Promise<AadeVatRegistryResult>;
+  onApply: (result: AadeVatRegistryResult) => void;
 }) {
   const [referenceDate, setReferenceDate] = useState('');
   const [result, setResult] = useState<AadeVatRegistryResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const normalizedVat = String(vatNumber || '').replace(/^EL/i, '').replace(/\D/g, '');
+  const todayDate = new Date().toISOString().slice(0, 10);
+  const earliestReferenceDate = (() => {
+    const date = new Date();
+    date.setUTCFullYear(date.getUTCFullYear() - 3);
+    return date.toISOString().slice(0, 10);
+  })();
 
   const runLookup = async () => {
     if (!normalizedVat) return;
@@ -349,6 +358,8 @@ function VatRegistryCard({
             type="date"
             value={referenceDate}
             onChange={(event) => setReferenceDate(event.target.value)}
+            min={earliestReferenceDate}
+            max={todayDate}
             className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
           />
         </label>
@@ -418,6 +429,15 @@ function VatRegistryCard({
               </div>
             </div>
           )}
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => onApply(result)}
+              className="min-h-9 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-black text-indigo-800 transition hover:bg-indigo-100"
+            >
+              Εφαρμογή στο πελατολόγιο ή στο πρόχειρο
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -616,6 +636,7 @@ interface LegalArchiveWorkspaceProps {
   ) => void;
   onLinkSeller: (record: LegalArchiveRecord, sellerId: string | null) => void;
   onLookupVat: (vatNumber: string, referenceDate?: string) => Promise<AadeVatRegistryResult>;
+  onApplyVat: (record: LegalArchiveRecord, result: AadeVatRegistryResult) => void;
   onSaveAlias: (record: LegalArchiveRecord, match: LegalArchiveLineMatch, productSku: string, variantSuffix: string) => void;
   onDeleteAlias: (alias: LegalExternalItemAlias) => void;
 }
@@ -790,8 +811,8 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
         <div className="flex flex-wrap justify-end gap-1.5">
           <ArchiveActionButton
             onClick={() => props.onPrintLegal(document)}
-            disabled={!canPrintLegalDocument(document)}
-            title={isOfficialLegalDocumentPrint(document) ? 'Νόμιμη εκτύπωση MARK/QR' : 'Πρόχειρη εκτύπωση'}
+            disabled={!canPrintLegalDocument(document, record.lines as LegalDocumentLine[])}
+            title={isOfficialLegalDocumentPrint(document, record.lines as LegalDocumentLine[]) ? 'Νόμιμη εκτύπωση MARK/QR' : 'Πρόχειρη εκτύπωση'}
           >
             <Printer size={14} /> Εκτύπωση
           </ArchiveActionButton>
@@ -982,6 +1003,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
               vatNumber={record.document.counterpart?.vat_number}
               ready={props.registryLookupReady}
               onLookup={props.onLookupVat}
+              onApply={(result) => props.onApplyVat(record, result)}
             />
           </section>
 

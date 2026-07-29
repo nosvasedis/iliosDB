@@ -28,7 +28,7 @@ import {
   XCircle,
   type LucideIcon,
 } from 'lucide-react';
-import { AadeVatRegistryResult, Customer, Product, LegalArchiveLineMatch, LegalArchiveRecord, LegalCarrier, LegalDocument, LegalDocumentKind, LegalDocumentLine, LegalEnvironment, LegalExternalItemAlias, LegalOrderLineAllocation, LegalOrderLinkMode, LegalSettings, ProformaDocument, ProformaDocumentLine } from '../types';
+import { AadeVatRegistryResult, Customer, Product, LegalArchiveLineMatch, LegalArchiveRecord, LegalCarrier, LegalDocument, LegalDocumentKind, LegalDocumentLine, LegalEnvironment, LegalExternalItemAlias, LegalNumberingSequence, LegalOrderLineAllocation, LegalOrderLinkMode, LegalRegistryConnectionStatus, LegalSettings, ProformaDocument, ProformaDocumentLine } from '../types';
 import DesktopPageHeader from './DesktopPageHeader';
 import SkuProductPicker, { SkuProductSelection } from './legal/SkuProductPicker';
 import ProformaConvertModal from './legal/ProformaConvertModal';
@@ -77,6 +77,7 @@ import {
   useSetInspectionExitPin,
 } from '../hooks/api/useLegalDocuments';
 import { useSellers } from '../hooks/api/useSellers';
+import { ordersRepository } from '../features/orders/repository';
 import { isInspectionModeActive } from '../lib/inspectionMode';
 import {
   buildLegalArchiveRecords,
@@ -107,14 +108,14 @@ import {
   AADE_VAT_CATEGORY_LINE_OPTIONS,
   AADE_VAT_CATEGORY_OPTIONS,
   DEFAULT_LEGAL_SETTINGS,
-  buildLegalNumberingAlignmentPlan,
-  formatLegalNumberingAlignmentMessage,
+  formatLegalNumberingAlignmentPreview,
   getLegalDocumentDeletePrompt,
   getLegalDocumentDisplayNumber,
   getProformaDeletePrompt,
   isLegalDocumentEditable,
   LEGAL_DOCUMENT_KIND_LABELS,
   normalizeLegalDocumentAddresses,
+  normalizeLegalSeriesKey,
   normalizeProformaDocumentAddresses,
   normalizeVatNumber,
   PAYMENT_METHOD_CODES,
@@ -238,6 +239,9 @@ const TextInput = ({
   placeholder,
   type = 'text',
   help,
+  disabled,
+  min,
+  max,
 }: {
   label: string;
   value: string | number | null | undefined;
@@ -245,6 +249,9 @@ const TextInput = ({
   placeholder?: string;
   type?: string;
   help?: string;
+  disabled?: boolean;
+  min?: string | number;
+  max?: string | number;
 }) => (
   <label className="block min-w-0">
     <span className="mb-1 flex items-center gap-1 text-[11px] font-black uppercase tracking-wide text-slate-500">
@@ -255,7 +262,10 @@ const TextInput = ({
       value={value ?? ''}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+      disabled={disabled}
+      min={min}
+      max={max}
+      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
     />
   </label>
 );
@@ -398,10 +408,15 @@ export default function LegalDocumentsPage({
     maxMark: '',
   });
   const [settingsDraft, setSettingsDraft] = useState<LegalSettings>({ ...DEFAULT_LEGAL_SETTINGS });
+  const [sequenceDrafts, setSequenceDrafts] = useState<Record<string, LegalNumberingSequence>>({});
   const [newCarrier, setNewCarrier] = useState({ name: '', vat_number: '', vehicle_number: '', phone: '' });
   const [credentialEnvironment, setCredentialEnvironment] = useState<LegalEnvironment>('dev');
   const [credentialDraft, setCredentialDraft] = useState({ userId: '', subscriptionKey: '' });
   const [registryCredentialDraft, setRegistryCredentialDraft] = useState({ username: '', password: '' });
+  const [registryConnectionStatus, setRegistryConnectionStatus] = useState<LegalRegistryConnectionStatus>({
+    configured: false,
+    verified: false,
+  });
   const [cloudflareBootstrapDraft, setCloudflareBootstrapDraft] = useState({ apiToken: '', accountId: '' });
   const [deliveryPaneOpen, setDeliveryPaneOpen] = useState(false);
   const [showInspectionPinSection, setShowInspectionPinSection] = useState(false);
@@ -468,6 +483,22 @@ export default function LegalDocumentsPage({
       });
     }
   }, [legalSettings]);
+
+  useEffect(() => {
+    setSequenceDrafts(Object.fromEntries(
+      sequences.map((sequence) => [sequence.id, { ...sequence }]),
+    ));
+  }, [sequences]);
+
+  useEffect(() => {
+    setRegistryConnectionStatus((current) => ({
+      ...current,
+      configured: !!credentialStatus?.registry?.ready,
+      verified: !!credentialStatus?.registry?.ready
+        && !!settingsDraft.issuer.registry_verified_at,
+      verifiedAt: settingsDraft.issuer.registry_verified_at || null,
+    }));
+  }, [credentialStatus?.registry?.ready, settingsDraft.issuer.registry_verified_at]);
 
   useEffect(() => {
     setCredentialEnvironment(settingsDraft.environment);
@@ -545,7 +576,7 @@ export default function LegalDocumentsPage({
     issued: legalDocuments.filter((document) => document.status === 'issued').length,
     failed: legalDocuments.filter((document) => document.status === 'failed').length,
     cancelled: legalDocuments.filter((document) => document.status === 'cancelled').length,
-    printable: legalDocuments.filter(canPrintLegalDocument).length,
+    printable: legalDocuments.filter((document) => canPrintLegalDocument(document)).length,
     proformas: proformas.filter((document) => document.status === 'draft').length,
   }), [legalDocuments, proformas]);
 
@@ -1103,53 +1134,32 @@ export default function LegalDocumentsPage({
   };
 
   const promptLegalNumberingAlignment = async (options?: { silentIfUpToDate?: boolean }) => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: legalKeys.documents() }),
-      queryClient.invalidateQueries({ queryKey: legalKeys.sequences() }),
-    ]);
-    const [documents, activeSequences] = await Promise.all([
-      legalRepository.getDocuments(),
-      legalRepository.getSequences(),
-    ]);
-    const plan = buildLegalNumberingAlignmentPlan(documents, activeSequences);
-
-    if (!plan.proposals.length) {
-      if (plan.notices.length) {
-        const alignedSeries = plan.alreadyAligned.map((item) => `«${item.series}»`);
-        const alignmentSummary = alignedSeries.length === 1
-          ? `Η σειρά ${alignedSeries[0]} είναι ήδη ευθυγραμμισμένη.`
-          : alignedSeries.length > 1
-            ? `Οι σειρές ${alignedSeries.join(', ')} είναι ήδη ευθυγραμμισμένες.`
-            : 'Η αρίθμηση ERP είναι ήδη ευθυγραμμισμένη.';
-        showToast(`${alignmentSummary} ${plan.notices[0]}`, 'info');
-      } else if (!options?.silentIfUpToDate) {
-        showToast('Η αρίθμηση είναι ήδη συγχρονισμένη με το Αρχείο.', 'info');
-      }
-      return;
-    }
-
-    const ok = await confirm({
-      title: 'Ευθυγράμμιση αρίθμησης',
-      message: formatLegalNumberingAlignmentMessage(plan),
-      confirmText: 'Ενημέρωση Επόμενου',
-      cancelText: 'Όχι τώρα',
-    });
-    if (!ok) return;
-
     try {
-      await Promise.all(
-        plan.proposals.map((proposal) => {
-          const sequence = activeSequences.find((item) => item.id === proposal.sequenceId);
-          if (!sequence) return Promise.resolve();
-          return saveSequence.mutateAsync({ ...sequence, next_aa: proposal.proposedNextAa });
-        }),
-      );
+      const preview = await legalRepository.previewNumberingAlignment();
+      if (!preview.changes.length && options?.silentIfUpToDate) return;
+      const ok = await confirm({
+        title: 'Ευθυγράμμιση με το τρέχον Αρχείο',
+        message: formatLegalNumberingAlignmentPreview(preview),
+        confirmText: preview.changes.length ? 'Εφαρμογή ασφαλών αλλαγών' : 'Κλείσιμο',
+        cancelText: preview.changes.length ? 'Όχι τώρα' : 'Πίσω',
+      });
+      if (!ok || !preview.changes.length) return;
+
+      const result = await legalRepository.applyNumberingAlignment(preview.preview_token);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: legalKeys.documents() }),
+        queryClient.invalidateQueries({ queryKey: legalKeys.sequences() }),
+      ]);
       showToast(
-        `Η αρίθμηση ενημερώθηκε: ${plan.proposals.map((proposal) => `${proposal.series} → ${proposal.proposedNextAa}`).join(', ')}.`,
-        'success',
+        result.applied.length
+          ? `Η αρίθμηση ενημερώθηκε με τα τρέχοντα δεδομένα: ${result.applied
+              .map((item) => `${item.series} ${item.old_next_aa} → ${item.new_next_aa}`)
+              .join(', ')}.`
+          : 'Δεν χρειάστηκε αλλαγή. Η βάση επανέλεγξε την αρίθμηση.',
+        result.applied.length ? 'success' : 'info',
       );
     } catch (error: any) {
-      showToast(error?.message || 'Δεν ενημερώθηκε η αρίθμηση.', 'error');
+      showToast(error?.message || 'Δεν ολοκληρώθηκε ο έλεγχος της τρέχουσας αρίθμησης.', 'error');
     }
   };
 
@@ -1259,19 +1269,19 @@ export default function LegalDocumentsPage({
   };
 
   const handlePrint = async (document: LegalDocument) => {
-    if (!canPrintLegalDocument(document)) {
-      showToast(
-        document.status === 'submitted'
-          ? 'Η εκτύπωση είναι διαθέσιμη μετά την αποδοχή από την ΑΑΔΕ.'
-          : 'Το παραστατικό δεν είναι εκτυπώσιμο.',
-        'warning',
-      );
-      return;
-    }
     try {
       const lines = await legalRepository.getDocumentLines(document.id);
+      if (!canPrintLegalDocument(document, lines)) {
+        showToast(
+          document.status === 'submitted'
+            ? 'Η εκτύπωση είναι διαθέσιμη μετά την αποδοχή από την ΑΑΔΕ.'
+            : 'Το παραστατικό δεν περνά τον έλεγχο νόμιμης εκτύπωσης. Ελέγξτε τα στοιχεία εκδότη, πελάτη, MARK/QR, γραμμές και σύνολα.',
+          'warning',
+        );
+        return;
+      }
       onPrintLegalDocument({ document: { ...document, lines }, lines });
-      if (isOfficialLegalDocumentPrint(document)) {
+      if (isOfficialLegalDocumentPrint(document, lines)) {
         await markPrinted.mutateAsync(document.id);
       }
     } catch (error: any) {
@@ -1357,6 +1367,21 @@ export default function LegalDocumentsPage({
         username,
         password,
         ...(!credentialStatus?.workerCanStoreSecrets ? { cloudflareApiToken, cloudflareAccountId } : {}),
+      });
+      const unverifiedSettings: LegalSettings = {
+        ...settingsDraft,
+        issuer: {
+          ...settingsDraft.issuer,
+          registry_verified_at: null,
+        },
+      };
+      await saveSettings.mutateAsync(unverifiedSettings);
+      setSettingsDraft(unverifiedSettings);
+      setRegistryConnectionStatus({
+        configured: true,
+        verified: false,
+        verifiedAt: null,
+        message: 'Οι κωδικοί αποθηκεύτηκαν αλλά δεν έχουν ακόμη δοκιμαστεί.',
       });
       setRegistryCredentialDraft({ username: '', password: '' });
       setCloudflareBootstrapDraft({ apiToken: '', accountId: '' });
@@ -1710,10 +1735,10 @@ export default function LegalDocumentsPage({
             <ActionButton variant="secondary" onClick={handleSaveDraft} disabled={!draftBundle || saveDraft.isPending}>
               {saveDraft.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Αποθήκευση πρόχειρου
             </ActionButton>
-            {draftBundle && canPrintLegalDocument(draftBundle.document) && (
+            {draftBundle && canPrintLegalDocument(draftBundle.document, draftBundle.lines) && (
               <ActionButton variant="secondary" onClick={() => void handlePrint(draftBundle.document)}>
                 <Printer size={16} />
-                {isOfficialLegalDocumentPrint(draftBundle.document) ? 'Εκτύπωση' : 'Εκτύπωση πρόχειρου'}
+                {isOfficialLegalDocumentPrint(draftBundle.document, draftBundle.lines) ? 'Εκτύπωση' : 'Εκτύπωση πρόχειρου'}
               </ActionButton>
             )}
             <ActionButton onClick={handleSubmitDraft} disabled={!draftBundle || validationErrors.length > 0 || submitDocument.isPending || saveDraft.isPending}>
@@ -2052,6 +2077,107 @@ export default function LegalDocumentsPage({
     }
   };
 
+  const handleTestAadeRegistryConnection = async () => {
+    try {
+      const status = await legalRepository.testRegistryConnection(
+        normalizeVatNumber(settingsDraft.issuer.vat_number),
+      );
+      const result = status.result;
+      const apply = await confirm({
+        title: 'Η σύνδεση Μητρώου ΑΑΔΕ λειτουργεί',
+        message: result
+          ? [
+              `ΑΦΜ: ${result.vatNumber}`,
+              `Κατάσταση: ${result.active === true ? 'Ενεργό' : result.active === false ? 'Ανενεργό' : 'Άγνωστη'}`,
+              `Επωνυμία: ${result.businessName || '—'}`,
+              `ΔΟΥ: ${result.taxOfficeDescription || result.taxOfficeCode || '—'}`,
+              '',
+              'Να εφαρμοστούν τα επίσημα στοιχεία στις Ρυθμίσεις επιχείρησης;',
+            ].join('\n')
+          : 'Οι ειδικοί κωδικοί επαληθεύτηκαν. Δεν επιστράφηκαν πρόσθετα στοιχεία.',
+        confirmText: result ? 'Εφαρμογή στοιχείων' : 'Ολοκλήρωση',
+        cancelText: result ? 'Μόνο επιβεβαίωση' : 'Κλείσιμο',
+      });
+      const primaryActivity = result?.activities.find((activity) =>
+        String(activity.kindDescription || '').toLocaleUpperCase('el-GR').includes('ΚΥΡΙΑ')
+      ) || result?.activities[0];
+      const verifiedSettings: LegalSettings = {
+        ...settingsDraft,
+        issuer: {
+          ...settingsDraft.issuer,
+          ...(apply && result ? {
+            business_name: result.businessName || settingsDraft.issuer.business_name,
+            name: result.businessName || settingsDraft.issuer.name,
+            trade_name: result.tradeName || settingsDraft.issuer.trade_name,
+            doy: result.taxOfficeDescription || result.taxOfficeCode || settingsDraft.issuer.doy,
+            legal_form: result.legalStatus || settingsDraft.issuer.legal_form,
+            activity: primaryActivity
+              ? `${primaryActivity.code} · ${primaryActivity.description}`
+              : settingsDraft.issuer.activity,
+            address: {
+              ...settingsDraft.issuer.address,
+              street: result.address.street || settingsDraft.issuer.address?.street,
+              number: result.address.number || settingsDraft.issuer.address?.number,
+              postal_code: result.address.postalCode || settingsDraft.issuer.address?.postal_code,
+              city: result.address.city || settingsDraft.issuer.address?.city,
+            },
+          } : {}),
+          registry_verified_at: status.verifiedAt || new Date().toISOString(),
+        },
+      };
+      await saveSettings.mutateAsync(verifiedSettings);
+      setSettingsDraft(verifiedSettings);
+      setRegistryConnectionStatus(status);
+      showToast(
+        apply && result
+          ? 'Η σύνδεση επαληθεύτηκε και τα επίσημα στοιχεία εφαρμόστηκαν.'
+          : 'Η σύνδεση με το Μητρώο ΑΑΔΕ επαληθεύτηκε.',
+        'success',
+      );
+    } catch (error: any) {
+      setRegistryConnectionStatus({
+        configured: !!credentialStatus?.registry?.ready,
+        verified: false,
+        verifiedAt: null,
+        message: error?.message || 'Η σύνδεση δεν επαληθεύτηκε.',
+      });
+      showToast(error?.message || 'Η σύνδεση Μητρώου ΑΑΔΕ δεν επαληθεύτηκε.', 'error');
+    }
+  };
+
+  const updateSequenceDraft = (
+    sequenceId: string,
+    updates: Partial<LegalNumberingSequence>,
+  ) => {
+    setSequenceDrafts((current) => {
+      const existing = current[sequenceId];
+      if (!existing) return current;
+      return { ...current, [sequenceId]: { ...existing, ...updates } };
+    });
+  };
+
+  const handleSaveSequenceDraft = async (sequence: LegalNumberingSequence) => {
+    const persisted = sequences.find((item) => item.id === sequence.id);
+    if (!persisted) return;
+    if (!sequence.series.trim()) {
+      showToast('Η σειρά δεν μπορεί να είναι κενή. Χρησιμοποιήστε 0 μόνο για ρητή σειρά χωρίς πρόθεμα.', 'warning');
+      return;
+    }
+    if (!Number.isInteger(sequence.next_aa) || sequence.next_aa < persisted.next_aa) {
+      showToast(
+        `Το «Επόμενο» μπορεί μόνο να αυξηθεί. Η αποθηκευμένη τιμή είναι ${persisted.next_aa}.`,
+        'warning',
+      );
+      return;
+    }
+    try {
+      await saveSequence.mutateAsync(sequence);
+      showToast(`Η σειρά «${sequence.series}» αποθηκεύτηκε με επόμενο ${sequence.next_aa}.`, 'success');
+    } catch (error: any) {
+      showToast(error?.message || 'Δεν αποθηκεύτηκε η σειρά.', 'error');
+    }
+  };
+
   const handleArchiveOrderLink = async (
     record: LegalArchiveRecord,
     link: {
@@ -2106,6 +2232,90 @@ export default function LegalDocumentsPage({
     requestedByVat: settingsDraft.issuer.vat_number,
     referenceDate: referenceDate || undefined,
   });
+
+  const handleApplyArchiveVatResult = async (
+    record: LegalArchiveRecord,
+    result: AadeVatRegistryResult,
+  ) => {
+    const customer = record.customerMatch.customer;
+    const editableLegal = record.source === 'legal'
+      && ['draft', 'failed'].includes((record.document as LegalDocument).status);
+    const editableProforma = record.source === 'proforma'
+      && (record.document as ProformaDocument).status === 'draft';
+    if (!customer && !editableLegal && !editableProforma) {
+      showToast(
+        'Το εκδοθέν παραστατικό παραμένει αμετάβλητο. Συνδέστε πρώτα πελάτη για να ενημερωθεί το πελατολόγιο.',
+        'info',
+      );
+      return;
+    }
+
+    const ok = await confirm({
+      title: 'Εφαρμογή επίσημων στοιχείων ΑΑΔΕ',
+      message: [
+        `Επωνυμία: ${result.businessName || '—'}`,
+        `ΑΦΜ: ${result.vatNumber}`,
+        `Έδρα: ${[result.address.street, result.address.number, result.address.postalCode, result.address.city].filter(Boolean).join(', ') || '—'}`,
+        '',
+        customer ? `Θα ενημερωθεί ο πελάτης «${customer.full_name}».` : '',
+        editableLegal || editableProforma
+          ? 'Θα ενημερωθεί και το επεξεργάσιμο πρόχειρο.'
+          : 'Το εκδοθέν παραστατικό δεν θα μεταβληθεί.',
+      ].filter(Boolean).join('\n'),
+      confirmText: 'Εφαρμογή',
+      cancelText: 'Άκυρο',
+    });
+    if (!ok) return;
+
+    const address = [
+      result.address.street,
+      result.address.number,
+      result.address.postalCode,
+      result.address.city,
+    ].filter(Boolean).join(', ');
+    const counterpart = {
+      ...record.document.counterpart,
+      vat_number: result.vatNumber || record.document.counterpart.vat_number,
+      name: result.businessName || record.document.counterpart.name,
+      address: {
+        ...record.document.counterpart.address,
+        street: result.address.street || record.document.counterpart.address?.street,
+        number: result.address.number || record.document.counterpart.address?.number,
+        postal_code: result.address.postalCode || record.document.counterpart.address?.postal_code,
+        city: result.address.city || record.document.counterpart.address?.city,
+      },
+    };
+
+    try {
+      if (customer) {
+        await ordersRepository.updateCustomer(customer.id, {
+          ...customer,
+          full_name: result.businessName || customer.full_name,
+          vat_number: result.vatNumber || customer.vat_number,
+          address: address || customer.address,
+        });
+      }
+      if (editableLegal) {
+        await legalRepository.saveDraft(
+          { ...(record.document as LegalDocument), counterpart },
+          record.lines as LegalDocumentLine[],
+        );
+      } else if (editableProforma) {
+        await legalRepository.saveProforma(
+          { ...(record.document as ProformaDocument), counterpart },
+          record.lines as ProformaDocumentLine[],
+        );
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['customers'] }),
+        queryClient.invalidateQueries({ queryKey: legalKeys.documents() }),
+        queryClient.invalidateQueries({ queryKey: legalKeys.proformas() }),
+      ]);
+      showToast('Τα επίσημα στοιχεία εφαρμόστηκαν χωρίς αλλαγή εκδοθέντος παραστατικού.', 'success');
+    } catch (error: any) {
+      showToast(error?.message || 'Δεν εφαρμόστηκαν τα στοιχεία Μητρώου.', 'error');
+    }
+  };
 
   const handleArchiveAliasSave = async (
     record: LegalArchiveRecord,
@@ -2403,7 +2613,7 @@ export default function LegalDocumentsPage({
       customers={customers}
       products={products}
       sellers={sellers}
-      registryLookupReady={!!credentialStatus?.registry?.ready}
+      registryLookupReady={registryConnectionStatus.verified}
       loading={
         loadingDocuments
         || loadingProformas
@@ -2445,6 +2655,7 @@ export default function LegalDocumentsPage({
       onLinkOrder={(record, link) => void handleArchiveOrderLink(record, link)}
       onLinkSeller={(record, sellerId) => void handleArchiveSellerLink(record, sellerId)}
       onLookupVat={handleArchiveVatLookup}
+      onApplyVat={(record, result) => void handleApplyArchiveVatResult(record, result)}
       onSaveAlias={(record, match, productSku, variantSuffix) =>
         void handleArchiveAliasSave(record, match, productSku, variantSuffix)}
       onDeleteAlias={(alias) => void handleArchiveAliasDelete(alias)}
@@ -2483,9 +2694,9 @@ export default function LegalDocumentsPage({
               <TextInput label="Έως MARK" value={syncDraft.maxMark} onChange={(value) => setSyncDraft((current) => ({ ...current, maxMark: value.replace(/\D/g, '') }))} help="Ανώτερο MARK που θα ζητηθεί από την ΑΑΔΕ. Κενό σημαίνει χωρίς άνω όριο." />
             </div>
           </div>
-          <SelectInput label="Περιβάλλον" value={settingsDraft.environment} onChange={handleEnvironmentChange} help="Dev για δοκιμές, Production για πραγματικά παραστατικά.">
-            <option value="dev">AADE Dev</option>
-            <option value="prod">AADE Production</option>
+          <SelectInput label="Περιβάλλον" value={settingsDraft.environment} onChange={handleEnvironmentChange} help="Δοκιμές για ελέγχους, Παραγωγή για πραγματικά παραστατικά.">
+            <option value="dev">myDATA Δοκιμών</option>
+            <option value="prod">myDATA Παραγωγής</option>
           </SelectInput>
           <ActionButton onClick={handleSyncTransmitted} disabled={syncTransmittedDocuments.isPending}>
             {syncTransmittedDocuments.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Συγχρονισμός
@@ -2614,7 +2825,9 @@ export default function LegalDocumentsPage({
               const ready = !!status?.ready;
               return (
                 <div key={environment} className={`rounded-lg border px-3 py-2 ${ready ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
-                  <div className="text-[10px] font-black uppercase">AADE {environment.toUpperCase()}</div>
+                  <div className="text-[10px] font-black uppercase">
+                    myDATA {environment === 'prod' ? 'Παραγωγής' : 'Δοκιμών'}
+                  </div>
                   <div className="mt-1 flex items-center gap-2 text-sm font-black">
                     {ready ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
                     {ready ? 'Έτοιμο' : 'Λείπουν στοιχεία'}
@@ -2622,11 +2835,25 @@ export default function LegalDocumentsPage({
                 </div>
               );
             })}
-            <div className={`rounded-lg border px-3 py-2 ${credentialStatus?.registry?.ready ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+            <div className={`rounded-lg border px-3 py-2 ${
+              registryConnectionStatus.verified
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                : credentialStatus?.registry?.ready
+                  ? 'border-sky-200 bg-sky-50 text-sky-800'
+                  : 'border-amber-200 bg-amber-50 text-amber-800'
+            }`}>
               <div className="text-[10px] font-black uppercase">Μητρώο ΑΦΜ ΑΑΔΕ</div>
               <div className="mt-1 flex items-center gap-2 text-sm font-black">
-                {credentialStatus?.registry?.ready ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
-                {credentialStatus?.registry?.ready ? 'Έτοιμο' : 'Χρειάζεται ειδικούς κωδικούς'}
+                {registryConnectionStatus.verified
+                  ? <CheckCircle2 size={16} />
+                  : credentialStatus?.registry?.ready
+                    ? <Info size={16} />
+                    : <AlertTriangle size={16} />}
+                {registryConnectionStatus.verified
+                  ? 'Σύνδεση επαληθευμένη'
+                  : credentialStatus?.registry?.ready
+                    ? 'Κωδικοί αποθηκευμένοι'
+                    : 'Χρειάζεται ειδικούς κωδικούς'}
               </div>
             </div>
             <div className={`rounded-lg border px-3 py-2 ${credentialStatus?.workerCanStoreSecrets ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
@@ -2638,7 +2865,7 @@ export default function LegalDocumentsPage({
             </div>
           </div>
           <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-bold text-sky-800">
-            Τα περιβάλλοντα είναι ανεξάρτητα. Για πραγματική έκδοση αρκεί το AADE PROD να εμφανίζεται ως «Έτοιμο»· δεν απαιτείται προηγούμενη έκδοση στο Dev.
+            Τα περιβάλλοντα είναι ανεξάρτητα. Για πραγματική έκδοση αρκεί το myDATA Παραγωγής να εμφανίζεται ως «Έτοιμο»· δεν απαιτείται προηγούμενη έκδοση στο περιβάλλον Δοκιμών.
           </div>
 
           {missingSecretManager.length > 0 && (
@@ -2682,9 +2909,9 @@ export default function LegalDocumentsPage({
           )}
 
           <div className="mt-4 grid gap-4 md:grid-cols-[180px_1fr_1fr_auto] md:items-end">
-            <SelectInput label="Περιβάλλον" value={credentialEnvironment} onChange={(value) => setCredentialEnvironment(value === 'prod' ? 'prod' : 'dev')} help="Dev για δοκιμές, Production για πραγματικά παραστατικά.">
-              <option value="dev">AADE Dev</option>
-              <option value="prod">AADE Production</option>
+            <SelectInput label="Περιβάλλον" value={credentialEnvironment} onChange={(value) => setCredentialEnvironment(value === 'prod' ? 'prod' : 'dev')} help="Δοκιμές για ελέγχους, Παραγωγή για πραγματικά παραστατικά.">
+              <option value="dev">myDATA Δοκιμών</option>
+              <option value="prod">myDATA Παραγωγής</option>
             </SelectInput>
             <TextInput label="AADE User ID" value={credentialDraft.userId} onChange={(value) => setCredentialDraft((current) => ({ ...current, userId: value }))} help="Το όνομα χρήστη API που εκδίδεται από την ΑΑΔΕ για το myDATA." />
             <TextInput label="Subscription Key" type="password" value={credentialDraft.subscriptionKey} onChange={(value) => setCredentialDraft((current) => ({ ...current, subscriptionKey: value }))} help="Το κλειδί πρόσβασης myDATA. Αποθηκεύεται ως μυστικό στο Cloudflare Worker." />
@@ -2695,7 +2922,7 @@ export default function LegalDocumentsPage({
 
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-500">
             <span className={`rounded-lg border px-2 py-1 ${activeCredentialStatus?.ready ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
-              Ενεργό περιβάλλον {settingsDraft.environment.toUpperCase()}: {activeCredentialStatus?.ready ? 'έτοιμο για myDATA' : 'δεν θα επιτρέψει αποστολή'}
+              Ενεργό περιβάλλον {settingsDraft.environment === 'prod' ? 'Παραγωγής' : 'Δοκιμών'}: {activeCredentialStatus?.ready ? 'έτοιμο για myDATA' : 'δεν θα επιτρέψει αποστολή'}
             </span>
             <span>Τα credentials δεν εμφανίζονται ξανά μετά την αποθήκευση.</span>
           </div>
@@ -2710,8 +2937,18 @@ export default function LegalDocumentsPage({
                   και δραστηριότητες. Η αναζήτηση γίνεται μόνο όταν τη ζητήσει ο χρήστης.
                 </p>
               </div>
-              <span className={`rounded-lg border px-2 py-1 text-xs font-black ${credentialStatus?.registry?.ready ? 'border-emerald-200 bg-white text-emerald-700' : 'border-amber-200 bg-white text-amber-800'}`}>
-                {credentialStatus?.registry?.ready ? 'Διαθέσιμο' : 'Δεν έχει ρυθμιστεί'}
+              <span className={`rounded-lg border px-2 py-1 text-xs font-black ${
+                registryConnectionStatus.verified
+                  ? 'border-emerald-200 bg-white text-emerald-700'
+                  : credentialStatus?.registry?.ready
+                    ? 'border-sky-200 bg-white text-sky-700'
+                    : 'border-amber-200 bg-white text-amber-800'
+              }`}>
+                {registryConnectionStatus.verified
+                  ? 'Επαληθευμένο'
+                  : credentialStatus?.registry?.ready
+                    ? 'Αναμένει έλεγχο σύνδεσης'
+                    : 'Δεν έχει ρυθμιστεί'}
               </span>
             </div>
             {missingRegistryCredentials.length > 0 && (
@@ -2723,7 +2960,7 @@ export default function LegalDocumentsPage({
                 ))}
               </div>
             )}
-            <div className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+            <div className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_auto_auto] md:items-end">
               <TextInput
                 label="Όνομα χρήστη ειδικών κωδικών"
                 value={registryCredentialDraft.username}
@@ -2746,7 +2983,28 @@ export default function LegalDocumentsPage({
                   : <Save size={16} />}
                 Αποθήκευση
               </ActionButton>
+              <ActionButton
+                variant="secondary"
+                onClick={() => void handleTestAadeRegistryConnection()}
+                disabled={!credentialStatus?.registry?.ready}
+                title="Κάνει μία ρητή αναζήτηση του ΑΦΜ της επιχείρησης για να επαληθεύσει τους ειδικούς κωδικούς."
+              >
+                <ShieldCheck size={16} />
+                Έλεγχος σύνδεσης
+              </ActionButton>
             </div>
+            {registryConnectionStatus.message && (
+              <div className={`mt-3 rounded-lg border px-3 py-2 text-xs font-bold ${
+                registryConnectionStatus.verified
+                  ? 'border-emerald-200 bg-white text-emerald-700'
+                  : 'border-amber-200 bg-white text-amber-800'
+              }`}>
+                {registryConnectionStatus.message}
+                {registryConnectionStatus.verifiedAt
+                  ? ` · Τελευταία επαλήθευση ${new Date(registryConnectionStatus.verifiedAt).toLocaleString('el-GR')}`
+                  : ''}
+              </div>
+            )}
           </div>
         </section>
 
@@ -2754,10 +3012,10 @@ export default function LegalDocumentsPage({
           <div className="mb-4 flex items-center gap-2"><ShieldCheck size={18} className="text-emerald-600" /><h2 className="font-black text-slate-900">Εκδότης / ΑΑΔΕ</h2></div>
           <div className="grid gap-4 md:grid-cols-4">
             <SelectInput label="Περιβάλλον" value={settingsDraft.environment} onChange={handleEnvironmentChange} help="Το ενεργό περιβάλλον που θα χρησιμοποιείται για αποστολή και συγχρονισμό.">
-              <option value="dev">AADE Dev</option>
-              <option value="prod">AADE Production</option>
+              <option value="dev">myDATA Δοκιμών</option>
+              <option value="prod">myDATA Παραγωγής</option>
             </SelectInput>
-            <TextInput label="ΑΦΜ Εκδότη" value={settingsDraft.issuer.vat_number || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, vat_number: normalizeVatNumber(value) } }))} help="Πρέπει να είναι ο πραγματικός ΑΦΜ της εγγραφής myDATA REST API (ίδιος με το AADE User ID). Το dev δεν δέχεται πλαστικούς αριθμούς." />
+            <TextInput label="ΑΦΜ Εκδότη" value={settingsDraft.issuer.vat_number || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, vat_number: normalizeVatNumber(value) } }))} help="Πρέπει να είναι ο πραγματικός ΑΦΜ της εγγραφής API myDATA (ίδιος με το αναγνωριστικό χρήστη ΑΑΔΕ). Το περιβάλλον Δοκιμών δεν δέχεται πλασματικούς αριθμούς." />
             <TextInput label="Επωνυμία" value={settingsDraft.issuer.business_name || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, business_name: value, name: value } }))} />
             <TextInput label="Υποκατάστημα" type="number" value={settingsDraft.issuer.branch ?? 0} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, branch: Number(value) || 0 } }))} help="0 για έδρα. Άλλος αριθμός μόνο αν έχει δηλωθεί υποκατάστημα στην ΑΑΔΕ." />
           </div>
@@ -2766,6 +3024,15 @@ export default function LegalDocumentsPage({
             <TextInput label="Αριθμός" value={settingsDraft.issuer.address?.number || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, address: { ...(current.issuer.address || {}), number: value } } }))} />
             <TextInput label="Τ.Κ." value={settingsDraft.issuer.address?.postal_code || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, address: { ...(current.issuer.address || {}), postal_code: value } } }))} />
             <TextInput label="Πόλη" value={settingsDraft.issuer.address?.city || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, address: { ...(current.issuer.address || {}), city: value } } }))} />
+          </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-4">
+            <TextInput label="Διακριτικός τίτλος" value={settingsDraft.issuer.trade_name || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, trade_name: value } }))} />
+            <TextInput label="ΔΟΥ" value={settingsDraft.issuer.doy || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, doy: value } }))} help="Μπορεί να συμπληρωθεί από τον επίσημο έλεγχο Μητρώου." />
+            <TextInput label="Νομική μορφή" value={settingsDraft.issuer.legal_form || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, legal_form: value } }))} />
+            <TextInput label="Αριθμός ΓΕΜΗ" value={settingsDraft.issuer.gemi || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, gemi: value } }))} help="Συμπληρώνεται χειροκίνητα· δεν επιστρέφεται από το Μητρώο ΑΑΔΕ." />
+          </div>
+          <div className="mt-4">
+            <TextInput label="Κύρια δραστηριότητα" value={settingsDraft.issuer.activity || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, activity: value } }))} help="Προαιρετικό στοιχείο εκτύπωσης. Μπορεί να συμπληρωθεί από το Μητρώο ΑΑΔΕ." />
           </div>
           <div className="mt-4 grid gap-4 md:grid-cols-4">
             <TextInput label="Τηλέφωνο" value={settingsDraft.issuer.phone || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, phone: value } }))} />
@@ -2818,23 +3085,66 @@ export default function LegalDocumentsPage({
             Το «Επόμενο» ενημερώνεται μόνο με επιβεβαίωση, βάσει του μεγαλύτερου αριθμού στο Αρχείο (συμπεριλαμβανομένων συγχρονισμένων από PrismaNET). Ποτέ δεν μειώνεται αυτόματα.
           </div>
           <div className="space-y-3">
-            {sequences.map((sequence) => (
-              <div key={sequence.id} className="grid gap-3 rounded-lg border border-slate-200 p-3 md:grid-cols-[1fr_120px_120px_120px_auto] md:items-end">
-                <div>
-                  <div className="text-sm font-black text-slate-900">{LEGAL_DOCUMENT_KIND_LABELS[sequence.document_kind]}</div>
-                  <div className="flex items-center gap-1 text-xs font-medium text-slate-500">Τύπος ΑΑΔΕ {sequence.aade_document_type} <InfoTip text="Ο επίσημος τύπος παραστατικού myDATA για αυτή τη σειρά." /></div>
+            {sequences.map((sequence) => {
+              const draft = sequenceDrafts[sequence.id] || sequence;
+              const hasHistory = sequence.next_aa > 1 || legalDocuments.some((document) =>
+                document.document_kind === sequence.document_kind
+                && document.aade_document_type === sequence.aade_document_type
+                && normalizeLegalSeriesKey(document.series) === normalizeLegalSeriesKey(sequence.series)
+                && !!document.aa,
+              );
+              const changed = JSON.stringify(draft) !== JSON.stringify(sequence);
+              return (
+                <div key={sequence.id} className="grid gap-3 rounded-lg border border-slate-200 p-3 md:grid-cols-[1fr_120px_120px_120px_auto] md:items-end">
+                  <div>
+                    <div className="text-sm font-black text-slate-900">{LEGAL_DOCUMENT_KIND_LABELS[sequence.document_kind]}</div>
+                    <div className="flex items-center gap-1 text-xs font-medium text-slate-500">
+                      Τύπος ΑΑΔΕ {sequence.aade_document_type}
+                      <InfoTip text="Ο επίσημος τύπος παραστατικού myDATA για αυτή τη σειρά." />
+                    </div>
+                    {hasHistory && (
+                      <div className="mt-1 text-[11px] font-bold text-slate-500">
+                        Η ονομασία έχει κλειδωθεί επειδή η σειρά έχει χρησιμοποιηθεί.
+                      </div>
+                    )}
+                  </div>
+                  <TextInput
+                    label="Σειρά"
+                    value={draft.series}
+                    disabled={hasHistory}
+                    onChange={(value) => updateSequenceDraft(sequence.id, { series: value })}
+                    help={hasHistory ? 'Για νέο namespace δημιουργείται νέα σειρά.' : 'Το πρόθεμα που θα φαίνεται στο παραστατικό.'}
+                  />
+                  <TextInput
+                    label="Επόμενο"
+                    type="number"
+                    min={sequence.next_aa}
+                    value={draft.next_aa}
+                    onChange={(value) => updateSequenceDraft(sequence.id, {
+                      next_aa: Math.max(sequence.next_aa, Math.trunc(Number(value) || sequence.next_aa)),
+                    })}
+                    help={`Δεν μπορεί να γίνει μικρότερο από ${sequence.next_aa}.`}
+                  />
+                  <SelectInput
+                    label="Ενεργό"
+                    value={draft.is_active ? 'yes' : 'no'}
+                    onChange={(value) => updateSequenceDraft(sequence.id, { is_active: value === 'yes' })}
+                  >
+                    <option value="yes">Ναι</option>
+                    <option value="no">Όχι</option>
+                  </SelectInput>
+                  <ActionButton
+                    variant={changed ? 'primary' : 'secondary'}
+                    disabled={!changed || saveSequence.isPending}
+                    onClick={() => void handleSaveSequenceDraft(draft)}
+                    title="Η βάση απορρίπτει κάθε μείωση του επόμενου αριθμού."
+                  >
+                    {saveSequence.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                    Αποθήκευση
+                  </ActionButton>
                 </div>
-                <TextInput label="Σειρά" value={sequence.series} onChange={(value) => saveSequence.mutate({ ...sequence, series: value })} help="Το πρόθεμα που θα φαίνεται στο παραστατικό." />
-                <TextInput label="Επόμενο" type="number" value={sequence.next_aa} onChange={(value) => saveSequence.mutate({ ...sequence, next_aa: Number(value) || 1 })} help="Ο επόμενος αριθμός που θα πάρει νέο νόμιμο παραστατικό." />
-                <SelectInput label="Ενεργό" value={sequence.is_active ? 'yes' : 'no'} onChange={(value) => saveSequence.mutate({ ...sequence, is_active: value === 'yes' })}>
-                  <option value="yes">Ναι</option>
-                  <option value="no">Όχι</option>
-                </SelectInput>
-                <div className="flex items-center gap-1 pb-2 text-xs font-bold text-slate-500">
-                  Ασφαλής αρίθμηση <InfoTip text="Το ERP κλειδώνει την αρίθμηση ώστε δύο χρήστες να μη βγάλουν το ίδιο νούμερο." />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       </div>

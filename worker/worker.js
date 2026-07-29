@@ -762,6 +762,28 @@ export async function callAadeRegistry(env, payload) {
   return parseAadeRegistryResponse(responseText);
 }
 
+export function validateAadeRegistryReferenceDate(referenceDate, now = new Date()) {
+  const value = String(referenceDate || '').trim();
+  if (!value) return '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new Error('Η ημερομηνία αναφοράς δεν είναι έγκυρη.');
+  }
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
+    throw new Error('Η ημερομηνία αναφοράς δεν είναι έγκυρη.');
+  }
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const earliest = new Date(today);
+  earliest.setUTCFullYear(earliest.getUTCFullYear() - 3);
+  if (parsed > today) {
+    throw new Error('Η ημερομηνία αναφοράς δεν μπορεί να είναι μελλοντική.');
+  }
+  if (parsed < earliest) {
+    throw new Error('Η υπηρεσία Μητρώου ΑΑΔΕ επιτρέπει ιστορικό έλεγχο έως τρία έτη.');
+  }
+  return value;
+}
+
 async function putWorkerSecretWithManager(manager, name, text) {
   if (manager.missing.length > 0) {
     throw new Error(`Missing Cloudflare secret manager configuration: ${manager.missing.join(', ')}`);
@@ -978,6 +1000,32 @@ async function handleAadeRoute(request, env, corsHeaders, url) {
     }
   }
 
+  if (url.pathname === '/aade/test-registry-connection') {
+    if (request.method !== 'POST') {
+      return jsonResponse({ error: 'Ο έλεγχος σύνδεσης Μητρώου απαιτεί POST.' }, 405, corsHeaders);
+    }
+    const payload = await request.json().catch(() => ({}));
+    const requestedByVat = String(payload.requestedByVat || '').replace(/^EL/i, '').replace(/\D/g, '');
+    if (!/^\d{9}$/.test(requestedByVat)) {
+      return jsonResponse({ error: 'Απαιτείται το έγκυρο ΑΦΜ της επιχείρησης για τον έλεγχο σύνδεσης.' }, 400, corsHeaders);
+    }
+    try {
+      const result = await callAadeRegistry(env, {
+        vatNumber: requestedByVat,
+        requestedByVat,
+      });
+      return jsonResponse({
+        ok: true,
+        verifiedAt: new Date().toISOString(),
+        result,
+      }, 200, corsHeaders);
+    } catch (error) {
+      return jsonResponse({
+        error: error?.message || 'Οι ειδικοί κωδικοί Μητρώου ΑΑΔΕ δεν επαληθεύτηκαν.',
+      }, 502, corsHeaders);
+    }
+  }
+
   if (url.pathname === '/aade/lookup-vat-registry') {
     if (request.method !== 'POST') {
       return jsonResponse({ error: 'Ο έλεγχος ΑΦΜ απαιτεί POST.' }, 405, corsHeaders);
@@ -985,15 +1033,17 @@ async function handleAadeRoute(request, env, corsHeaders, url) {
     const payload = await request.json().catch(() => ({}));
     const vatNumber = String(payload.vatNumber || '').replace(/^EL/i, '').replace(/\D/g, '');
     const requestedByVat = String(payload.requestedByVat || '').replace(/^EL/i, '').replace(/\D/g, '');
-    const referenceDate = String(payload.referenceDate || '').trim();
+    let referenceDate = '';
     if (!/^\d{9}$/.test(vatNumber)) {
       return jsonResponse({ error: 'Το ΑΦΜ πρέπει να αποτελείται από 9 ψηφία.' }, 400, corsHeaders);
     }
     if (requestedByVat && !/^\d{9}$/.test(requestedByVat)) {
       return jsonResponse({ error: 'Το ΑΦΜ που χρεώνεται την αναζήτηση δεν είναι έγκυρο.' }, 400, corsHeaders);
     }
-    if (referenceDate && !/^\d{4}-\d{2}-\d{2}$/.test(referenceDate)) {
-      return jsonResponse({ error: 'Η ημερομηνία αναφοράς δεν είναι έγκυρη.' }, 400, corsHeaders);
+    try {
+      referenceDate = validateAadeRegistryReferenceDate(payload.referenceDate);
+    } catch (error) {
+      return jsonResponse({ error: error?.message || 'Η ημερομηνία αναφοράς δεν είναι έγκυρη.' }, 400, corsHeaders);
     }
     try {
       const result = await callAadeRegistry(env, { vatNumber, requestedByVat, referenceDate });

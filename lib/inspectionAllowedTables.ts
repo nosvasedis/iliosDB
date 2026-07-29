@@ -66,6 +66,10 @@ export function isInspectionWorkerRouteAllowed(route: string): boolean {
 
 export const INSPECTION_ALLOWED_RPCS = new Set([
   'allocate_legal_document_number',
+  'preview_legal_numbering_alignment',
+  'apply_legal_numbering_alignment',
+  'apply_legal_archive_reindex_batch',
+  'prepare_legal_document_submission',
   'has_inspection_exit_pin',
   'set_inspection_exit_pin',
   'verify_inspection_exit_pin',

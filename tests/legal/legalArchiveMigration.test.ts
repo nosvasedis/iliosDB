@@ -24,6 +24,10 @@ const archiveWorkspaceSource = readFileSync(
   new URL('../../components/legal/LegalArchiveWorkspace.tsx', import.meta.url),
   'utf8',
 );
+const numberingHardeningMigration = readFileSync(
+  new URL('../../supabase/migrations/20260729064434_legal_numbering_submission_hardening.sql', import.meta.url),
+  'utf8',
+);
 
 describe('legal archive database contract', () => {
   it('adds archive links, parse metadata, and the learned alias table additively', () => {
@@ -65,6 +69,22 @@ describe('legal archive database contract', () => {
     expect(archiveRelationshipsMigration).toMatch(/order_line_allocations jsonb not null default '\[\]'/i);
     expect(archiveRelationshipsMigration).toMatch(/check \(order_link_mode in \('whole', 'partial'\)\)/i);
     expect(archiveRelationshipsMigration).toMatch(/jsonb_typeof\(order_line_allocations\) = 'array'/i);
+  });
+
+  it('hardens legal numbering with transactional preview, apply, preparation, and monotonic guards', () => {
+    expect(numberingHardeningMigration).toMatch(/create or replace function public\.preview_legal_numbering_alignment\(\)/i);
+    expect(numberingHardeningMigration).toMatch(/create or replace function public\.apply_legal_numbering_alignment\(/i);
+    expect(numberingHardeningMigration).toMatch(/create or replace function public\.prepare_legal_document_submission\(/i);
+    expect(numberingHardeningMigration).toMatch(/set next_aa = greatest\([\s\S]*sequence\.next_aa,[\s\S]*proposed_next_aa/i);
+    expect(numberingHardeningMigration).toMatch(/if new\.next_aa < old\.next_aa[\s\S]*δεν μπορεί να μειωθεί/i);
+    expect(numberingHardeningMigration).toMatch(/old\.next_aa > 1 or v_has_history[\s\S]*δεν μπορεί να μετονομαστεί/i);
+    expect(numberingHardeningMigration).toMatch(/tg_op = 'delete'[\s\S]*δεν μπορεί να διαγραφεί/i);
+    expect(numberingHardeningMigration).toMatch(/lock table public\.legal_documents in share mode/i);
+    expect(numberingHardeningMigration).toMatch(/security invoker[\s\S]*set search_path = ''/i);
+    expect(numberingHardeningMigration).toMatch(/revoke execute on function public\.preview_legal_numbering_alignment\(\)[\s\S]*from public, anon/i);
+    expect(numberingHardeningMigration).toMatch(/grant execute on function public\.prepare_legal_document_submission\(uuid\)[\s\S]*to authenticated/i);
+    expect(numberingHardeningMigration).toMatch(/create or replace function public\.apply_legal_archive_reindex_batch\([\s\S]*jsonb_to_recordset/i);
+    expect(numberingHardeningMigration).toMatch(/revoke execute on function public\.apply_legal_archive_reindex_batch\(jsonb, jsonb\)[\s\S]*from public, anon/i);
   });
 
   it('keeps all archive-facing matching language in end-user Greek', () => {

@@ -5,12 +5,15 @@ import {
   LegalDocument,
   LegalDocumentLine,
   LegalNumberingSequence,
+  LegalNumberingAlignmentPreview,
+  LegalNumberingAlignmentResult,
   LegalSettings,
   LegalTransmission,
   AadeCredentialSavePayload,
   AadeCredentialStatus,
   AadeRegistryCredentialSavePayload,
   AadeVatRegistryResult,
+  LegalRegistryConnectionStatus,
   LegalSyncParams,
   LegalSyncRun,
   ProformaDocument,
@@ -27,6 +30,8 @@ export const legalRepository = {
   saveCredentials: (payload: AadeCredentialSavePayload): Promise<AadeCredentialStatus> => api.saveAadeCredentials(payload),
   saveRegistryCredentials: (payload: AadeRegistryCredentialSavePayload): Promise<AadeCredentialStatus> =>
     api.saveAadeRegistryCredentials(payload),
+  testRegistryConnection: (requestedByVat: string): Promise<LegalRegistryConnectionStatus> =>
+    api.testAadeRegistryConnection(requestedByVat),
   lookupVatRegistry: (payload: {
     vatNumber: string;
     requestedByVat?: string | null;
@@ -34,6 +39,10 @@ export const legalRepository = {
   }): Promise<AadeVatRegistryResult> => api.lookupAadeVatRegistry(payload),
   getSequences: (): Promise<LegalNumberingSequence[]> => api.getLegalNumberingSequences(),
   saveSequence: (sequence: LegalNumberingSequence): Promise<void> => api.saveLegalNumberingSequence(sequence),
+  previewNumberingAlignment: (): Promise<LegalNumberingAlignmentPreview> =>
+    api.previewLegalNumberingAlignment(),
+  applyNumberingAlignment: (expectedPreviewToken: string): Promise<LegalNumberingAlignmentResult> =>
+    api.applyLegalNumberingAlignment(expectedPreviewToken),
   getCarriers: (): Promise<LegalCarrier[]> => api.getLegalCarriers(),
   saveCarrier: (carrier: LegalCarrier): Promise<void> => api.saveLegalCarrier(carrier),
   getDocuments: (): Promise<LegalDocument[]> => api.getLegalDocuments(),

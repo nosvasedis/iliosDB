@@ -4,7 +4,6 @@ import { isInspectionModeActive } from '../lib/inspectionMode';
 import { getLegalDocumentDisplayNumber, PAYMENT_METHOD_LABELS } from '../utils/legalDocuments';
 import {
   LegalPrintCustomerBar,
-  LegalPrintFooter,
   LegalPrintHeader,
   LegalPrintLinesTable,
   LegalPrintPage,
@@ -19,12 +18,18 @@ interface ProformaPrintViewProps {
 
 const ProformaPrintView: React.FC<ProformaPrintViewProps> = ({ document, lines }) => {
   const displayNumber = getLegalDocumentDisplayNumber(document);
+  const footerText = isInspectionModeActive()
+    ? 'Προτιμολόγιο εσωτερικής χρήσης Συστήματος Παραστατικών. Για φορολογική ισχύ απαιτείται έκδοση τιμολογίου και διαβίβαση στη myDATA.'
+    : 'Προτιμολόγιο εσωτερικής χρήσης IliosERP. Για φορολογική ισχύ απαιτείται έκδοση τιμολογίου και διαβίβαση στη myDATA.';
 
   return (
     <LegalPrintPage>
       <LegalPrintHeader
         title="ΠΡΟΤΙΜΟΛΟΓΙΟ"
         documentNumber={displayNumber}
+        issuer={document.issuer}
+        series={document.series}
+        aa={document.aa}
         issueDate={document.issue_date}
         statusBadge={(
           <span className="inline-flex rounded border border-sky-300 bg-sky-50 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-sky-900">
@@ -77,13 +82,8 @@ const ProformaPrintView: React.FC<ProformaPrintViewProps> = ({ document, lines }
         ) : (
           <div className="text-slate-500">Μπορεί να μετατραπεί σε κανονικό πρόχειρο παραστατικό πριν την έκδοση.</div>
         )}
+        footerText={footerText}
       />
-
-      <LegalPrintFooter>
-        {isInspectionModeActive()
-          ? 'Προτιμολόγιο εσωτερικής χρήσης Συστήματος Παραστατικών. Για φορολογική ισχύ απαιτείται έκδοση τιμολογίου και διαβίβαση στη myDATA.'
-          : 'Προτιμολόγιο εσωτερικής χρήσης IliosERP. Για φορολογική ισχύ απαιτείται έκδοση τιμολογίου και διαβίβαση στη myDATA.'}
-      </LegalPrintFooter>
     </LegalPrintPage>
   );
 };

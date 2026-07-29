@@ -18,7 +18,7 @@ import { normalizeVatNumber, parseTransmittedDocumentsXml } from '../../utils/le
 import { resolveFinanceLineSku } from '../../utils/financeLineSku';
 import { transliterateForBarcode } from '../../utils/pricingEngine';
 
-export const LEGAL_ARCHIVE_PARSE_VERSION = 1;
+export const LEGAL_ARCHIVE_PARSE_VERSION = 2;
 
 export function normalizeExternalItemCode(value?: string | null): string {
   return String(value || '').trim().toUpperCase().replace(/\s+/g, '');
@@ -619,11 +619,13 @@ export function buildArchivedDocumentEnrichment(
       quantity: source.quantity || line.quantity,
       measurement_unit: source.measurementUnit || line.measurement_unit,
       item_code: source.itemCode || line.item_code || null,
+      income_classification: source.incomeClassification || line.income_classification,
       source_metadata: {
         ...(line.source_metadata || {}),
         item_description: source.itemDescription || null,
         line_comments: source.lineComments || null,
         raw_item_code: source.itemCode || null,
+        income_classifications: source.incomeClassifications || [],
         parser_version: LEGAL_ARCHIVE_PARSE_VERSION,
       },
     };
@@ -631,7 +633,6 @@ export function buildArchivedDocumentEnrichment(
   return {
     document: {
       ...document,
-      issuer: { ...document.issuer, ...(parsed.issuer || {}) },
       counterpart: {
         ...document.counterpart,
         ...(parsed.counterpart || {}),
