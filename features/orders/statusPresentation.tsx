@@ -47,6 +47,14 @@ export const getOrderStatusLabel = (status: OrderStatus, _variant: OrderStatusLa
 export const getOrderStatusClasses = (status: OrderStatus, variant: OrderStatusStyleVariant = 'default'): string =>
   ORDER_STATUS_STYLES[variant][status] ?? ORDER_STATUS_STYLES.default[status];
 
+/**
+ * Production management remains useful after delivery (and after archiving):
+ * users may need to inspect or correct the batches that fulfilled the order.
+ * Cancellation is the only terminal state that must not reopen that workflow.
+ */
+export const canAccessOrderProductionManagement = (status: OrderStatus): boolean =>
+  status !== OrderStatus.Cancelled;
+
 export const getOrderStatusIcon = (status: OrderStatus, size = 14): React.ReactNode => {
   switch (status) {
     case OrderStatus.Pending:

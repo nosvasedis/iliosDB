@@ -3,6 +3,7 @@ export * from './repository';
 export * from './newProductHelpers';
 export * from './mappers';
 export * from './productRegistryViewModels';
+export * from './catalogVisibility';
 export * from './registryStoneChipStyles';
 export { default as RegistrySortSelect } from './RegistrySortSelect';
 export {

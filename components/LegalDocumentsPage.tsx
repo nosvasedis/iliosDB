@@ -101,6 +101,7 @@ import {
   createManualLegalDocumentLine,
   documentIncludesDeliveryNote,
   getLegalCatalogLineDetails,
+  getLegalDocumentCatalogProducts,
   isOfficialLegalDocumentPrint,
   AADE_INCOME_CATEGORY_OPTIONS,
   AADE_INCOME_TYPE_OPTIONS,
@@ -428,6 +429,10 @@ export default function LegalDocumentsPage({
   const queryClient = useQueryClient();
   const { profile } = useAuth();
   const userName = profile?.full_name || profile?.email || null;
+  const legalCatalogProducts = useMemo(
+    () => getLegalDocumentCatalogProducts(products),
+    [products],
+  );
 
   const { data: orders = [], isLoading: loadingOrders } = useOrdersWithItems();
   const { data: customers = [] } = useCustomers();
@@ -756,7 +761,7 @@ export default function LegalDocumentsPage({
   const applyCatalogToLegalLine = (lineId: string, selection: SkuProductSelection) => {
     updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((line) => {
       if (line.id !== lineId) return line;
-      const product = products.find((item) => item.sku === selection.sku);
+      const product = legalCatalogProducts.find((item) => item.sku === selection.sku);
       if (!product) {
         return {
           ...line,
@@ -775,7 +780,7 @@ export default function LegalDocumentsPage({
   const applyCatalogToProformaLine = (lineId: string, selection: SkuProductSelection) => {
     updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((line) => {
       if (line.id !== lineId) return line;
-      const product = products.find((item) => item.sku === selection.sku);
+      const product = legalCatalogProducts.find((item) => item.sku === selection.sku);
       if (!product) {
         return {
           ...line,
@@ -1639,7 +1644,7 @@ export default function LegalDocumentsPage({
                       <SkuProductPicker
                         sku={line.sku}
                         variantSuffix={line.variant_suffix}
-                        products={products}
+                        products={legalCatalogProducts}
                         onSelect={(selection) => applyCatalogToLegalLine(line.id, selection)}
                         onEnterCommit={() => appendLegalLineAfter(line.id)}
                         autoFocus={legalSkuFocusLineId === line.id}
@@ -2010,7 +2015,7 @@ export default function LegalDocumentsPage({
                       <SkuProductPicker
                         sku={line.sku}
                         variantSuffix={line.variant_suffix}
-                        products={products}
+                        products={legalCatalogProducts}
                         onSelect={(selection) => applyCatalogToProformaLine(line.id, selection)}
                         onEnterCommit={() => appendProformaLineAfter(line.id)}
                         autoFocus={proformaSkuFocusLineId === line.id}

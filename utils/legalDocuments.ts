@@ -1,8 +1,10 @@
 import {
   AadeDocumentType,
+  AadeIssuableDocumentType,
   AadeProxyResult,
   AadeTransmittedDocsParseResult,
   Customer,
+  Gender,
   LegalDeliveryDetails,
   LegalDocument,
   LegalDocumentKind,
@@ -20,12 +22,69 @@ import {
   OrderItem,
   OrderShipment,
   OrderShipmentItem,
+  PlatingType,
   Product,
+  ProductionType,
   ProformaDocument,
   ProformaDocumentLine,
 } from '../types';
+import {
+  isLegalShippingItemCode,
+  LEGAL_SHIPPING_ITEM_CODE,
+  LEGAL_SHIPPING_ITEM_DESCRIPTION,
+} from './legalItemCodes';
+
+export {
+  isLegalShippingItemCode,
+  LEGAL_SHIPPING_ITEM_CODE,
+  LEGAL_SHIPPING_ITEM_DESCRIPTION,
+} from './legalItemCodes';
 
 export const LEGAL_SETTINGS_ID = '00000000-0000-0000-0000-000000000091';
+
+/**
+ * A legal-document-only catalog entry. It deliberately has no database row and
+ * must never be exposed by the general product registry or inventory modules.
+ */
+export const LEGAL_VIRTUAL_SHIPPING_PRODUCT: Product = {
+  sku: LEGAL_SHIPPING_ITEM_CODE,
+  prefix: LEGAL_SHIPPING_ITEM_CODE,
+  category: 'Χρέωση Παραστατικού',
+  description: LEGAL_SHIPPING_ITEM_DESCRIPTION,
+  gender: Gender.Unisex,
+  image_url: null,
+  weight_g: 0,
+  plating_type: PlatingType.None,
+  production_type: ProductionType.Imported,
+  active_price: 0,
+  draft_price: 0,
+  selling_price: 0,
+  stock_qty: 0,
+  sample_qty: 0,
+  molds: [],
+  is_component: false,
+  variants: [],
+  recipe: [],
+  labor: {
+    casting_cost: 0,
+    setter_cost: 0,
+    technician_cost: 0,
+    stone_setting_cost: 0,
+    plating_cost_x: 0,
+    plating_cost_d: 0,
+    subcontract_cost: 0,
+  },
+  collections: [],
+};
+
+export function getLegalDocumentCatalogProducts(products: Product[]): Product[] {
+  return [
+    LEGAL_VIRTUAL_SHIPPING_PRODUCT,
+    ...products.filter((product) =>
+      !isLegalShippingItemCode(product.sku) && !isLegalShippingItemCode(product.prefix)
+    ),
+  ];
+}
 
 export function isLegalDocumentEditable(document: Pick<LegalDocument, 'status'>): boolean {
   return document.status === 'draft' || document.status === 'failed';
@@ -301,7 +360,7 @@ export function getAllowedIncomeTypeOptions(
   return AADE_INCOME_TYPE_OPTIONS.filter((option) => allowedTypes.has(option.value));
 }
 
-export function getAadeDocumentTypeForKind(kind: LegalDocumentKind): AadeDocumentType {
+export function getAadeDocumentTypeForKind(kind: LegalDocumentKind): AadeIssuableDocumentType {
   if (kind === 'delivery_note') return '9.3';
   if (kind === 'credit') return '5.2';
   return '1.1';
@@ -338,7 +397,7 @@ export function applyLegalDocumentDeliveryToggle(
 }
 
 export function getDocumentKindFromAadeType(type: AadeDocumentType): LegalDocumentKind {
-  if (type === '9.3') return 'delivery_note';
+  if (type === '9.1' || type === '9.2' || type === '9.3') return 'delivery_note';
   if (type === '5.1' || type === '5.2') return 'credit';
   return 'invoice';
 }

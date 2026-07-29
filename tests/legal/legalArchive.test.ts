@@ -182,27 +182,21 @@ describe('legal archive intelligence', () => {
     });
   });
 
-  it('recognizes Prisma code 000 as the real Μεταφορικά catalog service', () => {
-    const shipping = product({
-      sku: '000',
-      prefix: '000',
-      category: 'Υπηρεσίες',
-      description: 'Μεταφορικά',
-      weight_g: 0,
-    });
+  it('recognizes Prisma code 000 as a virtual legal service without a catalog product', () => {
     const [record] = buildRecords({
       lines: [legalLine({
         sku: '000',
         item_code: '000',
         description: 'ΜΕΤΑΦΟΡΙΚΑ',
       })],
-      products: [product(), shipping],
+      products: [product()],
     });
     expect(record.lineMatches[0]).toMatchObject({
-      method: 'catalog',
+      method: 'legal_service',
       masterSku: '000',
-      product: { description: 'Μεταφορικά' },
+      virtualLabel: 'Μεταφορικά',
     });
+    expect(record.lineMatches[0].product).toBeUndefined();
     expect(record.matchState).toBe('matched');
   });
 

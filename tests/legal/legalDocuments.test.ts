@@ -39,8 +39,11 @@ import {
   vatRateToAadeCategory,
   buildLegalNumberingAlignmentPlan,
   formatLegalNumberingAlignmentMessage,
+  getDocumentKindFromAadeType,
+  getLegalDocumentCatalogProducts,
   getLegalDocumentDeletePrompt,
   getLegalProductLineDescription,
+  LEGAL_VIRTUAL_SHIPPING_PRODUCT,
   normalizeLegalSeriesKey,
   parseLegalDocumentAa,
   parseLegalPartyAddress,
@@ -285,7 +288,6 @@ describe('legal document helpers', () => {
   });
 
   it('classifies catalog shipping code 000 centrally as category1_3', () => {
-    const shippingProduct = { ...product, sku: '000', description: 'Μεταφορικά' };
     const shippingOrder = {
       ...baseOrder,
       items: [{ ...baseOrder.items[0], sku: '000', quantity: 1, price_at_order: 5 }],
@@ -293,7 +295,7 @@ describe('legal document helpers', () => {
     const document = buildLegalDocumentFromOrder({
       order: shippingOrder,
       customer,
-      products: [shippingProduct],
+      products: [LEGAL_VIRTUAL_SHIPPING_PRODUCT],
       settings,
       kind: 'invoice',
     });
@@ -305,6 +307,26 @@ describe('legal document helpers', () => {
     });
     expect(buildAadeInvoiceXml({ ...document, series: 'TIM', aa: '1' }, document.lines))
       .toContain('<icls:classificationCategory>category1_3</icls:classificationCategory>');
+  });
+
+  it('keeps virtual shipping available only in the legal catalog', () => {
+    const legalCatalog = getLegalDocumentCatalogProducts([
+      product,
+      { ...product, sku: '000', prefix: '000', description: 'legacy database row' },
+    ]);
+
+    expect(legalCatalog.filter((item) => item.sku === '000')).toHaveLength(1);
+    expect(legalCatalog[0]).toBe(LEGAL_VIRTUAL_SHIPPING_PRODUCT);
+    expect(legalCatalog[0]).toMatchObject({
+      sku: '000',
+      description: 'Μεταφορικά',
+      stock_qty: 0,
+    });
+  });
+
+  it('groups official AADE retail receipts as invoices when reading the archive', () => {
+    expect(getDocumentKindFromAadeType('11.1')).toBe('invoice');
+    expect(getDocumentKindFromAadeType('9.1')).toBe('delivery_note');
   });
 
   it('uses the official non-E3 classification for delivery notes', () => {
@@ -626,7 +648,7 @@ describe('legal document helpers', () => {
     expect(row.document_id).toBe('doc-1');
   });
 
-  it('parses transmitted docs wrapped in AADE <string> serialization envelope', () => {
+  it('parses retail receipts wrapped in the AADE <string> serialization envelope', () => {
     const parsed = parseTransmittedDocumentsXml(`<string xmlns="http://schemas.microsoft.com/2003/10/Serialization/">&lt;?xml version="1.0" encoding="utf-8"?&gt;
 &lt;RequestedDoc&gt;
   &lt;invoicesDoc&gt;
@@ -638,7 +660,7 @@ describe('legal document helpers', () => {
         &lt;series&gt;ΤΙΜ&lt;/series&gt;
         &lt;aa&gt;2&lt;/aa&gt;
         &lt;issueDate&gt;2026-06-11&lt;/issueDate&gt;
-        &lt;invoiceType&gt;1.1&lt;/invoiceType&gt;
+        &lt;invoiceType&gt;11.1&lt;/invoiceType&gt;
       &lt;/invoiceHeader&gt;
       &lt;invoiceDetails&gt;
         &lt;lineNumber&gt;1&lt;/lineNumber&gt;
@@ -661,7 +683,7 @@ describe('legal document helpers', () => {
       mark: '400001964689732',
       series: 'ΤΙΜ',
       aa: '2',
-      invoiceType: '1.1',
+      invoiceType: '11.1',
       cancelledByMark: '400001964689778',
       qrUrl: 'https://example.test/qr/2',
     });

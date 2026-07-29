@@ -645,7 +645,29 @@ export interface StageBatchPrintData {
 }
 
 export type LegalDocumentKind = 'invoice' | 'delivery_note' | 'invoice_delivery' | 'credit';
-export type AadeDocumentType = '1.1' | '9.3' | '5.1' | '5.2';
+export const AADE_DOCUMENT_TYPES = [
+  '1.1', '1.2', '1.3', '1.4', '1.5', '1.6',
+  '2.1', '2.2', '2.3', '2.4',
+  '3.1', '3.2',
+  '4',
+  '5.1', '5.2',
+  '6.1', '6.2',
+  '7.1',
+  '8.1', '8.2', '8.4', '8.5', '8.6',
+  '9.1', '9.2', '9.3',
+  '10.1', '10.2',
+  '11.1', '11.2', '11.3', '11.4', '11.5',
+  '12',
+  '13.1', '13.2', '13.3', '13.4', '13.30', '13.31',
+  '14.1', '14.2', '14.3', '14.4', '14.5', '14.30', '14.31',
+  '15.1',
+  '16.1',
+  '17.1', '17.2', '17.3', '17.4', '17.5', '17.6',
+] as const;
+export type AadeDocumentType = typeof AADE_DOCUMENT_TYPES[number];
+
+export const AADE_ISSUABLE_DOCUMENT_TYPES = ['1.1', '9.3', '5.1', '5.2'] as const;
+export type AadeIssuableDocumentType = typeof AADE_ISSUABLE_DOCUMENT_TYPES[number];
 export type LegalDocumentStatus = 'draft' | 'submitted' | 'issued' | 'failed' | 'cancelled';
 export type LegalEnvironment = 'dev' | 'prod';
 export type LegalSourceKind = 'order' | 'shipment' | 'manual' | 'aade_sync' | 'proforma';
@@ -813,7 +835,7 @@ export interface LegalSettings {
 export interface LegalNumberingSequence {
   id: string;
   document_kind: LegalDocumentKind;
-  aade_document_type: AadeDocumentType;
+  aade_document_type: AadeIssuableDocumentType;
   series: string;
   next_aa: number;
   is_active: boolean;
@@ -823,7 +845,7 @@ export interface LegalNumberingSequence {
 export interface LegalNumberingAlignmentEntry {
   sequence_id: string;
   document_kind: LegalDocumentKind;
-  aade_document_type: AadeDocumentType;
+  aade_document_type: AadeIssuableDocumentType;
   series: string;
   series_key: string;
   current_next_aa: number;
@@ -835,7 +857,7 @@ export interface LegalNumberingAlignmentEntry {
 export interface LegalNumberingHistoricalSeries {
   active_sequence_id: string;
   document_kind: LegalDocumentKind;
-  aade_document_type: AadeDocumentType;
+  aade_document_type: AadeIssuableDocumentType;
   active_series: string;
   series: string;
   series_key: string;
@@ -1166,9 +1188,10 @@ export interface LegalArchiveLineMatch {
   product?: Product;
   masterSku?: string;
   variantSuffix?: string;
-  method: 'alias' | 'catalog' | 'order' | 'none';
+  method: 'legal_service' | 'alias' | 'catalog' | 'order' | 'none';
   alias?: LegalExternalItemAlias;
   rawItemCode?: string | null;
+  virtualLabel?: string;
 }
 
 export interface LegalArchiveRecord {

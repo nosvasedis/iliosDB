@@ -22,7 +22,7 @@ import ShipmentUndoConfirmationModal from './deliveries/ShipmentUndoConfirmation
 import { invalidateAndRefetchAfterShipmentChange, invalidateOrdersAndBatches } from '../lib/queryInvalidation';
 import { buildPartialOrderFromBatches, buildOrderLabelPrintItems, buildSyntheticAggregatedBatches, getShipmentPrintDecision, getShipmentStageBreakdown, getShipmentSummary, getShipmentValue, buildOrderRevisions, orderMatchesSearch, estimateOrderListRowHeight, canOfferRemainingTransfer, orderKeys } from '../features/orders';
 import DebouncedSearchInput from './orders/DebouncedSearchInput';
-import { getOrderStatusClasses, getOrderStatusLabel, getOrderStatusIcon } from '../features/orders/statusPresentation';
+import { canAccessOrderProductionManagement, getOrderStatusClasses, getOrderStatusLabel, getOrderStatusIcon } from '../features/orders/statusPresentation';
 import { getTagColor } from '../features/orders/tagColors';
 import { OrdersFilterPanel, OrderFilters, DEFAULT_FILTERS, countActiveFilters } from './orders/OrdersFilterPanel';
 import { useTagColorOverrides } from '../hooks/api/useTagColorOverrides';
@@ -1200,12 +1200,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         if (!shipments || shipments.length === 0) return null;
         return shipments.reduce((latest, s) => s.shipment_number > latest.shipment_number ? s : latest);
     }, [managingOrderShipmentsQuery.data]);
-    const canOpenManagingOrderProduction = !!managingOrder && (
-        managingOrder.status === OrderStatus.Pending ||
-        managingOrder.status === OrderStatus.InProduction ||
-        managingOrder.status === OrderStatus.PartiallyDelivered ||
-        (managingOrder.status === OrderStatus.Delivered && !!managingOrderLatestShipment)
-    );
+    const canOpenManagingOrderProduction = !!managingOrder
+        && canAccessOrderProductionManagement(managingOrder.status);
     const canTransferManagingOrder = !!managingOrder && canOfferRemainingTransfer(
         managingOrder,
         shipmentItemsByOrderId.get(managingOrder.id) || [],
@@ -1929,7 +1925,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                 <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Κατάσταση</div>
                                             </div>
                                             <div className="flex flex-wrap items-start gap-2">
-                                                {(order.status === OrderStatus.InProduction || order.status === OrderStatus.Pending || order.status === OrderStatus.PartiallyDelivered) ? (
+                                                {canAccessOrderProductionManagement(order.status) ? (
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handleSendToProduction(order.id); }}
                                                         title="Διαχείριση Παραγωγής"

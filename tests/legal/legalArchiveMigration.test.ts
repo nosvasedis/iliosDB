@@ -12,8 +12,8 @@ const migration = readFileSync(
   new URL('../../supabase/migrations/20260728085650_legal_archive_intelligence.sql', import.meta.url),
   'utf8',
 );
-const shippingProductMigration = readFileSync(
-  new URL('../../supabase/migrations/20260728093002_add_shipping_service_product.sql', import.meta.url),
+const archiveTypeAndVirtualShippingMigration = readFileSync(
+  new URL('../../supabase/migrations/20260729091831_fix_legal_archive_types_and_virtual_shipping.sql', import.meta.url),
   'utf8',
 );
 const archiveRelationshipsMigration = readFileSync(
@@ -25,7 +25,7 @@ const archiveWorkspaceSource = readFileSync(
   'utf8',
 );
 const numberingHardeningMigration = readFileSync(
-  new URL('../../supabase/migrations/20260729064434_legal_numbering_submission_hardening.sql', import.meta.url),
+  new URL('../../supabase/migrations/20260729082559_legal_numbering_submission_hardening.sql', import.meta.url),
   'utf8',
 );
 
@@ -55,12 +55,24 @@ describe('legal archive database contract', () => {
     expect(getRealtimeInvalidationDomainsForTable('legal_external_item_aliases')).toContain('legal');
   });
 
-  it('seeds Prisma code 000 as the non-stock Μεταφορικά catalog service', () => {
-    expect(shippingProductMigration).toMatch(/insert into public\.products/i);
-    expect(shippingProductMigration).toContain("'000'");
-    expect(shippingProductMigration).toContain("'Μεταφορικά'");
-    expect(shippingProductMigration).toContain("'Υπηρεσίες'");
-    expect(shippingProductMigration).toMatch(/on conflict \(sku\) do update/i);
+  it('accepts all official archive types while reserving 000 outside the product registry', () => {
+    expect(archiveTypeAndVirtualShippingMigration).toMatch(
+      /drop constraint if exists legal_documents_aade_document_type_check/i,
+    );
+    expect(archiveTypeAndVirtualShippingMigration).toContain("'11.1'");
+    expect(archiveTypeAndVirtualShippingMigration).toContain("'17.6'");
+    expect(archiveTypeAndVirtualShippingMigration).toMatch(
+      /add column if not exists legal_only boolean not null default false/i,
+    );
+    expect(archiveTypeAndVirtualShippingMigration).toMatch(
+      /update public\.products[\s\S]*set legal_only = true[\s\S]*upper\(btrim\(sku\)\) = '000'/i,
+    );
+    expect(archiveTypeAndVirtualShippingMigration).toMatch(
+      /products_sku_000_reserved_for_legal_documents_check[\s\S]*legal_only[\s\S]*upper\(btrim\(coalesce\(sku, ''\)\)\) = '000'/i,
+    );
+    expect(archiveTypeAndVirtualShippingMigration).not.toMatch(
+      /delete from public\.(?:legal_document_lines|products)/i,
+    );
   });
 
   it('persists seller matching and whole or partial order allocations', () => {

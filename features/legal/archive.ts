@@ -14,7 +14,13 @@ import {
   UserProfile,
 } from '../../types';
 import { normalizeGreekForSearch } from '../../utils/greekSearch';
-import { normalizeVatNumber, parseTransmittedDocumentsXml } from '../../utils/legalDocuments';
+import {
+  isLegalShippingItemCode,
+  LEGAL_SHIPPING_ITEM_CODE,
+  LEGAL_SHIPPING_ITEM_DESCRIPTION,
+  normalizeVatNumber,
+  parseTransmittedDocumentsXml,
+} from '../../utils/legalDocuments';
 import { resolveFinanceLineSku } from '../../utils/financeLineSku';
 import { transliterateForBarcode } from '../../utils/pricingEngine';
 
@@ -208,7 +214,8 @@ function resolveSeller(
 }
 
 function lineIdentity(match: LegalArchiveLineMatch): string | null {
-  if (!match.product || !match.masterSku) return null;
+  if (!match.masterSku) return null;
+  if (!match.product && match.method !== 'legal_service') return null;
   return `${match.masterSku.toUpperCase()}::${String(match.variantSuffix || '').toUpperCase()}`;
 }
 
@@ -260,6 +267,16 @@ function resolveLineMatches(params: {
       || line.source_metadata?.raw_item_code
       || (line.sku && line.sku !== 'AADE' && line.sku !== '—' ? line.sku : null);
     const normalizedCode = normalizeExternalItemCode(rawItemCode);
+    if (isLegalShippingItemCode(normalizedCode)) {
+      return {
+        line,
+        masterSku: LEGAL_SHIPPING_ITEM_CODE,
+        variantSuffix: '',
+        method: 'legal_service' as const,
+        rawItemCode,
+        virtualLabel: LEGAL_SHIPPING_ITEM_DESCRIPTION,
+      };
+    }
     const alias = normalizedCode ? params.aliasesByKey.get(`${externalSource}::${normalizedCode}`) : undefined;
     if (alias) {
       const product = params.productsMap.get(alias.product_sku);
@@ -328,6 +345,7 @@ function buildRecordSearchText(record: Omit<LegalArchiveRecord, 'searchText'>): 
     match.rawItemCode,
     match.masterSku,
     match.variantSuffix,
+    match.virtualLabel,
     match.product?.description,
     match.product?.category,
     match.line.description,

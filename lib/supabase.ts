@@ -55,6 +55,7 @@ import {
     type ReconcileCatalogItem,
 } from '../features/production/orderBatchReconcile';
 import { mapCatalogProductsWithRelations, mapProductsWithRelations, resolveProductImageUrl, attachSuppliersToProductRows } from '../features/products/mappers';
+import { isVisibleProductCatalogRow } from '../features/products/catalogVisibility';
 import { getRegisteredQueryClient } from './queryClientRegistry';
 import {
     assertInspectionRpcAllowed,
@@ -64,7 +65,7 @@ import {
 } from './inspectionMode';
 import { addReceivedSizeQuantity, resolveSupplierOrderProductReceiptTarget, supplierOrderInventoryReceiptQuantity } from '../features/suppliers/receiptHelpers';
 import { getGreekOperationalErrorMessage } from '../features/inventory/greek';
-import { buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, getAadeProxyErrorMessage, groupIncomeClassifications, isEmptyTransmittedDocsResponse, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, parseAadeResponseXml, parseTransmittedDocumentsXml, resolveLegalIncomeClassification, roundMoney, serializeLegalDocumentForDb, serializeLegalDocumentLineForDb, serializeProformaDocumentForDb, validateLegalDocument } from '../utils/legalDocuments';
+import { buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, getAadeProxyErrorMessage, groupIncomeClassifications, isEmptyTransmittedDocsResponse, isLegalShippingItemCode, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, parseAadeResponseXml, parseTransmittedDocumentsXml, resolveLegalIncomeClassification, roundMoney, serializeLegalDocumentForDb, serializeLegalDocumentLineForDb, serializeProformaDocumentForDb, validateLegalDocument } from '../utils/legalDocuments';
 import { buildArchivedDocumentEnrichment, LEGAL_ARCHIVE_PARSE_VERSION } from '../features/legal/archive';
 
 // Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
@@ -2398,8 +2399,10 @@ export const api = {
                 fetchFullTable('product_variants', '*', (q) => q.order('product_sku').order('suffix')),
             ]);
             if (!prodData || prodData.length === 0) return [];
+            const visibleProdData = (prodData as any[]).filter(isVisibleProductCatalogRow);
+            if (visibleProdData.length === 0) return [];
             return mapProductsWithRelations(
-                prodData as any,
+                visibleProdData,
                 {
                     variants: varData as any,
                     recipes: [],
@@ -2420,8 +2423,10 @@ export const api = {
             fetchFullTable('suppliers', '*', (q) => q.order('name')),
         ]);
         if (!prodData || prodData.length === 0) return [];
+        const visibleProdData = (prodData as any[]).filter(isVisibleProductCatalogRow);
+        if (visibleProdData.length === 0) return [];
 
-        const prodWithSuppliers = attachSuppliersToProductRows(prodData as any[], suppliersData as any[]);
+        const prodWithSuppliers = attachSuppliersToProductRows(visibleProdData, suppliersData as any[]);
 
         const [varData, recData, prodMoldsData, prodCollData, stockData] = await Promise.all([
             fetchFullTable('product_variants', '*', (q) => q.order('product_sku').order('suffix')),
@@ -2467,7 +2472,10 @@ export const api = {
             const { data: prodData, error: prodErr } = prodRes;
             if (prodErr) throw prodErr;
             if (!prodData || prodData.length === 0) return { products: [], hasMore: false };
-            const prodWithSuppliers = attachSuppliersToProductRows(prodData as any[], suppliersRes as any[]);
+            const hasMore = prodData.length === limit;
+            const visibleProdData = (prodData as any[]).filter(isVisibleProductCatalogRow);
+            if (visibleProdData.length === 0) return { products: [], hasMore };
+            const prodWithSuppliers = attachSuppliersToProductRows(visibleProdData, suppliersRes as any[]);
             const skus = prodWithSuppliers.map((p: any) => p.sku);
             const [varRes, collRes, stockRes] = await Promise.all([
                 supabase.from('product_variants').select('*').in('product_sku', skus),
@@ -2489,7 +2497,7 @@ export const api = {
                     showroomWarehouseId: SYSTEM_IDS.SHOWROOM,
                 }
             );
-            return { products, hasMore: products.length === limit };
+            return { products, hasMore };
         } catch (err) {
             console.warn('getProductsCatalog page fetch failed; falling back to full product graph.', err);
             const all = await api.getProducts();
@@ -2598,10 +2606,16 @@ export const api = {
 
     saveProduct: async (productData: any) => {
         const sanitized = sanitizeProductData(productData);
+        if (isLegalShippingItemCode(sanitized.sku) || isLegalShippingItemCode(sanitized.prefix)) {
+            throw new Error('Ο κωδικός 000 είναι δεσμευμένος αποκλειστικά για τα Μεταφορικά στα Παραστατικά και δεν μπορεί να αποθηκευτεί ως προϊόν.');
+        }
         return safeMutate('products', 'UPSERT', sanitized, { onConflict: 'sku' });
     },
 
     renameProduct: async (oldSku: string, newSku: string): Promise<void> => {
+        if (isLegalShippingItemCode(oldSku) || isLegalShippingItemCode(newSku)) {
+            throw new Error('Ο κωδικός 000 είναι δεσμευμένος αποκλειστικά για τα Μεταφορικά στα Παραστατικά και δεν μπορεί να χρησιμοποιηθεί στο Μητρώο Κωδικών.');
+        }
         if (isLocalMode) {
             // ... (Same as before)
             return;

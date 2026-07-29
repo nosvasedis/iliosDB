@@ -1065,12 +1065,12 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                       <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono font-black text-slate-700">
                         {match.rawItemCode || 'χωρίς κωδικό είδους'}
                       </span>
-                      {match.product ? (
+                      {match.product || match.method === 'legal_service' ? (
                         <span className="inline-flex min-w-0 items-center gap-1 font-black text-emerald-700">
                           <ChevronRight size={12} />
                           <span className="font-mono">{match.masterSku}{match.variantSuffix || ''}</span>
                           <span className="truncate font-sans font-bold text-emerald-600">
-                            ({match.method === 'alias' ? 'κανόνας' : match.method === 'order' ? 'παραγγελία' : 'κατάλογος'})
+                            ({match.method === 'legal_service' ? 'χρέωση παραστατικού' : match.method === 'alias' ? 'κανόνας' : match.method === 'order' ? 'παραγγελία' : 'κατάλογος'})
                           </span>
                         </span>
                       ) : isOperationalDeliveryNote ? (
@@ -1097,11 +1097,11 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                         </button>
                       )}
                     </div>
-                    <div className="mt-1 truncate text-sm font-bold text-slate-800" title={match.product?.description || match.line.source_metadata?.item_description || match.line.description}>
-                      {match.product?.description || match.line.source_metadata?.item_description || match.line.description}
+                    <div className="mt-1 truncate text-sm font-bold text-slate-800" title={match.virtualLabel || match.product?.description || match.line.source_metadata?.item_description || match.line.description}>
+                      {match.virtualLabel || match.product?.description || match.line.source_metadata?.item_description || match.line.description}
                     </div>
                     <div className="mt-0.5 truncate text-[11px] text-slate-500">
-                      {match.product?.category || 'Άγνωστη κατηγορία'}
+                      {match.method === 'legal_service' ? 'Χρέωση μόνο για παραστατικά' : match.product?.category || 'Άγνωστη κατηγορία'}
                       {match.line.source_metadata?.line_comments ? ` · ${match.line.source_metadata.line_comments}` : ''}
                     </div>
                   </div>
@@ -1118,6 +1118,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                 </div>
                 {record.source === 'legal'
                   && !isOperationalDeliveryNote
+                  && match.method !== 'legal_service'
                   && (!match.product || editingAliases.has(match.line.id))
                   && (
                   <AliasEditor
@@ -1495,8 +1496,8 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                           <td className="px-3 py-3">
                             <div className="flex max-w-64 flex-wrap gap-1">
                               {record.lineMatches.slice(0, 3).map((match) => (
-                                <span key={match.line.id} className={`rounded-lg border px-2 py-1 font-mono text-[10px] font-black ${match.product ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
-                                  {match.product ? `${match.masterSku}${match.variantSuffix || ''}` : match.rawItemCode || 'χωρίς κωδικό'}
+                                <span key={match.line.id} className={`rounded-lg border px-2 py-1 font-mono text-[10px] font-black ${match.method !== 'none' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
+                                  {match.method !== 'none' ? `${match.masterSku}${match.variantSuffix || ''}` : match.rawItemCode || 'χωρίς κωδικό'}
                                 </span>
                               ))}
                               {record.lineMatches.length > 3 && <span className="px-1 py-1 text-[10px] font-bold text-slate-400">+{record.lineMatches.length - 3}</span>}
