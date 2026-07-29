@@ -27,6 +27,32 @@ import { transliterateForBarcode } from '../../utils/pricingEngine';
 
 export const LEGAL_ARCHIVE_PARSE_VERSION = 3;
 
+const AADE_FIM_SPECIAL_INVOICE_CATEGORY_PATTERN =
+  /<(?:[A-Za-z0-9_-]+:)?specialInvoiceCategory\b[^>]*>\s*(?:8|9)\s*<\/(?:[A-Za-z0-9_-]+:)?specialInvoiceCategory\s*>/i;
+const AADE_FIM_SERIES_KEYS = new Set(['FIMAADE1', 'FIMAADE2']);
+
+/**
+ * AADE exposes fiscal-device retail revenue summaries (FIM AADE 1/2) through
+ * RequestTransmittedDocs for read-only reconciliation. They are not actionable
+ * ERP documents and intentionally remain persisted only for sync idempotency.
+ */
+export function isAadeGeneratedFimRetailRevenueDocument(document: LegalDocument): boolean {
+  const isSynchronized = document.external_source === 'aade_sync'
+    || document.source_kind === 'aade_sync';
+  const isRetailDocument = /^11\./.test(String(document.aade_document_type || '').trim());
+  if (!isSynchronized || !isRetailDocument) return false;
+
+  const hasFimSpecialCategory = AADE_FIM_SPECIAL_INVOICE_CATEGORY_PATTERN.test(
+    String(document.raw_xml || ''),
+  );
+  const normalizedSeries = String(document.series || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+
+  return hasFimSpecialCategory || AADE_FIM_SERIES_KEYS.has(normalizedSeries);
+}
+
 const GENERIC_COUNTERPART_NAMES = new Set([
   'πελατης',
   'ληπτης',
@@ -460,8 +486,11 @@ export function buildLegalArchiveRecords(params: {
   aliases: LegalExternalItemAlias[];
   sellers?: UserProfile[];
 }): LegalArchiveRecord[] {
+  const visibleLegalDocuments = params.legalDocuments.filter(
+    (document) => !isAadeGeneratedFimRetailRevenueDocument(document),
+  );
   const counterpartKnowledge = buildLegalCounterpartKnowledge([
-    ...params.legalDocuments,
+    ...visibleLegalDocuments,
     ...params.proformas,
   ]);
   const legalLinesByDocument = new Map<string, LegalDocumentLine[]>();
@@ -540,7 +569,7 @@ export function buildLegalArchiveRecords(params: {
     document: LegalDocument | ProformaDocument;
     lines: Array<LegalDocumentLine | ProformaDocumentLine>;
   }> = [
-    ...params.legalDocuments.map((document) => ({
+    ...visibleLegalDocuments.map((document) => ({
       source: 'legal' as const,
       document: withKnownCounterpart(document),
       lines: legalLinesByDocument.get(document.id) || [],

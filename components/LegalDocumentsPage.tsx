@@ -81,6 +81,7 @@ import { ordersRepository } from '../features/orders/repository';
 import { isInspectionModeActive } from '../lib/inspectionMode';
 import {
   buildLegalArchiveRecords,
+  isAadeGeneratedFimRetailRevenueDocument,
   LEGAL_ARCHIVE_PARSE_VERSION,
   legalKeys,
   legalRepository,
@@ -448,6 +449,12 @@ export default function LegalDocumentsPage({
   const { data: sequences = [] } = useLegalNumberingSequences();
   const { data: carriers = [] } = useLegalCarriers();
   const { data: legalDocuments = [], isLoading: loadingDocuments } = useLegalDocuments();
+  const visibleLegalDocuments = useMemo(
+    () => legalDocuments.filter(
+      (document) => !isAadeGeneratedFimRetailRevenueDocument(document),
+    ),
+    [legalDocuments],
+  );
   const { data: allLegalDocumentLines = [], isLoading: loadingArchiveLines } = useAllLegalDocumentLines();
   const { data: proformas = [], isLoading: loadingProformas } = useProformaDocuments();
   const { data: allProformaDocumentLines = [], isLoading: loadingArchiveProformaLines } = useAllProformaDocumentLines();
@@ -582,12 +589,12 @@ export default function LegalDocumentsPage({
   const canUseSelectedOrder = Boolean(selectedPickerRow?.selectable);
 
   const stats = useMemo(() => ({
-    issued: legalDocuments.filter((document) => document.status === 'issued').length,
-    failed: legalDocuments.filter((document) => document.status === 'failed').length,
-    cancelled: legalDocuments.filter((document) => document.status === 'cancelled').length,
-    printable: legalDocuments.filter((document) => canPrintLegalDocument(document)).length,
+    issued: visibleLegalDocuments.filter((document) => document.status === 'issued').length,
+    failed: visibleLegalDocuments.filter((document) => document.status === 'failed').length,
+    cancelled: visibleLegalDocuments.filter((document) => document.status === 'cancelled').length,
+    printable: visibleLegalDocuments.filter((document) => canPrintLegalDocument(document)).length,
     proformas: proformas.filter((document) => document.status === 'draft').length,
-  }), [legalDocuments, proformas]);
+  }), [visibleLegalDocuments, proformas]);
 
   const validationIssues = useMemo(() => {
     if (!draftBundle) return [];
@@ -601,19 +608,19 @@ export default function LegalDocumentsPage({
 
   const filteredArchive = useMemo(() => {
     const needle = archiveSearch.trim().toLowerCase();
-    if (!needle) return legalDocuments;
-    return legalDocuments.filter((document) => [
+    if (!needle) return visibleLegalDocuments;
+    return visibleLegalDocuments.filter((document) => [
       getLegalDocumentDisplayNumber(document),
       document.counterpart.name,
       document.counterpart.vat_number,
       document.aade_mark,
       document.last_error,
     ].filter(Boolean).join(' ').toLowerCase().includes(needle));
-  }, [archiveSearch, legalDocuments]);
+  }, [archiveSearch, visibleLegalDocuments]);
 
   const legalDocumentById = useMemo(
-    () => new Map(legalDocuments.map((document) => [document.id, document])),
-    [legalDocuments],
+    () => new Map(visibleLegalDocuments.map((document) => [document.id, document])),
+    [visibleLegalDocuments],
   );
 
   const proformaArchiveStats = useMemo(() => ({
@@ -643,7 +650,7 @@ export default function LegalDocumentsPage({
 
   const archiveRecords = useMemo(
     () => buildLegalArchiveRecords({
-      legalDocuments,
+      legalDocuments: visibleLegalDocuments,
       legalLines: allLegalDocumentLines,
       proformas,
       proformaLines: allProformaDocumentLines,
@@ -654,7 +661,7 @@ export default function LegalDocumentsPage({
       sellers,
     }),
     [
-      legalDocuments,
+      visibleLegalDocuments,
       allLegalDocumentLines,
       proformas,
       allProformaDocumentLines,
@@ -725,10 +732,10 @@ export default function LegalDocumentsPage({
   }, [activeTab, archiveRecords, linkLegalArchiveSeller.isPending, userName]);
 
   const deliveryDocuments = useMemo(
-    () => legalDocuments.filter((document) =>
+    () => visibleLegalDocuments.filter((document) =>
       document.document_kind === 'delivery_note' || document.document_kind === 'invoice_delivery'
     ),
-    [legalDocuments]
+    [visibleLegalDocuments]
   );
 
   const updateDraftDocument = (updater: (document: LegalDocument) => LegalDocument) => {
@@ -3144,7 +3151,7 @@ export default function LegalDocumentsPage({
           <div className="space-y-3">
             {sequences.map((sequence) => {
               const draft = sequenceDrafts[sequence.id] || sequence;
-              const hasHistory = sequence.next_aa > 1 || legalDocuments.some((document) =>
+              const hasHistory = sequence.next_aa > 1 || visibleLegalDocuments.some((document) =>
                 document.document_kind === sequence.document_kind
                 && document.aade_document_type === sequence.aade_document_type
                 && normalizeLegalSeriesKey(document.series) === normalizeLegalSeriesKey(sequence.series)

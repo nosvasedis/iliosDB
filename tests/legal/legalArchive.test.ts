@@ -19,6 +19,7 @@ import {
   createDefaultLegalArchiveFilters,
   filterLegalArchiveRecords,
   getLegalArchiveStats,
+  isAadeGeneratedFimRetailRevenueDocument,
   normalizeExternalItemCode,
   resolveLegalCounterpartIdentity,
   resolveLegalArchiveDateRange,
@@ -134,6 +135,41 @@ function buildRecords(options: {
 }
 
 describe('legal archive intelligence', () => {
+  it('hides only AADE-generated FIM retail revenue summaries from the archive', () => {
+    const fimXmlDocument = legalDocument({
+      id: 'fim-xml',
+      aade_document_type: '11.1',
+      series: 'FIM_AADE_2',
+      raw_xml: '<inv:invoice><inv:specialInvoiceCategory>9</inv:specialInvoiceCategory></inv:invoice>',
+    });
+    const fimLegacySeriesDocument = legalDocument({
+      id: 'fim-series',
+      aade_document_type: '11.2',
+      series: 'FIM_AADE_1',
+      raw_xml: null,
+    });
+    const ordinaryRetailDocument = legalDocument({
+      id: 'ordinary-retail',
+      aade_document_type: '11.1',
+      series: 'RETAIL',
+      raw_xml: '<invoice><specialInvoiceCategory>1</specialInvoiceCategory></invoice>',
+    });
+
+    expect(isAadeGeneratedFimRetailRevenueDocument(fimXmlDocument)).toBe(true);
+    expect(isAadeGeneratedFimRetailRevenueDocument(fimLegacySeriesDocument)).toBe(true);
+    expect(isAadeGeneratedFimRetailRevenueDocument(ordinaryRetailDocument)).toBe(false);
+
+    const records = buildRecords({
+      documents: [fimXmlDocument, fimLegacySeriesDocument, ordinaryRetailDocument],
+      lines: [
+        legalLine({ id: 'fim-line-1', document_id: fimXmlDocument.id }),
+        legalLine({ id: 'fim-line-2', document_id: fimLegacySeriesDocument.id }),
+        legalLine({ id: 'retail-line', document_id: ordinaryRetailDocument.id }),
+      ],
+    });
+    expect(records.map((record) => record.id)).toEqual(['ordinary-retail']);
+  });
+
   it('normalizes external item codes without changing meaningful punctuation', () => {
     expect(normalizeExternalItemCode(' rng- 001 ')).toBe('RNG-001');
   });
