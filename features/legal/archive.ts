@@ -7,6 +7,7 @@ import {
   LegalDocument,
   LegalDocumentLine,
   LegalExternalItemAlias,
+  LegalParty,
   Order,
   Product,
   ProformaDocument,
@@ -24,7 +25,85 @@ import {
 import { resolveFinanceLineSku } from '../../utils/financeLineSku';
 import { transliterateForBarcode } from '../../utils/pricingEngine';
 
-export const LEGAL_ARCHIVE_PARSE_VERSION = 2;
+export const LEGAL_ARCHIVE_PARSE_VERSION = 3;
+
+const GENERIC_COUNTERPART_NAMES = new Set([
+  'πελατης',
+  'ληπτης',
+  'συγχρονισμενος ληπτης',
+  'αγνωστος πελατης',
+]);
+
+export function isMeaningfulLegalCounterpartName(
+  name?: string | null,
+  vatNumber?: string | null,
+): boolean {
+  const normalizedName = normalizeGreekForSearch(name || '').trim();
+  if (!normalizedName || GENERIC_COUNTERPART_NAMES.has(normalizedName)) return false;
+  const compactName = normalizedName.replace(/\s+/g, '');
+  const normalizedVat = normalizeVatNumber(vatNumber);
+  if (!normalizedVat) return true;
+  return compactName !== normalizedVat && compactName !== `αφμ${normalizedVat}`;
+}
+
+function legalCounterpartKnowledgeScore(party: LegalParty): number {
+  if (!isMeaningfulLegalCounterpartName(party.name, party.vat_number)) return 0;
+  const address = party.address;
+  return 100
+    + Number(!!address?.street)
+    + Number(!!address?.number)
+    + Number(!!address?.postal_code)
+    + Number(!!address?.city)
+    + Number(!!party.phone)
+    + Number(!!party.email);
+}
+
+export function buildLegalCounterpartKnowledge(
+  documents: Array<LegalDocument | ProformaDocument>,
+): Map<string, LegalParty> {
+  const knowledge = new Map<string, LegalParty>();
+  documents.forEach((document) => {
+    const party = document.counterpart;
+    const vat = normalizeVatNumber(party?.vat_number);
+    if (!vat || !isMeaningfulLegalCounterpartName(party?.name, vat)) return;
+    const current = knowledge.get(vat);
+    if (!current || legalCounterpartKnowledgeScore(party) > legalCounterpartKnowledgeScore(current)) {
+      knowledge.set(vat, party);
+    }
+  });
+  return knowledge;
+}
+
+export function resolveLegalCounterpartIdentity(
+  source?: LegalParty | null,
+  existing?: LegalParty | null,
+  known?: LegalParty | null,
+): LegalParty {
+  const vatNumber = normalizeVatNumber(
+    source?.vat_number || existing?.vat_number || known?.vat_number,
+  );
+  const nameSource = [source, existing, known].find((party) =>
+    isMeaningfulLegalCounterpartName(party?.name, vatNumber),
+  );
+  const resolvedName = nameSource?.name
+    || source?.name
+    || existing?.name
+    || known?.name
+    || vatNumber
+    || null;
+  return {
+    ...(known || {}),
+    ...(existing || {}),
+    ...(source || {}),
+    vat_number: vatNumber || source?.vat_number || existing?.vat_number || known?.vat_number || null,
+    country: source?.country || existing?.country || known?.country || 'GR',
+    branch: source?.branch ?? existing?.branch ?? known?.branch ?? 0,
+    name: resolvedName ? resolvedName.replace(/\s+/g, ' ').trim() : null,
+    address: source?.address || existing?.address || known?.address || null,
+    phone: source?.phone || existing?.phone || known?.phone || null,
+    email: source?.email || existing?.email || known?.email || null,
+  };
+}
 
 export function normalizeExternalItemCode(value?: string | null): string {
   return String(value || '').trim().toUpperCase().replace(/\s+/g, '');
@@ -381,6 +460,10 @@ export function buildLegalArchiveRecords(params: {
   aliases: LegalExternalItemAlias[];
   sellers?: UserProfile[];
 }): LegalArchiveRecord[] {
+  const counterpartKnowledge = buildLegalCounterpartKnowledge([
+    ...params.legalDocuments,
+    ...params.proformas,
+  ]);
   const legalLinesByDocument = new Map<string, LegalDocumentLine[]>();
   params.legalLines.forEach((line) => {
     const list = legalLinesByDocument.get(line.document_id) || [];
@@ -443,6 +526,15 @@ export function buildLegalArchiveRecords(params: {
     });
   });
 
+  const withKnownCounterpart = <T extends LegalDocument | ProformaDocument>(document: T): T => {
+    const vat = normalizeVatNumber(document.counterpart?.vat_number);
+    const counterpart = resolveLegalCounterpartIdentity(
+      document.counterpart,
+      null,
+      vat ? counterpartKnowledge.get(vat) : null,
+    );
+    return { ...document, counterpart };
+  };
   const inputs: Array<{
     source: 'legal' | 'proforma';
     document: LegalDocument | ProformaDocument;
@@ -450,12 +542,12 @@ export function buildLegalArchiveRecords(params: {
   }> = [
     ...params.legalDocuments.map((document) => ({
       source: 'legal' as const,
-      document,
+      document: withKnownCounterpart(document),
       lines: legalLinesByDocument.get(document.id) || [],
     })),
     ...params.proformas.map((document) => ({
       source: 'proforma' as const,
-      document,
+      document: withKnownCounterpart(document),
       lines: proformaLinesByDocument.get(document.id) || [],
     })),
   ];
@@ -622,6 +714,7 @@ export function getLegalArchiveStats(records: LegalArchiveRecord[]) {
 export function buildArchivedDocumentEnrichment(
   document: LegalDocument,
   persistedLines: LegalDocumentLine[],
+  knownCounterpart?: LegalParty | null,
 ): { document: LegalDocument; lines: LegalDocumentLine[] } | null {
   if (!document.raw_xml) return null;
   const parsed = parseTransmittedDocumentsXml(document.raw_xml).documents[0];
@@ -651,12 +744,11 @@ export function buildArchivedDocumentEnrichment(
   return {
     document: {
       ...document,
-      counterpart: {
-        ...document.counterpart,
-        ...(parsed.counterpart || {}),
-        name: parsed.counterpart?.name || document.counterpart?.name || null,
-        address: parsed.counterpart?.address || document.counterpart?.address || null,
-      },
+      counterpart: resolveLegalCounterpartIdentity(
+        parsed.counterpart,
+        document.counterpart,
+        knownCounterpart,
+      ),
       archive_parse_version: LEGAL_ARCHIVE_PARSE_VERSION,
     },
     lines,

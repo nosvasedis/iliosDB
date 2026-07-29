@@ -14,11 +14,13 @@ import type {
 } from '../../types';
 import {
   buildArchivedDocumentEnrichment,
+  buildLegalCounterpartKnowledge,
   buildLegalArchiveRecords,
   createDefaultLegalArchiveFilters,
   filterLegalArchiveRecords,
   getLegalArchiveStats,
   normalizeExternalItemCode,
+  resolveLegalCounterpartIdentity,
   resolveLegalArchiveDateRange,
 } from '../../features/legal/archive';
 import {
@@ -237,6 +239,71 @@ describe('legal archive intelligence', () => {
     expect(record.matchState).toBe('matched');
   });
 
+  it('reuses a reliable archived name for a new document whose name is only its VAT number', () => {
+    const knownInvoice = legalDocument({
+      id: 'invoice-1061',
+      aa: '1061',
+      issue_date: '2026-07-21',
+      counterpart: {
+        vat_number: '040823336',
+        country: 'GR',
+        branch: 0,
+        name: 'ΚΟΥΛΙΓΚΑ ΑΡΙΣΤΟΥΛΑ ΝΙΚΟΛΑΟΣ',
+      },
+    });
+    const newCredit = legalDocument({
+      id: 'credit-30',
+      document_kind: 'credit',
+      aade_document_type: '5.2',
+      aa: '30',
+      issue_date: '2026-07-28',
+      counterpart: {
+        vat_number: '040823336',
+        country: 'GR',
+        branch: 0,
+        name: '040823336',
+      },
+    });
+
+    const records = buildRecords({
+      documents: [newCredit, knownInvoice],
+      lines: [
+        legalLine({ id: 'credit-line', document_id: newCredit.id }),
+        legalLine({ id: 'invoice-line', document_id: knownInvoice.id }),
+      ],
+      customers: [],
+      orders: [],
+    });
+
+    expect(records.find((record) => record.id === newCredit.id)?.document.counterpart.name)
+      .toBe('ΚΟΥΛΙΓΚΑ ΑΡΙΣΤΟΥΛΑ ΝΙΚΟΛΑΟΣ');
+  });
+
+  it('prefers a new official name but falls back to VAT knowledge for missing or placeholder names', () => {
+    const archived = legalDocument({
+      counterpart: {
+        vat_number: '040823336',
+        country: 'GR',
+        branch: 0,
+        name: 'ΚΟΥΛΙΓΚΑ ΑΡΙΣΤΟΥΛΑ ΝΙΚΟΛΑΟΣ',
+      },
+    });
+    const knowledge = buildLegalCounterpartKnowledge([archived]);
+    const known = knowledge.get('040823336');
+
+    expect(resolveLegalCounterpartIdentity(
+      { vat_number: 'EL040823336', country: 'GR', branch: 0, name: '040823336' },
+      null,
+      known,
+    ).name).toBe('ΚΟΥΛΙΓΚΑ ΑΡΙΣΤΟΥΛΑ ΝΙΚΟΛΑΟΣ');
+
+    expect(resolveLegalCounterpartIdentity(
+      { vat_number: '040823336', country: 'GR', branch: 0, name: 'ΝΕΑ ΕΠΙΣΗΜΗ ΕΠΩΝΥΜΙΑ' },
+      null,
+      known,
+    ).name).toBe('ΝΕΑ ΕΠΙΣΗΜΗ ΕΠΩΝΥΜΙΑ');
+  });
+
   it('offers an automatic order link only for a unique exact customer, total, SKU, and quantity match', () => {
     const [record] = buildRecords();
     expect(record.autoOrderCandidate?.id).toBe(order().id);
@@ -418,7 +485,7 @@ describe('legal archive intelligence', () => {
       legalDocument({ raw_xml: rawXml, archive_parse_version: 0 }),
       [legalLine({ sku: 'AADE', item_code: null, description: 'AADE γραμμή 1' })],
     );
-    expect(enriched?.document.archive_parse_version).toBe(2);
+    expect(enriched?.document.archive_parse_version).toBe(3);
     expect(enriched?.document.counterpart.name).toBe('ΝΙΚΗ ΑΡΓΥΡΙΟΥ');
     expect(enriched?.lines[0]).toMatchObject({
       sku: 'RNG001',
@@ -436,7 +503,7 @@ describe('legal archive intelligence', () => {
           classification_type: 'E3_561_001',
           amount: 100,
         }],
-        parser_version: 2,
+        parser_version: 3,
       },
     });
   });

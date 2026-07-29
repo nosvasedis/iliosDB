@@ -65,8 +65,14 @@ import {
 } from './inspectionMode';
 import { addReceivedSizeQuantity, resolveSupplierOrderProductReceiptTarget, supplierOrderInventoryReceiptQuantity } from '../features/suppliers/receiptHelpers';
 import { getGreekOperationalErrorMessage } from '../features/inventory/greek';
-import { buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, getAadeProxyErrorMessage, groupIncomeClassifications, isEmptyTransmittedDocsResponse, isLegalShippingItemCode, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, parseAadeResponseXml, parseTransmittedDocumentsXml, resolveLegalIncomeClassification, roundMoney, serializeLegalDocumentForDb, serializeLegalDocumentLineForDb, serializeProformaDocumentForDb, validateLegalDocument } from '../utils/legalDocuments';
-import { buildArchivedDocumentEnrichment, LEGAL_ARCHIVE_PARSE_VERSION } from '../features/legal/archive';
+import { buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, getAadeProxyErrorMessage, groupIncomeClassifications, isEmptyTransmittedDocsResponse, isLegalShippingItemCode, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, normalizeVatNumber, parseAadeResponseXml, parseTransmittedDocumentsXml, resolveLegalIncomeClassification, roundMoney, serializeLegalDocumentForDb, serializeLegalDocumentLineForDb, serializeProformaDocumentForDb, validateLegalDocument } from '../utils/legalDocuments';
+import {
+    buildArchivedDocumentEnrichment,
+    buildLegalCounterpartKnowledge,
+    isMeaningfulLegalCounterpartName,
+    LEGAL_ARCHIVE_PARSE_VERSION,
+    resolveLegalCounterpartIdentity,
+} from '../features/legal/archive';
 
 // Use the Cloudflare Worker as the public URL for reliable image serving instead of public r2.dev
 export const R2_PUBLIC_URL = 'https://ilios-image-handler.iliosdb.workers.dev';
@@ -1358,12 +1364,18 @@ export const api = {
         allLines.forEach((line) => {
             linesByDocument.set(line.document_id, [...(linesByDocument.get(line.document_id) || []), line]);
         });
+        const counterpartKnowledge = buildLegalCounterpartKnowledge(documents);
 
         let enrichedCount = 0;
         for (let offset = 0; offset < pending.length; offset += 25) {
             const batch = pending.slice(offset, offset + 25);
             const enrichedBatch = batch.map((document) => {
-                const enriched = buildArchivedDocumentEnrichment(document, linesByDocument.get(document.id) || []);
+                const vat = normalizeVatNumber(document.counterpart?.vat_number);
+                const enriched = buildArchivedDocumentEnrichment(
+                    document,
+                    linesByDocument.get(document.id) || [],
+                    vat ? counterpartKnowledge.get(vat) : null,
+                );
                 return enriched ? { document, enriched } : null;
             }).filter((item): item is NonNullable<typeof item> => !!item);
             if (!enrichedBatch.length) continue;
@@ -1588,6 +1600,7 @@ export const api = {
         let nextPartitionKey: string | undefined;
         let nextRowKey: string | undefined;
         const existingDocuments = await api.getLegalDocuments();
+        const counterpartKnowledge = buildLegalCounterpartKnowledge(existingDocuments);
         const documentsByMark = new Map(
             existingDocuments
                 .filter((document) => !!document.aade_mark)
@@ -1666,6 +1679,20 @@ export const api = {
                     const isCancelled = existing?.status === 'cancelled'
                         || !!cancellation
                         || !!transmitted.cancelledByMark;
+                    const transmittedCounterpart = {
+                        ...(transmitted.counterpart || {}),
+                        vat_number: transmitted.counterpartVat || transmitted.counterpart?.vat_number || null,
+                        country: transmitted.counterpart?.country || 'GR',
+                        branch: transmitted.counterpart?.branch || 0,
+                    };
+                    const normalizedCounterpartVat = normalizeVatNumber(transmittedCounterpart.vat_number);
+                    const counterpart = resolveLegalCounterpartIdentity(
+                        transmittedCounterpart,
+                        existing?.counterpart,
+                        normalizedCounterpartVat
+                            ? counterpartKnowledge.get(normalizedCounterpartVat)
+                            : null,
+                    );
                     const lines: LegalDocumentLine[] = transmitted.lines.map((line) => {
                         const quantity = line.quantity || 1;
                         const netValue = roundMoney(line.netValue);
@@ -1724,16 +1751,7 @@ export const api = {
                             ...(transmitted.issuer || {}),
                             vat_number: transmitted.issuerVat || settings.issuer.vat_number,
                         },
-                        counterpart: {
-                            ...(transmitted.counterpart || {}),
-                            vat_number: transmitted.counterpartVat || null,
-                            country: transmitted.counterpart?.country || 'GR',
-                            branch: transmitted.counterpart?.branch || 0,
-                            name: transmitted.counterpart?.name || existing?.counterpart?.name || transmitted.counterpartVat || 'Συγχρονισμένος λήπτης',
-                            address: transmitted.counterpart?.address || existing?.counterpart?.address || null,
-                            phone: existing?.counterpart?.phone || null,
-                            email: existing?.counterpart?.email || null,
-                        },
+                        counterpart,
                         delivery: existing?.delivery || null,
                         payment_method_code: existing?.payment_method_code || settings.default_payment_method,
                         currency: existing?.currency || 'EUR',
@@ -1770,6 +1788,12 @@ export const api = {
                         updated_at: now,
                         lines,
                     };
+                    if (
+                        normalizedCounterpartVat
+                        && isMeaningfulLegalCounterpartName(counterpart.name, normalizedCounterpartVat)
+                    ) {
+                        counterpartKnowledge.set(normalizedCounterpartVat, counterpart);
+                    }
                     const normalizedDocument: Record<string, unknown> = { ...documentPayload };
                     delete normalizedDocument.lines;
                     if (existing) {
