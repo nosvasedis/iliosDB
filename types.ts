@@ -734,7 +734,18 @@ export interface AadeVatRegistryActivity {
   kindDescription?: string | null;
 }
 
+export type VatLookupSource = 'aade_registry' | 'vies' | 'vatcomply';
+
+export interface PublicVatLookupResult {
+  source: Exclude<VatLookupSource, 'aade_registry'>;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+}
+
 export interface AadeVatRegistryResult {
+  source?: VatLookupSource;
   vatNumber: string;
   referenceDate: string;
   callSequenceId?: string | null;
@@ -750,6 +761,8 @@ export interface AadeVatRegistryResult {
   registrationDate?: string | null;
   stopDate?: string | null;
   normalVatRegime: boolean | null;
+  phone?: string | null;
+  email?: string | null;
   address: {
     street?: string | null;
     number?: string | null;

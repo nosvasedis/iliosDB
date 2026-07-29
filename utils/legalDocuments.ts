@@ -3,6 +3,7 @@ import {
   AadeIssuableDocumentType,
   AadeProxyResult,
   AadeTransmittedDocsParseResult,
+  AadeVatRegistryResult,
   Customer,
   Gender,
   LegalDeliveryDetails,
@@ -25,6 +26,7 @@ import {
   PlatingType,
   Product,
   ProductionType,
+  PublicVatLookupResult,
   ProformaDocument,
   ProformaDocumentLine,
 } from '../types';
@@ -553,6 +555,40 @@ export function parseLegalPartyAddress(address?: string | LegalPartyAddress | nu
     number: number || '',
     postal_code: postal_code || '',
     city: city || '',
+  };
+}
+
+export function buildPublicVatLookupResult(
+  vatNumber: string,
+  result: PublicVatLookupResult,
+  referenceDate = new Date().toISOString().slice(0, 10),
+): AadeVatRegistryResult {
+  const address = parseLegalPartyAddress(result.address);
+  return {
+    source: result.source,
+    vatNumber: normalizeVatNumber(vatNumber),
+    referenceDate,
+    active: null,
+    activeDescription: null,
+    taxOfficeCode: null,
+    taxOfficeDescription: null,
+    personType: null,
+    businessStatus: null,
+    businessName: result.name,
+    tradeName: null,
+    legalStatus: null,
+    registrationDate: null,
+    stopDate: null,
+    normalVatRegime: null,
+    phone: result.phone,
+    email: result.email,
+    address: {
+      street: address?.street || null,
+      number: address?.number || null,
+      postalCode: address?.postal_code || null,
+      city: address?.city || null,
+    },
+    activities: [],
   };
 }
 

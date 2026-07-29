@@ -90,6 +90,7 @@ import {
   applyLegalDocumentDeliveryToggle,
   buildDefaultDeliveryDetails,
   buildCounterpartFromCustomer,
+  buildPublicVatLookupResult,
   buildLegalDocumentFromOrder,
   buildLegalDocumentFromShipment,
   buildManualLegalDocument,
@@ -424,6 +425,9 @@ export default function LegalDocumentsPage({
   const [inspectionPinDraft, setInspectionPinDraft] = useState('');
   const [inspectionPinConfirm, setInspectionPinConfirm] = useState('');
   const settingsSecretClickRef = useRef({ count: 0, timer: null as ReturnType<typeof setTimeout> | null });
+  const archivePublicVatLookupCacheRef = useRef(
+    new Map<string, Promise<AadeVatRegistryResult>>(),
+  );
 
   const { showToast, confirm } = useUI();
   const queryClient = useQueryClient();
@@ -2231,6 +2235,26 @@ export default function LegalDocumentsPage({
 
   const handleArchiveVatLookup = async (
     vatNumber: string,
+  ): Promise<AadeVatRegistryResult> => {
+    const normalizedVat = normalizeVatNumber(vatNumber);
+    const cached = archivePublicVatLookupCacheRef.current.get(normalizedVat);
+    if (cached) return cached;
+
+    const lookup = legalRepository.lookupPublicVat(normalizedVat)
+      .then((result) => {
+        if (!result) throw new Error('Δεν βρέθηκαν δημόσια στοιχεία για αυτό το ΑΦΜ.');
+        return buildPublicVatLookupResult(normalizedVat, result);
+      })
+      .catch((error) => {
+        archivePublicVatLookupCacheRef.current.delete(normalizedVat);
+        throw error;
+      });
+    archivePublicVatLookupCacheRef.current.set(normalizedVat, lookup);
+    return lookup;
+  };
+
+  const handleArchiveOfficialVatLookup = async (
+    vatNumber: string,
     referenceDate?: string,
   ): Promise<AadeVatRegistryResult> => legalRepository.lookupVatRegistry({
     vatNumber,
@@ -2247,22 +2271,20 @@ export default function LegalDocumentsPage({
       && ['draft', 'failed'].includes((record.document as LegalDocument).status);
     const editableProforma = record.source === 'proforma'
       && (record.document as ProformaDocument).status === 'draft';
-    if (!customer && !editableLegal && !editableProforma) {
-      showToast(
-        'Το εκδοθέν παραστατικό παραμένει αμετάβλητο. Συνδέστε πρώτα πελάτη για να ενημερωθεί το πελατολόγιο.',
-        'info',
-      );
-      return;
-    }
+    const isOfficialResult = result.source === 'aade_registry';
+    const resultSourceLabel = isOfficialResult ? 'Μητρώο ΑΑΔΕ' : 'VIES';
 
     const ok = await confirm({
-      title: 'Εφαρμογή επίσημων στοιχείων ΑΑΔΕ',
+      title: customer ? 'Ενημέρωση και σύνδεση πελάτη' : 'Δημιουργία και σύνδεση πελάτη',
       message: [
+        `Πηγή: ${resultSourceLabel}`,
         `Επωνυμία: ${result.businessName || '—'}`,
         `ΑΦΜ: ${result.vatNumber}`,
         `Έδρα: ${[result.address.street, result.address.number, result.address.postalCode, result.address.city].filter(Boolean).join(', ') || '—'}`,
         '',
-        customer ? `Θα ενημερωθεί ο πελάτης «${customer.full_name}».` : '',
+        customer
+          ? `Θα ενημερωθεί και θα συνδεθεί ο πελάτης «${customer.full_name}».`
+          : 'Θα δημιουργηθεί νέος πελάτης στο πελατολόγιο και θα συνδεθεί αμέσως με αυτό το παραστατικό.',
         editableLegal || editableProforma
           ? 'Θα ενημερωθεί και το επεξεργάσιμο πρόχειρο.'
           : 'Το εκδοθέν παραστατικό δεν θα μεταβληθεί.',
@@ -2298,7 +2320,31 @@ export default function LegalDocumentsPage({
           full_name: result.businessName || customer.full_name,
           vat_number: result.vatNumber || customer.vat_number,
           address: address || customer.address,
+          phone: result.phone || customer.phone,
+          email: result.email || customer.email,
         });
+      } else {
+        const newCustomer: Customer = {
+          id: crypto.randomUUID(),
+          full_name: result.businessName || record.document.counterpart.name || `ΑΦΜ ${result.vatNumber}`,
+          vat_number: result.vatNumber,
+          address: address || undefined,
+          phone: result.phone || undefined,
+          email: result.email || undefined,
+          vat_rate: record.document.vat_rate ?? 0.24,
+          notes: `Δημιουργήθηκε από εύρεση ΑΦΜ μέσω ${resultSourceLabel}.`,
+          created_at: new Date().toISOString(),
+        };
+        const savedCustomer = await ordersRepository.saveCustomer(newCustomer);
+        if (!savedCustomer) {
+          throw new Error('Ο πελάτης δεν αποθηκεύτηκε. Δεν έγινε σύνδεση με το παραστατικό.');
+        }
+        await legalRepository.linkArchiveCustomer(
+          record.source,
+          record.id,
+          savedCustomer.id,
+          userName,
+        );
       }
       if (editableLegal) {
         await legalRepository.saveDraft(
@@ -2316,9 +2362,14 @@ export default function LegalDocumentsPage({
         queryClient.invalidateQueries({ queryKey: legalKeys.documents() }),
         queryClient.invalidateQueries({ queryKey: legalKeys.proformas() }),
       ]);
-      showToast('Τα επίσημα στοιχεία εφαρμόστηκαν χωρίς αλλαγή εκδοθέντος παραστατικού.', 'success');
+      showToast(
+        customer
+          ? 'Τα στοιχεία του πελάτη ενημερώθηκαν και η σύνδεση διατηρήθηκε.'
+          : 'Ο πελάτης δημιουργήθηκε και συνδέθηκε με το παραστατικό.',
+        'success',
+      );
     } catch (error: any) {
-      showToast(error?.message || 'Δεν εφαρμόστηκαν τα στοιχεία Μητρώου.', 'error');
+      showToast(error?.message || 'Δεν εφαρμόστηκαν τα στοιχεία ΑΦΜ.', 'error');
     }
   };
 
@@ -2660,6 +2711,7 @@ export default function LegalDocumentsPage({
       onLinkOrder={(record, link) => void handleArchiveOrderLink(record, link)}
       onLinkSeller={(record, sellerId) => void handleArchiveSellerLink(record, sellerId)}
       onLookupVat={handleArchiveVatLookup}
+      onLookupOfficialVat={handleArchiveOfficialVatLookup}
       onApplyVat={(record, result) => void handleApplyArchiveVatResult(record, result)}
       onSaveAlias={(record, match, productSku, variantSuffix) =>
         void handleArchiveAliasSave(record, match, productSku, variantSuffix)}

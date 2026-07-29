@@ -116,4 +116,12 @@ describe('legal archive database contract', () => {
       expect(archiveWorkspaceSource).not.toContain(`>${forbiddenCopy}<`);
     });
   });
+
+  it('keeps credential-free VAT discovery independent from the official AADE registry', () => {
+    expect(archiveWorkspaceSource).toContain('Εύρεση στοιχείων ΑΦΜ');
+    expect(archiveWorkspaceSource).toContain('VIES Ευρωπαϊκής Επιτροπής');
+    expect(archiveWorkspaceSource).toContain('onLookupOfficialVat');
+    expect(archiveWorkspaceSource).toContain('Δημιουργία πελάτη και σύνδεση');
+    expect(archiveWorkspaceSource).not.toContain('disabled={!ready || normalizedVat.length !== 9 || loading}');
+  });
 });

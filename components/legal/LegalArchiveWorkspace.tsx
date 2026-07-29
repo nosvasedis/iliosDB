@@ -1,4 +1,4 @@
-import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   BadgeCheck,
@@ -312,69 +312,110 @@ function AliasEditor({ record, match, products, busy, onSave, onDelete }: AliasE
 
 function VatRegistryCard({
   vatNumber,
+  country,
   ready,
+  customerLinked,
+  autoLookup,
   onLookup,
+  onLookupOfficial,
   onApply,
 }: {
   vatNumber?: string | null;
+  country?: string | null;
   ready: boolean;
-  onLookup: (vatNumber: string, referenceDate?: string) => Promise<AadeVatRegistryResult>;
+  customerLinked: boolean;
+  autoLookup: boolean;
+  onLookup: (vatNumber: string) => Promise<AadeVatRegistryResult>;
+  onLookupOfficial: (vatNumber: string, referenceDate?: string) => Promise<AadeVatRegistryResult>;
   onApply: (result: AadeVatRegistryResult) => void;
 }) {
   const [referenceDate, setReferenceDate] = useState('');
   const [result, setResult] = useState<AadeVatRegistryResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const autoLookupVatRef = useRef('');
   const normalizedVat = String(vatNumber || '').replace(/^EL/i, '').replace(/\D/g, '');
+  const isGreekVat = !country || ['GR', 'EL'].includes(country.toUpperCase());
   const todayDate = new Date().toISOString().slice(0, 10);
   const earliestReferenceDate = (() => {
     const date = new Date();
     date.setUTCFullYear(date.getUTCFullYear() - 3);
     return date.toISOString().slice(0, 10);
   })();
+  const isOfficialResult = result?.source === 'aade_registry';
+  const resultSourceLabel = isOfficialResult
+    ? 'Επίσημο Μητρώο ΑΑΔΕ'
+    : result?.source === 'vatcomply'
+      ? 'VATComply / VIES'
+      : 'VIES Ευρωπαϊκής Επιτροπής';
 
-  const runLookup = async () => {
-    if (!normalizedVat) return;
+  const runLookup = useCallback(async (official = false) => {
+    if (!isGreekVat || !normalizedVat) return;
     setLoading(true);
     setError('');
     try {
-      setResult(await onLookup(normalizedVat, referenceDate || undefined));
+      setResult(official
+        ? await onLookupOfficial(normalizedVat, referenceDate || undefined)
+        : await onLookup(normalizedVat));
     } catch (lookupError: any) {
       setResult(null);
-      setError(lookupError?.message || 'Ο έλεγχος ΑΦΜ στην ΑΑΔΕ απέτυχε.');
+      setError(lookupError?.message || 'Η εύρεση στοιχείων ΑΦΜ απέτυχε.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [isGreekVat, normalizedVat, onLookup, onLookupOfficial, referenceDate]);
+
+  useEffect(() => {
+    if (!autoLookup || !isGreekVat || normalizedVat.length !== 9 || autoLookupVatRef.current === normalizedVat) return;
+    autoLookupVatRef.current = normalizedVat;
+    void runLookup(false);
+  }, [autoLookup, isGreekVat, normalizedVat, runLookup]);
 
   return (
     <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50/50 p-3">
       <div className="flex flex-wrap items-end gap-2">
-        <label className="min-w-40">
-          <span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-indigo-700">
-            Ημερομηνία αναφοράς
-          </span>
-          <input
-            type="date"
-            value={referenceDate}
-            onChange={(event) => setReferenceDate(event.target.value)}
-            min={earliestReferenceDate}
-            max={todayDate}
-            className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
-          />
-        </label>
         <button
           type="button"
-          onClick={() => void runLookup()}
-          disabled={!ready || normalizedVat.length !== 9 || loading}
+          onClick={() => void runLookup(false)}
+          disabled={!isGreekVat || normalizedVat.length !== 9 || loading}
           className="inline-flex min-h-9 items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-black text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
         >
           {loading ? <Loader2 size={14} className="animate-spin" /> : <Building2 size={14} />}
-          Έλεγχος στην ΑΑΔΕ
+          Εύρεση στοιχείων ΑΦΜ
         </button>
-        <span className="text-[11px] font-medium text-indigo-800">
-          {ready ? 'Επίσημο Μητρώο Επιχειρήσεων' : 'Ρυθμίστε πρώτα τους ειδικούς κωδικούς Μητρώου'}
-        </span>
+        {ready && (
+          <>
+            <label className="min-w-40">
+              <span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-indigo-700">
+                Ημερομηνία επίσημου ελέγχου
+              </span>
+              <input
+                type="date"
+                value={referenceDate}
+                onChange={(event) => setReferenceDate(event.target.value)}
+                min={earliestReferenceDate}
+                max={todayDate}
+                className="w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => void runLookup(true)}
+              disabled={!isGreekVat || normalizedVat.length !== 9 || loading}
+              className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-indigo-300 bg-white px-3 py-2 text-xs font-black text-indigo-800 transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+            >
+              <BadgeCheck size={14} />
+              Επίσημος έλεγχος ΑΑΔΕ
+            </button>
+          </>
+        )}
+      </div>
+      <div className="mt-2 text-[11px] font-medium leading-5 text-indigo-800">
+        {!isGreekVat
+          ? 'Η συγκεκριμένη εύρεση αφορά ελληνικά ΑΦΜ. Για αλλοδαπό αντισυμβαλλόμενο διατηρούνται τα στοιχεία του παραστατικού.'
+          : ready
+          ? 'Η άμεση εύρεση μέσω VIES λειτουργεί ανεξάρτητα. Ο επίσημος έλεγχος ΑΑΔΕ προσθέτει ενεργότητα, ΔΟΥ, καθεστώς ΦΠΑ και δραστηριότητες.'
+          : 'Η άμεση εύρεση επωνυμίας και διεύθυνσης μέσω VIES λειτουργεί χωρίς κωδικούς. Οι ειδικοί κωδικοί Μητρώου ΑΑΔΕ χρειάζονται μόνο για τον επίσημο εμπλουτισμένο έλεγχο.'}
       </div>
 
       {error && (
@@ -393,10 +434,16 @@ function VatRegistryCard({
                   ? 'border-red-200 bg-red-50 text-red-700'
                   : 'border-slate-200 bg-slate-50 text-slate-600'
             }`}>
-              {result.active === true ? 'Ενεργό ΑΦΜ' : result.active === false ? 'Ανενεργό ΑΦΜ' : 'Άγνωστη κατάσταση'}
+              {isOfficialResult
+                ? result.active === true
+                  ? 'Ενεργό ΑΦΜ'
+                  : result.active === false
+                    ? 'Ανενεργό ΑΦΜ'
+                    : 'Άγνωστη κατάσταση'
+                : 'Βρέθηκαν δημόσια στοιχεία'}
             </span>
             <span className="text-xs font-bold text-slate-500">
-              Στοιχεία στις {result.referenceDate}
+              {resultSourceLabel}{isOfficialResult ? ` · στοιχεία στις ${result.referenceDate}` : ''}
             </span>
           </div>
           <div>
@@ -404,17 +451,26 @@ function VatRegistryCard({
             {result.tradeName && <div className="text-sm font-bold text-slate-600">{result.tradeName}</div>}
           </div>
           <div className="grid gap-2 text-xs sm:grid-cols-2">
-            <div><span className="font-black text-slate-500">ΔΟΥ:</span> {result.taxOfficeCode || '—'} {result.taxOfficeDescription || ''}</div>
-            <div><span className="font-black text-slate-500">Μορφή:</span> {result.legalStatus || result.personType || '—'}</div>
-            <div><span className="font-black text-slate-500">Ιδιότητα:</span> {result.businessStatus || '—'}</div>
-            <div><span className="font-black text-slate-500">Κανονικό καθεστώς ΦΠΑ:</span> {result.normalVatRegime === true ? 'Ναι' : result.normalVatRegime === false ? 'Όχι' : '—'}</div>
-            <div><span className="font-black text-slate-500">Έναρξη:</span> {result.registrationDate || '—'}</div>
-            <div><span className="font-black text-slate-500">Διακοπή:</span> {result.stopDate || '—'}</div>
+            {isOfficialResult && (
+              <>
+                <div><span className="font-black text-slate-500">ΔΟΥ:</span> {result.taxOfficeCode || '—'} {result.taxOfficeDescription || ''}</div>
+                <div><span className="font-black text-slate-500">Μορφή:</span> {result.legalStatus || result.personType || '—'}</div>
+                <div><span className="font-black text-slate-500">Ιδιότητα:</span> {result.businessStatus || '—'}</div>
+                <div><span className="font-black text-slate-500">Κανονικό καθεστώς ΦΠΑ:</span> {result.normalVatRegime === true ? 'Ναι' : result.normalVatRegime === false ? 'Όχι' : '—'}</div>
+                <div><span className="font-black text-slate-500">Έναρξη:</span> {result.registrationDate || '—'}</div>
+                <div><span className="font-black text-slate-500">Διακοπή:</span> {result.stopDate || '—'}</div>
+              </>
+            )}
             <div className="sm:col-span-2">
               <span className="font-black text-slate-500">Έδρα:</span>{' '}
               {[result.address.street, result.address.number, result.address.postalCode, result.address.city].filter(Boolean).join(', ') || '—'}
             </div>
           </div>
+          {!isOfficialResult && (
+            <div className="rounded-lg bg-sky-50 px-3 py-2 text-xs font-medium text-sky-800">
+              Η ενεργότητα, η ΔΟΥ, το καθεστώς ΦΠΑ και οι δραστηριότητες επιβεβαιώνονται μόνο από το επίσημο Μητρώο ΑΑΔΕ.
+            </div>
+          )}
           {result.activities.length > 0 && (
             <div>
               <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-slate-500">Δραστηριότητες</div>
@@ -435,7 +491,7 @@ function VatRegistryCard({
               onClick={() => onApply(result)}
               className="min-h-9 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-black text-indigo-800 transition hover:bg-indigo-100"
             >
-              Εφαρμογή στο πελατολόγιο ή στο πρόχειρο
+              {customerLinked ? 'Ενημέρωση συνδεδεμένου πελάτη' : 'Δημιουργία πελάτη και σύνδεση'}
             </button>
           </div>
         </div>
@@ -635,7 +691,8 @@ interface LegalArchiveWorkspaceProps {
     link: { orderId: string; mode: LegalOrderLinkMode; allocations: LegalOrderLineAllocation[] } | null,
   ) => void;
   onLinkSeller: (record: LegalArchiveRecord, sellerId: string | null) => void;
-  onLookupVat: (vatNumber: string, referenceDate?: string) => Promise<AadeVatRegistryResult>;
+  onLookupVat: (vatNumber: string) => Promise<AadeVatRegistryResult>;
+  onLookupOfficialVat: (vatNumber: string, referenceDate?: string) => Promise<AadeVatRegistryResult>;
   onApplyVat: (record: LegalArchiveRecord, result: AadeVatRegistryResult) => void;
   onSaveAlias: (record: LegalArchiveRecord, match: LegalArchiveLineMatch, productSku: string, variantSuffix: string) => void;
   onDeleteAlias: (alias: LegalExternalItemAlias) => void;
@@ -781,7 +838,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
   const renderMatchBadge = (record: LegalArchiveRecord) => {
     const presentation = matchPresentation[record.matchState];
     const Icon = presentation.icon;
-    const unresolvedLines = record.lineMatches.filter((line) => !line.product).length;
+    const unresolvedLines = record.lineMatches.filter((line) => line.method === 'none').length;
     const customerMissing = record.customerMatch.state === 'unmatched';
     const label = record.matchState === 'partial'
       ? customerMissing && unresolvedLines
@@ -1001,8 +1058,12 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
             </div>
             <VatRegistryCard
               vatNumber={record.document.counterpart?.vat_number}
+              country={record.document.counterpart?.country}
               ready={props.registryLookupReady}
+              customerLinked={!!record.customerMatch.customer}
+              autoLookup={!isOperationalDeliveryNote && !record.customerMatch.customer}
               onLookup={props.onLookupVat}
+              onLookupOfficial={props.onLookupOfficialVat}
               onApply={(result) => props.onApplyVat(record, result)}
             />
           </section>

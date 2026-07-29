@@ -20,6 +20,7 @@ import {
   buildManualLegalDocument,
   buildManualProforma,
   buildProformaFromOrder,
+  buildPublicVatLookupResult,
   canPrintLegalDocument,
   canPrintProforma,
   convertProformaToLegalDraft,
@@ -327,6 +328,30 @@ describe('legal document helpers', () => {
   it('groups official AADE retail receipts as invoices when reading the archive', () => {
     expect(getDocumentKindFromAadeType('11.1')).toBe('invoice');
     expect(getDocumentKindFromAadeType('9.1')).toBe('delivery_note');
+  });
+
+  it('maps credential-free VIES results into the unified VAT lookup model', () => {
+    const result = buildPublicVatLookupResult('EL094259216', {
+      source: 'vies',
+      name: 'ΔΟΚΙΜΑΣΤΙΚΗ ΕΠΙΧΕΙΡΗΣΗ',
+      address: 'ΕΡΜΟΥ 1 10563 - ΑΘΗΝΑ',
+      phone: null,
+      email: null,
+    }, '2026-07-29');
+
+    expect(result).toMatchObject({
+      source: 'vies',
+      vatNumber: '094259216',
+      businessName: 'ΔΟΚΙΜΑΣΤΙΚΗ ΕΠΙΧΕΙΡΗΣΗ',
+      active: null,
+      normalVatRegime: null,
+      address: {
+        street: 'ΕΡΜΟΥ',
+        number: '1',
+        postalCode: '10563',
+        city: 'ΑΘΗΝΑ',
+      },
+    });
   });
 
   it('uses the official non-E3 classification for delivery notes', () => {

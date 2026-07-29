@@ -13,6 +13,7 @@ import {
   AadeCredentialStatus,
   AadeRegistryCredentialSavePayload,
   AadeVatRegistryResult,
+  PublicVatLookupResult,
   LegalRegistryConnectionStatus,
   LegalSyncParams,
   LegalSyncRun,
@@ -37,6 +38,8 @@ export const legalRepository = {
     requestedByVat?: string | null;
     referenceDate?: string | null;
   }): Promise<AadeVatRegistryResult> => api.lookupAadeVatRegistry(payload),
+  lookupPublicVat: (vatNumber: string): Promise<PublicVatLookupResult | null> =>
+    api.lookupAfm(vatNumber),
   getSequences: (): Promise<LegalNumberingSequence[]> => api.getLegalNumberingSequences(),
   saveSequence: (sequence: LegalNumberingSequence): Promise<void> => api.saveLegalNumberingSequence(sequence),
   previewNumberingAlignment: (): Promise<LegalNumberingAlignmentPreview> =>
