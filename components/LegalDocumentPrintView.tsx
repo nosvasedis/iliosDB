@@ -65,10 +65,7 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
       )}
 
       <LegalPrintCustomerBar
-        issuer={document.issuer}
         counterpart={document.counterpart}
-        gross={document.totals.gross}
-        currency={document.currency}
       />
 
       <LegalPrintAadePanel

@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { Calendar, Hash } from 'lucide-react';
-import { APP_LOGO } from '../../constants';
 import { AADE_VAT_CATEGORY_OPTIONS, getAadeVatExemptionCategoryLabel } from '../../utils/legalDocuments';
 import { LegalDeliveryDetails, LegalDocumentLine, LegalParty, LegalIssuerSettings } from '../../types';
 
@@ -12,17 +11,10 @@ export const LEGAL_PRINT_CSS = `
     break-after: page;
     page-break-after: always;
   }
-  .legal-print-header,
-  .legal-print-logo {
+  .legal-print-header {
     display: block !important;
     visibility: visible !important;
     opacity: 1 !important;
-  }
-  .legal-print-logo {
-    height: 36px !important;
-    width: auto !important;
-    max-width: 140px !important;
-    object-fit: contain !important;
   }
   @media print {
     .legal-print-page {
@@ -55,8 +47,7 @@ export const LEGAL_PRINT_CSS = `
       break-inside: avoid;
       page-break-inside: avoid;
     }
-    .legal-print-header,
-    .legal-print-logo {
+    .legal-print-header {
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
@@ -92,17 +83,17 @@ export const formatPartyAddress = (party: LegalParty | LegalIssuerSettings) => {
 export const getVatCategoryLabel = (category: number) =>
   AADE_VAT_CATEGORY_OPTIONS.find((option) => option.category === category)?.label || `Κατ. ${category}`;
 
-const getMeasurementUnitLabel = (unit: number) => {
+export const getMeasurementUnitLabel = (unit: number) => {
   const labels: Record<number, string> = {
-    1: 'Τεμ.',
+    1: 'Τεμάχια',
     2: 'Κιλά',
     3: 'Λίτρα',
     4: 'Μέτρα',
-    5: 'Τ.μ.',
-    6: 'Κ.μ.',
-    7: 'Λοιπά τεμ.',
+    5: 'Τετραγωνικά μέτρα',
+    6: 'Κυβικά μέτρα',
+    7: 'Τεμάχια - λοιπές περιπτώσεις',
   };
-  return labels[unit] ? `${labels[unit]} (${unit})` : `Κωδ. ${unit}`;
+  return labels[unit] || `Κωδικός ${unit}`;
 };
 
 /** Page shell — mirrors OrderInvoiceView layout (no watermark wrapper). */
@@ -137,21 +128,18 @@ export function LegalPrintHeader(props: {
   return (
     <header className="legal-print-header legal-print-break-inside mb-2 shrink-0 border-b-2 border-slate-900 pb-2">
       <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 items-start gap-3">
-          <img src={APP_LOGO} alt="ILIOS" className="legal-print-logo h-9 w-auto object-contain" />
-          <div className="min-w-0 border-l border-slate-300 pl-2 text-[8px] leading-[1.25] text-slate-600">
-            <p className="text-[10px] font-black uppercase tracking-wide text-slate-900">{getPartyName(issuer)}</p>
-            {issuer.trade_name && issuer.trade_name !== getPartyName(issuer) && (
-              <p className="font-semibold text-slate-700">{issuer.trade_name}</p>
-            )}
-            <p>{formatPartyAddress(issuer)}</p>
-            <p>
-              <span className="font-mono font-semibold">ΑΦΜ: {issuer.vat_number || '-'}</span>
-              {' · '}Υποκ.: {issuer.branch ?? 0}
-            </p>
-            {issuerContact && <p>{issuerContact}</p>}
-            {optionalLegalIdentity.length > 0 && <p>{optionalLegalIdentity.join(' · ')}</p>}
-          </div>
+        <div className="min-w-0 text-[8px] leading-[1.25] text-slate-600">
+          <p className="text-[10px] font-black uppercase tracking-wide text-slate-900">{getPartyName(issuer)}</p>
+          {issuer.trade_name && issuer.trade_name !== getPartyName(issuer) && (
+            <p className="font-semibold text-slate-700">{issuer.trade_name}</p>
+          )}
+          <p>{formatPartyAddress(issuer)}</p>
+          <p>
+            <span className="font-mono font-semibold">ΑΦΜ: {issuer.vat_number || '-'}</span>
+            {' · '}Υποκ.: {issuer.branch ?? 0}
+          </p>
+          {issuerContact && <p>{issuerContact}</p>}
+          {optionalLegalIdentity.length > 0 && <p>{optionalLegalIdentity.join(' · ')}</p>}
         </div>
 
         <div className="max-w-[46%] shrink-0 text-right">
@@ -188,10 +176,7 @@ export function LegalPrintHeader(props: {
 
 /** Compact customer / issuer bar — mirrors OrderInvoiceView info strip. */
 export function LegalPrintCustomerBar(props: {
-  issuer: LegalIssuerSettings;
   counterpart: LegalParty;
-  gross: number;
-  currency?: string;
   counterpartTitle?: string;
   extraMeta?: React.ReactNode;
 }) {
@@ -200,7 +185,7 @@ export function LegalPrintCustomerBar(props: {
   const counterpartBranch = Number(props.counterpart.branch || 0);
 
   return (
-    <section className="legal-print-break-inside mb-2 flex shrink-0 gap-4 rounded-lg border border-slate-200 bg-slate-50 p-2">
+    <section className="legal-print-break-inside mb-2 shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-2">
       <div className="flex min-w-0 flex-1 flex-col justify-center">
         <div className="mb-0.5 flex items-baseline gap-2">
           <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
@@ -221,15 +206,6 @@ export function LegalPrintCustomerBar(props: {
         </div>
         {props.extraMeta}
       </div>
-
-      <div className="my-0.5 w-px bg-slate-200" />
-
-      <div className="flex min-w-[120px] flex-col items-end justify-center px-2">
-        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Σύνολο</span>
-        <span className="text-xl font-black leading-none text-slate-900">
-          {formatPrintMoney(props.gross, props.currency)}
-        </span>
-      </div>
     </section>
   );
 }
@@ -244,11 +220,8 @@ export function LegalPrintPartyGrid(props: {
 }) {
   return (
     <LegalPrintCustomerBar
-      issuer={props.issuer}
       counterpart={props.counterpart}
       counterpartTitle={props.counterpartTitle}
-      gross={props.gross ?? 0}
-      currency={props.currency}
     />
   );
 }
@@ -332,9 +305,10 @@ export function LegalPrintLinesTable({ lines, currency }: { lines: LegalDocument
             <th className="w-[4.5rem] px-1 py-1">Κωδ.</th>
             <th className="px-1 py-1">Περιγραφή</th>
             <th className="w-9 px-1 py-1 text-right">Ποσ.</th>
+            <th className="w-14 px-1 py-1 text-center">Μ.Μ.</th>
             <th className="w-14 px-1 py-1 text-right">Τιμή</th>
             <th className="w-14 px-1 py-1 text-right">Καθαρή</th>
-            <th className="w-11 px-1 py-1 text-right">ΦΠΑ</th>
+            <th className="w-14 px-1 py-1 text-right">ΦΠΑ</th>
             <th className="w-14 px-1 py-1 text-right">Σύνολο</th>
           </tr>
         </thead>
@@ -347,15 +321,25 @@ export function LegalPrintLinesTable({ lines, currency }: { lines: LegalDocument
               </td>
               <td className="px-1 py-0.5">
                 <div className="font-semibold text-slate-800">{line.description}</div>
-                <div className="text-[7px] text-slate-500">{getVatCategoryLabel(line.vat_category)}</div>
+                {line.source_metadata?.line_comments && (
+                  <div className="mt-0.5 text-[7px] italic leading-tight text-slate-500">
+                    Σχόλιο: {line.source_metadata.line_comments}
+                  </div>
+                )}
               </td>
-              <td className="px-1 py-0.5 text-right font-bold tabular-nums text-slate-800">
-                <div>{line.quantity}</div>
-                <div className="whitespace-nowrap text-[7px] font-medium text-slate-500">{getMeasurementUnitLabel(line.measurement_unit)}</div>
+              <td className="px-1 py-0.5 text-right font-bold tabular-nums text-slate-800">{line.quantity}</td>
+              <td
+                className="px-1 py-0.5 text-center text-[7px] font-semibold leading-tight text-slate-600"
+                title={`Κωδικός μονάδας myDATA: ${line.measurement_unit}`}
+              >
+                {getMeasurementUnitLabel(line.measurement_unit)}
               </td>
               <td className="px-1 py-0.5 text-right tabular-nums">{formatPrintMoney(line.unit_price, currency)}</td>
               <td className="px-1 py-0.5 text-right tabular-nums">{formatPrintMoney(line.net_value, currency)}</td>
-              <td className="px-1 py-0.5 text-right tabular-nums">{formatPrintMoney(line.vat_amount, currency)}</td>
+              <td className="px-1 py-0.5 text-right tabular-nums">
+                <div className="text-[7px] font-semibold text-slate-500">{getVatCategoryLabel(line.vat_category)}</div>
+                <div>{formatPrintMoney(line.vat_amount, currency)}</div>
+              </td>
               <td className="px-1 py-0.5 text-right font-black tabular-nums text-slate-900">{formatPrintMoney(line.gross_value, currency)}</td>
             </tr>
           ))}

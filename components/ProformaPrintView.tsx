@@ -43,11 +43,8 @@ const ProformaPrintView: React.FC<ProformaPrintViewProps> = ({ document, lines }
       </section>
 
       <LegalPrintCustomerBar
-        issuer={document.issuer}
         counterpart={document.counterpart}
         counterpartTitle="Πελάτης"
-        gross={document.totals.gross}
-        currency={document.currency}
         extraMeta={(
           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-slate-600">
             <span>
