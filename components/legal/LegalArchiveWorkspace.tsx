@@ -1499,7 +1499,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                 <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-wide text-slate-500">
                   <tr>
                     <th className="w-10 px-3 py-3" />
-                    <th className="px-3 py-3">Ημερομηνία / Παραστατικό</th>
+                    <th className="whitespace-nowrap px-3 py-3">Ημερομηνία / Παραστατικό</th>
                     <th className="px-3 py-3">Αντισυμβαλλόμενος / πελάτης</th>
                     <th className="px-3 py-3">Κατάσταση</th>
                     <th className="px-3 py-3">Προϊόντα</th>
@@ -1528,10 +1528,12 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                             </button>
                           </td>
                           <td className="px-3 py-3">
-                            <div className="font-black text-slate-950">{document.issue_date}</div>
-                            <button type="button" onClick={() => toggleExpanded(record.key)} className={`mt-1 text-left font-black hover:underline ${presentation.number}`}>
-                              {getLegalDocumentDisplayNumber(document)}
-                            </button>
+                            <div className="flex items-baseline gap-2 whitespace-nowrap">
+                              <span className="font-black text-slate-950">{document.issue_date}</span>
+                              <span className={`text-xs font-black ${presentation.number}`}>
+                                {getLegalDocumentDisplayNumber(document)}
+                              </span>
+                            </div>
                             <div className="mt-1 flex flex-wrap gap-1">
                               <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${record.source === 'legal' ? 'bg-emerald-100 text-emerald-800' : 'bg-violet-100 text-violet-800'}`}>{record.source === 'legal' ? 'myDATA' : 'Προτιμολόγιο'}</span>
                               <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${presentation.badge}`}>
