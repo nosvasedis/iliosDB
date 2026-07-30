@@ -26,6 +26,7 @@ import {
   convertProformaToLegalDraft,
   getLegalOfficialPrintValidationIssues,
   isOfficialLegalDocumentPrint,
+  isWholesaleAadeDocumentType,
   serializeLegalDocumentLineForDb,
   createManualLegalDocumentLine,
   DEFAULT_LEGAL_SETTINGS,
@@ -48,6 +49,7 @@ import {
   normalizeLegalSeriesKey,
   parseLegalDocumentAa,
   parseLegalPartyAddress,
+  resolveWholesaleAadeSyncDocumentTypes,
 } from '../../utils/legalDocuments';
 import type { LegalDocument, LegalNumberingSequence } from '../../types';
 
@@ -831,6 +833,22 @@ describe('legal document helpers', () => {
     expect(normalizeLegalSeriesKey('ΔΑ')).toBe('DA');
     expect(normalizeLegalSeriesKey('ΤΔΑ')).toBe('TDA');
     expect(normalizeLegalSeriesKey('ΠΙΣ')).toBe('PIS');
+  });
+
+  it('restricts archive synchronization to wholesale invoices, credits, and dispatch documents', () => {
+    expect(isWholesaleAadeDocumentType('1.1')).toBe(true);
+    expect(isWholesaleAadeDocumentType('2.4')).toBe(true);
+    expect(isWholesaleAadeDocumentType('5.2')).toBe(true);
+    expect(isWholesaleAadeDocumentType('9.3')).toBe(true);
+    expect(isWholesaleAadeDocumentType('11.1')).toBe(false);
+    expect(isWholesaleAadeDocumentType('11.4')).toBe(false);
+    expect(isWholesaleAadeDocumentType('13.4')).toBe(false);
+    expect(isWholesaleAadeDocumentType('16.1')).toBe(false);
+    expect(resolveWholesaleAadeSyncDocumentTypes('5.2')).toEqual(['5.2']);
+    expect(resolveWholesaleAadeSyncDocumentTypes()).not.toContain('11.1');
+    expect(() => resolveWholesaleAadeSyncDocumentTypes('11.1')).toThrow(
+      /δεν ανήκει στο αρχείο χονδρικής/i,
+    );
   });
 
   it('parses legal document aa values', () => {

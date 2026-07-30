@@ -44,6 +44,40 @@ export {
 
 export const LEGAL_SETTINGS_ID = '00000000-0000-0000-0000-000000000091';
 
+export const AADE_WHOLESALE_ARCHIVE_DOCUMENT_TYPES = [
+  '1.1', '1.2', '1.3', '1.4', '1.5', '1.6',
+  '2.1', '2.2', '2.3', '2.4',
+  '5.1', '5.2',
+  '9.1', '9.2', '9.3',
+] as const satisfies readonly AadeDocumentType[];
+
+export type AadeWholesaleArchiveDocumentType =
+  typeof AADE_WHOLESALE_ARCHIVE_DOCUMENT_TYPES[number];
+
+const AADE_WHOLESALE_ARCHIVE_DOCUMENT_TYPE_SET = new Set<string>(
+  AADE_WHOLESALE_ARCHIVE_DOCUMENT_TYPES,
+);
+
+export function isWholesaleAadeDocumentType(
+  value?: string | null,
+): value is AadeWholesaleArchiveDocumentType {
+  return AADE_WHOLESALE_ARCHIVE_DOCUMENT_TYPE_SET.has(String(value || '').trim());
+}
+
+export function resolveWholesaleAadeSyncDocumentTypes(
+  requestedType?: string | null,
+): AadeWholesaleArchiveDocumentType[] {
+  const normalizedType = String(requestedType || '').trim();
+  if (!normalizedType) return [...AADE_WHOLESALE_ARCHIVE_DOCUMENT_TYPES];
+  if (!isWholesaleAadeDocumentType(normalizedType)) {
+    throw new Error(
+      `Ο τύπος ΑΑΔΕ ${normalizedType} δεν ανήκει στο αρχείο χονδρικής. `
+      + 'Επιτρέπονται μόνο τιμολόγια χονδρικής, πιστωτικά και παραστατικά διακίνησης.',
+    );
+  }
+  return [normalizedType];
+}
+
 /**
  * A legal-document-only catalog entry. It deliberately has no database row and
  * must never be exposed by the general product registry or inventory modules.

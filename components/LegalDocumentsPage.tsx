@@ -81,7 +81,6 @@ import { ordersRepository } from '../features/orders/repository';
 import { isInspectionModeActive } from '../lib/inspectionMode';
 import {
   buildLegalArchiveRecords,
-  isAadeGeneratedFimRetailRevenueDocument,
   LEGAL_ARCHIVE_PARSE_VERSION,
   legalKeys,
   legalRepository,
@@ -105,6 +104,7 @@ import {
   getLegalCatalogLineDetails,
   getLegalDocumentCatalogProducts,
   isOfficialLegalDocumentPrint,
+  isWholesaleAadeDocumentType,
   AADE_INCOME_CATEGORY_OPTIONS,
   AADE_INCOME_TYPE_OPTIONS,
   AADE_VAT_EXEMPTION_CATEGORY_OPTIONS,
@@ -451,7 +451,7 @@ export default function LegalDocumentsPage({
   const { data: legalDocuments = [], isLoading: loadingDocuments } = useLegalDocuments();
   const visibleLegalDocuments = useMemo(
     () => legalDocuments.filter(
-      (document) => !isAadeGeneratedFimRetailRevenueDocument(document),
+      (document) => isWholesaleAadeDocumentType(document.aade_document_type),
     ),
     [legalDocuments],
   );
@@ -2734,7 +2734,7 @@ export default function LegalDocumentsPage({
           <h2 className="font-black text-slate-900">Συγχρονισμός παλιών παραστατικών</h2>
         </div>
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800">
-          Φέρνει παραστατικά που έχουν ήδη εκδοθεί ή ακυρωθεί με τα ίδια AADE credentials. Δεν καταναλώνει σειρές· μετά τον συγχρονισμό προτείνεται ευθυγράμμιση του «Επόμενου» με το Αρχείο.
+          Συγχρονίζει αποκλειστικά τιμολόγια χονδρικής, πιστωτικά και παραστατικά διακίνησης που έχουν ήδη εκδοθεί ή ακυρωθεί. Παραστατικά λιανικής και λοιπές μη εμπορικές εγγραφές δεν ζητούνται από την ΑΑΔΕ και δεν συμμετέχουν στο Αρχείο ή στα ποσά.
         </div>
         <div className="mt-4 space-y-4">
           <TextInput label="Από ημερομηνία" type="date" value={syncDraft.dateFrom} onChange={(value) => setSyncDraft((current) => ({ ...current, dateFrom: value }))} help="Η εφαρμογή μετατρέπει αυτόματα σε μορφή ΑΑΔΕ (ηη/μμ/εεεε)." />
@@ -2748,8 +2748,8 @@ export default function LegalDocumentsPage({
             <div className="grid gap-3 md:grid-cols-2">
               <TextInput label="ΑΦΜ οντότητας" value={syncDraft.entityVatNumber} onChange={(value) => setSyncDraft((current) => ({ ...current, entityVatNumber: normalizeVatNumber(value) }))} help="Για λογιστή/εκπρόσωπο: ο ΑΦΜ της επιχείρησης για την οποία γίνεται η αναζήτηση. Συνήθως μένει κενό." />
               <TextInput label="ΑΦΜ αντισυμβαλλόμενου" value={syncDraft.receiverVatNumber} onChange={(value) => setSyncDraft((current) => ({ ...current, receiverVatNumber: normalizeVatNumber(value) }))} help="Φέρνει μόνο παραστατικά για συγκεκριμένο πελάτη/λήπτη." />
-              <SelectInput label="Τύπος παραστατικού" value={syncDraft.invType} onChange={(value) => setSyncDraft((current) => ({ ...current, invType: value }))} help="Επίσημος τύπος myDATA. Κενό σημαίνει όλοι οι τύποι.">
-                <option value="">Όλοι</option>
+              <SelectInput label="Τύπος παραστατικού" value={syncDraft.invType} onChange={(value) => setSyncDraft((current) => ({ ...current, invType: value }))} help="Επίσημος τύπος myDATA. Η συνολική επιλογή περιλαμβάνει μόνο το εμπορικό αρχείο χονδρικής.">
+                <option value="">Όλοι οι τύποι χονδρικής</option>
                 <option value="1.1">Τιμολόγιο Πώλησης (1.1)</option>
                 <option value="5.1">Πιστωτικό Συσχετιζόμενο (5.1)</option>
                 <option value="5.2">Πιστωτικό Μη Συσχετιζόμενο (5.2)</option>

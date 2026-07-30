@@ -135,7 +135,7 @@ function buildRecords(options: {
 }
 
 describe('legal archive intelligence', () => {
-  it('hides only AADE-generated FIM retail revenue summaries from the archive', () => {
+  it('keeps the archive strictly wholesale and excludes all retail or unrelated AADE types', () => {
     const fimXmlDocument = legalDocument({
       id: 'fim-xml',
       aade_document_type: '11.1',
@@ -154,20 +154,38 @@ describe('legal archive intelligence', () => {
       series: 'RETAIL',
       raw_xml: '<invoice><specialInvoiceCategory>1</specialInvoiceCategory></invoice>',
     });
+    const unrelatedDocument = legalDocument({
+      id: 'unrelated',
+      aade_document_type: '13.4',
+      series: 'OTHER',
+    });
+    const wholesaleDocument = legalDocument({
+      id: 'wholesale',
+      aade_document_type: '1.1',
+      series: 'TIM',
+    });
 
     expect(isAadeGeneratedFimRetailRevenueDocument(fimXmlDocument)).toBe(true);
     expect(isAadeGeneratedFimRetailRevenueDocument(fimLegacySeriesDocument)).toBe(true);
     expect(isAadeGeneratedFimRetailRevenueDocument(ordinaryRetailDocument)).toBe(false);
 
     const records = buildRecords({
-      documents: [fimXmlDocument, fimLegacySeriesDocument, ordinaryRetailDocument],
+      documents: [
+        fimXmlDocument,
+        fimLegacySeriesDocument,
+        ordinaryRetailDocument,
+        unrelatedDocument,
+        wholesaleDocument,
+      ],
       lines: [
         legalLine({ id: 'fim-line-1', document_id: fimXmlDocument.id }),
         legalLine({ id: 'fim-line-2', document_id: fimLegacySeriesDocument.id }),
         legalLine({ id: 'retail-line', document_id: ordinaryRetailDocument.id }),
+        legalLine({ id: 'unrelated-line', document_id: unrelatedDocument.id }),
+        legalLine({ id: 'wholesale-line', document_id: wholesaleDocument.id }),
       ],
     });
-    expect(records.map((record) => record.id)).toEqual(['ordinary-retail']);
+    expect(records.map((record) => record.id)).toEqual(['wholesale']);
   });
 
   it('normalizes external item codes without changing meaningful punctuation', () => {

@@ -19,6 +19,7 @@ import {
   isLegalShippingItemCode,
   LEGAL_SHIPPING_ITEM_CODE,
   LEGAL_SHIPPING_ITEM_DESCRIPTION,
+  isWholesaleAadeDocumentType,
   normalizeVatNumber,
   parseTransmittedDocumentsXml,
 } from '../../utils/legalDocuments';
@@ -487,7 +488,7 @@ export function buildLegalArchiveRecords(params: {
   sellers?: UserProfile[];
 }): LegalArchiveRecord[] {
   const visibleLegalDocuments = params.legalDocuments.filter(
-    (document) => !isAadeGeneratedFimRetailRevenueDocument(document),
+    (document) => isWholesaleAadeDocumentType(document.aade_document_type),
   );
   const counterpartKnowledge = buildLegalCounterpartKnowledge([
     ...visibleLegalDocuments,

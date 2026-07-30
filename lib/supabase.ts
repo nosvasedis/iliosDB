@@ -65,7 +65,7 @@ import {
 } from './inspectionMode';
 import { addReceivedSizeQuantity, resolveSupplierOrderProductReceiptTarget, supplierOrderInventoryReceiptQuantity } from '../features/suppliers/receiptHelpers';
 import { getGreekOperationalErrorMessage } from '../features/inventory/greek';
-import { buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, getAadeProxyErrorMessage, groupIncomeClassifications, isEmptyTransmittedDocsResponse, isLegalShippingItemCode, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, normalizeVatNumber, parseAadeResponseXml, parseTransmittedDocumentsXml, resolveLegalIncomeClassification, roundMoney, serializeLegalDocumentForDb, serializeLegalDocumentLineForDb, serializeProformaDocumentForDb, validateLegalDocument } from '../utils/legalDocuments';
+import { AADE_WHOLESALE_ARCHIVE_DOCUMENT_TYPES, buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, getAadeProxyErrorMessage, groupIncomeClassifications, isEmptyTransmittedDocsResponse, isLegalShippingItemCode, isWholesaleAadeDocumentType, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, normalizeVatNumber, parseAadeResponseXml, parseTransmittedDocumentsXml, resolveLegalIncomeClassification, resolveWholesaleAadeSyncDocumentTypes, roundMoney, serializeLegalDocumentForDb, serializeLegalDocumentLineForDb, serializeProformaDocumentForDb, validateLegalDocument } from '../utils/legalDocuments';
 import {
     buildArchivedDocumentEnrichment,
     buildLegalCounterpartKnowledge,
@@ -1202,8 +1202,16 @@ export const api = {
     },
 
     getLegalDocuments: async (): Promise<LegalDocument[]> => {
-        const rows = await fetchFullTable('legal_documents', '*', (q) => q.order('created_at', { ascending: false }));
-        return rows as LegalDocument[];
+        const rows = await fetchFullTable(
+            'legal_documents',
+            '*',
+            (q) => q
+                .in('aade_document_type', [...AADE_WHOLESALE_ARCHIVE_DOCUMENT_TYPES])
+                .order('created_at', { ascending: false }),
+        );
+        return (rows as LegalDocument[]).filter((document) =>
+            isWholesaleAadeDocumentType(document.aade_document_type),
+        );
     },
 
     getLegalDocumentLines: async (documentId: string): Promise<LegalDocumentLine[]> => {
@@ -1220,12 +1228,29 @@ export const api = {
     },
 
     getAllLegalDocumentLines: async (): Promise<LegalDocumentLine[]> => {
+        const wholesaleDocumentIds = new Set(
+            (await api.getLegalDocuments()).map((document) => document.id),
+        );
+        if (!wholesaleDocumentIds.size) return [];
         const rows = await fetchFullTable(
             'legal_document_lines',
-            '*',
-            (q) => q.order('document_id').order('line_number', { ascending: true }),
+            '*, legal_documents!inner(aade_document_type)',
+            (q) => q
+                .in('legal_documents.aade_document_type', [...AADE_WHOLESALE_ARCHIVE_DOCUMENT_TYPES])
+                .order('document_id')
+                .order('line_number', { ascending: true }),
         );
-        return rows as LegalDocumentLine[];
+        const wholesaleLines = rows
+            .filter((row) => wholesaleDocumentIds.has(row.document_id))
+            .map(({ legal_documents: _documentType, ...line }) => line as LegalDocumentLine)
+            .sort((left, right) =>
+                left.document_id.localeCompare(right.document_id)
+                || left.line_number - right.line_number,
+            );
+        if (!isLocalMode && navigator.onLine) {
+            await offlineDb.saveTable('legal_document_lines', wholesaleLines);
+        }
+        return wholesaleLines;
     },
 
     getLegalExternalItemAliases: async (): Promise<LegalExternalItemAlias[]> => {
@@ -1579,6 +1604,7 @@ export const api = {
         if (isLocalMode || !navigator.onLine) {
             throw new Error('Ο συγχρονισμός AADE απαιτεί σύνδεση στο διαδίκτυο και στο Supabase.');
         }
+        const syncInvoiceTypes = resolveWholesaleAadeSyncDocumentTypes(params.invType);
         const settings = await api.getLegalSettings();
         const startedAt = new Date().toISOString();
         const runId = crypto.randomUUID();
@@ -1639,8 +1665,14 @@ export const api = {
             updatedDocumentIds.add(matching.id);
         };
         try {
-            do {
-                const query = buildAadeTransmittedDocsQuery(params, { nextPartitionKey, nextRowKey });
+            for (const syncInvoiceType of syncInvoiceTypes) {
+                nextPartitionKey = undefined;
+                nextRowKey = undefined;
+                do {
+                const query = buildAadeTransmittedDocsQuery(
+                    { ...params, invType: syncInvoiceType },
+                    { nextPartitionKey, nextRowKey },
+                );
                 const result = await api.callAadeProxy('/aade/request-transmitted-docs', {
                     environment: params.environment,
                     query,
@@ -1671,6 +1703,10 @@ export const api = {
                 }
 
                 for (const transmitted of parsed.documents) {
+                    if (
+                        transmitted.invoiceType !== syncInvoiceType
+                        || !isWholesaleAadeDocumentType(transmitted.invoiceType)
+                    ) continue;
                     const existing = documentsByMark.get(String(transmitted.mark));
                     const documentId = existing?.id || crypto.randomUUID();
                     const now = new Date().toISOString();
@@ -1826,23 +1862,25 @@ export const api = {
 
                 nextPartitionKey = parsed.nextPartitionKey;
                 nextRowKey = parsed.nextRowKey;
-            } while (nextPartitionKey && nextRowKey);
+                } while (nextPartitionKey && nextRowKey);
+            }
 
             // AADE date filters refer to the original document issue date. A document
             // issued by Prisma (or another ERP) can therefore be cancelled much later
             // and fall outside the user's selected date range. Run a cancellation-only
             // full MARK sweep so existing local documents can never remain falsely issued.
-            let auditPartitionKey: string | undefined;
-            let auditRowKey: string | undefined;
-            let auditPage = 0;
-            do {
+            for (const syncInvoiceType of syncInvoiceTypes) {
+                let auditPartitionKey: string | undefined;
+                let auditRowKey: string | undefined;
+                let auditPage = 0;
+                do {
                 const auditQuery = buildAadeTransmittedDocsQuery({
                     ...params,
                     dateFrom: undefined,
                     dateTo: undefined,
                     markFrom: '0',
                     receiverVatNumber: undefined,
-                    invType: undefined,
+                    invType: syncInvoiceType,
                     maxMark: undefined,
                 }, {
                     nextPartitionKey: auditPartitionKey,
@@ -1881,13 +1919,18 @@ export const api = {
                     );
                 }
                 for (const transmitted of auditParsed.documents) {
-                    if (!transmitted.cancelledByMark) continue;
+                    if (
+                        transmitted.invoiceType !== syncInvoiceType
+                        || !isWholesaleAadeDocumentType(transmitted.invoiceType)
+                        || !transmitted.cancelledByMark
+                    ) continue;
                     await applyCancellation(transmitted.mark, transmitted.cancelledByMark);
                 }
                 auditPartitionKey = auditParsed.nextPartitionKey;
                 auditRowKey = auditParsed.nextRowKey;
                 auditPage += 1;
-            } while (auditPartitionKey && auditRowKey && auditPage < 200);
+                } while (auditPartitionKey && auditRowKey && auditPage < 200);
+            }
 
             updatedCount = updatedDocumentIds.size;
 
