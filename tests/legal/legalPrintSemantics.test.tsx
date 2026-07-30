@@ -5,6 +5,7 @@ import LegalDocumentPrintView from '../../components/LegalDocumentPrintView';
 import {
   getMeasurementUnitLabel,
   LegalPrintCustomerBar,
+  LegalPrintHeader,
 } from '../../components/legal/legalPrintShared';
 import type { LegalDocument, LegalDocumentLine } from '../../types';
 
@@ -38,6 +39,8 @@ const counterpart = {
     postal_code: '11526',
     city: 'Αθήνα',
   },
+  phone: '2101111111',
+  email: 'customer@example.test',
 };
 
 const lines: LegalDocumentLine[] = [{
@@ -123,8 +126,39 @@ describe('legal print semantics', () => {
 
     expect(html).toContain('ΠΕΛΑΤΗΣ Α.Ε.');
     expect(html).toContain('ΑΦΜ:');
+    expect(html).toContain('099999999');
+    expect(html).toContain('Λεωφόρος Πελάτη');
+    expect(html).toContain('20');
+    expect(html).toContain('11526');
+    expect(html).toContain('Αθήνα');
+    expect(html).toContain('Χώρα:');
+    expect(html).toContain('GR');
+    expect(html).toContain('Υποκ.:');
+    expect(html).toContain('2101111111');
+    expect(html).toContain('customer@example.test');
     expect(html).not.toContain('Σύνολο');
     expect(html).not.toContain('248,00');
+  });
+
+  it('prints issuer VAT, tax office and branch together, with the tax office immediately after VAT', () => {
+    const html = renderToStaticMarkup(
+      <LegalPrintHeader
+        title="Τιμολόγιο Πώλησης"
+        documentNumber="ΤΙΜ-42"
+        issuer={issuer}
+      />,
+    );
+    const plainText = html.replace(/<[^>]+>/g, '');
+
+    expect(plainText).toContain('ΑΦΜ: 094259216 · ΔΟΥ: ΚΕΦΟΔΕ ΑΤΤΙΚΗΣ · Υποκ.: 0');
+    expect(html.match(/ΔΟΥ:/g)).toHaveLength(1);
+    expect(html).toContain('Οδός Δοκιμής');
+    expect(html).toContain('18120');
+    expect(html).toContain('2100000000');
+    expect(html).toContain('issuer@example.test');
+    expect(html).toContain('Δραστηριότητα:');
+    expect(html).toContain('Νομική μορφή:');
+    expect(html).toContain('ΓΕΜΗ:');
   });
 
   it('prints one grand total, no application logo, and all core fiscal information', () => {
@@ -138,7 +172,12 @@ describe('legal print semantics', () => {
 
     expect(html).toContain('ΕΚΔΟΤΗΣ Α.Ε.');
     expect(html).toContain('Οδός Δοκιμής');
+    expect(html).toContain('ΔΟΥ:');
+    expect(html).toContain('ΚΕΦΟΔΕ ΑΤΤΙΚΗΣ');
     expect(html).toContain('ΠΕΛΑΤΗΣ Α.Ε.');
+    expect(html).toContain('Λεωφόρος Πελάτη');
+    expect(html).toContain('Χώρα:');
+    expect(html).toContain('Υποκ.:');
     expect(html).toContain('ΤΙΜ');
     expect(html).toContain('42');
     expect(html).toContain('29/07/2026');

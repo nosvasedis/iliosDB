@@ -119,7 +119,6 @@ export function LegalPrintHeader(props: {
   const { title, documentNumber, issuer, series, aa, issueDate, documentTypeCode, statusBadge } = props;
   const issuerContact = [issuer.phone, issuer.email].filter(Boolean).join(' · ');
   const optionalLegalIdentity = [
-    issuer.doy ? `ΔΟΥ: ${issuer.doy}` : '',
     issuer.activity ? `Δραστηριότητα: ${issuer.activity}` : '',
     issuer.legal_form ? `Νομική μορφή: ${issuer.legal_form}` : '',
     issuer.gemi ? `ΓΕΜΗ: ${issuer.gemi}` : '',
@@ -136,6 +135,7 @@ export function LegalPrintHeader(props: {
           <p>{formatPartyAddress(issuer)}</p>
           <p>
             <span className="font-mono font-semibold">ΑΦΜ: {issuer.vat_number || '-'}</span>
+            {' · '}<span><span className="font-semibold">ΔΟΥ:</span> {issuer.doy || '-'}</span>
             {' · '}Υποκ.: {issuer.branch ?? 0}
           </p>
           {issuerContact && <p>{issuerContact}</p>}
@@ -187,21 +187,19 @@ export function LegalPrintCustomerBar(props: {
   return (
     <section className="legal-print-break-inside mb-2 shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-2">
       <div className="flex min-w-0 flex-1 flex-col justify-center">
-        <div className="mb-0.5 flex items-baseline gap-2">
+        <div className="mb-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
             {props.counterpartTitle || 'Πελάτης'}
           </span>
-          <span className="truncate text-sm font-black leading-none text-slate-900">
+          <span className="min-w-0 break-words text-sm font-black leading-tight text-slate-900">
             {getPartyName(props.counterpart)}
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-slate-700">
-          {props.counterpart.vat_number && (
-            <span className="font-mono text-slate-600">ΑΦΜ: {props.counterpart.vat_number}</span>
-          )}
-          <span className="truncate">{formatPartyAddress(props.counterpart)}</span>
-          {counterpartCountry !== 'GR' && <span>Χώρα: {counterpartCountry}</span>}
-          {counterpartBranch !== 0 && <span>Υποκ.: {counterpartBranch}</span>}
+          <span className="font-mono text-slate-600">ΑΦΜ: {props.counterpart.vat_number || '-'}</span>
+          <span className="min-w-0 break-words">{formatPartyAddress(props.counterpart)}</span>
+          <span>Χώρα: {counterpartCountry}</span>
+          <span>Υποκ.: {counterpartBranch}</span>
           {contact && <span>{contact}</span>}
         </div>
         {props.extraMeta}
