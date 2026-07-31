@@ -763,6 +763,11 @@ export const parseSku = (sku: string) => {
         return { gender: Gender.Men, category: 'Βραχιόλι' };
     }
 
+    // BR300–BR500: stone bracelets
+    if (prefix === 'BR' && !isNaN(numPart) && numPart >= 300 && numPart <= 500) {
+        return { gender: Gender.Women, category: 'Βραχιόλι με Πέτρες' };
+    }
+
     // BR Special Logic for W suffix (Stone Bracelets)
     if (prefix === 'BR' && sku.toUpperCase().endsWith('W') && !isNaN(numPart)) {
         if (
