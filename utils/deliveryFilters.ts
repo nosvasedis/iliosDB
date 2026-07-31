@@ -1,7 +1,8 @@
 import { EnrichedDeliveryItem } from '../types';
-import { DeliveryFilterKey } from '../components/deliveries/DeliveryFilters';
 import { getOrderDisplayName } from './deliveryLabels';
-import { isItemDueToday } from './deliveryScheduling';
+import { getReminderUrgency, isItemDueToday, isReminderPending } from './deliveryScheduling';
+
+export type DeliveryFilterKey = 'all' | 'today' | 'overdue' | 'attention' | 'completed';
 
 export function filterDeliveryItems(
   items: EnrichedDeliveryItem[],
@@ -19,6 +20,14 @@ export function filterDeliveryItems(
     if (filter === 'completed') return item.plan.plan_status !== 'active';
     if (filter === 'overdue') return item.urgency === 'overdue';
     if (filter === 'today') return isItemDueToday(item);
+    if (filter === 'attention') {
+      if (item.plan.plan_status !== 'active') return false;
+      return item.pending_reminders.some((reminder) => {
+        if (!isReminderPending(reminder)) return false;
+        const urgency = getReminderUrgency(reminder);
+        return urgency === 'overdue' || urgency === 'today';
+      });
+    }
     return true;
   });
 }

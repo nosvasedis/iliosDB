@@ -5,16 +5,18 @@ import MobileScreenHeader from './MobileScreenHeader';
 import { useOrderDeliveryPlans } from '../../hooks/api/useOrderDeliveryPlans';
 import { useDeliveryAlerts } from '../../hooks/useDeliveryAlerts';
 import { api } from '../../lib/supabase';
-import { EnrichedDeliveryItem, Order, OrderDeliveryPlan, OrderDeliveryReminder, OrderStatus } from '../../types';
-import { filterDeliveryItems, getDefaultDeliveryFilter } from '../../utils/deliveryFilters';
+import { EnrichedDeliveryItem, Order, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, OrderStatus } from '../../types';
+import { filterDeliveryItems, getDefaultDeliveryFilter, DeliveryFilterKey } from '../../utils/deliveryFilters';
+import { formatSelectedDayLabel } from '../../utils/deliveryWorklist';
 import { useAuth } from '../AuthContext';
 import { useUI } from '../UIProvider';
-import DeliveryFilters, { DeliveryFilterKey } from '../deliveries/DeliveryFilters';
+import DeliveryFilters from '../deliveries/DeliveryFilters';
 import DeliveryAlertRail from '../deliveries/DeliveryAlertRail';
+import DeliveryAgendaList from '../deliveries/DeliveryAgendaList';
 import MobilePlannerSheet from '../deliveries/mobile/MobilePlannerSheet';
-import MobileDeliveryDayList from '../deliveries/mobile/MobileDeliveryDayList';
 import MobileDeliveryDetailSheet from '../deliveries/mobile/MobileDeliveryDetailSheet';
 import ShipmentCreationModal from '../deliveries/ShipmentCreationModal';
+import ShipmentUndoConfirmationModal from '../deliveries/ShipmentUndoConfirmationModal';
 import { invalidateAndRefetchAfterShipmentChange, invalidateOrdersAndBatches } from '../../lib/queryInvalidation';
 
 interface Props {
@@ -35,8 +37,11 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
   const [isPlannerOpen, setIsPlannerOpen] = useState(false);
   const [plannerOrder, setPlannerOrder] = useState<Order | null>(null);
   const [shipmentItem, setShipmentItem] = useState<EnrichedDeliveryItem | null>(null);
+  const [shipmentUndoRequest, setShipmentUndoRequest] = useState<{ item: EnrichedDeliveryItem; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] } | null>(null);
+  const [isUndoingShipment, setIsUndoingShipment] = useState(false);
   const [loadingReminders, setLoadingReminders] = useState<Set<string>>(new Set());
   const defaultFilterApplied = useRef(false);
+  const today = useMemo(() => new Date(), []);
 
   useEffect(() => {
     if (defaultFilterApplied.current || isLoading) return;
@@ -54,7 +59,17 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
     }
   }, [ordersQuery.data, onConsumePendingOrderId, pendingOrderId]);
 
-  const filteredItems = useMemo(() => filterDeliveryItems(enrichedItems, filter, search), [enrichedItems, filter, search]);
+  useEffect(() => {
+    setSelectedItem((prev) => {
+      if (!prev) return null;
+      return enrichedItems.find((item) => item.plan.id === prev.plan.id) || null;
+    });
+  }, [enrichedItems]);
+
+  const filteredItems = useMemo(
+    () => filterDeliveryItems(enrichedItems, filter, search),
+    [enrichedItems, filter, search]
+  );
 
   const plannerPlan = useMemo(() => {
     if (!plannerOrder) return null;
@@ -84,18 +99,19 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
     handleRefresh();
   };
 
-  const handleReminderAction = async (reminder: OrderDeliveryReminder, action: 'ack' | 'complete' | 'snooze') => {
-    setLoadingReminders(prev => new Set(prev).add(reminder.id));
+  const handleReminderAction = async (reminder: OrderDeliveryReminder, action: 'complete' | 'snooze') => {
+    setLoadingReminders((prev) => new Set(prev).add(reminder.id));
     try {
-      if (action === 'ack') await api.acknowledgeDeliveryReminder(reminder.id);
       if (action === 'complete') await api.completeDeliveryReminder(reminder.id);
-      if (action === 'snooze') await api.snoozeDeliveryReminder(reminder.id, new Date(Date.now() + (60 * 60 * 1000)).toISOString());
+      if (action === 'snooze') {
+        await api.snoozeDeliveryReminder(reminder.id, new Date(Date.now() + 60 * 60 * 1000).toISOString());
+      }
       handleRefresh();
     } finally {
-      setLoadingReminders(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(reminder.id);
-        return newSet;
+      setLoadingReminders((prev) => {
+        const next = new Set(prev);
+        next.delete(reminder.id);
+        return next;
       });
     }
   };
@@ -109,7 +125,7 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
           ? `Κανένα τεμάχιο δεν είναι έτοιμο (0/${sr.total_qty} τεμ. σε παραγωγή). Θέλετε σίγουρα να τη σημειώσετε ως παραδομένη;`
           : `Η παραγγελία δεν είναι πλήρως έτοιμη (${sr.ready_qty}/${sr.total_qty} τεμ. έτοιμα). Θέλετε σίγουρα να τη σημειώσετε ως παραδομένη;`,
         confirmText: 'Ναι, σήμανση ως παραδομένη',
-        isDestructive: sr.ready_batches === 0
+        isDestructive: sr.ready_batches === 0,
       });
       if (!confirmed) return;
     }
@@ -130,8 +146,47 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
     setShipmentItem(item);
   };
 
+  const handleRevertShipment = async (shipment: OrderShipment, item: EnrichedDeliveryItem) => {
+    try {
+      const shipmentItems = await api.getOrderShipmentItems(shipment.id);
+      setShipmentUndoRequest({ item, shipment, shipmentItems });
+    } catch (e: any) {
+      showToast(e?.message || 'Δεν φορτώθηκαν με ασφάλεια τα τεμάχια της αποστολής.', 'error');
+    }
+  };
+
+  const handleConfirmShipmentUndo = async () => {
+    if (!shipmentUndoRequest) return;
+    const { shipment, item } = shipmentUndoRequest;
+    setIsUndoingShipment(true);
+    try {
+      await api.revertPartialShipment({
+        shipmentId: shipment.id,
+        orderId: item.order.id,
+        revertedBy: profile?.full_name || 'Σύστημα',
+      });
+      showToast(`Η αποστολή #${shipment.shipment_number} αναιρέθηκε επιτυχώς.`, 'success');
+      await invalidateAndRefetchAfterShipmentChange(queryClient, item.order.id);
+      setShipmentUndoRequest(null);
+      setSelectedItem(null);
+    } catch (e: any) {
+      showToast(e?.message || 'Σφάλμα κατά την αναίρεση αποστολής.', 'error');
+    } finally {
+      setIsUndoingShipment(false);
+    }
+  };
+
   const handleConfirmShipment = async (
-    items: Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: Order['items'][number]['cord_color']; enamel_color?: Order['items'][number]['enamel_color']; quantity: number; price_at_order: number; line_id?: string | null }>,
+    items: Array<{
+      sku: string;
+      variant_suffix?: string | null;
+      size_info?: string | null;
+      cord_color?: Order['items'][number]['cord_color'];
+      enamel_color?: Order['items'][number]['enamel_color'];
+      quantity: number;
+      price_at_order: number;
+      line_id?: string | null;
+    }>,
     notes: string | null
   ) => {
     if (!shipmentItem) return;
@@ -139,12 +194,30 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
     try {
       await api.createPartialShipment({
         orderId: order.id,
-        orderItems: order.items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, quantity: i.quantity, price_at_order: i.price_at_order, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color, line_id: i.line_id || null })),
-        items: items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color, quantity: i.quantity, price_at_order: i.price_at_order, line_id: i.line_id || null })),
+        orderItems: order.items.map((i) => ({
+          sku: i.sku,
+          variant_suffix: i.variant_suffix,
+          quantity: i.quantity,
+          price_at_order: i.price_at_order,
+          size_info: i.size_info,
+          cord_color: i.cord_color,
+          enamel_color: i.enamel_color,
+          line_id: i.line_id || null,
+        })),
+        items: items.map((i) => ({
+          sku: i.sku,
+          variant_suffix: i.variant_suffix,
+          size_info: i.size_info,
+          cord_color: i.cord_color,
+          enamel_color: i.enamel_color,
+          quantity: i.quantity,
+          price_at_order: i.price_at_order,
+          line_id: i.line_id || null,
+        })),
         shippedBy: profile?.full_name || 'Σύστημα',
         deliveryPlanId: shipmentItem.plan.id,
         notes,
-        allBatches: batchesQuery.data || []
+        allBatches: batchesQuery.data || [],
       });
       await invalidateAndRefetchAfterShipmentChange(queryClient, order.id);
       setSelectedItem(null);
@@ -160,33 +233,53 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
       <MobileScreenHeader
         icon={CalendarRange}
         title="Ημερολόγιο"
-        subtitle="Προγραμματισμένες παραδόσεις"
+        subtitle={`${formatSelectedDayLabel(today)} · κλήσεις & παραδόσεις`}
         iconClassName="text-emerald-700"
-        right={
+        right={(
           <button
             type="button"
-            onClick={() => { setPlannerOrder(null); setSelectedItem(null); setIsPlannerOpen(true); }}
+            onClick={() => {
+              setPlannerOrder(null);
+              setSelectedItem(null);
+              setIsPlannerOpen(true);
+            }}
             className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#060b00] text-white shadow-lg transition-transform active:scale-95"
             aria-label="Νέο πλάνο"
           >
             <Plus size={18} />
           </button>
-        }
+        )}
       />
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pt-3">
-        <DeliveryAlertRail
-          attentionItems={attentionItems}
-          onSelectItem={(entry) => setSelectedItem(entry.item)}
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pt-3">
+        <div className="rounded-xl border border-slate-100 bg-white/80 p-3 space-y-3 shadow-sm">
+          <DeliveryAlertRail
+            attentionItems={attentionItems}
+            onSelectItem={(entry) => setSelectedItem(entry.item)}
+            onCompleteReminder={(reminder) => handleReminderAction(reminder, 'complete')}
+            onSnoozeReminder={(reminder) => handleReminderAction(reminder, 'snooze')}
+            onShowAll={() => setFilter('attention')}
+            loadingReminders={loadingReminders}
+          />
+          <DeliveryFilters
+            filter={filter}
+            search={search}
+            onFilterChange={setFilter}
+            onSearchChange={setSearch}
+            compact
+          />
+        </div>
+
+        <DeliveryAgendaList
+          items={filteredItems}
+          selectedItemId={selectedItem?.plan.id || null}
+          onSelectItem={setSelectedItem}
+          onShowAll={() => setFilter('all')}
+          onShowToday={() => setFilter('today')}
           onCompleteReminder={(reminder) => handleReminderAction(reminder, 'complete')}
-          onSnoozeReminder={(reminder) => handleReminderAction(reminder, 'snooze')}
-          onShowAll={() => setFilter('today')}
           loadingReminders={loadingReminders}
+          grouped={filter === 'today' || filter === 'attention' || filter === 'overdue' || filter === 'all'}
         />
-
-        <DeliveryFilters filter={filter} search={search} onFilterChange={setFilter} onSearchChange={setSearch} />
-
-        <MobileDeliveryDayList items={filteredItems} onSelect={setSelectedItem} />
       </div>
 
       <MobilePlannerSheet
@@ -203,14 +296,17 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
       <MobileDeliveryDetailSheet
         item={selectedItem}
         onClose={() => setSelectedItem(null)}
-        onEditPlan={(item) => { setPlannerOrder(item.order); setIsPlannerOpen(true); }}
+        onEditPlan={(item) => {
+          setPlannerOrder(item.order);
+          setIsPlannerOpen(true);
+        }}
         onOpenOrder={(item) => onOpenOrder?.(item.order)}
         onMarkDelivered={handleMarkDelivered}
         onDeletePlan={handleDeletePlan}
-        onAcknowledgeReminder={(reminder) => handleReminderAction(reminder, 'ack')}
         onCompleteReminder={(reminder) => handleReminderAction(reminder, 'complete')}
         onSnoozeReminder={(reminder) => handleReminderAction(reminder, 'snooze')}
         onShipReady={handleShipReady}
+        onRevertShipment={handleRevertShipment}
         loadingReminders={loadingReminders}
       />
 
@@ -223,6 +319,19 @@ export default function MobileDeliveries({ pendingOrderId, onConsumePendingOrder
           userName={profile?.full_name || 'Σύστημα'}
           onConfirm={handleConfirmShipment}
           onClose={() => setShipmentItem(null)}
+        />
+      )}
+
+      {shipmentUndoRequest && (
+        <ShipmentUndoConfirmationModal
+          order={shipmentUndoRequest.item.order}
+          shipment={shipmentUndoRequest.shipment}
+          shipmentItems={shipmentUndoRequest.shipmentItems}
+          isSubmitting={isUndoingShipment}
+          onCancel={() => {
+            if (!isUndoingShipment) setShipmentUndoRequest(null);
+          }}
+          onConfirm={handleConfirmShipmentUndo}
         />
       )}
     </div>

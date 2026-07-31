@@ -127,6 +127,20 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
     ? 'w-full bg-white rounded-t-[2.5rem] p-5 pb-safe max-h-[92vh] overflow-y-auto animate-in slide-in-from-bottom-full duration-300'
     : 'w-full max-w-2xl bg-white rounded-[2rem] shadow-2xl p-6 max-h-[92vh] overflow-y-auto animate-in zoom-in-95 duration-200';
 
+  const useAdvancedValidation = advancedOpen;
+  const effectiveModeForValidation = useAdvancedValidation ? mode : 'exact';
+  const canSave = Boolean(orderId) && (
+    effectiveModeForValidation === 'exact'
+      ? Boolean(targetAt)
+      : effectiveModeForValidation === 'month'
+        ? Boolean(monthValue)
+        : effectiveModeForValidation === 'custom_period'
+          ? Boolean(windowStart && windowEnd)
+          : effectiveModeForValidation === 'holiday_anchor'
+            ? holidayAnchor != null && holidayYear != null
+            : false
+  );
+
   const handleAddReminder = () => {
     setReminders((prev) => [
       ...prev,
@@ -233,7 +247,10 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
         <div className="flex items-start justify-between gap-3 mb-6">
           <div>
             <div className="text-xs font-black uppercase tracking-wider text-slate-400">Ημερολόγιο</div>
-            <h2 className="text-2xl font-black text-slate-900 mt-1">Προγραμματισμός παράδοσης</h2>
+            <h2 className="text-2xl font-bold text-[#060b00] mt-1">Προγραμματισμός παράδοσης</h2>
+            <p className="text-sm font-medium text-slate-500 mt-1">
+              Τίποτα δεν εμφανίζεται στο ημερολόγιο αν δεν αποθηκεύσετε πλάνο εδώ.
+            </p>
           </div>
           <button onClick={onClose} className="w-10 h-10 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center">
             <X size={18} />
@@ -435,7 +452,7 @@ export default function DeliveryPlannerModal({ isOpen, onClose, onSave, orders, 
 
         <div className="mt-6 flex flex-wrap gap-3 justify-end">
           <button onClick={onClose} className="px-5 py-3 rounded-2xl bg-white border border-slate-200 text-slate-600 font-bold text-sm">Ακύρωση</button>
-          <button onClick={handleSave} disabled={!orderId || !targetAt} className="px-5 py-3 rounded-2xl bg-[#060b00] text-white font-bold text-sm disabled:opacity-40">
+          <button onClick={handleSave} disabled={!canSave} className="px-5 py-3 rounded-2xl bg-[#060b00] text-white font-bold text-sm disabled:opacity-40">
             Αποθήκευση
           </button>
         </div>

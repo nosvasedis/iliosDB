@@ -29,7 +29,7 @@ import {
     mergeRowsByConflict,
 } from './backupEngine';
 import { buildBackupV4, migrateBackupToV4, verifyBackupV4 } from './backupV4';
-import { buildDefaultReminderDrafts, syncPlanStatusWithOrder } from '../utils/deliveryScheduling';
+import { syncPlanStatusWithOrder } from '../utils/deliveryScheduling';
 import { getOrthodoxCelebrationsForYear } from '../utils/orthodoxHoliday';
 import { buildItemIdentityKey } from '../utils/itemIdentity';
 import { formatShipmentIssueLine, hasBlockingShipmentIssues, validateReadyMatchesRemainingForTransfer, validateShipmentRequest } from '../utils/shipmentSafety';
@@ -3072,51 +3072,8 @@ export const api = {
             }
         }
 
-        let nextPlan: OrderDeliveryPlan | null = null;
-        let nextPlanReminders: OrderDeliveryReminder[] = [];
-        if (hasRemaining) {
-            const targetDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
-            targetDate.setHours(10, 0, 0, 0);
-            const newPlanId = crypto.randomUUID();
-            nextPlan = {
-                id: newPlanId,
-                order_id: params.orderId,
-                plan_status: 'active',
-                planning_mode: 'exact',
-                target_at: targetDate.toISOString(),
-                window_start: null,
-                window_end: null,
-                holiday_anchor: null,
-                holiday_year: null,
-                holiday_offset_days: null,
-                contact_phone_override: null,
-                internal_notes: `Αυτόματο πλάνο για υπόλοιπο παραγγελίας μετά από αποστολή #${shipmentNumber}.`,
-                snoozed_until: null,
-                completed_at: null,
-                cancelled_at: null,
-                created_by: params.shippedBy,
-                updated_by: null,
-                created_at: now,
-                updated_at: now
-            };
-            const reminderDrafts = buildDefaultReminderDrafts('exact', targetDate);
-            nextPlanReminders = reminderDrafts.map((draft) => ({
-                id: crypto.randomUUID(),
-                plan_id: newPlanId,
-                trigger_at: draft.trigger_at,
-                action_type: draft.action_type,
-                reason: draft.reason,
-                sort_order: draft.sort_order,
-                source: draft.source as 'auto' | 'manual',
-                acknowledged_at: null,
-                completed_at: null,
-                completion_note: null,
-                completed_by: null,
-                snoozed_until: null,
-                created_at: now,
-                updated_at: now
-            }));
-        }
+        // Never auto-create follow-up delivery plans or reminders after a partial
+        // shipment. Remaining items stay unscheduled until assigned manually in Ημερολόγιο.
 
         // Online: one Postgres transaction (row locks + server-side ready-stock check)
         if (!isLocalMode && navigator.onLine) {
@@ -3126,8 +3083,8 @@ export const api = {
                 p_items: buildPartialShipmentRpcItems(effectiveItems),
                 p_delivery_plan_id: params.deliveryPlanId || null,
                 p_notes: params.notes || null,
-                p_next_plan: nextPlan ? sanitizeDeliveryPlanData(nextPlan) : null,
-                p_next_reminders: nextPlanReminders.map(sanitizeDeliveryReminderData),
+                p_next_plan: null,
+                p_next_reminders: [],
                 p_idempotency_key: `shipment:${shipmentId}`,
             });
             if (error) {
@@ -3169,13 +3126,6 @@ export const api = {
                 completed_at: now,
                 updated_at: now
             }, { match: { plan_id: params.deliveryPlanId }, noSelect: true });
-        }
-
-        if (nextPlan) {
-            await safeMutate('order_delivery_plans', 'UPSERT', sanitizeDeliveryPlanData(nextPlan), { onConflict: 'id', noSelect: true });
-        }
-        if (nextPlanReminders.length > 0) {
-            await safeMutate('order_delivery_reminders', 'UPSERT', nextPlanReminders.map(sanitizeDeliveryReminderData), { onConflict: 'id', noSelect: true });
         }
 
         if (!hasRemaining) {

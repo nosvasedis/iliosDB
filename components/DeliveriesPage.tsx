@@ -1,14 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { CalendarRange, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { CalendarRange, Plus } from 'lucide-react';
 import DesktopPageHeader from './DesktopPageHeader';
 import { useOrthodoxCalendarEvents } from '../hooks/api/useOrthodoxCalendarEvents';
 import { useOrderDeliveryPlans } from '../hooks/api/useOrderDeliveryPlans';
 import { useDeliveryAlerts } from '../hooks/useDeliveryAlerts';
 import { api } from '../lib/supabase';
 import { EnrichedDeliveryItem, Order, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, OrderStatus } from '../types';
-import { endOfDay, startOfDay } from '../utils/deliveryScheduling';
-import { filterDeliveryItems, getDefaultDeliveryFilter } from '../utils/deliveryFilters';
+import { filterDeliveryItems, getDefaultDeliveryFilter, DeliveryFilterKey } from '../utils/deliveryFilters';
+import { filterItemsForSelectedDay } from '../utils/deliveryWorklist';
 import { getCalendarDayEvents } from '../utils/namedays';
 import { useAuth } from './AuthContext';
 import { useUI } from './UIProvider';
@@ -16,7 +16,7 @@ import DeliveryAgendaList from './deliveries/DeliveryAgendaList';
 import DeliveryAlertRail from './deliveries/DeliveryAlertRail';
 import DeliveryCalendarGrid from './deliveries/DeliveryCalendarGrid';
 import DeliveryDetailPanel from './deliveries/DeliveryDetailPanel';
-import DeliveryFilters, { DeliveryFilterKey } from './deliveries/DeliveryFilters';
+import DeliveryFilters from './deliveries/DeliveryFilters';
 import DeliveryPlannerModal from './deliveries/DeliveryPlannerModal';
 import ShipmentCreationModal from './deliveries/ShipmentCreationModal';
 import ShipmentUndoConfirmationModal from './deliveries/ShipmentUndoConfirmationModal';
@@ -39,6 +39,7 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
   const [filter, setFilter] = useState<DeliveryFilterKey>('all');
   const [search, setSearch] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [dayScoped, setDayScoped] = useState(false);
   const [selectedItem, setSelectedItem] = useState<EnrichedDeliveryItem | null>(null);
   const [isPlannerOpen, setIsPlannerOpen] = useState(false);
   const [plannerOrder, setPlannerOrder] = useState<Order | null>(null);
@@ -64,21 +65,34 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
     }
   }, [ordersQuery.data, onConsumePendingOrderId, pendingOrderId]);
 
-  const filteredItems = useMemo(() => filterDeliveryItems(enrichedItems, filter, search), [enrichedItems, filter, search]);
-
-  const agendaItems = useMemo(() => {
-    const start = startOfDay(selectedDate).getTime();
-    const end = endOfDay(selectedDate).getTime();
-    const exactMatches = filteredItems.filter((item) => {
-      const time = new Date(item.target_date || item.window_start || item.plan.created_at).getTime();
-      return time >= start && time <= end;
+  // Keep selected item in sync with refreshed enriched data
+  useEffect(() => {
+    setSelectedItem((prev) => {
+      if (!prev) return null;
+      return enrichedItems.find((item) => item.plan.id === prev.plan.id) || null;
     });
-    return exactMatches.length > 0 ? exactMatches : filteredItems;
-  }, [filteredItems, selectedDate]);
+  }, [enrichedItems]);
+
+  const filteredItems = useMemo(
+    () => filterDeliveryItems(enrichedItems, filter, search),
+    [enrichedItems, filter, search]
+  );
+
+  const worklistItems = useMemo(() => {
+    if (!dayScoped) return filteredItems;
+    return filterItemsForSelectedDay(filteredItems, selectedDate);
+  }, [dayScoped, filteredItems, selectedDate]);
 
   const selectedDateEvents = useMemo(
     () => getCalendarDayEvents(selectedDate, orthodoxEventsQuery.data || []),
     [orthodoxEventsQuery.data, selectedDate]
+  );
+
+  const attentionPreviewItems = useMemo(
+    () => attentionItems.map((entry) => entry.item).filter(
+      (item, index, arr) => arr.findIndex((candidate) => candidate.plan.id === item.plan.id) === index
+    ),
+    [attentionItems]
   );
 
   const plannerPlan = useMemo(() => {
@@ -92,6 +106,12 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
     if (!plannerPlan) return [];
     return remindersQuery.data?.filter((reminder) => reminder.plan_id === plannerPlan.id) || [];
   }, [plannerPlan, remindersQuery.data]);
+
+  const openNewPlan = () => {
+    setPlannerOrder(null);
+    setSelectedItem(null);
+    setIsPlannerOpen(true);
+  };
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['order_delivery_plans'] });
@@ -112,18 +132,19 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
     handleRefresh();
   };
 
-  const handleReminderAction = async (reminder: OrderDeliveryReminder, action: 'ack' | 'complete' | 'snooze') => {
-    setLoadingReminders(prev => new Set(prev).add(reminder.id));
+  const handleReminderAction = async (reminder: OrderDeliveryReminder, action: 'complete' | 'snooze') => {
+    setLoadingReminders((prev) => new Set(prev).add(reminder.id));
     try {
-      if (action === 'ack') await api.acknowledgeDeliveryReminder(reminder.id);
       if (action === 'complete') await api.completeDeliveryReminder(reminder.id);
-      if (action === 'snooze') await api.snoozeDeliveryReminder(reminder.id, new Date(Date.now() + (60 * 60 * 1000)).toISOString());
+      if (action === 'snooze') {
+        await api.snoozeDeliveryReminder(reminder.id, new Date(Date.now() + 60 * 60 * 1000).toISOString());
+      }
       handleRefresh();
     } finally {
-      setLoadingReminders(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(reminder.id);
-        return newSet;
+      setLoadingReminders((prev) => {
+        const next = new Set(prev);
+        next.delete(reminder.id);
+        return next;
       });
     }
   };
@@ -137,7 +158,7 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
           ? `Κανένα τεμάχιο δεν είναι έτοιμο (0/${sr.total_qty} τεμ. σε παραγωγή). Θέλετε σίγουρα να τη σημειώσετε ως παραδομένη;`
           : `Η παραγγελία δεν είναι πλήρως έτοιμη (${sr.ready_qty}/${sr.total_qty} τεμ. έτοιμα). Θέλετε σίγουρα να τη σημειώσετε ως παραδομένη;`,
         confirmText: 'Ναι, σήμανση ως παραδομένη',
-        isDestructive: sr.ready_batches === 0
+        isDestructive: sr.ready_batches === 0,
       });
       if (!confirmed) return;
     }
@@ -188,7 +209,16 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
   };
 
   const handleConfirmShipment = async (
-    items: Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: Order['items'][number]['cord_color']; enamel_color?: Order['items'][number]['enamel_color']; quantity: number; price_at_order: number; line_id?: string | null }>,
+    items: Array<{
+      sku: string;
+      variant_suffix?: string | null;
+      size_info?: string | null;
+      cord_color?: Order['items'][number]['cord_color'];
+      enamel_color?: Order['items'][number]['enamel_color'];
+      quantity: number;
+      price_at_order: number;
+      line_id?: string | null;
+    }>,
     notes: string | null
   ) => {
     if (!shipmentItem) return;
@@ -196,12 +226,30 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
     try {
       await api.createPartialShipment({
         orderId: order.id,
-        orderItems: order.items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, quantity: i.quantity, price_at_order: i.price_at_order, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color, line_id: i.line_id || null })),
-        items: items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color, quantity: i.quantity, price_at_order: i.price_at_order, line_id: i.line_id || null })),
+        orderItems: order.items.map((i) => ({
+          sku: i.sku,
+          variant_suffix: i.variant_suffix,
+          quantity: i.quantity,
+          price_at_order: i.price_at_order,
+          size_info: i.size_info,
+          cord_color: i.cord_color,
+          enamel_color: i.enamel_color,
+          line_id: i.line_id || null,
+        })),
+        items: items.map((i) => ({
+          sku: i.sku,
+          variant_suffix: i.variant_suffix,
+          size_info: i.size_info,
+          cord_color: i.cord_color,
+          enamel_color: i.enamel_color,
+          quantity: i.quantity,
+          price_at_order: i.price_at_order,
+          line_id: i.line_id || null,
+        })),
         shippedBy: profile?.full_name || 'Σύστημα',
         deliveryPlanId: shipmentItem.plan.id,
         notes,
-        allBatches: batchesQuery.data || []
+        allBatches: batchesQuery.data || [],
       });
       await invalidateAndRefetchAfterShipmentChange(queryClient, order.id);
       setSelectedItem(null);
@@ -212,62 +260,112 @@ export default function DeliveriesPage({ pendingOrderId, onConsumePendingOrderId
     }
   };
 
+  const handleSelectDate = (date: Date) => {
+    setSelectedDate(date);
+    setDayScoped(true);
+    setMonthDate(new Date(date.getFullYear(), date.getMonth(), 1));
+  };
+
   return (
     <div className="space-y-6">
       <DesktopPageHeader
         icon={CalendarRange}
         title="Ημερολόγιο"
-        subtitle="Προγραμματισμένες παραδόσεις και υπενθυμίσεις."
+        subtitle="Σήμερα: κλήσεις, προθεσμίες, αποστολές"
         tail={(
-          <button type="button" onClick={() => { setPlannerOrder(null); setSelectedItem(null); setIsPlannerOpen(true); }} className="flex items-center gap-2 rounded-2xl bg-[#060b00] px-4 py-3 text-sm font-bold text-white shadow-lg hover:bg-slate-800 transition-all hover:-translate-y-0.5">
+          <button
+            type="button"
+            onClick={openNewPlan}
+            className="flex items-center gap-2 rounded-xl bg-[#060b00] px-4 py-3 text-sm font-bold text-white shadow-lg hover:bg-slate-800 transition-all hover:-translate-y-0.5"
+          >
             <Plus size={16} /> Νέο πλάνο
           </button>
         )}
         below={(
-          <div className="space-y-4">
+          <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3 shadow-sm space-y-3">
             <DeliveryAlertRail
               attentionItems={attentionItems}
-              onSelectItem={(entry) => setSelectedItem(entry.item)}
+              onSelectItem={(entry) => {
+                setSelectedItem(entry.item);
+                setDayScoped(false);
+              }}
               onCompleteReminder={(reminder) => handleReminderAction(reminder, 'complete')}
               onSnoozeReminder={(reminder) => handleReminderAction(reminder, 'snooze')}
-              onShowAll={() => setFilter('today')}
+              onShowAll={() => {
+                setFilter('attention');
+                setDayScoped(false);
+              }}
               loadingReminders={loadingReminders}
             />
-            <DeliveryFilters filter={filter} search={search} onFilterChange={setFilter} onSearchChange={setSearch} />
+            <DeliveryFilters
+              filter={filter}
+              search={search}
+              onFilterChange={(next) => {
+                setFilter(next);
+                setDayScoped(false);
+              }}
+              onSearchChange={setSearch}
+              compact
+            />
           </div>
         )}
       />
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1.45fr_0.95fr] gap-6">
-        <div className="space-y-6">
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 flex items-center justify-between">
-            <button onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1))} className="w-11 h-11 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-600">
-              <ChevronLeft size={18} />
-            </button>
-            <div className="text-center">
-              <div className="text-xl font-black text-slate-900">{monthDate.toLocaleDateString('el-GR', { month: 'long', year: 'numeric' })}</div>
-            </div>
-            <button onClick={() => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1))} className="w-11 h-11 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-600">
-              <ChevronRight size={18} />
-            </button>
-          </div>
+      <div className="grid grid-cols-1 xl:grid-cols-[1.35fr_0.95fr] gap-6 items-start">
+        <div className="space-y-4">
+          <DeliveryAgendaList
+            items={worklistItems}
+            selectedDate={selectedDate}
+            dayScoped={dayScoped}
+            dayEvents={dayScoped ? selectedDateEvents : []}
+            selectedItemId={selectedItem?.plan.id || null}
+            onSelectItem={setSelectedItem}
+            onClearDayScope={() => setDayScoped(false)}
+            onShowAll={() => {
+              setFilter('all');
+              setDayScoped(false);
+            }}
+            onShowToday={() => {
+              setFilter('today');
+              setSelectedDate(new Date());
+              setDayScoped(true);
+            }}
+            onCompleteReminder={(reminder) => handleReminderAction(reminder, 'complete')}
+            loadingReminders={loadingReminders}
+            grouped={filter === 'today' || filter === 'attention' || filter === 'overdue' || !dayScoped}
+          />
 
-          <DeliveryCalendarGrid monthDate={monthDate} items={filteredItems} majorEvents={orthodoxEventsQuery.data || []} selectedDate={selectedDate} selectedItem={selectedItem} onSelectDate={setSelectedDate} onSelectItem={setSelectedItem} />
-          <DeliveryAgendaList items={agendaItems} onSelectItem={setSelectedItem} dayEvents={selectedDateEvents} />
+          <DeliveryCalendarGrid
+            monthDate={monthDate}
+            onMonthChange={setMonthDate}
+            items={filteredItems}
+            majorEvents={orthodoxEventsQuery.data || []}
+            selectedDate={selectedDate}
+            selectedItem={selectedItem}
+            onSelectDate={handleSelectDate}
+            onSelectItem={setSelectedItem}
+            defaultCollapsed={false}
+          />
         </div>
 
         <DeliveryDetailPanel
           item={selectedItem}
-          onEditPlan={(item) => { setPlannerOrder(item.order); setSelectedItem(item); setIsPlannerOpen(true); }}
+          onEditPlan={(item) => {
+            setPlannerOrder(item.order);
+            setSelectedItem(item);
+            setIsPlannerOpen(true);
+          }}
           onOpenOrder={(item) => onOpenOrder?.(item.order)}
           onMarkDelivered={handleMarkDelivered}
           onDeletePlan={handleDeletePlan}
-          onAcknowledgeReminder={(reminder) => handleReminderAction(reminder, 'ack')}
           onCompleteReminder={(reminder) => handleReminderAction(reminder, 'complete')}
           onSnoozeReminder={(reminder) => handleReminderAction(reminder, 'snooze')}
           onShipReady={handleShipReady}
           onRevertShipment={handleRevertShipment}
           loadingReminders={loadingReminders}
+          attentionPreview={attentionPreviewItems}
+          onSelectPreviewItem={setSelectedItem}
+          onNewPlan={openNewPlan}
         />
       </div>
 
