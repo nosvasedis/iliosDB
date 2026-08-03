@@ -405,10 +405,14 @@ export function buildPartialDeliveryProgressSegments(
   }
   let wipQty = Math.max(0, batchTotal - readyQty);
 
-  // Use real shipment data when provided; fall back to heuristic only when absent
+  // Active batches are authoritative for the current production remainder.
+  // Historical shipment rows can outlive order-line revisions and therefore
+  // exceed the quantity that is no longer in production. Reserve the active
+  // batch quantity first so shipped history cannot erase a live WIP stage.
+  const maxShippedQty = Math.max(0, itemsTotal - batchTotal);
   let shippedQty = knownShippedQty !== undefined
-    ? Math.max(0, Math.min(itemsTotal, knownShippedQty))
-    : Math.max(0, Math.min(itemsTotal, itemsTotal - batchTotal));
+    ? Math.max(0, Math.min(maxShippedQty, knownShippedQty))
+    : maxShippedQty;
 
   const pipelineCap = Math.max(0, itemsTotal - shippedQty);
   const pipeline = readyQty + wipQty;
@@ -574,13 +578,17 @@ export function getOrderReadinessPercent(
   batches: ProductionBatch[] | undefined | null,
   shippedQty?: number,
 ): number {
-  if (order.status === OrderStatus.Delivered || order.status === OrderStatus.Ready) return 100;
+  if (order.status === OrderStatus.Delivered) return 100;
   if (order.status === OrderStatus.Cancelled) return -1;
   if (isOrderReady(order, batches)) return 100;
   if (orderUsesPartialDeliveryProgress(order, shippedQty)) {
     return buildPartialDeliveryProgressSegments(order, batches, shippedQty)?.overallCompletePercent ?? 0;
   }
-  if (order.status === OrderStatus.InProduction || order.status === OrderStatus.Pending) {
+  if (
+    order.status === OrderStatus.InProduction
+    || order.status === OrderStatus.Pending
+    || order.status === OrderStatus.Ready
+  ) {
     return buildInProductionCollapsedProgressSegments(order, batches)?.readyPercentVsOrder ?? 0;
   }
   return 0;
@@ -599,12 +607,18 @@ export function isOrderReadyForShipment(
 ): boolean {
   if (order.status === OrderStatus.Cancelled || order.status === OrderStatus.Delivered) return false;
   if (order.is_archived === true) return false;
-  if (getReadyToShipQuantity(order.id, batches) <= 0) return false;
+  const orderBatches = getOrderBatches(order.id, batches);
+  if (getReadyToShipQuantity(order.id, orderBatches) <= 0) return false;
+
+  // The full-shipment badge must reflect the live production pipeline. A stale
+  // order status or an oversized historical shipment total must never hide a
+  // batch that is still in AwaitingDelivery (or any other non-Ready stage).
+  if (orderBatches.some((batch) => batch.current_stage !== ProductionStage.Ready)) return false;
 
   if (order.status === OrderStatus.Ready) return true;
-  if (isOrderReady(order, batches)) return true;
+  if (isOrderReady(order, orderBatches)) return true;
 
-  return getOrderReadinessPercent(order, batches, shippedQty) >= 100;
+  return getOrderReadinessPercent(order, orderBatches, shippedQty) >= 100;
 }
 
 /** Τεμάχια στο «Έτοιμα» που μπορούν να αποσταλούν (μερική ή πλήρης αποστολή). */

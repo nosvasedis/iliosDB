@@ -61,6 +61,34 @@ describe('orderUsesPartialDeliveryProgress', () => {
     expect(progress!.remainderQty).toBe(0);
     expect(getOrderReadinessPercent(order, batches, 274)).toBe(79);
   });
+
+  it('does not let oversized shipment history hide live ORD-260117-600 batches', () => {
+    const order = {
+      id: 'ORD-260117-600',
+      status: OrderStatus.InProduction,
+      items: [{ sku: 'A', quantity: 460, price_at_order: 10 }],
+    } as Order;
+    const batches = [
+      {
+        id: 'ready', order_id: order.id, sku: 'A', quantity: 88,
+        current_stage: ProductionStage.Ready, created_at: '', updated_at: '',
+        priority: 'Normal', requires_setting: false,
+      },
+      {
+        id: 'awaiting-delivery', order_id: order.id, sku: 'B', quantity: 98,
+        current_stage: ProductionStage.AwaitingDelivery, created_at: '', updated_at: '',
+        priority: 'Normal', requires_setting: false,
+      },
+    ];
+
+    const progress = buildPartialDeliveryProgressSegments(order, batches, 726);
+    expect(progress).not.toBeNull();
+    expect(progress!.shippedQty).toBe(274);
+    expect(progress!.readyQty).toBe(88);
+    expect(progress!.wipQty).toBe(98);
+    expect(getOrderReadinessPercent(order, batches, 726)).toBe(79);
+    expect(isOrderReadyForShipment(order, batches, 726)).toBe(false);
+  });
 });
 
 describe('isOrderReady', () => {
@@ -230,6 +258,21 @@ describe('getOrderReadinessPercent / isOrderReadyForShipment', () => {
       items: [{ sku: 'A', quantity: 1, price_at_order: 10 }],
     } as Order;
     expect(isOrderReadyForShipment(order, [])).toBe(false);
+  });
+
+  it('does not trust a stale Ready order status over a non-ready batch', () => {
+    const order = {
+      id: 'o1',
+      status: OrderStatus.Ready,
+      items: [{ sku: 'A', quantity: 2, price_at_order: 10 }],
+    } as Order;
+    const batches = [
+      { ...baseBatch, id: 'b1', order_id: 'o1', sku: 'A', quantity: 1, current_stage: ProductionStage.Ready },
+      { ...baseBatch, id: 'b2', order_id: 'o1', sku: 'A', quantity: 1, current_stage: ProductionStage.AwaitingDelivery },
+    ];
+
+    expect(getOrderReadinessPercent(order, batches)).toBe(50);
+    expect(isOrderReadyForShipment(order, batches)).toBe(false);
   });
 });
 
