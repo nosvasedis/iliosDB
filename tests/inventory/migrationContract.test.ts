@@ -86,6 +86,14 @@ const generatedOrderColumnsHardeningSql = readFileSync(
   'utf8',
 );
 
+const specialCreationInventoryFixSql = readFileSync(
+  new URL(
+    '../../supabase/migrations/20260803100057_skip_sp_inventory_reservation.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
 const legacyShipmentLineIdsSql = readFileSync(
   new URL(
     '../../supabase/migrations/20260727093052_bind_legacy_shipment_line_ids.sql',
@@ -191,6 +199,19 @@ describe('transactional inventory migration contract', () => {
       'FROM PUBLIC, anon, authenticated;',
     );
     expect(generatedOrderColumnsHardeningSql).toContain('TO service_role;');
+  });
+
+  it('persists systemic SP order lines without treating them as catalog inventory', () => {
+    expect(specialCreationInventoryFixSql).toContain("IF UPPER(v_sku) = 'SP' THEN");
+    expect(specialCreationInventoryFixSql).toMatch(
+      /IF UPPER\(v_sku\) = 'SP' THEN\s+CONTINUE;\s+END IF;\s+\s+PERFORM private\.assert_inventory_item_ready\(v_sku\);/,
+    );
+    expect(specialCreationInventoryFixSql).toContain(
+      'REVOKE ALL ON FUNCTION private.save_order_with_inventory_core(jsonb, text)',
+    );
+    expect(specialCreationInventoryFixSql).toContain(
+      'FROM PUBLIC, anon, authenticated;',
+    );
   });
 
   it('does not seed from the client-derived location_stock mapping', () => {
