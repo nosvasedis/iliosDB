@@ -66,11 +66,11 @@ export default function NewProduct({ products, materials, molds = [], onCancel, 
                 <div className="absolute -bottom-8 left-24 w-40 h-40 bg-amber-100 rounded-full filter blur-3xl opacity-30 pointer-events-none"></div>
 
                 <div className="flex flex-wrap justify-between items-center gap-3 relative z-10">
-                    <div className="flex min-w-0 flex-wrap items-center gap-3">
-                        <div>
-                            <h2 className="text-2xl font-black tracking-tight text-slate-900">Νέο Προϊόν</h2>
-                            <p className="text-slate-400 font-medium text-sm mt-0.5">Δημιουργία νέου κωδικού στην αποθήκη</p>
-                        </div>
+                    <div>
+                        <h2 className="text-2xl font-black tracking-tight text-slate-900">Νέο Προϊόν</h2>
+                        <p className="text-slate-400 font-medium text-sm mt-0.5">Δημιουργία νέου κωδικού στην αποθήκη</p>
+                    </div>
+                    <div className="flex items-center gap-3">
                         <div
                             className={`inline-flex min-w-0 max-w-[260px] items-center gap-2 rounded-xl border px-3 py-2 shadow-sm transition-colors ${state.sku.trim()
                                 ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
@@ -80,17 +80,16 @@ export default function NewProduct({ products, materials, molds = [], onCancel, 
                             aria-live="polite"
                         >
                             <Tag size={14} className="shrink-0" />
-                            <span className="shrink-0 text-[10px] font-black uppercase tracking-wider">SKU</span>
                             <span className="min-w-0 truncate font-mono text-sm font-black text-slate-900">
-                                {state.sku.trim() || 'Πληκτρολογήστε SKU'}
+                                {state.sku.trim() || '—'}
                             </span>
                         </div>
-                    </div>
                     {onCancel && (
                         <button onClick={onCancel} className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-5 py-2.5 rounded-xl font-bold transition-all active:scale-95 text-sm border border-slate-200">
                             Ακύρωση
                         </button>
                     )}
+                    </div>
                 </div>
 
                 {/* Clickable Progress Steps */}
