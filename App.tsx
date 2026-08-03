@@ -190,7 +190,7 @@ function ErpAppContent() {
   const { signOut, profile } = useAuth();
   const { badgeCount: deliveryBadgeCount } = useDeliveryNavBadge();
   const { notifications: liveNotifications, dismiss: dismissLiveNotification } = useLiveActivity();
-  useRealtimeInvalidation();
+  useRealtimeInvalidation(profile?.role === 'seller' ? 'seller' : 'erp');
 
   const {
     setPrintItems, setOrderToPrint, setRemainingOrderToPrint, setShipmentToPrint, setShipmentsToPrint, setOfferToPrint,

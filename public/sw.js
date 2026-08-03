@@ -1,6 +1,8 @@
 const workerUrl = new URL(self.location.href);
 const cacheVersion = (workerUrl.searchParams.get('v') || 'dev').replace(/[^a-z0-9_-]/gi, '_');
 const CACHE_NAME = `ilios-runtime-${cacheVersion}`;
+const IMAGE_CACHE_NAME = 'ilios-viewed-product-images-v1';
+const IMAGE_CACHE_LIMIT = 200;
 const PRECACHE_URLS = ['/manifest.json'];
 
 self.addEventListener('install', (event) => {
@@ -15,7 +17,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) =>
       Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
+          if (cacheName !== CACHE_NAME && cacheName !== IMAGE_CACHE_NAME) {
             return caches.delete(cacheName);
           }
           return Promise.resolve();
@@ -27,9 +29,21 @@ self.addEventListener('activate', (event) => {
 
 function isBypassedRequest(url) {
   return (
-    url.host.includes('supabase.co') ||
-    url.host.includes('ilios-image-handler.iliosdb.workers.dev')
+    url.host.includes('supabase.co')
   );
+}
+
+function isProductImageRequest(request, url) {
+  return request.destination === 'image'
+    && url.host.includes('ilios-image-handler.iliosdb.workers.dev');
+}
+
+async function trimImageCache(cache) {
+  const keys = await cache.keys();
+  const excess = keys.length - IMAGE_CACHE_LIMIT;
+  if (excess > 0) {
+    await Promise.all(keys.slice(0, excess).map((key) => cache.delete(key)));
+  }
 }
 
 function isAppAsset(url) {
@@ -40,6 +54,27 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
+
+  if (isProductImageRequest(event.request, url)) {
+    event.respondWith(
+      caches.open(IMAGE_CACHE_NAME).then(async (cache) => {
+        const cached = await cache.match(event.request);
+        if (cached) return cached;
+        try {
+          const response = await fetch(event.request);
+          if (response.ok || response.type === 'opaque') {
+            await cache.put(event.request, response.clone());
+            void trimImageCache(cache);
+          }
+          return response;
+        } catch {
+          return new Response('', { status: 503, statusText: 'Image unavailable offline' });
+        }
+      })
+    );
+    return;
+  }
+
   if (isBypassedRequest(url)) return;
 
   if (event.request.mode === 'navigate') {

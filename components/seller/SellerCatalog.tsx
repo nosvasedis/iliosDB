@@ -1,27 +1,33 @@
 
 import React, { useState, useMemo, useRef, useCallback, useEffect, useDeferredValue } from 'react';
-import { Product, Gender, ProductVariant, ProductionType } from '../../types';
+import { Gender, ProductionType } from '../../types';
 import { Search, ImageIcon, X, SlidersHorizontal, Camera, PackageOpen, Expand, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatCurrency, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
 import { FINISH_CODES } from '../../constants';
-import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
-import { api } from '../../lib/supabase';
 import BarcodeScanner from '../BarcodeScanner';
 import SkuColorizedText from '../SkuColorizedText';
 import { useUI } from '../UIProvider';
 import SellerImageLightbox from './SellerImageLightbox';
 import { SELLER_FINISH_COLORS, SELLER_STONE_TEXT_COLORS } from './skuColors';
+import {
+    buildSellerCatalogIndex,
+    selectSellerCatalogProducts,
+} from '../../features/sellerCatalog/selectors';
+import {
+    SellerCatalogCollection,
+    SellerCatalogProduct,
+    SellerCatalogVariant,
+} from '../../features/sellerCatalog/types';
 
-const CATALOG_PAGE_SIZE = 60;
 const INITIAL_DISPLAY_LIMIT = 60;
 const DISPLAY_INCREMENT = 60;
-const CATALOG_STALE_TIME_MS = 1000 * 60 * 20;
-const BACKGROUND_PREFETCH_DELAY_MS = 900;
 
-interface Props { products?: Product[]; }
+interface Props {
+    products: SellerCatalogProduct[];
+    collections: SellerCatalogCollection[];
+}
 
 // ─── Visual constants ─────────────────────────────────────────────────────────
-const FINISH_ORDER = ['', 'P', 'X', 'D', 'H'];
 const FINISH_DOT_ACTIVE: Record<string, string> = {
     '': 'bg-emerald-500', 'P': 'bg-stone-500', 'X': 'bg-amber-500', 'D': 'bg-rose-400', 'H': 'bg-cyan-400',
 };
@@ -51,24 +57,10 @@ const SuffixBadge = ({ suffix, gender }: { suffix: string; gender: Gender }) => 
 };
 
 // ─── Catalogue Card with swipe + smart variant ordering ───────────────────────
-interface CardProps { product: Product; }
+interface CardProps { product: SellerCatalogProduct; priority?: boolean; }
 
-const CatalogueCard = React.memo(({ product }: CardProps) => {
-    // Smart variant sort: by finish group index, then stone alpha
-    const variants = useMemo(() => {
-        if (!product.variants || product.variants.length === 0) return [];
-        return [...product.variants].sort((a, b) => {
-            const fa = getVariantComponents(a.suffix, product.gender).finish.code;
-            const fb = getVariantComponents(b.suffix, product.gender).finish.code;
-            const ia = FINISH_ORDER.indexOf(fa) >= 0 ? FINISH_ORDER.indexOf(fa) : 99;
-            const ib = FINISH_ORDER.indexOf(fb) >= 0 ? FINISH_ORDER.indexOf(fb) : 99;
-            if (ia !== ib) return ia - ib;
-            // Same finish → sort by stone code alphabetically
-            const sa = getVariantComponents(a.suffix, product.gender).stone.code;
-            const sb = getVariantComponents(b.suffix, product.gender).stone.code;
-            return sa.localeCompare(sb);
-        });
-    }, [product.variants, product.gender]);
+const CatalogueCard = React.memo(({ product, priority = false }: CardProps) => {
+    const variants = product.variants;
 
     // Finish groups (for the progress dots)
     const finishGroups = useMemo(() => {
@@ -84,13 +76,16 @@ const CatalogueCard = React.memo(({ product }: CardProps) => {
 
     const [viewIndex, setViewIndex] = useState(0);
     const [showLightbox, setShowLightbox] = useState(false);
+    const [imageFailed, setImageFailed] = useState(false);
     const [slideDir, setSlideDir] = useState<'left' | 'right' | null>(null);
     const [dragOffset, setDragOffset] = useState(0);
     const touchStartX = useRef<number | null>(null);
     const isAnimating = useRef(false);
 
+    useEffect(() => setImageFailed(false), [product.image_url]);
+
     const hasVariants = variants.length > 0;
-    const currentVariant: ProductVariant | null = hasVariants ? variants[viewIndex] : null;
+    const currentVariant: SellerCatalogVariant | null = hasVariants ? variants[viewIndex] : null;
     const displaySku = currentVariant ? `${product.sku}${currentVariant.suffix}` : product.sku;
     const displayPrice = currentVariant
         ? (currentVariant.selling_price || product.selling_price || 0)
@@ -158,8 +153,17 @@ const CatalogueCard = React.memo(({ product }: CardProps) => {
                     onTouchEnd={handleTouchEnd}
                     style={{ transform: `translateX(${dragOffset * 0.25}px)`, transition: dragOffset === 0 ? 'transform 0.2s ease-out' : 'none' }}
                 >
-                    {product.image_url ? (
-                        <img src={product.image_url} className="w-full h-full object-cover" alt={displaySku} draggable={false} loading="lazy" decoding="async" />
+                    {product.image_url && !imageFailed ? (
+                        <img
+                            src={product.image_url}
+                            className="w-full h-full object-cover"
+                            alt={displaySku}
+                            draggable={false}
+                            loading={priority ? 'eager' : 'lazy'}
+                            fetchPriority={priority ? 'high' : 'auto'}
+                            decoding="async"
+                            onError={() => setImageFailed(true)}
+                        />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center text-slate-300">
                             <ImageIcon size={20} />
@@ -253,27 +257,8 @@ const FilterChip = ({ label, onClear }: { label: string; onClear: () => void }) 
 );
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function SellerCatalog({ products: productsProp }: Props) {
-    const { data: collections } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
+export default function SellerCatalog({ products, collections }: Props) {
     const { showToast } = useUI();
-
-    const {
-        data: catalogData,
-        fetchNextPage,
-        hasNextPage,
-        isFetchingNextPage,
-        isLoading: catalogLoading
-    } = useInfiniteQuery({
-        queryKey: ['productsCatalog'],
-        queryFn: ({ pageParam = 0 }) => api.getProductsCatalog({ limit: CATALOG_PAGE_SIZE, offset: pageParam }),
-        getNextPageParam: (lastPage, allPages) => lastPage.hasMore ? allPages.length * CATALOG_PAGE_SIZE : undefined,
-        initialPageParam: 0,
-        enabled: productsProp == null,
-        staleTime: CATALOG_STALE_TIME_MS,
-    });
-
-    const catalogProducts = useMemo(() => catalogData?.pages.flatMap(p => p.products) ?? [], [catalogData]);
-    const products = productsProp ?? catalogProducts;
 
     // ── Filter states ────────────────────────────────────────────────────────
     const [search, setSearch] = useState('');
@@ -299,114 +284,35 @@ export default function SellerCatalog({ products: productsProp }: Props) {
     const scrollRef = useRef<HTMLDivElement>(null);
 
     // ── Derived filter options ───────────────────────────────────────────────
-    const sellable = useMemo(() => products.filter(p => !p.is_component), [products]);
-
-    const categoryGroups = useMemo(() => {
-        const groups = new Set(sellable.map(p => getCategoryGroup(p.category)));
-        return ['All', ...Array.from(groups).sort()];
-    }, [sellable]);
-
-    const availableFinishes = useMemo(() => {
-        const set = new Set<string>();
-        sellable.forEach(p => {
-            if (p.variants && p.variants.length > 0) {
-                p.variants.forEach(v => {
-                    const f = getVariantComponents(v.suffix, p.gender).finish.code;
-                    set.add(f);
-                });
-            }
-        });
-        return FINISH_ORDER.filter(f => set.has(f));
-    }, [sellable]);
-
-    const availableStones = useMemo(() => {
-        const map = new Map<string, { name: string; count: number }>();
-        sellable.forEach(p => {
-            if (p.variants && p.variants.length > 0) {
-                p.variants.forEach(v => {
-                    const stone = getVariantComponents(v.suffix, p.gender).stone;
-                    if (stone.code) {
-                        const name = stone.name || stone.code;
-                        const existing = map.get(stone.code);
-                        if (!existing) map.set(stone.code, { name, count: 1 });
-                        else map.set(stone.code, { name: existing.name, count: existing.count + 1 });
-                    }
-                });
-            }
-        });
-        return Array.from(map.entries())
-            .sort((a, b) => b[1].count - a[1].count)
-            .map(([code, { name }]) => ({ code, name }));
-    }, [sellable]);
+    const catalogIndex = useMemo(() => buildSellerCatalogIndex(products, getCategoryGroup), [products]);
+    const categoryGroups = useMemo(() => ['All', ...catalogIndex.categoryGroups], [catalogIndex]);
+    const availableFinishes = catalogIndex.availableFinishes;
+    const availableStones = catalogIndex.availableStones;
 
     // ── Filtered products ────────────────────────────────────────────────────
-    const filteredProducts = useMemo(() => {
-        const normalizedSearch = deferredSearch.toLowerCase();
-        const hasAnyStone = (p: Product) => p.variants?.some(v => !!getVariantComponents(v.suffix, p.gender).stone.code);
-        return sellable.filter(p => {
-            const matchSearch = !normalizedSearch || p.sku.toLowerCase().includes(normalizedSearch) || p.category.toLowerCase().includes(normalizedSearch);
-            const matchGroup = selectedGroup === 'All' || getCategoryGroup(p.category) === selectedGroup;
-            const matchGender = selectedGender === 'All' || p.gender === selectedGender;
-            const matchCollection = selectedCollection === 'All' || p.collections?.includes(selectedCollection as number);
-            const matchFinish = !selectedFinish || (p.variants && p.variants.some(v => getVariantComponents(v.suffix, p.gender).finish.code === selectedFinish));
-            const matchStoneSpecific = !selectedStone || (p.variants && p.variants.some(v => getVariantComponents(v.suffix, p.gender).stone.code === selectedStone));
-            const matchStoneMode = stoneFilterMode === 'All' || (stoneFilterMode === 'with' && hasAnyStone(p)) || (stoneFilterMode === 'without' && !hasAnyStone(p));
-            const matchProductionType = selectedProductionType === 'All' || p.production_type === selectedProductionType;
-            const totalStock = (p.available_qty ?? p.stock_qty ?? 0)
-                + (p.variants?.reduce((s, v) => s + (v.available_qty ?? v.stock_qty ?? 0), 0) || 0);
-            const matchStock = !onlyInStock || totalStock > 0;
-            return matchSearch && matchGroup && matchGender && matchCollection && matchFinish && matchStoneSpecific && matchStoneMode && matchProductionType && matchStock;
-        }).sort((a, b) => {
-            if (sortBy === 'created_at') {
-                const ta = a.created_at || '';
-                const tb = b.created_at || '';
-                return tb.localeCompare(ta);
-            }
-            return a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' });
-        });
-    }, [sellable, deferredSearch, selectedGroup, selectedGender, selectedCollection, selectedFinish, selectedStone, stoneFilterMode, selectedProductionType, onlyInStock, sortBy]);
+    const filteredProducts = useMemo(() => selectSellerCatalogProducts(catalogIndex, {
+        search: deferredSearch,
+        categoryGroup: selectedGroup,
+        gender: selectedGender,
+        collection: selectedCollection,
+        finish: selectedFinish,
+        stone: selectedStone,
+        stoneMode: stoneFilterMode,
+        productionType: selectedProductionType,
+        onlyInStock,
+        sortBy,
+    }), [catalogIndex, deferredSearch, selectedGroup, selectedGender, selectedCollection, selectedFinish, selectedStone, stoneFilterMode, selectedProductionType, onlyInStock, sortBy]);
 
     const displayedProducts = useMemo(() => filteredProducts.slice(0, displayLimit), [filteredProducts, displayLimit]);
 
     // ── Active filter count ──────────────────────────────────────────────────
     const activeCount = [selectedGender !== 'All', selectedCollection !== 'All', selectedFinish !== null, selectedStone !== null, stoneFilterMode !== 'All', selectedProductionType !== 'All', onlyInStock].filter(Boolean).length;
-    const hasActiveCatalogQuery = deferredSearch.length > 0 || selectedGroup !== 'All' || activeCount > 0 || sortBy !== 'sku';
-
-    const shouldPrefetchNextPage = productsProp == null
-        && !!hasNextPage
-        && !isFetchingNextPage
-        && (
-            products.length < Math.max(displayLimit + CATALOG_PAGE_SIZE, CATALOG_PAGE_SIZE * 2)
-            || hasActiveCatalogQuery
-        );
-
-    useEffect(() => {
-        if (!shouldPrefetchNextPage) return;
-        const idleWindow = window as typeof window & {
-            requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
-            cancelIdleCallback?: (handle: number) => void;
-        };
-        if (idleWindow.requestIdleCallback) {
-            const handle = idleWindow.requestIdleCallback(() => {
-                void fetchNextPage();
-            }, { timeout: BACKGROUND_PREFETCH_DELAY_MS });
-            return () => idleWindow.cancelIdleCallback?.(handle);
-        }
-        const timer = window.setTimeout(() => {
-            void fetchNextPage();
-        }, BACKGROUND_PREFETCH_DELAY_MS);
-        return () => window.clearTimeout(timer);
-    }, [shouldPrefetchNextPage, fetchNextPage]);
 
     const canShowMoreLoaded = displayedProducts.length < filteredProducts.length;
-    const hasMoreCatalogPages = productsProp == null && !!hasNextPage;
 
     const handleLoadMore = useCallback(() => {
         setDisplayLimit(prev => prev + DISPLAY_INCREMENT);
-        if (productsProp == null && hasNextPage && !isFetchingNextPage && !canShowMoreLoaded) {
-            void fetchNextPage();
-        }
-    }, [productsProp, hasNextPage, isFetchingNextPage, canShowMoreLoaded, fetchNextPage]);
+    }, []);
 
     const clearAll = () => {
         setSelectedGender('All');
@@ -429,15 +335,6 @@ export default function SellerCatalog({ products: productsProp }: Props) {
     };
 
     const GENDER_OPTS = [{ v: 'All', l: 'Όλα' }, { v: Gender.Women, l: 'Γυναικεία' }, { v: Gender.Men, l: 'Ανδρικά' }, { v: Gender.Unisex, l: 'Unisex' }];
-
-    if (productsProp == null && catalogLoading && catalogProducts.length === 0) {
-        return (
-            <div className="flex flex-col h-full bg-slate-50 items-center justify-center gap-4">
-                <div className="w-10 h-10 border-2 border-[#060b00] border-t-transparent rounded-full animate-spin" />
-                <p className="text-sm font-bold text-slate-500">Φόρτωση καταλόγου...</p>
-            </div>
-        );
-    }
 
     return (
         <div className="flex flex-col h-full bg-slate-50 relative">
@@ -627,21 +524,18 @@ export default function SellerCatalog({ products: productsProp }: Props) {
                 ) : (
                     <>
                         <div className="grid grid-cols-3 gap-2 pb-4">
-                            {displayedProducts.map(p => (
-                                <CatalogueCard key={p.sku} product={p} />
+                            {displayedProducts.map((p, index) => (
+                                <CatalogueCard key={p.sku} product={p} priority={index < 3} />
                             ))}
                         </div>
 
-                        {(canShowMoreLoaded || hasMoreCatalogPages) && (
+                        {canShowMoreLoaded && (
                             <button
                                 type="button"
                                 onClick={handleLoadMore}
-                                disabled={!canShowMoreLoaded && isFetchingNextPage}
                                 className="w-full py-3 bg-white text-slate-600 rounded-xl font-black text-sm hover:bg-slate-100 transition-colors flex items-center justify-center gap-2 mb-4 border border-slate-100 shadow-sm disabled:opacity-60"
                             >
-                                {!canShowMoreLoaded && isFetchingNextPage
-                                    ? 'Φόρτωση...'
-                                    : `Περισσότερα${canShowMoreLoaded ? ` (${filteredProducts.length - displayedProducts.length})` : ''}`}
+                                {`Περισσότερα (${filteredProducts.length - displayedProducts.length})`}
                             </button>
                         )}
                     </>

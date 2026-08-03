@@ -2528,9 +2528,7 @@ export const api = {
         const limit = Math.min(params.limit ?? 60, 100);
         const offset = params.offset ?? 0;
         if (isLocalMode || !navigator.onLine) {
-            const all = await api.getProducts();
-            const products = all.slice(offset, offset + limit);
-            return { products, hasMore: offset + limit < all.length };
+            throw new Error('The legacy paginated catalogue is unavailable offline.');
         }
         try {
             const [prodRes, suppliersRes] = await Promise.all([
@@ -2570,10 +2568,8 @@ export const api = {
             );
             return { products, hasMore };
         } catch (err) {
-            console.warn('getProductsCatalog page fetch failed; falling back to full product graph.', err);
-            const all = await api.getProducts();
-            const products = all.slice(offset, offset + limit);
-            return { products, hasMore: offset + limit < all.length };
+            console.warn('Legacy getProductsCatalog page fetch failed.', err);
+            throw err;
         }
     },
 

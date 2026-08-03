@@ -7,17 +7,19 @@ import SellerCatalog from './SellerCatalog';
 import SellerCollections from './SellerCollections';
 import SellerCustomers from './SellerCustomers';
 import MobileOrderBuilder from '../mobile/MobileOrderBuilder';
-import { Product, Order } from '../../types';
+import { Order } from '../../types';
 import { useQuery } from '@tanstack/react-query';
 import type { SellerPage } from '../../surfaces/pageIds';
 import { productKeys, productsRepository } from '../../features/products';
 import IliosLoader from '../ui/IliosLoader';
+import { useSellerCatalog } from '../../features/sellerCatalog/useSellerCatalog';
 
 export default function SellerApp() {
   const [activePage, setActivePage] = useState<SellerPage>('dashboard');
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const handleNavigate = (page: string) => setActivePage(page as SellerPage);
-  const needsFullProducts = activePage === 'order-builder' || activePage === 'collections';
+  const { snapshot: sellerCatalog } = useSellerCatalog();
+  const needsFullProducts = activePage === 'order-builder';
   const { data: products, isLoading: productsLoading } = useQuery({
     queryKey: productKeys.all,
     queryFn: productsRepository.getProducts,
@@ -62,8 +64,12 @@ export default function SellerApp() {
         />
       </div>
     ),
-    catalog: <SellerCatalog />,
-    collections: productsLoading || !products ? loadingView : <SellerCollections products={products} />,
+    catalog: !sellerCatalog ? loadingView : (
+      <SellerCatalog products={sellerCatalog.products} collections={sellerCatalog.collections} />
+    ),
+    collections: !sellerCatalog ? loadingView : (
+      <SellerCollections products={sellerCatalog.products} collections={sellerCatalog.collections} />
+    ),
     customers: <SellerCustomers />,
   };
 

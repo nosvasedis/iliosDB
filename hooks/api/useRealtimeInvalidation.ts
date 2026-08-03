@@ -15,6 +15,11 @@ import {
   shouldRetryRealtimeChannelOnStatus,
 } from '../realtimeChannelLifecycle';
 import { createRealtimeInvalidationScheduler } from './realtimeInvalidationScheduler';
+import {
+  createSellerCatalogRealtimeScheduler,
+  SELLER_CATALOG_REALTIME_TABLES,
+} from '../../features/sellerCatalog/realtime';
+import { refreshSellerCatalog } from '../../features/sellerCatalog/sync';
 
 export const CORE_REALTIME_TABLES = [
   'products',
@@ -73,6 +78,8 @@ export type RealtimeChannelGroup = {
   channelName: string;
   tables: readonly CoreRealtimeTable[];
 };
+
+export type RealtimeScope = 'erp' | 'seller';
 
 export const CORE_REALTIME_CHANNEL_GROUPS: readonly RealtimeChannelGroup[] = [
   {
@@ -155,7 +162,23 @@ export const CORE_REALTIME_CHANNEL_GROUPS: readonly RealtimeChannelGroup[] = [
   },
 ] as const;
 
-export function getRealtimeChannelGroups(inspectionModeActive = isInspectionModeActive()): RealtimeChannelGroup[] {
+export const SELLER_REALTIME_CHANNEL_GROUPS: readonly RealtimeChannelGroup[] = [
+  {
+    id: 'seller-catalog',
+    channelName: `${CHANNEL_NAME}:seller-catalog`,
+    tables: SELLER_CATALOG_REALTIME_TABLES,
+  },
+  {
+    id: 'seller-workflow',
+    channelName: `${CHANNEL_NAME}:seller-workflow`,
+    tables: ['orders', 'customers'],
+  },
+] as const;
+
+export function getRealtimeChannelGroups(
+  inspectionModeActive = isInspectionModeActive(),
+  scope: RealtimeScope = 'erp',
+): RealtimeChannelGroup[] {
   if (inspectionModeActive) {
     return [
       {
@@ -165,25 +188,36 @@ export function getRealtimeChannelGroups(inspectionModeActive = isInspectionMode
       },
     ];
   }
-  return CORE_REALTIME_CHANNEL_GROUPS.map((group) => ({ ...group, tables: [...group.tables] }));
+  const groups = scope === 'seller' ? SELLER_REALTIME_CHANNEL_GROUPS : CORE_REALTIME_CHANNEL_GROUPS;
+  return groups.map((group) => ({ ...group, tables: [...group.tables] }));
 }
 
-export function useRealtimeInvalidation(): void {
+export function useRealtimeInvalidation(scope: RealtimeScope = 'erp'): void {
   const queryClient = useQueryClient();
   const retryTimerRefs = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const channelRefs = useRef<Map<string, ReturnType<typeof supabase.channel>>>(new Map());
   const schedulerRef = useRef<ReturnType<typeof createRealtimeInvalidationScheduler> | null>(null);
+  const sellerCatalogSchedulerRef = useRef<ReturnType<typeof createSellerCatalogRealtimeScheduler> | null>(null);
   const lastReadyRefreshRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     if (isLocalMode) return;
 
     let disposed = false;
-    const realtimeGroups = getRealtimeChannelGroups();
+    const realtimeGroups = getRealtimeChannelGroups(isInspectionModeActive(), scope);
 
     schedulerRef.current = createRealtimeInvalidationScheduler((domain, sourceTables) =>
       invalidateRealtimeDomain(queryClient, domain, sourceTables),
     );
+    if (scope === 'seller') {
+      sellerCatalogSchedulerRef.current = createSellerCatalogRealtimeScheduler(async (skus) => {
+        try {
+          await refreshSellerCatalog(queryClient, skus);
+        } catch (error) {
+          console.warn('Seller catalogue realtime reconciliation failed:', error);
+        }
+      });
+    }
 
     const handleChange = (payload: {
       table?: string;
@@ -191,6 +225,12 @@ export function useRealtimeInvalidation(): void {
       new?: Record<string, unknown>;
       old?: Record<string, unknown>;
     }) => {
+      if (scope === 'seller'
+        && payload.table
+        && (SELLER_CATALOG_REALTIME_TABLES as readonly string[]).includes(payload.table)) {
+        sellerCatalogSchedulerRef.current?.schedule(payload);
+        return;
+      }
       if (tryPatchRealtimeCache(queryClient, payload as any)) {
         return;
       }
@@ -223,11 +263,15 @@ export function useRealtimeInvalidation(): void {
       channel.subscribe((status) => {
         if (disposed) return;
         if (status === 'SUBSCRIBED') {
+          if (scope === 'seller' && group.id === 'seller-catalog') return;
           const now = Date.now();
           const lastReadyRefresh = lastReadyRefreshRef.current.get(group.id) ?? 0;
           if (now - lastReadyRefresh >= READY_REFRESH_MIN_INTERVAL_MS) {
             lastReadyRefreshRef.current.set(group.id, now);
-            void refetchRealtimeDomains(queryClient, getRealtimeDomainsForTables(group.tables));
+            const domains = scope === 'seller'
+              ? (['orders', 'contacts'] as const)
+              : getRealtimeDomainsForTables(group.tables);
+            void refetchRealtimeDomains(queryClient, domains);
           }
         }
         if (shouldRetryRealtimeChannelOnStatus(status)) {
@@ -248,6 +292,8 @@ export function useRealtimeInvalidation(): void {
       disposed = true;
       schedulerRef.current?.dispose();
       schedulerRef.current = null;
+      sellerCatalogSchedulerRef.current?.dispose();
+      sellerCatalogSchedulerRef.current = null;
       retryTimerRefs.current.forEach((timer) => clearTimeout(timer));
       retryTimerRefs.current.clear();
       channelRefs.current.forEach((channel) => {
@@ -255,5 +301,5 @@ export function useRealtimeInvalidation(): void {
       });
       channelRefs.current.clear();
     };
-  }, [queryClient]);
+  }, [queryClient, scope]);
 }

@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import { X, ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react';
-import { Product, ProductVariant } from '../../types';
+import { SellerCatalogProduct, SellerCatalogVariant } from '../../features/sellerCatalog/types';
 import { getVariantComponents } from '../../utils/pricingEngine';
 import { FINISH_CODES } from '../../constants';
 import { SELLER_FINISH_COLORS, SELLER_STONE_TEXT_COLORS } from './skuColors';
 
 interface LightboxItem {
-    product: Product;
+    product: SellerCatalogProduct;
     variantIndex?: number; // which variant to show first
 }
 
@@ -24,10 +24,13 @@ export default function SellerImageLightbox({ item, onClose }: Props) {
     const hasVariants = variants.length > 0;
 
     const [variantIdx, setVariantIdx] = React.useState(item.variantIndex ?? 0);
+    const [imageFailed, setImageFailed] = React.useState(false);
     const wheelAccum = useRef(0);
     const touchStartX = useRef<number | null>(null);
 
-    const currentVariant: ProductVariant | null = hasVariants ? (variants[variantIdx] ?? null) : null;
+    useEffect(() => setImageFailed(false), [product.image_url]);
+
+    const currentVariant: SellerCatalogVariant | null = hasVariants ? (variants[variantIdx] ?? null) : null;
     const displaySku = currentVariant ? `${product.sku}${currentVariant.suffix}` : product.sku;
     const displayPrice = currentVariant
         ? (currentVariant.selling_price || product.selling_price || 0)
@@ -120,12 +123,14 @@ export default function SellerImageLightbox({ item, onClose }: Props) {
                 onTouchEnd={handleTouchEnd}
                 style={{ touchAction: 'pan-y' }}
             >
-                {product.image_url ? (
+                {product.image_url && !imageFailed ? (
                     <img
                         src={product.image_url}
                         alt={displaySku}
                         className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl select-none pointer-events-none"
                         draggable={false}
+                        decoding="async"
+                        onError={() => setImageFailed(true)}
                     />
                 ) : (
                     <div className="w-64 h-64 bg-white/10 rounded-3xl flex flex-col items-center justify-center gap-4 text-white/40">

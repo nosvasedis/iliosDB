@@ -13,6 +13,7 @@ import {
   CORE_REALTIME_CHANNEL_GROUPS,
   CORE_REALTIME_TABLES,
   getRealtimeChannelGroups,
+  SELLER_REALTIME_CHANNEL_GROUPS,
 } from '../hooks/api/useRealtimeInvalidation';
 
 describe('realtime invalidation mapping', () => {
@@ -58,6 +59,18 @@ describe('realtime invalidation mapping', () => {
 
     expect(productionGroup?.tables).toEqual(['production_batches', 'batch_stage_history']);
     expect(getRealtimeDomainsForTables(productionGroup?.tables ?? [])).toEqual(['production', 'orders', 'deliveries']);
+  });
+
+  it('uses only catalogue and workflow channels for sellers', () => {
+    const groups = getRealtimeChannelGroups(false, 'seller');
+    expect(groups).toEqual(SELLER_REALTIME_CHANNEL_GROUPS.map((group) => ({
+      ...group,
+      tables: [...group.tables],
+    })));
+    expect(groups.map((group) => group.tables)).toEqual([
+      ['products', 'product_variants', 'product_collections', 'collections', 'inventory_balances'],
+      ['orders', 'customers'],
+    ]);
   });
 });
 

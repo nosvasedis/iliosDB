@@ -33,7 +33,6 @@ registerQueryClient(queryClient);
 
 const PERSISTED_QUERY_ROOT_KEYS = new Set([
   'products',
-  'productsCatalog',
   'materials',
   'molds',
   'collections',

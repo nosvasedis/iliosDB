@@ -1,14 +1,19 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '../../lib/supabase';
-import { Collection, Product, Gender } from '../../types';
+import { Gender } from '../../types';
 import { FolderKanban, ArrowLeft, Search, ImageIcon, Sparkles, ChevronLeft, ChevronRight, ShoppingBag, Expand } from 'lucide-react';
 import { formatCurrency, getVariantComponents } from '../../utils/pricingEngine';
 import { FINISH_CODES } from '../../constants';
 import SkuColorizedText from '../SkuColorizedText';
 import SellerImageLightbox from './SellerImageLightbox';
 import { SELLER_FINISH_COLORS, SELLER_STONE_TEXT_COLORS } from './skuColors';
-import IliosLoader from '../ui/IliosLoader';
+import {
+    buildSellerCollectionSummaries,
+    filterSellerCollectionProducts,
+} from '../../features/sellerCatalog/selectors';
+import {
+    SellerCatalogCollection,
+    SellerCatalogProduct,
+} from '../../features/sellerCatalog/types';
 
 const SuffixBadge = ({ suffix, gender }: { suffix: string; gender: Gender }) => {
     const { finish, stone } = getVariantComponents(suffix, gender);
@@ -24,21 +29,25 @@ const SuffixBadge = ({ suffix, gender }: { suffix: string; gender: Gender }) => 
 };
 
 interface Props {
-    products: Product[];
+    products: SellerCatalogProduct[];
+    collections: SellerCatalogCollection[];
     /** When provided, shows an "Εισαγωγή στην παραγγελία" mode — clicking a variant adds it */
-    onAddToOrder?: (product: Product, variantSuffix?: string) => void;
+    onAddToOrder?: (product: SellerCatalogProduct, variantSuffix?: string) => void;
 }
 
 // ─── Product Grid Card with swipe functionality ───────────────────────────────────
 const ProductGridCard: React.FC<{
-    product: Product;
-    onAddToOrder?: (product: Product, variantSuffix?: string) => void;
+    product: SellerCatalogProduct;
+    onAddToOrder?: (product: SellerCatalogProduct, variantSuffix?: string) => void;
 }> = ({ product, onAddToOrder }) => {
     const [viewIndex, setViewIndex] = useState(0);
+    const [imageFailed, setImageFailed] = useState(false);
     const [slideDir, setSlideDir] = useState<'left' | 'right' | null>(null);
     const [dragOffset, setDragOffset] = useState(0);
     const touchStartX = useRef<number | null>(null);
     const isAnimating = useRef(false);
+
+    React.useEffect(() => setImageFailed(false), [product.image_url]);
 
     const variants = useMemo(() => product.variants || [], [product.variants]);
     const hasVariants = variants.length > 0;
@@ -123,12 +132,15 @@ const ProductGridCard: React.FC<{
                     onTouchEnd={handleTouchEnd}
                     style={{ transform: `translateX(${dragOffset * 0.25}px)`, transition: dragOffset === 0 ? 'transform 0.2s ease-out' : 'none' }}
                 >
-                    {product.image_url ? (
+                    {product.image_url && !imageFailed ? (
                         <img
                             src={product.image_url}
                             alt={displaySku}
                             className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700 ease-out cursor-zoom-in"
                             onClick={(e) => { e.stopPropagation(); setShowLightbox(true); }}
+                            loading="lazy"
+                            decoding="async"
+                            onError={() => setImageFailed(true)}
                         />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center text-slate-300">
@@ -204,25 +216,43 @@ const ProductGridCard: React.FC<{
     );
 };
 
+const CollectionCover = ({ product, priority }: { product?: SellerCatalogProduct; priority: boolean }) => {
+    const [failed, setFailed] = useState(false);
+    React.useEffect(() => setFailed(false), [product?.image_url]);
+    if (product?.image_url && !failed) {
+        return (
+            <img
+                src={product.image_url}
+                className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
+                alt="Cover"
+                loading={priority ? 'eager' : 'lazy'}
+                fetchPriority={priority ? 'high' : 'auto'}
+                decoding="async"
+                onError={() => setFailed(true)}
+            />
+        );
+    }
+    return (
+        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-300">
+            <FolderKanban size={64} strokeWidth={1} />
+        </div>
+    );
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function SellerCollections({ products, onAddToOrder }: Props) {
-    const { data: collections, isLoading } = useQuery({ queryKey: ['collections'], queryFn: api.getCollections });
-    const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
+export default function SellerCollections({ products, collections, onAddToOrder }: Props) {
+    const summaries = useMemo(
+        () => buildSellerCollectionSummaries(collections, products),
+        [collections, products],
+    );
+    const [selectedCollection, setSelectedCollection] = useState<SellerCatalogCollection | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
 
     const filteredProducts = useMemo(() => {
-        if (!selectedCollection || !products) return [];
-        return products
-            .filter(p =>
-                p.collections?.includes(selectedCollection.id) &&
-                !p.is_component &&
-                (p.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    p.category.toLowerCase().includes(searchTerm.toLowerCase()))
-            )
-            .sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true, sensitivity: 'base' }));
-    }, [selectedCollection, products, searchTerm]);
-
-    if (isLoading) return <IliosLoader variant="section" detail="Συλλογές" />;
+        if (!selectedCollection) return [];
+        const summary = summaries.find((item) => item.collection.id === selectedCollection.id);
+        return filterSellerCollectionProducts(summary?.products || [], searchTerm);
+    }, [selectedCollection, summaries, searchTerm]);
 
     // ── Collection Products View ───────────────────────────────────────────────
     if (selectedCollection) {
@@ -297,10 +327,8 @@ export default function SellerCollections({ products, onAddToOrder }: Props) {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 landscape:grid-cols-3 xl:grid-cols-4 gap-6">
-                {collections?.map(collection => {
-                    const previewProduct = products?.find(p => p.collections?.includes(collection.id) && p.image_url);
-                    const count = products?.filter(p => p.collections?.includes(collection.id) && !p.is_component).length || 0;
-
+                {summaries.map(({ collection, previewProduct, products: collectionProducts }, index) => {
+                    const count = collectionProducts.length;
                     return (
                         <div
                             key={collection.id}
@@ -309,13 +337,7 @@ export default function SellerCollections({ products, onAddToOrder }: Props) {
                         >
                             {/* Background image */}
                             <div className="absolute inset-0 bg-slate-200">
-                                {previewProduct?.image_url ? (
-                                    <img src={previewProduct.image_url} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" alt="Cover" />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-300">
-                                        <FolderKanban size={64} strokeWidth={1} />
-                                    </div>
-                                )}
+                                <CollectionCover product={previewProduct} priority={index < 2} />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent opacity-85 group-hover:opacity-95 transition-opacity" />
                             </div>
 
@@ -341,7 +363,7 @@ export default function SellerCollections({ products, onAddToOrder }: Props) {
                         </div>
                     );
                 })}
-                {collections?.length === 0 && (
+                {summaries.length === 0 && (
                     <div className="col-span-full text-center py-20 text-slate-400 font-medium">
                         Δεν υπάρχουν συλλογές.
                     </div>

@@ -30,6 +30,32 @@ const openDB = (): Promise<IDBDatabase> => {
 };
 
 export const offlineDb = {
+    saveValue: async <T>(key: string, value: T): Promise<void> => {
+        const db = await openDB();
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).put(value, key);
+        return new Promise<void>((resolve, reject) => {
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+            tx.onabort = () => reject(tx.error);
+        });
+    },
+
+    getValue: async <T>(key: string): Promise<T | null> => {
+        try {
+            const db = await openDB();
+            const tx = db.transaction(STORE_NAME, 'readonly');
+            const request = tx.objectStore(STORE_NAME).get(key);
+            return await new Promise<T | null>((resolve, reject) => {
+                request.onsuccess = () => resolve((request.result as T | undefined) ?? null);
+                request.onerror = () => reject(request.error);
+            });
+        } catch (error) {
+            console.warn(`Local Mirror Read Failed [${key}]:`, error);
+            return null;
+        }
+    },
+
     saveTable: async (tableName: string, data: any[]) => {
         try {
             const db = await openDB();

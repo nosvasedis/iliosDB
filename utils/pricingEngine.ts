@@ -296,7 +296,12 @@ export const transliterateForBarcode = (input: string): string => {
 /**
  * BRIDGING FUNCTION: Matches a scanned Latin barcode back to a Greek SKU in the database.
  */
-export const findProductByScannedCode = (scanned: string, products: Product[]) => {
+export function findProductByScannedCode<
+    TProduct extends { sku: string; variants?: Array<{ suffix: string }> },
+>(scanned: string, products: TProduct[]): {
+    product: TProduct;
+    variant: NonNullable<TProduct['variants']>[number] | undefined;
+} | null {
     const cleanScanned = scanned.trim().toUpperCase();
     // Reserved systemic order line code (special creations) — never resolve as a catalog product.
     if (cleanScanned === 'SP') return null;
@@ -316,7 +321,7 @@ export const findProductByScannedCode = (scanned: string, products: Product[]) =
         }
     }
     return null;
-};
+}
 
 /**
  * INTELLIGENT DECOMPOSITION
