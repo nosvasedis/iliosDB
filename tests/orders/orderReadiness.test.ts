@@ -250,6 +250,20 @@ describe('getOrderReadinessPercent / isOrderReadyForShipment', () => {
     expect(isOrderReadyForShipment(order, batches, 3)).toBe(false);
   });
 
+  it('allows full shipment when all remaining batches are ready after an earlier shipment', () => {
+    const order = {
+      id: 'o1',
+      status: OrderStatus.InProduction,
+      items: [{ sku: 'A', quantity: 10, price_at_order: 10 }],
+    } as Order;
+    const batches = [
+      { ...baseBatch, id: 'b1', order_id: 'o1', sku: 'A', quantity: 4, current_stage: ProductionStage.Ready },
+    ];
+
+    expect(isOrderReady(order, batches)).toBe(false);
+    expect(isOrderReadyForShipment(order, batches, 6)).toBe(true);
+  });
+
   it('excludes archived ready orders from shipment readiness', () => {
     const order = {
       id: 'o1',

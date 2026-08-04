@@ -7,7 +7,7 @@ import { formatCurrency } from '../utils/pricingEngine';
 import SkuColorizedText from './SkuColorizedText';
 import { useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { groupBatchesByShipment, isOrderReady } from '../utils/orderReadiness';
+import { groupBatchesByShipment, isOrderReadyForShipment } from '../utils/orderReadiness';
 import { getShippedQuantities, getItemShipmentAllocations, getItemFulfillmentKind, itemKey } from '../utils/shipmentUtils';
 import { getProductOptionColorLabel } from '../utils/xrOptions';
 import BatchHistoryModal from './BatchHistoryModal';
@@ -57,7 +57,7 @@ interface Props {
     onPrintAggregated?: (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => void;
     onPrintStageBatches?: (data: StageBatchPrintData) => void;
     onBack?: () => void;
-    /** Opens shipment flow; `full` when every remaining piece is Ready, otherwise `partial`. */
+    /** Opens shipment flow; `full` only when the shared order-readiness rules allow completion. */
     onShipmentRequest?: (mode: 'partial' | 'full') => void;
     /** @deprecated Use onShipmentRequest */
     onPartialShipment?: () => void;
@@ -219,7 +219,15 @@ export default function ProductionSendModal({ order: orderProp, products, materi
 
     const totalInProduction = useMemo(() => existingBatches.reduce((sum, b) => sum + b.quantity, 0), [existingBatches]);
     const readyCount = useMemo(() => existingBatches.filter(b => b.current_stage === ProductionStage.Ready).reduce((sum, b) => sum + b.quantity, 0), [existingBatches]);
-    const isFullyReadyToShip = useMemo(() => isOrderReady(order, existingBatches), [order, existingBatches]);
+    const shippedCount = useMemo(
+        () => (shipmentSnapshot?.items || []).reduce((sum, item) => sum + (item.quantity || 0), 0),
+        [shipmentSnapshot?.items]
+    );
+    const isShipmentReadinessLoading = isLoadingShipments && !shipmentSnapshot;
+    const isFullyReadyToShip = useMemo(
+        () => isOrderReadyForShipment(order, existingBatches, shippedCount),
+        [order, existingBatches, shippedCount]
+    );
     const canShipReady = readyCount > 0
         && order.status !== OrderStatus.Delivered
         && order.status !== OrderStatus.Cancelled
@@ -1391,17 +1399,28 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                             void requestClose(onPartialShipment);
                                         }
                                     }}
+                                    disabled={isShipmentReadinessLoading}
                                     className={`w-full text-left p-3 rounded-xl flex items-center gap-3 font-bold border-2 transition-colors shadow-sm ${
                                         isFullyReadyToShip
                                             ? 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100'
                                             : 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100'
-                                    }`}
+                                    } disabled:cursor-wait disabled:opacity-60`}
                                 >
-                                    <Truck size={16} className="shrink-0" />
+                                    {isShipmentReadinessLoading
+                                        ? <Loader2 size={16} className="shrink-0 animate-spin" />
+                                        : <Truck size={16} className="shrink-0" />}
                                     <div className="flex-1 min-w-0">
-                                        <div className="text-xs font-black">{isFullyReadyToShip ? 'Αποστολή' : 'Μερική Αποστολή'}</div>
+                                        <div className="text-xs font-black">
+                                            {isShipmentReadinessLoading
+                                                ? 'Έλεγχος ετοιμότητας…'
+                                                : isFullyReadyToShip
+                                                    ? 'Αποστολή Παραγγελίας'
+                                                    : 'Μερική Αποστολή'}
+                                        </div>
                                         <div className={`text-[10px] font-medium ${isFullyReadyToShip ? 'text-emerald-600' : 'text-amber-600'}`}>
-                                            {isFullyReadyToShip
+                                            {isShipmentReadinessLoading
+                                                ? 'Έλεγχος παλαιότερων αποστολών και έτοιμων παρτίδων'
+                                                : isFullyReadyToShip
                                                 ? `Όλα τα ${readyCount} τεμ. έτοιμα · ολοκλήρωση παραγγελίας`
                                                 : `${readyCount} τεμ. έτοιμα`}
                                         </div>
