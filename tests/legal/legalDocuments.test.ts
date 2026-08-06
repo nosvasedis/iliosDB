@@ -7,6 +7,9 @@ import {
   AADE_VAT_EXEMPTION_CATEGORY_OPTIONS,
   formatAadeIncomeCategoryLabel,
   formatAadeIncomeTypeLabel,
+  formatGreekRetryDuration,
+  getAadeProxyErrorMessage,
+  getAadeRateLimitRetrySeconds,
   getAadeVatExemptionCategoryLabel,
   getAllowedIncomeTypeOptions,
   applyLegalDocumentDeliveryToggle,
@@ -45,6 +48,7 @@ import {
   getLegalDocumentCatalogProducts,
   getLegalDocumentDeletePrompt,
   getLegalProductLineDescription,
+  getHighestAadeMark,
   LEGAL_VIRTUAL_SHIPPING_PRODUCT,
   normalizeLegalSeriesKey,
   parseLegalDocumentAa,
@@ -808,6 +812,52 @@ describe('legal document helpers', () => {
       nextPartitionKey: 'pk',
       nextRowKey: 'rk',
     });
+  });
+
+  it('uses one unfiltered AADE request for the all-wholesale sync and filters types locally', () => {
+    const query = buildAadeTransmittedDocsQuery({
+      environment: 'prod',
+      dateFrom: '2026-08-01',
+      dateTo: '2026-08-06',
+      markFrom: '0',
+      invType: null,
+    });
+
+    expect(query).toEqual({
+      mark: '0',
+      dateFrom: '01/08/2026',
+      dateTo: '06/08/2026',
+    });
+    expect(query).not.toHaveProperty('invType');
+    expect(isWholesaleAadeDocumentType('1.1')).toBe(true);
+    expect(isWholesaleAadeDocumentType('5.2')).toBe(true);
+    expect(isWholesaleAadeDocumentType('9.3')).toBe(true);
+    expect(isWholesaleAadeDocumentType('11.1')).toBe(false);
+  });
+
+  it('continues cancellation audits from the highest valid official MARK', () => {
+    expect(getHighestAadeMark([
+      '40000000000042',
+      '50000000000001',
+      'not-a-mark',
+      null,
+      17,
+    ])).toBe('50000000000001');
+    expect(getHighestAadeMark([])).toBe('0');
+  });
+
+  it('turns AADE 429 responses into an exact end-user Greek cooldown', () => {
+    const result = {
+      status: 429,
+      responseText: '{ "statusCode": 429, "message": "Rate limit is exceeded. Try again in 289 seconds." }',
+      parsed: { errors: [] },
+    };
+
+    expect(getAadeRateLimitRetrySeconds(result)).toBe(289);
+    expect(formatGreekRetryDuration(289)).toBe('4 λεπτά και 49 δευτερόλεπτα');
+    expect(getAadeProxyErrorMessage(result, 'fallback')).toBe(
+      'Η ΑΑΔΕ έχει ενεργοποιήσει προσωρινό όριο κλήσεων. Δοκιμάστε ξανά σε 4 λεπτά και 49 δευτερόλεπτα.',
+    );
   });
 
   it('treats empty transmitted-doc responses as a successful sync with zero imports', () => {

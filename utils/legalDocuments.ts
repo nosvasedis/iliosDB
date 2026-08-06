@@ -78,6 +78,17 @@ export function resolveWholesaleAadeSyncDocumentTypes(
   return [normalizedType];
 }
 
+export function getHighestAadeMark(values: Array<string | number | null | undefined>): string {
+  let highest = 0n;
+  for (const value of values) {
+    const normalized = String(value ?? '').trim();
+    if (!/^\d+$/.test(normalized)) continue;
+    const candidate = BigInt(normalized);
+    if (candidate > highest) highest = candidate;
+  }
+  return highest.toString();
+}
+
 /**
  * A legal-document-only catalog entry. It deliberately has no database row and
  * must never be exposed by the general product registry or inventory modules.
@@ -1677,6 +1688,10 @@ export function isEmptyTransmittedDocsResponse(
 
 export function getAadeProxyErrorMessage(result: Pick<AadeProxyResult, 'status' | 'responseText' | 'parsed'>, fallback: string): string {
   const responseText = String(result.responseText || '');
+  const retryAfterSeconds = getAadeRateLimitRetrySeconds(result);
+  if (retryAfterSeconds !== null) {
+    return `Η ΑΑΔΕ έχει ενεργοποιήσει προσωρινό όριο κλήσεων. Δοκιμάστε ξανά σε ${formatGreekRetryDuration(retryAfterSeconds)}.`;
+  }
   const errors = [
     ...(result.parsed?.errors || []),
     ...parseAadeResponseXml(responseText).errors,
@@ -1697,6 +1712,35 @@ export function getAadeProxyErrorMessage(result: Pick<AadeProxyResult, 'status' 
   if (result.status === 401) return 'Τα AADE credentials δεν έγιναν αποδεκτά από την ΑΑΔΕ.';
   if (result.status === 404) return 'Η ΑΑΔΕ δεν απάντησε στο αίτημα (404). Συχνά σημαίνει συντήρηση ή προσωρινή μη διαθεσιμότητα.';
   return fallback;
+}
+
+export function getAadeRateLimitRetrySeconds(
+  result: Pick<AadeProxyResult, 'status' | 'responseText' | 'parsed'>,
+): number | null {
+  const messages = [
+    String(result.responseText || ''),
+    ...(result.parsed?.errors || []),
+  ];
+  if (result.status !== 429 && !messages.some((message) => /rate\s*limit/i.test(message))) {
+    return null;
+  }
+  for (const message of messages) {
+    const match = message.match(/try\s+again\s+in\s+(\d+)\s*(seconds?|minutes?)?/i);
+    if (!match) continue;
+    const amount = Number(match[1]);
+    if (!Number.isFinite(amount) || amount < 0) continue;
+    return /minute/i.test(match[2] || '') ? amount * 60 : amount;
+  }
+  return 300;
+}
+
+export function formatGreekRetryDuration(totalSeconds: number): string {
+  const safeSeconds = Math.max(1, Math.ceil(Number(totalSeconds) || 0));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+  if (!minutes) return `${seconds} ${seconds === 1 ? 'δευτερόλεπτο' : 'δευτερόλεπτα'}`;
+  if (!seconds) return `${minutes} ${minutes === 1 ? 'λεπτό' : 'λεπτά'}`;
+  return `${minutes} ${minutes === 1 ? 'λεπτό' : 'λεπτά'} και ${seconds} ${seconds === 1 ? 'δευτερόλεπτο' : 'δευτερόλεπτα'}`;
 }
 
 export function buildAadeTransmittedDocsQuery(

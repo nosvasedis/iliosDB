@@ -65,7 +65,7 @@ import {
 } from './inspectionMode';
 import { addReceivedSizeQuantity, resolveSupplierOrderProductReceiptTarget, supplierOrderInventoryReceiptQuantity } from '../features/suppliers/receiptHelpers';
 import { getGreekOperationalErrorMessage } from '../features/inventory/greek';
-import { AADE_WHOLESALE_ARCHIVE_DOCUMENT_TYPES, buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, getAadeProxyErrorMessage, groupIncomeClassifications, isEmptyTransmittedDocsResponse, isLegalShippingItemCode, isWholesaleAadeDocumentType, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, normalizeVatNumber, parseAadeResponseXml, parseTransmittedDocumentsXml, resolveLegalIncomeClassification, resolveWholesaleAadeSyncDocumentTypes, roundMoney, serializeLegalDocumentForDb, serializeLegalDocumentLineForDb, serializeProformaDocumentForDb, validateLegalDocument } from '../utils/legalDocuments';
+import { AADE_WHOLESALE_ARCHIVE_DOCUMENT_TYPES, buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, formatGreekRetryDuration, getAadeProxyErrorMessage, getAadeRateLimitRetrySeconds, getHighestAadeMark, groupIncomeClassifications, isEmptyTransmittedDocsResponse, isLegalShippingItemCode, isWholesaleAadeDocumentType, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, normalizeVatNumber, parseAadeResponseXml, parseTransmittedDocumentsXml, resolveLegalIncomeClassification, resolveWholesaleAadeSyncDocumentTypes, roundMoney, serializeLegalDocumentForDb, serializeLegalDocumentLineForDb, serializeProformaDocumentForDb, validateLegalDocument } from '../utils/legalDocuments';
 import {
     buildArchivedDocumentEnrichment,
     buildLegalCounterpartKnowledge,
@@ -85,6 +85,26 @@ const envGeminiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
 const getLocalStorageItem = (key: string): string | null => {
     if (typeof localStorage === 'undefined') return null;
     return localStorage.getItem(key);
+};
+
+const AADE_RATE_LIMIT_COOLDOWN_PREFIX = 'ILIOS_AADE_RATE_LIMIT_UNTIL_';
+
+const getAadeRateLimitCooldownSeconds = (environment: string): number => {
+    const key = `${AADE_RATE_LIMIT_COOLDOWN_PREFIX}${environment === 'prod' ? 'prod' : 'dev'}`;
+    const cooldownUntil = Number(getLocalStorageItem(key) || 0);
+    if (!Number.isFinite(cooldownUntil) || cooldownUntil <= Date.now()) {
+        if (typeof localStorage !== 'undefined') localStorage.removeItem(key);
+        return 0;
+    }
+    return Math.max(1, Math.ceil((cooldownUntil - Date.now()) / 1000));
+};
+
+const rememberAadeRateLimitCooldown = (environment: string, retryAfterSeconds: number): void => {
+    if (typeof localStorage === 'undefined') return;
+    const key = `${AADE_RATE_LIMIT_COOLDOWN_PREFIX}${environment === 'prod' ? 'prod' : 'dev'}`;
+    const requestedUntil = Date.now() + Math.max(1, retryAfterSeconds) * 1000;
+    const existingUntil = Number(localStorage.getItem(key) || 0);
+    localStorage.setItem(key, String(Math.max(requestedUntil, existingUntil)));
 };
 
 const SUPABASE_URL = envUrl || getLocalStorageItem('VITE_SUPABASE_URL') || '';
@@ -1604,7 +1624,15 @@ export const api = {
         if (isLocalMode || !navigator.onLine) {
             throw new Error('Ο συγχρονισμός AADE απαιτεί σύνδεση στο διαδίκτυο και στο Supabase.');
         }
-        const syncInvoiceTypes = resolveWholesaleAadeSyncDocumentTypes(params.invType);
+        const cooldownSeconds = getAadeRateLimitCooldownSeconds(params.environment);
+        if (cooldownSeconds > 0) {
+            throw new Error(
+                `Η ΑΑΔΕ έχει ενεργό προσωρινό όριο κλήσεων. Ο συγχρονισμός θα είναι ξανά διαθέσιμος σε ${formatGreekRetryDuration(cooldownSeconds)}.`,
+            );
+        }
+        const requestedSyncType = params.invType
+            ? resolveWholesaleAadeSyncDocumentTypes(params.invType)[0]
+            : null;
         const settings = await api.getLegalSettings();
         const startedAt = new Date().toISOString();
         const runId = crypto.randomUUID();
@@ -1626,6 +1654,9 @@ export const api = {
         let nextPartitionKey: string | undefined;
         let nextRowKey: string | undefined;
         const existingDocuments = await api.getLegalDocuments();
+        const cancellationAuditMarkFrom = getHighestAadeMark(
+            existingDocuments.flatMap((document) => [document.aade_mark, document.cancellation_mark]),
+        );
         const counterpartKnowledge = buildLegalCounterpartKnowledge(existingDocuments);
         const documentsByMark = new Map(
             existingDocuments
@@ -1639,7 +1670,7 @@ export const api = {
             cancellationDate?: string,
         ) => {
             const matching = documentsByMark.get(String(invoiceMark));
-            if (!matching) return;
+            if (!matching || !isWholesaleAadeDocumentType(matching.aade_document_type)) return;
             const now = new Date().toISOString();
             const cancelledAt = cancellationDate || matching.cancelled_at || now;
             const resolvedCancellationMark = cancellationMark || matching.cancellation_mark || null;
@@ -1665,12 +1696,11 @@ export const api = {
             updatedDocumentIds.add(matching.id);
         };
         try {
-            for (const syncInvoiceType of syncInvoiceTypes) {
-                nextPartitionKey = undefined;
-                nextRowKey = undefined;
-                do {
+            nextPartitionKey = undefined;
+            nextRowKey = undefined;
+            do {
                 const query = buildAadeTransmittedDocsQuery(
-                    { ...params, invType: syncInvoiceType },
+                    { ...params, invType: requestedSyncType },
                     { nextPartitionKey, nextRowKey },
                 );
                 const result = await api.callAadeProxy('/aade/request-transmitted-docs', {
@@ -1704,8 +1734,8 @@ export const api = {
 
                 for (const transmitted of parsed.documents) {
                     if (
-                        transmitted.invoiceType !== syncInvoiceType
-                        || !isWholesaleAadeDocumentType(transmitted.invoiceType)
+                        !isWholesaleAadeDocumentType(transmitted.invoiceType)
+                        || (requestedSyncType && transmitted.invoiceType !== requestedSyncType)
                     ) continue;
                     const existing = documentsByMark.get(String(transmitted.mark));
                     const documentId = existing?.id || crypto.randomUUID();
@@ -1862,25 +1892,25 @@ export const api = {
 
                 nextPartitionKey = parsed.nextPartitionKey;
                 nextRowKey = parsed.nextRowKey;
-                } while (nextPartitionKey && nextRowKey);
-            }
+            } while (nextPartitionKey && nextRowKey);
 
             // AADE date filters refer to the original document issue date. A document
             // issued by Prisma (or another ERP) can therefore be cancelled much later
-            // and fall outside the user's selected date range. Run a cancellation-only
-            // full MARK sweep so existing local documents can never remain falsely issued.
-            for (const syncInvoiceType of syncInvoiceTypes) {
-                let auditPartitionKey: string | undefined;
-                let auditRowKey: string | undefined;
-                let auditPage = 0;
-                do {
+            // and fall outside the user's selected date range. Continue once from the
+            // highest official MARK already known at sync start and apply events only
+            // to locally-known wholesale documents. This avoids both a full historical
+            // rescan and one AADE request per invoice type.
+            let auditPartitionKey: string | undefined;
+            let auditRowKey: string | undefined;
+            let auditPage = 0;
+            do {
                 const auditQuery = buildAadeTransmittedDocsQuery({
                     ...params,
                     dateFrom: undefined,
                     dateTo: undefined,
-                    markFrom: '0',
+                    markFrom: cancellationAuditMarkFrom,
                     receiverVatNumber: undefined,
-                    invType: syncInvoiceType,
+                    invType: requestedSyncType,
                     maxMark: undefined,
                 }, {
                     nextPartitionKey: auditPartitionKey,
@@ -1920,8 +1950,8 @@ export const api = {
                 }
                 for (const transmitted of auditParsed.documents) {
                     if (
-                        transmitted.invoiceType !== syncInvoiceType
-                        || !isWholesaleAadeDocumentType(transmitted.invoiceType)
+                        !isWholesaleAadeDocumentType(transmitted.invoiceType)
+                        || (requestedSyncType && transmitted.invoiceType !== requestedSyncType)
                         || !transmitted.cancelledByMark
                     ) continue;
                     await applyCancellation(transmitted.mark, transmitted.cancelledByMark);
@@ -1929,8 +1959,7 @@ export const api = {
                 auditPartitionKey = auditParsed.nextPartitionKey;
                 auditRowKey = auditParsed.nextRowKey;
                 auditPage += 1;
-                } while (auditPartitionKey && auditRowKey && auditPage < 200);
-            }
+            } while (auditPartitionKey && auditRowKey && auditPage < 200);
 
             updatedCount = updatedDocumentIds.size;
 
@@ -2340,7 +2369,12 @@ export const api = {
             const text = await response.text().catch(() => '');
             return { ok: false, status: response.status, endpoint: route, responseText: text };
         });
-        return data as AadeProxyResult;
+        const result = data as AadeProxyResult;
+        const retryAfterSeconds = getAadeRateLimitRetrySeconds(result);
+        if (retryAfterSeconds !== null) {
+            rememberAadeRateLimitCooldown(String(payload.environment || 'dev'), retryAfterSeconds);
+        }
+        return result;
     },
 
 
