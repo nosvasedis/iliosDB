@@ -1,16 +1,21 @@
-
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Collection, Product } from '../types';
-import { FolderKanban, Plus, Trash2, X, Search, Loader2, Printer, ScanBarcode, PackagePlus, Info, Sparkles, Save, Wand2, Quote, PenTool, FileText } from 'lucide-react';
+import {
+    FolderKanban, Plus, Trash2, X, Search, Loader2, Printer, ScanBarcode,
+    PackagePlus, Sparkles, Save, Wand2, Quote, PenTool, FileText, ChevronDown,
+    ArrowLeft, ArrowRight, FolderPlus, Package, Layers, ImageOff, Info,
+} from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 import { useUI } from './UIProvider';
 import { PriceListPrintData } from './PriceListPrintView';
 import { generateCollectionDescription } from '../lib/gemini';
+import { formatCurrency } from '../utils/pricingEngine';
 import ProductDetails from './ProductDetails';
 import DesktopPageHeader from './DesktopPageHeader';
 import IliosLoader from './ui/IliosLoader';
+import { useEscapeToClose } from '../hooks/useEscapeToClose';
 
 interface Props {
     products?: Product[];
@@ -28,19 +33,27 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
     const [newCollectionName, setNewCollectionName] = useState('');
     const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    
+    const [collectionSearch, setCollectionSearch] = useState('');
+
+    // Collapsible header panels
+    const [collectionsPanelOpen, setCollectionsPanelOpen] = useState(false);
+    const [addPanelOpen, setAddPanelOpen] = useState(false);
+
     // Description & AI State
     const [isDescModalOpen, setIsDescModalOpen] = useState(false);
     const [collectionDesc, setCollectionDesc] = useState('');
     const [aiGuidance, setAiGuidance] = useState('');
     const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
-    
+
     // Bulk Add State
     const [bulkSkus, setBulkSkus] = useState('');
     const [isBulkAdding, setIsBulkAdding] = useState(false);
 
     // Product View State
     const [viewProduct, setViewProduct] = useState<Product | null>(null);
+
+    const newCollectionInputRef = useRef<HTMLInputElement>(null);
+    const workspaceScrollRef = useRef<HTMLDivElement>(null);
 
     // Sync local desc state with selected collection when opening modal or selecting
     useEffect(() => {
@@ -50,12 +63,96 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
         }
     }, [selectedCollection]);
 
+    // Reset searches when switching collections / closing panels
+    useEffect(() => {
+        setSearchTerm('');
+        setCollectionSearch('');
+    }, [selectedCollection]);
+
+    // Auto-focus the create input when the collections panel opens
+    useEffect(() => {
+        if (collectionsPanelOpen) {
+            const t = setTimeout(() => newCollectionInputRef.current?.focus(), 120);
+            return () => clearTimeout(t);
+        }
+    }, [collectionsPanelOpen]);
+
+    // Scroll the workspace back to top when a collection changes
+    useEffect(() => {
+        workspaceScrollRef.current?.scrollTo({ top: 0 });
+    }, [selectedCollection]);
+
+    // Close panels with Escape
+    const closePanels = useCallback(() => {
+        setCollectionsPanelOpen(false);
+        setAddPanelOpen(false);
+    }, []);
+    useEscapeToClose(closePanels, !collectionsPanelOpen && !addPanelOpen);
+
+    // ── Derived data ──────────────────────────────────────────────────────
+
+    const collectionProductCounts = useMemo(() => {
+        const map = new Map<number, number>();
+        (allProducts || []).forEach((p) => {
+            (p.collections || []).forEach((id) => map.set(id, (map.get(id) || 0) + 1));
+        });
+        return map;
+    }, [allProducts]);
+
+    const productsInAnyCollection = useMemo(
+        () => (allProducts || []).filter((p) => (p.collections || []).length > 0).length,
+        [allProducts],
+    );
+
+    const productsInSelectedCollection = useMemo(() => {
+        if (!selectedCollection || !allProducts) return [];
+        return allProducts
+            .filter((p) => p.collections?.includes(selectedCollection.id))
+            .sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true }));
+    }, [selectedCollection, allProducts]);
+
+    const visibleCollectionProducts = useMemo(() => {
+        if (!collectionSearch.trim()) return productsInSelectedCollection;
+        const q = collectionSearch.toLowerCase();
+        return productsInSelectedCollection.filter((p) =>
+            p.sku.toLowerCase().includes(q)
+            || (p.category || '').toLowerCase().includes(q)
+            || (p.description || '').toLowerCase().includes(q)
+        );
+    }, [productsInSelectedCollection, collectionSearch]);
+
+    const filteredAvailableProducts = useMemo(() => {
+        if (!allProducts || !selectedCollection) return [];
+        const searchLower = searchTerm.toLowerCase();
+        return allProducts.filter((p) =>
+            !p.collections?.includes(selectedCollection.id) &&
+            (p.sku.toLowerCase().includes(searchLower) || (p.category || '').toLowerCase().includes(searchLower))
+        ).sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true }));
+    }, [allProducts, selectedCollection, searchTerm]);
+
+    // ── Actions ───────────────────────────────────────────────────────────
+
+    const openCollectionsPanel = () => {
+        setCollectionsPanelOpen(true);
+        setAddPanelOpen(false);
+    };
+
+    const openAddPanel = () => {
+        setAddPanelOpen(true);
+        setCollectionsPanelOpen(false);
+    };
+
     const handleCreateCollection = async () => {
-        if (!newCollectionName.trim()) return;
+        const name = newCollectionName.trim();
+        if (!name) return;
         try {
-            await api.saveCollection(newCollectionName.trim());
-            queryClient.invalidateQueries({ queryKey: ['collections'] });
+            await api.saveCollection(name);
+            await queryClient.invalidateQueries({ queryKey: ['collections'] });
+            const list = queryClient.getQueryData<Collection[]>(['collections']) || [];
+            const created = [...list].reverse().find((c) => c.name === name) || list[list.length - 1];
+            if (created) setSelectedCollection(created);
             setNewCollectionName('');
+            setCollectionsPanelOpen(false);
             showToast("Η συλλογή δημιουργήθηκε.", "success");
         } catch (e) {
             console.error(e);
@@ -95,7 +192,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
         const newCollections = isInCollection
             ? currentCollections.filter(id => id !== collectionId)
             : [...currentCollections, collectionId];
-        
+
         await api.setProductCollections(sku, newCollections);
         invalidateProductsAndCatalog(queryClient);
     };
@@ -116,7 +213,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
         const end = parseInt(num2Str, 10);
 
         if (start > end) return [token];
-        
+
         if (end - start > 1000) return [token];
 
         const expanded: string[] = [];
@@ -136,10 +233,10 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
 
     const handleBulkAdd = async () => {
         if (!selectedCollection || !allProducts || !bulkSkus.trim()) return;
-        
+
         setIsBulkAdding(true);
         const lines = bulkSkus.split(/[\n, ]+/).filter(x => x.trim().length > 0);
-        
+
         const expandedSkus: string[] = [];
         lines.forEach(token => {
             const result = expandSkuRange(token.trim().toUpperCase());
@@ -149,13 +246,13 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
         let foundCount = 0;
         let notFoundCount = 0;
         const newAssociations: { product_sku: string, collection_id: number }[] = [];
-        
+
         try {
             const uniqueSkus = Array.from(new Set(expandedSkus));
 
             for (const sku of uniqueSkus) {
                 const product = allProducts.find(p => p.sku === sku);
-                
+
                 if (product) {
                     foundCount++;
                     if (!product.collections?.includes(selectedCollection.id)) {
@@ -165,7 +262,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                     notFoundCount++;
                 }
             }
-            
+
             if (newAssociations.length > 0) {
                 await api.addProductsToCollection(newAssociations);
                 await invalidateProductsAndCatalog(queryClient);
@@ -178,7 +275,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
             if (notFoundCount > 0) {
                 showToast(`${notFoundCount} κωδικοί δεν βρέθηκαν.`, 'warning');
             }
-            
+
         } catch (e) {
             console.error(e);
             showToast("Σφάλμα κατά την μαζική προσθήκη.", "error");
@@ -191,7 +288,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
         if (!selectedCollection || !onPrint || !productsInSelectedCollection.length) return;
 
         const dateStr = new Date().toLocaleDateString('el-GR');
-        
+
         const items = productsInSelectedCollection.map(p => {
             const variantMap: Record<string, number> = {};
             if (p.variants && p.variants.length > 0) {
@@ -234,7 +331,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
             showToast("Προσθέστε προϊόντα στη συλλογή πρώτα.", "info");
             return;
         }
-        
+
         setIsGeneratingDesc(true);
         try {
             const text = await generateCollectionDescription(
@@ -256,10 +353,10 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
         try {
             await api.updateCollection(selectedCollection.id, { description: collectionDesc });
             queryClient.invalidateQueries({ queryKey: ['collections'] });
-            
+
             // Update local selected collection to reflect change immediately in UI
-            setSelectedCollection(prev => prev ? ({...prev, description: collectionDesc}) : null);
-            
+            setSelectedCollection(prev => prev ? ({ ...prev, description: collectionDesc }) : null);
+
             showToast("Η περιγραφή αποθηκεύτηκε.", "success");
             setIsDescModalOpen(false);
         } catch (e) {
@@ -267,32 +364,18 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
         }
     };
 
-    const productsInSelectedCollection = useMemo(() => {
-        if (!selectedCollection || !allProducts) return [];
-        return allProducts
-            .filter(p => p.collections?.includes(selectedCollection.id))
-            .sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true }));
-    }, [selectedCollection, allProducts]);
-
-    const filteredAvailableProducts = useMemo(() => {
-        if (!allProducts || !selectedCollection) return [];
-        const searchLower = searchTerm.toLowerCase();
-        return allProducts.filter(p => 
-            !p.collections?.includes(selectedCollection.id) &&
-            p.sku.toLowerCase().includes(searchLower)
-        ).sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true }));
-    }, [allProducts, selectedCollection, searchTerm]);
+    // ── Loading / Error ────────────────────────────────────────────────────
 
     if (loadingCollections) {
         return <IliosLoader variant="section" detail="Συλλογές" />;
     }
-    
+
     if (isError) {
         return (
             <div className="max-w-7xl mx-auto space-y-6">
                 <DesktopPageHeader
                     icon={FolderKanban}
-                    title="Διαχείριση Συλλογών"
+                    title="Συλλογές"
                     subtitle="Οργανώστε τα προϊόντα σε ομάδες για εύκολη εκτύπωση και οργάνωση."
                 />
                 <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-6 rounded-r-xl" role="alert">
@@ -304,204 +387,583 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
         );
     }
 
+    const collectionList = collections || [];
+    const panelToggleBase = 'flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-all duration-200 active:scale-95';
+
     return (
-        <div className="max-w-7xl mx-auto space-y-8 h-[calc(100vh-120px)] flex flex-col">
+        <div className="max-w-7xl mx-auto space-y-5 h-[calc(100vh-120px)] flex flex-col">
+            {/* ── PAGE HEADER ─────────────────────────────────────────────── */}
             <DesktopPageHeader
                 icon={FolderKanban}
-                title="Διαχείριση Συλλογών"
-                subtitle="Οργανώστε τα προϊόντα σε ομάδες για εύκολη εκτύπωση και οργάνωση."
+                title="Συλλογές"
+                subtitle="Οργανώστε τον κατάλογο σε ομάδες για παρουσίαση και εκτύπωση."
+                tailClassName="flex w-full min-w-0 flex-1 flex-wrap items-center gap-2.5 lg:ml-auto lg:max-w-none lg:justify-end"
+                tail={
+                    <div className="flex flex-wrap items-center gap-2.5">
+                        {/* Live stats */}
+                        <div className="hidden md:flex items-center gap-2.5 rounded-2xl bg-slate-50 border border-slate-200/70 px-4 py-2">
+                            <div className="flex items-center gap-1.5">
+                                <FolderKanban size={15} className="text-slate-400" />
+                                <span className="text-sm font-black text-slate-700 tabular-nums">{collectionList.length}</span>
+                                <span className="text-xs font-bold text-slate-400">συλλογές</span>
+                            </div>
+                            <div className="h-5 w-px bg-slate-200" />
+                            <div className="flex items-center gap-1.5">
+                                <Package size={15} className="text-slate-400" />
+                                <span className="text-sm font-black text-slate-700 tabular-nums">{productsInAnyCollection}</span>
+                                <span className="text-xs font-bold text-slate-400">προϊόντα</span>
+                            </div>
+                        </div>
+
+                        {/* Collections toggle */}
+                        <button
+                            type="button"
+                            aria-expanded={collectionsPanelOpen}
+                            aria-controls="collections-panel"
+                            onClick={() => collectionsPanelOpen ? setCollectionsPanelOpen(false) : openCollectionsPanel()}
+                            className={`${panelToggleBase} ${collectionsPanelOpen
+                                ? 'bg-[#060b00] text-white shadow-lg ring-1 ring-slate-900/10'
+                                : 'bg-white border border-slate-200 text-slate-700 hover:border-slate-300 hover:shadow-sm'
+                            }`}
+                        >
+                            <FolderKanban size={16} className={collectionsPanelOpen ? 'text-white' : 'text-slate-400'} />
+                            <span className="hidden sm:inline">Συλλογές</span>
+                            <span className={`min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-black flex items-center justify-center ${collectionsPanelOpen ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                {collectionList.length}
+                            </span>
+                            <ChevronDown size={15} className={`transition-transform duration-200 ${collectionsPanelOpen ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {/* Add products toggle */}
+                        <button
+                            type="button"
+                            aria-expanded={addPanelOpen}
+                            aria-controls="add-products-panel"
+                            onClick={() => addPanelOpen ? setAddPanelOpen(false) : openAddPanel()}
+                            className={`${panelToggleBase} ${addPanelOpen
+                                ? 'bg-emerald-600 text-white shadow-lg ring-1 ring-emerald-700/20'
+                                : 'bg-white border border-emerald-200 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/60 hover:shadow-sm'
+                            }`}
+                        >
+                            <PackagePlus size={16} className={addPanelOpen ? 'text-white' : 'text-emerald-600'} />
+                            <span className="hidden sm:inline">Προσθήκη Προϊόντων</span>
+                            <span className="sm:hidden">Προσθήκη</span>
+                            <ChevronDown size={15} className={`transition-transform duration-200 ${addPanelOpen ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {/* Print */}
+                        {selectedCollection && onPrint && productsInSelectedCollection.length > 0 && (
+                            <button
+                                onClick={handlePrintCollection}
+                                className="flex items-center gap-2 rounded-xl bg-[#060b00] text-white px-4 py-2.5 text-sm font-bold shadow-lg hover:bg-slate-800 hover:-translate-y-0.5 transition-all active:scale-95"
+                            >
+                                <Printer size={16} /> Εκτύπωση
+                            </button>
+                        )}
+                    </div>
+                }
             />
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 min-h-0">
-                
-                {/* LEFT: LIST */}
-                <div className="lg:col-span-4 flex flex-col gap-6 min-h-0">
-                    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-                        <h3 className="font-bold text-slate-800 mb-3 ml-1 text-sm uppercase tracking-wide">Νέα Συλλογή</h3>
-                        <div className="flex gap-2">
-                            <input type="text" value={newCollectionName} onChange={e => setNewCollectionName(e.target.value)} placeholder="Όνομα..." className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-medium"/>
-                            <button onClick={handleCreateCollection} className="bg-slate-900 text-white px-4 rounded-xl hover:bg-slate-800 transition-colors shadow-lg active:scale-95"><Plus/></button>
+            {/* ── COLLECTIONS PANEL (Νέα Συλλογή / Λίστα Συλλογών) ─────────── */}
+            {collectionsPanelOpen && (
+                <div id="collections-panel" className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden animate-in fade-in slide-in-from-top-3 duration-300">
+                    <div className="flex items-center justify-between gap-3 px-5 sm:px-6 pt-5 pb-1">
+                        <div className="flex items-center gap-2 text-slate-700">
+                            <FolderKanban size={16} className="text-slate-400" />
+                            <h3 className="text-sm font-black uppercase tracking-wider">Διαχείριση Συλλογών</h3>
                         </div>
+                        <button
+                            type="button"
+                            aria-label="Κλείσιμο πίνακα συλλογών"
+                            onClick={() => setCollectionsPanelOpen(false)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                        >
+                            <X size={16} />
+                        </button>
                     </div>
-                    
-                    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex-1 flex flex-col min-h-0">
-                        <h3 className="font-bold text-slate-800 mb-4 ml-1 text-sm uppercase tracking-wide">Λίστα Συλλογών</h3>
-                        <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                            {collections?.map(c => (
-                                <div 
-                                    key={c.id} 
-                                    onClick={() => setSelectedCollection(c)} 
-                                    className={`
-                                        flex justify-between items-center p-4 rounded-2xl cursor-pointer transition-all border group
-                                        ${selectedCollection?.id === c.id 
-                                            ? 'bg-blue-50 border-blue-200 shadow-sm ring-1 ring-blue-100' 
-                                            : 'hover:bg-slate-50 border-transparent hover:border-slate-100'}
-                                    `}
+                    <div className="p-5 sm:p-6 pt-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* New collection */}
+                        <div className="flex flex-col">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1.5">
+                                <Plus size={12} /> Νέα Συλλογή
+                            </label>
+                            <form
+                                onSubmit={(e) => { e.preventDefault(); handleCreateCollection(); }}
+                                className="flex gap-2"
+                            >
+                                <input
+                                    ref={newCollectionInputRef}
+                                    type="text"
+                                    value={newCollectionName}
+                                    onChange={e => setNewCollectionName(e.target.value)}
+                                    placeholder="Όνομα συλλογής..."
+                                    className="flex-1 min-w-0 p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-medium"
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={!newCollectionName.trim()}
+                                    className="bg-[#060b00] text-white px-4 rounded-xl hover:bg-slate-800 transition-colors shadow-md active:scale-95 flex items-center gap-1.5 text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
-                                    <div className="flex items-center gap-3">
-                                        <FolderKanban size={18} className={selectedCollection?.id === c.id ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'} />
-                                        <span className={`font-bold ${selectedCollection?.id === c.id ? 'text-blue-900' : 'text-slate-700'}`}>{c.name}</span>
+                                    <Plus size={16} /> <span className="hidden sm:inline">Δημιουργία</span>
+                                </button>
+                            </form>
+                            <p className="mt-2 text-[11px] font-medium text-slate-400">
+                                Δημιουργήστε μια νέα ομάδα προϊόντων — θα ανοίξει αυτόματα για να προσθέσετε κωδικούς.
+                            </p>
+                        </div>
+
+                        {/* Collection list */}
+                        <div className="flex flex-col min-h-0">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1.5">
+                                <Layers size={12} /> Λίστα Συλλογών
+                                <span className="ml-1 bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full text-[9px]">{collectionList.length}</span>
+                            </label>
+                            <div className="flex-1 max-h-56 overflow-y-auto custom-scrollbar -mr-1.5 pr-1.5 space-y-1">
+                                {collectionList.map(c => {
+                                    const count = collectionProductCounts.get(c.id) || 0;
+                                    const isSelected = selectedCollection?.id === c.id;
+                                    return (
+                                        <div
+                                            key={c.id}
+                                            onClick={() => { setSelectedCollection(c); setCollectionsPanelOpen(false); }}
+                                            className={`group flex items-center gap-3 w-full p-2.5 rounded-xl cursor-pointer transition-all border ${
+                                                isSelected
+                                                    ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-100'
+                                                    : 'border-transparent hover:bg-slate-50 hover:border-slate-100'
+                                            }`}
+                                        >
+                                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-colors ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400 group-hover:text-slate-600'}`}>
+                                                <FolderKanban size={16} />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <div className={`text-sm font-bold truncate ${isSelected ? 'text-blue-900' : 'text-slate-700'}`}>{c.name}</div>
+                                                {c.description && <div className="text-[10px] text-slate-400 truncate">{c.description}</div>}
+                                            </div>
+                                            <span className={`shrink-0 text-[10px] font-black px-1.5 py-0.5 rounded-full ${count > 0 ? 'bg-slate-100 text-slate-500' : 'text-slate-300'}`}>
+                                                {count}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); handleDeleteCollection(c.id); }}
+                                                className="shrink-0 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                                title="Διαγραφή συλλογής"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                                {collectionList.length === 0 && (
+                                    <div className="text-center py-8 text-slate-400 text-sm italic">
+                                        Δεν υπάρχουν συλλογές ακόμα — δημιουργήστε την πρώτη.
                                     </div>
-                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteCollection(c.id); }} className="text-slate-300 hover:text-red-500 p-2 hover:bg-red-50 rounded-xl transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button>
-                                </div>
-                            ))}
-                            {collections?.length === 0 && <div className="text-slate-400 text-center py-10 italic text-sm">Δεν υπάρχουν συλλογές.</div>}
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
+            )}
 
-                {/* RIGHT: DETAILS */}
-                <div className="lg:col-span-8 bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col min-h-0 relative overflow-hidden">
+            {/* ── ADD PRODUCTS PANEL (Επιλογή από Μητρώο / Μαζική εισαγωγή) ─── */}
+            {addPanelOpen && (
+                <div id="add-products-panel" className="bg-white rounded-3xl border border-emerald-100 shadow-sm overflow-hidden animate-in fade-in slide-in-from-top-3 duration-300">
+                    <div className="flex items-center justify-between gap-3 px-5 sm:px-6 pt-5 pb-1">
+                        <div className="flex items-center gap-2 text-emerald-800">
+                            <PackagePlus size={16} className="text-emerald-600" />
+                            <h3 className="text-sm font-black uppercase tracking-wider">Προσθήκη Προϊόντων</h3>
+                            {selectedCollection && (
+                                <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-100 px-2.5 py-0.5 text-[10px] font-black text-emerald-700">
+                                    <FolderKanban size={10} /> {selectedCollection.name}
+                                </span>
+                            )}
+                        </div>
+                        <button
+                            type="button"
+                            aria-label="Κλείσιμο πίνακα προσθήκης προϊόντων"
+                            onClick={() => setAddPanelOpen(false)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
+
                     {!selectedCollection ? (
-                        <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-10">
-                            <div className="p-6 bg-slate-50 rounded-full mb-4">
-                                <FolderKanban size={48} className="opacity-20" />
-                            </div>
-                            <p className="font-bold text-lg text-slate-500">Επιλέξτε μια συλλογή</p>
-                            <p className="text-sm opacity-70">για να δείτε τα προϊόντα και τις λεπτομέρειες.</p>
+                        <div className="p-6 pt-4 flex flex-col sm:flex-row sm:items-center gap-3 bg-emerald-50/40">
+                            <p className="text-sm font-bold text-slate-600 flex items-center gap-2">
+                                <Info size={16} className="text-emerald-600 shrink-0" />
+                                Επιλέξτε πρώτα μια συλλογή για να προσθέσετε προϊόντα.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={openCollectionsPanel}
+                                className="shrink-0 bg-[#060b00] text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors shadow-md"
+                            >
+                                Άνοιγμα Συλλογών
+                            </button>
                         </div>
                     ) : (
-                        <div className="flex flex-col h-full">
-                            <div className="p-8 border-b border-slate-100 bg-white sticky top-0 z-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                                <div>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wide">Συλλογη</span>
-                                        <span className="text-slate-400 text-xs font-medium">{productsInSelectedCollection.length} αντικείμενα</span>
-                                    </div>
-                                    <h2 className="text-3xl font-black text-slate-900 tracking-tight">{selectedCollection.name}</h2>
-                                </div>
-                                
-                                {onPrint && productsInSelectedCollection.length > 0 && (
-                                    <button onClick={handlePrintCollection} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-3 rounded-xl text-sm font-bold flex items-center gap-2 transition-all">
-                                        <Printer size={18}/> Εκτύπωση
-                                    </button>
-                                )}
-                            </div>
-                            
-                            <div className="flex-1 overflow-y-auto p-8 min-h-0 custom-scrollbar space-y-8">
-                                
-                                {/* DESCRIPTION SECTION (HERO) */}
-                                <div className="bg-gradient-to-br from-slate-50 to-white p-8 rounded-[2rem] border border-slate-100 relative overflow-hidden group hover:border-slate-200 transition-colors">
-                                    <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none group-hover:opacity-10 transition-opacity">
-                                        <Quote size={120} className="text-slate-900" />
-                                    </div>
-                                    
-                                    <div className="relative z-10 flex flex-col items-center text-center max-w-2xl mx-auto">
-                                        {selectedCollection.description ? (
-                                            <p className="text-lg text-slate-700 font-serif italic leading-relaxed mb-6">
-                                                "{selectedCollection.description}"
-                                            </p>
-                                        ) : (
-                                            <p className="text-slate-400 text-sm italic mb-6">Δεν έχει οριστεί περιγραφή για αυτή τη συλλογή.</p>
-                                        )}
-                                        
-                                        <button 
-                                            onClick={() => setIsDescModalOpen(true)}
-                                            className="flex items-center gap-2 bg-white border border-slate-200 text-slate-600 px-5 py-2.5 rounded-full text-xs font-bold hover:border-purple-300 hover:text-purple-600 hover:shadow-md transition-all shadow-sm"
+                        <div className="p-5 sm:p-6 pt-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Registry picker */}
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
+                                    <Search size={12} /> Επιλογή από Μητρώο
+                                </label>
+                                <div className="relative">
+                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                    <input
+                                        type="text"
+                                        placeholder="Αναζήτηση με κωδικό ή κατηγορία..."
+                                        value={searchTerm}
+                                        onChange={e => setSearchTerm(e.target.value)}
+                                        className="w-full pl-11 pr-9 p-3 border border-slate-200 rounded-xl bg-white text-sm font-medium outline-none transition-all focus:ring-2 focus:ring-emerald-500/15 focus:border-emerald-400"
+                                    />
+                                    {searchTerm && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSearchTerm('')}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                                         >
-                                            <Sparkles size={14}/> {selectedCollection.description ? 'Επεξεργασία / AI' : 'Δημιουργία Περιεχομένου'}
+                                            <X size={14} />
                                         </button>
-                                    </div>
+                                    )}
                                 </div>
-
-                                {/* PRODUCTS GRID */}
-                                <div>
-                                    <h3 className="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wide flex items-center gap-2">
-                                        <FileText size={16} className="text-slate-400"/> Περιεχομενα
-                                    </h3>
-                                    
-                                    {productsInSelectedCollection.length > 0 ? (
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                                            {productsInSelectedCollection.map(p => (
-                                                <div 
-                                                    key={p.sku} 
-                                                    onClick={() => setViewProduct(p)}
-                                                    className="relative group bg-white border border-slate-100 rounded-2xl p-3 shadow-sm hover:shadow-lg transition-all text-center hover:-translate-y-1 cursor-pointer"
-                                                >
-                                                    {/* Remove Button - Top Right - Smaller */}
-                                                    <button 
-                                                        onClick={(e) => { e.stopPropagation(); handleToggleProduct(p.sku, selectedCollection.id); }} 
-                                                        className="absolute top-2 right-2 z-10 bg-white/90 text-slate-400 hover:text-red-500 p-1 rounded-full shadow-sm border border-slate-100 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50"
-                                                        title="Αφαίρεση"
-                                                    >
-                                                        <X size={14}/>
-                                                    </button>
-
-                                                    <div className="aspect-square bg-slate-50 rounded-xl mb-3 overflow-hidden border border-slate-50 relative">
-                                                        {p.image_url ? (
-                                                            <img src={p.image_url} alt={p.sku} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"/>
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center text-slate-300 text-xs">No Image</div>
-                                                        )}
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto custom-scrollbar p-0.5">
+                                    {filteredAvailableProducts.map(p => (
+                                        <button
+                                            key={p.sku}
+                                            type="button"
+                                            onClick={() => handleToggleProduct(p.sku, selectedCollection.id)}
+                                            className="group flex items-center gap-2.5 p-2 bg-white border border-slate-100 rounded-xl hover:border-emerald-300 hover:shadow-md transition-all text-left"
+                                        >
+                                            <div className="w-9 h-9 bg-slate-50 rounded-lg overflow-hidden shrink-0 border border-slate-100 flex items-center justify-center">
+                                                {p.image_url
+                                                    ? <img src={p.image_url} alt={p.sku} className="w-full h-full object-cover" />
+                                                    : <ImageOff size={14} className="text-slate-300" />}
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="text-xs font-black text-slate-800 truncate font-mono">{p.sku}</div>
+                                                <div className="relative h-[14px] overflow-hidden">
+                                                    <div className={`absolute inset-0 text-[9px] text-slate-400 truncate transition-transform duration-200 ${searchTerm ? '' : 'group-hover:-translate-y-[14px]'}`}>
+                                                        {p.category || '—'}
                                                     </div>
-                                                    <p className="text-xs font-black text-slate-800 truncate">{p.sku}</p>
-                                                    <p className="text-[10px] text-slate-500 truncate">{p.category}</p>
+                                                    <div className={`absolute inset-0 text-[9px] font-bold text-emerald-600 truncate transition-transform duration-200 ${searchTerm ? 'opacity-0' : 'translate-y-[14px] group-hover:translate-y-0'}`}>
+                                                        ΠΡΟΣΘΗΚΗ +
+                                                    </div>
                                                 </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="text-center py-12 border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/50">
-                                            <p className="text-slate-400 text-sm font-medium">Η συλλογή είναι άδεια.</p>
+                                            </div>
+                                        </button>
+                                    ))}
+                                    {filteredAvailableProducts.length === 0 && (
+                                        <div className="col-span-full text-center text-xs text-slate-400 py-6">
+                                            {searchTerm ? 'Δεν βρέθηκαν αποτελέσματα.' : 'Όλα τα προϊόντα του μητρώου βρίσκονται ήδη στη συλλογή.'}
                                         </div>
                                     )}
                                 </div>
+                            </div>
 
-                                {/* ADD PRODUCTS & BULK ADD */}
-                                <div className="pt-8 border-t border-slate-100 grid grid-cols-1 xl:grid-cols-2 gap-8">
-                                    
-                                    {/* Picker */}
-                                    <div className="space-y-4">
-                                        <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wide">Επιλογη απο Μητρωο</h3>
-                                        <div className="relative">
-                                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                            <input type="text" placeholder="Αναζήτηση..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-11 p-3 border border-slate-200 rounded-xl bg-white text-sm font-medium outline-none transition-all focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"/>
-                                        </div>
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-64 overflow-y-auto custom-scrollbar p-1">
-                                            {filteredAvailableProducts.map(p => (
-                                                <button 
-                                                    key={p.sku} 
-                                                    onClick={() => handleToggleProduct(p.sku, selectedCollection.id)} 
-                                                    className="flex items-center gap-3 p-2 bg-white border border-slate-100 rounded-xl hover:border-emerald-300 hover:shadow-md transition-all group text-left"
-                                                >
-                                                    <div className="w-10 h-10 bg-slate-50 rounded-lg overflow-hidden shrink-0 border border-slate-100">
-                                                        {p.image_url ? <img src={p.image_url} className="w-full h-full object-cover"/> : null}
-                                                    </div>
-                                                    <div className="min-w-0">
-                                                        <div className="text-xs font-bold text-slate-800 truncate">{p.sku}</div>
-                                                        <div className="text-[9px] text-emerald-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">ΠΡΟΣΘΗΚΗ</div>
-                                                    </div>
-                                                </button>
-                                            ))}
-                                            {filteredAvailableProducts.length === 0 && searchTerm && <div className="col-span-full text-center text-xs text-slate-400 py-4">Δεν βρέθηκαν αποτελέσματα.</div>}
-                                        </div>
-                                    </div>
-
-                                    {/* Bulk Add */}
-                                    <div className="bg-blue-50/50 p-6 rounded-3xl border border-blue-100 space-y-4 h-fit">
-                                        <h3 className="font-bold text-blue-900 text-sm uppercase tracking-wide flex items-center gap-2">
-                                            <ScanBarcode size={16}/> Μαζική Εισαγωγή
-                                        </h3>
-                                        <textarea 
-                                            value={bulkSkus}
-                                            onChange={e => setBulkSkus(e.target.value)}
-                                            placeholder={`Επικολλήστε κωδικούς (π.χ. από Excel)...\nDA100\nXR2020\nMN050S-MN063S`}
-                                            className="w-full p-4 text-xs font-mono border border-blue-200 rounded-xl bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all h-32 resize-none"
-                                        />
-                                        <button 
-                                            onClick={handleBulkAdd} 
-                                            disabled={isBulkAdding || !bulkSkus.trim()}
-                                            className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            {isBulkAdding ? <Loader2 size={16} className="animate-spin"/> : <PackagePlus size={16}/>}
-                                            {isBulkAdding ? 'Προσθήκη...' : 'Μαζική Προσθήκη'}
-                                        </button>
-                                    </div>
-
-                                </div>
+                            {/* Bulk import */}
+                            <div className="bg-blue-50/60 p-4 rounded-2xl border border-blue-100 space-y-3 h-fit">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-blue-900 flex items-center gap-1.5">
+                                    <ScanBarcode size={13} /> Μαζική Εισαγωγή
+                                </label>
+                                <textarea
+                                    value={bulkSkus}
+                                    onChange={e => setBulkSkus(e.target.value)}
+                                    placeholder={`Επικολλήστε κωδικούς (π.χ. από Excel)...\nDA100\nXR2020\nMN050S-MN063S`}
+                                    className="w-full p-4 text-xs font-mono border border-blue-200 rounded-xl bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all h-32 resize-none"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={handleBulkAdd}
+                                    disabled={isBulkAdding || !bulkSkus.trim()}
+                                    className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.99]"
+                                >
+                                    {isBulkAdding ? <Loader2 size={16} className="animate-spin" /> : <PackagePlus size={16} />}
+                                    {isBulkAdding ? 'Προσθήκη...' : 'Μαζική Προσθήκη'}
+                                </button>
+                                <p className="text-[10px] text-blue-600/80 italic font-medium">
+                                    Υποστηρίζονται διαστήματα κωδικών (π.χ. <span className="font-mono font-bold">MN050S-MN063S</span>) και διαχωρισμός με κόμμα, κενό ή νέα γραμμή.
+                                </p>
                             </div>
                         </div>
                     )}
                 </div>
+            )}
+
+            {/* ── MAIN CONTENT ────────────────────────────────────────────── */}
+            <div className="flex-1 min-h-0">
+                {!selectedCollection ? (
+                    /* GALLERY LANDING */
+                    <div className="h-full overflow-y-auto custom-scrollbar pr-1 space-y-5">
+                        <div className="relative overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-br from-[#101a05] via-[#060b00] to-slate-900 text-white p-8 sm:p-10">
+                            <div className="absolute -right-8 -top-8 opacity-10 pointer-events-none">
+                                <FolderKanban size={220} className="text-white" />
+                            </div>
+                            <div className="absolute right-24 bottom-[-40px] opacity-[0.07] pointer-events-none hidden sm:block">
+                                <Package size={160} className="text-white" />
+                            </div>
+                            <div className="relative z-10 max-w-2xl">
+                                <div className="inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-white/80">
+                                    <Sparkles size={11} /> Οργάνωση καταλόγου
+                                </div>
+                                <h2 className="mt-4 text-2xl sm:text-3xl font-black tracking-tight">
+                                    Επιλέξτε ή δημιουργήστε μια συλλογή
+                                </h2>
+                                <p className="mt-2 text-sm font-medium text-white/60 leading-relaxed">
+                                    Ομαδοποιήστε προϊόντα για εκτυπώσεις, παρουσιάσεις σε πελάτες και οργάνωση του καταλόγου.
+                                    Κάθε συλλογή έχει τη δική της περιγραφή και τη δική της λίστα κωδικών.
+                                </p>
+                                <div className="mt-6 flex flex-wrap gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={openCollectionsPanel}
+                                        className="flex items-center gap-2 bg-white text-[#060b00] px-5 py-2.5 rounded-xl font-bold shadow-lg hover:bg-slate-100 hover:-translate-y-0.5 transition-all active:scale-95"
+                                    >
+                                        <Plus size={16} /> Νέα Συλλογή
+                                    </button>
+                                    {collectionList.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={openCollectionsPanel}
+                                            className="flex items-center gap-2 border border-white/25 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-white/10 transition-all active:scale-95"
+                                        >
+                                            <FolderKanban size={16} /> Επιλογή Συλλογής
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                            {/* New collection card */}
+                            <button
+                                type="button"
+                                onClick={openCollectionsPanel}
+                                className="group min-h-[180px] flex flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-slate-200 bg-white/60 text-slate-400 hover:text-[#060b00] hover:border-slate-300 hover:bg-white hover:shadow-md transition-all"
+                            >
+                                <div className="w-12 h-12 rounded-2xl bg-slate-100 group-hover:bg-[#060b00] group-hover:text-white flex items-center justify-center transition-colors">
+                                    <FolderPlus size={22} />
+                                </div>
+                                <span className="text-sm font-black">Νέα Συλλογή</span>
+                                <span className="text-[11px] font-medium text-slate-400">Δημιουργήστε και ξεκινήστε</span>
+                            </button>
+
+                            {collectionList.map(c => {
+                                const count = collectionProductCounts.get(c.id) || 0;
+                                return (
+                                    <button
+                                        key={c.id}
+                                        type="button"
+                                        onClick={() => setSelectedCollection(c)}
+                                        className="group text-left bg-white rounded-3xl border border-slate-100 shadow-sm p-6 hover:shadow-xl hover:-translate-y-1 hover:border-slate-200 transition-all"
+                                    >
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="p-3.5 rounded-2xl bg-slate-50 text-slate-400 group-hover:bg-[#060b00] group-hover:text-white transition-colors">
+                                                <FolderKanban size={22} />
+                                            </div>
+                                            <span className={`shrink-0 text-[10px] font-black px-2 py-1 rounded-full ${count > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-50 text-slate-400 border border-slate-100'}`}>
+                                                {count} {count === 1 ? 'προϊόν' : 'προϊόντα'}
+                                            </span>
+                                        </div>
+                                        <h3 className="mt-4 text-lg font-black text-slate-900 tracking-tight truncate">{c.name}</h3>
+                                        <p className="mt-1 text-xs font-medium text-slate-500 line-clamp-2 min-h-[2rem]">
+                                            {c.description || 'Χωρίς περιγραφή — πατήστε για επεξεργασία.'}
+                                        </p>
+                                        <div className="mt-4 flex items-center justify-between text-xs font-bold text-slate-400">
+                                            <span className="flex items-center gap-1.5">
+                                                <Layers size={12} className="text-slate-300" /> Άνοιγμα
+                                            </span>
+                                            <ArrowRight size={15} className="group-hover:translate-x-1 transition-transform text-slate-300 group-hover:text-[#060b00]" />
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ) : (
+                    /* COLLECTION WORKSPACE */
+                    <div ref={workspaceScrollRef} className="h-full overflow-y-auto custom-scrollbar pr-1 space-y-5">
+                        {/* Toolbar */}
+                        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 sm:p-6 sticky top-0 z-10">
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                                <div className="flex min-w-0 items-center gap-3.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedCollection(null)}
+                                        title="Πίσω στις συλλογές"
+                                        aria-label="Πίσω στις συλλογές"
+                                        className="shrink-0 w-10 h-10 rounded-xl border border-slate-200 bg-slate-50 text-slate-500 hover:text-[#060b00] hover:border-slate-300 hover:bg-white flex items-center justify-center transition-all"
+                                    >
+                                        <ArrowLeft size={18} />
+                                    </button>
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                            <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wide">Συλλογή</span>
+                                            <span className="text-xs font-bold text-slate-400">
+                                                {productsInSelectedCollection.length} {productsInSelectedCollection.length === 1 ? 'προϊόν' : 'προϊόντα'}
+                                            </span>
+                                        </div>
+                                        <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight truncate">{selectedCollection.name}</h2>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-2.5">
+                                    <div className="relative min-w-[180px] flex-1 lg:flex-none lg:w-64">
+                                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+                                        <input
+                                            type="text"
+                                            placeholder="Αναζήτηση στη συλλογή..."
+                                            value={collectionSearch}
+                                            onChange={e => setCollectionSearch(e.target.value)}
+                                            className="w-full pl-10 pr-9 p-2.5 border border-slate-200 rounded-xl bg-slate-50 text-sm font-medium outline-none transition-all focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 focus:bg-white"
+                                        />
+                                        {collectionSearch && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setCollectionSearch('')}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        )}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsDescModalOpen(true)}
+                                        className="flex items-center gap-2 bg-white border border-slate-200 text-slate-600 px-4 py-2.5 rounded-xl text-sm font-bold hover:border-purple-300 hover:text-purple-600 hover:shadow-md transition-all"
+                                    >
+                                        <Sparkles size={15} className="text-purple-500" />
+                                        <span className="hidden sm:inline">{selectedCollection.description ? 'Επεξεργασία / AI' : 'Περιγραφή / AI'}</span>
+                                        <span className="sm:hidden">AI</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={openAddPanel}
+                                        className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-md hover:bg-emerald-700 hover:-translate-y-0.5 transition-all active:scale-95"
+                                    >
+                                        <PackagePlus size={16} /> <span className="hidden sm:inline">Προσθήκη Προϊόντων</span>
+                                        <span className="sm:hidden">Προσθήκη</span>
+                                    </button>
+                                    {onPrint && productsInSelectedCollection.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={handlePrintCollection}
+                                            className="flex items-center gap-2 bg-[#060b00] text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg hover:bg-slate-800 hover:-translate-y-0.5 transition-all active:scale-95"
+                                        >
+                                            <Printer size={16} /> <span className="hidden sm:inline">Εκτύπωση</span>
+                                            <span className="sm:hidden">Εκτύπ.</span>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Description hero */}
+                        <div className="bg-gradient-to-br from-slate-50 to-white p-8 rounded-[2rem] border border-slate-100 relative overflow-hidden group hover:border-slate-200 transition-colors">
+                            <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none group-hover:opacity-10 transition-opacity">
+                                <Quote size={120} className="text-slate-900" />
+                            </div>
+                            <div className="relative z-10 flex flex-col items-center text-center max-w-2xl mx-auto">
+                                {selectedCollection.description ? (
+                                    <p className="text-lg text-slate-700 font-serif italic leading-relaxed mb-6">
+                                        "{selectedCollection.description}"
+                                    </p>
+                                ) : (
+                                    <p className="text-slate-400 text-sm italic mb-6">Δεν έχει οριστεί περιγραφή για αυτή τη συλλογή.</p>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => setIsDescModalOpen(true)}
+                                    className="flex items-center gap-2 bg-white border border-slate-200 text-slate-600 px-5 py-2.5 rounded-full text-xs font-bold hover:border-purple-300 hover:text-purple-600 hover:shadow-md transition-all shadow-sm"
+                                >
+                                    <Sparkles size={14} /> {selectedCollection.description ? 'Επεξεργασία / AI' : 'Δημιουργία Περιεχομένου'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Products */}
+                        <div>
+                            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+                                <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wide flex items-center gap-2">
+                                    <FileText size={16} className="text-slate-400" /> Περιεχόμενα
+                                    <span
+                                        title={collectionSearch ? 'Αποτελέσματα τρέχουσας αναζήτησης' : 'Σύνολο προϊόντων στη συλλογή'}
+                                        className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full text-[10px] font-black"
+                                    >
+                                        {visibleCollectionProducts.length}
+                                    </span>
+                                </h3>
+                                {collectionSearch && (
+                                    <span className="text-[11px] font-bold text-slate-400">
+                                        Αποτελέσματα για «{collectionSearch}»
+                                    </span>
+                                )}
+                            </div>
+
+                            {visibleCollectionProducts.length > 0 ? (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                                    {visibleCollectionProducts.map(p => (
+                                        <div
+                                            key={p.sku}
+                                            onClick={() => setViewProduct(p)}
+                                            className="relative group bg-white border border-slate-100 rounded-2xl p-3 shadow-sm hover:shadow-lg transition-all text-center hover:-translate-y-1 cursor-pointer"
+                                        >
+                                            <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); handleToggleProduct(p.sku, selectedCollection.id); }}
+                                                className="absolute top-2 right-2 z-10 bg-white/90 text-slate-400 hover:text-red-500 p-1 rounded-full shadow-sm border border-slate-100 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50"
+                                                title="Αφαίρεση από τη συλλογή"
+                                            >
+                                                <X size={14} />
+                                            </button>
+
+                                            <div className="aspect-square bg-slate-50 rounded-xl mb-3 overflow-hidden border border-slate-50 relative flex items-center justify-center">
+                                                {p.image_url ? (
+                                                    <img src={p.image_url} alt={p.sku} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                                ) : (
+                                                    <ImageOff size={22} className="text-slate-300" />
+                                                )}
+                                            </div>
+                                            <p className="text-xs font-black text-slate-800 truncate font-mono">{p.sku}</p>
+                                            <p className="text-[10px] text-slate-500 truncate">{p.category}</p>
+                                            <div className="mt-1.5 flex items-center justify-center gap-1.5">
+                                                {(p.selling_price || 0) > 0 && (
+                                                    <span className="text-[11px] font-black text-emerald-600">{formatCurrency(p.selling_price)}</span>
+                                                )}
+                                                {(p.variants?.length || 0) > 0 && (
+                                                    <span className="text-[9px] font-bold text-slate-300">· {p.variants!.length} παραλ.</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-14 border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50">
+                                    <div className="mx-auto w-14 h-14 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-center mb-4">
+                                        {collectionSearch ? <Search size={22} className="text-slate-300" /> : <FolderKanban size={22} className="text-slate-300" />}
+                                    </div>
+                                    <p className="text-slate-500 text-sm font-black">
+                                        {collectionSearch ? 'Δεν βρέθηκαν προϊόντα.' : 'Η συλλογή είναι άδεια.'}
+                                    </p>
+                                    <p className="text-xs text-slate-400 font-medium mt-1">
+                                        {collectionSearch
+                                            ? 'Δοκιμάστε άλλη αναζήτηση.'
+                                            : 'Προσθέστε προϊόντα από το μητρώο ή με μαζική εισαγωγή.'}
+                                    </p>
+                                    {!collectionSearch && (
+                                        <button
+                                            type="button"
+                                            onClick={openAddPanel}
+                                            className="mt-5 inline-flex items-center gap-2 bg-[#060b00] text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg hover:bg-slate-800 hover:-translate-y-0.5 transition-all"
+                                        >
+                                            <PackagePlus size={16} /> Προσθήκη Προϊόντων
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* DESCRIPTION AI MODAL */}
@@ -511,34 +973,33 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                             <div>
                                 <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
-                                    <Sparkles className="text-purple-500" size={20}/> Διαχείριση Περιεχομένου
+                                    <Sparkles className="text-purple-500" size={20} /> Διαχείριση Περιεχομένου
                                 </h3>
                                 <p className="text-xs text-slate-500 font-medium">Storytelling & Marketing Copy</p>
                             </div>
-                            <button onClick={() => setIsDescModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-full text-slate-500 transition-colors"><X size={20}/></button>
+                            <button onClick={() => setIsDescModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-full text-slate-500 transition-colors"><X size={20} /></button>
                         </div>
-                        
+
                         <div className="p-8 space-y-6 flex-1 overflow-y-auto">
-                            
                             {/* AI Control */}
                             <div className="bg-purple-50 p-5 rounded-2xl border border-purple-100 space-y-3">
                                 <label className="text-xs font-bold text-purple-800 uppercase tracking-wide flex items-center gap-2">
-                                    <Wand2 size={14}/> AI Generator
+                                    <Wand2 size={14} /> AI Generator
                                 </label>
                                 <div className="flex gap-3">
-                                    <input 
-                                        type="text" 
+                                    <input
+                                        type="text"
                                         value={aiGuidance}
                                         onChange={e => setAiGuidance(e.target.value)}
                                         placeholder="Π.χ. 'Καλοκαιρινή διάθεση', 'Πολυτέλεια', 'Minimal'..."
                                         className="flex-1 p-3 border border-purple-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-purple-500/20 outline-none"
                                     />
-                                    <button 
+                                    <button
                                         onClick={handleGenerateDescription}
                                         disabled={isGeneratingDesc || productsInSelectedCollection.length === 0}
                                         className="bg-purple-600 text-white px-5 rounded-xl font-bold text-xs shadow-md hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                                     >
-                                        {isGeneratingDesc ? <Loader2 size={16} className="animate-spin"/> : <Sparkles size={16}/>}
+                                        {isGeneratingDesc ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
                                         {isGeneratingDesc ? 'Δημιουργία...' : 'Δημιουργία'}
                                     </button>
                                 </div>
@@ -550,16 +1011,15 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                             {/* Editor */}
                             <div>
                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 block flex items-center gap-2">
-                                    <PenTool size={14}/> Κείμενο Περιγραφής
+                                    <PenTool size={14} /> Κείμενο Περιγραφής
                                 </label>
-                                <textarea 
+                                <textarea
                                     value={collectionDesc}
                                     onChange={e => setCollectionDesc(e.target.value)}
                                     className="w-full p-5 border border-slate-200 rounded-2xl bg-white focus:ring-4 focus:ring-slate-100 outline-none text-slate-700 leading-relaxed font-serif text-base h-48 resize-none shadow-inner"
                                     placeholder="Γράψτε εδώ ή χρησιμοποιήστε το AI..."
                                 />
                             </div>
-
                         </div>
 
                         <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
@@ -567,7 +1027,7 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                 Ακύρωση
                             </button>
                             <button onClick={handleSaveDescription} className="px-8 py-3 rounded-xl bg-slate-900 text-white font-bold hover:bg-black transition-colors shadow-lg flex items-center gap-2">
-                                <Save size={18}/> Αποθήκευση
+                                <Save size={18} /> Αποθήκευση
                             </button>
                         </div>
                     </div>
@@ -576,12 +1036,12 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
 
             {/* PRODUCT DETAILS MODAL */}
             {viewProduct && settings && materials && molds && (
-                <ProductDetails 
-                    product={viewProduct} 
-                    allProducts={allProducts || []} 
-                    allMaterials={materials} 
-                    onClose={() => setViewProduct(null)} 
-                    setPrintItems={() => {}} 
+                <ProductDetails
+                    product={viewProduct}
+                    allProducts={allProducts || []}
+                    allMaterials={materials}
+                    onClose={() => setViewProduct(null)}
+                    setPrintItems={() => {}}
                     settings={settings}
                     collections={collections || []}
                     allMolds={molds}

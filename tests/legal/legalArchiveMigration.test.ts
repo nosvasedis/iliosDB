@@ -28,6 +28,10 @@ const numberingHardeningMigration = readFileSync(
   new URL('../../supabase/migrations/20260729082559_legal_numbering_submission_hardening.sql', import.meta.url),
   'utf8',
 );
+const deliveryNoteLinkMigration = readFileSync(
+  new URL('../../supabase/migrations/20260806094743_link_legal_invoice_delivery_note.sql', import.meta.url),
+  'utf8',
+);
 
 describe('legal archive database contract', () => {
   it('adds archive links, parse metadata, and the learned alias table additively', () => {
@@ -81,6 +85,15 @@ describe('legal archive database contract', () => {
     expect(archiveRelationshipsMigration).toMatch(/order_line_allocations jsonb not null default '\[\]'/i);
     expect(archiveRelationshipsMigration).toMatch(/check \(order_link_mode in \('whole', 'partial'\)\)/i);
     expect(archiveRelationshipsMigration).toMatch(/jsonb_typeof\(order_line_allocations\) = 'array'/i);
+  });
+
+  it('persists only validated invoice-to-delivery-note links without changing AADE data', () => {
+    expect(deliveryNoteLinkMigration).toMatch(/related_delivery_document_id uuid/i);
+    expect(deliveryNoteLinkMigration).toMatch(/references public\.legal_documents\(id\)[\s\S]*on delete set null/i);
+    expect(deliveryNoteLinkMigration).toMatch(/new\.document_kind not in \('invoice', 'credit'\)/i);
+    expect(deliveryNoteLinkMigration).toMatch(/v_target_kind is distinct from 'delivery_note'/i);
+    expect(deliveryNoteLinkMigration).toMatch(/security invoker[\s\S]*set search_path = public, pg_temp/i);
+    expect(deliveryNoteLinkMigration).not.toMatch(/update[\s\S]*(?:raw_xml|aade_mark|aade_uid)/i);
   });
 
   it('hardens legal numbering with transactional preview, apply, preparation, and monotonic guards', () => {

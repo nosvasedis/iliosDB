@@ -1,5 +1,6 @@
 import {
   Customer,
+  LegalArchiveDeliveryLink,
   LegalArchiveFilterState,
   LegalArchiveLineMatch,
   LegalArchiveMatchState,
@@ -447,7 +448,10 @@ function resolveLineMatches(params: {
 
 function buildRecordSearchText(record: Omit<LegalArchiveRecord, 'searchText'>): string {
   const document = record.document;
-  const productText = record.lineMatches.flatMap((match) => [
+  const productText = [
+    ...record.lineMatches,
+    ...(record.linkedDeliveryNote?.lineMatches || []),
+  ].flatMap((match) => [
     match.rawItemCode,
     match.masterSku,
     match.variantSuffix,
@@ -474,6 +478,40 @@ function buildRecordSearchText(record: Omit<LegalArchiveRecord, 'searchText'>): 
     record.source === 'legal' ? (document as LegalDocument).local_notes : (document as ProformaDocument).notes,
     ...productText,
   ].filter(Boolean).join(' '));
+}
+
+function buildDeliveryLink(record: LegalArchiveRecord): LegalArchiveDeliveryLink {
+  const uniqueItemCodes = new Set(
+    record.lineMatches
+      .map((match) => normalizeExternalItemCode(match.rawItemCode || match.masterSku))
+      .filter(Boolean),
+  );
+  return {
+    document: record.document as LegalDocument,
+    lines: record.lines as LegalDocumentLine[],
+    lineMatches: record.lineMatches,
+    uniqueItemCount: uniqueItemCodes.size,
+    totalQuantity: record.lines.reduce(
+      (sum, line) => sum + Number(line.quantity || 0),
+      0,
+    ),
+  };
+}
+
+function deliveryCandidateKey(document: LegalDocument | ProformaDocument): string | null {
+  const vatNumber = normalizeVatNumber(document.counterpart?.vat_number);
+  if (!vatNumber || !document.issue_date) return null;
+  return `${vatNumber}::${document.issue_date}`;
+}
+
+function needsDeliveryProductContext(record: LegalArchiveRecord): boolean {
+  if (record.source !== 'legal') return false;
+  const document = record.document as LegalDocument;
+  if (document.document_kind !== 'invoice' && document.document_kind !== 'credit') return false;
+  return !record.lineMatches.some((match) =>
+    !!normalizeExternalItemCode(match.rawItemCode)
+    && !isLegalShippingItemCode(match.rawItemCode),
+  );
 }
 
 export function buildLegalArchiveRecords(params: {
@@ -582,7 +620,7 @@ export function buildLegalArchiveRecords(params: {
     })),
   ];
 
-  return inputs.map(({ source, document, lines }) => {
+  const baseRecords = inputs.map(({ source, document, lines }) => {
     const isOperationalDeliveryNote = source === 'legal'
       && (document as LegalDocument).document_kind === 'delivery_note';
     const customerMatch = resolveCustomer(document, customerById, customersByVat);
@@ -650,7 +688,54 @@ export function buildLegalArchiveRecords(params: {
       customerOrders,
       suggestedOrders,
     };
-    return { ...withoutSearch, searchText: buildRecordSearchText(withoutSearch) };
+    return { ...withoutSearch, searchText: '' };
+  });
+
+  const recordById = new Map(baseRecords.map((record) => [record.id, record]));
+  const deliveryNotesByCounterpartAndDate = new Map<string, LegalArchiveRecord[]>();
+  baseRecords.forEach((record) => {
+    if (
+      record.source !== 'legal'
+      || (record.document as LegalDocument).document_kind !== 'delivery_note'
+      || record.document.status !== 'issued'
+      || record.lines.length === 0
+    ) return;
+    const key = deliveryCandidateKey(record.document);
+    if (!key) return;
+    deliveryNotesByCounterpartAndDate.set(key, [
+      ...(deliveryNotesByCounterpartAndDate.get(key) || []),
+      record,
+    ]);
+  });
+
+  return baseRecords.map((record) => {
+    let linkedDeliveryNote: LegalArchiveDeliveryLink | undefined;
+    let deliveryNoteCandidate: LegalArchiveDeliveryLink | undefined;
+    if (record.source === 'legal') {
+      const document = record.document as LegalDocument;
+      const linkedRecord = document.related_delivery_document_id
+        ? recordById.get(document.related_delivery_document_id)
+        : undefined;
+      if (
+        linkedRecord?.source === 'legal'
+        && (linkedRecord.document as LegalDocument).document_kind === 'delivery_note'
+      ) {
+        linkedDeliveryNote = buildDeliveryLink(linkedRecord);
+      } else if (!document.related_delivery_document_id && needsDeliveryProductContext(record)) {
+        const key = deliveryCandidateKey(document);
+        const candidates = key ? deliveryNotesByCounterpartAndDate.get(key) || [] : [];
+        if (candidates.length === 1) {
+          deliveryNoteCandidate = buildDeliveryLink(candidates[0]);
+        }
+      }
+    }
+
+    const enriched: Omit<LegalArchiveRecord, 'searchText'> = {
+      ...record,
+      linkedDeliveryNote,
+      deliveryNoteCandidate,
+    };
+    return { ...enriched, searchText: buildRecordSearchText(enriched) };
   });
 }
 

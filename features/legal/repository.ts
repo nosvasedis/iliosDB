@@ -85,6 +85,15 @@ export const legalRepository = {
     userName?: string | null,
     method?: 'automatic' | 'manual',
   ): Promise<void> => api.linkLegalArchiveSeller(documentId, sellerId, userName, method),
+  linkArchiveDeliveryNote: (
+    documentId: string,
+    deliveryDocumentId: string | null,
+    userName?: string | null,
+  ): Promise<void> => api.linkLegalArchiveDeliveryNote(
+    documentId,
+    deliveryDocumentId,
+    userName,
+  ),
   enrichArchive: (): Promise<number> => api.enrichLegalArchiveDocuments(),
   getTransmissions: (documentId: string): Promise<LegalTransmission[]> => api.getLegalTransmissions(documentId),
   getDeliveryEvents: (documentId: string): Promise<LegalDeliveryEvent[]> => api.getLegalDeliveryEvents(documentId),

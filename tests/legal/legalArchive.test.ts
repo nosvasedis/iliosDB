@@ -369,6 +369,110 @@ describe('legal archive intelligence', () => {
     expect(withoutSku.lineMatches[0].method).toBe('none');
   });
 
+  it('suggests one exact same-VAT same-date delivery note for an invoice without product codes', () => {
+    const invoice = legalDocument({
+      id: 'invoice-without-products',
+      issue_date: '2026-08-04',
+      series: '0',
+      aa: '10',
+      counterpart: { vat_number: '997017515', country: 'GR', branch: 0 },
+    });
+    const deliveryNote = legalDocument({
+      id: 'delivery-112',
+      document_kind: 'delivery_note',
+      aade_document_type: '9.3',
+      issue_date: '2026-08-04',
+      series: '0',
+      aa: '112',
+      counterpart: { vat_number: 'EL997017515', country: 'GR', branch: 0 },
+      totals: { net: 0, vat: 0, gross: 0, quantity: 186 },
+    });
+    const deliveryLines = Array.from({ length: 31 }, (_, index) => legalLine({
+      id: `delivery-line-${index + 1}`,
+      document_id: deliveryNote.id,
+      line_number: index + 1,
+      sku: `SKU${String(index + 1).padStart(3, '0')}`,
+      item_code: `SKU${String(index + 1).padStart(3, '0')}`,
+      quantity: 6,
+      net_value: 0,
+      vat_amount: 0,
+      gross_value: 0,
+    }));
+
+    const records = buildRecords({
+      documents: [invoice, deliveryNote],
+      lines: [
+        legalLine({
+          id: 'invoice-value-line',
+          document_id: invoice.id,
+          sku: 'AADE',
+          item_code: null,
+          quantity: 1,
+        }),
+        ...deliveryLines,
+      ],
+      customers: [],
+      products: [],
+      orders: [],
+    });
+    const invoiceRecord = records.find((record) => record.id === invoice.id)!;
+
+    expect(invoiceRecord.deliveryNoteCandidate?.document.id).toBe(deliveryNote.id);
+    expect(invoiceRecord.deliveryNoteCandidate?.uniqueItemCount).toBe(31);
+    expect(invoiceRecord.deliveryNoteCandidate?.totalQuantity).toBe(186);
+    expect(invoiceRecord.linkedDeliveryNote).toBeUndefined();
+  });
+
+  it('never guesses between multiple delivery notes and exposes confirmed linked products to search', () => {
+    const baseInvoice = legalDocument({
+      id: 'invoice-no-code',
+      issue_date: '2026-08-04',
+      counterpart: { vat_number: '997017515', country: 'GR', branch: 0 },
+    });
+    const firstDelivery = legalDocument({
+      id: 'delivery-a',
+      document_kind: 'delivery_note',
+      aade_document_type: '9.3',
+      issue_date: '2026-08-04',
+      counterpart: { vat_number: '997017515', country: 'GR', branch: 0 },
+    });
+    const secondDelivery = legalDocument({
+      ...firstDelivery,
+      id: 'delivery-b',
+    });
+    const commonLines = [
+      legalLine({ id: 'invoice-line', document_id: baseInvoice.id, sku: 'AADE', item_code: null }),
+      legalLine({ id: 'delivery-a-line', document_id: firstDelivery.id, sku: 'XR1225P', item_code: 'XR1225P' }),
+      legalLine({ id: 'delivery-b-line', document_id: secondDelivery.id, sku: 'RN021', item_code: 'RN021' }),
+    ];
+
+    const ambiguousRecords = buildRecords({
+      documents: [baseInvoice, firstDelivery, secondDelivery],
+      lines: commonLines,
+      customers: [],
+      products: [],
+      orders: [],
+    });
+    expect(ambiguousRecords.find((record) => record.id === baseInvoice.id)?.deliveryNoteCandidate)
+      .toBeUndefined();
+
+    const linkedInvoice = { ...baseInvoice, related_delivery_document_id: firstDelivery.id };
+    const linkedRecords = buildRecords({
+      documents: [linkedInvoice, firstDelivery, secondDelivery],
+      lines: commonLines,
+      customers: [],
+      products: [],
+      orders: [],
+    });
+    const linkedRecord = linkedRecords.find((record) => record.id === linkedInvoice.id)!;
+    expect(linkedRecord.linkedDeliveryNote?.document.id).toBe(firstDelivery.id);
+    expect(linkedRecord.deliveryNoteCandidate).toBeUndefined();
+    expect(filterLegalArchiveRecords(linkedRecords, {
+      ...createDefaultLegalArchiveFilters(),
+      query: 'XR1225P',
+    }).map((record) => record.id)).toContain(linkedInvoice.id);
+  });
+
   it('filters across dates, customer, product, source, status, and accent-insensitive text', () => {
     const records = buildRecords();
     const filters: LegalArchiveFilterState = {

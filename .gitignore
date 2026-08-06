@@ -70,3 +70,6 @@ tmp/
 
 # Local git worktrees
 .worktrees/
+
+# Freebuff desktop runtime data (local database, logs)
+.freebuff/

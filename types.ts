@@ -947,6 +947,7 @@ export interface LegalDocument {
   order_line_allocations?: LegalOrderLineAllocation[];
   counterpart_customer_id?: string | null;
   counterpart_seller_id?: string | null;
+  related_delivery_document_id?: string | null;
   shipment_id?: string | null;
   source_kind: LegalSourceKind;
   document_kind: LegalDocumentKind;
@@ -1207,6 +1208,14 @@ export interface LegalArchiveLineMatch {
   virtualLabel?: string;
 }
 
+export interface LegalArchiveDeliveryLink {
+  document: LegalDocument;
+  lines: LegalDocumentLine[];
+  lineMatches: LegalArchiveLineMatch[];
+  uniqueItemCount: number;
+  totalQuantity: number;
+}
+
 export interface LegalArchiveRecord {
   id: string;
   key: string;
@@ -1220,6 +1229,8 @@ export interface LegalArchiveRecord {
   linkedOrder?: Order;
   autoOrderCandidate?: Order;
   autoSellerCandidate?: UserProfile;
+  linkedDeliveryNote?: LegalArchiveDeliveryLink;
+  deliveryNoteCandidate?: LegalArchiveDeliveryLink;
   customerOrders: Order[];
   suggestedOrders: Order[];
   searchText: string;

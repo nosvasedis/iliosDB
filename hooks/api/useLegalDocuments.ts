@@ -179,6 +179,26 @@ export const useLinkLegalArchiveSeller = () => {
   });
 };
 
+export const useLinkLegalArchiveDeliveryNote = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      documentId,
+      deliveryDocumentId,
+      userName,
+    }: {
+      documentId: string;
+      deliveryDocumentId: string | null;
+      userName?: string | null;
+    }) => legalRepository.linkArchiveDeliveryNote(
+      documentId,
+      deliveryDocumentId,
+      userName,
+    ),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: legalKeys.documents() }),
+  });
+};
+
 export const useSaveLegalSettings = () => {
   const queryClient = useQueryClient();
   return useMutation({

@@ -691,6 +691,7 @@ interface LegalArchiveWorkspaceProps {
     link: { orderId: string; mode: LegalOrderLinkMode; allocations: LegalOrderLineAllocation[] } | null,
   ) => void;
   onLinkSeller: (record: LegalArchiveRecord, sellerId: string | null) => void;
+  onLinkDeliveryNote: (record: LegalArchiveRecord, deliveryDocumentId: string | null) => void;
   onLookupVat: (vatNumber: string) => Promise<AadeVatRegistryResult>;
   onLookupOfficialVat: (vatNumber: string, referenceDate?: string) => Promise<AadeVatRegistryResult>;
   onApplyVat: (record: LegalArchiveRecord, result: AadeVatRegistryResult) => void;
@@ -1104,6 +1105,76 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
             )}
           </section>
         </div>
+
+        {record.deliveryNoteCandidate && !record.linkedDeliveryNote && (
+          <section className="rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-amber-900">
+                  <Sparkles size={17} />
+                  <h3 className="font-black">Πιθανό σχετικό Δελτίο Αποστολής</h3>
+                </div>
+                <div className="mt-1 text-sm font-black text-slate-900">
+                  {getLegalDocumentDisplayNumber(record.deliveryNoteCandidate.document)} — {record.deliveryNoteCandidate.uniqueItemCount} κωδικοί, {record.deliveryNoteCandidate.totalQuantity} τεμάχια
+                </div>
+                <p className="mt-1 text-xs font-medium leading-5 text-amber-900/80">
+                  Βρέθηκε ένα μόνο Δελτίο Αποστολής με ακριβώς ίδιο ΑΦΜ και ημερομηνία. Η σύνδεση απαιτεί επιβεβαίωση και δεν αλλάζει το επίσημο τιμολόγιο ή το XML της ΑΑΔΕ.
+                </p>
+              </div>
+              <ArchiveActionButton
+                tone="primary"
+                disabled={props.mutating}
+                onClick={() => props.onLinkDeliveryNote(record, record.deliveryNoteCandidate!.document.id)}
+              >
+                <Link2 size={14} /> Επιβεβαίωση σύνδεσης
+              </ArchiveActionButton>
+            </div>
+          </section>
+        )}
+
+        {record.linkedDeliveryNote && (
+          <section className="overflow-hidden rounded-xl border border-sky-200 bg-white">
+            <div className="flex flex-col gap-3 border-b border-sky-100 bg-sky-50/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-sky-900">
+                  <Truck size={17} />
+                  <h3 className="font-black">Προϊόντα από συνδεδεμένο Δελτίο Αποστολής</h3>
+                </div>
+                <div className="mt-1 text-xs font-bold text-sky-800">
+                  {getLegalDocumentDisplayNumber(record.linkedDeliveryNote.document)} · {record.linkedDeliveryNote.uniqueItemCount} κωδικοί · {record.linkedDeliveryNote.totalQuantity} τεμάχια
+                </div>
+              </div>
+              <ArchiveActionButton
+                disabled={props.mutating}
+                onClick={() => props.onLinkDeliveryNote(record, null)}
+              >
+                <Undo2 size={14} /> Αφαίρεση σύνδεσης
+              </ArchiveActionButton>
+            </div>
+            <div className="divide-y divide-sky-50">
+              {record.linkedDeliveryNote.lineMatches.map((match) => (
+                <div key={match.line.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5">
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="shrink-0 rounded bg-sky-100 px-1.5 py-0.5 font-mono text-[10px] font-black text-sky-900">
+                        {match.rawItemCode || match.masterSku || 'χωρίς κωδικό'}
+                      </span>
+                      <span className="truncate text-xs font-bold text-slate-700" title={match.line.source_metadata?.item_description || match.line.description}>
+                        {match.line.source_metadata?.item_description || match.line.description}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="whitespace-nowrap text-xs font-black text-slate-800">
+                    {Number(match.line.quantity || 0)} τεμ.
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="border-t border-sky-100 bg-sky-50/40 px-4 py-2 text-[11px] font-medium text-sky-900">
+              Οι κωδικοί και οι ποσότητες προέρχονται από το συνδεδεμένο Δελτίο Αποστολής. Η αξία του τιμολογίου παραμένει η επίσημη συγκεντρωτική αξία της ΑΑΔΕ και δεν κατανέμεται τεχνητά ανά προϊόν.
+            </div>
+          </section>
+        )}
 
         <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
@@ -1565,6 +1636,16 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                               ))}
                               {record.lineMatches.length > 3 && <span className="px-1 py-1 text-[10px] font-bold text-slate-400">+{record.lineMatches.length - 3}</span>}
                             </div>
+                            {record.linkedDeliveryNote && (
+                              <div className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-black text-sky-800">
+                                <Truck size={11} /> {record.linkedDeliveryNote.uniqueItemCount} κωδικοί από ΔΑ
+                              </div>
+                            )}
+                            {record.deliveryNoteCandidate && !record.linkedDeliveryNote && (
+                              <div className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-800">
+                                <Sparkles size={11} /> Πρόταση ΔΑ {getLegalDocumentDisplayNumber(record.deliveryNoteCandidate.document)}
+                              </div>
+                            )}
                           </td>
                           <td className="px-3 py-3 text-right">
                             <div className="font-black text-slate-950">{money(document.totals.gross)}</div>

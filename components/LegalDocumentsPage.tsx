@@ -74,6 +74,7 @@ import {
   useLinkLegalArchiveCustomer,
   useLinkLegalArchiveOrder,
   useLinkLegalArchiveSeller,
+  useLinkLegalArchiveDeliveryNote,
   useSetInspectionExitPin,
 } from '../hooks/api/useLegalDocuments';
 import { useSellers } from '../hooks/api/useSellers';
@@ -472,6 +473,7 @@ export default function LegalDocumentsPage({
   const linkLegalArchiveCustomer = useLinkLegalArchiveCustomer();
   const linkLegalArchiveOrder = useLinkLegalArchiveOrder();
   const linkLegalArchiveSeller = useLinkLegalArchiveSeller();
+  const linkLegalArchiveDeliveryNote = useLinkLegalArchiveDeliveryNote();
   const saveSequence = useSaveLegalSequence();
   const saveCarrier = useSaveLegalCarrier();
   const saveDraft = useSaveLegalDraft();
@@ -2240,6 +2242,55 @@ export default function LegalDocumentsPage({
     }
   };
 
+  const handleArchiveDeliveryNoteLink = async (
+    record: LegalArchiveRecord,
+    deliveryDocumentId: string | null,
+  ) => {
+    if (record.source !== 'legal') return;
+    const deliveryLink = deliveryDocumentId
+      ? record.deliveryNoteCandidate || record.linkedDeliveryNote
+      : record.linkedDeliveryNote;
+    if (deliveryDocumentId && deliveryLink?.document.id !== deliveryDocumentId) {
+      showToast('Το προτεινόμενο Δελτίο Αποστολής δεν είναι πλέον διαθέσιμο.', 'error');
+      return;
+    }
+
+    const accepted = await confirm({
+      title: deliveryDocumentId
+        ? 'Σύνδεση Δελτίου Αποστολής'
+        : 'Αφαίρεση σύνδεσης Δελτίου Αποστολής',
+      message: deliveryDocumentId && deliveryLink
+        ? [
+            `Τιμολόγιο: ${getLegalDocumentDisplayNumber(record.document)}`,
+            `Δελτίο Αποστολής: ${getLegalDocumentDisplayNumber(deliveryLink.document)}`,
+            `Προϊόντα: ${deliveryLink.uniqueItemCount} κωδικοί · ${deliveryLink.totalQuantity} τεμάχια`,
+            '',
+            'Θα εμφανίζονται χωριστά οι κωδικοί και οι ποσότητες του Δελτίου Αποστολής. Το επίσημο τιμολόγιο, οι αξίες και το XML της ΑΑΔΕ δεν θα μεταβληθούν.',
+          ].join('\n')
+        : 'Θα αφαιρεθεί μόνο η σύνδεση. Κανένα επίσημο παραστατικό ή XML της ΑΑΔΕ δεν θα αλλάξει.',
+      confirmText: deliveryDocumentId ? 'Σύνδεση' : 'Αφαίρεση',
+      cancelText: 'Άκυρο',
+      isDestructive: !deliveryDocumentId,
+    });
+    if (!accepted) return;
+
+    try {
+      await linkLegalArchiveDeliveryNote.mutateAsync({
+        documentId: record.id,
+        deliveryDocumentId,
+        userName,
+      });
+      showToast(
+        deliveryDocumentId
+          ? 'Το Δελτίο Αποστολής συνδέθηκε. Τα προϊόντα εμφανίζονται χωριστά από τις επίσημες γραμμές του τιμολογίου.'
+          : 'Η σύνδεση με το Δελτίο Αποστολής αφαιρέθηκε.',
+        'success',
+      );
+    } catch (error: any) {
+      showToast(error?.message || 'Δεν αποθηκεύτηκε η σύνδεση με το Δελτίο Αποστολής.', 'error');
+    }
+  };
+
   const handleArchiveVatLookup = async (
     vatNumber: string,
   ): Promise<AadeVatRegistryResult> => {
@@ -2698,6 +2749,7 @@ export default function LegalDocumentsPage({
         || linkLegalArchiveCustomer.isPending
         || linkLegalArchiveOrder.isPending
         || linkLegalArchiveSeller.isPending
+        || linkLegalArchiveDeliveryNote.isPending
       }
       onCreate={() => {
         setDraftBundle(null);
@@ -2717,6 +2769,7 @@ export default function LegalDocumentsPage({
       onLinkCustomer={(record, customerId) => void handleArchiveCustomerLink(record, customerId)}
       onLinkOrder={(record, link) => void handleArchiveOrderLink(record, link)}
       onLinkSeller={(record, sellerId) => void handleArchiveSellerLink(record, sellerId)}
+      onLinkDeliveryNote={(record, deliveryDocumentId) => void handleArchiveDeliveryNoteLink(record, deliveryDocumentId)}
       onLookupVat={handleArchiveVatLookup}
       onLookupOfficialVat={handleArchiveOfficialVatLookup}
       onApplyVat={(record, result) => void handleApplyArchiveVatResult(record, result)}

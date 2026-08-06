@@ -1393,6 +1393,25 @@ export const api = {
         }, { noSelect: true });
     },
 
+    linkLegalArchiveDeliveryNote: async (
+        documentId: string,
+        deliveryDocumentId: string | null,
+        userName?: string | null,
+    ): Promise<void> => {
+        await safeMutate('legal_documents', 'UPDATE', {
+            related_delivery_document_id: deliveryDocumentId,
+            updated_at: new Date().toISOString(),
+        }, { match: { id: documentId }, noSelect: true });
+        await safeMutate('legal_audit_log', 'INSERT', {
+            document_id: documentId,
+            action: deliveryDocumentId
+                ? 'archive_delivery_note_linked'
+                : 'archive_delivery_note_unlinked',
+            user_name: userName || null,
+            details: { related_delivery_document_id: deliveryDocumentId },
+        }, { noSelect: true });
+    },
+
     enrichLegalArchiveDocuments: async (): Promise<number> => {
         const [documents, allLines] = await Promise.all([
             api.getLegalDocuments(),
