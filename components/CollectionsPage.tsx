@@ -130,6 +130,20 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
         ).sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true }));
     }, [allProducts, selectedCollection, searchTerm]);
 
+    // Up to 3 preview images + total count per collection (for the gallery cards)
+    const collectionPreviewImages = useMemo(() => {
+        const map = new Map<number, { images: string[]; total: number }>();
+        (allProducts || []).forEach((p) => {
+            (p.collections || []).forEach((id) => {
+                const entry = map.get(id) || { images: [], total: 0 };
+                entry.total += 1;
+                if (entry.images.length < 3 && p.image_url) entry.images.push(p.image_url);
+                map.set(id, entry);
+            });
+        });
+        return map;
+    }, [allProducts]);
+
     // ── Actions ───────────────────────────────────────────────────────────
 
     const openCollectionsPanel = () => {
@@ -693,63 +707,27 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
             {/* ── MAIN CONTENT ────────────────────────────────────────────── */}
             <div className="flex-1 min-h-0">
                 {!selectedCollection ? (
-                    /* GALLERY LANDING */
-                    <div className="h-full overflow-y-auto custom-scrollbar pr-1 space-y-5">
-                        <div className="relative overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-br from-[#101a05] via-[#060b00] to-slate-900 text-white p-8 sm:p-10">
-                            <div className="absolute -right-8 -top-8 opacity-10 pointer-events-none">
-                                <FolderKanban size={220} className="text-white" />
-                            </div>
-                            <div className="absolute right-24 bottom-[-40px] opacity-[0.07] pointer-events-none hidden sm:block">
-                                <Package size={160} className="text-white" />
-                            </div>
-                            <div className="relative z-10 max-w-2xl">
-                                <div className="inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-white/80">
-                                    <Sparkles size={11} /> Οργάνωση καταλόγου
-                                </div>
-                                <h2 className="mt-4 text-2xl sm:text-3xl font-black tracking-tight">
-                                    Επιλέξτε ή δημιουργήστε μια συλλογή
-                                </h2>
-                                <p className="mt-2 text-sm font-medium text-white/60 leading-relaxed">
-                                    Ομαδοποιήστε προϊόντα για εκτυπώσεις, παρουσιάσεις σε πελάτες και οργάνωση του καταλόγου.
-                                    Κάθε συλλογή έχει τη δική της περιγραφή και τη δική της λίστα κωδικών.
-                                </p>
-                                <div className="mt-6 flex flex-wrap gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={openCollectionsPanel}
-                                        className="flex items-center gap-2 bg-white text-[#060b00] px-5 py-2.5 rounded-xl font-bold shadow-lg hover:bg-slate-100 hover:-translate-y-0.5 transition-all active:scale-95"
-                                    >
-                                        <Plus size={16} /> Νέα Συλλογή
-                                    </button>
-                                    {collectionList.length > 0 && (
-                                        <button
-                                            type="button"
-                                            onClick={openCollectionsPanel}
-                                            className="flex items-center gap-2 border border-white/25 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-white/10 transition-all active:scale-95"
-                                        >
-                                            <FolderKanban size={16} /> Επιλογή Συλλογής
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
+                    /* GALLERY LANDING — compact, no hero: pick a collection card or create one */
+                    <div className="h-full overflow-y-auto custom-scrollbar pr-1">
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                            {/* New collection card */}
+                            {/* New collection card (single create affordance) */}
                             <button
                                 type="button"
                                 onClick={openCollectionsPanel}
-                                className="group min-h-[180px] flex flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-slate-200 bg-white/60 text-slate-400 hover:text-[#060b00] hover:border-slate-300 hover:bg-white hover:shadow-md transition-all"
+                                className={`group flex flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-slate-200 bg-white/60 text-slate-400 hover:text-[#060b00] hover:border-slate-300 hover:bg-white hover:shadow-md transition-all ${collectionList.length === 0 ? 'sm:col-span-2 lg:col-span-3 xl:col-span-4 min-h-[240px]' : 'min-h-[200px]'}`}
                             >
                                 <div className="w-12 h-12 rounded-2xl bg-slate-100 group-hover:bg-[#060b00] group-hover:text-white flex items-center justify-center transition-colors">
                                     <FolderPlus size={22} />
                                 </div>
                                 <span className="text-sm font-black">Νέα Συλλογή</span>
-                                <span className="text-[11px] font-medium text-slate-400">Δημιουργήστε και ξεκινήστε</span>
+                                <span className="text-[11px] font-medium text-slate-400">
+                                    {collectionList.length === 0 ? 'Ξεκινήστε με την πρώτη σας συλλογή' : 'Δημιουργήστε και ξεκινήστε'}
+                                </span>
                             </button>
 
                             {collectionList.map(c => {
                                 const count = collectionProductCounts.get(c.id) || 0;
+                                const preview = collectionPreviewImages.get(c.id) || { images: [], total: 0 };
                                 return (
                                     <button
                                         key={c.id}
@@ -761,19 +739,33 @@ export default function CollectionsPage({ products: allProducts, onPrint }: Prop
                                             <div className="p-3.5 rounded-2xl bg-slate-50 text-slate-400 group-hover:bg-[#060b00] group-hover:text-white transition-colors">
                                                 <FolderKanban size={22} />
                                             </div>
-                                            <span className={`shrink-0 text-[10px] font-black px-2 py-1 rounded-full ${count > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-50 text-slate-400 border border-slate-100'}`}>
-                                                {count} {count === 1 ? 'προϊόν' : 'προϊόντα'}
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <span className={`shrink-0 text-[10px] font-black px-2 py-1 rounded-full ${count > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-50 text-slate-400 border border-slate-100'}`}>
+                                                    {count} {count === 1 ? 'προϊόν' : 'προϊόντα'}
+                                                </span>
+                                                <ArrowRight size={15} className="text-slate-200 group-hover:text-[#060b00] group-hover:translate-x-1 opacity-0 group-hover:opacity-100 transition-all" />
+                                            </div>
                                         </div>
                                         <h3 className="mt-4 text-lg font-black text-slate-900 tracking-tight truncate">{c.name}</h3>
-                                        <p className="mt-1 text-xs font-medium text-slate-500 line-clamp-2 min-h-[2rem]">
-                                            {c.description || 'Χωρίς περιγραφή — πατήστε για επεξεργασία.'}
+                                        <p className="mt-1 text-xs font-medium text-slate-500 line-clamp-2">
+                                            {c.description || 'Χωρίς περιγραφή.'}
                                         </p>
-                                        <div className="mt-4 flex items-center justify-between text-xs font-bold text-slate-400">
-                                            <span className="flex items-center gap-1.5">
-                                                <Layers size={12} className="text-slate-300" /> Άνοιγμα
-                                            </span>
-                                            <ArrowRight size={15} className="group-hover:translate-x-1 transition-transform text-slate-300 group-hover:text-[#060b00]" />
+                                        <div className="mt-4 flex items-center gap-1.5">
+                                            {preview.images.map((src, i) => (
+                                                <div key={i} className="w-10 h-10 rounded-lg border border-slate-100 overflow-hidden bg-slate-50 shadow-sm">
+                                                    <img src={src} alt="" loading="lazy" className="w-full h-full object-cover" />
+                                                </div>
+                                            ))}
+                                            {preview.total > 3 && (
+                                                <div className="w-10 h-10 rounded-lg border border-slate-100 bg-slate-50 flex items-center justify-center text-[10px] font-black text-slate-500 shadow-sm">
+                                                    +{preview.total - 3}
+                                                </div>
+                                            )}
+                                            {preview.images.length === 0 && (
+                                                <div className="h-10 flex items-center text-[10px] font-bold text-slate-300 italic">
+                                                    {preview.total === 0 ? 'Κενή συλλογή' : 'Χωρίς φωτογραφίες'}
+                                                </div>
+                                            )}
                                         </div>
                                     </button>
                                 );
