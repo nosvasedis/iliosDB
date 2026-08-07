@@ -323,11 +323,50 @@ function mapRpcPartialShipmentResult(data: Record<string, unknown>): OrderShipme
     };
 }
 
-async function fetchWithTimeout(query: any, timeoutMs: number = 3000): Promise<any> {
-    const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('TIMEOUT')), timeoutMs)
-    );
-    return Promise.race([query, timeoutPromise]);
+async function fetchWithTimeout(query: any, timeoutMs: number = 3000, signal?: AbortSignal): Promise<any> {
+    if (signal?.aborted) {
+        throw new Error('TIMEOUT');
+    }
+    let timedOut = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise((_, reject) => {
+        timer = setTimeout(() => {
+            timedOut = true;
+            reject(new Error('TIMEOUT'));
+        }, timeoutMs);
+    });
+    try {
+        const builder = signal && typeof query?.abortSignal === 'function'
+            ? query.abortSignal(signal)
+            : query;
+        return await Promise.race([builder, timeoutPromise]);
+    } catch (err) {
+        if (timedOut || (err instanceof Error && err.message === 'TIMEOUT')) {
+            throw new Error('TIMEOUT');
+        }
+        if (signal?.aborted) {
+            throw new Error('TIMEOUT');
+        }
+        throw err;
+    } finally {
+        if (timer) clearTimeout(timer);
+    }
+}
+
+/** Exported for unit tests — races a thenable against a timeout and aborts via AbortController. */
+export async function fetchWithTimeoutAndAbort(
+    start: (signal: AbortSignal) => Promise<any>,
+    timeoutMs: number,
+): Promise<any> {
+    const controller = new AbortController();
+    try {
+        return await fetchWithTimeout(start(controller.signal), timeoutMs, controller.signal);
+    } catch (err) {
+        if (!controller.signal.aborted) {
+            controller.abort();
+        }
+        throw err;
+    }
 }
 
 function readSettingsNumber(
@@ -598,15 +637,19 @@ async function fetchFullTable(
                 let lastErr: unknown = null;
                 let pageData: any[] | null = null;
                 for (let attempt = 0; attempt < FETCH_PAGE_RETRIES; attempt++) {
+                    const controller = new AbortController();
                     try {
                         let query = supabase.from(tableName).select(select).range(from, to);
                         if (applyOrder) query = applyOrder(query);
-                        const { data, error } = await fetchWithTimeout(query, pageTimeoutMs);
+                        const { data, error } = await fetchWithTimeout(query, pageTimeoutMs, controller.signal);
                         if (error) throw error;
                         pageData = data;
                         lastErr = null;
                         break;
                     } catch (err) {
+                        if (!controller.signal.aborted) {
+                            controller.abort();
+                        }
                         lastErr = err;
                     }
                 }
@@ -1091,6 +1134,69 @@ export function checkStockForOrderItems(
     allProducts: Product[]
 ): Array<{ sku: string; variant_suffix: string | null; size_info: string | null; cord_color?: string | null; enamel_color?: string | null; line_id?: string | null; requested_qty: number; available_in_stock: number }> {
     return checkStockForOrderItemsHelper(itemsToSend, allProducts);
+}
+
+let getProductsInFlight: Promise<Product[]> | null = null;
+
+async function getProductsUncached(): Promise<Product[]> {
+    if (isInspectionModeActive()) {
+        const [prodData, varData] = await Promise.all([
+            fetchFullTable('products', '*', (q) => q.order('sku')),
+            fetchFullTable('product_variants', '*', (q) => q.order('product_sku').order('suffix')),
+        ]);
+        if (!prodData || prodData.length === 0) return [];
+        const visibleProdData = (prodData as any[]).filter(isVisibleProductCatalogRow);
+        if (visibleProdData.length === 0) return [];
+        return mapProductsWithRelations(
+            visibleProdData,
+            {
+                variants: varData as any,
+                recipes: [],
+                molds: [],
+                collections: [],
+                stock: [],
+            },
+            {
+                publicImageBaseUrl: R2_PUBLIC_URL,
+                centralWarehouseId: SYSTEM_IDS.CENTRAL,
+                showroomWarehouseId: SYSTEM_IDS.SHOWROOM,
+            },
+        );
+    }
+
+    const [prodData, suppliersData] = await Promise.all([
+        fetchFullTable('products', '*', (q) => q.order('sku')),
+        fetchFullTable('suppliers', '*', (q) => q.order('name')),
+    ]);
+    if (!prodData || prodData.length === 0) return [];
+    const visibleProdData = (prodData as any[]).filter(isVisibleProductCatalogRow);
+    if (visibleProdData.length === 0) return [];
+
+    const prodWithSuppliers = attachSuppliersToProductRows(visibleProdData, suppliersData as any[]);
+
+    const [varData, recData, prodMoldsData, prodCollData, stockData] = await Promise.all([
+        fetchFullTable('product_variants', '*', (q) => q.order('product_sku').order('suffix')),
+        fetchFullTable('recipes', '*', (q) => q.order('parent_sku')),
+        fetchFullTable('product_molds', '*', (q) => q.order('product_sku').order('mold_code')),
+        fetchFullTable('product_collections', '*', (q) => q.order('product_sku').order('collection_id')),
+        fetchFullTable('inventory_balances', '*', (q) => q.order('product_sku').order('variant_suffix').order('size_info'))
+            .catch(() => fetchFullTable('product_stock', '*', (q) => q.order('product_sku').order('variant_suffix', { nullsFirst: true }))),
+    ]);
+    return mapProductsWithRelations(
+        prodWithSuppliers as any,
+        {
+            variants: varData as any,
+            recipes: recData as any,
+            molds: prodMoldsData as any,
+            collections: prodCollData as any,
+            stock: stockData as any,
+        },
+        {
+            publicImageBaseUrl: R2_PUBLIC_URL,
+            centralWarehouseId: SYSTEM_IDS.CENTRAL,
+            showroomWarehouseId: SYSTEM_IDS.SHOWROOM,
+        },
+    );
 }
 
 export const api = {
@@ -2517,64 +2623,15 @@ export const api = {
     },
 
     getProducts: async (): Promise<Product[]> => {
-        if (isInspectionModeActive()) {
-            const [prodData, varData] = await Promise.all([
-                fetchFullTable('products', '*', (q) => q.order('sku')),
-                fetchFullTable('product_variants', '*', (q) => q.order('product_sku').order('suffix')),
-            ]);
-            if (!prodData || prodData.length === 0) return [];
-            const visibleProdData = (prodData as any[]).filter(isVisibleProductCatalogRow);
-            if (visibleProdData.length === 0) return [];
-            return mapProductsWithRelations(
-                visibleProdData,
-                {
-                    variants: varData as any,
-                    recipes: [],
-                    molds: [],
-                    collections: [],
-                    stock: [],
-                },
-                {
-                    publicImageBaseUrl: R2_PUBLIC_URL,
-                    centralWarehouseId: SYSTEM_IDS.CENTRAL,
-                    showroomWarehouseId: SYSTEM_IDS.SHOWROOM,
-                },
-            );
-        }
-
-        const [prodData, suppliersData] = await Promise.all([
-            fetchFullTable('products', '*', (q) => q.order('sku')),
-            fetchFullTable('suppliers', '*', (q) => q.order('name')),
-        ]);
-        if (!prodData || prodData.length === 0) return [];
-        const visibleProdData = (prodData as any[]).filter(isVisibleProductCatalogRow);
-        if (visibleProdData.length === 0) return [];
-
-        const prodWithSuppliers = attachSuppliersToProductRows(visibleProdData, suppliersData as any[]);
-
-        const [varData, recData, prodMoldsData, prodCollData, stockData] = await Promise.all([
-            fetchFullTable('product_variants', '*', (q) => q.order('product_sku').order('suffix')),
-            fetchFullTable('recipes', '*', (q) => q.order('parent_sku')),
-            fetchFullTable('product_molds', '*', (q) => q.order('product_sku').order('mold_code')),
-            fetchFullTable('product_collections', '*', (q) => q.order('product_sku').order('collection_id')),
-            fetchFullTable('inventory_balances', '*', (q) => q.order('product_sku').order('variant_suffix').order('size_info'))
-                .catch(() => fetchFullTable('product_stock', '*', (q) => q.order('product_sku').order('variant_suffix', { nullsFirst: true })))
-        ]);
-        return mapProductsWithRelations(
-            prodWithSuppliers as any,
-            {
-                variants: varData as any,
-                recipes: recData as any,
-                molds: prodMoldsData as any,
-                collections: prodCollData as any,
-                stock: stockData as any,
-            },
-            {
-                publicImageBaseUrl: R2_PUBLIC_URL,
-                centralWarehouseId: SYSTEM_IDS.CENTRAL,
-                showroomWarehouseId: SYSTEM_IDS.SHOWROOM,
+        if (getProductsInFlight) return getProductsInFlight;
+        getProductsInFlight = (async () => {
+            try {
+                return await getProductsUncached();
+            } finally {
+                getProductsInFlight = null;
             }
-        );
+        })();
+        return getProductsInFlight;
     },
 
     getProductsCatalog: async (params: { limit?: number; offset?: number } = {}): Promise<{ products: Product[]; hasMore: boolean }> => {

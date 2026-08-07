@@ -91,9 +91,9 @@ export function isProductGraphRealtimeTable(tableName: string): boolean {
 }
 
 /**
- * Invalidates both products and productsCatalog caches so that the main
- * products list and the seller Catalog (Κατάλογος) stay in sync when
- * SKUs/products change.
+ * Marks products + productsCatalog stale so observers refetch when needed.
+ * Prefer refreshErpProducts(queryClient, [sku]) when the changed SKUs are known
+ * (avoids a full multi-table catalogue download).
  */
 export function invalidateProductsAndCatalog(queryClient: QueryClient): Promise<void> {
     return Promise.all([

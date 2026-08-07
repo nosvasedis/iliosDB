@@ -9,7 +9,7 @@ import BarcodeView from '../BarcodeView';
 import { useUI } from '../UIProvider';
 import QRCode from 'qrcode';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
-import { invalidateProductsAndCatalog } from '../../lib/queryInvalidation';
+import { refreshErpProducts } from '../../features/erpCatalog';
 import html2canvas from 'html2canvas';
 import { APP_LOGO, APP_ICON_ONLY } from '../../constants';
 import { getVariantIndexBySuffix } from '../../features/products/productDetailsViewModels';
@@ -222,7 +222,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
               if (publicUrl) {
                   setLocalImageUrl(publicUrl);
                   await productsRepository.saveProduct({ ...product, image_url: publicUrl });
-                  await invalidateProductsAndCatalog(queryClient);
+                  await refreshErpProducts(queryClient, [product.sku]);
                   showToast("Η φωτογραφία ενημερώθηκε.", "success");
               }
           } catch (error) {

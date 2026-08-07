@@ -2,7 +2,13 @@ import { api, supabase, uploadProductImage, deleteProduct as deleteProductApi } 
 import { Mold, ProductMold, ProductVariant, ProductionType, RecipeItem } from '../../types';
 
 export const productsRepository = {
-  getProducts: () => api.getProducts(),
+  getProducts: async () => {
+    const products = await api.getProducts();
+    void import('../erpCatalog')
+      .then(({ persistErpProductsAfterFullFetch }) => persistErpProductsAfterFullFetch(products))
+      .catch((error) => console.warn('ERP catalogue snapshot persist failed:', error));
+    return products;
+  },
   saveProduct: (product: Record<string, unknown>) => api.saveProduct(product),
   saveProductVariant: (input: {
     product_sku: string;

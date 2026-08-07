@@ -20,6 +20,13 @@ import {
   SELLER_CATALOG_REALTIME_TABLES,
 } from '../../features/sellerCatalog/realtime';
 import { refreshSellerCatalog } from '../../features/sellerCatalog/sync';
+import {
+  createErpCatalogRealtimeScheduler,
+  ERP_CATALOG_REALTIME_TABLES,
+  getErpCatalogFullSyncedAt,
+  refreshErpProducts,
+  shouldRefreshErpCatalog,
+} from '../../features/erpCatalog';
 
 export const CORE_REALTIME_TABLES = [
   'products',
@@ -198,6 +205,7 @@ export function useRealtimeInvalidation(scope: RealtimeScope = 'erp'): void {
   const channelRefs = useRef<Map<string, ReturnType<typeof supabase.channel>>>(new Map());
   const schedulerRef = useRef<ReturnType<typeof createRealtimeInvalidationScheduler> | null>(null);
   const sellerCatalogSchedulerRef = useRef<ReturnType<typeof createSellerCatalogRealtimeScheduler> | null>(null);
+  const erpCatalogSchedulerRef = useRef<ReturnType<typeof createErpCatalogRealtimeScheduler> | null>(null);
   const lastReadyRefreshRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
@@ -217,6 +225,14 @@ export function useRealtimeInvalidation(scope: RealtimeScope = 'erp'): void {
           console.warn('Seller catalogue realtime reconciliation failed:', error);
         }
       });
+    } else if (scope === 'erp' && !isInspectionModeActive()) {
+      erpCatalogSchedulerRef.current = createErpCatalogRealtimeScheduler(async (skus) => {
+        try {
+          await refreshErpProducts(queryClient, skus);
+        } catch (error) {
+          console.warn('ERP catalogue realtime reconciliation failed:', error);
+        }
+      });
     }
 
     const handleChange = (payload: {
@@ -232,6 +248,12 @@ export function useRealtimeInvalidation(scope: RealtimeScope = 'erp'): void {
         return;
       }
       if (tryPatchRealtimeCache(queryClient, payload as any)) {
+        return;
+      }
+      if (scope === 'erp'
+        && payload.table
+        && (ERP_CATALOG_REALTIME_TABLES as readonly string[]).includes(payload.table)) {
+        erpCatalogSchedulerRef.current?.schedule(payload);
         return;
       }
       if (!payload.table) return;
@@ -268,10 +290,22 @@ export function useRealtimeInvalidation(scope: RealtimeScope = 'erp'): void {
           const lastReadyRefresh = lastReadyRefreshRef.current.get(group.id) ?? 0;
           if (now - lastReadyRefresh >= READY_REFRESH_MIN_INTERVAL_MS) {
             lastReadyRefreshRef.current.set(group.id, now);
-            const domains = scope === 'seller'
-              ? (['orders', 'contacts'] as const)
-              : getRealtimeDomainsForTables(group.tables);
-            void refetchRealtimeDomains(queryClient, domains);
+            void (async () => {
+              if (scope === 'seller') {
+                await refetchRealtimeDomains(queryClient, ['orders', 'contacts']);
+                return;
+              }
+              const domains = getRealtimeDomainsForTables(group.tables);
+              if (group.id === 'products' || domains.includes('products')) {
+                const fullSyncedAt = await getErpCatalogFullSyncedAt();
+                if (!shouldRefreshErpCatalog(fullSyncedAt, now)) {
+                  const rest = domains.filter((domain) => domain !== 'products');
+                  if (rest.length > 0) await refetchRealtimeDomains(queryClient, rest);
+                  return;
+                }
+              }
+              await refetchRealtimeDomains(queryClient, domains);
+            })();
           }
         }
         if (shouldRetryRealtimeChannelOnStatus(status)) {
@@ -294,6 +328,8 @@ export function useRealtimeInvalidation(scope: RealtimeScope = 'erp'): void {
       schedulerRef.current = null;
       sellerCatalogSchedulerRef.current?.dispose();
       sellerCatalogSchedulerRef.current = null;
+      erpCatalogSchedulerRef.current?.dispose();
+      erpCatalogSchedulerRef.current = null;
       retryTimerRefs.current.forEach((timer) => clearTimeout(timer));
       retryTimerRefs.current.clear();
       channelRefs.current.forEach((channel) => {

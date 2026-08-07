@@ -6,7 +6,7 @@ import { shouldUseSplitTechnicianCost } from '../utils/pricingEngine';
 import { compressImage, createImagePreviewUrl } from '../utils/imageHelpers';
 import { getSteps } from '../components/ProductRegistry/constants';
 import { useQueryClient } from '@tanstack/react-query';
-import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
+import { refreshErpProducts } from '../features/erpCatalog';
 import {
     buildCostedVariants,
     buildCurrentTempProduct,
@@ -587,7 +587,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
                 selectedMolds,
                 isSTX,
             });
-            await invalidateProductsAndCatalog(queryClient);
+            await refreshErpProducts(queryClient, [finalMasterSku]);
             if (anyPartQueued) showToast(`Το προϊόν αποθηκεύτηκε στην ουρά συγχρονισμού.`, "info");
             else showToast(`Το προϊόν ${finalMasterSku} αποθηκεύτηκε επιτυχώς!`, "success");
             if (!anyPartQueued) {

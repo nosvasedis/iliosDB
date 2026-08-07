@@ -24,7 +24,7 @@ import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, W
 import { uploadProductImage, R2_PUBLIC_URL, AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL } from '../lib/supabase';
 import { ACCEPTED_IMAGE_INPUT_TYPES, compressImage } from '../utils/imageHelpers';
 import { useQueryClient } from '@tanstack/react-query';
-import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
+import { refreshErpProducts, removeProductsFromCache } from '../features/erpCatalog';
 import { useUI } from './UIProvider';
 import { useAuth } from './AuthContext';
 import SkuColorizedText from './SkuColorizedText';
@@ -1018,8 +1018,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                 isSTX: finalEditedProduct.is_component
             });
 
-            await queryClient.refetchQueries({ queryKey: ['products'] });
-            await invalidateProductsAndCatalog(queryClient);
+            await refreshErpProducts(queryClient, [finalEditedProduct.sku]);
 
             if (onSave) onSave(finalEditedProduct);
             if (!anyPartQueued) {
@@ -1056,8 +1055,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         const result = await productsRepository.deleteProduct(editedProduct.sku, editedProduct.image_url);
 
         if (result.success) {
-            await queryClient.refetchQueries({ queryKey: ['products'] });
-            await invalidateProductsAndCatalog(queryClient);
+            removeProductsFromCache(queryClient, [editedProduct.sku]);
             onClose();
             dispatchLiveActivity({ type: 'product_deleted', userName: profile?.full_name || 'Κάποιος', sku: editedProduct.sku });
             showToast("Το προϊόν διαγράφηκε επιτυχώς.", "success");
@@ -1077,7 +1075,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                 if (publicUrl) {
                     setEditedProduct(prev => ({ ...prev, image_url: publicUrl }));
                     await productsRepository.saveProduct({ ...editedProduct, image_url: publicUrl });
-                    await invalidateProductsAndCatalog(queryClient);
+                    await refreshErpProducts(queryClient, [editedProduct.sku]);
                     showToast("Η φωτογραφία ενημερώθηκε.", "success");
                 }
             } catch (error) {
@@ -1125,8 +1123,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             // Save to database
             await productsRepository.saveProduct(updatedProduct);
             
-            // Invalidate queries to refresh the UI
-            await invalidateProductsAndCatalog(queryClient);
+            // Bring in the updated SKU without a full catalogue download
+            await refreshErpProducts(queryClient, [editedProduct.sku]);
             
             showToast("Η φωτογραφία διαγράφηκε επιτυχώς.", "success");
         } catch (error) {
@@ -1372,7 +1370,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             // but react-query invalidation will handle it best.
             setEditedProduct(prev => ({ ...prev, sku: newSku }));
 
-            await invalidateProductsAndCatalog(queryClient);
+            removeProductsFromCache(queryClient, [product.sku]);
+            await refreshErpProducts(queryClient, [newSku]);
             dispatchLiveActivity({ type: 'product_renamed', userName: profile?.full_name || 'Κάποιος', sku: newSku, oldSku: product.sku, newSku });
             showToast(`Επιτυχής μετονομασία σε ${newSku}`, "success");
         } catch (e: any) {
