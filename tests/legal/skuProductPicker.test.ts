@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ProductionType } from '../../types';
 import {
   allowsBareMasterSkuResolution,
+  getCatalogSelectionPricing,
   isLustreOnlyProduct,
   resolveTypedSkuSelection,
   searchSkuProductOptions,
@@ -135,5 +136,41 @@ describe('sku product picker search', () => {
     }];
     expect(allowsBareMasterSkuResolution(lustreStonesOnly[0])).toBe(false);
     expect(resolveTypedSkuSelection('RNG030', lustreStonesOnly)).toBeNull();
+  });
+
+  it('resolves variant-specific cost and selling price together', () => {
+    const pricedProducts = [{
+      ...products[0],
+      variants: products[0].variants.map((variant) => variant.suffix === 'DLE'
+        ? { ...variant, active_price: 88.4, selling_price: 145.5 }
+        : variant),
+    }];
+
+    expect(getCatalogSelectionPricing(pricedProducts, {
+      sku: 'RNG001',
+      variant_suffix: 'DLE',
+    })).toMatchObject({
+      unitCost: 88.4,
+      unitPrice: 145.5,
+    });
+  });
+
+  it('can search component SKUs only when the picker requests that catalog scope', () => {
+    const component = {
+      ...products[0],
+      sku: 'CMP001',
+      is_component: true,
+      variants: [],
+      active_price: 3.2,
+      selling_price: 4.8,
+    };
+    const catalog = [...products, component];
+
+    expect(searchSkuProductOptions(catalog, 'CMP001')).toHaveLength(0);
+    expect(searchSkuProductOptions(catalog, 'CMP001', 12, { scope: 'components' })[0]?.sku).toBe('CMP001');
+    expect(resolveTypedSkuSelection('CMP001', catalog, { scope: 'components' })).toMatchObject({
+      sku: 'CMP001',
+      variant_suffix: null,
+    });
   });
 });

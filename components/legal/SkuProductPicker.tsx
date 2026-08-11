@@ -7,10 +7,12 @@ import {
   allowsBareMasterSkuResolution,
   formatSkuDisplayValue,
   getBareMasterSkuResolutionError,
+  getSkuCatalogProducts,
   getSkuAutocompleteValue,
   resolveTypedSkuSelection,
   searchSkuProductOptions,
   selectionFromOption,
+  SkuCatalogScope,
   SkuProductSelection,
 } from '../../utils/skuProductPicker';
 import { findProductByScannedCode, formatCurrency } from '../../utils/pricingEngine';
@@ -33,6 +35,10 @@ interface SkuProductPickerProps {
   placeholder?: string;
   /** Inline thumbnail + single-row layout for dense tables */
   compact?: boolean;
+  /** Choose finished products, components, or both without duplicating picker behaviour. */
+  scope?: SkuCatalogScope;
+  /** Reject free text that is not backed by a product in the loaded catalog. */
+  catalogOnly?: boolean;
 }
 
 export default function SkuProductPicker({
@@ -46,6 +52,8 @@ export default function SkuProductPicker({
   inputClassName = '',
   placeholder = 'Πληκτρολογήστε SKU...',
   compact = false,
+  scope = 'products',
+  catalogOnly = false,
 }: SkuProductPickerProps) {
   const { showToast } = useUI();
   const listboxId = useId();
@@ -73,13 +81,13 @@ export default function SkuProductPicker({
   }, [autoFocus]);
 
   const options = useMemo(
-    () => searchSkuProductOptions(products, inputValue),
-    [inputValue, products],
+    () => searchSkuProductOptions(products, inputValue, 12, { scope }),
+    [inputValue, products, scope],
   );
 
   const resolvedPreview = useMemo(
-    () => resolveTypedSkuSelection(displayValue, products),
-    [displayValue, products],
+    () => resolveTypedSkuSelection(displayValue, products, { scope }),
+    [displayValue, products, scope],
   );
 
   const previewProduct = useMemo(() => {
@@ -133,7 +141,7 @@ export default function SkuProductPicker({
   const rejectInvalidMaster = (term: string): boolean => {
     const normalized = term.trim().toUpperCase();
     if (!normalized) return false;
-    const catalogProducts = products.filter((product) => !product.is_component);
+    const catalogProducts = getSkuCatalogProducts(products, { scope });
     const bareMaster = catalogProducts.find((product) => product.sku.toUpperCase() === normalized);
     if (bareMaster && !allowsBareMasterSkuResolution(bareMaster)) {
       showToast(getBareMasterSkuResolutionError(bareMaster), 'warning');
@@ -145,6 +153,12 @@ export default function SkuProductPicker({
   };
 
   const commitSelection = (selection: SkuProductSelection, advanceAfterCommit = false) => {
+    if (catalogOnly && !getSkuCatalogProducts(products, { scope }).some((product) => product.sku === selection.sku)) {
+      showToast('Επιλέξτε έγκυρο SKU από τον κατάλογο.', 'warning');
+      setInputValue(displayValue);
+      setOpen(true);
+      return;
+    }
     ignoreBlurUntilRef.current = Date.now() + 250;
     setInputValue(selection.displaySku);
     onSelect(selection);
@@ -153,11 +167,11 @@ export default function SkuProductPicker({
   };
 
   const handleAutocomplete = () => {
-    const completion = getSkuAutocompleteValue(inputValue, options, products);
+    const completion = getSkuAutocompleteValue(inputValue, options, products, { scope });
     if (!completion) return false;
     const term = inputValue.trim().toUpperCase();
     if (completion.toUpperCase() === term) {
-      const resolved = resolveTypedSkuSelection(completion, products);
+      const resolved = resolveTypedSkuSelection(completion, products, { scope });
       if (resolved) commitSelection(resolved);
       return true;
     }
@@ -200,7 +214,7 @@ export default function SkuProductPicker({
         return;
       }
       if (rejectInvalidMaster(inputValue)) return;
-      const resolved = resolveTypedSkuSelection(inputValue, products);
+      const resolved = resolveTypedSkuSelection(inputValue, products, { scope });
       if (resolved) commitSelection(resolved, true);
       return;
     }
@@ -222,8 +236,9 @@ export default function SkuProductPicker({
           return;
         }
         if (rejectInvalidMaster(term)) return;
-        const resolved = resolveTypedSkuSelection(term, products);
-        if (resolved && (findProductByScannedCode(term, products) || term !== displayValue.toUpperCase())) {
+        const scopedProducts = getSkuCatalogProducts(products, { scope });
+        const resolved = resolveTypedSkuSelection(term, products, { scope });
+        if (resolved && (findProductByScannedCode(term, scopedProducts) || term !== displayValue.toUpperCase())) {
           commitSelection(resolved);
           return;
         }
@@ -332,6 +347,7 @@ export default function SkuProductPicker({
             commitSelection(selectionFromOption(options[highlightIndex] || options[0]));
           }}
           placeholder={placeholder}
+          aria-label={placeholder}
           aria-autocomplete="list"
           aria-expanded={open}
           aria-controls={open ? listboxId : undefined}

@@ -48,6 +48,12 @@ export interface SkuProductSelection {
   displaySku: string;
 }
 
+export type SkuCatalogScope = 'products' | 'components' | 'all';
+
+export interface SkuProductPickerOptions {
+  scope?: SkuCatalogScope;
+}
+
 export interface SkuPickerOption {
   key: string;
   sku: string;
@@ -66,6 +72,38 @@ export function formatSkuDisplayValue(sku: string, variantSuffix?: string | null
 
 export function getCatalogUnitPrice(product: Product, variant?: ProductVariant | null): number {
   return Number(variant?.selling_price || product.selling_price || product.active_price || 0);
+}
+
+export function getCatalogUnitCost(product: Product, variant?: ProductVariant | null): number {
+  const candidates = [variant?.active_price, product.active_price, product.supplier_cost, product.draft_price];
+  const positive = candidates.find((value) => Number.isFinite(Number(value)) && Number(value) > 0);
+  return Number(positive || 0);
+}
+
+export function getSkuCatalogProducts(
+  products: Product[],
+  options: SkuProductPickerOptions = {},
+): Product[] {
+  const scope = options.scope || 'products';
+  if (scope === 'all') return products;
+  if (scope === 'components') return products.filter((product) => product.is_component);
+  return products.filter((product) => !product.is_component);
+}
+
+export function getCatalogSelectionPricing(
+  products: Product[],
+  selection: Pick<SkuProductSelection, 'sku' | 'variant_suffix'>,
+): { product: Product | null; variant: ProductVariant | null; unitCost: number; unitPrice: number } {
+  const product = products.find((entry) => entry.sku === selection.sku) || null;
+  const variant = product?.variants?.find(
+    (entry) => (entry.suffix || '') === (selection.variant_suffix || ''),
+  ) || null;
+  return {
+    product,
+    variant,
+    unitCost: product ? getCatalogUnitCost(product, variant) : 0,
+    unitPrice: product ? getCatalogUnitPrice(product, variant) : 0,
+  };
 }
 
 function makeCatalogOption(product: Product, variant?: ProductVariant | null): SkuPickerOption {
@@ -114,7 +152,12 @@ function rankOptions(term: string, options: SkuPickerOption[]): SkuPickerOption[
   });
 }
 
-export function searchSkuProductOptions(products: Product[], query: string, limit = 12): SkuPickerOption[] {
+export function searchSkuProductOptions(
+  products: Product[],
+  query: string,
+  limit = 12,
+  pickerOptions: SkuProductPickerOptions = {},
+): SkuPickerOption[] {
   const term = query.trim().toUpperCase();
   const seen = new Set<string>();
   const options: SkuPickerOption[] = [];
@@ -125,7 +168,7 @@ export function searchSkuProductOptions(products: Product[], query: string, limi
     options.push(option);
   };
 
-  const catalogProducts = products.filter((product) => !product.is_component);
+  const catalogProducts = getSkuCatalogProducts(products, pickerOptions);
 
   if (!term) {
     for (const product of catalogProducts.slice(0, Math.max(limit, 1))) {
@@ -172,11 +215,16 @@ export function searchSkuProductOptions(products: Product[], query: string, limi
   return rankOptions(term, options).slice(0, limit);
 }
 
-export function getSkuAutocompleteValue(term: string, options: SkuPickerOption[], products: Product[]): string | null {
+export function getSkuAutocompleteValue(
+  term: string,
+  options: SkuPickerOption[],
+  products: Product[],
+  pickerOptions: SkuProductPickerOptions = {},
+): string | null {
   const normalized = term.trim().toUpperCase();
   if (!normalized) return null;
 
-  const exact = findProductByScannedCode(normalized, products);
+  const exact = findProductByScannedCode(normalized, getSkuCatalogProducts(products, pickerOptions));
   if (exact?.product && catalogMatchIsAllowed(normalized, exact.product, exact.variant)) {
     return exact.product.sku + (exact.variant?.suffix || '');
   }
@@ -201,11 +249,12 @@ export function selectionFromOption(option: SkuPickerOption): SkuProductSelectio
 export function resolveTypedSkuSelection(
   typed: string,
   products: Product[],
+  pickerOptions: SkuProductPickerOptions = {},
 ): SkuProductSelection | null {
   const normalized = typed.trim().toUpperCase();
   if (!normalized) return null;
 
-  const catalogProducts = products.filter((product) => !product.is_component);
+  const catalogProducts = getSkuCatalogProducts(products, pickerOptions);
   const exact = findProductByScannedCode(normalized, catalogProducts);
   if (exact?.product && catalogMatchIsAllowed(normalized, exact.product, exact.variant)) {
     return {
