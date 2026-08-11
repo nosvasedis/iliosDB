@@ -371,6 +371,26 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                             )}
                         </div>
 
+                        <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 bg-slate-50/70 p-1">
+                            <span className="pl-2 text-[10px] font-bold text-slate-500">Τρόπος εκπλήρωσης</span>
+                            <div className="flex items-center rounded-md bg-white p-0.5 shadow-sm ring-1 ring-slate-200">
+                                <button
+                                    type="button"
+                                    onClick={() => actions.updateItemFulfillmentMode(item, 'sale')}
+                                    className={`rounded px-2 py-1 text-[10px] font-black transition-colors ${(item.fulfillment_mode || 'sale') === 'sale' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+                                >
+                                    Πώληση
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => actions.updateItemFulfillmentMode(item, 'consignment')}
+                                    className={`rounded px-2 py-1 text-[10px] font-black transition-colors ${item.fulfillment_mode === 'consignment' ? 'bg-amber-500 text-white' : 'text-slate-500 hover:bg-amber-50'}`}
+                                >
+                                    Παρακαταθήκη
+                                </button>
+                            </div>
+                        </div>
+
                         {!isSpecialCreationSku(item.sku) && (
                             <InventoryAvailabilityNote
                                 item={item}
@@ -479,6 +499,15 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
 
             {/* Totals Footer */}
             <div className="p-5 bg-slate-50 border-t border-slate-200">
+                {state.consignmentSubtotal > 0 && (
+                    <div className="mb-3 space-y-1 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                        <div className="flex items-center justify-between text-xs font-bold text-amber-900">
+                            <span>Αξία Παρακαταθήκης</span>
+                            <span className="font-mono">{formatCurrency(state.consignmentValue)}</span>
+                        </div>
+                        <p className="text-[10px] leading-relaxed text-amber-700">Δεν αποτελεί πώληση ή απαίτηση τώρα. Η χρέωση δημιουργείται μόνο όταν δηλωθεί πώληση.</p>
+                    </div>
+                )}
                 <div className="flex justify-between items-center text-xs text-slate-500 mb-1">
                     <span>Καθαρή Αξία:</span>
                     <div className="flex items-center gap-1">
@@ -508,7 +537,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                     </div>
                 </div>
                 <div className="flex justify-between items-center">
-                    <span className="font-black text-slate-800 uppercase text-sm">Συνολο</span>
+                    <span className="font-black text-slate-800 uppercase text-sm">Πληρωτέο τώρα</span>
                     <div className="flex flex-col items-end">
                         <span className="font-black text-2xl text-emerald-700">{formatCurrency(state.grandTotal)}</span>
                         {state.priceDiffs && state.priceDiffs.total !== 0 && (

@@ -65,7 +65,7 @@ export const StepBasicInfo: React.FC<Props> = ({ formState, suppliers }) => {
                                     <option value="" disabled>Επιλέξτε</option>
                                     <option value={Gender.Women}>Γυναικεία</option>
                                     <option value={Gender.Men}>Ανδρικά</option>
-                                    <option value={Gender.Unisex}>Unisex</option>
+                                    <option value={Gender.Unisex}>Ουδέτερο</option>
                                 </select>
                             </div>
                             <div>

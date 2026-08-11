@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { ProductionBatch, ProductionStage } from '../types';
 import { isSpecialCreationSku } from '../utils/specialCreationSku';
-import { Clock, PauseCircle, StickyNote, Trash2, Printer, MoveRight, ImageIcon, AlertTriangle, PlayCircle, RefreshCcw, ChevronUp, ChevronDown, History, X, Check, Truck, Package, Hammer, Loader2 } from 'lucide-react';
+import { Clock, PauseCircle, StickyNote, Trash2, Printer, MoveRight, ImageIcon, AlertTriangle, PlayCircle, RefreshCcw, ChevronUp, ChevronDown, History, X, Check, Truck, Package, Hammer, Loader2, Wrench, HandHeart } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { formatOrderId } from '../utils/orderUtils';
 import { formatGreekDurationFromMs, getProductionTimingStatusClasses, getProductionTimingStatusLabel } from '../utils/productionTiming';
@@ -247,7 +247,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
     const skuContainerClass = SKU_CONTAINER_STYLES[finish.code] || SKU_CONTAINER_STYLES[''];
 
     const fallbackTimingLabel = formatGreekDurationFromMs(Date.now() - new Date(batch.stageEnteredAt || batch.created_at).getTime());
-    const timingStatus = batch.timingStatus || 'normal';
+    const timingStatus = batch.workflow_kind === 'repair' ? 'normal' : (batch.timingStatus || 'normal');
     const timeInfo = {
         label: batch.timingLabel || fallbackTimingLabel,
         colorClass: getProductionTimingStatusClasses(timingStatus),
@@ -332,7 +332,17 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                     )}
                     {isRefurbish && (
                         <div className="bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1">
-                            <RefreshCcw size={10} /> Repair
+                            <RefreshCcw size={10} /> Φρεσκάρισμα
+                        </div>
+                    )}
+                    {batch.workflow_kind === 'consignment' && (
+                        <div className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1">
+                            <HandHeart size={10} /> Παρακαταθήκη
+                        </div>
+                    )}
+                    {batch.workflow_kind === 'repair' && (
+                        <div className="bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1">
+                            <Wrench size={10} /> Επισκευή{batch.repair_code ? ` · ${batch.repair_code}` : ''}
                         </div>
                     )}
                     {onDispatch && (

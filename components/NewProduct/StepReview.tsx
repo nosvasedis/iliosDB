@@ -23,7 +23,7 @@ export const StepReview: React.FC<Props> = ({ formState, settings, materials, pr
                 <div className="flex-1">
                     <h2 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                         {state.detectedMasterSku || state.sku}
-                        {state.isSTX && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-xs font-bold uppercase">Component</span>}
+                        {state.isSTX && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-xs font-bold uppercase">Εξάρτημα</span>}
                         {state.productionType === ProductionType.Imported && <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-md text-xs font-bold uppercase flex items-center gap-1"><Globe size={12} /> ΕΙΣΑΓΩΜΕΝΟ</span>}
                     </h2>
                     <div className="flex gap-4 text-sm font-medium text-slate-500 mt-2">
@@ -46,8 +46,8 @@ export const StepReview: React.FC<Props> = ({ formState, settings, materials, pr
                                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Βασικό</div>
                                 <div className="w-full flex flex-col-reverse rounded-xl overflow-hidden shadow-sm border border-slate-200 bg-white">
                                     <div className="h-12 bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600" title={`Ασήμι: ${formatCurrency(state.costBreakdown?.silver)}`}>Ag</div>
-                                    <div className="h-8 bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-600" title={`Εργατικά: ${formatCurrency(state.costBreakdown?.labor)}`}>Lab</div>
-                                    <div className="h-6 bg-purple-100 flex items-center justify-center text-[10px] font-bold text-purple-600" title={`Υλικά: ${formatCurrency(state.costBreakdown?.materials)}`}>Mat</div>
+                                    <div className="h-8 bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-600" title={`Εργατικά: ${formatCurrency(state.costBreakdown?.labor)}`}>Εργ.</div>
+                                    <div className="h-6 bg-purple-100 flex items-center justify-center text-[10px] font-bold text-purple-600" title={`Υλικά: ${formatCurrency(state.costBreakdown?.materials)}`}>Υλικά</div>
                                 </div>
                                 <div className="font-black text-slate-800 text-lg mt-1">{formatCurrency(state.masterEstimatedCost)}</div>
                             </div>
@@ -59,8 +59,8 @@ export const StepReview: React.FC<Props> = ({ formState, settings, materials, pr
                                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{stack.label}</div>
                                     <div className={`w-full flex flex-col-reverse rounded-xl overflow-hidden shadow-sm border bg-white ${stack.borderClass}`}>
                                         <div className="h-12 bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-400">Ag</div>
-                                        <div className="h-8 bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-400">Lab</div>
-                                        <div className="h-6 bg-purple-100 flex items-center justify-center text-[10px] font-bold text-purple-400">Mat</div>
+                                        <div className="h-8 bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-400">Εργ.</div>
+                                        <div className="h-6 bg-purple-100 flex items-center justify-center text-[10px] font-bold text-purple-400">Υλικά</div>
                                         {stack.platingCost > 0 && (
                                             <div className={`h-6 flex items-center justify-center text-[10px] font-bold border-b border-white/50 ${stack.colorClass}`} title={`Plating: +${formatCurrency(stack.platingCost)}`}>
                                                 +{stack.type}
@@ -295,7 +295,7 @@ export const StepReview: React.FC<Props> = ({ formState, settings, materials, pr
                                             </td>
                                             <td className="p-4 text-right">
                                                 {state.isSTX ? (
-                                                    <span className="text-slate-300 italic text-xs">N/A</span>
+                                                    <span className="text-slate-300 italic text-xs">Δεν υπάρχει</span>
                                                 ) : (
                                                     <span className="font-mono font-bold text-slate-800 text-lg">{formatCurrency(price)}</span>
                                                 )}

@@ -3,10 +3,10 @@ import { buildItemIdentityKey } from './itemIdentity';
 
 /** Unique key for merging/editing lines. SP lines always use `line_id` so multiples never collapse. */
 export function getOrderItemMatchKey(
-  item: Pick<OrderItem, 'sku' | 'variant_suffix' | 'size_info' | 'cord_color' | 'enamel_color' | 'notes' | 'line_id'>
+  item: Pick<OrderItem, 'sku' | 'variant_suffix' | 'size_info' | 'cord_color' | 'enamel_color' | 'notes' | 'line_id' | 'fulfillment_mode'>
 ): string {
   if (item.line_id) return `lid:${item.line_id}`;
-  return `${buildItemIdentityKey(item)}::${item.notes || ''}`;
+  return `${buildItemIdentityKey(item)}::${item.notes || ''}::${item.fulfillment_mode || 'sale'}`;
 }
 
 type LineIdFactory = () => string;
@@ -27,7 +27,11 @@ export function assignMissingOrderLineIds(
   items: OrderItem[],
   createLineId: LineIdFactory = defaultLineIdFactory
 ): OrderItem[] {
-  return items.map((row) => row.line_id ? row : { ...row, line_id: createLineId() });
+  return items.map((row) => ({
+    ...row,
+    fulfillment_mode: row.fulfillment_mode || 'sale',
+    line_id: row.line_id || createLineId(),
+  }));
 }
 
 /** Assign stable line_id to legacy rows that require per-line identity. */

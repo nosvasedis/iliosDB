@@ -50,7 +50,7 @@ const ClerkBatchCard: React.FC<{ batch: ProductionBatch, onMove: (b: ProductionB
                     </div>
                 </div>
                 {batch.order_id && (
-                    <div className="text-[10px] font-mono text-slate-400">Order #{formatOrderId(batch.order_id)}</div>
+                    <div className="text-[10px] font-mono text-slate-400">Παραγγελία #{formatOrderId(batch.order_id)}</div>
                 )}
             </div>
 

@@ -56,6 +56,7 @@ const MobileDeliveries = lazyMobilePage(() => import('./components/mobile/Mobile
 const MobileAnalytics = lazyMobilePage(() => import('./components/mobile/MobileAnalytics'));
 const MobileSellers = lazyMobilePage(() => import('./components/mobile/MobileSellersPage'));
 const LegalDocumentsPage = lazyMobilePage(() => import('./components/LegalDocumentsPage'));
+const CustomerServiceWorkspace = lazyMobilePage(() => import('./components/CustomerServiceWorkspace'));
 
 const mobileLoadingDetails: Record<MobileAdminPage, string> = {
   dashboard: 'Αρχική',
@@ -63,6 +64,7 @@ const mobileLoadingDetails: Record<MobileAdminPage, string> = {
   'order-builder': 'Νέα παραγγελία',
   deliveries: 'Παραδόσεις',
   production: 'Παραγωγή',
+  'customer-service': 'Παρακαταθήκες & Επισκευές',
   inventory: 'Αποθήκη',
   menu: 'Μενού',
   registry: 'Μητρώο',
@@ -219,6 +221,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         onPrintLabels={setPrintItems}
       />
     ),
+    'customer-service': <CustomerServiceWorkspace />,
     inventory: <MobileInventory products={products} onProductSelect={handleProductSelect} />,
     menu: <MobileMenu onNavigate={handleNavigate} activePage={activePage} />,
     registry: <MobileRegistry products={products} onProductSelect={handleProductSelect} />,

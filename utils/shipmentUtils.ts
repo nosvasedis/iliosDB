@@ -144,12 +144,12 @@ export function hasUnaccountedProductionQuantity(
   if (order.status !== OrderStatus.PartiallyDelivered && order.status !== OrderStatus.InProduction) return false;
 
   const itemsTotal = Array.isArray(order.items) && order.items.length > 0
-    ? order.items.reduce((sum, item) => sum + (item.quantity || 0), 0)
+    ? order.items.filter((item) => (item.fulfillment_mode || 'sale') === 'sale').reduce((sum, item) => sum + (item.quantity || 0), 0)
     : Number(order.item_total_qty || 0);
   if (itemsTotal <= 0) return false;
 
   const batchTotal = (orderBatches || []).reduce(
-    (sum, batch) => sum + (batch.order_id === order.id ? (batch.quantity || 0) : 0),
+    (sum, batch) => sum + (batch.order_id === order.id && (batch.workflow_kind || 'order') === 'order' ? (batch.quantity || 0) : 0),
     0,
   );
   const accountedQty = Math.max(0, knownShippedQty || 0) + batchTotal;
@@ -165,7 +165,7 @@ export function getRemainingOrderItems(
   const shipped = getShippedQuantitiesForOrderLines(orderItems, shipmentItems);
   const remaining: Array<{ sku: string; variant_suffix?: string; size_info?: string; cord_color?: string | null; enamel_color?: string | null; quantity: number; price_at_order: number; line_id?: string | null }> = [];
 
-  for (const item of orderItems) {
+  for (const item of orderItems.filter((entry) => (entry.fulfillment_mode || 'sale') === 'sale')) {
     const key = itemKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color, item.line_id);
     const shippedQty = shipped.get(key) || 0;
     const remainingQty = item.quantity - shippedQty;
@@ -192,7 +192,11 @@ export function getReadyToShipItems(
   orderItems?: ReconcileCatalogItem[],
 ): Array<{ sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null; quantity: number; batchIds: string[]; line_id?: string | null }> {
   const resolvedBatches = orderItems ? bindLegacyBatchLineIds(orderItems, batches).batches : batches;
-  const orderBatches = resolvedBatches.filter(b => b.order_id === orderId && b.current_stage === ProductionStage.Ready);
+  const orderBatches = resolvedBatches.filter(b =>
+    b.order_id === orderId
+    && b.current_stage === ProductionStage.Ready
+    && (b.workflow_kind || 'order') === 'order'
+  );
   const groupMap = new Map<string, { sku: string; variant_suffix?: string | null; size_info?: string | null; cord_color?: string | null; enamel_color?: string | null; quantity: number; batchIds: string[]; line_id?: string | null }>();
 
   for (const batch of orderBatches) {
@@ -230,7 +234,7 @@ export function getReadyToShipQuantity(orderId: string, batches: ProductionBatch
 export function isOrderFullyShipped(order: Order, shippedQty?: number): boolean {
   if (order.status === OrderStatus.Delivered) return true;
   const itemsTotal = Array.isArray(order.items)
-    ? order.items.reduce((sum, item) => sum + (item.quantity || 0), 0)
+    ? order.items.filter((item) => (item.fulfillment_mode || 'sale') === 'sale').reduce((sum, item) => sum + (item.quantity || 0), 0)
     : order.item_total_qty ?? 0;
   if (itemsTotal <= 0) return false;
   return (shippedQty ?? 0) >= itemsTotal;

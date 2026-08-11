@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --project tsconfig.json",
-    "check": "npm run typecheck && npm run build",
+    "check:greek": "vitest run tests/customerService/greekPresentation.test.ts",
+    "check": "npm run typecheck && npm run check:greek && npm run build",
     "deploy:worker": "wrangler deploy"
   },
   "engines": {

@@ -111,7 +111,7 @@ export function hasBlockingShipmentIssues(issues: ShipmentSafetyIssue[]): boolea
 export function getReadyQuantityMap(orderId: string, batches: ProductionBatch[]): Map<string, number> {
   const ready = new Map<string, number>();
   batches
-    .filter((batch) => batch.order_id === orderId && batch.current_stage === ProductionStage.Ready)
+    .filter((batch) => batch.order_id === orderId && batch.current_stage === ProductionStage.Ready && (batch.workflow_kind || 'order') === 'order')
     .forEach((batch) => addToMap(ready, keyFor(batch), quantity(batch.quantity)));
   return ready;
 }
@@ -126,7 +126,7 @@ export function getRemainingQuantityLines(
   const ready = getReadyQuantityMap(order.id, resolvedBatches);
   const lines: QuantityLine[] = [];
 
-  order.items.forEach((item) => {
+  order.items.filter((item) => (item.fulfillment_mode || 'sale') === 'sale').forEach((item) => {
     const key = keyFor(item);
     const orderQty = quantity(item.quantity);
     const shippedQty = shipped.get(key) || 0;
@@ -231,7 +231,7 @@ export function validateReadyMatchesRemainingForTransfer(
   const ready = getReadyQuantityMap(order.id, resolvedBatches);
   for (const [key, readyQty] of ready.entries()) {
     if (readyQty <= 0 || knownRemainingKeys.has(key)) continue;
-    const batch = resolvedBatches.find((candidate) => candidate.order_id === order.id && candidate.current_stage === ProductionStage.Ready && keyFor(candidate) === key);
+    const batch = resolvedBatches.find((candidate) => candidate.order_id === order.id && candidate.current_stage === ProductionStage.Ready && (candidate.workflow_kind || 'order') === 'order' && keyFor(candidate) === key);
     issues.push({
       key,
       severity: 'error',

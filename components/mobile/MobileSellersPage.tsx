@@ -441,7 +441,7 @@ export default function MobileSellersPage() {
             </div>
             {/* Email */}
             <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Email</label>
+              <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Ηλ. ταχυδρομείο</label>
               <div className="relative">
                 <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} className="w-full p-3 pl-10 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20" placeholder="seller@example.com" type="email" disabled={!!editingSeller} />

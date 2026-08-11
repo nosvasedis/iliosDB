@@ -166,7 +166,7 @@ const BarcodeView: React.FC<Props> = ({
                     className="print:hidden border-r border-dashed border-slate-300 bg-slate-50 flex items-center justify-center"
                     style={{ position: 'absolute', left: 0, top: 0, width: `${RETAIL_TAIL_GUIDE_WIDTH_MM}mm`, height: '100%', pointerEvents: 'none' }}
                 >
-                    <span className="text-[8px] text-slate-300 font-bold uppercase -rotate-90">Tail</span>
+                    <span className="text-[8px] text-slate-300 font-bold uppercase -rotate-90">Κατάληξη</span>
                 </div>
 
                 {/* Left pane: QR + SKU — always starts at 36.5 mm */}

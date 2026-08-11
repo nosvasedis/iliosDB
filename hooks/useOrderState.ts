@@ -31,6 +31,7 @@ import {
 } from '../features/orders/smartSkuSuggestions';
 import { dispatchLiveActivity } from './useLiveActivity';
 import { invalidateAndRefetchAfterOrderMutation } from '../lib/queryInvalidation';
+import { calculateOrderFinancials } from '../features/orders/orderFinancials';
 import {
     allowsNewProductionPartOrderEdit,
     orderNeedsProductionEditDialog,
@@ -100,6 +101,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             const product = products.find(p => p.sku === item.sku);
             return {
                 ...item,
+                fulfillment_mode: item.fulfillment_mode || 'sale',
                 product_details: product || item.product_details
             };
         });
@@ -289,11 +291,12 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         return items;
     }, [selectedItems, sortOrder, itemSearchTerm]);
 
-    const subtotal = selectedItems.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
-    const discountAmount = subtotal * (discountPercent / 100);
-    const netAfterDiscount = subtotal - discountAmount;
-    const vatAmount = netAfterDiscount * vatRate;
-    const grandTotal = netAfterDiscount + vatAmount;
+    const financials = calculateOrderFinancials(selectedItems, discountPercent, vatRate);
+    const subtotal = financials.saleSubtotal;
+    const discountAmount = financials.discountAmount;
+    const netAfterDiscount = financials.saleNet;
+    const vatAmount = financials.saleVat;
+    const grandTotal = financials.payableNow;
 
     // --- Customer Actions ---
     const handleSelectCustomer = (c: Customer) => {
@@ -554,7 +557,8 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             size_info: size || undefined,
             cord_color: cordColor,
             enamel_color: enamelColor,
-            notes: notes || undefined
+            notes: notes || undefined,
+            fulfillment_mode: 'sale',
         };
         setSelectedItems(prev => {
             const nextKey = getOrderItemMatchKey(newItem);
@@ -825,7 +829,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                     const hasVariants = product.variants && product.variants.length > 0;
                     const isSingleLustre = hasVariants && product.variants!.length === 1 && product.variants![0].suffix === '';
                     if (hasVariants && !isSingleLustre) {
-                        showToast(`Ο κωδικός ${code} είναι Master. Παρακαλώ σκανάρετε την παραλλαγή.`, 'error');
+                        showToast(`Ο κωδικός ${code} είναι κύριος κωδικός. Παρακαλώ σκανάρετε την παραλλαγή.`, 'error');
                         return;
                     }
                 }
@@ -884,6 +888,17 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             updated[idx] = { ...updated[idx], notes: notes || undefined };
             return updated;
         });
+    };
+
+    const updateItemFulfillmentMode = (item: OrderItem, fulfillmentMode: 'sale' | 'consignment') => {
+        const idx = selectedItems.findIndex(i => getOrderItemMatchKey(i) === getOrderItemMatchKey(item));
+        if (idx === -1) return;
+        setSelectedItems(prev => {
+            const updated = [...prev];
+            updated[idx] = { ...updated[idx], fulfillment_mode: fulfillmentMode };
+            return updated;
+        });
+        setPriceDiffs(null);
     };
 
     const updateItemUnitPrice = (item: OrderItem, rawPrice: number) => {
@@ -1015,10 +1030,11 @@ export function useOrderState({ initialOrder, products, customers, collections, 
         );
 
     const handleRecalculatePrices = () => {
-        const oldSub = selectedItems.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
-        const oldNet = oldSub * (1 - discountPercent / 100);
-        const oldVat = oldNet * vatRate;
-        const oldTotal = oldNet + oldVat;
+        const oldFinancials = calculateOrderFinancials(selectedItems, discountPercent, vatRate);
+        const oldSub = oldFinancials.saleSubtotal;
+        const oldNet = oldFinancials.saleNet;
+        const oldVat = oldFinancials.saleVat;
+        const oldTotal = oldFinancials.payableNow;
 
 
         let updatedCount = 0;
@@ -1056,10 +1072,11 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             return item;
         });
 
-        const newSub = newItems.reduce((acc, item) => acc + (item.price_at_order * item.quantity), 0);
-        const newNet = newSub * (1 - discountPercent / 100);
-        const newVat = newNet * vatRate;
-        const newTotal = newNet + newVat;
+        const newFinancials = calculateOrderFinancials(newItems, discountPercent, vatRate);
+        const newSub = newFinancials.saleSubtotal;
+        const newNet = newFinancials.saleNet;
+        const newVat = newFinancials.saleVat;
+        const newTotal = newFinancials.payableNow;
         setPriceDiffs({ net: newNet - oldNet, vat: newVat - oldVat, total: newTotal - oldTotal, itemDeltas });
 
         if (updatedCount > 0) {
@@ -1249,6 +1266,9 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             // Computed
             filteredCustomers, displayItems,
             subtotal, discountAmount, netAfterDiscount, vatAmount, grandTotal,
+            consignmentSubtotal: financials.consignmentSubtotal,
+            consignmentVatAmount: financials.consignmentVat,
+            consignmentValue: financials.consignmentValue,
             selectedItems,
             isEditing: !!initialOrder,
             orderId: initialOrder?.id,
@@ -1267,7 +1287,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             handleSelectCustomer, handleUseRetailCustomer, handleAddTag, removeTag,
             handleSmartInput, handleSelectMaster,
             handleAddItem, executeAddItem, confirmOrderRangeAdd, handleScanInOrder,
-            updateQuantity, updateItemNotes, updateItemUnitPrice, revertItemToCatalogPrice, updateItemVariantAndSize, handleRemoveItem,
+            updateQuantity, updateItemNotes, updateItemFulfillmentMode, updateItemUnitPrice, revertItemToCatalogPrice, updateItemVariantAndSize, handleRemoveItem,
             handleRecalculatePrices, generatePriceSyncPreview, applyPriceSyncPreview, handleSaveOrder, handleBack,
             getSkuComponents,
         },

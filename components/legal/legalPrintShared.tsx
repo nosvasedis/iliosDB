@@ -277,7 +277,7 @@ export function LegalPrintAadePanel(props: {
           </div>
           {props.authenticationCode && (
             <div className="grid grid-cols-[72px_1fr] gap-1">
-              <span className="font-bold uppercase tracking-wide text-slate-500">Auth code</span>
+              <span className="font-bold uppercase tracking-wide text-slate-500">Κωδικός αυθεντικοποίησης</span>
               <span className="break-all font-mono text-[8px] text-slate-800">{props.authenticationCode}</span>
             </div>
           )}

@@ -71,7 +71,7 @@ export default function MobileAuthScreen() {
                 <img src={APP_ICON_ONLY} alt="Logo" className="w-full h-full object-contain drop-shadow-md" />
              </div>
              <h1 className="text-3xl font-black text-white tracking-tight text-center">Ilios ERP</h1>
-             <p className="text-slate-400 text-sm mt-2 font-medium">Mobile Production Suite</p>
+             <p className="text-slate-400 text-sm mt-2 font-medium">Εφαρμογή Κινητής Παραγωγής</p>
           </div>
 
           <form onSubmit={handleAuth} className="space-y-4">

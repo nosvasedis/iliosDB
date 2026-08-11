@@ -155,7 +155,7 @@ export default function DashboardSalesAnalysisCarousel({
                 <option value="All">Όλα τα Φύλα</option>
                 <option value={Gender.Women}>Γυναικεία</option>
                 <option value={Gender.Men}>Ανδρικά</option>
-                <option value={Gender.Unisex}>Unisex</option>
+                <option value={Gender.Unisex}>Ουδέτερο</option>
               </select>
             </div>
           )}

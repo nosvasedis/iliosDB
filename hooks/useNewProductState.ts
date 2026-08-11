@@ -291,7 +291,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
     const platingMasterLabel = useMemo(() => getVariantFinishLabel(selectedFinishes, plating), [plating, selectedFinishes]);
 
     const genderLabel = useMemo(() => {
-        const map: Record<string, string> = { [Gender.Men]: 'Ανδρικό', [Gender.Women]: 'Γυναικείο', [Gender.Unisex]: 'Unisex' };
+        const map: Record<string, string> = { [Gender.Men]: 'Ανδρικό', [Gender.Women]: 'Γυναικείο', [Gender.Unisex]: 'Ουδέτερο' };
         return map[gender] || gender;
     }, [gender]);
 

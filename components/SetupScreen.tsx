@@ -106,7 +106,7 @@ export default function SetupScreen() {
                                 <Server className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                                 <input
                                     type="text" required value={url} onChange={e => setUrl(e.target.value)}
-                                    placeholder="Supabase Project URL"
+                                    placeholder="URL έργου Supabase"
                                     className="w-full pl-10 p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-mono"
                                 />
                             </div>
@@ -114,7 +114,7 @@ export default function SetupScreen() {
                                 <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                                 <input
                                     type="password" required value={key} onChange={e => setKey(e.target.value)}
-                                    placeholder="Supabase Anon Key"
+                                    placeholder="Ανώνυμο κλειδί Supabase"
                                     className="w-full pl-10 p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-mono"
                                 />
                             </div>

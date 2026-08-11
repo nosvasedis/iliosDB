@@ -334,7 +334,7 @@ export default function SellerCatalog({ products, collections }: Props) {
         }
     };
 
-    const GENDER_OPTS = [{ v: 'All', l: 'Όλα' }, { v: Gender.Women, l: 'Γυναικεία' }, { v: Gender.Men, l: 'Ανδρικά' }, { v: Gender.Unisex, l: 'Unisex' }];
+    const GENDER_OPTS = [{ v: 'All', l: 'Όλα' }, { v: Gender.Women, l: 'Γυναικεία' }, { v: Gender.Men, l: 'Ανδρικά' }, { v: Gender.Unisex, l: 'Ουδέτερα' }];
 
     return (
         <div className="flex flex-col h-full bg-slate-50 relative">

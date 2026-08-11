@@ -152,7 +152,7 @@ function ProductionFinderResultRow({
                             </div>
                             <div className="flex items-center justify-between mt-1 gap-2 min-w-[200px]">
                                 <span className="font-bold text-slate-700 text-xs">
-                                    {batch.customer_name || 'Unknown'}
+                                    {batch.customer_name || 'Άγνωστος πελάτης'}
                                 </span>
                                 {batch.on_hold ? (
                                     <div className="text-[9px] font-black px-1.5 py-0.5 rounded border flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200">

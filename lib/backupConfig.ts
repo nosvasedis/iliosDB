@@ -13,6 +13,7 @@ export type BackupCategoryId =
     | 'contacts'
     | 'orders'
     | 'production'
+    | 'customer-service'
     | 'legal'
     | 'commerce'
     | 'pricing'
@@ -29,6 +30,7 @@ export const BACKUP_CATEGORIES: BackupCategory[] = [
     { id: 'contacts', label: 'Πελάτες & Προμηθευτές' },
     { id: 'orders', label: 'Παραγγελίες & Αποστολές' },
     { id: 'production', label: 'Παραγωγή' },
+    { id: 'customer-service', label: 'Παρακαταθήκες & Επισκευές' },
     { id: 'legal', label: 'Νομικά & Proforma' },
     { id: 'commerce', label: 'Εμπόριο' },
     { id: 'pricing', label: 'Τιμολόγηση' },
@@ -90,7 +92,22 @@ export const BACKUP_TABLE_REGISTRY: TableRegistryEntry[] = [
     { table: 'legal_audit_log',          displayName: 'Legal_Audit_Log',          label: 'Νομικό Ιστορικό',             category: 'history',    primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: false, dependsOn: ['legal_documents'] },
     { table: 'proforma_documents',       displayName: 'Proforma_Documents',       label: 'Προτιμολόγια',                category: 'legal',      primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true,  dependsOn: ['customers'] },
     { table: 'proforma_document_lines',  displayName: 'Proforma_Lines',           label: 'Γραμμές Προτιμολογίων',       category: 'legal',      primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true,  dependsOn: ['proforma_documents'] },
-    { table: 'production_batches',       displayName: 'Production_Batches',       label: 'Παρτίδες Παραγωγής',          category: 'production', primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true,  dependsOn: ['orders', 'products'] },
+    { table: 'consignments',             displayName: 'Consignments',             label: 'Παρακαταθήκες',               category: 'customer-service', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['customers', 'profiles', 'warehouses', 'orders'] },
+    { table: 'consignment_lines',        displayName: 'Consignment_Lines',        label: 'Γραμμές Παρακαταθηκών',       category: 'customer-service', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['consignments', 'products'] },
+    { table: 'consignment_allocations',  displayName: 'Consignment_Allocations',  label: 'Κατανομές Παραγωγής Παρακαταθηκών', category: 'customer-service', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['consignment_lines'] },
+    { table: 'consignment_settlements',  displayName: 'Consignment_Settlements',  label: 'Δηλώσεις Πώλησης Παρακαταθηκών', category: 'customer-service', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['consignment_lines', 'legal_documents'] },
+    { table: 'consignment_payments',     displayName: 'Consignment_Payments',     label: 'Εισπράξεις Παρακαταθηκών',    category: 'customer-service', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['consignment_settlements'] },
+    { table: 'consignment_returns',      displayName: 'Consignment_Returns',      label: 'Επιστροφές Παρακαταθηκών',    category: 'customer-service', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['consignment_lines', 'warehouses'] },
+    { table: 'consignment_events',       displayName: 'Consignment_Events',       label: 'Ιστορικό Παρακαταθηκών',      category: 'history', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: false, dependsOn: ['consignments', 'consignment_lines'] },
+    { table: 'repair_intakes',           displayName: 'Repair_Intakes',           label: 'Παραλαβές Επισκευών',         category: 'customer-service', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['customers', 'profiles'] },
+    { table: 'repair_items',             displayName: 'Repair_Items',             label: 'Τεμάχια Επισκευών',           category: 'customer-service', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['repair_intakes', 'customers', 'products', 'consignment_settlements'] },
+    { table: 'repair_cycles',            displayName: 'Repair_Cycles',            label: 'Κύκλοι Επισκευών',            category: 'customer-service', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['repair_items'] },
+    { table: 'repair_cost_lines',        displayName: 'Repair_Cost_Lines',        label: 'Κόστη Επισκευών',             category: 'customer-service', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['repair_items', 'repair_cycles', 'products', 'warehouses', 'inventory_events'] },
+    { table: 'repair_charges',           displayName: 'Repair_Charges',           label: 'Χρεώσεις Επισκευών',          category: 'customer-service', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: true, dependsOn: ['repair_items', 'legal_documents'] },
+    { table: 'repair_attachments',       displayName: 'Repair_Attachments',       label: 'Αρχεία Επισκευών',            category: 'customer-service', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: false, dependsOn: ['repair_items'] },
+    { table: 'repair_events',            displayName: 'Repair_Events',            label: 'Ιστορικό Επισκευών',          category: 'history', primaryKey: 'id', primaryKeyType: 'uuid', includeInCsv: false, dependsOn: ['repair_items', 'repair_cycles'] },
+    { table: 'customer_service_command_results', displayName: 'Customer_Service_Commands', label: 'Ασφαλείς επαναλήψεις Παρακαταθηκών & Επισκευών', category: 'history', primaryKey: 'idempotency_key', primaryKeyType: 'string', includeInCsv: false, dependsOn: ['profiles'] },
+    { table: 'production_batches',       displayName: 'Production_Batches',       label: 'Παρτίδες Παραγωγής',          category: 'production', primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true,  dependsOn: ['orders', 'products', 'consignment_lines', 'repair_items', 'repair_cycles'] },
     { table: 'batch_stage_history',      displayName: 'Batch_Stage_History',      label: 'Ιστορικό Σταδίων',            category: 'history',    primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: false, dependsOn: ['production_batches'] },
     { table: 'offers',                   displayName: 'Offers',                   label: 'Προσφορές',                   category: 'commerce',   primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true,  dependsOn: ['customers'] },
     { table: 'supplier_orders',          displayName: 'Supplier_Orders',          label: 'Παραγγελίες Προμηθευτών',     category: 'commerce',   primaryKey: 'id',          primaryKeyType: 'uuid',    includeInCsv: true,  dependsOn: ['suppliers'] },
@@ -116,6 +133,9 @@ export const HISTORY_TABLES = new Set([
     'inventory_command_results',
     'inventory_cutover_balance_snapshot',
     'inventory_reconciliation_issues',
+    'consignment_events',
+    'repair_events',
+    'customer_service_command_results',
 ]);
 
 // ─── Config & local extras ───────────────────────────────────────────────────

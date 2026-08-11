@@ -417,7 +417,7 @@ function DashboardOverviewMosaic({ data, loading, onNavigate, onOpenTopVariants 
                 <option value="All">Όλα</option>
                 <option value={Gender.Women}>Γυν.</option>
                 <option value={Gender.Men}>Ανδρ.</option>
-                <option value={Gender.Unisex}>Unisex</option>
+                <option value={Gender.Unisex}>Ουδέτερο</option>
               </select>
             </div>
           }

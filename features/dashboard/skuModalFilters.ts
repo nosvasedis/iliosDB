@@ -105,7 +105,7 @@ export function buildOrderMetaIndex(orders: Order[], sellers?: UserProfile[]): M
 const GENDER_LABELS: Record<Gender, string> = {
   [Gender.Men]: 'Ανδρικά',
   [Gender.Women]: 'Γυναικεία',
-  [Gender.Unisex]: 'Unisex',
+  [Gender.Unisex]: 'Ουδέτερο',
 };
 
 type VariantAgg = FinanceVariantRanking & {

@@ -101,6 +101,27 @@ describe('shipment utils', () => {
     expect(isOrderFullyShipped(order, 3)).toBe(false);
   });
 
+  it('εξαιρεί τις Παρακαταθήκες από αποστολή και οικονομική ολοκλήρωση', () => {
+    const order = {
+      id: 'mixed-order',
+      status: OrderStatus.PartiallyDelivered,
+      items: [
+        { sku: 'SALE', quantity: 1, price_at_order: 10, line_id: 'sale-line', fulfillment_mode: 'sale' },
+        { sku: 'CONS', quantity: 5, price_at_order: 20, line_id: 'cons-line', fulfillment_mode: 'consignment' },
+      ],
+    } as Order;
+    const batches = [
+      { id: 'sale-batch', order_id: order.id, sku: 'SALE', quantity: 1, line_id: 'sale-line', workflow_kind: 'order', current_stage: ProductionStage.Ready, created_at: '', updated_at: '', priority: 'Normal', requires_setting: false },
+      { id: 'cons-batch', order_id: order.id, sku: 'CONS', quantity: 5, line_id: 'cons-line', workflow_kind: 'consignment', current_stage: ProductionStage.Ready, created_at: '', updated_at: '', priority: 'Normal', requires_setting: false },
+    ] as any;
+
+    expect(getRemainingOrderItems(order, [])).toEqual([
+      expect.objectContaining({ sku: 'SALE', quantity: 1 }),
+    ]);
+    expect(getReadyToShipQuantity(order.id, batches)).toBe(1);
+    expect(isOrderFullyShipped(order, 1)).toBe(true);
+  });
+
   it('flags a split order when the global shipment snapshot leaves production falsely unaccounted', () => {
     const order = {
       id: 'ORD-260117-600',

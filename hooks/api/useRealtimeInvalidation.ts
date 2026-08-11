@@ -72,6 +72,20 @@ export const CORE_REALTIME_TABLES = [
   'inventory_events',
   'inventory_reorder_policies',
   'inventory_reconciliation_issues',
+  'consignments',
+  'consignment_lines',
+  'consignment_allocations',
+  'consignment_settlements',
+  'consignment_payments',
+  'consignment_returns',
+  'consignment_events',
+  'repair_intakes',
+  'repair_items',
+  'repair_cycles',
+  'repair_cost_lines',
+  'repair_charges',
+  'repair_attachments',
+  'repair_events',
 ] as const;
 
 const CHANNEL_NAME = 'realtime:app-data';
@@ -151,6 +165,26 @@ export const CORE_REALTIME_CHANNEL_GROUPS: readonly RealtimeChannelGroup[] = [
     ],
   },
   {
+    id: 'customer-service',
+    channelName: `${CHANNEL_NAME}:customer-service`,
+    tables: [
+      'consignments',
+      'consignment_lines',
+      'consignment_allocations',
+      'consignment_settlements',
+      'consignment_payments',
+      'consignment_returns',
+      'consignment_events',
+      'repair_intakes',
+      'repair_items',
+      'repair_cycles',
+      'repair_cost_lines',
+      'repair_charges',
+      'repair_attachments',
+      'repair_events',
+    ],
+  },
+  {
     id: 'legal',
     channelName: `${CHANNEL_NAME}:legal`,
     tables: [
@@ -178,7 +212,11 @@ export const SELLER_REALTIME_CHANNEL_GROUPS: readonly RealtimeChannelGroup[] = [
   {
     id: 'seller-workflow',
     channelName: `${CHANNEL_NAME}:seller-workflow`,
-    tables: ['orders', 'customers'],
+    tables: [
+      'orders', 'customers', 'consignments', 'consignment_lines', 'consignment_settlements',
+      'consignment_payments', 'consignment_returns', 'consignment_events', 'repair_intakes',
+      'repair_items', 'repair_cycles', 'repair_charges', 'repair_attachments', 'repair_events',
+    ],
   },
 ] as const;
 

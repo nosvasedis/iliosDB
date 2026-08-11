@@ -222,7 +222,7 @@ export default function EmployeeCustomers() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Email</label>
+                                    <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Ηλ. ταχυδρομείο</label>
                                     <input 
                                         value={editData.email || ''} 
                                         onChange={e => setEditData({...editData, email: e.target.value})}

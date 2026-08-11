@@ -126,7 +126,7 @@ export default function EmployeeProductDetails({ product, onClose, warehouses, s
                             <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
                                 <tr>
                                     <th className="p-4">Παραλλαγή / Περιγραφή</th>
-                                    <th className="p-4 text-center hidden sm:table-cell">Stock</th>
+                                    <th className="p-4 text-center hidden sm:table-cell">Απόθεμα</th>
                                     <th className="p-4 text-right">Τιμή Λιανικής</th>
                                     <th className="p-4 text-center w-32">Εκτύπωση</th>
                                 </tr>

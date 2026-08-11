@@ -924,7 +924,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                                             <div className="flex items-center gap-2">
                                                                 <span className="truncate font-mono text-sm font-black text-slate-900">{text.displaySku}</span>
                                                                 {item.size && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-slate-500">{item.size}</span>}
-                                                                {edited && <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-black text-emerald-600">EDIT</span>}
+                                                                {edited && <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-black text-emerald-600">ΕΠΕΞ.</span>}
                                                             </div>
                                                             <div className="mt-0.5 truncate text-xs font-medium text-slate-500">
                                                                 {text.stone || item.variant?.description || item.product.category}
@@ -1185,7 +1185,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                         <option value="">Όλα</option>
                                         <option value="Women">Γυναικεία</option>
                                         <option value="Men">Ανδρικά</option>
-                                        <option value="Unisex">Unisex</option>
+                                        <option value="Unisex">Ουδέτερο</option>
                                     </select>
                                 </div>
                             </div>
@@ -1343,7 +1343,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                 {([
                                     ['displaySku', 'SKU / Όνομα', editingLabelText.displaySku],
                                     ['stone', 'Πέτρα / Περιγραφή', editingLabelText.stone],
-                                    ['brand', 'Brand', editingLabelText.brand],
+                                    ['brand', 'Επωνυμία', editingLabelText.brand],
                                     ['price', 'Τιμή', editingLabelText.price],
                                     ['metal', 'Μέταλλο', editingLabelText.metal],
                                     ['size', 'Μέγεθος', editingLabelText.size],

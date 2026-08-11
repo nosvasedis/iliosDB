@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import ReactDOM from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender, ProductVariant, Order, OrderStatus, AssemblyPrintData, AssemblyPrintRow, StageBatchPrintData, OrderShipment, OrderShipmentItem } from '../types';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, ArrowUp, ArrowDown, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, Users, StickyNote, Hash, Save, Edit, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList, Grid, Maximize2, Minimize2 } from 'lucide-react';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, ArrowUp, ArrowDown, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, Users, StickyNote, Hash, Save, Edit, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList, Grid, Maximize2, Minimize2, Wrench } from 'lucide-react';
 import { useUI } from './UIProvider';
 import DesktopPageHeader from './DesktopPageHeader';
 import IliosLoader from './ui/IliosLoader';
@@ -44,7 +44,8 @@ import {
     getBatchStageChronologyTimestamp,
 } from '../features/production/selectors';
 import { useCollections } from '../hooks/api/useCollections';
-import { useProductionBoardOrders } from '../hooks/api/useOrders';
+import { useCustomers, useProductionBoardOrders } from '../hooks/api/useOrders';
+import { useCustomerServiceWorkspace } from '../hooks/api/useCustomerService';
 import { ordersRepository } from '../features/orders';
 import { useProductionBoardBatches, useProductionBoardBatchStageHistoryEntries } from '../hooks/api/useProductionBatches';
 import { productionKeys, productionRepository } from '../features/production';
@@ -122,7 +123,7 @@ const STAGE_COLORS = {
 const GENDER_CONFIG: Record<string, { label: string, style: string }> = {
     [Gender.Women]: { label: 'Γυναικεία', style: 'bg-pink-50 text-pink-700 border-pink-200 ring-pink-100' },
     [Gender.Men]: { label: 'Ανδρικά', style: 'bg-blue-50 text-blue-700 border-blue-200 ring-blue-100' },
-    [Gender.Unisex]: { label: 'Unisex / Άλλα', style: 'bg-slate-100 text-slate-600 border-slate-200 ring-slate-100' },
+    [Gender.Unisex]: { label: 'Ουδέτερα / Άλλα', style: 'bg-slate-100 text-slate-600 border-slate-200 ring-slate-100' },
     'Unknown': { label: 'Ακατηγοριοποίητα', style: 'bg-gray-50 text-gray-600 border-gray-200 ring-gray-100' }
 };
 
@@ -459,7 +460,7 @@ const PrintSelectorModal = ({ isOpen, onClose, onConfirm, batches, title, type, 
             const key = b.order_id || 'no_order';
             if (!groups[key]) {
                 groups[key] = {
-                    name: b.customer_name ? `${b.customer_name} (#${formatOrderId(b.order_id)})` : (b.order_id ? `Order #${formatOrderId(b.order_id)}` : 'Χωρίς Εντολή'),
+                    name: b.customer_name ? `${b.customer_name} (#${formatOrderId(b.order_id)})` : (b.order_id ? `Παραγγελία #${formatOrderId(b.order_id)}` : 'Χωρίς Εντολή'),
                     items: []
                 };
             }
@@ -2275,7 +2276,11 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     const { data: batchStageHistoryEntries = [] } = useProductionBoardBatchStageHistoryEntries();
     const { data: orders } = useProductionBoardOrders();
     const { data: collections } = useCollections();
+    const { data: customerServiceData } = useCustomerServiceWorkspace();
+    const { data: customers = [] } = useCustomers();
     const [timingNow, setTimingNow] = useState(() => Date.now());
+    const [showRepairIntake, setShowRepairIntake] = useState(false);
+    const [repairsOnly, setRepairsOnly] = useState(false);
 
     const [draggedBatchId, setDraggedBatchId] = useState<string | null>(null);
     const [dropTarget, setDropTarget] = useState<ProductionStage | null>(null);
@@ -2364,9 +2369,27 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     const collectionsMap = useMemo(() => new Map((collections || []).map(collection => [collection.id, collection])), [collections]);
     const batchHistoryLookup = useMemo(() => buildBatchStageHistoryMap(batchStageHistoryEntries), [batchStageHistoryEntries]);
 
-    const enhancedBatches = useMemo(() => {
-        return enrichProductionBatchesForBoard(batches, productsMap, materialsMap, ordersMap);
-    }, [batches, productsMap, materialsMap, ordersMap]);
+    const customerNameById = useMemo(() => new Map(customers.map(customer => [customer.id, customer.full_name])), [customers]);
+    const repairById = useMemo(() => new Map((customerServiceData?.repairItems || []).map(item => [item.id, item])), [customerServiceData?.repairItems]);
+    const allEnhancedBatches = useMemo(() => {
+        return enrichProductionBatchesForBoard(batches, productsMap, materialsMap, ordersMap).map(batch => {
+            const repair = batch.repair_item_id ? repairById.get(batch.repair_item_id) : undefined;
+            return repair ? {
+                ...batch,
+                workflow_kind: 'repair' as const,
+                repair_code: repair.code,
+                customer_name: customerNameById.get(repair.customer_id) || batch.customer_name,
+            } : batch;
+        });
+    }, [batches, productsMap, materialsMap, ordersMap, repairById, customerNameById]);
+    const enhancedBatches = useMemo(
+        () => repairsOnly ? allEnhancedBatches.filter(batch => batch.workflow_kind === 'repair') : allEnhancedBatches,
+        [allEnhancedBatches, repairsOnly]
+    );
+    const pendingRepairBatches = useMemo(
+        () => allEnhancedBatches.filter(batch => batch.workflow_kind === 'repair' && batch.current_stage === ProductionStage.AwaitingDelivery),
+        [allEnhancedBatches]
+    );
 
     const timingByBatchId = useMemo(
         () => buildProductionTimingSnapshots(enhancedBatches, batchHistoryLookup, timingNow),
@@ -2421,7 +2444,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                 orderId: order.id,
                 orderItems: order.items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, quantity: i.quantity, price_at_order: i.price_at_order, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color, line_id: i.line_id || null })),
                 items: items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color, quantity: i.quantity, price_at_order: i.price_at_order, line_id: i.line_id || null })),
-                shippedBy: profile?.full_name || 'System',
+                shippedBy: profile?.full_name || 'Σύστημα',
                 deliveryPlanId: null,
                 notes,
                 allBatches: batches || []
@@ -2592,7 +2615,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         const snapshot = applyOptimisticStage(batch.id, targetStage, pendingDispatch);
         try {
             await productionRepository.updateBatchStage(batch.id, targetStage, profile?.full_name, pendingDispatch);
-            await auditRepository.logAction(profile?.full_name || 'System', 'Μετακίνηση Παρτίδας', { sku: batch.sku, target_stage: targetStage });
+            await auditRepository.logAction(profile?.full_name || 'Σύστημα', 'Μετακίνηση Παρτίδας', { sku: batch.sku, target_stage: targetStage });
             await invalidateOrdersAndBatches(queryClient);
             showToast('Η παρτίδα μετακινήθηκε.', 'success');
             dispatchLiveActivity({ type: 'batch_moved', userName: profile?.full_name || 'Κάποιος', sku: batch.sku, qty: batch.quantity, fromStage: batch.current_stage, toStage: targetStage });
@@ -2637,7 +2660,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         const snapshot = applyOptimisticStage(batch.id, targetStage, pendingDispatch);
         try {
             await productionRepository.updateBatchStage(batch.id, targetStage, profile?.full_name, pendingDispatch);
-            await auditRepository.logAction(profile?.full_name || 'System', 'Παραλαβή Εισαγόμενου', { sku: batch.sku, quantity: batch.quantity, target_stage: targetStage });
+            await auditRepository.logAction(profile?.full_name || 'Σύστημα', 'Παραλαβή Εισαγόμενου', { sku: batch.sku, quantity: batch.quantity, target_stage: targetStage });
             await invalidateOrdersAndBatches(queryClient);
             showToast('Η παρτίδα παραλήφθηκε και μετακινήθηκε.', 'success');
             dispatchLiveActivity({ type: 'batch_moved', userName: profile?.full_name || 'Κάποιος', sku: batch.sku, qty: batch.quantity, fromStage: batch.current_stage, toStage: targetStage });
@@ -2676,7 +2699,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             if (isWholeMove) {
                 // Move the whole batch
                 await productionRepository.updateBatchStage(batch.id, targetStage, profile?.full_name, splitModalState?.pendingDispatch);
-                await auditRepository.logAction(profile?.full_name || 'System', isReceive ? 'Παραλαβή Εισαγόμενου' : 'Μετακίνηση Παρτίδας', { sku: batch.sku, target_stage: targetStage });
+                await auditRepository.logAction(profile?.full_name || 'Σύστημα', isReceive ? 'Παραλαβή Εισαγόμενου' : 'Μετακίνηση Παρτίδας', { sku: batch.sku, target_stage: targetStage });
             } else {
                 // Split the batch
                 const originalNewQty = batch.quantity - quantityToMove;
@@ -2705,7 +2728,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                 };
 
                 await productionRepository.splitBatch(batch.id, originalNewQty, newBatchData, profile?.full_name);
-                await auditRepository.logAction(profile?.full_name || 'System', isReceive ? 'Μερική Παραλαβή Εισαγόμενου' : 'Διαχωρισμός Παρτίδας', { sku: batch.sku, moving_qty: quantityToMove, target_stage: targetStage });
+                await auditRepository.logAction(profile?.full_name || 'Σύστημα', isReceive ? 'Μερική Παραλαβή Εισαγόμενου' : 'Διαχωρισμός Παρτίδας', { sku: batch.sku, moving_qty: quantityToMove, target_stage: targetStage });
             }
 
             await invalidateOrdersAndBatches(queryClient);
@@ -2734,7 +2757,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         if (yes) {
             try {
                 await productionRepository.deleteProductionBatch(batch.id);
-                await auditRepository.logAction(profile?.full_name || 'System', 'Διαγραφή Παρτίδας', { sku: batch.sku, quantity: batch.quantity });
+                await auditRepository.logAction(profile?.full_name || 'Σύστημα', 'Διαγραφή Παρτίδας', { sku: batch.sku, quantity: batch.quantity });
                 await invalidateOrdersAndBatches(queryClient);
                 showToast("Η παρτίδα διαγράφηκε.", "success");
             } catch (e) {
@@ -2993,7 +3016,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                     : []
                 ),
             ]);
-            await auditRepository.logAction(profile?.full_name || 'System', 'Μαζική Μετακίνηση Παρτίδων', { count: batchesToMove.length, target_stage: bulkMoveTarget });
+            await auditRepository.logAction(profile?.full_name || 'Σύστημα', 'Μαζική Μετακίνηση Παρτίδων', { count: batchesToMove.length, target_stage: bulkMoveTarget });
             await invalidateOrdersAndBatches(queryClient);
             showToast(`${batchesToMove.length} παρτίδες μετακινήθηκαν.`, 'success');
             dispatchLiveActivity({ type: 'batch_bulk_moved', userName: profile?.full_name || 'Κάποιος', count: batchesToMove.length, toStage: bulkMoveTarget ?? undefined });
@@ -3142,7 +3165,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                 profile?.full_name
             );
             await auditRepository.logAction(
-                profile?.full_name || 'System',
+                profile?.full_name || 'Σύστημα',
                 'Μαζική Ολοκλήρωση Ετικετών',
                 { moved: result.movedCount, skipped: result.skippedCount, target_stage: ProductionStage.Ready }
             );
@@ -3466,6 +3489,19 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
 
             <div className="flex items-center gap-1.5 flex-wrap">
                     <button
+                        onClick={() => setShowRepairIntake(value => !value)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold transition-all shadow-sm border text-[11px] ${showRepairIntake ? 'bg-blue-600 border-blue-600 text-white' : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'}`}
+                    >
+                        <Wrench size={12} /> Παραλαβή Επισκευών
+                        <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-black ${showRepairIntake ? 'bg-white/20' : 'bg-blue-100'}`}>{pendingRepairBatches.length}</span>
+                    </button>
+                    <button
+                        onClick={() => setRepairsOnly(value => !value)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold transition-all shadow-sm border text-[11px] ${repairsOnly ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                    >
+                        <CheckSquare size={12} /> Μόνο Επισκευές
+                    </button>
+                    <button
                         onClick={() => setAssemblyOrderSelectorOpen(true)}
                         disabled={assemblyOrderCandidates.length === 0}
                         className="flex items-center gap-1.5 bg-pink-50 text-pink-700 px-3 py-1.5 rounded-xl hover:bg-pink-100 font-semibold transition-all shadow-sm border border-pink-200 disabled:opacity-50 disabled:cursor-not-allowed text-[11px]"
@@ -3494,11 +3530,37 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                     </>
                 )}
                 below={(
-                    <ProductionHealthPanel
-                        summary={productionHealthSummary}
-                        notes={activeProductionNotes}
-                        onFilterClick={(type) => setOverviewModal({ isOpen: true, type })}
-                    />
+                    <div className="space-y-3">
+                        <ProductionHealthPanel
+                            summary={productionHealthSummary}
+                            notes={activeProductionNotes}
+                            onFilterClick={(type) => setOverviewModal({ isOpen: true, type })}
+                        />
+                        {showRepairIntake && (
+                            <div className="rounded-2xl border border-blue-200 bg-blue-50/80 p-3">
+                                <div className="mb-2 flex items-center justify-between gap-3">
+                                    <div><h3 className="text-sm font-black text-blue-900">Νέες Επισκευές προς δρομολόγηση</h3><p className="text-[10px] text-blue-700">Επιλέξτε το πρώτο πραγματικό στάδιο. Η καρτέλα Επισκευής ενημερώνεται αυτόματα.</p></div>
+                                    <button onClick={() => setShowRepairIntake(false)} className="rounded-lg p-1.5 text-blue-500 hover:bg-blue-100" aria-label="Κλείσιμο"><X size={15} /></button>
+                                </div>
+                                {pendingRepairBatches.length === 0 ? (
+                                    <div className="rounded-xl border border-dashed border-blue-200 bg-white/70 p-4 text-center text-xs font-bold text-blue-600">Δεν υπάρχουν νέες Επισκευές προς δρομολόγηση.</div>
+                                ) : (
+                                    <div className="flex gap-2 overflow-x-auto pb-1">
+                                        {pendingRepairBatches.map(batch => (
+                                            <div key={batch.id} className="min-w-[280px] rounded-xl border border-blue-100 bg-white p-3 shadow-sm">
+                                                <div className="flex items-start justify-between gap-2"><div><div className="text-xs font-black text-slate-900">{batch.repair_code || 'Επισκευή'} · {batch.sku}{batch.variant_suffix || ''}</div><div className="mt-0.5 text-[10px] font-bold text-slate-500">{batch.customer_name || 'Χωρίς πελάτη'}</div></div><span className="rounded-full bg-blue-100 px-2 py-1 text-[9px] font-black text-blue-700">{batch.quantity} τεμ.</span></div>
+                                                <div className="mt-3 grid grid-cols-3 gap-1">
+                                                    <button onClick={() => handleCardMoveToStage(batch, ProductionStage.Waxing)} className="rounded-lg bg-slate-100 px-2 py-1.5 text-[9px] font-black text-slate-700 hover:bg-slate-200">Κέρωμα</button>
+                                                    <button onClick={() => handleCardMoveToStage(batch, ProductionStage.Setting)} className="rounded-lg bg-purple-50 px-2 py-1.5 text-[9px] font-black text-purple-700 hover:bg-purple-100">Καρφωτική</button>
+                                                    <button onClick={() => handleCardMoveToStage(batch, ProductionStage.Polishing)} className="rounded-lg bg-blue-50 px-2 py-1.5 text-[9px] font-black text-blue-700 hover:bg-blue-100">Τεχνίτης</button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 )}
             />
 
@@ -3842,7 +3904,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                     products={products}
                     deliveryPlanId={null}
                     variant={shipmentModalVariant}
-                    userName={profile?.full_name || 'System'}
+                    userName={profile?.full_name || 'Σύστημα'}
                     onConfirm={handleConfirmShipmentFromProduction}
                     onClose={() => setShipmentModalOrder(null)}
                 />

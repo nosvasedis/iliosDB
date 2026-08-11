@@ -123,7 +123,7 @@ export default function AuthScreen() {
              )}
 
              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 uppercase ml-1">Email</label>
+                <label className="text-xs font-bold text-slate-500 uppercase ml-1">Ηλ. ταχυδρομείο</label>
                 <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
                     <input 

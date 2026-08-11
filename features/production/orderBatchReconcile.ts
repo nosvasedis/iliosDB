@@ -4,7 +4,7 @@ import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 
 export type ReconcileCatalogItem = Pick<
   OrderItem,
-  'sku' | 'variant_suffix' | 'size_info' | 'cord_color' | 'enamel_color' | 'notes' | 'line_id' | 'quantity'
+  'sku' | 'variant_suffix' | 'size_info' | 'cord_color' | 'enamel_color' | 'notes' | 'line_id' | 'quantity' | 'fulfillment_mode'
 >;
 
 export type ReconcileKeyOptions = {
@@ -83,6 +83,7 @@ export type ProductionSendItem = {
   enamel_color?: string | null;
   notes?: string | null;
   line_id?: string | null;
+  fulfillment_mode?: 'sale' | 'consignment';
 };
 
 function sendItemToReconcileItem(item: ProductionSendItem): ReconcileCatalogItem {
@@ -95,6 +96,7 @@ function sendItemToReconcileItem(item: ProductionSendItem): ReconcileCatalogItem
     enamel_color: (item.enamel_color ?? null) as OrderItem['enamel_color'],
     notes: item.notes ?? undefined,
     line_id: item.line_id ?? null,
+    fulfillment_mode: item.fulfillment_mode || 'sale',
   };
 }
 
@@ -213,6 +215,7 @@ type CatalogIdentityCandidate = {
   enamel_color?: string | null;
   notes?: string | null;
   line_id?: string | null;
+  fulfillment_mode?: 'sale' | 'consignment';
 };
 
 function normalizedNotes(value: string | null | undefined): string {

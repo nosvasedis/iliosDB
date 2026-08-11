@@ -16,7 +16,8 @@ export type RealtimeInvalidationDomain =
     | 'supplierOrders'
     | 'offers'
     | 'inventory'
-    | 'legal';
+    | 'legal'
+    | 'customerService';
 
 const PRODUCT_GRAPH_TABLES = new Set([
     'products',
@@ -72,6 +73,20 @@ const REALTIME_TABLE_DOMAINS: Record<string, RealtimeInvalidationDomain[]> = {
     proforma_document_lines: ['legal'],
     price_snapshots: ['pricing'],
     price_snapshot_items: ['pricing'],
+    consignments: ['customerService', 'inventory'],
+    consignment_lines: ['customerService'],
+    consignment_allocations: ['customerService'],
+    consignment_settlements: ['customerService', 'inventory', 'legal'],
+    consignment_payments: ['customerService'],
+    consignment_returns: ['customerService', 'inventory', 'production'],
+    consignment_events: ['customerService'],
+    repair_intakes: ['customerService'],
+    repair_items: ['customerService', 'production'],
+    repair_cycles: ['customerService', 'production'],
+    repair_cost_lines: ['customerService', 'inventory'],
+    repair_charges: ['customerService', 'legal'],
+    repair_attachments: ['customerService'],
+    repair_events: ['customerService'],
 };
 
 export function getRealtimeInvalidationDomainsForTable(tableName: string): RealtimeInvalidationDomain[] {
@@ -187,6 +202,10 @@ export function invalidateLegal(queryClient: QueryClient): Promise<void> {
         queryClient.invalidateQueries({ queryKey: ['proforma_document_lines'] }),
         queryClient.invalidateQueries({ queryKey: ['legal_aade_credentials'] }),
     ]).then(() => undefined);
+}
+
+export function invalidateCustomerService(queryClient: QueryClient): Promise<void> {
+    return queryClient.invalidateQueries({ queryKey: ['customer-service'] }).then(() => undefined);
 }
 
 /** Refetch the production batch list only (no stage-history table). */
@@ -321,6 +340,7 @@ export function refetchRealtimeActiveQueries(queryClient: QueryClient): Promise<
         'deliveries',
         'resources',
         'inventory',
+        'customerService',
     ]);
 }
 
@@ -401,6 +421,8 @@ function refetchActiveRealtimeDomain(
                 queryClient.refetchQueries({ queryKey: ['proforma_document_lines'], type: 'active' }),
                 queryClient.refetchQueries({ queryKey: ['legal_aade_credentials'], type: 'active' }),
             ]).then(() => undefined);
+        case 'customerService':
+            return queryClient.refetchQueries({ queryKey: ['customer-service'], type: 'active' }).then(() => undefined);
         default:
             return Promise.resolve();
     }
@@ -446,6 +468,8 @@ export function invalidateRealtimeDomain(
             return invalidateInventory(queryClient);
         case 'legal':
             return invalidateLegal(queryClient);
+        case 'customerService':
+            return invalidateCustomerService(queryClient);
         default:
             return Promise.resolve();
     }

@@ -228,6 +228,8 @@ export interface OrderItem {
   line_id?: string;
   /** Explicit fulfillment warehouse; Central is used when omitted on legacy rows. */
   warehouse_id?: string;
+  /** Business treatment of the line. Consignment lines are not payable at order creation. */
+  fulfillment_mode?: 'sale' | 'consignment';
 }
 
 export interface Order {
@@ -558,6 +560,227 @@ export interface ProductionBatch {
   on_hold_reason?: string; // New: Reason for hold
 
   pending_dispatch?: boolean; // Batch is awaiting physical dispatch to technician (Polishing stage sub-status)
+
+  /** Source workflow rendered through the central Greek presentation dictionary. */
+  workflow_kind?: 'order' | 'consignment' | 'repair';
+  consignment_line_id?: string | null;
+  repair_item_id?: string | null;
+  repair_cycle_id?: string | null;
+  /** Enriched presentation field for repair batches. */
+  repair_code?: string;
+}
+
+export type ConsignmentStatus =
+  | 'draft'
+  | 'pending_handoff'
+  | 'active'
+  | 'partially_settled'
+  | 'completed'
+  | 'cancelled';
+
+export type FinancialStatus = 'not_due' | 'due' | 'partial' | 'paid';
+
+export interface Consignment {
+  id: string;
+  code: string;
+  customer_id: string;
+  seller_id?: string | null;
+  source_order_id?: string | null;
+  source_warehouse_id: string;
+  status: ConsignmentStatus;
+  financial_status: FinancialStatus;
+  review_due_at: string;
+  handed_off_at?: string | null;
+  completed_at?: string | null;
+  notes?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConsignmentLine {
+  id: string;
+  consignment_id: string;
+  order_line_id?: string | null;
+  product_sku: string;
+  variant_suffix: string;
+  size_info: string;
+  cord_color?: string | null;
+  enamel_color?: string | null;
+  quantity: number;
+  sold_quantity: number;
+  returned_quantity: number;
+  pending_quantity: number;
+  locked_unit_cost: number;
+  locked_unit_price: number;
+  price_override_reason?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConsignmentAllocation {
+  id: string;
+  consignment_line_id: string;
+  production_batch_id: string;
+  quantity: number;
+  created_at: string;
+}
+
+export interface ConsignmentSettlement {
+  id: string;
+  consignment_line_id: string;
+  quantity: number;
+  unit_price: number;
+  total_amount: number;
+  paid_amount: number;
+  status: 'due' | 'partial' | 'paid' | 'reversed';
+  price_override_reason?: string | null;
+  legal_document_id?: string | null;
+  sold_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConsignmentPayment {
+  id: string;
+  settlement_id: string;
+  amount: number;
+  payment_method?: string | null;
+  notes?: string | null;
+  paid_at: string;
+  created_at: string;
+}
+
+export interface ConsignmentReturn {
+  id: string;
+  consignment_line_id: string;
+  quantity: number;
+  status: 'inspection' | 'restocked' | 'production' | 'damaged' | 'reversed';
+  destination_warehouse_id?: string | null;
+  production_batch_id?: string | null;
+  received_at: string;
+  resolved_at?: string | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConsignmentEvent {
+  id: string;
+  consignment_id: string;
+  consignment_line_id?: string | null;
+  event_type: string;
+  payload: Record<string, unknown>;
+  actor_user_id?: string | null;
+  created_at: string;
+}
+
+export type RepairOriginType = 'recorded_sale' | 'legacy_own' | 'third_party';
+export type RepairStatus =
+  | 'received'
+  | 'in_production'
+  | 'quality_check'
+  | 'ready_for_return'
+  | 'delivered'
+  | 'on_hold'
+  | 'irreparable'
+  | 'cancelled';
+
+export interface RepairIntake {
+  id: string;
+  code: string;
+  customer_id: string;
+  seller_id?: string | null;
+  status: 'open' | 'completed' | 'cancelled';
+  notes?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RepairItem {
+  id: string;
+  code: string;
+  intake_id: string;
+  customer_id: string;
+  seller_id?: string | null;
+  origin_type: RepairOriginType;
+  source_order_id?: string | null;
+  source_order_line_id?: string | null;
+  source_consignment_settlement_id?: string | null;
+  product_sku?: string | null;
+  variant_suffix: string;
+  size_info: string;
+  description: string;
+  intake_condition?: string | null;
+  accessories?: string | null;
+  status: RepairStatus;
+  current_cycle_number: number;
+  previous_repair_item_id?: string | null;
+  /** Presentation alias for the intake timestamp; persisted rows use created_at. */
+  received_at?: string;
+  delivered_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RepairCycle {
+  id: string;
+  repair_item_id: string;
+  cycle_number: number;
+  production_batch_id: string;
+  quality_status: 'pending' | 'passed' | 'failed';
+  quality_notes?: string | null;
+  started_at: string;
+  completed_at?: string | null;
+  created_at: string;
+}
+
+export interface RepairCostLine {
+  id: string;
+  repair_item_id: string;
+  repair_cycle_id?: string | null;
+  cost_type: 'labor' | 'material' | 'component' | 'external';
+  description: string;
+  quantity: number;
+  unit_cost: number;
+  product_sku?: string | null;
+  warehouse_id?: string | null;
+  inventory_event_id?: string | null;
+  created_at: string;
+}
+
+export interface RepairCharge {
+  id: string;
+  repair_item_id: string;
+  charge_type: 'warranty' | 'chargeable' | 'unrecorded';
+  amount: number;
+  paid_amount: number;
+  payment_status: FinancialStatus;
+  legal_document_id?: string | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RepairAttachment {
+  id: string;
+  repair_item_id: string;
+  storage_path: string;
+  file_name: string;
+  content_type?: string | null;
+  attachment_type: 'intake' | 'quality' | 'other';
+  created_at: string;
+}
+
+export interface RepairEvent {
+  id: string;
+  repair_item_id: string;
+  repair_cycle_id?: string | null;
+  event_type: string;
+  payload: Record<string, unknown>;
+  actor_user_id?: string | null;
+  created_at: string;
 }
 
 export interface EnhancedProductionBatch extends ProductionBatch {

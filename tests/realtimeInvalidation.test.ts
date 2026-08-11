@@ -69,7 +69,11 @@ describe('realtime invalidation mapping', () => {
     })));
     expect(groups.map((group) => group.tables)).toEqual([
       ['products', 'product_variants', 'product_collections', 'collections', 'inventory_balances'],
-      ['orders', 'customers'],
+      [
+        'orders', 'customers', 'consignments', 'consignment_lines', 'consignment_settlements',
+        'consignment_payments', 'consignment_returns', 'consignment_events', 'repair_intakes',
+        'repair_items', 'repair_cycles', 'repair_charges', 'repair_attachments', 'repair_events',
+      ],
     ]);
   });
 });

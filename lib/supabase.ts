@@ -195,7 +195,9 @@ const sanitizeBatchData = (data: any) => {
     const validColumns = [
         'id', 'order_id', 'sku', 'variant_suffix', 'quantity', 'current_stage',
         'created_at', 'updated_at', 'priority', 'type', 'notes', 'requires_setting', 'requires_assembly',
-        'size_info', 'cord_color', 'enamel_color', 'line_id', 'on_hold', 'on_hold_reason', 'pending_dispatch'
+        'size_info', 'cord_color', 'enamel_color', 'line_id', 'on_hold', 'on_hold_reason', 'pending_dispatch',
+        'fulfillment_source', 'legacy_inventory_issued', 'workflow_kind', 'consignment_line_id',
+        'repair_item_id', 'repair_cycle_id'
     ];
     const sanitized: any = {};
     validColumns.forEach(col => {
@@ -234,7 +236,8 @@ const sanitizeDeliveryReminderData = (data: any) => {
 const sanitizeOrderItemData = (item: any): OrderItem => {
     const validColumns = [
         'sku', 'variant_suffix', 'quantity', 'price_at_order', 'price_override',
-        'size_info', 'cord_color', 'enamel_color', 'notes', 'line_id'
+        'size_info', 'cord_color', 'enamel_color', 'notes', 'line_id', 'warehouse_id',
+        'fulfillment_mode'
     ];
     const sanitized: any = {};
     validColumns.forEach(col => {
@@ -885,6 +888,7 @@ function buildBatchInsertFromOrderItem(
             enamel_color: item.enamel_color || null,
             notes: item.notes || null,
             line_id: item.line_id ?? null,
+            workflow_kind: item.fulfillment_mode === 'consignment' ? 'consignment' : 'order',
             priority: 'Normal',
             type: 'Νέα',
             requires_setting: false,
@@ -919,6 +923,7 @@ function buildBatchInsertFromOrderItem(
         enamel_color: item.enamel_color || null,
         notes: item.notes || null,
         line_id: item.line_id ?? null,
+        workflow_kind: item.fulfillment_mode === 'consignment' ? 'consignment' : 'order',
         priority: 'Normal',
         type: 'Νέα',
         requires_setting: hasZircons,
@@ -943,6 +948,7 @@ function buildBatchIdentityPayloadFromOrderItem(
         enamel_color: item.enamel_color || null,
         notes: item.notes ?? null,
         line_id: item.line_id ?? null,
+        workflow_kind: item.fulfillment_mode === 'consignment' ? 'consignment' : 'order',
         updated_at: new Date().toISOString(),
     };
 
@@ -1036,7 +1042,9 @@ export const clearConfiguration = () => {
 
 export const SYSTEM_IDS = {
     CENTRAL: '00000000-0000-0000-0000-000000000001',
-    SHOWROOM: '00000000-0000-0000-0000-000000000002'
+    SHOWROOM: '00000000-0000-0000-0000-000000000002',
+    CONSIGNMENTS: '00000000-0000-0000-0000-000000000003',
+    RETURN_INSPECTION: '00000000-0000-0000-0000-000000000004'
 };
 
 type BulkBatchStageUpdateSummary = {
@@ -2756,7 +2764,7 @@ export const api = {
     getProductionBoardBatches: async (): Promise<ProductionBatch[]> => {
         return fetchFullTable(
             'production_batches',
-            'id,order_id,sku,variant_suffix,quantity,current_stage,created_at,updated_at,priority,type,notes,requires_setting,requires_assembly,size_info,cord_color,enamel_color,line_id,on_hold,on_hold_reason,pending_dispatch,fulfillment_source,legacy_inventory_issued',
+            'id,order_id,sku,variant_suffix,quantity,current_stage,created_at,updated_at,priority,type,notes,requires_setting,requires_assembly,size_info,cord_color,enamel_color,line_id,on_hold,on_hold_reason,pending_dispatch,fulfillment_source,legacy_inventory_issued,workflow_kind,consignment_line_id,repair_item_id,repair_cycle_id',
             (q) => q.order('created_at', { ascending: false })
         );
     },
@@ -3406,7 +3414,7 @@ export const api = {
             batch_id: id,
             from_stage: currentBatch?.current_stage || null,
             to_stage: stage,
-            moved_by: userName || 'System',
+            moved_by: userName || 'Σύστημα',
             moved_at: now
         });
         await syncOrderStatusAfterBatchChange(currentBatch?.order_id);
@@ -3455,7 +3463,7 @@ export const api = {
                 batch_id: batch.id,
                 from_stage: batch.current_stage || null,
                 to_stage: stage,
-                moved_by: userName || 'System',
+                moved_by: userName || 'Σύστημα',
                 moved_at: now,
                 notes: null
             })),
@@ -3535,7 +3543,7 @@ export const api = {
                 batch_id: id,
                 from_stage: ProductionStage.Polishing,
                 to_stage: ProductionStage.Polishing,
-                moved_by: userName || 'System',
+                moved_by: userName || 'Σύστημα',
                 moved_at: now,
                 notes: 'Αποστολή στον Τεχνίτη'
             })),
@@ -3567,7 +3575,7 @@ export const api = {
                 batch_id: id,
                 from_stage: ProductionStage.Polishing,
                 to_stage: ProductionStage.Polishing,
-                moved_by: userName || 'System',
+                moved_by: userName || 'Σύστημα',
                 moved_at: now,
                 notes: 'Επιστροφή σε Αναμονή Αποστολής'
             })),
@@ -3625,7 +3633,7 @@ export const api = {
                     created_at: now,
                     updated_at: now,
                     priority: 'Normal',
-                    type: 'ΞΞ­Ξ±',
+                    type: 'Νέα',
                     notes: item.notes || null,
                     requires_setting: hasZirconsFromSuffix || hasZirconsFromRecipe || requiresSettingStage(item.sku),
                     requires_assembly: !isSpecialCreationSku(item.sku) && requiresAssemblyStage(item.sku),
@@ -3633,6 +3641,7 @@ export const api = {
                     cord_color: item.cord_color || null,
                     enamel_color: item.enamel_color || null,
                     line_id: item.line_id ?? null,
+                    workflow_kind: item.fulfillment_mode === 'consignment' ? 'consignment' : 'order',
                 };
             });
 
@@ -3656,7 +3665,7 @@ export const api = {
                     batch_id: batch.id,
                     from_stage: null,
                     to_stage: ProductionStage.Ready,
-                    moved_by: userName || 'System',
+                    moved_by: userName || 'Σύστημα',
                     moved_at: now,
                     notes: 'Επαναφορά ολοκληρωμένης παραγγελίας σε Έτοιμα'
                 })),
@@ -4054,6 +4063,7 @@ export const api = {
             enamel_color: item.enamel_color,
             notes: item.notes,
             line_id: item.line_id || null,
+            fulfillment_mode: item.fulfillment_mode || 'sale',
         }));
         const stockFulfilledItems = order.items.flatMap((item) => {
             const quantity = item.line_id ? Math.min(item.quantity, reservedByLine.get(item.line_id) || 0) : 0;
@@ -4079,7 +4089,7 @@ export const api = {
     // NEW: PARTIAL SEND TO PRODUCTION
     sendPartialOrderToProduction: async (
         orderId: string,
-        itemsToSend: { sku: string, variant: string | null, qty: number, size_info?: string, cord_color?: string | null, enamel_color?: string | null, notes?: string, line_id?: string | null }[],
+        itemsToSend: { sku: string, variant: string | null, qty: number, size_info?: string, cord_color?: string | null, enamel_color?: string | null, notes?: string, line_id?: string | null, fulfillment_mode?: 'sale' | 'consignment' }[],
         allProducts: Product[],
         allMaterials: Material[],
         stockFulfilledItems?: { sku: string, variant_suffix: string | null, qty: number, size_info?: string | null, cord_color?: string | null, enamel_color?: string | null, line_id?: string | null }[]
@@ -4184,6 +4194,7 @@ export const api = {
                         enamel_color: item.enamel_color || null,
                         notes: item.notes || null,
                         line_id: item.line_id ?? null,
+                        workflow_kind: item.fulfillment_mode === 'consignment' ? 'consignment' : 'order',
                         priority: 'Normal',
                         type: 'Νέα',
                         requires_setting: false,
@@ -4225,6 +4236,7 @@ export const api = {
                     enamel_color: item.enamel_color || null,
                     notes: item.notes || null,
                     line_id: item.line_id ?? null,
+                    workflow_kind: item.fulfillment_mode === 'consignment' ? 'consignment' : 'order',
                     priority: 'Normal',
                     type: 'Από Stock' as BatchType,
                     fulfillment_source: 'inventory_reserved',
@@ -4250,6 +4262,7 @@ export const api = {
                     enamel_color: item.enamel_color || null,
                     notes: item.notes || null,
                     line_id: item.line_id ?? null,
+                    workflow_kind: item.fulfillment_mode === 'consignment' ? 'consignment' : 'order',
                     priority: 'Normal',
                     type: 'Νέα',
                     fulfillment_source: 'production',
@@ -4311,7 +4324,7 @@ export const api = {
             batch_id: sanitizedNew.id,
             from_stage: null,
             to_stage: sanitizedNew.current_stage,
-            moved_by: userName || 'System',
+                    moved_by: userName || 'Σύστημα',
             moved_at: now,
             notes: `Διαχωρισμός από παρτίδα ${originalBatchId} (ποσότητα: ${sanitizedNew.quantity})`
         });

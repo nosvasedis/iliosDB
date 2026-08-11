@@ -31,7 +31,7 @@ export function buildInitialBatchHistoryEntry(
     batch_id: batch.id,
     from_stage: null,
     to_stage: batch.current_stage,
-    moved_by: userName || 'System',
+    moved_by: userName || 'Σύστημα',
     moved_at: batch.created_at,
     notes: notes ?? null,
   };

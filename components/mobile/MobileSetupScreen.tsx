@@ -72,15 +72,15 @@ export default function MobileSetupScreen() {
                 </div>
 
                 <div className="bg-white p-1.5 rounded-2xl shadow-sm border border-slate-200 flex mb-6">
-                    <button onClick={() => setMode('cloud')} className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${mode === 'cloud' ? 'bg-[#060b00] text-white shadow-md' : 'text-slate-500'}`}>Cloud</button>
-                    <button onClick={() => setMode('local')} className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${mode === 'local' ? 'bg-[#060b00] text-white shadow-md' : 'text-slate-500'}`}>Local</button>
+                    <button onClick={() => setMode('cloud')} className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${mode === 'cloud' ? 'bg-[#060b00] text-white shadow-md' : 'text-slate-500'}`}>Σύνδεση cloud</button>
+                    <button onClick={() => setMode('local')} className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${mode === 'local' ? 'bg-[#060b00] text-white shadow-md' : 'text-slate-500'}`}>Τοπική βάση</button>
                 </div>
 
                 {mode === 'cloud' ? (
                     <form onSubmit={handleSave} className="space-y-4 animate-in fade-in slide-in-from-right-4">
                         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                             <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Project URL</label>
+                                <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">URL έργου Supabase</label>
                                 <div className="relative">
                                     <Server className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
                                     <input 
@@ -90,7 +90,7 @@ export default function MobileSetupScreen() {
                                 </div>
                             </div>
                             <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Anon Key</label>
+                                <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Ανώνυμο κλειδί Supabase</label>
                                 <div className="relative">
                                     <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
                                     <input 

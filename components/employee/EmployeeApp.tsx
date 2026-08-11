@@ -13,6 +13,7 @@ import DeliveriesPage from '../DeliveriesPage';
 import MobileDeliveries from '../mobile/MobileDeliveries';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import type { EmployeePage } from '../../surfaces/pageIds';
+import CustomerServiceWorkspace from '../CustomerServiceWorkspace';
 
 interface Props {
     setPrintItems?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
@@ -31,6 +32,7 @@ export default function EmployeeApp({ setPrintItems }: Props) {
       ? <MobileDeliveries pendingOrderId={pendingDeliveryOrderId} onConsumePendingOrderId={() => setPendingDeliveryOrderId(null)} onOpenOrder={() => setActivePage('orders')} />
       : <DeliveriesPage pendingOrderId={pendingDeliveryOrderId} onConsumePendingOrderId={() => setPendingDeliveryOrderId(null)} onOpenOrder={() => setActivePage('orders')} />,
     production: <EmployeeProduction />,
+    'customer-service': <CustomerServiceWorkspace />,
     registry: <EmployeeRegistry setPrintItems={setPrintItems} />,
     customers: <EmployeeCustomers />,
     collections: <EmployeeCollections setPrintItems={setPrintItems} />,

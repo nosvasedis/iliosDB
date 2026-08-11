@@ -1465,7 +1465,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         if (!yes) return;
         try {
             await ordersRepository.updateOrderStatus(order.id, OrderStatus.Delivered);
-            await auditRepository.logAction(profile?.full_name || 'System', 'Ολοκλήρωση Παράδοσης', { order_id: order.id });
+            await auditRepository.logAction(profile?.full_name || 'Σύστημα', 'Ολοκλήρωση Παράδοσης', { order_id: order.id });
             void invalidateOrdersAndBatches(queryClient);
             setManagingOrder((prev) => (prev?.id === order.id ? { ...prev, status: OrderStatus.Delivered } : prev));
             showToast('Η παραγγελία σημειώθηκε ως παραδομένη.', 'success');
@@ -1485,7 +1485,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         if (yes) {
             try {
                 await ordersRepository.updateOrderStatus(orderId, OrderStatus.Cancelled);
-                await auditRepository.logAction(profile?.full_name || 'System', 'Ακύρωση Παραγγελίας', { order_id: orderId });
+                await auditRepository.logAction(profile?.full_name || 'Σύστημα', 'Ακύρωση Παραγγελίας', { order_id: orderId });
                 void invalidateOrdersAndBatches(queryClient);
                 setManagingOrder(null);
                 showToast('Η παραγγελία ακυρώθηκε.', 'info');
@@ -1506,7 +1506,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         if (yes) {
             try {
                 await ordersRepository.deleteOrder(orderId);
-                await auditRepository.logAction(profile?.full_name || 'System', 'Διαγραφή Παραγγελίας', { order_id: orderId });
+                await auditRepository.logAction(profile?.full_name || 'Σύστημα', 'Διαγραφή Παραγγελίας', { order_id: orderId });
                 void invalidateOrdersAndBatches(queryClient);
                 setManagingOrder(null);
                 showToast('Η παραγγελία διαγράφηκε οριστικά.', 'success');
@@ -1526,8 +1526,8 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
         if (!yes) return;
 
         try {
-            await ordersRepository.reopenCompletedOrderToReady(order.id, profile?.full_name || 'System');
-            await auditRepository.logAction(profile?.full_name || 'System', 'Επαναφορά Παραγγελίας σε Έτοιμα', { order_id: order.id, customer: order.customer_name });
+            await ordersRepository.reopenCompletedOrderToReady(order.id, profile?.full_name || 'Σύστημα');
+            await auditRepository.logAction(profile?.full_name || 'Σύστημα', 'Επαναφορά Παραγγελίας σε Έτοιμα', { order_id: order.id, customer: order.customer_name });
             await invalidateOrdersAndBatches(queryClient);
             setManagingOrder(prev => prev?.id === order.id ? { ...prev, status: OrderStatus.Ready } : prev);
             setShowStatusActions(false);
@@ -1552,7 +1552,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                 orderId: order.id,
                 orderItems: order.items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, quantity: i.quantity, price_at_order: i.price_at_order, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color, line_id: i.line_id || null })),
                 items: items.map(i => ({ sku: i.sku, variant_suffix: i.variant_suffix, size_info: i.size_info, cord_color: i.cord_color, enamel_color: i.enamel_color, quantity: i.quantity, price_at_order: i.price_at_order, line_id: i.line_id || null })),
-                shippedBy: profile?.full_name || 'System',
+                shippedBy: profile?.full_name || 'Σύστημα',
                 deliveryPlanId: null,
                 notes,
                 allBatches: batches || []
@@ -1596,7 +1596,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
     const handleArchiveOrder = async (order: Order, archive: boolean) => {
         try {
             await ordersRepository.archiveOrder(order.id, archive);
-            await auditRepository.logAction(profile?.full_name || 'System', archive ? 'Αρχειοθέτηση Παραγγελίας' : 'Ανάκτηση Παραγγελίας', { order_id: order.id, customer: order.customer_name });
+            await auditRepository.logAction(profile?.full_name || 'Σύστημα', archive ? 'Αρχειοθέτηση Παραγγελίας' : 'Ανάκτηση Παραγγελίας', { order_id: order.id, customer: order.customer_name });
             queryClient.invalidateQueries({ queryKey: ['orders'] });
             if (managingOrder?.id === order.id) setManagingOrder(null);
             showToast(archive ? "Η παραγγελία αρχειοθετήθηκε." : "Η παραγγελία ανακτήθηκε.", "success");
@@ -2384,7 +2384,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                     products={products}
                     deliveryPlanId={null}
                     variant={shipmentModalVariant}
-                    userName={profile?.full_name || 'System'}
+                    userName={profile?.full_name || 'Σύστημα'}
                     onConfirm={handleConfirmShipmentFromOrders}
                     onClose={() => setShipmentModalOrder(null)}
                 />

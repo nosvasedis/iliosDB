@@ -75,6 +75,7 @@ const AnalyticsView = lazyPage(() => import('./components/AnalyticsView'));
 const OffersPage = lazyPage(() => import('./components/OffersPage'));
 const DeliveriesPage = lazyPage(() => import('./components/DeliveriesPage'));
 const LegalDocumentsPage = lazyPage(() => import('./components/LegalDocumentsPage'));
+const CustomerServiceWorkspace = lazyPage(() => import('./components/CustomerServiceWorkspace'));
 
 const adminLoadingDetails: Record<AdminPage, string> = {
   dashboard: 'Πίνακας ελέγχου',
@@ -87,6 +88,7 @@ const adminLoadingDetails: Record<AdminPage, string> = {
   'batch-print': 'Μαζική εκτύπωση',
   orders: 'Παραγγελίες',
   production: 'Παραγωγή',
+  'customer-service': 'Παρακαταθήκες & Επισκευές',
   customers: 'Πελάτες',
   suppliers: 'Προμηθευτές',
   sellers: 'Πλασιέ',
@@ -415,7 +417,7 @@ function ErpAppContent() {
   // DESKTOP RENDERING (ADMIN)
   // This part runs only if role is 'admin' and !isMobile, or if isLocalMode is true
   const handleLogout = () => { localStorage.removeItem('ILIOS_LOCAL_MODE'); signOut(); };
-  const hiddenInLocalMode = new Set<AdminPage>(['deliveries', 'orders', 'offers', 'production', 'customers', 'suppliers', 'legal']);
+  const hiddenInLocalMode = new Set<AdminPage>(['deliveries', 'orders', 'offers', 'production', 'customer-service', 'customers', 'suppliers', 'legal']);
 
   const adminPageRegistry: Record<AdminPage, React.ReactNode> = {
     dashboard: <Dashboard products={products} settings={settings} onNavigate={handleNav} />,
@@ -438,6 +440,7 @@ function ErpAppContent() {
       setOrderToPrint(buildPartialOrderFromBatches(order, batches));
     }} />,
     production: <ProductionPage products={products} materials={materials} molds={molds} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintAssembly={handlePrintAssembly} onPrintLabels={setPrintItems} onPrintStageBatches={handlePrintStageBatches} />,
+    'customer-service': <CustomerServiceWorkspace />,
     customers: <CustomersPage onPrintOrder={setOrderToPrint} />,
     suppliers: <SuppliersPage />,
     sellers: <SellersPage />,

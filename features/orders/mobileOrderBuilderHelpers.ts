@@ -4,6 +4,7 @@ import { getVariantComponents } from '../../utils/pricingEngine';
 import { getSizingInfo, ProductSizingInfo } from '../../utils/sizing';
 import { assignMissingOrderLineIds, getOrderItemMatchKey } from '../../utils/orderItemMatch';
 import { getSpecialCreationProductStub, isSpecialCreationSku } from '../../utils/specialCreationSku';
+import { calculateOrderFinancials } from './orderFinancials';
 
 export interface MobileOrderBuilderDraftState {
   customerName: string;
@@ -114,13 +115,16 @@ export function calculateMobileOrderBuilderTotals(
   discountPercent: number,
   vatRate: number,
 ) {
-  const subtotal = items.reduce((sum, item) => sum + (item.price_at_order * item.quantity), 0);
-  const discountAmount = subtotal * (discountPercent / 100);
-  const netAmount = subtotal - discountAmount;
-  const vatAmount = netAmount * vatRate;
-  const grandTotal = netAmount + vatAmount;
-
-  return { subtotal, discountAmount, netAmount, vatAmount, grandTotal };
+  const values = calculateOrderFinancials(items, discountPercent, vatRate);
+  return {
+    subtotal: values.saleSubtotal,
+    discountAmount: values.discountAmount,
+    netAmount: values.saleNet,
+    vatAmount: values.saleVat,
+    grandTotal: values.payableNow,
+    consignmentSubtotal: values.consignmentSubtotal,
+    consignmentValue: values.consignmentValue,
+  };
 }
 
 export const buildMobileOrderBuilderTotals = calculateMobileOrderBuilderTotals;

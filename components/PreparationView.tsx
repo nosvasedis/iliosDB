@@ -173,7 +173,7 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                                 {product.image_url ? (
                                                     <img src={product.image_url} className="w-full h-full object-cover" alt="img" />
                                                 ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-slate-300 text-[8px]">No Img</div>
+                                                    <div className="w-full h-full flex items-center justify-center text-slate-300 text-[8px]">Χωρίς εικόνα</div>
                                                 )}
                                             </div>
                                             <div className="text-2xl font-black text-slate-900 leading-none text-center mt-2">x{batch.quantity}</div>
@@ -358,7 +358,7 @@ export default function PreparationView({ batches, allMaterials, allProducts, al
                                                 ) : (
                                                     <>
                                                         <p className="font-bold text-slate-800">ΕΙΣΑΓΩΓΗ</p>
-                                                        <p className="truncate text-slate-700 font-bold">Προμ: {product.supplier_details?.name || 'Unknown'}</p>
+                                                        <p className="truncate text-slate-700 font-bold">Προμ: {product.supplier_details?.name || 'Άγνωστος'}</p>
                                                     </>
                                                 )}
                                             </div>

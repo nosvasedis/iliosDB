@@ -13,7 +13,7 @@ export type DashboardPieSlice = { name: string; value: number };
 const GENDER_LABELS: Record<Gender, string> = {
   [Gender.Men]: 'Ανδρικά',
   [Gender.Women]: 'Γυναικεία',
-  [Gender.Unisex]: 'Unisex',
+  [Gender.Unisex]: 'Ουδέτερο',
 };
 
 function productMap(products: Product[]): Map<string, Product> {

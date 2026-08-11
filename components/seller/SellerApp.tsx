@@ -13,6 +13,7 @@ import type { SellerPage } from '../../surfaces/pageIds';
 import { productKeys, productsRepository } from '../../features/products';
 import IliosLoader from '../ui/IliosLoader';
 import { useSellerCatalog } from '../../features/sellerCatalog/useSellerCatalog';
+import CustomerServiceWorkspace from '../CustomerServiceWorkspace';
 
 export default function SellerApp() {
   const [activePage, setActivePage] = useState<SellerPage>('dashboard');
@@ -47,6 +48,7 @@ export default function SellerApp() {
     collections: 'Συλλογές',
     orders: 'Παραγγελίες',
     customers: 'Πελάτες',
+    'customer-service': 'Παρακαταθήκες & Επισκευές',
     'order-builder': 'Νέα παραγγελία',
   };
   const loadingView = <IliosLoader variant="section" detail={sellerLoadingDetails[activePage]} className="h-full min-h-full bg-slate-50" />;
@@ -71,6 +73,7 @@ export default function SellerApp() {
       <SellerCollections products={sellerCatalog.products} collections={sellerCatalog.collections} />
     ),
     customers: <SellerCustomers />,
+    'customer-service': <CustomerServiceWorkspace />,
   };
 
   return (

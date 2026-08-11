@@ -1351,7 +1351,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
         const confirmed = await confirm({
             title: 'Μετονομασία SKU',
-            message: `Είστε σίγουροι ότι θέλετε να αλλάξετε το SKU από ${product.sku} σε ${newSku}; Αυτό θα ενημερώσει όλες τις σχετικές εγγραφές (Stock, Orders, Variants).`,
+            message: `Είστε σίγουροι ότι θέλετε να αλλάξετε το SKU από ${product.sku} σε ${newSku}; Αυτό θα ενημερώσει όλες τις σχετικές εγγραφές (Απόθεμα, Παραγγελίες, Παραλλαγές).`,
             confirmText: 'Μετονομασία',
             isDestructive: true
         });
@@ -1512,7 +1512,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                     </div>
                                 </div>
                             )}
-                            {editedProduct.is_component && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold uppercase">Component</span>}
+                            {editedProduct.is_component && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold uppercase">Εξάρτημα</span>}
                             {editedProduct.production_type === ProductionType.Imported && <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-md text-xs font-bold uppercase flex items-center gap-1"><Globe size={12} /> Εισαγόμενο</span>}
                         </div>
                         <div className="flex gap-3 text-sm text-slate-500 font-medium mt-1">
@@ -1671,7 +1671,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                             <select className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-medium text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all" value={editedProduct.gender} onChange={e => setEditedProduct({ ...editedProduct, gender: e.target.value as Gender })}>
                                                                 <option value={Gender.Women}>Γυναικείο</option>
                                                                 <option value={Gender.Men}>Ανδρικό</option>
-                                                                <option value={Gender.Unisex}>Unisex</option>
+                                                                <option value={Gender.Unisex}>Ουδέτερο</option>
                                                             </select>
                                                         </div>
                                                         {editedProduct.is_component && (
@@ -2089,7 +2089,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                 </div>
                                                                 <div className="flex items-center gap-2">
                                                                     <button onClick={handleStandardFormula} className="bg-emerald-600 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors shadow-sm flex items-center gap-1">
-                                                                        <Calculator size={12} /> Standard
+                                                                        <Calculator size={12} /> Βασικός τύπος
                                                                     </button>
                                                                 </div>
                                                                 <div>

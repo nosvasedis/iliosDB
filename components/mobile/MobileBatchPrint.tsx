@@ -629,7 +629,7 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                                 className="p-4 rounded-2xl bg-white border-2 border-slate-100 hover:border-slate-800 transition-all flex flex-col items-center gap-1 active:scale-95 col-span-2"
                             >
                                 <span className="text-lg font-black text-slate-700">Βασικό</span>
-                                <span className="text-[10px] uppercase font-bold text-slate-400">Master</span>
+                                <span className="text-[10px] uppercase font-bold text-slate-400">Κύριος κωδικός</span>
                             </button>
                         )}
 

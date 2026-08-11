@@ -22,6 +22,7 @@ import {
   Warehouse,
   type LucideIcon,
   BookOpen,
+  HandHeart,
 } from 'lucide-react';
 import type { AdminPage, EmployeePage, MobileAdminPage, SellerPage } from './pageIds';
 
@@ -49,6 +50,7 @@ export const adminNavSections: NavSection<AdminPage>[] = [
       { id: 'offers', icon: FileBadge, label: 'Προσφορές' },
       { id: 'legal', icon: FileCheck2, label: 'Παραστατικά' },
       { id: 'production', icon: FactoryIcon, label: 'Παραγωγή' },
+      { id: 'customer-service', icon: HandHeart, label: 'Παρακαταθήκες & Επισκευές' },
       { id: 'customers', icon: Users, label: 'Πελάτες' },
       { id: 'suppliers', icon: Globe, label: 'Προμηθευτές' },
       { id: 'sellers', icon: UserCheck, label: 'Πλασιέ' },
@@ -97,6 +99,7 @@ export const employeeDesktopNavItems: SurfaceNavItem<EmployeePage>[] = [
   { id: 'dashboard', icon: LayoutDashboard, label: 'Πίνακας Ελέγχου' },
   { id: 'orders', icon: ShoppingCart, label: 'Παραγγελίες' },
   { id: 'production', icon: FactoryIcon, label: 'Ροή Παραγωγής' },
+  { id: 'customer-service', icon: HandHeart, label: 'Παρακαταθήκες & Επισκευές' },
   { id: 'deliveries', icon: CalendarRange, label: 'Ημερολόγιο' },
   { id: 'collections', icon: FolderKanbanIcon, label: 'Συλλογές' },
   { id: 'inventory', icon: Package, label: 'Διαχείριση Αποθήκης' },
@@ -109,6 +112,7 @@ export const employeeMobileNavItems: SurfaceNavItem<EmployeePage>[] = [
   { id: 'dashboard', icon: LayoutDashboard, label: 'Αρχική' },
   { id: 'orders', icon: ShoppingCart, label: 'Παραγγελίες' },
   { id: 'production', icon: FactoryIcon, label: 'Παραγωγή' },
+  { id: 'customer-service', icon: HandHeart, label: 'Παρακαταθήκες' },
   { id: 'collections', icon: FolderKanbanIcon, label: 'Συλλογές' },
   { id: 'inventory', icon: Package, label: 'Αποθήκη' },
   { id: 'registry', icon: DatabaseIcon, label: 'Προϊόντα' },
@@ -121,6 +125,7 @@ export const sellerNavItems: SurfaceNavItem<SellerPage>[] = [
   { id: 'collections', icon: FolderKanbanIcon, label: 'Συλλογές' },
   { id: 'orders', icon: ShoppingCart, label: 'Παραγγελίες' },
   { id: 'customers', icon: Users, label: 'Πελάτες' },
+  { id: 'customer-service', icon: HandHeart, label: 'Παρακαταθήκες & Επισκευές' },
 ];
 
 export function renderNavIcon(Icon: LucideIcon, size = 18, strokeWidth = 2) {

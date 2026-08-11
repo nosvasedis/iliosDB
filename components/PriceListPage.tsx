@@ -549,7 +549,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                 const labels: string[] = [];
                 if (selectedGenders.includes(Gender.Men)) labels.push('Αντρικά');
                 if (selectedGenders.includes(Gender.Women)) labels.push('Γυναικεία');
-                if (selectedGenders.includes(Gender.Unisex)) labels.push('Unisex');
+                if (selectedGenders.includes(Gender.Unisex)) labels.push('Ουδέτερο');
                 
                 if (labels.length === 2) genderPrefix = labels.join(' & ');
                 else genderPrefix = labels[0];
@@ -993,7 +993,7 @@ export default function PriceListPage({ products, collections, onPrint }: Props)
                                                         <div className="flex items-center gap-2">
                                                             <span className="font-black text-slate-700 text-base">{item.skuBase}</span>
                                                             {item.isManual && (
-                                                                <span className="text-[8px] font-black bg-blue-100 text-blue-600 px-1 rounded uppercase">Manual</span>
+                                                                <span className="text-[8px] font-black bg-blue-100 text-blue-600 px-1 rounded uppercase">Χειροκίνητο</span>
                                                             )}
                                                             {item.collectionTag && (
                                                                 <span className="text-[8px] font-black text-slate-400 border border-slate-200 px-1 rounded">

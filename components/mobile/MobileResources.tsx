@@ -196,7 +196,7 @@ export default function MobileResources() {
                 </div>
                 {viewMode === 'materials' && activeTab === MaterialType.Stone && (
                     <div className="flex bg-slate-200 p-1 rounded-xl self-start">
-                        <button onClick={() => setStoneSubFilter('standard')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${stoneSubFilter === 'standard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Standard</button>
+                        <button onClick={() => setStoneSubFilter('standard')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${stoneSubFilter === 'standard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Βασικά</button>
                         <button onClick={() => setStoneSubFilter('strand')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${stoneSubFilter === 'strand' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Κορδόνι</button>
                     </div>
                 )}

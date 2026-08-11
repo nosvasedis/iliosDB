@@ -32,6 +32,8 @@ import {
     StickyNote,
     BarChart3,
     ArrowRightLeft,
+    HandHeart,
+    Wrench,
 } from 'lucide-react';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { useUI } from './UIProvider';
@@ -48,6 +50,8 @@ import { isOrderReadyForShipment } from '../utils/orderReadiness';
 import TransferRemainingItemsModal from './TransferRemainingItemsModal';
 import CustomerAnalyticsPanel from './customers/CustomerAnalyticsPanel';
 import { resolveCustomerAnalyticsCategory } from '../features/customers/customerAnalytics';
+import { useCustomerServiceWorkspace } from '../hooks/api/useCustomerService';
+import { CONSIGNMENT_STATUS_LABELS, REPAIR_STATUS_LABELS, formatGreekDateOnly, formatGreekMoney } from '../features/customerService';
 
 export interface CustomerDetailsModalProps {
     customer: Customer;
@@ -116,6 +120,15 @@ export default function CustomerDetailsModal({
     const { data: allShipments } = useAllShipments();
     const { data: allShipmentItems } = useAllShipmentItems();
     const { data: batches } = useProductionBatches();
+    const { data: customerServiceData } = useCustomerServiceWorkspace();
+    const customerConsignments = useMemo(
+        () => (customerServiceData?.consignments || []).filter(entry => entry.customer_id === customer.id),
+        [customerServiceData?.consignments, customer.id]
+    );
+    const customerRepairs = useMemo(
+        () => (customerServiceData?.repairItems || []).filter(entry => entry.customer_id === customer.id),
+        [customerServiceData?.repairItems, customer.id]
+    );
 
     const shipmentItemsByOrderId = useMemo(() => {
         const map = new Map<string, OrderShipmentItem[]>();
@@ -150,7 +163,7 @@ export default function CustomerDetailsModal({
         return map;
     }, [batches]);
 
-    type NormalTab = 'overview' | 'contact' | 'billing' | 'notes' | 'analytics' | 'orders';
+    type NormalTab = 'overview' | 'contact' | 'billing' | 'notes' | 'analytics' | 'services' | 'orders';
     type RetailTab = 'overview' | 'end_clients' | 'categories' | 'orders';
     const [activeTab, setActiveTab] = useState<NormalTab | RetailTab>('overview');
     const [orderQuery, setOrderQuery] = useState('');
@@ -352,7 +365,7 @@ export default function CustomerDetailsModal({
                     'Επωνυμία',
                     result.address ? 'Διεύθυνση' : null,
                     result.phone ? 'Τηλέφωνο' : null,
-                    result.email ? 'Email' : null,
+                    result.email ? 'Ηλ. ταχυδρομείο' : null,
                 ]
                     .filter(Boolean)
                     .join(', ');
@@ -393,6 +406,7 @@ export default function CustomerDetailsModal({
         { id: 'billing', label: 'Τιμολόγηση', Icon: Receipt },
         { id: 'notes', label: 'Σημειώσεις', Icon: StickyNote },
         { id: 'analytics', label: 'Ανάλυση', Icon: BarChart3 },
+        { id: 'services', label: `Παρακαταθήκες & Επισκευές (${customerConsignments.length + customerRepairs.length})`, Icon: HandHeart },
         { id: 'orders', label: `Παραγγελίες (${stats.orderCount})`, Icon: ShoppingBag },
     ];
     const tabList = isRetailSystemCustomer ? retailTabList : normalTabList;
@@ -842,7 +856,7 @@ export default function CustomerDetailsModal({
                                     </div>
                                     <div>
                                         <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                            Email
+                                            Ηλ. ταχυδρομείο
                                         </label>
                                         {isEditing ? (
                                             <input
@@ -850,7 +864,7 @@ export default function CustomerDetailsModal({
                                                 className={inputClass}
                                                 value={editForm.email || ''}
                                                 onChange={e => setEditForm({ ...editForm, email: e.target.value })}
-                                                placeholder="Email"
+                                                placeholder="Ηλ. ταχυδρομείο"
                                             />
                                         ) : (
                                             <a
@@ -1095,6 +1109,32 @@ export default function CustomerDetailsModal({
                                     )}
                                 </div>
                             </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'services' && !isRetailSystemCustomer && customer.id && (
+                        <div className="max-w-5xl space-y-5">
+                            <section className={`${sectionCard} overflow-hidden`}>
+                                <div className="flex items-center justify-between border-b border-slate-100 bg-amber-50/70 p-4">
+                                    <div className="flex items-center gap-3"><div className="rounded-xl bg-amber-100 p-2 text-amber-800"><HandHeart size={18} /></div><div><h3 className="font-black text-slate-800">Παρακαταθήκες</h3><p className="text-xs text-slate-500">Ενεργές και ιστορικές κινήσεις του πελάτη</p></div></div><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-amber-800 shadow-sm">{customerConsignments.length}</span>
+                                </div>
+                                <div className="divide-y divide-slate-100">
+                                    {customerConsignments.length === 0 ? <div className="p-8 text-center text-sm text-slate-400">Δεν υπάρχουν Παρακαταθήκες για αυτόν τον πελάτη.</div> : customerConsignments.map(entry => {
+                                        const lines = (customerServiceData?.consignmentLines || []).filter(line => line.consignment_id === entry.id);
+                                        const pending = lines.reduce((sum, line) => sum + line.pending_quantity, 0);
+                                        const value = lines.reduce((sum, line) => sum + line.pending_quantity * Number(line.locked_unit_price), 0);
+                                        return <div key={entry.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex flex-wrap items-center gap-2"><span className="font-mono text-sm font-black text-slate-800">{entry.code}</span><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-600">{CONSIGNMENT_STATUS_LABELS[entry.status]}</span></div><div className="mt-1 text-xs text-slate-500">Επανέλεγχος {formatGreekDateOnly(entry.review_due_at)} · {lines.length} γραμμές</div></div><div className="flex gap-5 text-right"><div><div className="font-black text-slate-800">{pending}</div><div className="text-[9px] font-bold text-slate-400">ΕΚΚΡΕΜΗ ΤΕΜ.</div></div><div><div className="font-black text-amber-800">{formatGreekMoney(value)}</div><div className="text-[9px] font-bold text-slate-400">ΑΞΙΑ</div></div></div></div>;
+                                    })}
+                                </div>
+                            </section>
+                            <section className={`${sectionCard} overflow-hidden`}>
+                                <div className="flex items-center justify-between border-b border-slate-100 bg-blue-50/70 p-4">
+                                    <div className="flex items-center gap-3"><div className="rounded-xl bg-blue-100 p-2 text-blue-700"><Wrench size={18} /></div><div><h3 className="font-black text-slate-800">Επισκευές</h3><p className="text-xs text-slate-500">Τρέχοντα τεμάχια και αλυσίδες επανεπισκευών</p></div></div><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-blue-700 shadow-sm">{customerRepairs.length}</span>
+                                </div>
+                                <div className="divide-y divide-slate-100">
+                                    {customerRepairs.length === 0 ? <div className="p-8 text-center text-sm text-slate-400">Δεν υπάρχουν Επισκευές για αυτόν τον πελάτη.</div> : customerRepairs.map(item => <div key={item.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex flex-wrap items-center gap-2"><span className="font-mono text-sm font-black text-slate-800">{item.code}</span><span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700">{REPAIR_STATUS_LABELS[item.status]}</span>{item.current_cycle_number > 1 && <span className="rounded-full bg-rose-50 px-2 py-1 text-[10px] font-black text-rose-700">Κύκλος {item.current_cycle_number}</span>}</div><p className="mt-1 text-sm text-slate-600">{item.description}</p></div><div className="text-right text-xs text-slate-500"><div className="font-black text-slate-700">{item.product_sku || 'Χωρίς SKU'}</div><div>{formatGreekDateOnly(item.created_at)}</div></div></div>)}
+                                </div>
+                            </section>
                         </div>
                     )}
 

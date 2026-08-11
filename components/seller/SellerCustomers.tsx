@@ -197,7 +197,7 @@ export default function SellerCustomers() {
                             )}
                             {c.id !== RETAIL_CUSTOMER_ID && c.email && (
                                 <a href={`mailto:${c.email}`} className="flex-1 bg-slate-50 py-2 rounded-lg text-xs font-bold text-slate-600 flex items-center justify-center gap-2">
-                                    <Mail size={12} /> Email
+                                    <Mail size={12} /> Ηλ. ταχυδρομείο
                                 </a>
                             )}
                         </div>

@@ -293,7 +293,7 @@ export default function SuppliersPage() {
                                         <input value={supplierForm.phone || ''} onChange={e => setSupplierForm({ ...supplierForm, phone: e.target.value })} placeholder="+30..." className="w-full p-3 border border-slate-200 rounded-xl outline-none bg-slate-50 focus:bg-white transition-colors" />
                                     </div>
                                     <div>
-                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Email</label>
+                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Ηλ. ταχυδρομείο</label>
                                         <input value={supplierForm.email || ''} onChange={e => setSupplierForm({ ...supplierForm, email: e.target.value })} placeholder="email@..." className="w-full p-3 border border-slate-200 rounded-xl outline-none bg-slate-50 focus:bg-white transition-colors" />
                                     </div>
                                 </div>
@@ -367,7 +367,7 @@ export default function SuppliersPage() {
                                                 <div><label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1 block">Υπεύθυνος</label><div className="font-bold text-slate-700 text-sm">{selectedSupplier.contact_person || '-'}</div></div>
                                                 <div className="grid grid-cols-2 gap-4">
                                                     <div><label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1 block">Τηλέφωνο</label><div className="font-bold text-slate-700 text-sm">{selectedSupplier.phone || '-'}</div></div>
-                                                    <div><label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1 block">Email</label><div className="font-bold text-slate-700 text-sm">{selectedSupplier.email || '-'}</div></div>
+                                                    <div><label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1 block">Ηλ. ταχυδρομείο</label><div className="font-bold text-slate-700 text-sm">{selectedSupplier.email || '-'}</div></div>
                                                 </div>
                                                 <div><label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1 block">Διεύθυνση</label><div className="font-bold text-slate-700 text-sm">{selectedSupplier.address || '-'}</div></div>
                                             </div>

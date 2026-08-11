@@ -250,7 +250,7 @@ export default function PhotoCatalogPrintView({ products, molds, title = 'Φωτ
                                     <div className="catalog-card-body">
                                         <div className="catalog-sku">{product.sku}</div>
                                         <div className="catalog-category">
-                                            {product.category} · {product.gender === 'Women' ? 'Γυναικείο' : product.gender === 'Men' ? 'Ανδρικό' : 'Unisex'}
+                                            {product.category} · {product.gender === 'Women' ? 'Γυναικείο' : product.gender === 'Men' ? 'Ανδρικό' : 'Ουδέτερο'}
                                         </div>
                                         {(() => {
                                             const moldDesc = getMoldDescriptions(product, molds);
