@@ -32,7 +32,8 @@ export default function EmployeeApp({ setPrintItems }: Props) {
       ? <MobileDeliveries pendingOrderId={pendingDeliveryOrderId} onConsumePendingOrderId={() => setPendingDeliveryOrderId(null)} onOpenOrder={() => setActivePage('orders')} />
       : <DeliveriesPage pendingOrderId={pendingDeliveryOrderId} onConsumePendingOrderId={() => setPendingDeliveryOrderId(null)} onOpenOrder={() => setActivePage('orders')} />,
     production: <EmployeeProduction />,
-    'customer-service': <CustomerServiceWorkspace />,
+    consignments: <CustomerServiceWorkspace mode="consignments" />,
+    repairs: <CustomerServiceWorkspace mode="repairs" />,
     registry: <EmployeeRegistry setPrintItems={setPrintItems} />,
     customers: <EmployeeCustomers />,
     collections: <EmployeeCollections setPrintItems={setPrintItems} />,

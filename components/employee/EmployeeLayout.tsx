@@ -31,7 +31,7 @@ const NavItem = ({ icon, label, isActive, onClick, isCollapsed, badge }: { icon:
     <div className={`${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white transition-colors duration-200'}`}>
       {icon}
     </div>
-    {!isCollapsed && <span className="font-medium truncate tracking-wide text-sm">{label}</span>}
+    {!isCollapsed && <span className="font-medium tracking-wide text-sm">{label}</span>}
     {!!badge && badge > 0 && (
       <span className={`ml-auto min-w-[1.4rem] h-6 px-1.5 rounded-full text-[10px] font-black flex items-center justify-center ${isActive ? 'bg-white/20 text-white' : 'bg-amber-500 text-white'}`}>
         {badge > 99 ? '99+' : badge}
@@ -91,7 +91,7 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
           </div>
 
           <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto scrollbar-hide">
-            {employeeDesktopNavItems.slice(0, 4).map((item) => (
+            {employeeDesktopNavItems.slice(0, 5).map((item) => (
               <NavItem
                 key={item.id}
                 icon={renderNavIcon(item.icon, 22)}
@@ -103,7 +103,7 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
               />
             ))}
             <div className="my-2 border-t border-white/10 mx-2"></div>
-            {employeeDesktopNavItems.slice(4, 6).map((item) => (
+            {employeeDesktopNavItems.slice(5, 7).map((item) => (
               <NavItem
                 key={item.id}
                 icon={renderNavIcon(item.icon, 22)}
@@ -111,10 +111,11 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
                 isActive={activePage === item.id}
                 isCollapsed={isCollapsed}
                 onClick={() => onNavigate(item.id)}
+                badge={item.id === 'deliveries' ? badgeCount : undefined}
               />
             ))}
             <div className="my-2 border-t border-white/10 mx-2"></div>
-            {employeeDesktopNavItems.slice(6).map((item) => (
+            {employeeDesktopNavItems.slice(7).map((item) => (
               <NavItem
                 key={item.id}
                 icon={renderNavIcon(item.icon, 22)}

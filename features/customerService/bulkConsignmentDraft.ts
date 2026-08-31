@@ -2,6 +2,8 @@ import type { BulkConsignmentGroupInput, BulkConsignmentLineInput } from './type
 
 export interface ConsignmentDraftRow {
   id: string;
+  /** Groups SKU lines into one client card. Shared even before a customer is chosen. */
+  blockId: string;
   customerId: string;
   warehouseId: string;
   sku: string;
@@ -16,6 +18,12 @@ export interface ConsignmentDraftRow {
   orderLineId: string;
 }
 
+export interface ConsignmentDraftCluster {
+  blockId: string;
+  customerId: string;
+  rows: ConsignmentDraftRow[];
+}
+
 export const CONSIGNMENT_BULK_DRAFT_STORAGE_KEY = 'ilios.consignmentBulkDraft.v1';
 
 export function plusDaysIsoDate(days: number): string {
@@ -25,10 +33,11 @@ export function plusDaysIsoDate(days: number): string {
 }
 
 export function createEmptyConsignmentDraftRow(
-  defaults: Partial<Pick<ConsignmentDraftRow, 'customerId' | 'warehouseId' | 'reviewDate' | 'notes'>> = {},
+  defaults: Partial<Pick<ConsignmentDraftRow, 'blockId' | 'customerId' | 'warehouseId' | 'reviewDate' | 'notes'>> = {},
 ): ConsignmentDraftRow {
   return {
     id: crypto.randomUUID(),
+    blockId: defaults.blockId || crypto.randomUUID(),
     customerId: defaults.customerId || '',
     warehouseId: defaults.warehouseId || '',
     sku: '',
@@ -111,13 +120,15 @@ export function groupConsignmentDraftRows(
   return [...grouped.values()];
 }
 
-export function clusterDraftRowsByCustomer(
-  rows: ConsignmentDraftRow[],
-): Array<{ customerId: string; rows: ConsignmentDraftRow[] }> {
+function clusterKey(row: ConsignmentDraftRow): string {
+  return row.blockId || row.customerId || row.id;
+}
+
+export function clusterDraftRowsByCustomer(rows: ConsignmentDraftRow[]): ConsignmentDraftCluster[] {
   const order: string[] = [];
   const map = new Map<string, ConsignmentDraftRow[]>();
   for (const row of rows) {
-    const key = row.customerId || row.id;
+    const key = clusterKey(row);
     if (!map.has(key)) {
       order.push(key);
       map.set(key, []);
@@ -126,7 +137,7 @@ export function clusterDraftRowsByCustomer(
   }
   return order.map((key) => {
     const cluster = map.get(key)!;
-    return { customerId: cluster[0]?.customerId || '', rows: cluster };
+    return { blockId: key, customerId: cluster[0]?.customerId || '', rows: cluster };
   });
 }
 
@@ -139,7 +150,12 @@ export function parseConsignmentDraft(raw: string | null): ConsignmentDraftRow[]
   try {
     const parsed = JSON.parse(raw) as { version?: number; rows?: ConsignmentDraftRow[] };
     if (!Array.isArray(parsed?.rows) || parsed.rows.length === 0) return null;
-    return parsed.rows.filter((row) => row && typeof row.id === 'string');
+    return parsed.rows
+      .filter((row) => row && typeof row.id === 'string')
+      .map((row) => ({
+        ...row,
+        blockId: row.blockId || row.customerId || row.id,
+      }));
   } catch {
     return null;
   }

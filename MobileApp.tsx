@@ -64,7 +64,8 @@ const mobileLoadingDetails: Record<MobileAdminPage, string> = {
   'order-builder': 'Νέα παραγγελία',
   deliveries: 'Παραδόσεις',
   production: 'Παραγωγή',
-  'customer-service': 'Παρακαταθήκες & Επισκευές',
+  consignments: 'Παρακαταθήκες',
+  repairs: 'Επισκευές',
   inventory: 'Αποθήκη',
   menu: 'Μενού',
   registry: 'Μητρώο',
@@ -221,7 +222,8 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         onPrintLabels={setPrintItems}
       />
     ),
-    'customer-service': <CustomerServiceWorkspace />,
+    consignments: <CustomerServiceWorkspace mode="consignments" />,
+    repairs: <CustomerServiceWorkspace mode="repairs" />,
     inventory: <MobileInventory products={products} onProductSelect={handleProductSelect} />,
     menu: <MobileMenu onNavigate={handleNavigate} activePage={activePage} />,
     registry: <MobileRegistry products={products} onProductSelect={handleProductSelect} />,

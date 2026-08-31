@@ -28,7 +28,7 @@ const BottomNavItem = ({
       }`}>
       <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
     </div>
-    <span className={`text-[9px] font-bold truncate w-full text-center ${isActive ? 'text-[#060b00]' : 'text-slate-400'}`}>
+    <span className={`text-[8px] font-bold leading-tight text-center w-full px-0.5 ${isActive ? 'text-[#060b00]' : 'text-slate-400'}`}>
       {label}
     </span>
   </button>
@@ -48,7 +48,7 @@ const SideNavItem = ({
       }`}
   >
     <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
-    <span className={`text-[8px] font-bold leading-none text-center w-full truncate ${isActive ? 'text-[#060b00]' : 'text-slate-400'}`}>
+    <span className={`text-[8px] font-bold leading-tight text-center w-full px-0.5 ${isActive ? 'text-[#060b00]' : 'text-slate-400'}`}>
       {label}
     </span>
   </button>
@@ -75,7 +75,7 @@ export default function SellerLayout({ children, activePage, onNavigate }: Props
         </div>
 
         {/* Nav items */}
-        <div className="flex flex-col gap-1 p-2">
+        <div className="flex flex-1 flex-col gap-1 overflow-y-auto p-2 scrollbar-hide">
           {sellerNavItems.map(item => (
             <SideNavItem
               key={item.id}
@@ -165,8 +165,8 @@ export default function SellerLayout({ children, activePage, onNavigate }: Props
 
       {/* ── PORTRAIT: Bottom Navigation Bar ──────────────────────────── */}
       <nav className="landscape:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-lg border-t border-slate-200
-                      pb-safe z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] h-20">
-        <div className="flex justify-around items-center h-full px-2">
+                      pb-safe z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] h-20 overflow-x-auto scrollbar-hide">
+        <div className="flex justify-around items-center h-full px-2 min-w-max w-full">
           {sellerNavItems.map(item => (
             <BottomNavItem
               key={item.id}

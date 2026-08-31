@@ -88,7 +88,8 @@ const adminLoadingDetails: Record<AdminPage, string> = {
   'batch-print': 'Μαζική εκτύπωση',
   orders: 'Παραγγελίες',
   production: 'Παραγωγή',
-  'customer-service': 'Παρακαταθήκες & Επισκευές',
+  consignments: 'Παρακαταθήκες',
+  repairs: 'Επισκευές',
   customers: 'Πελάτες',
   suppliers: 'Προμηθευτές',
   sellers: 'Πλασιέ',
@@ -156,7 +157,7 @@ const NavItem = ({ icon, label, isActive, onClick, isCollapsed, badge }: { icon:
     <div className={`${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white transition-colors duration-200'}`}>
       {icon}
     </div>
-    {!isCollapsed && <span className="font-medium truncate tracking-wide text-sm">{label}</span>}
+    {!isCollapsed && <span className="font-medium tracking-wide text-sm">{label}</span>}
     {!!badge && badge > 0 && (
       <span className={`ml-auto min-w-[1.4rem] h-6 px-1.5 rounded-full text-[10px] font-black flex items-center justify-center ${isActive ? 'bg-white/20 text-white' : 'bg-amber-500 text-white'}`}>
         {badge > 99 ? '99+' : badge}
@@ -417,7 +418,7 @@ function ErpAppContent() {
   // DESKTOP RENDERING (ADMIN)
   // This part runs only if role is 'admin' and !isMobile, or if isLocalMode is true
   const handleLogout = () => { localStorage.removeItem('ILIOS_LOCAL_MODE'); signOut(); };
-  const hiddenInLocalMode = new Set<AdminPage>(['deliveries', 'orders', 'offers', 'production', 'customer-service', 'customers', 'suppliers', 'legal']);
+  const hiddenInLocalMode = new Set<AdminPage>(['deliveries', 'orders', 'offers', 'production', 'consignments', 'repairs', 'customers', 'suppliers', 'legal']);
 
   const adminPageRegistry: Record<AdminPage, React.ReactNode> = {
     dashboard: <Dashboard products={products} settings={settings} onNavigate={handleNav} />,
@@ -440,7 +441,8 @@ function ErpAppContent() {
       setOrderToPrint(buildPartialOrderFromBatches(order, batches));
     }} />,
     production: <ProductionPage products={products} materials={materials} molds={molds} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintAssembly={handlePrintAssembly} onPrintLabels={setPrintItems} onPrintStageBatches={handlePrintStageBatches} />,
-    'customer-service': <CustomerServiceWorkspace />,
+    consignments: <CustomerServiceWorkspace mode="consignments" />,
+    repairs: <CustomerServiceWorkspace mode="repairs" />,
     customers: <CustomersPage onPrintOrder={setOrderToPrint} />,
     suppliers: <SuppliersPage />,
     sellers: <SellersPage />,

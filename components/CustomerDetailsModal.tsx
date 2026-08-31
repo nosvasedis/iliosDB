@@ -166,7 +166,7 @@ export default function CustomerDetailsModal({
         return map;
     }, [batches]);
 
-    type NormalTab = 'overview' | 'contact' | 'billing' | 'notes' | 'analytics' | 'services' | 'orders';
+    type NormalTab = 'overview' | 'contact' | 'billing' | 'notes' | 'analytics' | 'consignments' | 'repairs' | 'orders';
     type RetailTab = 'overview' | 'end_clients' | 'categories' | 'orders';
     const [activeTab, setActiveTab] = useState<NormalTab | RetailTab>('overview');
     const [orderQuery, setOrderQuery] = useState('');
@@ -409,7 +409,8 @@ export default function CustomerDetailsModal({
         { id: 'billing', label: 'Τιμολόγηση', Icon: Receipt },
         { id: 'notes', label: 'Σημειώσεις', Icon: StickyNote },
         { id: 'analytics', label: 'Ανάλυση', Icon: BarChart3 },
-        { id: 'services', label: `Παρακαταθήκες & Επισκευές (${customerConsignments.length + customerRepairs.length})`, Icon: HandHeart },
+        { id: 'consignments', label: `Παρακαταθήκες (${customerConsignments.length})`, Icon: HandHeart },
+        { id: 'repairs', label: `Επισκευές (${customerRepairs.length})`, Icon: Wrench },
         { id: 'orders', label: `Παραγγελίες (${stats.orderCount})`, Icon: ShoppingBag },
     ];
     const tabList = isRetailSystemCustomer ? retailTabList : normalTabList;
@@ -1115,8 +1116,8 @@ export default function CustomerDetailsModal({
                         </div>
                     )}
 
-                    {activeTab === 'services' && !isRetailSystemCustomer && customer.id && (
-                        <div className="max-w-5xl space-y-5">
+                    {activeTab === 'consignments' && !isRetailSystemCustomer && customer.id && (
+                        <div className="max-w-5xl">
                             <section className={`${sectionCard} overflow-hidden`}>
                                 <div className="flex items-center justify-between border-b border-slate-100 bg-indigo-50/70 p-4">
                                     <div className="flex items-center gap-3"><div className="rounded-xl bg-indigo-100 p-2 text-indigo-800"><HandHeart size={18} /></div><div><h3 className="font-black text-slate-800">Παρακαταθήκες</h3><p className="text-xs text-slate-500">Ενεργές και ιστορικές κινήσεις του πελάτη</p></div></div><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-indigo-800 shadow-sm">{customerConsignments.length}</span>
@@ -1130,6 +1131,11 @@ export default function CustomerDetailsModal({
                                     })}
                                 </div>
                             </section>
+                        </div>
+                    )}
+
+                    {activeTab === 'repairs' && !isRetailSystemCustomer && customer.id && (
+                        <div className="max-w-5xl">
                             <section className={`${sectionCard} overflow-hidden`}>
                                 <div className="flex items-center justify-between border-b border-slate-100 bg-blue-50/70 p-4">
                                     <div className="flex items-center gap-3"><div className="rounded-xl bg-blue-100 p-2 text-blue-700"><Wrench size={18} /></div><div><h3 className="font-black text-slate-800">Επισκευές</h3><p className="text-xs text-slate-500">Τρέχοντα τεμάχια και αλυσίδες επανεπισκευών</p></div></div><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-blue-700 shadow-sm">{customerRepairs.length}</span>

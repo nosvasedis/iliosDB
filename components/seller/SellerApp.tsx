@@ -48,7 +48,8 @@ export default function SellerApp() {
     collections: 'Συλλογές',
     orders: 'Παραγγελίες',
     customers: 'Πελάτες',
-    'customer-service': 'Παρακαταθήκες & Επισκευές',
+    consignments: 'Παρακαταθήκες',
+    repairs: 'Επισκευές',
     'order-builder': 'Νέα παραγγελία',
   };
   const loadingView = <IliosLoader variant="section" detail={sellerLoadingDetails[activePage]} className="h-full min-h-full bg-slate-50" />;
@@ -73,7 +74,8 @@ export default function SellerApp() {
       <SellerCollections products={sellerCatalog.products} collections={sellerCatalog.collections} />
     ),
     customers: <SellerCustomers />,
-    'customer-service': <CustomerServiceWorkspace />,
+    consignments: <CustomerServiceWorkspace mode="consignments" />,
+    repairs: <CustomerServiceWorkspace mode="repairs" />,
   };
 
   return (

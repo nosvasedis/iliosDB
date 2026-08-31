@@ -58,13 +58,13 @@ import ConsignmentBadge from './customerService/ConsignmentBadge';
 import RepairBadge from './customerService/RepairBadge';
 import RepairIntakeWorkbench from './customerService/RepairIntakeWorkbench';
 import RepairDetailModal from './customerService/RepairDetailModal';
+import ViewportPortal from './customerService/ViewportPortal';
 import SkuColorizedText from './SkuColorizedText';
 import SkuProductPicker from './legal/SkuProductPicker';
 import { getCatalogSelectionPricing } from '../utils/skuProductPicker';
 import { PRODUCTION_STAGES } from '../utils/productionStages';
 import DesktopPageHeader from './DesktopPageHeader';
 import {
-  BELOW_TAB_CONTAINER,
   BTN_PRIMARY,
   BTN_SECONDARY,
   CARD,
@@ -76,11 +76,10 @@ import {
   STAT_RED,
   STAT_AMBER,
   STAT_BLUE,
-  belowTabButton,
   tailTabButton,
 } from './ui/designTokens';
 
-type WorkspaceTab = 'consignments' | 'repairs';
+export type CustomerServiceMode = 'consignments' | 'repairs';
 type ConsignmentListView = 'all' | 'clients' | 'activity';
 type RepairListView = 'all' | 'clients' | 'activity';
 type ConsignmentSaleOption = { id: string; customerId: string; sku: string; variantSuffix: string; sizeInfo: string; soldAt: string };
@@ -104,6 +103,7 @@ const primaryButton = BTN_PRIMARY;
 
 function ModalShell({ title, subtitle, onClose, children, wide = false }: { title: string; subtitle?: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   return (
+    <ViewportPortal>
     <div className="fixed inset-0 z-[190] flex items-center justify-center bg-slate-950/55 p-3 backdrop-blur-sm print:hidden" role="dialog" aria-modal="true" aria-label={title}>
       <div className={`flex max-h-[94vh] w-full flex-col overflow-hidden rounded-3xl border border-white/40 bg-slate-50 shadow-2xl ${wide ? 'max-w-6xl' : 'max-w-xl'}`}>
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4">
@@ -113,13 +113,14 @@ function ModalShell({ title, subtitle, onClose, children, wide = false }: { titl
         <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
       </div>
     </div>
+    </ViewportPortal>
   );
 }
 
-export default function CustomerServiceWorkspace() {
+export default function CustomerServiceWorkspace({ mode }: { mode: CustomerServiceMode }) {
   const { profile } = useAuth();
   const { showToast, confirm } = useUI();
-  const [tab, setTab] = useState<WorkspaceTab>('consignments');
+  const isConsignments = mode === 'consignments';
   const [consignmentView, setConsignmentView] = useState<ConsignmentListView>('all');
   const [repairView, setRepairView] = useState<RepairListView>('all');
   const [search, setSearch] = useState('');
@@ -297,29 +298,29 @@ export default function CustomerServiceWorkspace() {
     <div className={`${PAGE_CONTAINER} min-h-full bg-slate-50 px-3 py-4 sm:px-5 lg:px-7`}>
       <div className="mx-auto flex max-w-[1600px] flex-col gap-5">
         <DesktopPageHeader
-          icon={HandHeart}
-          title="Παρακαταθήκες & Επισκευές"
-          subtitle="Ιχνηλάτηση τεμαχίων, αποθέματος και οικονομικής τακτοποίησης — όχι απλή ετικέτα παραγγελίας."
+          icon={isConsignments ? HandHeart : Wrench}
+          title={isConsignments ? 'Παρακαταθήκες' : 'Επισκευές'}
+          subtitle={isConsignments
+            ? 'Ιχνηλάτηση τεμαχίων στον πελάτη, επανέλεγχος και οικονομική τακτοποίηση — όχι απλή ετικέτα παραγγελίας.'
+            : 'Παραλαβές επισκευών, παρτίδες Παραγωγής και επιστροφή τεμαχίων — χωριστά από τις Παρακαταθήκες.'}
           tail={(
             <>
-              {canSeeCost && (
+              {isConsignments && canSeeCost && (
                 <button className={BTN_SECONDARY} onClick={() => safeAction(async () => { const mismatches = await actions.checkConsignmentInventory.mutateAsync(); if (mismatches.length > 0) { const first = mismatches[0]; throw new Error(`Βρέθηκαν ${mismatches.length} διαφορές αποθήκης. Πρώτη διαφορά: ${first.product_sku}${first.variant_suffix}, αναμενόμενα ${first.expected_quantity}, πραγματικά ${first.actual_quantity}.`); } }, 'Η αποθήκη Παρακαταθηκών συμφωνεί πλήρως με τις ενεργές κατανομές.')}>
                   <ShieldCheck size={16} /> Έλεγχος συμφωνίας
                 </button>
               )}
-              <button className={tab === 'repairs' ? BTN_SECONDARY : BTN_PRIMARY} onClick={() => setShowConsignmentCreator(true)}><Plus size={17} /> Μαζική Δημιουργία</button>
-              <button className={tab === 'repairs' ? BTN_PRIMARY : BTN_SECONDARY} onClick={() => openRepairCreator()}><Wrench size={16} /> Παραλαβή Επισκευών</button>
+              {isConsignments && (
+                <button className={BTN_PRIMARY} onClick={() => setShowConsignmentCreator(true)}><Plus size={17} /> Μαζική Δημιουργία</button>
+              )}
+              {!isConsignments && (
+                <button className={BTN_PRIMARY} onClick={() => openRepairCreator()}><Wrench size={16} /> Παραλαβή Επισκευών</button>
+              )}
             </>
-          )}
-          below={(
-            <div className={BELOW_TAB_CONTAINER}>
-              <button type="button" onClick={() => { setTab('consignments'); setStatusFilter('active'); }} className={belowTabButton(tab === 'consignments')}><Boxes size={16} /> Παρακαταθήκες <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] text-indigo-700">{consignmentStats.active}</span></button>
-              <button type="button" onClick={() => { setTab('repairs'); setStatusFilter('active'); }} className={belowTabButton(tab === 'repairs')}><Wrench size={16} /> Επισκευές <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] text-blue-700">{repairStats.active}</span></button>
-            </div>
           )}
         />
 
-        {tab === 'consignments' ? (
+        {isConsignments ? (
           <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${canSeeCost ? 'xl:grid-cols-7' : 'xl:grid-cols-6'}`}>
             <div className={`${STAT_BOX} ${STAT_INDIGO} px-4`}><div className="text-[11px] font-bold uppercase tracking-wide">Με πελάτες</div><div className="text-2xl font-black">{formatGreekNumber(consignmentStats.pending)}</div></div>
             {canSeeCost && <div className={`${STAT_BOX} ${STAT_SLATE} px-4`}><div className="text-[11px] font-bold uppercase tracking-wide">Έκθεση κόστους</div><div className="text-2xl font-black">{formatGreekMoney(consignmentStats.cost)}</div></div>}
@@ -343,18 +344,18 @@ export default function CustomerServiceWorkspace() {
 
         <section className={`${CARD} p-3`}>
           <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_220px_200px]">
-            <label className="relative"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input className={`${inputClass} pl-9`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={tab === 'consignments' ? 'Κωδικός, πελάτης, SKU ή παραγγελία…' : 'Κωδικός επισκευής, πελάτης, SKU ή σημείωση…'} /></label>
+            <label className="relative"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input className={`${inputClass} pl-9`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={isConsignments ? 'Κωδικός, πελάτης, SKU ή παραγγελία…' : 'Κωδικός επισκευής, πελάτης, SKU ή σημείωση…'} /></label>
             <label className="relative"><Users size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><select className={`${inputClass} pl-9`} value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)}><option value="">Όλοι οι πελάτες</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.full_name}</option>)}</select></label>
-            <label className="relative"><Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><select className={`${inputClass} pl-9`} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="active">Μόνο ενεργές</option><option value="all">Όλες οι καταστάσεις</option>{tab === 'consignments' ? Object.entries(CONSIGNMENT_STATUS_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>) : Object.entries(REPAIR_STATUS_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+            <label className="relative"><Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><select className={`${inputClass} pl-9`} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="active">Μόνο ενεργές</option><option value="all">Όλες οι καταστάσεις</option>{isConsignments ? Object.entries(CONSIGNMENT_STATUS_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>) : Object.entries(REPAIR_STATUS_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
           </div>
-          {tab === 'consignments' && (
+          {isConsignments && (
             <div className="mt-3 flex flex-wrap gap-1">
               <button type="button" className={tailTabButton(consignmentView === 'all')} onClick={() => setConsignmentView('all')}><LayoutGrid size={14} /> Όλες</button>
               <button type="button" className={tailTabButton(consignmentView === 'clients')} onClick={() => setConsignmentView('clients')}><Users size={14} /> Ανά πελάτη</button>
               <button type="button" className={tailTabButton(consignmentView === 'activity')} onClick={() => setConsignmentView('activity')}><ClipboardCheck size={14} /> Κινήσεις</button>
             </div>
           )}
-          {tab === 'repairs' && (
+          {!isConsignments && (
             <div className="mt-3 flex flex-wrap gap-1">
               <button type="button" className={tailTabButton(repairView === 'all')} onClick={() => setRepairView('all')}><LayoutGrid size={14} /> Όλες</button>
               <button type="button" className={tailTabButton(repairView === 'clients')} onClick={() => setRepairView('clients')}><Users size={14} /> Ανά πελάτη</button>
@@ -363,7 +364,7 @@ export default function CustomerServiceWorkspace() {
           )}
         </section>
 
-        {isLoading ? <div className="flex min-h-64 items-center justify-center text-slate-500"><Loader2 className="mr-2 animate-spin" /> Φόρτωση στοιχείων…</div> : error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm font-bold text-rose-700">Δεν ήταν δυνατή η φόρτωση: {error.message}</div> : tab === 'consignments' ? (
+        {isLoading ? <div className="flex min-h-64 items-center justify-center text-slate-500"><Loader2 className="mr-2 animate-spin" /> Φόρτωση στοιχείων…</div> : error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm font-bold text-rose-700">Δεν ήταν δυνατή η φόρτωση: {error.message}</div> : isConsignments ? (
           consignmentView === 'activity' ? (
             <div className={`${CARD} divide-y divide-slate-100`}>
               {activityEvents.length === 0 ? <div className="p-8 text-center text-sm text-slate-400">Δεν υπάρχουν ακόμη κινήσεις.</div> : activityEvents.slice(0, 80).map((event) => {
@@ -437,7 +438,7 @@ export default function CustomerServiceWorkspace() {
         )}
       </div>
 
-      {showConsignmentCreator && (
+      {isConsignments && showConsignmentCreator && (
         <BulkConsignmentWorkbench
           customers={customers}
           products={products}
@@ -451,7 +452,7 @@ export default function CustomerServiceWorkspace() {
           saving={actions.createBulkConsignments.isPending}
         />
       )}
-      {selectedConsignment && (
+      {selectedConsignment && isConsignments && (
         <ConsignmentDetailModal
           entry={selectedConsignment}
           lines={(data?.consignmentLines || []).filter((line) => line.consignment_id === selectedConsignment.id)}
@@ -472,7 +473,7 @@ export default function CustomerServiceWorkspace() {
           onLegalDraft={(id) => safeAction(() => actions.createConsignmentLegalDraft.mutateAsync(id), 'Δημιουργήθηκε συνδεδεμένο πρόχειρο παραστατικό.')}
         />
       )}
-      {showRepairCreator && (
+      {!isConsignments && showRepairCreator && (
         <RepairIntakeWorkbench
           customers={customers}
           products={products}
@@ -490,7 +491,7 @@ export default function CustomerServiceWorkspace() {
           saving={actions.createRepairIntake.isPending}
         />
       )}
-      {selectedRepair && (
+      {selectedRepair && !isConsignments && (
         <RepairDetailModal
           item={selectedRepair}
           customerName={customerById.get(selectedRepair.customer_id)?.full_name || 'Άγνωστος πελάτης'}

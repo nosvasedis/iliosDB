@@ -34,6 +34,7 @@ import SkuColorizedText from '../SkuColorizedText';
 import RepairBadge from './RepairBadge';
 import RepairQrButton from './RepairQrButton';
 import { BTN_PRIMARY, BTN_SECONDARY } from '../ui/designTokens';
+import ViewportPortal from './ViewportPortal';
 
 export type RepairWorkspaceOperation =
   | { kind: 'quality'; item: RepairItem; passed: boolean }
@@ -111,6 +112,7 @@ export default function RepairDetailModal({
   const internalCost = costs.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_cost || 0), 0);
 
   return (
+    <ViewportPortal>
     <div className="fixed inset-0 z-[190] flex items-center justify-center bg-slate-950/55 p-3 backdrop-blur-sm print:hidden" role="dialog" aria-modal="true" aria-label={item.code}>
       <div className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/40 bg-slate-50 shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4">
@@ -260,5 +262,6 @@ export default function RepairDetailModal({
         </div>
       </div>
     </div>
+    </ViewportPortal>
   );
 }

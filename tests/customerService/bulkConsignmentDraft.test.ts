@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  clusterDraftRowsByCustomer,
   groupConsignmentDraftRows,
+  parseConsignmentDraft,
   validateConsignmentDraftRows,
   type ConsignmentDraftRow,
 } from '../../features/customerService/bulkConsignmentDraft';
 
 const row = (overrides: Partial<ConsignmentDraftRow> = {}): ConsignmentDraftRow => ({
   id: 'row-1',
+  blockId: 'block-1',
   customerId: 'cust-1',
   warehouseId: 'wh-1',
   sku: 'RNG001',
@@ -63,5 +66,24 @@ describe('bulk consignment draft', () => {
       source_warehouse_id: 'wh-2',
       review_due_at: '2026-10-01',
     });
+  });
+
+  it('keeps extra SKU lines in the same client block before a customer is selected', () => {
+    const clustered = clusterDraftRowsByCustomer([
+      row({ id: 'a', customerId: '', blockId: 'block-open', sku: 'RNG001' }),
+      row({ id: 'b', customerId: '', blockId: 'block-open', sku: 'RNG010', variantSuffix: '' }),
+      row({ id: 'c', customerId: '', blockId: 'block-other', sku: 'RNG011', variantSuffix: '' }),
+    ]);
+
+    expect(clustered).toHaveLength(2);
+    expect(clustered[0]).toMatchObject({ blockId: 'block-open', customerId: '' });
+    expect(clustered[0].rows.map((item) => item.id)).toEqual(['a', 'b']);
+    expect(clustered[1].blockId).toBe('block-other');
+  });
+
+  it('restores older drafts by grouping known customers onto one block', () => {
+    const { blockId: _unused, ...legacy } = row({ id: 'a', customerId: 'cust-1' });
+    const restored = parseConsignmentDraft(JSON.stringify({ version: 1, rows: [legacy] }));
+    expect(restored?.[0].blockId).toBe('cust-1');
   });
 });

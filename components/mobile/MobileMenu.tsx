@@ -23,6 +23,7 @@ import {
   BarChart3,
   UserCheck,
   HandHeart,
+  Wrench,
   type LucideIcon,
 } from 'lucide-react';
 import { APP_LOGO } from '../../constants';
@@ -173,7 +174,8 @@ export default function MobileMenu({ onNavigate, activePage }: Props) {
 
   const storeOps: MenuItem[] = [
     { id: 'deliveries', label: 'Ημερολόγιο', description: 'Παραδόσεις & πλάνα', icon: CalendarRange, color: 'text-emerald-700', bg: 'bg-emerald-50', badge: badgeCount },
-    { id: 'customer-service', label: 'Παρακαταθήκες & Επισκευές', description: 'Τεμάχια πελατών & εκκρεμότητες', icon: HandHeart, color: 'text-indigo-700', bg: 'bg-indigo-50' },
+    { id: 'consignments', label: 'Παρακαταθήκες', description: 'Τεμάχια πελατών σε παρακαταθήκη', icon: HandHeart, color: 'text-indigo-700', bg: 'bg-indigo-50' },
+    { id: 'repairs', label: 'Επισκευές', description: 'Παραλαβές και εκκρεμότητες επισκευών', icon: Wrench, color: 'text-blue-700', bg: 'bg-blue-50' },
     { id: 'offers', label: 'Προσφορές', description: 'Προσφορές πελατών', icon: FileBadge, color: 'text-amber-600', bg: 'bg-amber-50' },
     { id: 'suppliers', label: 'Προμηθευτές', description: 'Εντολές αγοράς', icon: Globe, color: 'text-purple-600', bg: 'bg-purple-50' },
     { id: 'collections', label: 'Συλλογές', description: 'Οργάνωση καταλόγου', icon: FolderKanban, color: 'text-pink-600', bg: 'bg-pink-50' },

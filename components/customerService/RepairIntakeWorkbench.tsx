@@ -21,6 +21,7 @@ import {
 import { formatOrderId } from '../../utils/orderUtils';
 import { BTN_PRIMARY, BTN_SECONDARY, CARD } from '../ui/designTokens';
 import { useEscapeToClose } from '../../hooks/useEscapeToClose';
+import ViewportPortal from './ViewportPortal';
 
 export type RepairConsignmentSaleOption = {
   id: string;
@@ -150,6 +151,7 @@ export default function RepairIntakeWorkbench({
   };
 
   return (
+    <ViewportPortal>
     <div className="fixed inset-0 z-[190] flex flex-col bg-slate-50 print:hidden" role="dialog" aria-modal="true" aria-label="Παραλαβή Επισκευών">
       <header className="shrink-0 border-b border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-6">
         <div className="mx-auto flex max-w-[1600px] flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -393,5 +395,6 @@ export default function RepairIntakeWorkbench({
         </div>
       </div>
     </div>
+    </ViewportPortal>
   );
 }

@@ -27,6 +27,7 @@ import {
 } from '../../features/customerService/bulkConsignmentDraft';
 import { BTN_PRIMARY, BTN_SECONDARY, CARD } from '../ui/designTokens';
 import { useEscapeToClose } from '../../hooks/useEscapeToClose';
+import ViewportPortal from './ViewportPortal';
 
 type CustomerOption = { id: string; full_name: string };
 type WarehouseOption = { id: string; name: string };
@@ -77,16 +78,30 @@ export default function BulkConsignmentWorkbench({
   }, [defaultWarehouseId]);
 
   useEffect(() => {
-    const tagged = orders.flatMap((order) => (order.items || [])
-      .filter((item: any) => item.fulfillment_mode === 'consignment' && !existingOrderLineIds.has(item.line_id || null))
-      .map((item: any) => {
-        const pricing = getCatalogSelectionPricing(products, {
-          sku: item.sku,
-          variant_suffix: item.variant_suffix || null,
+    const tagged = orders.flatMap((order) => {
+      const customerId = order.customer_id || '';
+      return (order.items || [])
+        .filter((item: any) => item.fulfillment_mode === 'consignment' && !existingOrderLineIds.has(item.line_id || null))
+        .map((item: any) => {
+          const pricing = getCatalogSelectionPricing(products, {
+            sku: item.sku,
+            variant_suffix: item.variant_suffix || null,
+          });
+          return { order, item, customerId, pricing };
         });
+    });
+    if (tagged.length > 0) {
+      const blockByCustomer = new Map<string, string>();
+      const nextRows: ConsignmentDraftRow[] = tagged.map(({ order, item, customerId, pricing }) => {
+        let blockId = blockByCustomer.get(customerId);
+        if (!blockId) {
+          blockId = crypto.randomUUID();
+          blockByCustomer.set(customerId, blockId);
+        }
         return {
           ...createEmptyConsignmentDraftRow({
-            customerId: order.customer_id || '',
+            blockId,
+            customerId,
             warehouseId: warehouseId || defaultWarehouseId,
             reviewDate,
           }),
@@ -99,9 +114,8 @@ export default function BulkConsignmentWorkbench({
           sourceOrderId: order.id,
           orderLineId: item.line_id || '',
         };
-      }));
-    if (tagged.length > 0) {
-      setRows((current) => (current.length === 1 && !current[0].customerId && !current[0].sku ? tagged : current));
+      });
+      setRows((current) => (current.length === 1 && !current[0].customerId && !current[0].sku ? nextRows : current));
     }
   }, [orders, products, existingOrderLineIds, warehouseId, defaultWarehouseId, reviewDate]);
 
@@ -149,19 +163,27 @@ export default function BulkConsignmentWorkbench({
     ]);
   };
 
-  const addLineToCustomer = (customerId: string) => {
+  const addLineToCluster = (cluster: { blockId: string; customerId: string }) => {
     setRows((current) => [
       ...current,
-      createEmptyConsignmentDraftRow({ customerId, warehouseId, reviewDate, notes: sharedNotes }),
+      createEmptyConsignmentDraftRow({
+        blockId: cluster.blockId,
+        customerId: cluster.customerId,
+        warehouseId,
+        reviewDate,
+        notes: sharedNotes,
+      }),
     ]);
   };
 
   const duplicateCluster = (clusterRows: ConsignmentDraftRow[]) => {
+    const blockId = crypto.randomUUID();
     setRows((current) => [
       ...current,
       ...clusterRows.map((row) => ({
         ...row,
         id: crypto.randomUUID(),
+        blockId,
         orderLineId: '',
         sourceOrderId: '',
       })),
@@ -184,6 +206,7 @@ export default function BulkConsignmentWorkbench({
   };
 
   return (
+    <ViewportPortal>
     <div className="fixed inset-0 z-[190] flex flex-col bg-slate-50 print:hidden" role="dialog" aria-modal="true" aria-label="Μαζική Δημιουργία Παρακαταθηκών">
       <header className="shrink-0 border-b border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-6">
         <div className="mx-auto flex max-w-[1600px] flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -239,7 +262,7 @@ export default function BulkConsignmentWorkbench({
               const pieces = cluster.rows.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0);
               const value = cluster.rows.reduce((sum, row) => sum + (Number(row.quantity) || 0) * (Number(row.unitPrice) || 0), 0);
               return (
-                <section key={cluster.rows[0].id} className={`${CARD} overflow-hidden`}>
+                <section key={cluster.blockId} className={`${CARD} overflow-hidden`}>
                   <div className="flex flex-col gap-3 border-b border-slate-100 bg-white p-4 sm:flex-row sm:items-center">
                     <div className="min-w-0 flex-1">
                       <CustomerSearchSelect
@@ -254,7 +277,7 @@ export default function BulkConsignmentWorkbench({
                     <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-500">
                       <span className="rounded-full bg-slate-100 px-2 py-1">{formatGreekNumber(pieces)} τεμ.</span>
                       <span className="rounded-full bg-indigo-50 px-2 py-1 text-indigo-700">{formatGreekMoney(value)}</span>
-                      <button type="button" className={BTN_SECONDARY} onClick={() => addLineToCustomer(cluster.customerId)}><Plus size={14} /> Γραμμή</button>
+                      <button type="button" className={BTN_SECONDARY} onClick={() => addLineToCluster(cluster)}><Plus size={14} /> Γραμμή</button>
                       <button type="button" className={BTN_SECONDARY} onClick={() => duplicateCluster(cluster.rows)} aria-label="Αντιγραφή πελάτη"><Copy size={14} /></button>
                       <button type="button" className="rounded-xl p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600" onClick={() => removeCluster(cluster.rows)} aria-label="Αφαίρεση πελάτη"><X size={16} /></button>
                     </div>
@@ -335,5 +358,6 @@ export default function BulkConsignmentWorkbench({
         </div>
       </div>
     </div>
+    </ViewportPortal>
   );
 }
