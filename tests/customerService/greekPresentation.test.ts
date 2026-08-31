@@ -2,12 +2,16 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  CONSIGNMENT_EVENT_LABELS,
   CONSIGNMENT_RETURN_STATUS_LABELS,
   CONSIGNMENT_STATUS_LABELS,
   FINANCIAL_STATUS_LABELS,
   FULFILLMENT_MODE_LABELS,
   REPAIR_CHARGE_TYPE_LABELS,
   REPAIR_COST_TYPE_LABELS,
+  REPAIR_QUALITY_STATUS_LABELS,
+  REPAIR_ATTACHMENT_TYPE_LABELS,
+  REPAIR_EVENT_LABELS,
   REPAIR_ORIGIN_LABELS,
   REPAIR_STATUS_LABELS,
   SETTLEMENT_STATUS_LABELS,
@@ -16,11 +20,15 @@ import {
 
 const dictionaries = [
   CONSIGNMENT_STATUS_LABELS,
+  CONSIGNMENT_EVENT_LABELS,
   FINANCIAL_STATUS_LABELS,
   SETTLEMENT_STATUS_LABELS,
   CONSIGNMENT_RETURN_STATUS_LABELS,
   REPAIR_STATUS_LABELS,
   REPAIR_ORIGIN_LABELS,
+  REPAIR_EVENT_LABELS,
+  REPAIR_ATTACHMENT_TYPE_LABELS,
+  REPAIR_QUALITY_STATUS_LABELS,
   REPAIR_CHARGE_TYPE_LABELS,
   REPAIR_COST_TYPE_LABELS,
   WORKFLOW_KIND_LABELS,
@@ -34,6 +42,15 @@ const forbiddenVisibleLiterals = [
 
 const guardedFiles = [
   'components/CustomerServiceWorkspace.tsx',
+  'components/customerService/BulkConsignmentWorkbench.tsx',
+  'components/customerService/ConsignmentBadge.tsx',
+  'components/customerService/FulfillmentModeToggle.tsx',
+  'components/customerService/RepairBadge.tsx',
+  'components/customerService/RepairIntakeWorkbench.tsx',
+  'components/customerService/RepairDetailModal.tsx',
+  'components/customerService/CustomerSearchSelect.tsx',
+  'components/CustomerDetailsModal.tsx',
+  'components/production/ProductionFinderResultRow.tsx',
   'components/ProductionBatchCard.tsx',
   'components/ProductionPage.tsx',
   'components/OrderBuilder/OrderItemsPanel.tsx',

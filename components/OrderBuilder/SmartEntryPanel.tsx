@@ -12,6 +12,7 @@ import {
 import { PRODUCT_OPTION_COLORS, PRODUCT_OPTION_COLOR_LABELS, isXrCordEnamelSku } from '../../utils/xrOptions';
 import { SPECIAL_CREATION_SKU } from '../../utils/specialCreationSku';
 import type { Product } from '../../types';
+import FulfillmentModeToggle from '../customerService/FulfillmentModeToggle';
 
 interface Props {
     orderState: ReturnType<typeof useOrderState>;
@@ -198,7 +199,17 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                 <div className="p-2.5 bg-[#060b00] text-white rounded-xl shadow-lg">
                     <ScanBarcode size={22} className="animate-pulse" />
                 </div>
-                <h2 className="font-black text-slate-800 uppercase tracking-tighter text-lg">Έξυπνη Ταχεία Προσθήκη</h2>
+                <div className="min-w-0 flex-1">
+                    <h2 className="font-black text-slate-800 uppercase tracking-tighter text-lg">Έξυπνη Ταχεία Προσθήκη</h2>
+                    <div className="mt-2">
+                        <FulfillmentModeToggle
+                            value={state.defaultFulfillmentMode}
+                            onChange={setters.setDefaultFulfillmentMode}
+                            label="Νέα είδη"
+                            compact
+                        />
+                    </div>
+                </div>
             </div>
 
             <div className="space-y-6">

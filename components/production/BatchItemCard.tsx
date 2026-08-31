@@ -14,6 +14,7 @@ import { buildOrderItemIdentityKey } from '../../features/orders/printHelpers';
 import { BatchRow } from './BatchRow';
 import { STAGES } from './stageConstants';
 import { ItemFulfillmentBadge } from './ItemFulfillmentBadge';
+import ConsignmentBadge from '../customerService/ConsignmentBadge';
 import { ItemFulfillmentKind, ItemShipmentAllocation } from '../../utils/shipmentUtils';
 
 export interface RowItem extends OrderItem {
@@ -88,6 +89,7 @@ export const BatchItemCard = React.memo(function BatchItemCard({
     const inProductionQty = row.inProgressQty + row.readyQty;
 
     const cardBorderClass = (() => {
+        if (row.fulfillment_mode === 'consignment') return 'border-indigo-200 ring-1 ring-indigo-100/70';
         if (!isFullySent) return 'border-slate-200 hover:border-slate-300';
         if (row.fulfillmentKind === 'fully_delivered') return 'border-emerald-200 bg-emerald-50/20';
         if (row.fulfillmentKind === 'partially_delivered') return 'border-amber-200 bg-amber-50/20';
@@ -130,6 +132,7 @@ export const BatchItemCard = React.memo(function BatchItemCard({
                     <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                             <SkuColorizedText sku={row.sku} suffix={row.variant_suffix} gender={row.gender} className="font-black text-sm" masterClassName={spStub ? 'text-violet-900' : 'text-slate-900'} />
+                            {row.fulfillment_mode === 'consignment' && <ConsignmentBadge compact />}
                             {row.size_info && <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 font-bold flex items-center gap-0.5"><Hash size={8} /> {row.size_info}</span>}
                             {row.cord_color && <span className="text-[9px] bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-100 font-bold">Κορδόνι: {getProductOptionColorLabel(row.cord_color)}</span>}
                             {row.enamel_color && <span className="text-[9px] bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded border border-rose-100 font-bold">Σμάλτο: {getProductOptionColorLabel(row.enamel_color)}</span>}

@@ -77,6 +77,44 @@ export const FULFILLMENT_MODE_LABELS = {
   consignment: 'Παρακαταθήκη',
 } as const;
 
+export const REPAIR_EVENT_LABELS: Record<string, string> = {
+  received: 'Παραλαβή',
+  production_stage_changed: 'Αλλαγή σταδίου Παραγωγής',
+  quality_passed: 'Επιτυχής ποιοτικός έλεγχος',
+  quality_failed_rework: 'Αποτυχία ελέγχου / επανεργασία',
+  delivered: 'Παράδοση',
+  status_changed: 'Αλλαγή κατάστασης',
+  cost_recorded: 'Καταγραφή κόστους',
+  charge_updated: 'Ενημέρωση χρέωσης',
+  legal_draft_created: 'Πρόχειρο παραστατικό',
+};
+
+export const REPAIR_ATTACHMENT_TYPE_LABELS = {
+  intake: 'Παραλαβή',
+  quality: 'Ποιοτικός έλεγχος',
+  other: 'Άλλο',
+} as const;
+
+export const REPAIR_QUALITY_STATUS_LABELS = {
+  pending: 'Εκκρεμεί',
+  passed: 'Επιτυχής',
+  failed: 'Αποτυχία',
+} as const;
+
+export const CONSIGNMENT_EVENT_LABELS: Record<string, string> = {
+  created: 'Δημιουργία',
+  handed_off: 'Παράδοση στον πελάτη',
+  price_overridden: 'Αλλαγή κλειδωμένης τιμής',
+  sale_recorded: 'Δήλωση πώλησης',
+  payment_recorded: 'Είσπραξη',
+  return_received: 'Παραλαβή επιστροφής',
+  return_routed: 'Δρομολόγηση επιστροφής',
+  sale_reversed: 'Αντιστροφή πώλησης',
+  return_reversed: 'Αντιστροφή επιστροφής',
+  cancelled: 'Ακύρωση',
+  legal_draft_created: 'Πρόχειρο παραστατικό',
+};
+
 export function formatGreekMoney(value: number): string {
   return new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR' }).format(value || 0);
 }

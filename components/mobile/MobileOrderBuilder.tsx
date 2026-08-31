@@ -10,6 +10,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
 import { formatCurrency, getVariantComponents, findProductByScannedCode } from '../../utils/pricingEngine';
 import SkuColorizedText from '../SkuColorizedText';
+import FulfillmentModeToggle from '../customerService/FulfillmentModeToggle';
+import ConsignmentBadge from '../customerService/ConsignmentBadge';
+import { resolveTypedSkuColorParts } from '../../utils/skuProductPicker';
 import { FINISH_CODES } from '../../constants';
 import { generateOrderId } from '../../utils/orderUtils';
 import { getSizingInfo } from '../../utils/sizing';
@@ -257,6 +260,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     const [selectedFinish, setSelectedFinish] = useState<string | null>(null); // step 1: metal (finish) chosen
     const [itemNotes, setItemNotes] = useState('');
     const [qty, setQty] = useState(1);
+    const [defaultFulfillmentMode, setDefaultFulfillmentMode] = useState<'sale' | 'consignment'>('sale');
     const [showScanner, setShowScanner] = useState(false);
     const [showCustSuggestions, setShowCustSuggestions] = useState(false);
     const [showCreateClientScreen, setShowCreateClientScreen] = useState(false);
@@ -274,6 +278,8 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
     }, [variantsByFinish]);
 
     const variantsForSelectedFinish = selectedFinish !== null ? (variantsByFinish[selectedFinish] || []) : [];
+
+    const typedSkuColor = useMemo(() => resolveTypedSkuColorParts(input, products), [input, products]);
 
     const editingItem = editingIndex !== null ? items[editingIndex] : null;
     const editingProduct = useMemo(() => buildMobileOrderBuilderEditingProduct(editingItem, products), [editingItem, products]);
@@ -419,7 +425,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             product_details: getSpecialCreationProductStub(),
             notes: cleanedNote,
             line_id: crypto.randomUUID(),
-            fulfillment_mode: 'sale',
+            fulfillment_mode: defaultFulfillmentMode,
         };
         setItems(prev => [newItem, ...prev]);
         showToast('Προστέθηκε ειδική δημιουργία (SP).', 'success');
@@ -444,7 +450,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             cord_color: selectedCordColor,
             enamel_color: selectedEnamelColor,
             notes: itemNotes || undefined,
-            fulfillment_mode: 'sale',
+            fulfillment_mode: defaultFulfillmentMode,
         };
         setItems(prev => {
             const nextKey = getOrderItemMatchKey(newItem);
@@ -482,7 +488,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             const { product, variant } = match;
             if (product.is_component) { showToast(`Το ${product.sku} είναι εξάρτημα.`, 'error'); return; }
             const unitPrice = variant?.selling_price || product.selling_price || 0;
-            const newItem: OrderItem = { sku: product.sku, variant_suffix: variant?.suffix, quantity: 1, price_at_order: unitPrice, product_details: product, fulfillment_mode: 'sale' };
+            const newItem: OrderItem = { sku: product.sku, variant_suffix: variant?.suffix, quantity: 1, price_at_order: unitPrice, product_details: product, fulfillment_mode: defaultFulfillmentMode };
             setItems(prev => {
                 const existingIdx = prev.findIndex(i => getOrderItemMatchKey(i) === getOrderItemMatchKey(newItem));
                 if (existingIdx >= 0) { const updated = [...prev]; updated[existingIdx].quantity += 1; return updated; }
@@ -825,20 +831,40 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                             </div>
                         )}
 
+                        <FulfillmentModeToggle
+                            value={defaultFulfillmentMode}
+                            onChange={setDefaultFulfillmentMode}
+                            label="Νέα είδη"
+                            compact
+                        />
+
                         {/* SKU Mode */}
                         {inputMode === 'sku' && (
                             <>
                                 <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
-                                    <Search size={20} className="text-slate-400 ml-1" />
-                                    <input
-                                        ref={inputRef}
-                                        type="text"
-                                        value={input}
-                                        onChange={e => setInput(e.target.value.toUpperCase())}
-                                        onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
-                                        placeholder="Κωδικός ή πλήρης κωδ. (π.χ. SK005PAK)"
-                                        className="flex-1 bg-transparent p-2 outline-none font-black text-slate-900 uppercase"
-                                    />
+                                    <Search size={20} className="text-slate-400 ml-1 shrink-0" />
+                                    <div className="relative min-w-0 flex-1">
+                                        {input.trim() ? (
+                                            <div className="pointer-events-none absolute inset-y-0 left-2 right-2 z-20 flex items-center overflow-hidden" aria-hidden>
+                                                <SkuColorizedText
+                                                    sku={typedSkuColor.master || input.trim().toUpperCase()}
+                                                    suffix={typedSkuColor.suffix}
+                                                    gender={typedSkuColor.gender}
+                                                    className="font-black"
+                                                    masterClassName="text-slate-900"
+                                                />
+                                            </div>
+                                        ) : null}
+                                        <input
+                                            ref={inputRef}
+                                            type="text"
+                                            value={input}
+                                            onChange={e => setInput(e.target.value.toUpperCase())}
+                                            onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
+                                            placeholder="Κωδικός ή πλήρης κωδ. (π.χ. SK005PAK)"
+                                            className={`relative z-10 w-full bg-transparent p-2 outline-none font-black uppercase ${input.trim() ? 'text-transparent caret-slate-800' : 'text-slate-900'}`}
+                                        />
+                                    </div>
                                     <button onClick={() => setShowScanner(true)} className="p-2 text-slate-400 hover:text-slate-600">
                                         <Camera size={20} />
                                     </button>
@@ -1139,7 +1165,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                     </button>
 
                     {cartExpanded && items.map((item, idx) => (
-                        <div key={item.line_id || `${item.sku}-${idx}`} className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+                        <div key={item.line_id || `${item.sku}-${idx}`} className={`bg-white p-3 rounded-2xl border shadow-sm space-y-3 ${item.fulfillment_mode === 'consignment' ? 'border-indigo-200 ring-1 ring-indigo-100' : 'border-slate-100'}`}>
                             <div className="flex items-center gap-3">
                                 <div className="w-12 h-12 bg-slate-50 rounded-xl overflow-hidden border border-slate-100 shrink-0">
                                     {isSpecialCreationSku(item.sku) ? (
@@ -1168,6 +1194,9 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                             </button>
                                         </div>
                                     </div>
+                                    {item.fulfillment_mode === 'consignment' && (
+                                        <div className="mt-1"><ConsignmentBadge compact /></div>
+                                    )}
                                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                                         {isSpecialCreationSku(item.sku) ? (
                                             <label className="inline-flex items-center gap-1 text-[10px] font-bold text-violet-800">
@@ -1207,11 +1236,12 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                                 />
                             )}
                             <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 p-1.5">
-                                <span className="pl-1 text-[10px] font-bold text-slate-500">Τρόπος εκπλήρωσης</span>
-                                <div className="flex rounded-lg bg-white p-0.5 ring-1 ring-slate-200">
-                                    <button type="button" onClick={() => setItems(current => current.map((entry, itemIndex) => itemIndex === idx ? { ...entry, fulfillment_mode: 'sale' } : entry))} className={`rounded-md px-2 py-1 text-[10px] font-black ${(item.fulfillment_mode || 'sale') === 'sale' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}>Πώληση</button>
-                                    <button type="button" onClick={() => setItems(current => current.map((entry, itemIndex) => itemIndex === idx ? { ...entry, fulfillment_mode: 'consignment' } : entry))} className={`rounded-md px-2 py-1 text-[10px] font-black ${item.fulfillment_mode === 'consignment' ? 'bg-amber-500 text-white' : 'text-slate-500'}`}>Παρακαταθήκη</button>
-                                </div>
+                                <FulfillmentModeToggle
+                                    value={item.fulfillment_mode || 'sale'}
+                                    onChange={(mode) => setItems(current => current.map((entry, itemIndex) => itemIndex === idx ? { ...entry, fulfillment_mode: mode } : entry))}
+                                    label="Τρόπος εκπλήρωσης"
+                                    compact
+                                />
                             </div>
                             <div className="flex items-center gap-3 pt-2 border-t border-slate-50">
                                 <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-100 flex-1">
@@ -1252,9 +1282,9 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
             {/* ── Footer Summary ─────────────────────────────────────────── */}
             <div className="p-4 bg-white border-t border-slate-200 shrink-0 sticky bottom-0 z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.03)]">
                 {consignmentSubtotal > 0 && (
-                    <div className="mb-3 flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
-                        <div><div className="text-[10px] font-black text-amber-800">ΑΞΙΑ ΠΑΡΑΚΑΤΑΘΗΚΗΣ</div><div className="text-[9px] text-amber-700">Δεν είναι πληρωτέα τώρα</div></div>
-                        <div className="font-black text-amber-900">{formatCurrency(consignmentValue)}</div>
+                    <div className="mb-3 flex items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2">
+                        <div><div className="text-[10px] font-black text-indigo-800">Αξία σε Παρακαταθήκη</div><div className="text-[9px] text-indigo-700">Δεν είναι πληρωτέα τώρα</div></div>
+                        <div className="font-black text-indigo-900">{formatCurrency(consignmentValue)}</div>
                     </div>
                 )}
                 <div className="flex justify-between items-center mb-3 px-2">

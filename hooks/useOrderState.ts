@@ -120,6 +120,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
     // --- Smart Entry State ---
     const [scanInput, setScanInput] = useState('');
     const [scanQty, setScanQty] = useState(1);
+    const [defaultFulfillmentMode, setDefaultFulfillmentMode] = useState<'sale' | 'consignment'>('sale');
     const [itemNotes, setItemNotes] = useState('');
     const [candidateProducts, setCandidateProducts] = useState<Product[]>([]);
     const [smartSuggestions, setSmartSuggestions] = useState<SmartSuggestionResult | null>(null);
@@ -558,7 +559,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             cord_color: cordColor,
             enamel_color: enamelColor,
             notes: notes || undefined,
-            fulfillment_mode: 'sale',
+            fulfillment_mode: defaultFulfillmentMode,
         };
         setSelectedItems(prev => {
             const nextKey = getOrderItemMatchKey(newItem);
@@ -673,7 +674,8 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                 price_at_order: rounded,
                 product_details: getSpecialCreationProductStub(),
                 notes: cleanedNote,
-                line_id: crypto.randomUUID()
+                line_id: crypto.randomUUID(),
+                fulfillment_mode: defaultFulfillmentMode,
             };
             setSelectedItems(prev => [newItem, ...prev]);
             setPriceDiffs(null);
@@ -839,7 +841,8 @@ export function useOrderState({ initialOrder, products, customers, collections, 
                     variant_suffix: variant?.suffix,
                     quantity: 1,
                     price_at_order: unitPrice,
-                    product_details: product
+                    product_details: product,
+                    fulfillment_mode: defaultFulfillmentMode,
                 };
                 setSelectedItems(prev => {
                     const existingIdx = prev.findIndex(i =>
@@ -1269,6 +1272,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             consignmentSubtotal: financials.consignmentSubtotal,
             consignmentVatAmount: financials.consignmentVat,
             consignmentValue: financials.consignmentValue,
+            defaultFulfillmentMode,
             selectedItems,
             isEditing: !!initialOrder,
             orderId: initialOrder?.id,
@@ -1279,6 +1283,7 @@ export function useOrderState({ initialOrder, products, customers, collections, 
             setCustomerSearch, setShowCustomerResults,
             setSelectedSellerId, setSelectedSellerName, setSellerCommissionPercent,
             setScanInput, setScanQty, setItemNotes, setSpecialCreationUnitPriceStr,
+            setDefaultFulfillmentMode,
             setActiveMaster, setFilteredVariants, setSelectedSize, setSelectedCordColor, setSelectedEnamelColor,
             setSizeMode, setCandidateProducts, setSmartSuggestions, setShowScanner, setPendingOrderRangeReview,
             setSortOrder, setItemSearchTerm,

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { ProductionBatch, ProductionStage } from '../types';
 import { isSpecialCreationSku } from '../utils/specialCreationSku';
-import { Clock, PauseCircle, StickyNote, Trash2, Printer, MoveRight, ImageIcon, AlertTriangle, PlayCircle, RefreshCcw, ChevronUp, ChevronDown, History, X, Check, Truck, Package, Hammer, Loader2, Wrench, HandHeart } from 'lucide-react';
+import { Clock, PauseCircle, StickyNote, Trash2, Printer, MoveRight, ImageIcon, AlertTriangle, PlayCircle, RefreshCcw, ChevronUp, ChevronDown, History, X, Check, Truck, Package, Hammer, Loader2 } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { formatOrderId } from '../utils/orderUtils';
 import { formatGreekDurationFromMs, getProductionTimingStatusClasses, getProductionTimingStatusLabel } from '../utils/productionTiming';
@@ -15,6 +15,8 @@ import {
     MOVEMENT_PROGRESS_BAR_CLASS,
 } from './production/movementFeedback';
 import SpecialCreationNote from './SpecialCreationNote';
+import ConsignmentBadge from './customerService/ConsignmentBadge';
+import RepairBadge from './customerService/RepairBadge';
 
 // Finish/Plating Visuals
 export const FINISH_STYLES: Record<string, { style: string, label: string }> = {
@@ -336,14 +338,10 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                         </div>
                     )}
                     {batch.workflow_kind === 'consignment' && (
-                        <div className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1">
-                            <HandHeart size={10} /> Παρακαταθήκη
-                        </div>
+                        <ConsignmentBadge compact code={batch.consignment_code} />
                     )}
                     {batch.workflow_kind === 'repair' && (
-                        <div className="bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1">
-                            <Wrench size={10} /> Επισκευή{batch.repair_code ? ` · ${batch.repair_code}` : ''}
-                        </div>
+                        <RepairBadge compact code={batch.repair_code} />
                     )}
                     {onDispatch && (
                         <div className="bg-teal-50 text-teal-700 border border-teal-200 text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1">

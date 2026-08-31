@@ -9,9 +9,11 @@ import {
   getBareMasterSkuResolutionError,
   getSkuCatalogProducts,
   getSkuAutocompleteValue,
+  resolveTypedSkuColorParts,
   resolveTypedSkuSelection,
   searchSkuProductOptions,
   selectionFromOption,
+  SKU_PICKER_DROPDOWN_Z_INDEX,
   SkuCatalogScope,
   SkuProductSelection,
 } from '../../utils/skuProductPicker';
@@ -81,7 +83,12 @@ export default function SkuProductPicker({
   }, [autoFocus]);
 
   const options = useMemo(
-    () => searchSkuProductOptions(products, inputValue, 12, { scope }),
+    () => searchSkuProductOptions(products, inputValue, 16, { scope }),
+    [inputValue, products, scope],
+  );
+
+  const liveColorParts = useMemo(
+    () => resolveTypedSkuColorParts(inputValue, products, { scope }),
     [inputValue, products, scope],
   );
 
@@ -91,9 +98,10 @@ export default function SkuProductPicker({
   );
 
   const previewProduct = useMemo(() => {
+    if (liveColorParts.product) return liveColorParts.product;
     if (!resolvedPreview?.sku) return null;
     return products.find((product) => product.sku === resolvedPreview.sku) || null;
-  }, [products, resolvedPreview]);
+  }, [liveColorParts.product, products, resolvedPreview]);
 
   useEffect(() => {
     if (!open) return;
@@ -108,8 +116,8 @@ export default function SkuProductPicker({
       position: 'fixed',
       top: rect.bottom + 4,
       left: rect.left,
-      width: Math.max(rect.width, 340),
-      zIndex: 80,
+      width: Math.max(rect.width, 380),
+      zIndex: SKU_PICKER_DROPDOWN_Z_INDEX,
     });
   };
 
@@ -219,9 +227,13 @@ export default function SkuProductPicker({
       return;
     }
     if (event.key === 'Escape') {
-      event.preventDefault();
-      setOpen(false);
-      setInputValue(displayValue);
+      if (open) {
+        event.preventDefault();
+        event.stopPropagation();
+        setOpen(false);
+        setInputValue(displayValue);
+      }
+      return;
     }
   };
 
@@ -254,11 +266,23 @@ export default function SkuProductPicker({
       id={listboxId}
       role="listbox"
       style={dropdownStyle}
-      className="max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl"
+      className="max-h-80 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl ring-1 ring-slate-900/5"
     >
+      {inputValue.trim() ? (
+        <div className="mb-1 flex items-center gap-2 rounded-xl bg-slate-50 px-2.5 py-1.5">
+          <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Πληκτρολόγηση</span>
+          <SkuColorizedText
+            sku={liveColorParts.master || inputValue.trim().toUpperCase()}
+            suffix={liveColorParts.suffix}
+            gender={liveColorParts.gender}
+            mono
+            className="text-xs font-black"
+          />
+        </div>
+      ) : null}
       {options.length === 0 ? (
-        <div className="px-3 py-2 text-xs font-medium text-slate-500">
-          Δεν βρέθηκε SKU.
+        <div className="px-3 py-3 text-xs font-medium text-slate-500">
+          Δεν βρέθηκε SKU. Συνεχίστε την πληκτρολόγηση ή σκανάρετε barcode.
         </div>
       ) : options.map((option, index) => (
         <button
@@ -275,8 +299,8 @@ export default function SkuProductPicker({
             event.preventDefault();
             commitSelection(selectionFromOption(option));
           }}
-          className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition ${
-            index === highlightIndex ? 'bg-emerald-50 text-emerald-900' : 'text-slate-800 hover:bg-slate-50'
+          className={`flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left transition ${
+            index === highlightIndex ? 'bg-emerald-50 text-emerald-900 ring-1 ring-emerald-100' : 'text-slate-800 hover:bg-slate-50'
           }`}
           title="Κλικ, Enter ή δεξί κλικ για συμπλήρωση γραμμής"
         >
@@ -295,6 +319,7 @@ export default function SkuProductPicker({
                 sku={option.sku}
                 suffix={option.variant_suffix || undefined}
                 gender={option.product?.gender}
+                mono
               />
             </div>
             {option.hint ? <div className="truncate text-[11px] font-medium text-slate-500">{option.hint}</div> : null}
@@ -313,12 +338,13 @@ export default function SkuProductPicker({
     </div>
   ) : null;
 
-  const inlineThumb = compact && !open && previewProduct?.image_url ? (
-    <div className="h-7 w-7 shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
+  const showLiveOverlay = inputValue.trim().length > 0;
+  const inlineThumb = compact && previewProduct?.image_url ? (
+    <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
       <img src={previewProduct.image_url} alt="" className="h-full w-full object-cover" />
     </div>
-  ) : compact && !open ? (
-    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-slate-100 text-slate-300">
+  ) : compact ? (
+    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-slate-300">
       <ImageIcon size={12} />
     </div>
   ) : null;
@@ -327,6 +353,17 @@ export default function SkuProductPicker({
     <div ref={containerRef} className={`${compact ? 'flex min-w-0 items-center gap-1.5' : 'relative min-w-[10rem]'} ${className}`}>
       {inlineThumb}
       <div className={`relative min-w-0 ${compact ? 'flex-1' : 'w-full'}`}>
+        {showLiveOverlay ? (
+          <div className="pointer-events-none absolute inset-y-0 left-2 right-2 z-20 flex items-center overflow-hidden" aria-hidden>
+            <SkuColorizedText
+              sku={liveColorParts.master || inputValue.trim().toUpperCase()}
+              suffix={liveColorParts.suffix}
+              gender={liveColorParts.gender || previewProduct?.gender}
+              mono
+              className="text-xs font-bold"
+            />
+          </div>
+        ) : null}
         <input
           ref={inputRef}
           value={inputValue}
@@ -351,20 +388,10 @@ export default function SkuProductPicker({
           aria-autocomplete="list"
           aria-expanded={open}
           aria-controls={open ? listboxId : undefined}
-          className={`w-full rounded-lg border border-slate-200 px-2 py-1 font-mono text-xs font-bold outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 ${
-            !open && previewProduct && resolvedPreview?.sku ? 'text-transparent caret-slate-800' : ''
+          className={`relative z-10 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 font-mono text-xs font-bold uppercase tracking-wide outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 ${
+            showLiveOverlay ? 'text-transparent caret-slate-800' : 'text-slate-900'
           } ${inputClassName}`}
         />
-        {!open && previewProduct && resolvedPreview?.sku ? (
-          <div className="pointer-events-none absolute inset-y-0 left-2 flex items-center">
-            <SkuColorizedText
-              sku={resolvedPreview.sku}
-              suffix={resolvedPreview.variant_suffix || undefined}
-              gender={previewProduct.gender}
-              className="text-xs"
-            />
-          </div>
-        ) : null}
       </div>
       {typeof document !== 'undefined' && dropdown ? createPortal(dropdown, document.body) : null}
     </div>

@@ -1,5 +1,8 @@
 import { Product, ProductVariant } from '../types';
-import { findProductByScannedCode, getVariantComponents } from './pricingEngine';
+import { findProductByScannedCode, getVariantComponents, splitSkuComponents } from './pricingEngine';
+
+/** Must sit above customer-service / legal modals (z-[190]) so suggestions stay visible. */
+export const SKU_PICKER_DROPDOWN_Z_INDEX = 400;
 
 const METAL_FINISH_CODES = ['P', 'X', 'D', 'H'] as const;
 
@@ -68,6 +71,54 @@ export interface SkuPickerOption {
 export function formatSkuDisplayValue(sku: string, variantSuffix?: string | null): string {
   const master = !sku || sku === 'MANUAL' ? '' : sku;
   return `${master}${variantSuffix || ''}`;
+}
+
+export interface TypedSkuColorParts {
+  master: string;
+  suffix: string;
+  gender?: Product['gender'];
+  product?: Product;
+}
+
+/**
+ * Split the live typed value into master + suffix so the input overlay can
+ * color-code finish/stone while the user is still typing.
+ */
+export function resolveTypedSkuColorParts(
+  typed: string,
+  products: Product[],
+  pickerOptions: SkuProductPickerOptions = {},
+): TypedSkuColorParts {
+  const term = typed.trim().toUpperCase();
+  if (!term) return { master: '', suffix: '' };
+
+  const catalog = getSkuCatalogProducts(products, pickerOptions);
+  const exact = findProductByScannedCode(term, catalog);
+  if (exact?.product) {
+    const master = exact.product.sku;
+    const remainder = term.startsWith(master.toUpperCase()) ? term.slice(master.length) : (exact.variant?.suffix || '');
+    return {
+      master,
+      suffix: exact.variant?.suffix || remainder,
+      gender: exact.product.gender,
+      product: exact.product,
+    };
+  }
+
+  const prefixMaster = catalog
+    .filter((product) => term.startsWith(product.sku.toUpperCase()))
+    .sort((left, right) => right.sku.length - left.sku.length)[0];
+  if (prefixMaster) {
+    return {
+      master: prefixMaster.sku,
+      suffix: term.slice(prefixMaster.sku.length),
+      gender: prefixMaster.gender,
+      product: prefixMaster,
+    };
+  }
+
+  const split = splitSkuComponents(term);
+  return { master: split.master, suffix: split.suffix };
 }
 
 export function getCatalogUnitPrice(product: Product, variant?: ProductVariant | null): number {

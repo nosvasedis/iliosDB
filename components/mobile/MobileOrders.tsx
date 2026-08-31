@@ -13,6 +13,7 @@ import { retailEndClientPillClass, retailOrderBagIconClass } from '../../utils/r
 import { useUI } from '../UIProvider';
 import SkuColorizedText from '../SkuColorizedText';
 import SpecialCreationNote from '../SpecialCreationNote';
+import ConsignmentBadge from '../customerService/ConsignmentBadge';
 import { buildOrderProductionStageSegments, getOrderItemProductionStageBreakdown, groupBatchesByShipment, isOrderReady, isOrderReadyForShipment, orderStatusShowsProductionProgress } from '../../utils/orderReadiness';
 import { OrderListProgressBar } from '../orders/OrderListProgressBar';
 import {
@@ -984,6 +985,11 @@ const OrderCard: React.FC<{
                             </div>
                         )}
                         {order.seller_name && <p className="text-[10px] text-slate-500 mt-0.5">Πλάσιε: {order.seller_name}{order.seller_commission_percent != null ? ` (${order.seller_commission_percent}%)` : ''}</p>}
+                        {((order.items || []).some(item => item.fulfillment_mode === 'consignment')) && (
+                            <div className="mt-1">
+                                <ConsignmentBadge compact />
+                            </div>
+                        )}
                         {order.tags && order.tags.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1">
                                 {order.tags.map(t => {

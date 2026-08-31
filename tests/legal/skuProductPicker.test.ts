@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { ProductionType } from '../../types';
 import {
+  SKU_PICKER_DROPDOWN_Z_INDEX,
   allowsBareMasterSkuResolution,
   getCatalogSelectionPricing,
   isLustreOnlyProduct,
+  resolveTypedSkuColorParts,
   resolveTypedSkuSelection,
   searchSkuProductOptions,
 } from '../../utils/skuProductPicker';
@@ -171,6 +173,33 @@ describe('sku product picker search', () => {
     expect(resolveTypedSkuSelection('CMP001', catalog, { scope: 'components' })).toMatchObject({
       sku: 'CMP001',
       variant_suffix: null,
+    });
+  });
+});
+
+describe('live SKU color overlay while typing', () => {
+  it('keeps the suggestion layer above customer-service modals', () => {
+    expect(SKU_PICKER_DROPDOWN_Z_INDEX).toBeGreaterThanOrEqual(300);
+  });
+
+  it('splits a typed full variant so finish and stone can be color-coded as the user types', () => {
+    expect(resolveTypedSkuColorParts('RNG001DLE', products)).toMatchObject({
+      master: 'RNG001',
+      suffix: 'DLE',
+    });
+  });
+
+  it('keeps a partial suffix attached to the matching master while typing', () => {
+    expect(resolveTypedSkuColorParts('RNG001D', products)).toMatchObject({
+      master: 'RNG001',
+      suffix: 'D',
+    });
+  });
+
+  it('falls back to heuristic split when the catalog has no matching master yet', () => {
+    expect(resolveTypedSkuColorParts('SK', products)).toMatchObject({
+      master: 'SK',
+      suffix: '',
     });
   });
 });

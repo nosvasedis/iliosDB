@@ -296,6 +296,9 @@ export default function ProductionSendModal({ order: orderProp, products, materi
             } as RowItem;
         });
         return mapped.sort((a, b) => {
+            const modeA = a.fulfillment_mode === 'consignment' ? 1 : 0;
+            const modeB = b.fulfillment_mode === 'consignment' ? 1 : 0;
+            if (modeA !== modeB) return modeA - modeB;
             const skuA = a.sku + (a.variant_suffix || '');
             const skuB = b.sku + (b.variant_suffix || '');
             return skuA.localeCompare(skuB, undefined, { numeric: true });

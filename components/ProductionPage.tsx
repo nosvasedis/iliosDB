@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import ReactDOM from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { ProductionBatch, ProductionStage, Product, Material, MaterialType, Mold, ProductionType, Gender, ProductVariant, Order, OrderStatus, AssemblyPrintData, AssemblyPrintRow, StageBatchPrintData, OrderShipment, OrderShipmentItem } from '../types';
-import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, ArrowUp, ArrowDown, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, Users, StickyNote, Hash, Save, Edit, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList, Grid, Maximize2, Minimize2, Wrench } from 'lucide-react';
+import { Factory, Flame, Gem, Hammer, Tag, Package, ChevronRight, Clock, Siren, CheckCircle, ImageIcon, Printer, FileText, Layers, ChevronDown, RefreshCcw, ArrowRight, ArrowUp, ArrowDown, X, Loader2, Globe, BookOpen, Truck, AlertTriangle, ChevronUp, MoveRight, Activity, Search, User, Users, StickyNote, Hash, Save, Edit, Palette, PauseCircle, PlayCircle, Calendar, CheckSquare, Square, Check, Trash2, ClipboardList, Grid, Maximize2, Minimize2, Wrench, HandHeart } from 'lucide-react';
 import { useUI } from './UIProvider';
 import DesktopPageHeader from './DesktopPageHeader';
 import IliosLoader from './ui/IliosLoader';
@@ -25,6 +25,7 @@ import { isSpecialCreationSku } from '../utils/specialCreationSku';
 import ProductionMoldRequirementsModal from './ProductionMoldRequirementsModal';
 import { invalidateOrdersAndBatches, invalidateProductionBatches, invalidateAndRefetchAfterShipmentChange } from '../lib/queryInvalidation';
 import { PRODUCTION_STAGES, getProductionStageLabel, getProductionStageShortLabel } from '../utils/productionStages';
+import RepairBadge from './customerService/RepairBadge';
 import { StageOnHoldMiniStrip } from './production/StageOnHoldMiniStrip';
 import ProductionBatchFinder from './production/ProductionBatchFinder';
 import FinderBatchStageSelector from './production/FinderBatchStageSelector';
@@ -2280,7 +2281,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     const { data: customers = [] } = useCustomers();
     const [timingNow, setTimingNow] = useState(() => Date.now());
     const [showRepairIntake, setShowRepairIntake] = useState(false);
-    const [repairsOnly, setRepairsOnly] = useState(false);
+    const [workflowFilter, setWorkflowFilter] = useState<'all' | 'repair' | 'consignment'>('all');
 
     const [draggedBatchId, setDraggedBatchId] = useState<string | null>(null);
     const [dropTarget, setDropTarget] = useState<ProductionStage | null>(null);
@@ -2371,23 +2372,46 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
 
     const customerNameById = useMemo(() => new Map(customers.map(customer => [customer.id, customer.full_name])), [customers]);
     const repairById = useMemo(() => new Map((customerServiceData?.repairItems || []).map(item => [item.id, item])), [customerServiceData?.repairItems]);
+    const consignmentLineById = useMemo(() => new Map((customerServiceData?.consignmentLines || []).map(line => [line.id, line])), [customerServiceData?.consignmentLines]);
+    const consignmentById = useMemo(() => new Map((customerServiceData?.consignments || []).map(entry => [entry.id, entry])), [customerServiceData?.consignments]);
     const allEnhancedBatches = useMemo(() => {
         return enrichProductionBatchesForBoard(batches, productsMap, materialsMap, ordersMap).map(batch => {
             const repair = batch.repair_item_id ? repairById.get(batch.repair_item_id) : undefined;
-            return repair ? {
-                ...batch,
-                workflow_kind: 'repair' as const,
-                repair_code: repair.code,
-                customer_name: customerNameById.get(repair.customer_id) || batch.customer_name,
-            } : batch;
+            if (repair) {
+                return {
+                    ...batch,
+                    workflow_kind: 'repair' as const,
+                    repair_code: repair.code,
+                    customer_name: customerNameById.get(repair.customer_id) || batch.customer_name,
+                };
+            }
+            const consignmentLine = batch.consignment_line_id ? consignmentLineById.get(batch.consignment_line_id) : undefined;
+            const consignment = consignmentLine ? consignmentById.get(consignmentLine.consignment_id) : undefined;
+            if (consignment || batch.workflow_kind === 'consignment') {
+                return {
+                    ...batch,
+                    workflow_kind: 'consignment' as const,
+                    consignment_code: consignment?.code,
+                    customer_name: consignment ? (customerNameById.get(consignment.customer_id) || batch.customer_name) : batch.customer_name,
+                };
+            }
+            return batch;
         });
-    }, [batches, productsMap, materialsMap, ordersMap, repairById, customerNameById]);
+    }, [batches, productsMap, materialsMap, ordersMap, repairById, customerNameById, consignmentLineById, consignmentById]);
     const enhancedBatches = useMemo(
-        () => repairsOnly ? allEnhancedBatches.filter(batch => batch.workflow_kind === 'repair') : allEnhancedBatches,
-        [allEnhancedBatches, repairsOnly]
+        () => {
+            if (workflowFilter === 'repair') return allEnhancedBatches.filter(batch => batch.workflow_kind === 'repair');
+            if (workflowFilter === 'consignment') return allEnhancedBatches.filter(batch => batch.workflow_kind === 'consignment');
+            return allEnhancedBatches;
+        },
+        [allEnhancedBatches, workflowFilter]
     );
     const pendingRepairBatches = useMemo(
         () => allEnhancedBatches.filter(batch => batch.workflow_kind === 'repair' && batch.current_stage === ProductionStage.AwaitingDelivery),
+        [allEnhancedBatches]
+    );
+    const consignmentBatchCount = useMemo(
+        () => allEnhancedBatches.filter(batch => batch.workflow_kind === 'consignment').length,
         [allEnhancedBatches]
     );
 
@@ -3496,10 +3520,17 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                         <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-black ${showRepairIntake ? 'bg-white/20' : 'bg-blue-100'}`}>{pendingRepairBatches.length}</span>
                     </button>
                     <button
-                        onClick={() => setRepairsOnly(value => !value)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold transition-all shadow-sm border text-[11px] ${repairsOnly ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                        onClick={() => setWorkflowFilter(value => value === 'repair' ? 'all' : 'repair')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold transition-all shadow-sm border text-[11px] ${workflowFilter === 'repair' ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                     >
                         <CheckSquare size={12} /> Μόνο Επισκευές
+                    </button>
+                    <button
+                        onClick={() => setWorkflowFilter(value => value === 'consignment' ? 'all' : 'consignment')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold transition-all shadow-sm border text-[11px] ${workflowFilter === 'consignment' ? 'bg-indigo-700 border-indigo-700 text-white' : 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100'}`}
+                    >
+                        <HandHeart size={12} /> Μόνο Παρακαταθήκες
+                        <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-black ${workflowFilter === 'consignment' ? 'bg-white/20' : 'bg-indigo-100'}`}>{consignmentBatchCount}</span>
                     </button>
                     <button
                         onClick={() => setAssemblyOrderSelectorOpen(true)}
@@ -3537,22 +3568,50 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                             onFilterClick={(type) => setOverviewModal({ isOpen: true, type })}
                         />
                         {showRepairIntake && (
-                            <div className="rounded-2xl border border-blue-200 bg-blue-50/80 p-3">
+                            <div className="rounded-2xl border border-blue-200/80 bg-white p-3 shadow-sm">
                                 <div className="mb-2 flex items-center justify-between gap-3">
-                                    <div><h3 className="text-sm font-black text-blue-900">Νέες Επισκευές προς δρομολόγηση</h3><p className="text-[10px] text-blue-700">Επιλέξτε το πρώτο πραγματικό στάδιο. Η καρτέλα Επισκευής ενημερώνεται αυτόματα.</p></div>
-                                    <button onClick={() => setShowRepairIntake(false)} className="rounded-lg p-1.5 text-blue-500 hover:bg-blue-100" aria-label="Κλείσιμο"><X size={15} /></button>
+                                    <div>
+                                        <h3 className="text-sm font-black text-slate-900">Νέες Επισκευές προς δρομολόγηση</h3>
+                                        <p className="text-[10px] text-slate-500">Επιλέξτε οποιοδήποτε υπάρχον στάδιο. Η καρτέλα Επισκευής ενημερώνεται αυτόματα.</p>
+                                    </div>
+                                    <button onClick={() => setShowRepairIntake(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" aria-label="Κλείσιμο"><X size={15} /></button>
                                 </div>
                                 {pendingRepairBatches.length === 0 ? (
-                                    <div className="rounded-xl border border-dashed border-blue-200 bg-white/70 p-4 text-center text-xs font-bold text-blue-600">Δεν υπάρχουν νέες Επισκευές προς δρομολόγηση.</div>
+                                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-xs font-bold text-slate-500">Δεν υπάρχουν νέες Επισκευές προς δρομολόγηση.</div>
                                 ) : (
                                     <div className="flex gap-2 overflow-x-auto pb-1">
                                         {pendingRepairBatches.map(batch => (
-                                            <div key={batch.id} className="min-w-[280px] rounded-xl border border-blue-100 bg-white p-3 shadow-sm">
-                                                <div className="flex items-start justify-between gap-2"><div><div className="text-xs font-black text-slate-900">{batch.repair_code || 'Επισκευή'} · {batch.sku}{batch.variant_suffix || ''}</div><div className="mt-0.5 text-[10px] font-bold text-slate-500">{batch.customer_name || 'Χωρίς πελάτη'}</div></div><span className="rounded-full bg-blue-100 px-2 py-1 text-[9px] font-black text-blue-700">{batch.quantity} τεμ.</span></div>
+                                            <div key={batch.id} className="min-w-[300px] rounded-xl border border-slate-100 bg-slate-50 p-3">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="flex min-w-0 items-start gap-2">
+                                                        {batch.product_image ? (
+                                                            <img src={batch.product_image} alt="" className="h-10 w-10 rounded-lg object-cover" />
+                                                        ) : (
+                                                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700"><Wrench size={16} /></div>
+                                                        )}
+                                                        <div className="min-w-0">
+                                                            <RepairBadge compact code={batch.repair_code} />
+                                                            <div className="mt-1">
+                                                                <SkuColorizedText sku={batch.sku} suffix={batch.variant_suffix || ''} gender={batch.product_details?.gender} className="text-xs font-black" />
+                                                            </div>
+                                                            <div className="mt-0.5 text-[10px] font-bold text-slate-500">{batch.customer_name || 'Χωρίς πελάτη'}</div>
+                                                        </div>
+                                                    </div>
+                                                    <span className="rounded-full bg-white px-2 py-1 text-[9px] font-black text-slate-600 shadow-sm">{batch.quantity} τεμ.</span>
+                                                </div>
                                                 <div className="mt-3 grid grid-cols-3 gap-1">
-                                                    <button onClick={() => handleCardMoveToStage(batch, ProductionStage.Waxing)} className="rounded-lg bg-slate-100 px-2 py-1.5 text-[9px] font-black text-slate-700 hover:bg-slate-200">Κέρωμα</button>
-                                                    <button onClick={() => handleCardMoveToStage(batch, ProductionStage.Setting)} className="rounded-lg bg-purple-50 px-2 py-1.5 text-[9px] font-black text-purple-700 hover:bg-purple-100">Καρφωτική</button>
-                                                    <button onClick={() => handleCardMoveToStage(batch, ProductionStage.Polishing)} className="rounded-lg bg-blue-50 px-2 py-1.5 text-[9px] font-black text-blue-700 hover:bg-blue-100">Τεχνίτης</button>
+                                                    {PRODUCTION_STAGES.filter(stage => stage.id !== ProductionStage.AwaitingDelivery && stage.id !== ProductionStage.Ready).map(stage => {
+                                                        const colors = STAGE_COLORS[stage.colorKey];
+                                                        return (
+                                                            <button
+                                                                key={stage.id}
+                                                                onClick={() => handleCardMoveToStage(batch, stage.id)}
+                                                                className={`rounded-lg px-2 py-1.5 text-[9px] font-black ${colors.bg} ${colors.text} hover:opacity-80`}
+                                                            >
+                                                                {stage.shortLabel}
+                                                            </button>
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
                                         ))}

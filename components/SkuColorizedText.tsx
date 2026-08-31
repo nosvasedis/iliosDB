@@ -9,6 +9,8 @@ interface Props {
     gender?: Gender;
     className?: string;
     masterClassName?: string;
+    /** Match smart-entry / picker inputs that use a monospace SKU face. */
+    mono?: boolean;
 }
 
 export default function SkuColorizedText({
@@ -16,7 +18,8 @@ export default function SkuColorizedText({
     suffix,
     gender,
     className = '',
-    masterClassName = 'text-slate-900'
+    masterClassName = 'text-slate-900',
+    mono = false,
 }: Props) {
     // If `suffix` is provided, we already have an explicit master + variant suffix.
     // Re-splitting can misclassify masters that end with a letter (e.g. SK263S + XKO).
@@ -30,7 +33,7 @@ export default function SkuColorizedText({
     const stoneColor = getSkuStoneTextColor(stone.code);
 
     return (
-        <span className={`font-sans tracking-[-0.01em] tabular-nums cursor-default ${className}`.trim()}>
+        <span className={`${mono ? 'font-mono tracking-wide' : 'font-sans tracking-[-0.01em]'} tabular-nums cursor-default ${className}`.trim()}>
             <span className={`font-extrabold ${masterClassName}`.trim()}>{master}</span>
             <span className="font-bold">
                 {variantSuffix.split('').map((char, index) => {

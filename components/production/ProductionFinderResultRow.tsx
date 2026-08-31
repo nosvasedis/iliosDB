@@ -10,6 +10,8 @@ import {
 import { EnhancedProductionBatch, ProductionBatch, ProductionStage } from '../../types';
 import SkuColorizedText from '../SkuColorizedText';
 import SpecialCreationNote from '../SpecialCreationNote';
+import ConsignmentBadge from '../customerService/ConsignmentBadge';
+import RepairBadge from '../customerService/RepairBadge';
 import { formatOrderId } from '../../utils/orderUtils';
 import { getFinderSearchResultSurface } from '../../utils/productionFinderSurfaces';
 import { getBatchAgeInfo } from '../../features/production/selectors';
@@ -149,6 +151,12 @@ function ProductionFinderResultRow({
                                         <PauseCircle size={10} /> Σε Αναμονή
                                     </span>
                                 )}
+                                {batch.workflow_kind === 'consignment' && (
+                                    <ConsignmentBadge compact code={batch.consignment_code} />
+                                )}
+                                {batch.workflow_kind === 'repair' && (
+                                    <RepairBadge compact code={batch.repair_code} />
+                                )}
                             </div>
                             <div className="flex items-center justify-between mt-1 gap-2 min-w-[200px]">
                                 <span className="font-bold text-slate-700 text-xs">
@@ -156,7 +164,7 @@ function ProductionFinderResultRow({
                                 </span>
                                 {batch.on_hold ? (
                                     <div className="text-[9px] font-black px-1.5 py-0.5 rounded border flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200">
-                                        <PauseCircle size={10} /> Hold
+                                        <PauseCircle size={10} /> Σε αναμονή
                                     </div>
                                 ) : (
                                     <div

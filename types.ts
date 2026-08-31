@@ -568,6 +568,8 @@ export interface ProductionBatch {
   repair_cycle_id?: string | null;
   /** Enriched presentation field for repair batches. */
   repair_code?: string;
+  /** Enriched presentation field for consignment batches. */
+  consignment_code?: string;
 }
 
 export type ConsignmentStatus =

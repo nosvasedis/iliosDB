@@ -11,6 +11,8 @@ import { getOrderItemMatchKey } from '../../utils/orderItemMatch';
 import PriceSyncPreviewModal from '../PriceSyncPreviewModal';
 import { useUI } from '../UIProvider';
 import InventoryAvailabilityNote from '../inventory/InventoryAvailabilityNote';
+import FulfillmentModeToggle from '../customerService/FulfillmentModeToggle';
+import ConsignmentBadge from '../customerService/ConsignmentBadge';
 
 interface Props {
     orderState: ReturnType<typeof useOrderState>;
@@ -221,7 +223,11 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                     return (
                     <div
                         key={item.line_id || `${item.sku}-${item.variant_suffix || ''}-${item.size_info || ''}-${item.cord_color || ''}-${item.enamel_color || ''}-${index}`}
-                        className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-2 animate-in slide-in-from-right-4 transition-all hover:shadow-md group"
+                        className={`bg-white p-3 rounded-xl border shadow-sm flex flex-col gap-2 animate-in slide-in-from-right-4 transition-all hover:shadow-md group ${
+                            item.fulfillment_mode === 'consignment'
+                                ? 'border-indigo-200 ring-1 ring-indigo-100/80'
+                                : 'border-slate-100'
+                        }`}
                     >
                         <div className="flex flex-col gap-2">
                             <div className="flex items-start gap-2.5">
@@ -255,6 +261,9 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                                             })()
                                         )}
                                     </div>
+                                    {item.fulfillment_mode === 'consignment' && (
+                                        <div className="mt-1"><ConsignmentBadge compact /></div>
+                                    )}
                                     {isSpecialCreationSku(item.sku) && (
                                         <div className="text-[11px] text-violet-600 font-bold mt-0.5 leading-snug break-words [overflow-wrap:anywhere]">{item.product_details?.category || 'Ειδική δημιουργία'}</div>
                                     )}
@@ -372,23 +381,12 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                         </div>
 
                         <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 bg-slate-50/70 p-1">
-                            <span className="pl-2 text-[10px] font-bold text-slate-500">Τρόπος εκπλήρωσης</span>
-                            <div className="flex items-center rounded-md bg-white p-0.5 shadow-sm ring-1 ring-slate-200">
-                                <button
-                                    type="button"
-                                    onClick={() => actions.updateItemFulfillmentMode(item, 'sale')}
-                                    className={`rounded px-2 py-1 text-[10px] font-black transition-colors ${(item.fulfillment_mode || 'sale') === 'sale' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
-                                >
-                                    Πώληση
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => actions.updateItemFulfillmentMode(item, 'consignment')}
-                                    className={`rounded px-2 py-1 text-[10px] font-black transition-colors ${item.fulfillment_mode === 'consignment' ? 'bg-amber-500 text-white' : 'text-slate-500 hover:bg-amber-50'}`}
-                                >
-                                    Παρακαταθήκη
-                                </button>
-                            </div>
+                            <FulfillmentModeToggle
+                                value={item.fulfillment_mode || 'sale'}
+                                onChange={(mode) => actions.updateItemFulfillmentMode(item, mode)}
+                                label="Τρόπος εκπλήρωσης"
+                                compact
+                            />
                         </div>
 
                         {!isSpecialCreationSku(item.sku) && (
@@ -500,12 +498,12 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
             {/* Totals Footer */}
             <div className="p-5 bg-slate-50 border-t border-slate-200">
                 {state.consignmentSubtotal > 0 && (
-                    <div className="mb-3 space-y-1 rounded-xl border border-amber-200 bg-amber-50 p-3">
-                        <div className="flex items-center justify-between text-xs font-bold text-amber-900">
-                            <span>Αξία Παρακαταθήκης</span>
+                    <div className="mb-3 space-y-1 rounded-xl border border-indigo-200 bg-indigo-50/70 p-3">
+                        <div className="flex items-center justify-between text-xs font-bold text-indigo-900">
+                            <span>Αξία σε Παρακαταθήκη</span>
                             <span className="font-mono">{formatCurrency(state.consignmentValue)}</span>
                         </div>
-                        <p className="text-[10px] leading-relaxed text-amber-700">Δεν αποτελεί πώληση ή απαίτηση τώρα. Η χρέωση δημιουργείται μόνο όταν δηλωθεί πώληση.</p>
+                        <p className="text-[10px] leading-relaxed text-indigo-700">Δεν αποτελεί πώληση ή απαίτηση τώρα. Η χρέωση δημιουργείται μόνο όταν δηλωθεί πώληση.</p>
                     </div>
                 )}
                 <div className="flex justify-between items-center text-xs text-slate-500 mb-1">

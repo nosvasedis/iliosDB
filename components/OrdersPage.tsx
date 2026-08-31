@@ -44,6 +44,7 @@ import { dispatchLiveActivity } from '../hooks/useLiveActivity';
 import { usePrint } from './PrintContext';
 import { getOrderTransferIndicators } from '../utils/transferIndicators';
 import SpecialCreationNote from './SpecialCreationNote';
+import ConsignmentBadge from './customerService/ConsignmentBadge';
 
 interface Props {
     products: Product[];
@@ -1896,6 +1897,11 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                                             <ArrowRightLeft size={11} /> {indicator.label}
                                                         </span>
                                                     ))}
+                                                </div>
+                                            )}
+                                            {((order.items || []).some(item => item.fulfillment_mode === 'consignment')) && (
+                                                <div className="mt-2">
+                                                    <ConsignmentBadge compact />
                                                 </div>
                                             )}
                                             {order.tags && order.tags.length > 0 && (
