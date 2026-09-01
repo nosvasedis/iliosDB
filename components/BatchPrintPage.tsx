@@ -1,19 +1,20 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Product, ProductVariant, Collection } from '../types';
-import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight, Tag, ShoppingBag, ImageIcon, Search, Save, PackageCheck, MapPin, List, X, Clock, RotateCcw, BookImage, LayoutGrid, ChevronDown, FolderKanban, Users2, Zap, Eye, RotateCcw as ResetIcon } from 'lucide-react';
+import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight, Tag, ImageIcon, Search, Save, PackageCheck, MapPin, List, X, Clock, RotateCcw, BookImage, LayoutGrid, ChevronDown, FolderKanban, Users2, Zap, Eye } from 'lucide-react';
 import { useUI } from './UIProvider';
 import BarcodeScanner from './BarcodeScanner';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 import { extractSkusFromImage } from '../lib/gemini';
 import { analyzeSku, getVariantComponents, formatCurrency, findProductByScannedCode, expandSkuRange, splitSkuComponents } from '../utils/pricingEngine';
-import BarcodeView from './BarcodeView';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, SYSTEM_IDS } from '../lib/supabase';
 import { inventoryRepository } from '../features/inventory';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 import DesktopPageHeader from './DesktopPageHeader';
 import { parseBatchLabelInputLine } from '../features/printing/batchLabelInput';
-import { buildBatchLabelOverrideKey, buildLabelText, LabelTextOverrides, PrintLabelItem } from '../features/printing';
+import { buildBatchLabelOverrideKey, buildLabelText, LabelTextOverrides, PrintLabelItem, readLabelPrintSettings } from '../features/printing';
+import LabelPrintSettingsPanel from './printing/LabelPrintSettingsPanel';
+import LabelPreviewEditModal from './printing/LabelPreviewEditModal';
 import { getSizingInfo } from '../utils/sizing';
 
 // Set workerSrc for pdf.js.
@@ -81,18 +82,9 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
     const [showScanner, setShowScanner] = useState(false);
 
     // Persistent Settings
-    const [labelFormat, setLabelFormat] = useState<'standard' | 'retail'>(() => {
-        return (localStorage.getItem('batch_print_format') as 'standard' | 'retail') || 'standard';
-    });
-    const [showPrice, setShowPrice] = useState(() => {
-        const saved = localStorage.getItem('batch_print_show_price');
-        if (saved !== null) return saved === 'true';
-        const format = (localStorage.getItem('batch_print_format') as 'standard' | 'retail') || 'standard';
-        return format === 'standard';
-    });
-    const [priceTier, setPriceTier] = useState<'wholesale' | 'retail'>(() => {
-        return (localStorage.getItem('batch_print_price_tier') as 'wholesale' | 'retail') || 'wholesale';
-    });
+    const [labelFormat, setLabelFormat] = useState(() => readLabelPrintSettings().format);
+    const [showPrice, setShowPrice] = useState(() => readLabelPrintSettings().showPrice);
+    const [priceTier, setPriceTier] = useState(() => readLabelPrintSettings().priceTier);
     const [targetWarehouse, setTargetWarehouse] = useState(() => {
         return localStorage.getItem('batch_print_target_warehouse') || SYSTEM_IDS.SHOWROOM;
     });
@@ -619,17 +611,6 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
         ? parsedLabelQueue.entries.find(item => item.key === editingLabelKey) || null
         : null;
     const editingLabelOverrides = editingLabelKey ? labelOverrideDrafts[editingLabelKey] || {} : {};
-    const editingLabelText = editingLabelItem
-        ? buildLabelText({
-            product: editingLabelItem.product,
-            variant: editingLabelItem.variant,
-            format: labelFormat,
-            size: editingLabelItem.size,
-            showPrice,
-            priceTier,
-            overrides: editingLabelOverrides,
-        })
-        : null;
     const labelPreviewWidth = labelFormat === 'retail'
         ? (settings?.retail_barcode_width_mm || 72)
         : (settings?.barcode_width_mm || 40);
@@ -961,58 +942,14 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                     <div className="md:col-span-2 space-y-6">
                         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
                             <h2 className="font-bold text-slate-800 mb-4 text-center">Ρυθμίσεις Ετικέτας</h2>
-                            <div className="flex gap-2 bg-slate-50 p-1 rounded-xl">
-                                <button
-                                    onClick={() => setLabelFormat('standard')}
-                                    className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${labelFormat === 'standard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    <Tag size={14} /> Χονδρική
-                                </button>
-                                <button
-                                    onClick={() => setLabelFormat('retail')}
-                                    className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${labelFormat === 'retail' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    <ShoppingBag size={14} /> Λιανική
-                                </button>
-                            </div>
-
-                            <div className="mt-4 space-y-3">
-                                <div>
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Εμφάνιση τιμής</label>
-                                    <div className="flex gap-2 bg-slate-50 p-1 rounded-xl">
-                                        <button
-                                            onClick={() => setShowPrice(true)}
-                                            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${showPrice ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                        >
-                                            Ναι
-                                        </button>
-                                        <button
-                                            onClick={() => setShowPrice(false)}
-                                            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${!showPrice ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                        >
-                                            Όχι
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className={!showPrice ? 'opacity-40 pointer-events-none' : ''}>
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Τιμή ετικέτας</label>
-                                    <div className="flex gap-2 bg-slate-50 p-1 rounded-xl">
-                                        <button
-                                            onClick={() => setPriceTier('wholesale')}
-                                            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${priceTier === 'wholesale' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                        >
-                                            <Tag size={12} /> Χονδρική
-                                        </button>
-                                        <button
-                                            onClick={() => setPriceTier('retail')}
-                                            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${priceTier === 'retail' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                        >
-                                            <ShoppingBag size={12} /> Λιανική ×3
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
+                            <LabelPrintSettingsPanel
+                                format={labelFormat}
+                                showPrice={showPrice}
+                                priceTier={priceTier}
+                                onFormatChange={setLabelFormat}
+                                onShowPriceChange={setShowPrice}
+                                onPriceTierChange={setPriceTier}
+                            />
                         </div>
 
                         {/* Stock Commit Section */}
@@ -1299,88 +1236,21 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                 </div>
             )}
 
-            {editingLabelItem && editingLabelText && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
-                    <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
-                        <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
-                            <div className="min-w-0">
-                                <h3 className="truncate text-lg font-black text-slate-900">Προεπισκόπηση / Επεξεργασία ετικέτας</h3>
-                                <p className="mt-0.5 text-xs font-bold text-slate-400">
-                                    Οι αλλαγές ισχύουν μόνο για αυτή την εκτύπωση. Το QR κρατά τον πραγματικό κωδικό {editingLabelText.sourceSku}.
-                                </p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setEditingLabelKey(null)}
-                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
-
-                        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_360px]">
-                            <div className="flex min-h-[260px] items-center justify-center bg-slate-100 p-6">
-                                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-inner">
-                                    <BarcodeView
-                                        product={editingLabelItem.product}
-                                        variant={editingLabelItem.variant}
-                                        width={labelPreviewWidth}
-                                        height={labelPreviewHeight}
-                                        format={labelFormat}
-                                        size={editingLabelItem.size}
-                                        showPrice={showPrice}
-                                        priceTier={priceTier}
-                                        labelOverrides={editingLabelOverrides}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-4 border-l border-slate-100 p-5">
-                                <div className="rounded-2xl bg-amber-50 p-3 text-xs font-bold leading-relaxed text-amber-800">
-                                    Επεξεργάζεσαι την εμφάνιση της ετικέτας, όχι το προϊόν. Άφησε κενό ένα πεδίο για να μη φαίνεται.
-                                </div>
-
-                                {([
-                                    ['displaySku', 'SKU / Όνομα', editingLabelText.displaySku],
-                                    ['stone', 'Πέτρα / Περιγραφή', editingLabelText.stone],
-                                    ['brand', 'Επωνυμία', editingLabelText.brand],
-                                    ['price', 'Τιμή', editingLabelText.price],
-                                    ['metal', 'Μέταλλο', editingLabelText.metal],
-                                    ['size', 'Μέγεθος', editingLabelText.size],
-                                ] as Array<[keyof LabelTextOverrides, string, string]>).map(([field, label, value]) => (
-                                    <label key={field} className="block">
-                                        <span className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</span>
-                                        <input
-                                            type="text"
-                                            value={value}
-                                            onChange={(event) => updateEditingLabelOverride(field, event.target.value)}
-                                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900 outline-none transition-all focus:border-amber-400 focus:bg-white focus:ring-4 focus:ring-amber-500/10"
-                                        />
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 sm:flex-row sm:justify-end">
-                            <button
-                                type="button"
-                                onClick={resetEditingLabelOverride}
-                                className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-600 hover:bg-slate-100"
-                            >
-                                <ResetIcon size={16} />
-                                Reset
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setEditingLabelKey(null)}
-                                className="flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-black text-white hover:bg-slate-800"
-                            >
-                                <Save size={16} />
-                                Αποθήκευση για αυτή την εκτύπωση
-                            </button>
-                        </div>
-                    </div>
-                </div>
+            {editingLabelItem && (
+                <LabelPreviewEditModal
+                    product={editingLabelItem.product}
+                    variant={editingLabelItem.variant}
+                    size={editingLabelItem.size}
+                    format={labelFormat}
+                    showPrice={showPrice}
+                    priceTier={priceTier}
+                    width={labelPreviewWidth}
+                    height={labelPreviewHeight}
+                    overrides={editingLabelOverrides}
+                    onChangeField={updateEditingLabelOverride}
+                    onReset={resetEditingLabelOverride}
+                    onClose={() => setEditingLabelKey(null)}
+                />
             )}
         </div>
     );

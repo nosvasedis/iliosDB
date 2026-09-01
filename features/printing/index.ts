@@ -3,3 +3,4 @@ export * from './buildAggregatedPrintData';
 export * from './labelText';
 export * from './batchLabelOverrides';
 export * from './printTypes';
+export * from './labelPrintSettings';

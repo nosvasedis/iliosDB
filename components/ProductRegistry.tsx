@@ -18,6 +18,7 @@ import { useMolds } from '../hooks/api/useMolds';
 import { useProducts } from '../hooks/api/useProducts';
 import { useSettings } from '../hooks/api/useSettings';
 import { productsRepository } from '../features/products';
+import { PrintLabelItem } from '../features/printing';
 import { resolveSellingPriceManualOverride } from '../utils/bulkPricingPreview';
 import DesktopPageHeader from './DesktopPageHeader';
 import {
@@ -33,7 +34,7 @@ import {
 } from '../features/products';
 
 interface Props {
-    setPrintItems?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
+    setPrintItems?: (items: PrintLabelItem[]) => void;
 }
 
 interface TableVariant {

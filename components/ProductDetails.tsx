@@ -20,7 +20,7 @@ import {
 import { LaborCostFormulaRow } from './ProductRegistry/LaborCostFormulaRow';
 import { TechnicianLaborFormulaRow } from './ProductRegistry/TechnicianLaborFormulaRow';
 import { FINISH_CODES } from '../constants';
-import { X, Save, Printer, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag, Edit, Check, ArrowDownRight, RefreshCcw, Scale } from 'lucide-react';
+import { X, Save, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag, Edit, Check, ArrowDownRight, RefreshCcw, Scale } from 'lucide-react';
 import { uploadProductImage, R2_PUBLIC_URL, AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL } from '../lib/supabase';
 import { ACCEPTED_IMAGE_INPUT_TYPES, compressImage } from '../utils/imageHelpers';
 import { useQueryClient } from '@tanstack/react-query';
@@ -29,8 +29,6 @@ import { useUI } from './UIProvider';
 import { useAuth } from './AuthContext';
 import SkuColorizedText from './SkuColorizedText';
 import SmartVariantAddPanel from './ProductDetails/SmartVariantAddPanel';
-import JsBarcode from 'jsbarcode';
-import BarcodeView from './BarcodeView';
 import { useSuppliers } from '../hooks/api/useSuppliers';
 import {
     buildEditableProduct,
@@ -49,6 +47,8 @@ import {
 import { getSecondaryWeightLabel } from '../features/products/productDetailsViewModels';
 import { createMoldEntry } from '../features/products/repository';
 import ConvertToInhouseModal from './ConvertToInhouseModal';
+import BarcodeGallery from './ProductRegistry/BarcodeGallery';
+import { PrintLabelItem } from '../features/printing';
 import { dispatchLiveActivity } from '../hooks/useLiveActivity';
 
 interface Props {
@@ -57,7 +57,7 @@ interface Props {
     allMaterials: Material[];
     onClose: () => void;
     onSave?: (updatedProduct: Product) => void;
-    setPrintItems: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
+    setPrintItems: (items: PrintLabelItem[]) => void;
     settings: GlobalSettings;
     collections: Collection[];
     allMolds: Mold[];
@@ -503,88 +503,6 @@ const SummaryRow = React.memo(({ label, value, sub, color }: { label: string, va
         </div>
     </div>
 ));
-
-const BarcodeGallery = React.memo(({ product, variants, onPrint, settings }: { product: Product; variants: ProductVariant[]; onPrint: (items: any[]) => void; settings: GlobalSettings; }) => {
-    const [format, setFormat] = useState<'standard' | 'retail'>('standard');
-
-    const handlePrintItem = (variant: ProductVariant | null, qty: number) => {
-        onPrint([{
-            product,
-            variant: variant || undefined,
-            quantity: qty,
-            format: format
-        }]);
-    };
-
-    const handlePrintAll = () => {
-        const items = variants.length > 0
-            ? variants.map(v => ({ product, variant: v, quantity: 1, format: format }))
-            : [{ product, quantity: 1, format: format }];
-        onPrint(items);
-    };
-
-    const items = variants.length > 0
-        ? variants.map(v => ({ variant: v, key: v.suffix }))
-        : [{ variant: null, key: 'master' }];
-
-    return (
-        <div className="flex flex-col gap-4 h-full">
-            <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-200/80 shadow-sm">
-                <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                    <div className="flex gap-1.5 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
-                        <button onClick={() => setFormat('standard')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${format === 'standard' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}>
-                            <Tag size={14} /> Χονδρική
-                        </button>
-                        <button onClick={() => setFormat('retail')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${format === 'retail' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}>
-                            <ShoppingBag size={14} /> Λιανική
-                        </button>
-                    </div>
-                    <button onClick={handlePrintAll} className="bg-white text-slate-600 px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-50 border border-slate-200 transition-all flex items-center gap-2 shadow-sm hover:shadow-md">
-                        <Printer size={16} /> Εκτύπωση Όλων (1x)
-                    </button>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pb-4">
-                {items.map(({ variant, key }) => (
-                    <div key={key} className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col items-center gap-4 hover:shadow-md hover:border-slate-300 transition-all">
-                        {/* 
-                            Barcode Preview Container
-                            - overflow-x-auto: Allows scrolling if the label is wider than the card (common for retail labels)
-                            - min-h: Ensures enough vertical space
-                            - padding: reduced to maximize space
-                        */}
-                        <div className="bg-white border border-slate-100 shadow-inner p-2 rounded-xl flex items-center justify-center min-h-[140px] w-full relative overflow-x-auto custom-scrollbar">
-                            <div className={`${format === 'retail' ? 'scale-125 origin-center p-4' : ''} transition-transform`}>
-                                <BarcodeView
-                                    product={product}
-                                    variant={variant || undefined}
-                                    width={format === 'retail' ? (settings.retail_barcode_width_mm || 72) : settings.barcode_width_mm}
-                                    height={format === 'retail' ? (settings.retail_barcode_height_mm || 10) : settings.barcode_height_mm}
-                                    format={format}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="w-full text-center">
-                            <div className="font-bold text-lg">{variant ? <SkuColorizedText sku={product.sku} suffix={variant.suffix} gender={product.gender} /> : <SkuColorizedText sku={product.sku} suffix="" gender={product.gender} />}</div>
-                            <div className="text-xs text-slate-500">{variant ? variant.description : product.category}</div>
-                        </div>
-
-                        <div className="flex items-center gap-2 w-full mt-auto pt-3 border-t border-slate-100">
-                            <button
-                                onClick={() => handlePrintItem(variant, 1)}
-                                className="flex-1 bg-slate-900 text-white py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-black transition-all shadow-sm active:scale-[0.98]"
-                            >
-                                <Printer size={14} /> Εκτύπωση
-                            </button>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-});
 
 export default function ProductDetails({ product, allProducts, allMaterials, onClose, onSave, setPrintItems, settings, collections, allMolds, viewMode = 'registry', onDuplicate, initialVariantSuffix }: Props) {
     const queryClient = useQueryClient();

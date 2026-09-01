@@ -169,11 +169,15 @@ export default function SkuModalFiltersPanel({ facets, filters, onChange, open, 
   const allCustomerKeys = useMemo(() => new Set(customerItems.map((c) => c.key)), [customerItems]);
 
   return (
-    <div className="border-b border-slate-100 bg-white">
+    <div
+      className={`border-b border-slate-100 bg-white ${
+        open ? 'flex min-h-0 max-h-[min(42vh,24rem)] flex-col overflow-hidden' : 'shrink-0'
+      }`}
+    >
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-center justify-between gap-2 px-5 py-2.5 text-left transition-colors hover:bg-slate-50 sm:px-6"
+        className="flex w-full shrink-0 items-center justify-between gap-2 px-5 py-2.5 text-left transition-colors hover:bg-slate-50 sm:px-6"
       >
         <span className="flex items-center gap-2 text-xs font-bold text-slate-700">
           <Filter size={14} className="text-emerald-600" />
@@ -188,7 +192,7 @@ export default function SkuModalFiltersPanel({ facets, filters, onChange, open, 
       </button>
 
       {open && (
-        <div className="space-y-2.5 border-t border-slate-100 px-5 pb-3 pt-2 sm:px-6">
+        <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain border-t border-slate-100 px-5 pb-3 pt-2 sm:px-6">
           <div className="flex items-center justify-between gap-2">
             <p className="text-[10px] font-medium text-slate-400">
               Επιλέξτε τιμές για περιορισμό. Χωρίς επιλογή = όλα.
