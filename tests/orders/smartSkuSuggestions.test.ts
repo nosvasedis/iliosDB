@@ -157,6 +157,48 @@ describe('smartSkuSuggestions', () => {
     expect(sibs).toEqual(['PN615', 'PN915', 'XR915']);
   });
 
+  it('Orion: future design 99 pairs RN399↔699 within the hundreds band', () => {
+    expect(expandOrionDigitCoresForAnchor(parseMasterSkuParts('RN399')!)).toEqual(['399', '699']);
+    expect(expandOrionDigitCoresForAnchor(parseMasterSkuParts('PN699')!)).toEqual(['399', '699']);
+    expect(expandOrionDigitCoresForAnchor(parseMasterSkuParts('XR699')!)).toEqual(['399', '699']);
+    const products = [
+      makeProduct({ sku: 'RN399', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN399', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN699', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'XR699', gender: Gender.Men, collections: [42] }),
+    ];
+    const index = buildProductSearchIndex(products, orionCollections);
+    const sibs = getCollectionCoreSiblings(index, index.skuMap.get('RN399')!)
+      .map((p) => p.sku)
+      .sort();
+    expect(sibs).toEqual(['PN399', 'PN699', 'XR699']);
+  });
+
+  it('Orion: does not +300-pair reserved designs 12, 19, 20 (Ilios / Ψαλμός)', () => {
+    expect(expandOrionDigitCoresForAnchor(parseMasterSkuParts('RN312')!)).toBeNull();
+    expect(expandOrionDigitCoresForAnchor(parseMasterSkuParts('RN319')!)).toBeNull();
+    expect(expandOrionDigitCoresForAnchor(parseMasterSkuParts('RN420')!)).toBeNull();
+    expect(expandOrionDigitCoresForAnchor(parseMasterSkuParts('PN812')!)).toBeNull();
+    expect(expandOrionDigitCoresForAnchor(parseMasterSkuParts('XR612')!)).toBeNull();
+
+    const products = [
+      makeProduct({ sku: 'RN312', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN612', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'XR612', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'RN315', gender: Gender.Men, collections: [42] }),
+      makeProduct({ sku: 'PN615', gender: Gender.Men, collections: [42] }),
+    ];
+    const index = buildProductSearchIndex(products, orionCollections);
+    const reservedSibs = getCollectionCoreSiblings(index, index.skuMap.get('RN312')!)
+      .map((p) => p.sku)
+      .sort();
+    expect(reservedSibs).toEqual([]);
+    const validSibs = getCollectionCoreSiblings(index, index.skuMap.get('RN315')!)
+      .map((p) => p.sku)
+      .sort();
+    expect(validSibs).toEqual(['PN615']);
+  });
+
   // ── Cross-series mod-100 (Ωρίων real structure) ────────────────────────────
 
   it('cross-series mod100: RN415 links PN315, PN615, XR615 (no PN715/XR715 exist)', () => {

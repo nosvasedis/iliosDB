@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trophy } from 'lucide-react';
+import { Printer, Trophy, X } from 'lucide-react';
+import FinancePeriodSelector from '../FinancePeriodSelector';
+import { FinancePeriodMode } from '../../utils/financeAnalytics';
 
 function Shimmer({ className }: { className?: string }) {
   return <div className={`animate-pulse rounded-lg bg-slate-200/80 ${className ?? ''}`} />;
@@ -53,11 +55,14 @@ export function ModalDetailSkeleton() {
 
 interface ModalShellProps {
   periodLabel: string;
+  periodMode?: FinancePeriodMode;
+  onPeriodChange?: (mode: FinancePeriodMode) => void;
+  onPrint?: () => void;
   onClose: () => void;
   children: React.ReactNode;
 }
 
-export function SkuModalShell({ periodLabel, onClose, children }: ModalShellProps) {
+export function SkuModalShell({ periodLabel, periodMode, onPeriodChange, onPrint, onClose, children }: ModalShellProps) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -77,7 +82,7 @@ export function SkuModalShell({ periodLabel, onClose, children }: ModalShellProp
         onClick={(e) => e.stopPropagation()}
       >
         <div className="shrink-0 border-b border-slate-100 bg-gradient-to-r from-emerald-50/80 to-slate-50 px-5 py-4 sm:px-6">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex min-w-0 items-start gap-3">
               <div className="shrink-0 rounded-xl bg-emerald-100 p-2.5 text-emerald-700">
                 <Trophy size={22} />
@@ -89,14 +94,29 @@ export function SkuModalShell({ periodLabel, onClose, children }: ModalShellProp
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="shrink-0 rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-200/60 hover:text-slate-700"
-              aria-label="Κλείσιμο"
-            >
-              <X size={20} />
-            </button>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {periodMode && onPeriodChange && (
+                <FinancePeriodSelector value={periodMode} onChange={onPeriodChange} />
+              )}
+              {onPrint && (
+                <button
+                  type="button"
+                  onClick={onPrint}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm hover:border-emerald-200 hover:bg-emerald-50"
+                >
+                  <Printer size={14} />
+                  Εκτύπωση PDF
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onClose}
+                className="shrink-0 rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-200/60 hover:text-slate-700"
+                aria-label="Κλείσιμο"
+              >
+                <X size={20} />
+              </button>
+            </div>
           </div>
         </div>
 

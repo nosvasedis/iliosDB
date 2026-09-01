@@ -31,9 +31,8 @@ import {
   ResponsiveContainer, 
 } from 'recharts';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { productionKeys, productionRepository } from '../features/production';
-import { orderKeys } from '../features/orders';
 import { useAllShipmentItems, useAllShipments, useOrdersWithItems } from '../hooks/api/useOrders';
 import { getProductionStageLabel } from '../utils/productionStages';
 import DesktopPageHeader from './DesktopPageHeader';
@@ -115,7 +114,6 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
   const [financePeriodMode, setFinancePeriodMode] = useState<FinancePeriodMode>('current_year');
   const [legalReconciliationOpen, setLegalReconciliationOpen] = useState(false);
 
-  const queryClient = useQueryClient();
   const { data: orders, isLoading: ordersLoading, isError: ordersError, error: ordersErr, refetch: refetchOrders } = useOrdersWithItems();
   const { data: allShipments, isLoading: shipmentsLoading } = useAllShipments();
   const { data: allShipmentItems, isLoading: shipmentItemsLoading } = useAllShipmentItems();
@@ -139,9 +137,8 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
   const periodLabel = financeStats?.period.label ?? 'την επιλεγμένη περίοδο';
 
   const handleOpenTopVariants = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: orderKeys.all });
     setTopVariantsModalOpen(true);
-  }, [queryClient]);
+  }, []);
 
   if (ordersError || batchesError) {
     const err = ordersErr || batchesErr;
@@ -587,6 +584,8 @@ export default function Dashboard({ products, settings, onNavigate }: Props) {
                   orders={orders ?? []}
                   sellers={sellers ?? []}
                   periodLabel={periodLabel}
+                  periodMode={financePeriodMode}
+                  onPeriodChange={setFinancePeriodMode}
                   onClose={() => setTopVariantsModalOpen(false)}
                   onOpenRegistry={onNavigate ? () => { setTopVariantsModalOpen(false); onNavigate('registry'); } : undefined}
                 />

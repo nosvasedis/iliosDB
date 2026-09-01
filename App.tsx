@@ -199,8 +199,9 @@ function ErpAppContent() {
     setPrintItems, setOrderToPrint, setRemainingOrderToPrint, setShipmentToPrint, setShipmentsToPrint, setOfferToPrint,
     setAggregatedPrintData, setPreparationPrintData,
     setTechnicianPrintData, setAssemblyPrintData, setPriceListPrintData, setAnalyticsPrintData,
+    setSkuSalesPrintData,
     setOrderAnalyticsData, setSupplierOrderToPrint, setStageBatchPrintData, setLegalDocumentToPrint, setProformaToPrint,
-    printItems, orderToPrint, remainingOrderToPrint, shipmentToPrint, shipmentsToPrint, offerToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData, orderAnalyticsData, supplierOrderToPrint, stageBatchPrintData, legalDocumentToPrint, proformaToPrint
+    printItems, orderToPrint, remainingOrderToPrint, shipmentToPrint, shipmentsToPrint, offerToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData, skuSalesPrintData, orderAnalyticsData, supplierOrderToPrint, stageBatchPrintData, legalDocumentToPrint, proformaToPrint
   } = usePrint() || {}; // Handled gracefully if error
 
   const {
@@ -294,6 +295,7 @@ function ErpAppContent() {
             assemblyPrintData={assemblyPrintData}
             priceListPrintData={priceListPrintData}
             analyticsPrintData={analyticsPrintData}
+            skuSalesPrintData={skuSalesPrintData}
             orderAnalyticsData={orderAnalyticsData}
             photoCatalogPrintData={photoCatalogPrintData}
             stageBatchPrintData={stageBatchPrintData}
@@ -312,6 +314,7 @@ function ErpAppContent() {
             setAssemblyPrintData={setAssemblyPrintData}
             setPriceListPrintData={setPriceListPrintData}
             setAnalyticsPrintData={setAnalyticsPrintData}
+            setSkuSalesPrintData={setSkuSalesPrintData}
             setOrderAnalyticsData={setOrderAnalyticsData}
             setPhotoCatalogPrintData={setPhotoCatalogPrintData}
             setStageBatchPrintData={setStageBatchPrintData}
@@ -477,6 +480,7 @@ function ErpAppContent() {
         assemblyPrintData={assemblyPrintData}
         priceListPrintData={priceListPrintData}
         analyticsPrintData={analyticsPrintData}
+        skuSalesPrintData={skuSalesPrintData}
         orderAnalyticsData={orderAnalyticsData}
         photoCatalogPrintData={photoCatalogPrintData}
         stageBatchPrintData={stageBatchPrintData}
@@ -495,6 +499,7 @@ function ErpAppContent() {
         setAssemblyPrintData={setAssemblyPrintData}
         setPriceListPrintData={setPriceListPrintData}
         setAnalyticsPrintData={setAnalyticsPrintData}
+        setSkuSalesPrintData={setSkuSalesPrintData}
         setOrderAnalyticsData={setOrderAnalyticsData}
         setPhotoCatalogPrintData={setPhotoCatalogPrintData}
         setStageBatchPrintData={setStageBatchPrintData}

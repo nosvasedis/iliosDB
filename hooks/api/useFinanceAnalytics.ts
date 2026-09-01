@@ -7,7 +7,7 @@ import { useAllShipmentItems, useAllShipments, useOrdersWithItems } from './useO
 import { useCollections } from './useCollections';
 import { useSellers } from './useSellers';
 import { useSettings } from './useSettings';
-import { buildFinanceAnalytics, FinanceAnalytics, FinancePeriodSelection } from '../../utils/financeAnalytics';
+import { buildFinanceLineEvents, rankFinanceAnalyticsFromEvents, FinanceAnalytics, FinancePeriodSelection } from '../../utils/financeAnalytics';
 import { GlobalSettings, Product } from '../../types';
 
 interface UseFinanceAnalyticsParams {
@@ -33,9 +33,9 @@ export function useFinanceAnalytics({ products, settings, period }: UseFinanceAn
   const settingsQuery = useSettings();
   const effectiveSettings = settings || settingsQuery.data || null;
 
-  const analytics = useMemo(() => {
+  const eventBundle = useMemo(() => {
     if (!effectiveSettings || !ordersQuery.data || !materialsQuery.data) return null;
-    return buildFinanceAnalytics({
+    return buildFinanceLineEvents({
       orders: ordersQuery.data,
       shipments: shipmentsQuery.data || [],
       shipmentItems: shipmentItemsQuery.data || [],
@@ -44,21 +44,26 @@ export function useFinanceAnalytics({ products, settings, period }: UseFinanceAn
       settings: effectiveSettings,
       collections: collectionsQuery.data || [],
       sellers: sellersQuery.data || [],
-      legalDocuments: legalDocumentsQuery.data || [],
-      period,
     });
   }, [
     collectionsQuery.data,
-    legalDocumentsQuery.data,
     materialsQuery.data,
     ordersQuery.data,
-    period,
     products,
     sellersQuery.data,
     effectiveSettings,
     shipmentItemsQuery.data,
     shipmentsQuery.data,
   ]);
+
+  const analytics = useMemo(() => {
+    if (!eventBundle || !ordersQuery.data) return null;
+    return rankFinanceAnalyticsFromEvents({
+      orders: ordersQuery.data,
+      legalDocuments: legalDocumentsQuery.data || [],
+      period,
+    }, eventBundle);
+  }, [eventBundle, legalDocumentsQuery.data, ordersQuery.data, period]);
 
   const isLoading = ordersQuery.isLoading
     || shipmentsQuery.isLoading

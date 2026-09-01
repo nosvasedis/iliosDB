@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState } from 'react';
 import { Order, ProductionBatch, AggregatedData, Offer, SupplierOrder, AssemblyPrintData, StageBatchPrintData, OrderShipment, OrderShipmentItem, LegalDocument, LegalDocumentLine, ProformaDocument, ProformaDocumentLine } from '../types';
 import { PriceListPrintData } from './PriceListPrintView';
 import { PrintLabelItem } from '../features/printing';
+import type { SkuSalesPrintData } from '../features/dashboard/skuSalesPrint';
 
 interface PrintContextType {
     printItems: PrintLabelItem[];
@@ -30,6 +31,8 @@ interface PrintContextType {
     setPriceListPrintData: (data: PriceListPrintData | null) => void;
     analyticsPrintData: any | null;
     setAnalyticsPrintData: (data: any | null) => void;
+    skuSalesPrintData: SkuSalesPrintData | null;
+    setSkuSalesPrintData: (data: SkuSalesPrintData | null) => void;
     orderAnalyticsData: { stats: any; order: Order } | null;
     setOrderAnalyticsData: (data: { stats: any; order: Order } | null) => void;
     stageBatchPrintData: StageBatchPrintData | null;
@@ -64,6 +67,7 @@ export const PrintProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [assemblyPrintData, setAssemblyPrintData] = useState<AssemblyPrintData | null>(null);
     const [priceListPrintData, setPriceListPrintData] = useState<PriceListPrintData | null>(null);
     const [analyticsPrintData, setAnalyticsPrintData] = useState<any | null>(null);
+    const [skuSalesPrintData, setSkuSalesPrintData] = useState<SkuSalesPrintData | null>(null);
     const [orderAnalyticsData, setOrderAnalyticsData] = useState<{ stats: any; order: Order } | null>(null);
     const [stageBatchPrintData, setStageBatchPrintData] = useState<StageBatchPrintData | null>(null);
     const [legalDocumentToPrint, setLegalDocumentToPrint] = useState<{ document: LegalDocument; lines: LegalDocumentLine[] } | null>(null);
@@ -85,6 +89,7 @@ export const PrintProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 assemblyPrintData, setAssemblyPrintData,
                 priceListPrintData, setPriceListPrintData,
                 analyticsPrintData, setAnalyticsPrintData,
+                skuSalesPrintData, setSkuSalesPrintData,
                 orderAnalyticsData, setOrderAnalyticsData,
                 stageBatchPrintData, setStageBatchPrintData,
                 legalDocumentToPrint, setLegalDocumentToPrint,

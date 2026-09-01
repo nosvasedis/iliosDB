@@ -13,7 +13,7 @@ import {
   ProductionType,
   VatRegime,
 } from '../../types';
-import { buildFinanceAnalytics, getDefaultFinancePeriod } from '../../utils/financeAnalytics';
+import { buildFinanceAnalytics, buildFinanceLineEvents, getDefaultFinancePeriod, rankFinanceAnalyticsFromEvents } from '../../utils/financeAnalytics';
 
 const settings = {
   silver_price_gram: 1,
@@ -668,5 +668,85 @@ describe('buildFinanceAnalytics', () => {
     });
 
     expect(analytics.events.realized[0].sellerName).toBe('Αλέξανδρος Παπαϊωαννίδης');
+  });
+
+  it('builds line events once and ranks different periods from the same bundle', () => {
+    const input = {
+      orders: [
+        order({
+          id: 'split-order',
+          status: OrderStatus.Delivered,
+          items: [
+            { sku: 'JAN', quantity: 1, price_at_order: 100, line_id: 'jan' },
+            { sku: 'JUL', quantity: 1, price_at_order: 200, line_id: 'jul' },
+          ],
+        }),
+      ],
+      shipments: [
+        shipment({ id: 's-jan', order_id: 'split-order', shipped_at: '2026-01-10T10:00:00.000Z' }),
+        shipment({ id: 's-jul', order_id: 'split-order', shipped_at: '2026-07-08T10:00:00.000Z' }),
+      ],
+      shipmentItems: [
+        shipmentItem({ id: 'i-jan', shipment_id: 's-jan', sku: 'JAN', quantity: 1, price_at_order: 100, line_id: 'jan' }),
+        shipmentItem({ id: 'i-jul', shipment_id: 's-jul', sku: 'JUL', quantity: 1, price_at_order: 200, line_id: 'jul' }),
+      ],
+      products: [product({ sku: 'JAN' }), product({ sku: 'JUL' })],
+      materials,
+      settings,
+      collections: [],
+      sellers: [],
+    };
+
+    const bundle = buildFinanceLineEvents(input);
+    expect(bundle.realized).toHaveLength(2);
+
+    const july = rankFinanceAnalyticsFromEvents(
+      { ...input, period: { mode: 'current_month' }, now: new Date('2026-07-20T10:00:00.000Z'), legalDocuments: [] },
+      bundle,
+    );
+    const year = rankFinanceAnalyticsFromEvents(
+      { ...input, period: { mode: 'current_year' }, now: new Date('2026-07-20T10:00:00.000Z'), legalDocuments: [] },
+      bundle,
+    );
+
+    expect(july.totals.shippedPieces).toBe(1);
+    expect(july.events.realized.map((row) => row.sku)).toEqual(['JUL']);
+    expect(year.totals.shippedPieces).toBe(2);
+  });
+
+  it('attributes shipment lines only to their own order when many orders exist', () => {
+    const analytics = buildFinanceAnalytics({
+      orders: [
+        order({
+          id: 'order-a',
+          status: OrderStatus.Delivered,
+          items: [{ sku: 'AAA', quantity: 2, price_at_order: 10, line_id: 'a' }],
+        }),
+        order({
+          id: 'order-b',
+          status: OrderStatus.Delivered,
+          items: [{ sku: 'BBB', quantity: 5, price_at_order: 20, line_id: 'b' }],
+        }),
+      ],
+      shipments: [
+        shipment({ id: 'ship-a', order_id: 'order-a' }),
+        shipment({ id: 'ship-b', order_id: 'order-b' }),
+      ],
+      shipmentItems: [
+        shipmentItem({ id: 'ia', shipment_id: 'ship-a', sku: 'AAA', quantity: 2, price_at_order: 10, line_id: 'a' }),
+        shipmentItem({ id: 'ib', shipment_id: 'ship-b', sku: 'BBB', quantity: 5, price_at_order: 20, line_id: 'b' }),
+      ],
+      products: [product({ sku: 'AAA' }), product({ sku: 'BBB' })],
+      materials,
+      settings,
+      period: { mode: 'all_time' },
+      now: new Date('2026-06-12T10:00:00.000Z'),
+    });
+
+    const aaa = analytics.topProducts.find((row) => row.sku === 'AAA');
+    const bbb = analytics.topProducts.find((row) => row.sku === 'BBB');
+    expect(aaa?.quantity).toBe(2);
+    expect(bbb?.quantity).toBe(5);
+    expect(analytics.events.realized).toHaveLength(2);
   });
 });

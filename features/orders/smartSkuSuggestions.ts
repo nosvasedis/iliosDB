@@ -10,14 +10,17 @@ export const MIN_COLLECTION_FINISH_UNITS_FOR_INFERENCE = 3;
 
 /**
  * Ωρίων-style pairing: four parallel RN “lines”, each +300 for the PN/XR high band.
- * RN301–325↔601–625, RN401–425↔701–725, RN501–525↔801–825, RN601–625↔901–925.
+ * RN301–399↔601–699, RN401–499↔701–799, RN501–599↔801–899, RN601–699↔901–999.
+ * Design numbers 12 / 19 / 20 belong to Ilios / Ψαλμός and are not paired.
  */
 const ORION_RN_PN_BANDS: readonly { lowMin: number; lowMax: number }[] = [
-  { lowMin: 301, lowMax: 325 },
-  { lowMin: 401, lowMax: 425 },
-  { lowMin: 501, lowMax: 525 },
-  { lowMin: 601, lowMax: 625 },
+  { lowMin: 301, lowMax: 399 },
+  { lowMin: 401, lowMax: 499 },
+  { lowMin: 501, lowMax: 599 },
+  { lowMin: 601, lowMax: 699 },
 ] as const;
+
+const ORION_RESERVED_DESIGNS = new Set([12, 19, 20]);
 
 /** Greek capital prefixes → Latin so Ωρίων band rules apply (DB often uses ΡΝ/ΠΝ/ΧΡ). */
 function normalizeOrionSkuLetters(letters: string): string {
@@ -135,6 +138,8 @@ function deriveOrionCollectionIds(collections: Collection[] | undefined): Set<nu
 export function expandOrionDigitCoresForAnchor(parts: { letters: string; num: number; digits: string }): string[] | null {
   const letters = normalizeOrionSkuLetters(parts.letters);
   const { num } = parts;
+  const designNo = num % 100;
+  if (designNo === 0 || ORION_RESERVED_DESIGNS.has(designNo)) return null;
 
   if (letters === 'RN') {
     for (const b of ORION_RN_PN_BANDS) {
@@ -628,16 +633,20 @@ export function getCollectionCoreSiblings(index: ProductSearchIndex, product: Pr
      */
     if (parts.num >= 100) {
       const mod = parts.num % 100;
-      const mk = `${cid}|${mod}`;
-      const modSkus = index.collectionMod100ToSkus.get(mk);
-      if (modSkus) {
-        for (const sku of modSkus) {
-          if (sku === product.sku) continue;
-          if (seen.has(sku)) continue;
-          const other = index.skuMap.get(sku);
-          if (!other || !other.collections?.includes(cid)) continue;
-          seen.add(sku);
-          out.push(other);
+      if (!ORION_RESERVED_DESIGNS.has(mod)) {
+        const mk = `${cid}|${mod}`;
+        const modSkus = index.collectionMod100ToSkus.get(mk);
+        if (modSkus) {
+          for (const sku of modSkus) {
+            if (sku === product.sku) continue;
+            if (seen.has(sku)) continue;
+            const other = index.skuMap.get(sku);
+            if (!other || !other.collections?.includes(cid)) continue;
+            const otherParts = parseMasterSkuParts(other.sku);
+            if (otherParts && ORION_RESERVED_DESIGNS.has(otherParts.num % 100)) continue;
+            seen.add(sku);
+            out.push(other);
+          }
         }
       }
     }

@@ -536,17 +536,41 @@ function sortRankings<T extends FinanceRankingBase>(values: T[]): T[] {
 
 function getShippedQuantityMap(
   order: Order,
-  shipments: OrderShipment[],
-  shipmentItems: OrderShipmentItem[],
+  orderShipments: OrderShipment[],
+  orderShipmentItems: OrderShipmentItem[],
 ): Map<string, number> {
-  const shipmentIds = new Set(shipments.filter((shipment) => shipment.order_id === order.id).map((shipment) => shipment.id));
-  const filteredItems = shipmentItems.filter((item) => shipmentIds.has(item.shipment_id));
+  const shipmentIds = new Set(orderShipments.map((shipment) => shipment.id));
+  const filteredItems = orderShipmentItems.filter((item) => shipmentIds.has(item.shipment_id));
   return getShippedQuantitiesForOrderLines(order.items, filteredItems);
 }
 
-export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnalytics {
-  const now = input.now || new Date();
-  const period = resolvePeriod(input.period, now);
+export interface FinanceLineEventBundle {
+  realized: FinanceLineEvent[];
+  backlog: FinanceLineEvent[];
+}
+
+function indexShipmentsForFinance(shipments: OrderShipment[], shipmentItems: OrderShipmentItem[]) {
+  const shipmentsById = new Map(shipments.map((shipment) => [shipment.id, shipment]));
+  const shipmentsByOrderId = new Map<string, OrderShipment[]>();
+  shipments.forEach((shipment) => {
+    const rows = shipmentsByOrderId.get(shipment.order_id) || [];
+    rows.push(shipment);
+    shipmentsByOrderId.set(shipment.order_id, rows);
+  });
+  const itemsByOrderId = new Map<string, OrderShipmentItem[]>();
+  shipmentItems.forEach((item) => {
+    const shipment = shipmentsById.get(item.shipment_id);
+    if (!shipment) return;
+    const rows = itemsByOrderId.get(shipment.order_id) || [];
+    rows.push(item);
+    itemsByOrderId.set(shipment.order_id, rows);
+  });
+  return { shipmentsById, shipmentsByOrderId, itemsByOrderId };
+}
+
+export function buildFinanceLineEvents(
+  input: Pick<FinanceAnalyticsInput, 'orders' | 'shipments' | 'shipmentItems' | 'products' | 'materials' | 'settings' | 'collections' | 'sellers'>,
+): FinanceLineEventBundle {
   const orders = input.orders || [];
   const products = input.products || [];
   const materials = input.materials || [];
@@ -557,14 +581,7 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
   const materialsMap = new Map(materials.map((material) => [material.id, material]));
   const collectionById = new Map((input.collections || []).map((collection) => [collection.id, collection]));
   const sellerById = new Map((input.sellers || []).map((seller) => [seller.id, seller]));
-  const shipmentsById = new Map(shipments.map((shipment) => [shipment.id, shipment]));
-  const shipmentsByOrderId = new Map<string, OrderShipment[]>();
-
-  shipments.forEach((shipment) => {
-    const rows = shipmentsByOrderId.get(shipment.order_id) || [];
-    rows.push(shipment);
-    shipmentsByOrderId.set(shipment.order_id, rows);
-  });
+  const { shipmentsById, shipmentsByOrderId, itemsByOrderId } = indexShipmentsForFinance(shipments, shipmentItems);
 
   const allRealizedEvents: FinanceLineEvent[] = [];
   const backlogEvents: FinanceLineEvent[] = [];
@@ -573,13 +590,14 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
     .filter((order) => order.status !== OrderStatus.Cancelled)
     .forEach((order) => {
       const orderShipments = shipmentsByOrderId.get(order.id) || [];
+      const orderShipmentItems = itemsByOrderId.get(order.id) || [];
       const orderItems = Array.isArray(order.items) ? order.items : [];
 
-      shipmentItems.forEach((shipmentItem) => {
+      orderShipmentItems.forEach((shipmentItem) => {
         const shipment = shipmentsById.get(shipmentItem.shipment_id);
         if (!shipment || shipment.order_id !== order.id) return;
         const product = productsMap.get(shipmentItem.sku);
-        const event = buildLineEvent({
+        allRealizedEvents.push(buildLineEvent({
           source: 'shipment',
           order,
           item: shipmentItem,
@@ -595,13 +613,12 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
           materialsMap,
           sellerById,
           itemNote: findOriginatingOrderItem(order, shipmentItem)?.notes,
-        });
-        allRealizedEvents.push(event);
+        }));
       });
 
       if (order.status === OrderStatus.Delivered && orderShipments.length === 0) {
         orderItems.forEach((item) => {
-          const event = buildLineEvent({
+          allRealizedEvents.push(buildLineEvent({
             source: 'legacy_delivered_order',
             order,
             item,
@@ -617,12 +634,11 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
             materialsMap,
             sellerById,
             itemNote: item.notes,
-          });
-          allRealizedEvents.push(event);
+          }));
         });
       }
 
-      const shipped = getShippedQuantityMap(order, shipments, shipmentItems);
+      const shipped = getShippedQuantityMap(order, orderShipments, orderShipmentItems);
       orderItems.forEach((item) => {
         if (order.status === OrderStatus.Delivered && orderShipments.length === 0) return;
         const key = itemKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color, item.line_id);
@@ -647,6 +663,19 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
         }));
       });
     });
+
+  return { realized: allRealizedEvents, backlog: backlogEvents };
+}
+
+export function rankFinanceAnalyticsFromEvents(
+  input: Pick<FinanceAnalyticsInput, 'orders' | 'legalDocuments' | 'period' | 'now'>,
+  events: FinanceLineEventBundle,
+): FinanceAnalytics {
+  const now = input.now || new Date();
+  const period = resolvePeriod(input.period, now);
+  const orders = input.orders || [];
+  const allRealizedEvents = events.realized;
+  const backlogEvents = events.backlog;
 
   const effectivePeriod = resolveShortPeriodWithActivity(period, allRealizedEvents);
   const dedupedRealizedEvents = dedupeIdenticalFinanceEvents(
@@ -938,4 +967,8 @@ export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnal
     laborCostSum: roundMoney(costBreakdown.labor),
     materialCostSum: roundMoney(costBreakdown.materials),
   };
+}
+
+export function buildFinanceAnalytics(input: FinanceAnalyticsInput): FinanceAnalytics {
+  return rankFinanceAnalyticsFromEvents(input, buildFinanceLineEvents(input));
 }

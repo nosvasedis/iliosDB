@@ -5,6 +5,7 @@ import { lazyWithChunkRecovery } from './lib/chunkLoadRecovery';
 import { buildAggregatedPrintData } from './features/printing';
 import { buildPartialOrderFromBatches } from './features/orders';
 import { calculateBusinessStats } from './utils/businessAnalytics';
+import type { SkuSalesPrintData } from './features/dashboard/skuSalesPrint';
 import type { MobileAdminPage } from './surfaces/pageIds';
 import {
   AggregatedData,
@@ -114,6 +115,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
   const [technicianPrintData, setTechnicianPrintData] = useState<{ batches: ProductionBatch[] } | null>(null);
   const [assemblyPrintData, setAssemblyPrintData] = useState<AssemblyPrintData | null>(null);
   const [analyticsPrintData, setAnalyticsPrintData] = useState<any | null>(null);
+  const [skuSalesPrintData, setSkuSalesPrintData] = useState<SkuSalesPrintData | null>(null);
   const [orderAnalyticsData, setOrderAnalyticsData] = useState<{ stats: any; order: Order } | null>(null);
   const [photoCatalogPrintData, setPhotoCatalogPrintData] = useState<Product[] | null>(null);
   const [stageBatchPrintData, setStageBatchPrintData] = useState<StageBatchPrintData | null>(null);
@@ -262,6 +264,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         assemblyPrintData={assemblyPrintData}
         priceListPrintData={priceListPrintData}
         analyticsPrintData={analyticsPrintData}
+        skuSalesPrintData={skuSalesPrintData}
         orderAnalyticsData={orderAnalyticsData}
         photoCatalogPrintData={photoCatalogPrintData}
         stageBatchPrintData={stageBatchPrintData}
@@ -280,6 +283,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         setAssemblyPrintData={setAssemblyPrintData}
         setPriceListPrintData={setPriceListPrintData}
         setAnalyticsPrintData={setAnalyticsPrintData}
+        setSkuSalesPrintData={setSkuSalesPrintData}
         setOrderAnalyticsData={setOrderAnalyticsData}
         setPhotoCatalogPrintData={setPhotoCatalogPrintData}
         setStageBatchPrintData={setStageBatchPrintData}

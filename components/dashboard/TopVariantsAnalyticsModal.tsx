@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useState, useCallback, useRef, useDeferredValue, useTransition } from 'react';
+import React, { memo, useMemo, useState, useCallback, useRef, useDeferredValue, useTransition, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Search,
@@ -12,11 +12,12 @@ import {
 import { Gender, Order, Product, UserProfile } from '../../types';
 import { resolveImageUrl } from '../../lib/supabase';
 import { formatCurrency, splitSkuComponents } from '../../utils/pricingEngine';
-import { FinanceLineEvent } from '../../utils/financeAnalytics';
+import { FinanceLineEvent, FinancePeriodMode } from '../../utils/financeAnalytics';
 import SkuColorizedText from '../SkuColorizedText';
 import SpecialCreationNote from '../SpecialCreationNote';
 import SkuVariantDetailPanel from './SkuVariantDetailPanel';
 import SkuModalFiltersPanel from './SkuModalFiltersPanel';
+import OrionDesignRankList from './OrionDesignRankList';
 import {
   ModalDetailSkeleton,
   ModalListSkeleton,
@@ -36,6 +37,7 @@ import {
   buildOrderMetaIndex,
   buildFilterFacets,
   buildSlimEnrichedRowsFromEvents,
+  countActiveSkuModalFilters,
   createEmptySkuModalFilters,
   describeNegativeProfit,
   filterFinanceEventsForModal,
@@ -43,8 +45,20 @@ import {
   formatVariantMargin,
   type SkuModalFilterSelection,
 } from '../../features/dashboard/skuModalFilters';
+import {
+  aggregateOrionDesignRankings,
+  filterEventsForOrionDesign,
+  ORION_TYPE_CHIPS,
+  parseOrionDesignFromSku,
+  shouldShowOrionDesignView,
+  type OrionJewelleryType,
+} from '../../features/dashboard/orionDesignAnalytics';
+import { buildSkuSalesPrintData, describeSkuModalFilters } from '../../features/dashboard/skuSalesPrint';
 import { variantRankingKey } from '../../utils/financeLineSku';
 import { isSpecialCreationSku } from '../../utils/specialCreationSku';
+import { useCollections } from '../../hooks/api/useCollections';
+import { useMolds } from '../../hooks/api/useMolds';
+import { usePrint } from '../PrintContext';
 
 const SORT_OPTIONS: { id: VariantAnalyticsSort; label: string }[] = [
   { id: 'quantity', label: 'Τεμάχια' },
@@ -69,6 +83,8 @@ interface Props {
   orders: Order[];
   sellers?: UserProfile[];
   periodLabel: string;
+  periodMode: FinancePeriodMode;
+  onPeriodChange: (mode: FinancePeriodMode) => void;
   onClose: () => void;
   onOpenRegistry?: () => void;
 }
@@ -194,7 +210,8 @@ function TopVariantsModalBody({
   sellers,
   periodLabel,
   onOpenRegistry,
-}: Omit<Props, 'onClose'>) {
+  onPrintReady,
+}: Omit<Props, 'onClose' | 'periodMode' | 'onPeriodChange'> & { onPrintReady: (handler: () => void) => void }) {
   const [query, setQuery] = useState('');
   const deferredQuery = useDeferredValue(query);
   const [sort, setSort] = useState<VariantAnalyticsSort>('quantity');
@@ -205,6 +222,16 @@ function TopVariantsModalBody({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const listParentRef = useRef<HTMLDivElement>(null);
+
+  const collectionsQuery = useCollections();
+  const moldsQuery = useMolds();
+  const { setSkuSalesPrintData } = usePrint();
+  const collections = collectionsQuery.data || [];
+  const molds = moldsQuery.data || [];
+
+  const [jewelleryTypes, setJewelleryTypes] = useState<Set<OrionJewelleryType>>(new Set());
+  const [forceSkuList, setForceSkuList] = useState(false);
+  const [selectedDesignNo, setSelectedDesignNo] = useState<number | null>(null);
 
   const orderMeta = useMemo(() => buildOrderMetaIndex(orders, sellers), [orders, sellers]);
   const productsMap = useMemo(() => new Map(products.map((p) => [p.sku, p])), [products]);
@@ -229,9 +256,54 @@ function TopVariantsModalBody({
     [backlogEvents, deferredFilters, orderMeta, products],
   );
 
+  const orionEligible = shouldShowOrionDesignView(deferredFilters, filteredRealized, collections);
+
+  useEffect(() => {
+    if (!orionEligible) {
+      setSelectedDesignNo(null);
+      setForceSkuList(false);
+      setJewelleryTypes(new Set());
+    }
+  }, [orionEligible]);
+
+  const typeFilteredRealized = useMemo(() => {
+    if (!orionEligible || jewelleryTypes.size === 0) return filteredRealized;
+    return filteredRealized.filter((event) => {
+      const parsed = parseOrionDesignFromSku(event.sku);
+      return parsed ? jewelleryTypes.has(parsed.type) : false;
+    });
+  }, [filteredRealized, jewelleryTypes, orionEligible]);
+
+  const typeFilteredBacklog = useMemo(() => {
+    if (!orionEligible || jewelleryTypes.size === 0) return filteredBacklog;
+    return filteredBacklog.filter((event) => {
+      const parsed = parseOrionDesignFromSku(event.sku);
+      return parsed ? jewelleryTypes.has(parsed.type) : false;
+    });
+  }, [filteredBacklog, jewelleryTypes, orionEligible]);
+
+  const listRealized = useMemo(
+    () => (selectedDesignNo == null ? typeFilteredRealized : filterEventsForOrionDesign(typeFilteredRealized, selectedDesignNo)),
+    [selectedDesignNo, typeFilteredRealized],
+  );
+  const listBacklog = useMemo(
+    () => (selectedDesignNo == null ? typeFilteredBacklog : filterEventsForOrionDesign(typeFilteredBacklog, selectedDesignNo)),
+    [selectedDesignNo, typeFilteredBacklog],
+  );
+
+  const designRankings = useMemo(
+    () => aggregateOrionDesignRankings(typeFilteredRealized, products, molds, jewelleryTypes, sort),
+    [typeFilteredRealized, products, molds, jewelleryTypes, sort],
+  );
+
+  const showDesigns = orionEligible && !forceSkuList && selectedDesignNo == null;
+  const selectedDesign = selectedDesignNo == null
+    ? null
+    : designRankings.find((row) => row.designNo === selectedDesignNo) || null;
+
   const displayed = useMemo(
-    () => buildSlimEnrichedRowsFromEvents(filteredRealized, products, sort, deferredQuery),
-    [filteredRealized, products, sort, deferredQuery],
+    () => buildSlimEnrichedRowsFromEvents(listRealized, products, sort, deferredQuery),
+    [listRealized, products, sort, deferredQuery],
   );
 
   const selectedRow = useMemo(
@@ -242,12 +314,12 @@ function TopVariantsModalBody({
   const inspectDetail = useMemo((): SkuVariantDetail | null => {
     const q = deferredQuery.trim();
     if (q.length >= 2) {
-      return buildSkuVariantDetail({ realized: filteredRealized, backlog: filteredBacklog, query: q });
+      return buildSkuVariantDetail({ realized: listRealized, backlog: listBacklog, query: q });
     }
     if (selectedRow) {
       return buildSkuVariantDetailFromSelection({
-        realized: filteredRealized,
-        backlog: filteredBacklog,
+        realized: listRealized,
+        backlog: listBacklog,
         sku: selectedRow.sku,
         variantSuffix: selectedRow.variantSuffix,
         itemNote: selectedRow.itemNote,
@@ -256,12 +328,12 @@ function TopVariantsModalBody({
       });
     }
     return null;
-  }, [deferredQuery, selectedRow, filteredRealized, filteredBacklog]);
+  }, [deferredQuery, selectedRow, listRealized, listBacklog]);
 
   const inspectGender = inspectDetail ? productsMap.get(inspectDetail.sku)?.gender : undefined;
 
   const virtualizer = useVirtualizer({
-    count: displayed.length,
+    count: showDesigns ? 0 : displayed.length,
     getScrollElement: () => listParentRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 5,
@@ -297,6 +369,82 @@ function TopVariantsModalBody({
   }, [query]);
 
   const isStale = isPending || deferredQuery !== query || deferredFilters !== filters;
+
+  const handleToggleJewelleryType = useCallback((type: OrionJewelleryType) => {
+    setJewelleryTypes((prev) => {
+      const current = prev.size === 0 ? new Set(ORION_TYPE_CHIPS.map((chip) => chip.id)) : new Set(prev);
+      if (current.has(type)) current.delete(type);
+      else current.add(type);
+      if (current.size === 0 || current.size === ORION_TYPE_CHIPS.length) return new Set();
+      return current;
+    });
+  }, []);
+
+  const filterSummary = useMemo(() => {
+    const parts: string[] = [];
+    if (deferredFilters.collections.size > 0) {
+      const names = facets.collections
+        .filter((item) => deferredFilters.collections.has(item.id == null ? 'none' : String(item.id)))
+        .map((item) => item.name);
+      if (names.length) parts.push(`Συλλογή: ${names.join(', ')}`);
+    }
+    if (jewelleryTypes.size > 0) {
+      parts.push(ORION_TYPE_CHIPS.filter((chip) => jewelleryTypes.has(chip.id)).map((chip) => chip.label).join(', '));
+    }
+    if (selectedDesign) parts.push(`Παράσταση ${selectedDesign.displayName}`);
+    if (deferredFilters.categories.size > 0) parts.push(`Κατηγορία: ${[...deferredFilters.categories].join(', ')}`);
+    if (deferredFilters.customers.size > 0) parts.push(`${deferredFilters.customers.size} πελάτες`);
+    if (deferredFilters.sellers.size > 0) parts.push(`${deferredFilters.sellers.size} πλασιέ`);
+    if (countActiveSkuModalFilters(deferredFilters) === 0 && parts.length === 0) {
+      return describeSkuModalFilters([]);
+    }
+    return describeSkuModalFilters(parts);
+  }, [deferredFilters, facets.collections, jewelleryTypes, selectedDesign]);
+
+  const handlePrint = useCallback(() => {
+    const sortLabel = SORT_OPTIONS.find((option) => option.id === sort)?.label || 'Τεμάχια';
+    const skuRows = displayed.map((row) => ({
+      rank: row.rank,
+      sku: row.sku,
+      variantSuffix: row.variantSuffix,
+      name: '',
+      quantity: row.quantity,
+      revenue: row.revenue,
+      profit: row.profit,
+    }));
+    const designRows = designRankings.map((row) => ({
+      rank: row.rank,
+      sku: row.label,
+      variantSuffix: '',
+      name: row.name,
+      quantity: row.quantity,
+      revenue: row.revenue,
+      profit: row.profit,
+    }));
+    const activeRows = showDesigns ? designRows : skuRows;
+    const kpis = activeRows.reduce(
+      (acc, row) => {
+        acc.quantity += row.quantity;
+        acc.revenue += row.revenue;
+        acc.profit += row.profit;
+        return acc;
+      },
+      { quantity: 0, revenue: 0, profit: 0, skuCount: activeRows.length },
+    );
+    setSkuSalesPrintData(buildSkuSalesPrintData({
+      periodLabel,
+      sortLabel,
+      filterSummary,
+      view: showDesigns ? 'designs' : 'skus',
+      kpis,
+      skuRows,
+      designRows,
+    }));
+  }, [designRankings, displayed, filterSummary, periodLabel, setSkuSalesPrintData, showDesigns, sort]);
+
+  useEffect(() => {
+    onPrintReady(handlePrint);
+  }, [handlePrint, onPrintReady]);
 
   return (
     <>
@@ -353,12 +501,39 @@ function TopVariantsModalBody({
                   {option.label}
                 </button>
               ))}
-              {displayed.length > 0 && (
+              {orionEligible && (forceSkuList || selectedDesignNo != null) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForceSkuList(false);
+                    setSelectedDesignNo(null);
+                    setSelectedKey(null);
+                  }}
+                  className="rounded-lg bg-fuchsia-50 px-3 py-1.5 text-xs font-bold text-fuchsia-700 hover:bg-fuchsia-100"
+                >
+                  Παραστάσεις
+                </button>
+              )}
+              {!showDesigns && displayed.length > 0 && (
                 <span className="ml-auto text-[10px] font-bold text-slate-400">
                   {displayed.length} παραλλαγές
                 </span>
               )}
             </div>
+
+            {selectedDesign && (
+              <div className="flex flex-wrap items-center gap-1 text-xs font-semibold text-slate-500">
+                <button
+                  type="button"
+                  onClick={() => { setSelectedDesignNo(null); setSelectedKey(null); }}
+                  className="rounded-md px-1.5 py-0.5 text-fuchsia-700 hover:bg-fuchsia-50"
+                >
+                  Παραστάσεις
+                </button>
+                <span className="text-slate-300">/</span>
+                <span className="text-slate-800">{selectedDesign.displayName}</span>
+              </div>
+            )}
           </div>
 
           <SkuModalFiltersPanel
@@ -369,6 +544,25 @@ function TopVariantsModalBody({
             onToggle={() => setFiltersOpen((v) => !v)}
           />
 
+          {showDesigns ? (
+            <OrionDesignRankList
+              rows={designRankings}
+              jewelleryTypes={jewelleryTypes}
+              onToggleType={handleToggleJewelleryType}
+              onSelectDesign={(designNo) => {
+                startTransition(() => {
+                  setSelectedDesignNo(designNo);
+                  setSelectedKey(null);
+                  setQuery('');
+                });
+              }}
+              onShowSkus={() => {
+                setForceSkuList(true);
+                setSelectedDesignNo(null);
+                setJewelleryTypes(new Set());
+              }}
+            />
+          ) : (
           <div ref={listParentRef} className="relative min-h-0 flex-1 overflow-y-auto bg-slate-50/60 px-4 py-4">
             {isStale && (
               <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center">
@@ -415,6 +609,7 @@ function TopVariantsModalBody({
               </div>
             )}
           </div>
+          )}
         </div>
 
         <div className="flex min-h-[280px] min-w-0 flex-col border-l border-slate-100 bg-gradient-to-b from-slate-50/40 to-white lg:w-[55%] lg:min-h-0">
@@ -431,11 +626,21 @@ function TopVariantsModalBody({
 
 export default function TopVariantsAnalyticsModal(props: Props) {
   const contentReady = useDeferredModalMount();
+  const printRef = useRef<() => void>(() => {});
+  const bindPrint = useCallback((handler: () => void) => {
+    printRef.current = handler;
+  }, []);
 
   return (
-    <SkuModalShell periodLabel={props.periodLabel} onClose={props.onClose}>
+    <SkuModalShell
+      periodLabel={props.periodLabel}
+      periodMode={props.periodMode}
+      onPeriodChange={props.onPeriodChange}
+      onPrint={() => printRef.current()}
+      onClose={props.onClose}
+    >
       {contentReady ? (
-        <TopVariantsModalBody {...props} />
+        <TopVariantsModalBody {...props} onPrintReady={bindPrint} />
       ) : (
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
           <div className="min-h-[320px] flex-1 border-b border-slate-100 lg:w-[45%] lg:border-b-0 lg:border-r">
