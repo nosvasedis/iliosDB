@@ -57,6 +57,25 @@ export interface BulkConsignmentGroupInput {
   lines: BulkConsignmentLineInput[];
 }
 
+export interface PendingConsignmentLineUpdate {
+  id?: string;
+  product_sku: string;
+  variant_suffix?: string;
+  size_info?: string;
+  quantity: number;
+  locked_unit_cost: number;
+  locked_unit_price: number;
+}
+
+export interface UpdatePendingConsignmentInput {
+  consignmentId: string;
+  customerId: string;
+  sourceWarehouseId: string;
+  reviewDueAt: string;
+  notes?: string | null;
+  lines: PendingConsignmentLineUpdate[];
+}
+
 export interface RepairItemInput {
   origin_type: RepairOriginType;
   source_order_id?: string | null;

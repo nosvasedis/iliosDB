@@ -12,6 +12,7 @@ import {
   LayoutGrid,
   Loader2,
   PackageCheck,
+  Pencil,
   Plus,
   RotateCcw,
   Search,
@@ -50,11 +51,14 @@ import {
   formatGreekDateTime,
   formatGreekMoney,
   formatGreekNumber,
+  canEditPendingConsignment,
 } from '../features/customerService';
 import { SYSTEM_IDS } from '../lib/supabase';
 import RepairQrButton from './customerService/RepairQrButton';
 import BulkConsignmentWorkbench from './customerService/BulkConsignmentWorkbench';
 import ConsignmentBadge from './customerService/ConsignmentBadge';
+import ConsignmentEditModal from './customerService/ConsignmentEditModal';
+import ConsignmentSkuThumb from './customerService/ConsignmentSkuThumb';
 import RepairBadge from './customerService/RepairBadge';
 import RepairIntakeWorkbench from './customerService/RepairIntakeWorkbench';
 import RepairDetailModal from './customerService/RepairDetailModal';
@@ -131,6 +135,7 @@ export default function CustomerServiceWorkspace({ mode }: { mode: CustomerServi
   const [previousRepairItem, setPreviousRepairItem] = useState<RepairItem | null>(null);
   const [operation, setOperation] = useState<Operation | null>(null);
   const [selectedConsignmentId, setSelectedConsignmentId] = useState<string | null>(null);
+  const [editingConsignmentId, setEditingConsignmentId] = useState<string | null>(null);
   const [selectedRepairId, setSelectedRepairId] = useState<string | null>(null);
   const { data, isLoading, error } = useCustomerServiceWorkspace();
   const actions = useCustomerServiceActions();
@@ -220,6 +225,12 @@ export default function CustomerServiceWorkspace({ mode }: { mode: CustomerServi
   const selectedConsignment = consignments.find((entry) => entry.id === selectedConsignmentId)
     || (data?.consignments || []).find((entry) => entry.id === selectedConsignmentId)
     || null;
+  const editingConsignment = (data?.consignments || []).find((entry) => entry.id === editingConsignmentId) || null;
+  const sourceWarehouses = warehouses.filter((warehouse) => ![SYSTEM_IDS.CONSIGNMENTS, SYSTEM_IDS.RETURN_INSPECTION].includes(warehouse.id));
+  const openConsignmentEdit = (entry: Consignment) => {
+    setSelectedConsignmentId(null);
+    setEditingConsignmentId(entry.id);
+  };
   const selectedRepair = repairs.find((item) => item.id === selectedRepairId)
     || (data?.repairItems || []).find((item) => item.id === selectedRepairId)
     || null;
@@ -269,6 +280,7 @@ export default function CustomerServiceWorkspace({ mode }: { mode: CustomerServi
           const accepted = await confirm({ title: 'Παράδοση Παρακαταθήκης', message: 'Θα μετακινηθούν τα τεμάχια στην προστατευμένη θέση «Παρακαταθήκες Πελατών». Συνέχεια;', confirmText: 'Παράδοση' });
           if (accepted) safeAction(() => actions.handoffConsignment.mutateAsync(entry.id), 'Η Παρακαταθήκη παραδόθηκε και το απόθεμα ενημερώθηκε.');
         }}
+        onEdit={() => openConsignmentEdit(entry)}
         onOperation={setOperation}
         onLegalDraft={(id) => safeAction(() => actions.createConsignmentLegalDraft.mutateAsync(id), 'Δημιουργήθηκε συνδεδεμένο πρόχειρο παραστατικό.')}
       />
@@ -444,7 +456,7 @@ export default function CustomerServiceWorkspace({ mode }: { mode: CustomerServi
           products={products}
           orders={orders}
           existingOrderLineIds={existingOrderLineIds}
-          warehouses={warehouses.filter((warehouse) => ![SYSTEM_IDS.CONSIGNMENTS, SYSTEM_IDS.RETURN_INSPECTION].includes(warehouse.id))}
+          warehouses={sourceWarehouses}
           defaultSellerId={profile?.role === 'seller' ? profile.id : undefined}
           canSeeCost={canSeeCost}
           onClose={() => setShowConsignmentCreator(false)}
@@ -469,8 +481,26 @@ export default function CustomerServiceWorkspace({ mode }: { mode: CustomerServi
             const accepted = await confirm({ title: 'Παράδοση Παρακαταθήκης', message: 'Θα μετακινηθούν τα τεμάχια στην προστατευμένη θέση «Παρακαταθήκες Πελατών». Συνέχεια;', confirmText: 'Παράδοση' });
             if (accepted) safeAction(() => actions.handoffConsignment.mutateAsync(selectedConsignment.id), 'Η Παρακαταθήκη παραδόθηκε και το απόθεμα ενημερώθηκε.');
           }}
+          onEdit={() => openConsignmentEdit(selectedConsignment)}
           onOperation={setOperation}
           onLegalDraft={(id) => safeAction(() => actions.createConsignmentLegalDraft.mutateAsync(id), 'Δημιουργήθηκε συνδεδεμένο πρόχειρο παραστατικό.')}
+        />
+      )}
+      {isConsignments && editingConsignment && (
+        <ConsignmentEditModal
+          entry={editingConsignment}
+          lines={(data?.consignmentLines || []).filter((line) => line.consignment_id === editingConsignment.id)}
+          customers={customers}
+          products={products}
+          warehouses={sourceWarehouses}
+          canSeeCost={canSeeCost}
+          saving={actions.updatePendingConsignment.isPending}
+          onClose={() => setEditingConsignmentId(null)}
+          onSubmit={async (input) => {
+            if (await safeAction(() => actions.updatePendingConsignment.mutateAsync(input), 'Η Παρακαταθήκη ενημερώθηκε.')) {
+              setEditingConsignmentId(null);
+            }
+          }}
         />
       )}
       {!isConsignments && showRepairCreator && (
@@ -535,12 +565,12 @@ function EmptyState({ icon, title, text, action, actionLabel }: { icon: React.Re
   return <div className="flex min-h-64 flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center"><div className="mb-3 rounded-2xl bg-slate-100 p-4 text-slate-500">{icon}</div><h3 className="font-black text-slate-800">{title}</h3><p className="mt-1 max-w-md text-sm text-slate-500">{text}</p><button className={`${primaryButton} mt-4`} onClick={action}><Plus size={16} /> {actionLabel}</button></div>;
 }
 
-function ConsignmentCard({ entry, lines, settlements, returns, customerName, sellerName, productBySku, canSeeCost, isAdmin, onOpen, onHandoff, onOperation, onLegalDraft }: { entry: Consignment; lines: ConsignmentLine[]; settlements: ConsignmentSettlement[]; returns: ConsignmentReturn[]; customerName: string; sellerName?: string; productBySku: Map<string, Product>; canSeeCost: boolean; isAdmin: boolean; onOpen: () => void; onHandoff: () => void; onOperation: (operation: Operation) => void; onLegalDraft: (settlementId: string) => void }) {
+function ConsignmentCard({ entry, lines, settlements, returns, customerName, sellerName, productBySku, canSeeCost, isAdmin, onOpen, onHandoff, onEdit, onOperation, onLegalDraft }: { entry: Consignment; lines: ConsignmentLine[]; settlements: ConsignmentSettlement[]; returns: ConsignmentReturn[]; customerName: string; sellerName?: string; productBySku: Map<string, Product>; canSeeCost: boolean; isAdmin: boolean; onOpen: () => void; onHandoff: () => void; onEdit: () => void; onOperation: (operation: Operation) => void; onLegalDraft: (settlementId: string) => void }) {
   const pending = lines.reduce((sum, line) => sum + line.pending_quantity, 0);
   const value = lines.reduce((sum, line) => sum + line.pending_quantity * Number(line.locked_unit_price), 0);
   const due = settlements.filter((item) => item.status !== 'reversed').reduce((sum, item) => sum + Number(item.total_amount) - Number(item.paid_amount), 0);
-  return <article className={`${CARD} overflow-hidden`}><div className="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center md:justify-between"><button type="button" className="flex min-w-0 items-start gap-3 text-left" onClick={onOpen}><div className="rounded-xl bg-indigo-50 p-2.5 text-indigo-700"><Boxes size={20} /></div><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-black text-slate-900">{entry.code}</h3><ConsignmentBadge compact /><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-600">{CONSIGNMENT_STATUS_LABELS[entry.status]}</span><span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">{FINANCIAL_STATUS_LABELS[entry.financial_status]}</span></div><p className="mt-1 text-sm font-bold text-slate-700">{customerName}</p><p className="text-[11px] text-slate-500">{sellerName ? `Πωλητής: ${sellerName} · ` : ''}Επανέλεγχος: {formatGreekDateOnly(entry.review_due_at)}</p></div></button><div className="flex flex-wrap gap-2">{entry.status === 'pending_handoff' && <button className={primaryButton} onClick={onHandoff}><PackageCheck size={15} /> Παράδοση</button>}{isAdmin && entry.status === 'pending_handoff' && <button className={secondaryButton} onClick={() => onOperation({ kind: 'cancel-consignment', entry })}><X size={14} /> Ακύρωση</button>}<button className={secondaryButton} onClick={onOpen}>Λεπτομέρειες</button></div></div>
-    <div className="grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_280px]"><div className="space-y-2">{lines.map((line) => <div key={line.id} className="flex flex-col gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between"><div><div className="font-black text-slate-800"><SkuColorizedText sku={line.product_sku} suffix={line.variant_suffix || ''} gender={productBySku.get(line.product_sku)?.gender} /></div><div className="mt-1 flex flex-wrap gap-2 text-[10px] font-bold text-slate-500"><span>Παραδόθηκαν {line.quantity}</span><span>Πωλήθηκαν {line.sold_quantity}</span><span>Επιστράφηκαν {line.returned_quantity}</span><span className="text-indigo-700">Εκκρεμούν {line.pending_quantity}</span><span>{formatGreekMoney(Number(line.locked_unit_price))}/τεμ.</span>{canSeeCost && <span>Κόστος {formatGreekMoney(Number(line.locked_unit_cost))}</span>}</div></div>{['active', 'partially_settled'].includes(entry.status) && <div className="flex flex-wrap gap-2">{line.pending_quantity > 0 && <><button className={secondaryButton} onClick={() => onOperation({ kind: 'sale', line })}><Banknote size={14} /> Πώληση</button><button className={secondaryButton} onClick={() => onOperation({ kind: 'return', line })}><RotateCcw size={14} /> Επιστροφή</button></>}{isAdmin && <button className={secondaryButton} onClick={() => onOperation({ kind: 'price', line })}>Αλλαγή τιμής</button>}</div>}</div>)}</div>
+  return <article className={`${CARD} overflow-hidden`}><div className="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center md:justify-between"><button type="button" className="flex min-w-0 items-start gap-3 text-left" onClick={onOpen}><div className="rounded-xl bg-indigo-50 p-2.5 text-indigo-700"><Boxes size={20} /></div><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-black text-slate-900">{entry.code}</h3><ConsignmentBadge compact /><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-600">{CONSIGNMENT_STATUS_LABELS[entry.status]}</span><span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">{FINANCIAL_STATUS_LABELS[entry.financial_status]}</span></div><p className="mt-1 text-sm font-bold text-slate-700">{customerName}</p><p className="text-[11px] text-slate-500">{sellerName ? `Πωλητής: ${sellerName} · ` : ''}Επανέλεγχος: {formatGreekDateOnly(entry.review_due_at)}</p></div></button><div className="flex flex-wrap gap-2">{entry.status === 'pending_handoff' && <button className={primaryButton} onClick={onHandoff}><PackageCheck size={15} /> Παράδοση</button>}{canEditPendingConsignment(entry.status, entry.handed_off_at) && <button className={secondaryButton} onClick={onEdit}><Pencil size={14} /> Επεξεργασία</button>}{isAdmin && entry.status === 'pending_handoff' && <button className={secondaryButton} onClick={() => onOperation({ kind: 'cancel-consignment', entry })}><X size={14} /> Ακύρωση</button>}<button className={secondaryButton} onClick={onOpen}>Λεπτομέρειες</button></div></div>
+    <div className="grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_280px]"><div className="space-y-2">{lines.map((line) => <div key={line.id} className="flex flex-col gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex min-w-0 items-start gap-3"><ConsignmentSkuThumb product={productBySku.get(line.product_sku)} sku={line.product_sku} quantity={line.quantity} /><div><div className="font-black text-slate-800"><SkuColorizedText sku={line.product_sku} suffix={line.variant_suffix || ''} gender={productBySku.get(line.product_sku)?.gender} /></div><div className="mt-1 flex flex-wrap gap-2 text-[10px] font-bold text-slate-500"><span>Παραδόθηκαν {line.quantity}</span><span>Πωλήθηκαν {line.sold_quantity}</span><span>Επιστράφηκαν {line.returned_quantity}</span><span className="text-indigo-700">Εκκρεμούν {line.pending_quantity}</span><span>{formatGreekMoney(Number(line.locked_unit_price))}/τεμ.</span>{canSeeCost && <span>Κόστος {formatGreekMoney(Number(line.locked_unit_cost))}</span>}</div></div></div>{['active', 'partially_settled'].includes(entry.status) && <div className="flex flex-wrap gap-2">{line.pending_quantity > 0 && <><button className={secondaryButton} onClick={() => onOperation({ kind: 'sale', line })}><Banknote size={14} /> Πώληση</button><button className={secondaryButton} onClick={() => onOperation({ kind: 'return', line })}><RotateCcw size={14} /> Επιστροφή</button></>}{isAdmin && <button className={secondaryButton} onClick={() => onOperation({ kind: 'price', line })}>Αλλαγή τιμής</button>}</div>}</div>)}</div>
       <aside className="space-y-3 rounded-xl border border-slate-100 bg-slate-50 p-3"><div className="grid grid-cols-3 gap-2 text-center"><div><div className="text-lg font-black">{pending}</div><div className="text-[9px] font-bold text-slate-500">ΕΚΚΡΕΜΗ</div></div><div><div className="text-sm font-black">{formatGreekMoney(value)}</div><div className="text-[9px] font-bold text-slate-500">ΑΞΙΑ</div></div><div><div className="text-sm font-black text-rose-700">{formatGreekMoney(due)}</div><div className="text-[9px] font-bold text-slate-500">ΟΦΕΙΛΗ</div></div></div>{settlements.filter((item) => item.status !== 'reversed').map((settlement) => <div key={settlement.id} className="rounded-lg bg-white p-2.5 text-xs"><div className="flex justify-between"><span className="font-bold">Πώληση {settlement.quantity} τεμ.</span><span className="font-black">{formatGreekMoney(Number(settlement.total_amount))}</span></div><div className="mt-2 flex flex-wrap gap-1.5">{settlement.status !== 'paid' && <button className={secondaryButton} onClick={() => onOperation({ kind: 'payment', settlement })}>Είσπραξη</button>}{!settlement.legal_document_id && <button className={secondaryButton} onClick={() => onLegalDraft(settlement.id)}><FilePlus2 size={13} /> Πρόχειρο παραστατικό</button>}{isAdmin && Number(settlement.paid_amount) === 0 && !settlement.legal_document_id && <button className={secondaryButton} onClick={() => onOperation({ kind: 'reverse-sale', settlement })}>Αντιστροφή</button>}</div></div>)}{returns.filter((item) => item.status === 'inspection').map((item) => <div key={item.id} className="flex gap-1.5"><button className={`${secondaryButton} flex-1`} onClick={() => onOperation({ kind: 'route-return', item })}><ArrowRightLeft size={14} /> Δρομολόγηση {item.quantity} τεμ.</button>{isAdmin && <button className={secondaryButton} onClick={() => onOperation({ kind: 'reverse-return', item })}>Αντιστροφή</button>}</div>)}</aside>
     </div></article>;
 }
@@ -606,7 +636,7 @@ function RepairCard({ item, customerName, sellerName, product, cost, charge, isS
   );
 }
 
-function ConsignmentDetailModal({ entry, lines, settlements, returns, events, customerName, sellerName, productBySku, canSeeCost, isAdmin, onClose, onHandoff, onOperation, onLegalDraft }: { entry: Consignment; lines: ConsignmentLine[]; settlements: ConsignmentSettlement[]; returns: ConsignmentReturn[]; events: ConsignmentEvent[]; customerName: string; sellerName?: string; productBySku: Map<string, Product>; canSeeCost: boolean; isAdmin: boolean; onClose: () => void; onHandoff: () => void; onOperation: (operation: Operation) => void; onLegalDraft: (settlementId: string) => void }) {
+function ConsignmentDetailModal({ entry, lines, settlements, returns, events, customerName, sellerName, productBySku, canSeeCost, isAdmin, onClose, onHandoff, onEdit, onOperation, onLegalDraft }: { entry: Consignment; lines: ConsignmentLine[]; settlements: ConsignmentSettlement[]; returns: ConsignmentReturn[]; events: ConsignmentEvent[]; customerName: string; sellerName?: string; productBySku: Map<string, Product>; canSeeCost: boolean; isAdmin: boolean; onClose: () => void; onHandoff: () => void; onEdit: () => void; onOperation: (operation: Operation) => void; onLegalDraft: (settlementId: string) => void }) {
   const lineSettlements = settlements.filter((item) => lines.some((line) => line.id === item.consignment_line_id));
   const lineReturns = returns.filter((item) => lines.some((line) => line.id === item.consignment_line_id));
   const pending = lines.reduce((sum, line) => sum + line.pending_quantity, 0);
@@ -628,11 +658,16 @@ function ConsignmentDetailModal({ entry, lines, settlements, returns, events, cu
           {canSeeCost && <div className="rounded-2xl bg-slate-50 p-3"><div className="text-lg font-black">{formatGreekMoney(cost)}</div><div className="text-[10px] font-bold text-slate-500">Έκθεση κόστους</div></div>}
           <div className="rounded-2xl bg-rose-50 p-3"><div className="text-lg font-black text-rose-700">{formatGreekMoney(due)}</div><div className="text-[10px] font-bold text-rose-700">Απλήρωτα</div></div>
         </div>
-        <div className="flex flex-wrap gap-2">{entry.status === 'pending_handoff' && <button className={primaryButton} onClick={onHandoff}><PackageCheck size={15} /> Παράδοση</button>}{isAdmin && entry.status === 'pending_handoff' && <button className={secondaryButton} onClick={() => onOperation({ kind: 'cancel-consignment', entry })}>Ακύρωση</button>}</div>
+        <div className="flex flex-wrap gap-2">{entry.status === 'pending_handoff' && <button className={primaryButton} onClick={onHandoff}><PackageCheck size={15} /> Παράδοση</button>}{canEditPendingConsignment(entry.status, entry.handed_off_at) && <button className={secondaryButton} onClick={onEdit}><Pencil size={14} /> Επεξεργασία</button>}{isAdmin && entry.status === 'pending_handoff' && <button className={secondaryButton} onClick={() => onOperation({ kind: 'cancel-consignment', entry })}>Ακύρωση</button>}</div>
         <div className="space-y-2">{lines.map((line) => (
           <div key={line.id} className="rounded-2xl border border-slate-100 bg-white p-3">
-            <div className="font-black"><SkuColorizedText sku={line.product_sku} suffix={line.variant_suffix || ''} gender={productBySku.get(line.product_sku)?.gender} /></div>
-            <div className="mt-1 flex flex-wrap gap-2 text-[10px] font-bold text-slate-500"><span>Ποσότητα {line.quantity}</span><span>Πωλήθηκαν {line.sold_quantity}</span><span>Επιστράφηκαν {line.returned_quantity}</span><span className="text-indigo-700">Εκκρεμούν {line.pending_quantity}</span><span>{formatGreekMoney(Number(line.locked_unit_price))}/τεμ.</span>{canSeeCost && <span>Κόστος {formatGreekMoney(Number(line.locked_unit_cost))}</span>}</div>
+            <div className="flex min-w-0 items-start gap-3">
+              <ConsignmentSkuThumb product={productBySku.get(line.product_sku)} sku={line.product_sku} quantity={line.quantity} />
+              <div>
+                <div className="font-black"><SkuColorizedText sku={line.product_sku} suffix={line.variant_suffix || ''} gender={productBySku.get(line.product_sku)?.gender} /></div>
+                <div className="mt-1 flex flex-wrap gap-2 text-[10px] font-bold text-slate-500"><span>Ποσότητα {line.quantity}</span><span>Πωλήθηκαν {line.sold_quantity}</span><span>Επιστράφηκαν {line.returned_quantity}</span><span className="text-indigo-700">Εκκρεμούν {line.pending_quantity}</span><span>{formatGreekMoney(Number(line.locked_unit_price))}/τεμ.</span>{canSeeCost && <span>Κόστος {formatGreekMoney(Number(line.locked_unit_cost))}</span>}</div>
+              </div>
+            </div>
             {['active', 'partially_settled'].includes(entry.status) && <div className="mt-2 flex flex-wrap gap-2">{line.pending_quantity > 0 && <><button className={secondaryButton} onClick={() => onOperation({ kind: 'sale', line })}>Πώληση</button><button className={secondaryButton} onClick={() => onOperation({ kind: 'return', line })}>Επιστροφή</button></>}{isAdmin && <button className={secondaryButton} onClick={() => onOperation({ kind: 'price', line })}>Αλλαγή τιμής</button>}</div>}
           </div>
         ))}</div>

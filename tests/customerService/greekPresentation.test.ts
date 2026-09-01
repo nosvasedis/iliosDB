@@ -49,6 +49,8 @@ const guardedFiles = [
   'components/customerService/RepairIntakeWorkbench.tsx',
   'components/customerService/RepairDetailModal.tsx',
   'components/customerService/CustomerSearchSelect.tsx',
+  'components/customerService/ConsignmentEditModal.tsx',
+  'components/customerService/ConsignmentSkuThumb.tsx',
   'components/CustomerDetailsModal.tsx',
   'components/production/ProductionFinderResultRow.tsx',
   'components/ProductionBatchCard.tsx',
@@ -68,6 +70,7 @@ describe('ελληνική παρουσίαση Παρακαταθηκών κα�
         expect(label).toMatch(/[Α-Ωα-ωΆ-Ώά-ώ]/);
       }
     }
+    expect(CONSIGNMENT_EVENT_LABELS.updated).toMatch(/[Α-Ωα-ωΆ-Ώά-ώ]/);
   });
 
   it('απορρίπτει γνωστές αγγλικές ορατές ετικέτες στις κρίσιμες οθόνες', () => {

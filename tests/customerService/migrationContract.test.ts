@@ -3,7 +3,10 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const core = readFileSync(resolve(process.cwd(), 'supabase/migrations/20260811090000_customer_service_core.sql'), 'utf8');
-const workflows = readFileSync(resolve(process.cwd(), 'supabase/migrations/20260811091500_customer_service_workflows.sql'), 'utf8');
+const workflows = [
+  readFileSync(resolve(process.cwd(), 'supabase/migrations/20260811091500_customer_service_workflows.sql'), 'utf8'),
+  readFileSync(resolve(process.cwd(), 'supabase/migrations/20260901093000_update_pending_consignment.sql'), 'utf8'),
+].join('\n');
 
 const requiredTables = [
   'consignments', 'consignment_lines', 'consignment_allocations', 'consignment_settlements',
@@ -20,6 +23,7 @@ const requiredRpcs = [
   'record_repair_cost_line_v1', 'set_repair_charge_v1', 'create_repair_attachment_slot_v1',
   'create_consignment_legal_draft_v1', 'create_repair_legal_draft_v1',
   'get_consignment_inventory_reconciliation_v1',
+  'update_pending_consignment_v1',
 ];
 
 describe('συμβόλαιο βάσης Παρακαταθηκών και Επισκευών', () => {

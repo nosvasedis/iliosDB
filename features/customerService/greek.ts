@@ -103,6 +103,7 @@ export const REPAIR_QUALITY_STATUS_LABELS = {
 
 export const CONSIGNMENT_EVENT_LABELS: Record<string, string> = {
   created: 'Δημιουργία',
+  updated: 'Επεξεργασία',
   handed_off: 'Παράδοση στον πελάτη',
   price_overridden: 'Αλλαγή κλειδωμένης τιμής',
   sale_recorded: 'Δήλωση πώλησης',

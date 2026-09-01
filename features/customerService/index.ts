@@ -4,3 +4,4 @@ export * from './repository';
 export * from './types';
 export * from './repairIntakeDraft';
 export * from './bulkConsignmentDraft';
+export * from './pendingConsignmentEdit';

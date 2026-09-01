@@ -21,6 +21,7 @@ import type {
   BulkConsignmentGroupInput,
   CustomerServiceWorkspaceData,
   RepairIntakeInput,
+  UpdatePendingConsignmentInput,
 } from './types';
 
 function operationKey(prefix: string): string {
@@ -206,6 +207,21 @@ export const customerServiceRepository = {
       p_return_id: returnId,
       p_reason: reason,
       p_idempotency_key: operationKey(`consignment-return-reversal:${returnId}`),
+    });
+    if (error) throw new Error(customerServiceErrorMessage(error));
+    return data;
+  },
+
+  async updatePendingConsignment(input: UpdatePendingConsignmentInput) {
+    assertOnline();
+    const { data, error } = await supabase.rpc('update_pending_consignment_v1', {
+      p_consignment_id: input.consignmentId,
+      p_customer_id: input.customerId,
+      p_source_warehouse_id: input.sourceWarehouseId,
+      p_review_due_at: input.reviewDueAt,
+      p_notes: input.notes || null,
+      p_lines: input.lines,
+      p_idempotency_key: operationKey(`consignment-update:${input.consignmentId}`),
     });
     if (error) throw new Error(customerServiceErrorMessage(error));
     return data;

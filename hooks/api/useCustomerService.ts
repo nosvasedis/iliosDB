@@ -4,6 +4,7 @@ import {
   customerServiceRepository,
   type BulkConsignmentGroupInput,
   type RepairIntakeInput,
+  type UpdatePendingConsignmentInput,
 } from '../../features/customerService';
 import { invalidateInventory, invalidateLegal, invalidateProductionBatches } from '../../lib/queryInvalidation';
 
@@ -69,6 +70,10 @@ export function useCustomerServiceActions() {
     reverseConsignmentReturn: useMutation({
       mutationFn: ({ returnId, reason }: { returnId: string; reason: string }) => customerServiceRepository.reverseConsignmentReturn(returnId, reason),
       onSuccess: () => refresh({ inventory: true }),
+    }),
+    updatePendingConsignment: useMutation({
+      mutationFn: (input: UpdatePendingConsignmentInput) => customerServiceRepository.updatePendingConsignment(input),
+      onSuccess: () => refresh({ production: true }),
     }),
     cancelConsignment: useMutation({
       mutationFn: ({ consignmentId, reason }: { consignmentId: string; reason: string }) => customerServiceRepository.cancelConsignment(consignmentId, reason),
