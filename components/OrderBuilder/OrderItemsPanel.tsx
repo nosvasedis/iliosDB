@@ -535,7 +535,7 @@ export const OrderItemsPanel: React.FC<Props> = ({ orderState, onOpenScanner, is
                     </div>
                 </div>
                 <div className="flex justify-between items-center">
-                    <span className="font-black text-slate-800 uppercase text-sm">Πληρωτέο τώρα</span>
+                    <span className="font-black text-slate-800 uppercase text-sm">Σύνολο</span>
                     <div className="flex flex-col items-end">
                         <span className="font-black text-2xl text-emerald-700">{formatCurrency(state.grandTotal)}</span>
                         {state.priceDiffs && state.priceDiffs.total !== 0 && (

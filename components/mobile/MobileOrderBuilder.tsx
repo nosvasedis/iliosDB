@@ -1293,7 +1293,7 @@ export default function MobileOrderBuilder({ onBack, initialOrder, products, att
                         <div className="text-slate-800 font-black text-lg">{formatCurrency(netAmount)}</div>
                     </div>
                     <div className="text-right">
-                        <div className="text-slate-500 text-[10px] font-bold uppercase">Πληρωτέο τώρα · με ΦΠΑ ({(vatRate * 100).toFixed(0)}%)</div>
+                        <div className="text-slate-500 text-[10px] font-bold uppercase">Σύνολο · με ΦΠΑ ({(vatRate * 100).toFixed(0)}%)</div>
                         <div className="text-slate-900 font-black text-xl">{formatCurrency(grandTotal)}</div>
                     </div>
                 </div>
