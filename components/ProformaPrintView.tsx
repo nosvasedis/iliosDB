@@ -3,10 +3,11 @@ import { ProformaDocument, ProformaDocumentLine } from '../types';
 import { isInspectionModeActive } from '../lib/inspectionMode';
 import { getLegalDocumentDisplayNumber, PAYMENT_METHOD_LABELS } from '../utils/legalDocuments';
 import {
-  LegalPrintCustomerBar,
   LegalPrintHeader,
+  LegalPrintInfoGrid,
   LegalPrintLinesTable,
   LegalPrintPage,
+  LegalPrintFooter,
   LegalPrintTotalsSection,
   formatPrintDate,
 } from './legal/legalPrintShared';
@@ -31,6 +32,7 @@ const ProformaPrintView: React.FC<ProformaPrintViewProps> = ({ document, lines }
         series={document.series}
         aa={document.aa}
         issueDate={document.issue_date}
+        issueTime={document.created_at}
         statusBadge={(
           <span className="inline-flex rounded border border-sky-300 bg-sky-50 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-sky-900">
             Δεν είναι νόμιμο παραστατικό
@@ -42,25 +44,15 @@ const ProformaPrintView: React.FC<ProformaPrintViewProps> = ({ document, lines }
         Δεν έχει διαβιβαστεί στη myDATA · χωρίς MARK, UID ή QR ΑΑΔΕ · δεν αντικαθιστά τιμολόγιο
       </section>
 
-      <LegalPrintCustomerBar
+      <LegalPrintInfoGrid
         counterpart={document.counterpart}
         counterpartTitle="Πελάτης"
+        paymentMethodLabel={PAYMENT_METHOD_LABELS[document.payment_method_code] || String(document.payment_method_code)}
+        validUntil={document.valid_until}
         extraMeta={(
-          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[9px] text-slate-600">
-            <span>
-              <span className="font-bold text-slate-500">Κατάσταση: </span>
-              {document.status === 'void' ? 'Ακυρωμένο' : document.status === 'converted' ? 'Μετατράπηκε' : 'Πρόχειρο'}
-            </span>
-            <span>
-              <span className="font-bold text-slate-500">Πληρωμή: </span>
-              {PAYMENT_METHOD_LABELS[document.payment_method_code] || document.payment_method_code}
-            </span>
-            {document.valid_until && (
-              <span>
-                <span className="font-bold text-slate-500">Ισχύει έως: </span>
-                {formatPrintDate(document.valid_until)}
-              </span>
-            )}
+          <div className="mt-1 text-[8px] text-slate-600">
+            <span className="font-bold text-slate-500">Κατάσταση: </span>
+            {document.status === 'void' ? 'Ακυρωμένο' : document.status === 'converted' ? 'Μετατράπηκε' : 'Πρόχειρο'}
           </div>
         )}
       />
@@ -81,6 +73,8 @@ const ProformaPrintView: React.FC<ProformaPrintViewProps> = ({ document, lines }
         )}
         footerText={footerText}
       />
+
+      <LegalPrintFooter>Προτιμολόγιο - όχι φορολογικό παραστατικό</LegalPrintFooter>
     </LegalPrintPage>
   );
 };

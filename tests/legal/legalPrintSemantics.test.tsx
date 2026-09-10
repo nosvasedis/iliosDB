@@ -64,6 +64,8 @@ const lines: LegalDocumentLine[] = [{
   },
   source_metadata: {
     line_comments: 'Ειδική συσκευασία',
+    original_unit_price: 125,
+    discount_percent: 20,
   },
 }];
 
@@ -161,14 +163,14 @@ describe('legal print semantics', () => {
     expect(html).toContain('ΓΕΜΗ:');
   });
 
-  it('prints one grand total, no application logo, and all core fiscal information', () => {
+  it('prints the Ilios logo, one final total, and all core fiscal information', () => {
     const html = renderToStaticMarkup(
       <LegalDocumentPrintView document={document} lines={lines} />,
     );
 
-    expect(html).not.toContain('legal-print-logo');
-    expect(html).not.toContain('alt="ILIOS"');
-    expect(html.match(/Γενικό Σύνολο/g)).toHaveLength(1);
+    expect(html).toContain('legal-print-logo');
+    expect(html).toContain('alt="ILIOS"');
+    expect(html.match(/Τελική αξία/g)).toHaveLength(1);
 
     expect(html).toContain('ΕΚΔΟΤΗΣ Α.Ε.');
     expect(html).toContain('Οδός Δοκιμής');
@@ -181,7 +183,7 @@ describe('legal print semantics', () => {
     expect(html).toContain('ΤΙΜ');
     expect(html).toContain('42');
     expect(html).toContain('29/07/2026');
-    expect(html).toContain('ΑΑΔΕ 1.1');
+    expect(html).toContain('Τύπος myDATA 1.1');
     expect(html).toContain('40000000000042');
     expect(html).toContain('UID-DOCUMENT-42');
     expect(html).toContain('RNG001');
@@ -189,7 +191,14 @@ describe('legal print semantics', () => {
     expect(html).toContain('Ειδική συσκευασία');
     expect(html).toContain('Μ.Μ.');
     expect(html).toContain('Τεμάχια');
+    expect(html).toContain('Τιμή μον.');
+    expect(html).toContain('Έκπτ.%');
+    expect(html).toContain('125,00 €');
+    expect(html).toContain('20%');
     expect(html).toContain('24%');
     expect(html).toContain('Τρόπος πληρωμής');
+    expect(html).not.toContain('Όχημα');
+    expect(html).not.toContain('Σκοπός');
+    expect(html).not.toContain('Φόρτωση');
   });
 });

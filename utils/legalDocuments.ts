@@ -867,6 +867,10 @@ function buildLinesFromOrderItems(params: {
       income_classification: incomeClassification,
       source_order_line_key: buildOrderLineKey(item as OrderItem),
       line_id: item.line_id || null,
+      source_metadata: {
+        original_unit_price: roundMoney(unitPrice),
+        discount_percent: params.discountPercent || 0,
+      },
       created_at: new Date().toISOString(),
     };
   });

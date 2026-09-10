@@ -9,9 +9,8 @@ import {
 } from '../utils/legalDocuments';
 import {
   LegalPrintAadePanel,
-  LegalPrintCustomerBar,
-  LegalPrintDeliverySection,
   LegalPrintHeader,
+  LegalPrintInfoGrid,
   LegalPrintLinesTable,
   LegalPrintPage,
   LegalPrintTotalsSection,
@@ -46,6 +45,7 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
         series={document.series}
         aa={document.aa}
         issueDate={document.issue_date}
+        issueTime={document.created_at}
         documentTypeCode={document.aade_document_type}
         statusBadge={document.status === 'cancelled' ? (
           <span className="inline-flex rounded border border-red-300 bg-red-50 px-2 py-1 text-[10px] font-bold text-red-700">
@@ -64,19 +64,11 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
         </section>
       )}
 
-      <LegalPrintCustomerBar
+      <LegalPrintInfoGrid
         counterpart={document.counterpart}
+        delivery={document.delivery}
+        paymentMethodLabel={PAYMENT_METHOD_LABELS[document.payment_method_code] || String(document.payment_method_code)}
       />
-
-      <LegalPrintAadePanel
-        qrUrl={document.qr_url}
-        mark={document.aade_mark}
-        uid={document.aade_uid}
-        authenticationCode={document.authentication_code}
-        documentType={document.aade_document_type}
-      />
-
-      {document.delivery && <LegalPrintDeliverySection delivery={document.delivery} />}
 
       <LegalPrintLinesTable lines={lines} currency={document.currency} />
 
@@ -89,7 +81,16 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
         paymentMethodLabel={PAYMENT_METHOD_LABELS[document.payment_method_code] || String(document.payment_method_code)}
         vatExemptionCategory={document.vat_exemption_category}
         revenueClassificationText={revenueClassificationText}
+        delivery={document.delivery}
         footerText={footerText}
+      />
+
+      <LegalPrintAadePanel
+        qrUrl={document.qr_url}
+        mark={document.aade_mark}
+        uid={document.aade_uid}
+        authenticationCode={document.authentication_code}
+        documentType={document.aade_document_type}
       />
     </LegalPrintPage>
   );

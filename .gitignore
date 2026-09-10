@@ -68,6 +68,10 @@ reasonix.toml
 # Local verification scratch files
 tmp/
 
+# Generated samples, exports, and visual QA artifacts
+output/
+design-qa.md
+
 # Local git worktrees
 .worktrees/
 

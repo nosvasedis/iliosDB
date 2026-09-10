@@ -28,7 +28,7 @@ import {
   XCircle,
   type LucideIcon,
 } from 'lucide-react';
-import { AadeVatRegistryResult, Customer, Product, LegalArchiveLineMatch, LegalArchiveRecord, LegalCarrier, LegalDocument, LegalDocumentKind, LegalDocumentLine, LegalEnvironment, LegalExternalItemAlias, LegalNumberingSequence, LegalOrderLineAllocation, LegalOrderLinkMode, LegalRegistryConnectionStatus, LegalSettings, ProformaDocument, ProformaDocumentLine } from '../types';
+import { AadeVatRegistryResult, Customer, Product, LegalArchiveLineMatch, LegalArchiveRecord, LegalCarrier, LegalDocument, LegalDocumentKind, LegalDocumentLine, LegalEnvironment, LegalExternalItemAlias, LegalNumberingAlignmentPreview, LegalNumberingSequence, LegalOrderLineAllocation, LegalOrderLinkMode, LegalRegistryConnectionStatus, LegalSettings, ProformaDocument, ProformaDocumentLine } from '../types';
 import DesktopPageHeader from './DesktopPageHeader';
 import SkuProductPicker, { SkuProductSelection } from './legal/SkuProductPicker';
 import ProformaConvertModal from './legal/ProformaConvertModal';
@@ -112,7 +112,6 @@ import {
   AADE_VAT_CATEGORY_LINE_OPTIONS,
   AADE_VAT_CATEGORY_OPTIONS,
   DEFAULT_LEGAL_SETTINGS,
-  formatLegalNumberingAlignmentPreview,
   getLegalDocumentDeletePrompt,
   getLegalDocumentDisplayNumber,
   getProformaDeletePrompt,
@@ -368,6 +367,212 @@ const ActionButton = ({
   );
 };
 
+type NumberingAlignmentStatus = 'loading' | 'ready' | 'applying';
+
+interface NumberingAlignmentModalProps {
+  isOpen: boolean;
+  status: NumberingAlignmentStatus;
+  preview: LegalNumberingAlignmentPreview | null;
+  error: string | null;
+  onClose: () => void;
+  onRetry: () => void;
+  onApply: () => void;
+}
+
+const NumberingAlignmentModal = ({
+  isOpen,
+  status,
+  preview,
+  error,
+  onClose,
+  onRetry,
+  onApply,
+}: NumberingAlignmentModalProps) => {
+  if (!isOpen) return null;
+
+  const isBusy = status === 'loading' || status === 'applying';
+  const hasChanges = !!preview?.changes.length;
+  const generatedAt = preview?.generated_at
+    ? new Date(preview.generated_at).toLocaleString('el-GR')
+    : null;
+  const describe = (entry: LegalNumberingAlignmentPreview['changes'][number]) =>
+    `${LEGAL_DOCUMENT_KIND_LABELS[entry.document_kind]} · σειρά «${entry.series}» · τύπος ${entry.aade_document_type}`;
+
+  return (
+    <div
+      className="fixed inset-0 z-[260] flex items-center justify-center bg-slate-950/65 p-3 backdrop-blur-sm print:hidden sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="numbering-alignment-title"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !isBusy) onClose();
+      }}
+    >
+      <section className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
+          <div>
+            <div className="mb-1 flex items-center gap-2 text-slate-950">
+              <RefreshCw size={20} className="text-sky-600" />
+              <h2 id="numbering-alignment-title" className="text-lg font-black">Ευθυγράμμιση αρίθμησης με το Αρχείο</h2>
+            </div>
+            <p className="text-sm font-medium text-slate-500">
+              Έλεγχος των ενεργών σειρών απέναντι στα παραστατικά που έχουν ήδη καταχωρηθεί.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isBusy}
+            aria-label="Κλείσιμο"
+            className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <XCircle size={22} />
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+          {status === 'loading' && (
+            <div className="flex min-h-64 flex-col items-center justify-center gap-3 text-center">
+              <Loader2 size={32} className="animate-spin text-sky-600" />
+              <div>
+                <div className="font-black text-slate-900">Έλεγχος τρέχουσας αρίθμησης</div>
+                <div className="mt-1 text-sm font-medium text-slate-500">Δεν γίνεται καμία αλλαγή σε αυτό το στάδιο.</div>
+              </div>
+            </div>
+          )}
+
+          {status !== 'loading' && error && (
+            <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={20} className="mt-0.5 shrink-0" />
+                <div>
+                  <div className="font-black">Ο έλεγχος δεν ολοκληρώθηκε</div>
+                  <div className="mt-1 text-sm font-medium">{error}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {status !== 'loading' && preview && (
+            <div className="space-y-5">
+              <div className={`rounded-xl border p-4 ${hasChanges ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+                <div className="flex items-start gap-3">
+                  {hasChanges
+                    ? <AlertTriangle size={22} className="mt-0.5 shrink-0 text-amber-700" />
+                    : <CheckCircle2 size={22} className="mt-0.5 shrink-0 text-emerald-700" />}
+                  <div>
+                    <div className={`font-black ${hasChanges ? 'text-amber-950' : 'text-emerald-950'}`}>
+                      {hasChanges
+                        ? `${preview.changes.length} ${preview.changes.length === 1 ? 'σειρά χρειάζεται' : 'σειρές χρειάζονται'} ενημέρωση`
+                        : 'Η αρίθμηση είναι ήδη ασφαλής'}
+                    </div>
+                    <div className={`mt-1 text-sm font-medium ${hasChanges ? 'text-amber-800' : 'text-emerald-800'}`}>
+                      {hasChanges
+                        ? 'Το «Επόμενο» θα αυξηθεί μόνο όπου το Αρχείο έχει ήδη μεγαλύτερο Α/Α. Δεν μειώνεται ποτέ.'
+                        : 'Καμία ενεργή σειρά δεν βρίσκεται πίσω από το τρέχον Αρχείο.'}
+                    </div>
+                    {generatedAt && <div className="mt-2 text-xs font-bold opacity-70">Έλεγχος: {generatedAt}</div>}
+                  </div>
+                </div>
+              </div>
+
+              {hasChanges && (
+                <section>
+                  <h3 className="mb-2 text-xs font-black uppercase tracking-wide text-slate-500">Προτεινόμενες αλλαγές</h3>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {preview.changes.map((entry) => (
+                      <div key={entry.sequence_id} className="rounded-xl border border-amber-200 bg-white p-4 shadow-sm">
+                        <div className="text-sm font-black text-slate-900">{describe(entry)}</div>
+                        <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-center">
+                          <div className="rounded-lg bg-slate-100 px-3 py-2">
+                            <div className="text-[10px] font-black uppercase text-slate-500">Τώρα</div>
+                            <div className="text-xl font-black text-slate-800">{entry.current_next_aa}</div>
+                          </div>
+                          <span className="font-black text-amber-600">→</span>
+                          <div className="rounded-lg bg-amber-100 px-3 py-2">
+                            <div className="text-[10px] font-black uppercase text-amber-700">Νέο επόμενο</div>
+                            <div className="text-xl font-black text-amber-950">{entry.proposed_next_aa}</div>
+                          </div>
+                        </div>
+                        <div className="mt-3 text-xs font-bold text-slate-500">
+                          Μέγιστος Α/Α Αρχείου: {entry.max_aa ?? '—'} · {entry.document_count} εγγραφές
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              <div className="grid gap-3 md:grid-cols-3">
+                <details className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4" open={!hasChanges}>
+                  <summary className="cursor-pointer text-sm font-black text-emerald-900">
+                    Ήδη ασφαλείς ({preview.already_safe.length})
+                  </summary>
+                  <div className="mt-3 space-y-2 text-xs font-medium text-emerald-900">
+                    {preview.already_safe.length ? preview.already_safe.map((entry) => (
+                      <div key={entry.sequence_id} className="rounded-lg bg-white/80 p-2">
+                        <div className="font-bold">{describe(entry)}</div>
+                        <div className="mt-1 opacity-75">Επόμενο {entry.current_next_aa} · μέγιστος Α/Α {entry.max_aa ?? '—'}</div>
+                      </div>
+                    )) : <div className="opacity-70">Καμία σειρά με υπάρχον ιστορικό.</div>}
+                  </div>
+                </details>
+
+                <details className="rounded-xl border border-sky-200 bg-sky-50/60 p-4">
+                  <summary className="cursor-pointer text-sm font-black text-sky-900">
+                    Νέες σειρές ({preview.new_namespaces.length})
+                  </summary>
+                  <div className="mt-3 space-y-2 text-xs font-medium text-sky-900">
+                    {preview.new_namespaces.length ? preview.new_namespaces.map((entry) => (
+                      <div key={entry.sequence_id} className="rounded-lg bg-white/80 p-2">
+                        <div className="font-bold">{describe(entry)}</div>
+                        <div className="mt-1 opacity-75">Ξεκινά ανεξάρτητα από επόμενο {entry.current_next_aa}.</div>
+                      </div>
+                    )) : <div className="opacity-70">Καμία.</div>}
+                  </div>
+                </details>
+
+                <details className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <summary className="cursor-pointer text-sm font-black text-slate-800">
+                    Ιστορικές σειρές ({preview.historical_series.length})
+                  </summary>
+                  <div className="mt-3 space-y-2 text-xs font-medium text-slate-700">
+                    {preview.historical_series.length ? preview.historical_series.map((entry) => (
+                      <div key={`${entry.active_sequence_id}-${entry.series_key}`} className="rounded-lg bg-white p-2">
+                        <div className="font-bold">
+                          {LEGAL_DOCUMENT_KIND_LABELS[entry.document_kind]} · σειρά «{entry.series}»
+                        </div>
+                        <div className="mt-1 opacity-75">
+                          {entry.document_count} εγγραφές · μέγιστος Α/Α {entry.max_aa ?? '—'} · δεν επηρεάζει τη σειρά «{entry.active_series}»
+                        </div>
+                      </div>
+                    )) : <div className="opacity-70">Καμία.</div>}
+                  </div>
+                </details>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <footer className="flex flex-wrap justify-end gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:px-6">
+          <ActionButton variant="secondary" onClick={onClose} disabled={isBusy}>Κλείσιμο</ActionButton>
+          {status !== 'loading' && error && (
+            <ActionButton variant="secondary" onClick={onRetry} disabled={isBusy}>
+              <RefreshCw size={16} /> Νέος έλεγχος
+            </ActionButton>
+          )}
+          {preview && hasChanges && !error && (
+            <ActionButton onClick={onApply} disabled={isBusy}>
+              {status === 'applying' ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
+              {status === 'applying' ? 'Εφαρμογή…' : 'Εφαρμογή ασφαλών αλλαγών'}
+            </ActionButton>
+          )}
+        </footer>
+      </section>
+    </div>
+  );
+};
+
 export default function LegalDocumentsPage({
   products,
   onPrintLegalDocument,
@@ -402,6 +607,12 @@ export default function LegalDocumentsPage({
     createdDocument: LegalDocument | null;
     error: string | null;
   }>({ proforma: null, lines: [], step: 'preview', createdDocument: null, error: null });
+  const [numberingAlignmentModal, setNumberingAlignmentModal] = useState<{
+    isOpen: boolean;
+    status: NumberingAlignmentStatus;
+    preview: LegalNumberingAlignmentPreview | null;
+    error: string | null;
+  }>({ isOpen: false, status: 'ready', preview: null, error: null });
   const [syncDraft, setSyncDraft] = useState({
     dateFrom: today(),
     dateTo: today(),
@@ -427,6 +638,7 @@ export default function LegalDocumentsPage({
   const [inspectionPinDraft, setInspectionPinDraft] = useState('');
   const [inspectionPinConfirm, setInspectionPinConfirm] = useState('');
   const settingsSecretClickRef = useRef({ count: 0, timer: null as ReturnType<typeof setTimeout> | null });
+  const numberingAlignmentRequestRef = useRef(0);
   const archivePublicVatLookupCacheRef = useRef(
     new Map<string, Promise<AadeVatRegistryResult>>(),
   );
@@ -1152,22 +1364,46 @@ export default function LegalDocumentsPage({
   };
 
   const promptLegalNumberingAlignment = async (options?: { silentIfUpToDate?: boolean }) => {
+    const requestId = ++numberingAlignmentRequestRef.current;
+    if (!options?.silentIfUpToDate) {
+      setNumberingAlignmentModal({ isOpen: true, status: 'loading', preview: null, error: null });
+    }
+
     try {
       const preview = await legalRepository.previewNumberingAlignment();
+      if (requestId !== numberingAlignmentRequestRef.current) return;
       if (!preview.changes.length && options?.silentIfUpToDate) return;
-      const ok = await confirm({
-        title: 'Ευθυγράμμιση με το τρέχον Αρχείο',
-        message: formatLegalNumberingAlignmentPreview(preview),
-        confirmText: preview.changes.length ? 'Εφαρμογή ασφαλών αλλαγών' : 'Κλείσιμο',
-        cancelText: preview.changes.length ? 'Όχι τώρα' : 'Πίσω',
-      });
-      if (!ok || !preview.changes.length) return;
+      setNumberingAlignmentModal({ isOpen: true, status: 'ready', preview, error: null });
+    } catch (error: any) {
+      if (requestId !== numberingAlignmentRequestRef.current) return;
+      const message = error?.message || 'Δεν ολοκληρώθηκε ο έλεγχος της τρέχουσας αρίθμησης.';
+      if (options?.silentIfUpToDate) {
+        showToast(message, 'error');
+        return;
+      }
+      setNumberingAlignmentModal({ isOpen: true, status: 'ready', preview: null, error: message });
+    }
+  };
 
+  const closeLegalNumberingAlignment = () => {
+    if (numberingAlignmentModal.status === 'applying') return;
+    numberingAlignmentRequestRef.current += 1;
+    setNumberingAlignmentModal({ isOpen: false, status: 'ready', preview: null, error: null });
+  };
+
+  const applyLegalNumberingAlignment = async () => {
+    const preview = numberingAlignmentModal.preview;
+    if (!preview?.changes.length || numberingAlignmentModal.status === 'applying') return;
+
+    setNumberingAlignmentModal((current) => ({ ...current, status: 'applying', error: null }));
+    try {
       const result = await legalRepository.applyNumberingAlignment(preview.preview_token);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: legalKeys.documents() }),
         queryClient.invalidateQueries({ queryKey: legalKeys.sequences() }),
       ]);
+      numberingAlignmentRequestRef.current += 1;
+      setNumberingAlignmentModal({ isOpen: false, status: 'ready', preview: null, error: null });
       showToast(
         result.applied.length
           ? `Η αρίθμηση ενημερώθηκε με τα τρέχοντα δεδομένα: ${result.applied
@@ -1177,7 +1413,11 @@ export default function LegalDocumentsPage({
         result.applied.length ? 'success' : 'info',
       );
     } catch (error: any) {
-      showToast(error?.message || 'Δεν ολοκληρώθηκε ο έλεγχος της τρέχουσας αρίθμησης.', 'error');
+      setNumberingAlignmentModal((current) => ({
+        ...current,
+        status: 'ready',
+        error: error?.message || 'Δεν εφαρμόστηκε η ευθυγράμμιση αρίθμησης. Εκτελέστε νέο έλεγχο.',
+      }));
     }
   };
 
@@ -3194,8 +3434,15 @@ export default function LegalDocumentsPage({
         <section className="rounded-lg border border-slate-200 bg-white p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="font-black text-slate-900">Σειρές και αρίθμηση</h2>
-            <ActionButton variant="secondary" onClick={() => void promptLegalNumberingAlignment()} disabled={saveSequence.isPending}>
-              <RefreshCw size={16} /> Ευθυγράμμιση με Αρχείο
+            <ActionButton
+              variant="secondary"
+              onClick={() => void promptLegalNumberingAlignment()}
+              disabled={saveSequence.isPending || numberingAlignmentModal.status === 'loading' || numberingAlignmentModal.status === 'applying'}
+            >
+              {numberingAlignmentModal.status === 'loading'
+                ? <Loader2 size={16} className="animate-spin" />
+                : <RefreshCw size={16} />}
+              Ευθυγράμμιση με Αρχείο
             </ActionButton>
           </div>
           <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-900">
@@ -3402,6 +3649,15 @@ export default function LegalDocumentsPage({
         onClose={closeConvertModal}
         onOpenInvoice={handleOpenConvertedInvoice}
         money={money}
+      />
+      <NumberingAlignmentModal
+        isOpen={numberingAlignmentModal.isOpen}
+        status={numberingAlignmentModal.status}
+        preview={numberingAlignmentModal.preview}
+        error={numberingAlignmentModal.error}
+        onClose={closeLegalNumberingAlignment}
+        onRetry={() => void promptLegalNumberingAlignment()}
+        onApply={() => void applyLegalNumberingAlignment()}
       />
     </div>
   );
