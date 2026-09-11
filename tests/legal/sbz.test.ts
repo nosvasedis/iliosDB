@@ -9,7 +9,7 @@ describe('SBZ wholesale contract',()=>{
     const {document,lines}=sbzFixture(); const xml=buildSbzInvoiceXml(document,lines,document.created_at);
     expect(xml).toContain('xmlns:N1=');expect(xml).not.toContain('N2:');expect(xml).not.toContain('icls:');
     expect(xml).toContain('<API_InvoiceDetails>');expect(xml).toContain('<lineUnitPrice>100.00</lineUnitPrice>');
-    expect(xml).toContain('<totalDiscountValue>20.00</totalDiscountValue>');expect(xml).toContain('Δαχτυλίδι &amp; κόσμημα');expect(xml).toContain('<docTime>11:00:00</docTime>');
+    expect(xml).toContain('<totalDiscountValue>20.00</totalDiscountValue>');expect(xml).toContain('<IssuerPhone>2101234567</IssuerPhone>');expect(xml).toContain('<CounterpartPhone>2101234567</CounterpartPhone>');expect(xml).toContain('Δαχτυλίδι &amp; κόσμημα');expect(xml).toContain('<docTime>11:00:00</docTime>');
   });
   it.each(['invoice_delivery', 'delivery_note'] as const)('serializes %s with dispatch details', kind => {
     const {document,lines}=sbzFixture();

@@ -1482,6 +1482,12 @@ export interface AadeTransmittedCancellation {
 
 export interface AadeTransmittedDocsParseResult {
   documents: AadeTransmittedDocument[];
+  providerDocuments?: Array<{
+    issuerVat?: string;
+    mark: string;
+    uid?: string;
+    authenticationCode?: string;
+  }>;
   cancellations: AadeTransmittedCancellation[];
   nextPartitionKey?: string;
   nextRowKey?: string;

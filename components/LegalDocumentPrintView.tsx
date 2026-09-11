@@ -49,7 +49,6 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
         aa={document.aa}
         issueDate={document.issue_date}
         issueTime={document.submitted_at || document.created_at}
-        documentTypeCode={document.aade_document_type}
         statusBadge={document.status === 'cancelled' ? (
           <span className="inline-flex rounded border border-red-300 bg-red-50 px-2 py-1 text-[10px] font-bold text-red-700">
             ΑΚΥΡΩΜΕΝΟ · MARK {document.cancellation_mark || '-'}
@@ -83,6 +82,7 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
         currency={document.currency}
         paymentMethodLabel={PAYMENT_METHOD_LABELS[document.payment_method_code] || String(document.payment_method_code)}
         vatExemptionCategory={document.vat_exemption_category}
+        documentTypeCode={document.aade_document_type}
         revenueClassificationText={revenueClassificationText}
         delivery={document.delivery}
         footerText={footerText}
@@ -93,7 +93,6 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
         mark={document.aade_mark}
         uid={document.aade_uid}
         authenticationCode={document.authentication_code}
-        documentType={document.aade_document_type}
       />
     </LegalPrintPage>
   );

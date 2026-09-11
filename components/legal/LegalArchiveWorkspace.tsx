@@ -757,8 +757,8 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
   useEffect(() => setPage(1), [filters]);
   useEffect(() => setPage((current) => Math.min(current, totalPages)), [totalPages]);
   useEffect(() => {
-    if (!props.initialQuery) return;
-    setFilters((current) => ({ ...current, query: props.initialQuery || '' }));
+    const query = props.initialQuery || '';
+    setFilters((current) => current.query === query ? current : ({ ...current, query }));
   }, [props.initialQuery]);
 
   const activeFilterChips: Array<{
@@ -1612,7 +1612,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                               {document.issue_date}
                             </div>
                             <div className="mt-1.5 flex items-center gap-1 whitespace-nowrap">
-                              <span className={`inline-flex rounded-full px-1.5 py-0.5 text-[9px] font-black leading-none ${record.source === 'legal' ? 'bg-emerald-100 text-emerald-800' : 'bg-violet-100 text-violet-800'}`}>{record.source === 'legal' ? ((document as LegalDocument).provider === 'sbz' ? 'SBZ' : 'Ιστορικό') : 'Προτιμολόγιο'}</span>
+                              {record.source === 'proforma' && <span className="inline-flex rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-black leading-none text-violet-800">Προτιμολόγιο</span>}
                               <span className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[9px] font-bold leading-none ${presentation.badge}`}>
                                 <DocumentIcon size={9} /> {presentation.label}
                               </span>

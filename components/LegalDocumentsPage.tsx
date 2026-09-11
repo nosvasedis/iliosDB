@@ -92,6 +92,7 @@ import {
   normalizeExternalItemCode,
 } from '../features/legal';
 import {
+  applyLegalLineDiscount,
   applyLegalDocumentDeliveryToggle,
   buildDefaultDeliveryDetails,
   buildCounterpartFromCustomer,
@@ -1484,7 +1485,7 @@ export default function LegalDocumentsPage({
     if (!draftBundle || validationErrors.length > 0) return;
     if (!isLegalDocumentEditable(draftBundle.document)) {
       showToast('Το παραστατικό έχει ήδη εκδοθεί. Βρίσκεται στο Αρχείο.', 'info');
-      setArchiveSearch(getLegalDocumentDisplayNumber(draftBundle.document));
+      setArchiveSearch('');
       setDraftBundle(null);
       setActiveTab('archive');
       return;
@@ -1492,8 +1493,8 @@ export default function LegalDocumentsPage({
     if (!(await ensureAadeCredentialsReady())) return;
     try {
       await saveDraft.mutateAsync(draftBundle);
-      const issued = await submitDocument.mutateAsync({ documentId: draftBundle.document.id, userName });
-      setArchiveSearch(getLegalDocumentDisplayNumber(issued));
+      await submitDocument.mutateAsync({ documentId: draftBundle.document.id, userName });
+      setArchiveSearch('');
       setDraftBundle(null);
       setActiveTab('archive');
       showToast(`Το παραστατικό εκδόθηκε μέσω SBZ και βρίσκεται στο Αρχείο.`, 'success');
@@ -1739,6 +1740,13 @@ export default function LegalDocumentsPage({
     const includesDelivery = documentIncludesDeliveryNote(document);
     const isStandaloneDeliveryNote = document.document_kind === 'delivery_note';
     const canToggleDelivery = document.document_kind === 'invoice' || document.document_kind === 'invoice_delivery';
+    const lineDiscounts = draftBundle.lines.map((line) => Number(line.source_metadata?.discount_percent || 0));
+    const commonDiscount = lineDiscounts.length && lineDiscounts.every((value) => value === lineDiscounts[0])
+      ? lineDiscounts[0]
+      : '';
+    const originalNet = draftBundle.lines.reduce((sum, line) => sum
+      + Number(line.source_metadata?.original_unit_price ?? line.unit_price) * Number(line.quantity || 0), 0);
+    const documentDiscountAmount = Math.max(0, originalNet - document.totals.net);
 
     return (
       <div className="min-w-0 space-y-4">
@@ -1785,6 +1793,7 @@ export default function LegalDocumentsPage({
             </SelectInput>
             <TextInput label="ΑΦΜ Πελάτη" value={document.counterpart.vat_number || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, vat_number: normalizeVatNumber(value) } }))} />
             <TextInput label="Επωνυμία Πελάτη" value={document.counterpart.name || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, name: value } }))} />
+            <TextInput label="Τηλέφωνο Πελάτη" value={document.counterpart.phone || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, phone: value } }))} />
             <SelectInput label="Καθεστώς ΦΠΑ" value={document.vat_rate ?? 0.24} onChange={(value) => applyLegalVatProfile(Number(value))} help="Ο βασικός συντελεστής ΦΠΑ για τις γραμμές. Αν χρειάζεται, κάθε γραμμή μπορεί να έχει διαφορετική κατηγορία ΦΠΑ.">
               {vatRateOptions.map((option) => <option key={option.category} value={option.value}>{option.label}</option>)}
             </SelectInput>
@@ -1866,7 +1875,25 @@ export default function LegalDocumentsPage({
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <h3 className="font-black text-slate-900">Γραμμές</h3>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="text-sm font-black text-slate-700">{draftBundle.lines.length} γραμμές | {money(document.totals.gross)}</div>
+              <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-black uppercase text-slate-500">
+                Συνολική έκπτωση %
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value={commonDiscount}
+                  placeholder={commonDiscount === '' ? 'Μικτή' : undefined}
+                  disabled={!editable}
+                  onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((line) => applyLegalLineDiscount(
+                    line,
+                    Number(line.source_metadata?.original_unit_price ?? line.unit_price),
+                    Number(event.target.value) || 0,
+                  )), settingsDraft))}
+                  className="w-20 rounded border border-slate-200 bg-white px-2 py-1 text-right text-xs text-slate-800 outline-none"
+                />
+              </label>
+              <div className="text-sm font-black text-slate-700">{draftBundle.lines.length} γραμμές · Έκπτωση {money(documentDiscountAmount)} · {money(document.totals.gross)}</div>
               <ActionButton variant="secondary" disabled={!editable} onClick={() => updateDraftBundle((current, lines) => recalculateLegalDocument(current, [
                 ...lines,
                 createManualLegalDocumentLine({
@@ -1889,7 +1916,8 @@ export default function LegalDocumentsPage({
                   <th className="w-[7.5rem] px-2 py-2">SKU</th>
                   <th className="px-2 py-2">Περιγραφή</th>
                   <th className="w-14 px-2 py-2 text-right">Ποσ.</th>
-                  <th className="w-16 px-2 py-2 text-right">Τιμή</th>
+                  <th className="w-20 px-2 py-2 text-right">Τιμή προ έκπτ.</th>
+                  <th className="w-16 px-2 py-2 text-right">Έκπτ.%</th>
                   <th className="w-20 px-2 py-2 text-right">ΦΠΑ</th>
                   <th className="w-24 px-2 py-2 text-right" title="Καθαρή / ΦΠΑ / Σύνολο">Ποσά</th>
 
@@ -1920,7 +1948,10 @@ export default function LegalDocumentsPage({
                       <input type="number" min="0.001" step="0.001" value={line.quantity} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, quantity: Number(event.target.value) || 0 } : item), settingsDraft))} className="w-full rounded-lg border border-slate-200 px-1 py-1 text-right outline-none" />
                     </td>
                     <td className="px-2 py-1.5 text-right">
-                      <input type="number" step="0.01" value={line.unit_price} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, unit_price: Number(event.target.value) || 0 } : item), settingsDraft))} className="w-full rounded-lg border border-slate-200 px-1 py-1 text-right outline-none" />
+                      <input type="number" min="0" step="0.01" value={line.source_metadata?.original_unit_price ?? line.unit_price} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyLegalLineDiscount(item, Number(event.target.value) || 0, Number(item.source_metadata?.discount_percent || 0)) : item), settingsDraft))} className="w-full rounded-lg border border-slate-200 px-1 py-1 text-right outline-none" />
+                    </td>
+                    <td className="px-2 py-1.5 text-right">
+                      <input type="number" min="0" max="100" step="0.01" value={line.source_metadata?.discount_percent ?? 0} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyLegalLineDiscount(item, Number(item.source_metadata?.original_unit_price ?? item.unit_price), Number(event.target.value) || 0) : item), settingsDraft))} className="w-full rounded-lg border border-slate-200 px-1 py-1 text-right outline-none" />
                     </td>
                     <td className="px-2 py-1.5 text-right">
                       <select value={line.vat_category} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, vat_category: Number(event.target.value) } : item), settingsDraft))} className="w-full rounded-lg border border-slate-200 px-1 py-1 text-right text-[10px] outline-none" title="Κωδικός κατηγορίας ΦΠΑ myDATA (vatCategory)">
@@ -2198,6 +2229,7 @@ export default function LegalDocumentsPage({
             <TextInput label="Ισχύει έως" type="date" value={document.valid_until || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, valid_until: value || null }, lines, settingsDraft))} />
             <TextInput label="ΑΦΜ Πελάτη" value={document.counterpart.vat_number || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, counterpart: { ...current.counterpart, vat_number: normalizeVatNumber(value) } }, lines, settingsDraft))} />
             <TextInput label="Επωνυμία Πελάτη" value={document.counterpart.name || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, counterpart: { ...current.counterpart, name: value } }, lines, settingsDraft))} />
+            <TextInput label="Τηλέφωνο Πελάτη" value={document.counterpart.phone || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, counterpart: { ...current.counterpart, phone: value } }, lines, settingsDraft))} />
           </div>
 
           <div className="mt-4 grid gap-4 md:grid-cols-5">
@@ -3481,7 +3513,7 @@ export default function LegalDocumentsPage({
               </button>
               <button
                 type="button"
-                onClick={() => setActiveTab('archive')}
+                onClick={() => { setArchiveSearch(''); setActiveTab('archive'); }}
                 className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold transition-all duration-200 ${activeTab === 'archive' ? 'bg-white text-[#060b00] shadow-sm ring-1 ring-slate-200/90' : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}
               >
                 <Archive size={16} /> Αρχείο

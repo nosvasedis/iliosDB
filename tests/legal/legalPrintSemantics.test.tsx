@@ -183,7 +183,8 @@ describe('legal print semantics', () => {
     expect(html).toContain('ΤΙΜ');
     expect(html).toContain('42');
     expect(html).toContain('29/07/2026');
-    expect(html).toContain('Τύπος myDATA 1.1');
+    expect(html).toContain('Τύπος myDATA:');
+    expect(html.indexOf('Τύπος myDATA:')).toBeLessThan(html.indexOf('Χαρακτηρισμοί:'));
     expect(html).toContain('40000000000042');
     expect(html).toContain('UID-DOCUMENT-42');
     expect(html).toContain('RNG001');

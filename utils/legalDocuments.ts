@@ -915,8 +915,27 @@ export function recalculateLegalLine(
   const manualCategory = Number(line.vat_category) || 1;
   const rate = preserveManualCategory ? vatCategoryToRate(manualCategory, 0.24) : vatRate;
   const quantity = Number(line.quantity) || 0;
-  const unitPrice = roundMoney(Number(line.unit_price) || 0);
-  const netValue = roundMoney(quantity * unitPrice);
+  const hasDiscountPricing = line.source_metadata?.discount_percent !== undefined
+    && line.source_metadata?.discount_percent !== null;
+  const discountPercent = hasDiscountPricing
+    ? Math.min(100, Math.max(0, Number(line.source_metadata?.discount_percent) || 0))
+    : 0;
+  const storedOriginalUnitPrice = roundMoney(Number(
+    hasDiscountPricing
+      ? line.source_metadata?.original_unit_price ?? line.unit_price
+      : line.unit_price,
+  ) || 0);
+  const originalUnitPrice = hasDiscountPricing
+    && discountPercent === 0
+    && roundMoney(Number(line.unit_price) || 0) !== storedOriginalUnitPrice
+      ? roundMoney(Number(line.unit_price) || 0)
+      : storedOriginalUnitPrice;
+  const unitPrice = hasDiscountPricing
+    ? roundMoney(originalUnitPrice * (1 - discountPercent / 100))
+    : originalUnitPrice;
+  const netValue = hasDiscountPricing
+    ? roundMoney(quantity * originalUnitPrice * (1 - discountPercent / 100))
+    : roundMoney(quantity * unitPrice);
   const vatAmount = roundMoney(netValue * rate);
   return {
     ...line,
@@ -928,6 +947,13 @@ export function recalculateLegalLine(
     gross_value: roundMoney(netValue + vatAmount),
     measurement_unit: Number(line.measurement_unit) || 1,
     item_code: line.item_code || line.sku,
+    source_metadata: hasDiscountPricing
+      ? {
+          ...(line.source_metadata || {}),
+          original_unit_price: originalUnitPrice,
+          discount_percent: discountPercent,
+        }
+      : line.source_metadata,
     income_classification: resolveLegalIncomeClassification({
       settings,
       amount: netValue,
@@ -936,6 +962,24 @@ export function recalculateLegalLine(
       existing: line.income_classification
         || defaultIncomeClassificationForDocumentType(settings, netValue, aadeDocumentType),
     }),
+  };
+}
+
+export function applyLegalLineDiscount(
+  line: LegalDocumentLine,
+  originalUnitPrice: number,
+  discountPercent: number,
+): LegalDocumentLine {
+  const safeOriginalUnitPrice = Math.max(0, roundMoney(Number(originalUnitPrice) || 0));
+  const safeDiscountPercent = Math.min(100, Math.max(0, Number(discountPercent) || 0));
+  return {
+    ...line,
+    unit_price: roundMoney(safeOriginalUnitPrice * (1 - safeDiscountPercent / 100)),
+    source_metadata: {
+      ...(line.source_metadata || {}),
+      original_unit_price: safeOriginalUnitPrice,
+      discount_percent: safeDiscountPercent,
+    },
   };
 }
 
@@ -1867,6 +1911,14 @@ function parseTransmittedParty(block: string): LegalParty | undefined {
 
 export function parseTransmittedDocumentsXml(xml: string): AadeTransmittedDocsParseResult {
   const text = normalizeAadeResponseXml(xml);
+  const providerDocuments = findXmlBlocks(text, 'InvoiceProviderType')
+    .map((entry) => ({
+      issuerVat: findFirstXmlValue(entry, ['issuerVAT', 'issuerVat']),
+      mark: findFirstXmlValue(entry, ['invoiceProviderMark', 'invoiceMark', 'mark']) || '',
+      uid: findFirstXmlValue(entry, ['invoiceUid', 'uid']),
+      authenticationCode: findXmlValue(entry, 'authenticationCode'),
+    }))
+    .filter((entry) => /^\d+$/.test(entry.mark));
   const invoiceBlocks = findXmlBlocks(text, 'invoice');
   const documents = invoiceBlocks
     .map((invoice) => {
@@ -1939,6 +1991,7 @@ export function parseTransmittedDocumentsXml(xml: string): AadeTransmittedDocsPa
 
   return {
     documents,
+    providerDocuments,
     cancellations,
     nextPartitionKey: findFirstXmlValue(text, ['nextPartitionKey']),
     nextRowKey: findFirstXmlValue(text, ['nextRowKey']),

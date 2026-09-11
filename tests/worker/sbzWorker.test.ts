@@ -1,5 +1,5 @@
 import { afterEach,describe,it,expect,vi } from 'vitest';
-import { handleSbzRoute, sbzEnvironment } from '../../worker/sbz';
+import { handleSbzRoute, parseSbzArchiveResponse, sbzEnvironment } from '../../worker/sbz';
 import worker from '../../worker/worker.js';
 import { sbzFixture } from '../legal/sbzFixture';
 const actor='30000000-0000-4000-8000-000000000001';
@@ -63,6 +63,10 @@ describe('SBZ Worker boundary',()=>{
     expect(response.status).toBe(200);expect(await response.json()).toMatchObject({ok:true});
     expect(h.fetcher.mock.calls.filter(c=>String(c[0]).startsWith('https://api.sbz.gr/'))).toHaveLength(1);
     expect(h.attempts).toHaveLength(0);
+  });
+  it('accepts and parses the RequestedProviderDoc archive shape returned by SBZ',()=>{
+    const parsed=parseSbzArchiveResponse('<RequestedProviderDoc><InvoiceProviderType><issuerVAT>094259216</issuerVAT><invoiceProviderMark>9007199254740993123</invoiceProviderMark><invoiceUid>UID-1</invoiceUid><authenticationCode>AUTH-1</authenticationCode></InvoiceProviderType></RequestedProviderDoc>');
+    expect(parsed.providerDocuments).toEqual([{issuerVat:'094259216',mark:'9007199254740993123',uid:'UID-1',authenticationCode:'AUTH-1'}]);
   });
   it('treats a non-XML AADE no-document payload as a successful authentication probe',async()=>{
     const h=harness(async()=>new Response('Requested Invoice was not found'));

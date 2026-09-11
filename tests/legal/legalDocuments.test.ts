@@ -36,6 +36,7 @@ import {
   PAYMENT_METHOD_CODES,
   parseAadeResponseXml,
   parseTransmittedDocumentsXml,
+  applyLegalLineDiscount,
   recalculateLegalDocument,
   recalculateProforma,
   isAadeVatExemptionCategory,
@@ -494,6 +495,45 @@ describe('legal document helpers', () => {
       expect.objectContaining({ classification_category: 'category1_1', amount: 80 }),
       expect.objectContaining({ classification_category: settings.default_income_classification_category, amount: 30 }),
     ]));
+  });
+
+  it('recognizes an existing order discount without applying it twice', () => {
+    const discountedOrder: Order = {
+      ...baseOrder,
+      discount_percent: 10,
+      total_price: 223.2,
+    };
+    const document = buildLegalDocumentFromOrder({
+      order: discountedOrder,
+      customer,
+      products: [product],
+      settings,
+      kind: 'invoice',
+    });
+
+    expect(document.lines![0]).toMatchObject({ unit_price: 90, net_value: 180 });
+    expect(document.lines![0].source_metadata).toMatchObject({ original_unit_price: 100, discount_percent: 10 });
+    expect(document.totals).toMatchObject({ net: 180, vat: 43.2, gross: 223.2 });
+
+    const recalculated = recalculateLegalDocument(document, document.lines, settings);
+    expect(recalculated.lines[0]).toMatchObject({ unit_price: 90, net_value: 180 });
+    expect(recalculated.document.totals.gross).toBe(223.2);
+  });
+
+  it('applies per-line discounts and keeps document totals consistent', () => {
+    const document = buildLegalDocumentFromOrder({
+      order: baseOrder,
+      customer,
+      products: [product],
+      settings,
+      kind: 'invoice',
+    });
+    const discounted = applyLegalLineDiscount(document.lines![0], 125, 20);
+    const updated = recalculateLegalDocument(document, [{ ...discounted, quantity: 3 }], settings);
+
+    expect(updated.lines[0]).toMatchObject({ unit_price: 100, net_value: 300 });
+    expect(updated.lines[0].source_metadata).toMatchObject({ original_unit_price: 125, discount_percent: 20 });
+    expect(updated.document.totals).toMatchObject({ net: 300, vat: 72, gross: 372, quantity: 3 });
   });
 
   it('preserves manually selected AADE VAT categories when recalculating lines', () => {

@@ -23,6 +23,31 @@ export function sbzEnvironment(environment: string, env: Env) {
   return { key, action: environment === 'prod' ? 'production' : 'sandbox' };
 }
 
+export function parseSbzArchiveResponse(text: string) {
+  const trimmed = text.trim();
+  if (!trimmed) throw new Error('Η SBZ δεν επέστρεψε δεδομένα αρχείου.');
+  if (trimmed.startsWith('{')) throw new Error(sbzFailureMessage(parseSbzResponse(trimmed).statusCode));
+  const normalized = normalizeAadeResponseXml(trimmed);
+  if (/<!DOCTYPE|<!ENTITY/i.test(trimmed) || /<!DOCTYPE|<!ENTITY/i.test(normalized)
+    || XMLValidator.validate(trimmed) !== true || XMLValidator.validate(normalized) !== true) {
+    throw new Error('Μη αναμενόμενη απάντηση αρχείου SBZ.');
+  }
+  const parsed = parseTransmittedDocumentsXml(normalized);
+  const root = normalized.match(/^\s*(?:<\?xml[^>]*>\s*)?<(?:\w+:)?([A-Za-z][\w.-]*)\b/i)?.[1]?.toLowerCase();
+  if (parsed.documents.length || parsed.providerDocuments?.length || parsed.cancellations.length) return parsed;
+  if (root === 'requesteddoc' || root === 'requestedproviderdoc' || root === 'invoicesdoc') return parsed;
+  if (root === 'responsedoc') {
+    const response = parseAadeResponseXml(normalized);
+    const messages = response.errors.map(message => message.toLowerCase());
+    const emptyArchive = response.statusCode === 'Success' || response.statusCode === 'NoDocuments' || messages.some(message =>
+      message.includes('not found') || message.includes('δεν βρέθη') || message.includes('no documents')
+    );
+    if (emptyArchive) return parsed;
+    if (response.errors.length) throw new Error(response.errors.join('\n'));
+  }
+  throw new Error('Μη αναμενόμενη απάντηση αρχείου SBZ.');
+}
+
 export async function handleSbzRoute(request: Request, env: Env, cors: Record<string,string>, actor: string, fetchFn: typeof fetch = fetch) {
   const json = (data: unknown, status=200) => new Response(JSON.stringify(data), { status, headers: { ...cors, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
   const db = async (path: string, method='GET', data?: unknown) => {
@@ -49,24 +74,10 @@ export async function handleSbzRoute(request: Request, env: Env, cors: Record<st
     if (!/^\d+$/.test(mark) || (maxMark && !/^\d+$/.test(maxMark))) throw new Error('Μη έγκυρο όριο αναζήτησης.');
     const s = await settings();
     const result = await provider('requesttransmitteddocs.php',environment,'GET',undefined,{ issuerVAT: s.issuer.vat_number, mark, ...(maxMark ? {maxMark} : {}) });
-    if (!result.ok || result.text.trim().startsWith('{')) throw new Error(sbzFailureMessage(parseSbzResponse(result.text).statusCode));
-    const normalized = normalizeAadeResponseXml(result.text);
-    if (/<!DOCTYPE|<!ENTITY/i.test(result.text) || /<!DOCTYPE|<!ENTITY/i.test(normalized)
-      || XMLValidator.validate(result.text) !== true || XMLValidator.validate(normalized) !== true) {
-      throw new Error('Μη αναμενόμενη απάντηση αρχείου SBZ.');
-    }
-    const root = normalized.match(/^\s*(?:<\?xml[^>]*>\s*)?<(?:\w+:)?(RequestedDoc|ResponseDoc)\b/i)?.[1]?.toLowerCase();
-    if (root === 'requesteddoc') return { ...result, parsed: parseTransmittedDocumentsXml(normalized) };
-    if (root === 'responsedoc') {
-      const response = parseAadeResponseXml(normalized);
-      const messages = response.errors.map(message => message.toLowerCase());
-      const emptyArchive = response.statusCode === 'Success' || response.statusCode === 'NoDocuments' || messages.some(message =>
-        message.includes('not found') || message.includes('δεν βρέθη') || message.includes('no documents')
-      );
-      if (emptyArchive) return { ...result, parsed: parseTransmittedDocumentsXml(normalized) };
-      if (response.errors.length) throw new Error(response.errors.join('\n'));
-    }
-    throw new Error('Μη αναμενόμενη απάντηση αρχείου SBZ.');
+    if (!result.ok) throw new Error(result.text.trim().startsWith('{')
+      ? sbzFailureMessage(parseSbzResponse(result.text).statusCode)
+      : 'Η SBZ δεν ολοκλήρωσε την ανάκτηση του αρχείου.');
+    return { ...result, parsed: parseSbzArchiveResponse(result.text) };
   };
   const checkConnection = async (environment: string) => {
     const s = await settings();
@@ -140,6 +151,18 @@ export async function handleSbzRoute(request: Request, env: Env, cors: Record<st
         for (let page=0;page<20;page++) {
           const result=await retrieve(payload.environment,mark,payload.maxMark);
           await db('legal_transmissions','POST',{action:'sbz_sync',endpoint:result.endpoint,environment:payload.environment,status:'success',response_payload:result.text});
+          for (const t of result.parsed.providerDocuments || []) {
+            let existing=await db(`legal_documents?environment=eq.${payload.environment}&aade_mark=eq.${encodeURIComponent(t.mark)}`);
+            if (!existing.length && t.uid) existing=await db(`legal_documents?environment=eq.${payload.environment}&aade_uid=eq.${encodeURIComponent(t.uid)}`);
+            if (!existing.length) continue;
+            await db(`legal_documents?id=eq.${existing[0].id}`,'PATCH',{
+              aade_mark:t.mark,
+              aade_uid:t.uid || existing[0].aade_uid,
+              authentication_code:t.authenticationCode || existing[0].authentication_code,
+              status:'issued',provider_state:'accepted',external_source:'ilios',synced_at:new Date().toISOString(),sync_run_id:runId,last_error:null,
+            });
+            updated++;
+          }
           for (const t of result.parsed.documents) {
             if ((payload.receiverVatNumber && t.counterpartVat !== payload.receiverVatNumber) || !isWholesaleAadeDocumentType(t.invoiceType) || (payload.invType && t.invoiceType!==payload.invType) || (payload.dateFrom && t.issueDate<payload.dateFrom) || (payload.dateTo && t.issueDate>payload.dateTo)) continue;
             const existing=await db(`legal_documents?environment=eq.${payload.environment}&aade_mark=eq.${encodeURIComponent(t.mark)}`);
@@ -154,13 +177,18 @@ export async function handleSbzRoute(request: Request, env: Env, cors: Record<st
             if (conflict.length) { if (conflict[0].provider_state==='unknown' || conflict[0].provider_state==='sending') await reconcile(conflict[0],result.parsed.documents); else throw new Error('Βρέθηκε σύγκρουση αρίθμησης στο αρχείο. Χρειάζεται έλεγχος.'); updated++; continue; }
             await rpc('import_sbz_document',{p_document:{...t,environment:payload.environment,document_kind:getDocumentKindFromAadeType(t.invoiceType as any),sync_run_id:runId},p_actor:actor}); imported++;
           }
-          const highest = result.parsed.documents.reduce((max,t)=>BigInt(t.mark)>BigInt(max)?t.mark:max,mark);
-          if (!result.parsed.documents.length || highest===mark) break;
+          const returnedMarks = [...result.parsed.documents.map(t=>t.mark), ...(result.parsed.providerDocuments || []).map(t=>t.mark)];
+          const highest = returnedMarks.reduce((max,value)=>BigInt(value)>BigInt(max)?value:max,mark);
+          if (!returnedMarks.length || highest===mark) break;
           mark=highest;
           if (page===19) throw new Error('Ανακτήθηκε μέρος του αρχείου. Συνεχίστε τον συγχρονισμό από το τελευταίο καταχωρημένο παραστατικό.');
         }
         const [run]=await db(`legal_sync_runs?id=eq.${runId}`,'PATCH',{imported_count:imported,updated_count:updated,finished_at:new Date().toISOString()}); return json(run);
-      } catch(error) { await db(`legal_sync_runs?id=eq.${runId}`,'PATCH',{status:'failed',error_message:(error as Error).message,imported_count:imported,updated_count:updated,finished_at:new Date().toISOString()}); throw error; }
+      } catch(error) {
+        console.error(JSON.stringify({event:'sbz_sync_failed',environment:payload.environment,runId,message:(error as Error).message}));
+        await db(`legal_sync_runs?id=eq.${runId}`,'PATCH',{status:'failed',error_message:(error as Error).message,imported_count:imported,updated_count:updated,finished_at:new Date().toISOString()});
+        throw error;
+      }
     }
     if (!['/sbz/submit','/sbz/cancel-delivery','/sbz/reconcile'].includes(path)) return json({error:'Η ενέργεια δεν υποστηρίζεται.'},404);
     const d = await getDocument(payload.documentId);

@@ -130,10 +130,9 @@ export function LegalPrintHeader(props: {
   aa?: string | null;
   issueDate?: string | null;
   issueTime?: string | null;
-  documentTypeCode?: string | null;
   statusBadge?: React.ReactNode;
 }) {
-  const { title, documentNumber, issuer, series, aa, issueDate, issueTime, documentTypeCode, statusBadge } = props;
+  const { title, documentNumber, issuer, series, aa, issueDate, issueTime, statusBadge } = props;
   const issuerName = getPartyName(issuer);
 
   const metadata = [
@@ -169,12 +168,7 @@ export function LegalPrintHeader(props: {
           </div>
         ))}
       </div>
-      <div className="mt-1 flex min-h-[5mm] items-center justify-between gap-3">
-        <span className="text-[7px] font-bold uppercase tracking-[0.14em] text-emerald-700">
-          {documentTypeCode ? `Τύπος myDATA ${documentTypeCode}` : 'Εμπορικό έγγραφο'}
-        </span>
-        {statusBadge}
-      </div>
+      {statusBadge && <div className="mt-1 flex min-h-[5mm] items-center justify-end">{statusBadge}</div>}
     </header>
   );
 }
@@ -278,7 +272,6 @@ export function LegalPrintAadePanel(props: {
   mark?: string | null;
   uid?: string | null;
   authenticationCode?: string | null;
-  documentType?: string | null;
 }) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
@@ -314,7 +307,6 @@ export function LegalPrintAadePanel(props: {
         <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">MARK</span><span className="font-mono font-bold text-slate-800">{props.mark || '-'}</span></div>
         <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">UID</span><span className="break-all font-mono text-[7px] text-slate-700">{props.uid || '-'}</span></div>
         {props.authenticationCode && <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">Αυθεντικοποίηση</span><span className="break-all font-mono text-[7px] text-slate-700">{props.authenticationCode}</span></div>}
-        {props.documentType && <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">Τύπος ΑΑΔΕ</span><span className="font-mono font-semibold text-slate-800">{props.documentType}</span></div>}
       </div>
       <div className="flex flex-col items-center justify-center text-center text-[7px] text-slate-500">
         <p className="font-black uppercase tracking-[0.12em] text-slate-700">Αντίγραφο παραστατικού</p>
@@ -374,6 +366,7 @@ export function LegalPrintTotalsSection(props: {
   currency?: string;
   paymentMethodLabel?: string;
   vatExemptionCategory?: number | null;
+  documentTypeCode?: string | null;
   revenueClassificationText?: string;
   notes?: React.ReactNode;
   delivery?: LegalDeliveryDetails | null;
@@ -448,9 +441,10 @@ export function LegalPrintTotalsSection(props: {
         </div>
       </div>
 
-      {(props.vatExemptionCategory || props.revenueClassificationText) && (
+      {(props.vatExemptionCategory || props.documentTypeCode || props.revenueClassificationText) && (
         <div className="mt-1.5 space-y-0.5 text-[7px] leading-tight text-slate-500">
           {props.vatExemptionCategory && <p><span className="font-bold uppercase">Αιτία απαλλαγής ΦΠΑ:</span> {getAadeVatExemptionCategoryLabel(props.vatExemptionCategory)}</p>}
+          {props.documentTypeCode && <p><span className="font-bold uppercase">Τύπος myDATA:</span> <span className="font-mono">{props.documentTypeCode}</span></p>}
           {props.revenueClassificationText && <p><span className="font-bold uppercase">Χαρακτηρισμοί:</span> {props.revenueClassificationText}</p>}
         </div>
       )}

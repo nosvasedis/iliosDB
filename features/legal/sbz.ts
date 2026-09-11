@@ -31,7 +31,7 @@ export function validateSbzDocument(document: LegalDocument, lines: LegalDocumen
     const originalPrice = l.source_metadata?.original_unit_price ?? l.unit_price;
     const discount = l.source_metadata?.discount_percent;
     if (discount !== undefined && discount !== null && (!Number.isFinite(discount) || discount < 0 || discount > 100 || Math.abs(money(originalPrice * l.quantity * (1-discount/100)) - l.net_value) > 0.011)) errors.push(`Ελέγξτε την έκπτωση στη γραμμή ${l.line_number}.`);
-    if (!Number.isFinite(originalPrice) || originalPrice < 0 || l.unit_price < 0 || Math.abs(money(l.unit_price * l.quantity) - l.net_value) > 0.011) errors.push(`Ελέγξτε την τιμή και την καθαρή αξία στη γραμμή ${l.line_number}.`);
+    if (!Number.isFinite(originalPrice) || originalPrice < 0 || l.unit_price < 0 || (discount === undefined || discount === null) && Math.abs(money(l.unit_price * l.quantity) - l.net_value) > 0.011) errors.push(`Ελέγξτε την τιμή και την καθαρή αξία στη γραμμή ${l.line_number}.`);
     if (![l.quantity, l.unit_price, l.net_value, l.vat_amount, l.gross_value].every(Number.isFinite)) errors.push('Μη έγκυρα ποσά ή ποσότητες.');
     if (!l.description?.trim() || !(l.item_code || l.sku)?.trim()) errors.push(`Συμπληρώστε είδος και περιγραφή στη γραμμή ${l.line_number}.`);
     if (!(l.measurement_unit in units) || !(l.vat_category in rates)) errors.push(`Ελέγξτε μονάδα μέτρησης και ΦΠΑ στη γραμμή ${l.line_number}.`);
@@ -62,7 +62,7 @@ export function buildSbzInvoiceXml(document: LegalDocument, lines: LegalDocument
     + tag(`${prefix}TaxOffice`, prefix === 'Issuer' ? document.issuer.doy : '')
     + tag(`${prefix}AddressStreet`, p.address?.street) + tag(`${prefix}AddressNumber`, p.address?.number)
     + tag(`${prefix}AddressPostalCode`, p.address?.postal_code) + tag(`${prefix}AddressCity`, p.address?.city)
-    + tag(`${prefix}AddressCountry`, p.country || 'GR') + tag(`${prefix}Email`, p.email);
+    + tag(`${prefix}AddressCountry`, p.country || 'GR') + tag(`${prefix}Phone`, p.phone) + tag(`${prefix}Email`, p.email);
   const time = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Athens', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(issuedAt));
   const extra = '<API_InvoiceDetails><API_Issuer>' + party('Issuer', document.issuer, document.issuer.business_name || document.issuer.name || '')
     + '</API_Issuer><API_Counterpart>' + party('Counterpart', document.counterpart, document.counterpart.name || '')
