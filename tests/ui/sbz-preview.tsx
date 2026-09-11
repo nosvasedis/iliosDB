@@ -1,0 +1,24 @@
+// Development-only visual fixture. Provider calls are replaced before mounting.
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { sbzFixture } from '../legal/sbzFixture';
+localStorage.setItem('ILIOS_LOCAL_MODE','true');
+const { api }=await import('../../lib/supabase');
+const { DEFAULT_LEGAL_SETTINGS }=await import('../../utils/legalDocuments');
+const { default: LegalDocumentsPage }=await import('../../components/LegalDocumentsPage');
+const { default: LegalDocumentPrintView }=await import('../../components/LegalDocumentPrintView');
+const { UIProvider }=await import('../../components/UIProvider');
+const { AuthProvider }=await import('../../components/AuthContext');
+const fixture=sbzFixture();
+const issued={...fixture.document,status:'issued' as const,provider_state:'accepted' as const,aade_mark:'4000000000123',aade_uid:'fixture-uid',authentication_code:'fixture-auth',qr_url:'https://api.sbz.gr/sign/doc.php?ac=fixture',provider_invoice_url:'https://api.sbz.gr/sign/doc.php?ac=fixture'};
+api.callSbz=async()=>({dev:{ready:true,configured:true},prod:{ready:false,configured:false},unresolved:[]});
+api.getLegalSettings=async()=>({...DEFAULT_LEGAL_SETTINGS,issuer:fixture.document.issuer});
+api.getLegalDocuments=async()=>[issued];
+api.getLegalDocumentLines=async()=>fixture.lines;
+api.getAllLegalDocumentLines=async()=>fixture.lines;
+api.getAadeCredentialStatus=async()=>({registry:{ready:false}} as any);
+api.getLegalNumberingSequences=async()=>[];
+const cache=new QueryClient({defaultOptions:{queries:{retry:false,staleTime:Infinity}}});
+const mode=new URLSearchParams(location.search).get('view') || 'settings';
+createRoot(document.getElementById('root')!).render(<QueryClientProvider client={cache}><AuthProvider><UIProvider><main className="max-w-7xl mx-auto p-4">{mode==='print'?<LegalDocumentPrintView document={issued} lines={fixture.lines}/>:<LegalDocumentsPage products={[]} activeTab={mode as any} onPrintLegalDocument={()=>{}}/>}</main></UIProvider></AuthProvider></QueryClientProvider>);

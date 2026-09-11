@@ -1,6 +1,7 @@
 /** Supabase tables permitted while inspection mode is active. */
 export const INSPECTION_ALLOWED_TABLES = new Set([
   'legal_settings',
+  'legal_sbz_status',
   'legal_numbering_sequences',
   'legal_carriers',
   'legal_documents',
@@ -24,6 +25,7 @@ export const INSPECTION_ALLOWED_TABLES = new Set([
 
 /** React Query root keys that may remain cached during inspection mode. */
 export const INSPECTION_ALLOWED_QUERY_ROOTS = new Set([
+  'legal_sbz_status',
   'legal_settings',
   'legal_numbering_sequences',
   'legal_carriers',
@@ -69,7 +71,7 @@ export const INSPECTION_ALLOWED_RPCS = new Set([
   'preview_legal_numbering_alignment',
   'apply_legal_numbering_alignment',
   'apply_legal_archive_reindex_batch',
-  'prepare_legal_document_submission',
+  'save_sbz_draft', 'prepare_legal_document_submission',
   'has_inspection_exit_pin',
   'set_inspection_exit_pin',
   'verify_inspection_exit_pin',

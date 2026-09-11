@@ -799,9 +799,9 @@ export function filterLegalArchiveRecords(
 export function getLegalArchiveStats(records: LegalArchiveRecord[]) {
   const stats = records.reduce((current, record) => ({
     count: current.count + 1,
-    net: current.net + Number(record.document.totals.net || 0),
-    vat: current.vat + Number(record.document.totals.vat || 0),
-    gross: current.gross + Number(record.document.totals.gross || 0),
+    net: current.net + (record.document.document_kind === 'credit' ? -1 : 1) * Number(record.document.totals.net || 0),
+    vat: current.vat + (record.document.document_kind === 'credit' ? -1 : 1) * Number(record.document.totals.vat || 0),
+    gross: current.gross + (record.document.document_kind === 'credit' ? -1 : 1) * Number(record.document.totals.gross || 0),
     matched: current.matched + (record.matchState === 'matched' ? 1 : 0),
     reviewable: current.reviewable + (record.matchState === 'operational' ? 0 : 1),
     needsReview: current.needsReview + (

@@ -33,11 +33,14 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
   const footerText = isOfficialPrint
     ? document.status === 'cancelled'
       ? `Το παραστατικό είχε διαβιβαστεί επιτυχώς στη myDATA και στη συνέχεια ακυρώθηκε. MARK ακύρωσης: ${document.cancellation_mark || '-'}`
-      : 'Το παρόν εκτυπώνεται από το IliosERP μετά από επιτυχή διαβίβαση στη myDATA. Το QR και το MARK επιβεβαιώνουν την καταχώρηση στην ΑΑΔΕ.'
+      : 'Το παρόν εκτυπώνεται από το αποθηκευμένο παραστατικό του IliosERP. Τα στοιχεία επαλήθευσης επιβεβαιώνουν την ηλεκτρονική έκδοση.'
     : 'Πρόχειρη εκτύπωση εσωτερικής χρήσης IliosERP. Για φορολογική ισχύ απαιτείται υποβολή και αποδοχή στη myDATA.';
 
   return (
     <LegalPrintPage>
+      {document.environment === 'dev' && <div className="mb-3 border-2 border-amber-500 p-3 text-center font-black text-amber-900">ΔΟΚΙΜΑΣΤΙΚΟ ΠΕΡΙΒΑΛΛΟΝ · ΧΩΡΙΣ ΦΟΡΟΛΟΓΙΚΗ ΙΣΧΥ</div>}
+      {document.credited_document_id && <div className="mb-2 text-sm">Πιστωτικό για το αρχικό παραστατικό με MARK {document.correlated_mark}</div>}
+      {document.provider === 'sbz' && <p className="mb-2 text-xs">Πάροχος ηλεκτρονικής τιμολόγησης: SBZ Systems</p>}
       <LegalPrintHeader
         title={kindLabel.toUpperCase()}
         documentNumber={getLegalDocumentDisplayNumber(document)}
@@ -45,7 +48,7 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
         series={document.series}
         aa={document.aa}
         issueDate={document.issue_date}
-        issueTime={document.created_at}
+        issueTime={document.submitted_at || document.created_at}
         documentTypeCode={document.aade_document_type}
         statusBadge={document.status === 'cancelled' ? (
           <span className="inline-flex rounded border border-red-300 bg-red-50 px-2 py-1 text-[10px] font-bold text-red-700">

@@ -32,7 +32,7 @@ export function assertInspectionTableAllowed(tableName: string): void {
 
 export function assertInspectionWorkerRouteAllowed(route: string): void {
   if (!isInspectionModeActive()) return;
-  if (!route.startsWith('/aade/')) {
+  if (!route.startsWith('/aade/') && !route.startsWith('/sbz/')) {
     throw new Error(`Inspection mode blocked worker route ${route}`);
   }
 }

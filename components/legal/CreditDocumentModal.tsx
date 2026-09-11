@@ -1,0 +1,18 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Undo2 } from 'lucide-react';
+import type { LegalDocument, LegalDocumentLine } from '../../types';
+import { buildCreditDraft } from '../../features/legal/sbz';
+import { getLegalDocumentDisplayNumber } from '../../utils/legalDocuments';
+
+export default function CreditDocumentModal({original,lines,available,reservedLines,onClose,onCreate}:{original:LegalDocument;lines:LegalDocumentLine[];available:Record<string,number>;reservedLines:LegalDocumentLine[];onClose:()=>void;onCreate:(bundle:ReturnType<typeof buildCreditDraft>)=>Promise<void>}) {
+  const [quantities,setQuantities]=useState(available),[busy,setBusy]=useState(false),[error,setError]=useState('');
+  const dialog = useRef<HTMLElement>(null);
+  useEffect(() => { const previous = document.activeElement as HTMLElement | null; dialog.current?.focus(); return () => previous?.focus(); }, []);
+  const create=async()=>{setBusy(true);try{if (Object.entries(quantities).some(([id,qty]) => !Number.isFinite(qty) || qty < 0 || qty > (available[id] || 0))) throw new Error('Επιλέξτε ποσότητες μέχρι το διαθέσιμο υπόλοιπο.');await onCreate(buildCreditDraft(original,lines,quantities,reservedLines));}catch(e){setError((e as Error).message);}finally{setBusy(false);}};
+  return <div className="fixed inset-0 z-[100] bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-4"><section ref={dialog} tabIndex={-1} onKeyDown={e=>{if(e.key==='Escape'&&!busy){e.preventDefault();onClose();} if(e.key==='Tab'){const items=dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled)');if(!items?.length)return;const first=items[0],last=items[items.length-1];if(e.shiftKey&&(document.activeElement===first||document.activeElement===dialog.current)){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}}} role="dialog" aria-modal="true" aria-labelledby="credit-title" className="w-full max-w-2xl max-h-[90vh] overflow-auto rounded-2xl bg-white shadow-xl p-6">
+    <div className="flex justify-between gap-4"><div><h2 id="credit-title" className="text-xl font-black flex gap-2 items-center"><Undo2 className="text-emerald-700"/>Έκδοση πιστωτικού</h2><p className="mt-2 text-sm text-slate-600">Για το τιμολόγιο {getLegalDocumentDisplayNumber(original)} · {original.counterpart.name}</p></div><button onClick={onClose} disabled={busy} aria-label="Κλείσιμο"><X/></button></div>
+    <p className="my-5 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-950">Έχουν επιλεγεί όλες οι διαθέσιμες ποσότητες. Μειώστε τις για μερική πίστωση. Οι αρχικές τιμές, εκπτώσεις και φόροι διατηρούνται.</p>
+    <div className="divide-y">{lines.map(l=><label key={l.id} className="flex items-center justify-between gap-4 py-3"><span className="min-w-0"><span className="block font-bold text-sm">{l.description}</span><span className="text-xs text-slate-500">Διαθέσιμα για πίστωση: {available[l.id] || 0}</span></span><input aria-label={`Ποσότητα πίστωσης ${l.description}`} type="number" min={0} max={available[l.id]||0} step="any" value={quantities[l.id]??0} onChange={e=>setQuantities(q=>({...q,[l.id]:Number(e.target.value)}))} className="w-24 rounded-lg border p-2"/></label>)}</div>
+    {error&&<p role="alert" className="text-red-700 text-sm my-3">{error}</p>}<div className="mt-6 flex justify-end gap-3"><button onClick={onClose} disabled={busy} className="rounded-lg border px-4 py-2">Πίσω</button><button disabled={busy} onClick={()=>void create()} className="rounded-lg bg-emerald-700 px-4 py-2 font-bold text-white disabled:opacity-50">{busy?'Αποθηκεύεται…':'Δημιουργία προσχεδίου'}</button></div>
+  </section></div>;
+}

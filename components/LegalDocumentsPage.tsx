@@ -1,3 +1,7 @@
+import { SBZ_MOVE_PURPOSES, validateSbzDocument } from '../features/legal/sbz';
+import SbzSettings, { useSbzStatus } from './legal/SbzSettings';
+import CreditDocumentModal from './legal/CreditDocumentModal';
+import { api } from '../lib/supabase';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -153,7 +157,7 @@ interface LegalDocumentsPageProps {
 const secondaryTabItems: Array<{ id: LegalTab; label: string; icon: LucideIcon }> = [
   { id: 'sync', label: 'Συγχρονισμός', icon: RefreshCw },
   { id: 'delivery', label: 'Διακίνηση', icon: Truck },
-  { id: 'settings', label: 'Τεχνικές ρυθμίσεις', icon: Settings },
+  { id: 'settings', label: 'Ρυθμίσεις', icon: Settings },
 ];
 
 const creationTypeItems: Array<{ id: CreationDocumentType; label: string; help: string }> = [
@@ -180,8 +184,8 @@ const creationTypeItems: Array<{ id: CreationDocumentType; label: string; help: 
 ];
 const vatRateOptions = AADE_VAT_CATEGORY_OPTIONS;
 const vatLineOptions = AADE_VAT_CATEGORY_LINE_OPTIONS;
-const incomeCategoryOptions = AADE_INCOME_CATEGORY_OPTIONS;
-const incomeTypeOptions = AADE_INCOME_TYPE_OPTIONS;
+const incomeCategoryOptions = AADE_INCOME_CATEGORY_OPTIONS.map(option => ({ ...option, label: option.label.replace(/\s*\((?:category|E3)[^)]*\)/g, '') }));
+const incomeTypeOptions = AADE_INCOME_TYPE_OPTIONS.map(option => ({ ...option, label: option.label.replace(/\s*\((?:category|E3)[^)]*\)/g, '') }));
 const proformaStatusLabel: Record<ProformaDocument['status'], string> = {
   draft: 'Πρόχειρο',
   converted: 'Μετατράπηκε',
@@ -207,9 +211,9 @@ const credentialSecretLabel = (name: string) => {
 
 const statusLabel: Record<LegalDocument['status'], string> = {
   draft: 'Πρόχειρο',
-  submitted: 'Σε αποστολή',
+  submitted: 'Ελέγχεται η έκδοση',
   issued: 'Αποδεκτό',
-  failed: 'Απορρίφθηκε',
+  failed: 'Χρειάζεται διόρθωση',
   cancelled: 'Ακυρωμένο',
 };
 
@@ -658,15 +662,36 @@ export default function LegalDocumentsPage({
   const { data: shipments = [] } = useAllShipments();
   const { data: shipmentItems = [] } = useAllShipmentItems();
   const { data: legalSettings } = useLegalSettings();
+  const { data: sbzStatus, refetch: refreshSbzStatus } = useSbzStatus();
+  const [creditSource, setCreditSource] = useState<{document: LegalDocument; lines: LegalDocumentLine[]; reservedLines: LegalDocumentLine[]; available: Record<string, number>} | null>(null);
+  const openCredit = async (document: LegalDocument) => {
+    try {
+      const lines = await legalRepository.getDocumentLines(document.id);
+      const credits = new Set(legalDocuments.filter(d => d.credited_document_id === document.id && (['submitted', 'issued'].includes(d.status) || ['sending', 'unknown'].includes(d.provider_state))).map(d => d.id));
+      const available = Object.fromEntries(lines.map(l => [l.id, Math.max(0, l.quantity - allLegalDocumentLines.filter(c => c.credited_line_id === l.id && credits.has(c.document_id)).reduce((sum, c) => sum + c.quantity, 0))]));
+      setCreditSource({document, lines, available, reservedLines: allLegalDocumentLines.filter(c => credits.has(c.document_id))});
+    } catch (e) { showToast((e as Error).message, 'error'); }
+  };
+  const reconcileSbz = async (document: LegalDocument) => {
+    try { const result = await api.reconcileLegalDocument(document.id); showToast(result.provider_state === 'unknown' ? 'Ο έλεγχος παραμένει εκκρεμής. Δεν έγινε νέα αποστολή.' : 'Ο έλεγχος ολοκληρώθηκε.', 'info'); }
+    catch (e) { showToast((e as Error).message, 'error'); }
+    finally { await queryClient.invalidateQueries({queryKey: legalKeys.documents()}); }
+  };
+  const attachSbz = async (document: LegalDocument, file: File) => {
+    try { const form = new FormData(); form.set('documentId', document.id); form.set('file', file); await api.callSbz('/sbz/attach', form); showToast('Το αρχείο επισυνάφθηκε στον πάροχο.', 'success'); }
+    catch (e) { showToast((e as Error).message, 'error'); }
+    finally { await queryClient.invalidateQueries({queryKey: legalKeys.documents()}); }
+  };
+
   const { data: credentialStatus, isLoading: loadingCredentialStatus, refetch: refetchCredentialStatus } = useAadeCredentialStatus();
   const { data: sequences = [] } = useLegalNumberingSequences();
   const { data: carriers = [] } = useLegalCarriers();
   const { data: legalDocuments = [], isLoading: loadingDocuments } = useLegalDocuments();
   const visibleLegalDocuments = useMemo(
     () => legalDocuments.filter(
-      (document) => isWholesaleAadeDocumentType(document.aade_document_type),
+      (document) => isWholesaleAadeDocumentType(document.aade_document_type) && (document.environment === settingsDraft.environment || !document.environment),
     ),
-    [legalDocuments],
+    [legalDocuments, settingsDraft.environment],
   );
   const { data: allLegalDocumentLines = [], isLoading: loadingArchiveLines } = useAllLegalDocumentLines();
   const { data: proformas = [], isLoading: loadingProformas } = useProformaDocuments();
@@ -812,7 +837,7 @@ export default function LegalDocumentsPage({
 
   const validationIssues = useMemo(() => {
     if (!draftBundle) return [];
-    return validateLegalDocument(draftBundle.document, draftBundle.lines);
+    return [...validateLegalDocument(draftBundle.document, draftBundle.lines).filter(issue => issue.severity === 'warning'), ...validateSbzDocument(draftBundle.document, draftBundle.lines).map(message => ({ field: message, severity: 'error' as const, message }))];
   }, [draftBundle]);
   const validationErrors = validationIssues.filter((issue) => issue.severity === 'error');
   const activeCredentialStatus = credentialStatus?.[settingsDraft.environment];
@@ -1440,20 +1465,17 @@ export default function LegalDocumentsPage({
       } else {
         showToast(`Συγχρονισμός ολοκληρώθηκε: ${result.imported_count} νέα, ${result.updated_count} ενημερώσεις.`, 'success');
       }
-      await promptLegalNumberingAlignment({ silentIfUpToDate: true });
+
     } catch (error: any) {
       showToast(error?.message || 'Ο συγχρονισμός AADE απέτυχε.', 'error');
     }
   };
 
   const ensureAadeCredentialsReady = async () => {
-    if (settingsDraft.require_aade_credentials === false) return true;
-    const status = credentialStatus || (await refetchCredentialStatus()).data;
+    const status = sbzStatus || (await refreshSbzStatus()).data;
     if (status?.[settingsDraft.environment]?.ready) return true;
-
-    setCredentialEnvironment(settingsDraft.environment);
     setActiveTab('settings');
-    showToast(`Συμπληρώστε AADE credentials για ${settingsDraft.environment.toUpperCase()} πριν από αποστολή στη myDATA.`, 'warning');
+    showToast('Η σύνδεση SBZ χρειάζεται ρύθμιση ή ενεργοποίηση πριν από την έκδοση.', 'warning');
     return false;
   };
 
@@ -1473,9 +1495,9 @@ export default function LegalDocumentsPage({
       setArchiveSearch(getLegalDocumentDisplayNumber(issued));
       setDraftBundle(null);
       setActiveTab('archive');
-      showToast(`Αποδοχή myDATA με MARK ${issued.aade_mark}. Το παραστατικό μεταφέρθηκε στο Αρχείο.`, 'success');
+      showToast(`Το παραστατικό εκδόθηκε μέσω SBZ και βρίσκεται στο Αρχείο.`, 'success');
     } catch (error: any) {
-      showToast(error?.message || 'Η AADE απέρριψε το παραστατικό.', 'error');
+      showToast(error?.message || 'Ο πάροχος δεν δέχθηκε το παραστατικό.', 'error');
     }
   };
 
@@ -1509,6 +1531,7 @@ export default function LegalDocumentsPage({
   };
 
   const handleCancel = async (document: LegalDocument) => {
+    if (document.document_kind !== 'delivery_note' || document.provider !== 'sbz') { showToast('Για διόρθωση τιμολογίου εκδώστε πιστωτικό.', 'info'); return; }
     if (!(await ensureAadeCredentialsReady())) return;
     const ok = await confirm({
       title: 'Ακύρωση παραστατικού',
@@ -1532,7 +1555,7 @@ export default function LegalDocumentsPage({
       if (!canPrintLegalDocument(document, lines)) {
         showToast(
           document.status === 'submitted'
-            ? 'Η εκτύπωση είναι διαθέσιμη μετά την αποδοχή από την ΑΑΔΕ.'
+            ? 'Η εκτύπωση είναι διαθέσιμη μετά την αποδοχή από τον πάροχο.'
             : 'Το παραστατικό δεν περνά τον έλεγχο νόμιμης εκτύπωσης. Ελέγξτε τα στοιχεία εκδότη, πελάτη, MARK/QR, γραμμές και σύνολα.',
           'warning',
         );
@@ -1549,7 +1572,7 @@ export default function LegalDocumentsPage({
 
   const handleOpenLegalDocument = async (document: LegalDocument) => {
     if (document.status !== 'draft' && document.status !== 'failed') {
-      showToast('Το εκδομένο ή ακυρωμένο παραστατικό είναι κλειδωμένο. Για αλλαγές χρειάζεται ακύρωση/επανέκδοση ή πιστωτικό.', 'info');
+      showToast('Το εκδομένο ή ακυρωμένο παραστατικό είναι κλειδωμένο. Για αλλαγές χρειάζεται έκδοση πιστωτικού.', 'info');
       return;
     }
     try {
@@ -1571,35 +1594,6 @@ export default function LegalDocumentsPage({
       showToast('Οι ρυθμίσεις αποθηκεύτηκαν.', 'success');
     } catch (error: any) {
       showToast(error?.message || 'Δεν αποθηκεύτηκαν οι ρυθμίσεις.', 'error');
-    }
-  };
-
-  const handleSaveAadeCredentials = async () => {
-    const userId = credentialDraft.userId.trim();
-    const subscriptionKey = credentialDraft.subscriptionKey.trim();
-    const cloudflareApiToken = cloudflareBootstrapDraft.apiToken.trim();
-    const cloudflareAccountId = cloudflareBootstrapDraft.accountId.trim();
-    if (!userId || !subscriptionKey) {
-      showToast('Συμπληρώστε AADE User ID και Subscription Key.', 'warning');
-      return;
-    }
-    if (!credentialStatus?.workerCanStoreSecrets && (!cloudflareApiToken || !cloudflareAccountId)) {
-      showToast('Στην πρώτη ρύθμιση χρειάζονται και Cloudflare API Token + Account ID.', 'warning');
-      return;
-    }
-
-    try {
-      await saveAadeCredentials.mutateAsync({
-        environment: credentialEnvironment,
-        userId,
-        subscriptionKey,
-        ...(!credentialStatus?.workerCanStoreSecrets ? { cloudflareApiToken, cloudflareAccountId } : {}),
-      });
-      setCredentialDraft({ userId: '', subscriptionKey: '' });
-      setCloudflareBootstrapDraft({ apiToken: '', accountId: '' });
-      showToast(`Τα AADE credentials για ${credentialEnvironment.toUpperCase()} αποθηκεύτηκαν με ασφάλεια στο Cloudflare Worker.`, 'success');
-    } catch (error: any) {
-      showToast(error?.message || 'Δεν αποθηκεύτηκαν τα AADE credentials.', 'error');
     }
   };
 
@@ -1728,6 +1722,18 @@ export default function LegalDocumentsPage({
     }
 
     const document = draftBundle.document;
+    if (document.credited_document_id) return (
+      <section className="rounded-2xl border border-emerald-200 bg-white p-5 space-y-4">
+        <p className="text-xs font-bold text-emerald-700">Στοιχεία → Έλεγχος → Έκδοση</p>
+        <h2 className="text-xl font-black">Έλεγχος πιστωτικού</h2>
+        <p className="text-sm text-slate-600">{document.counterpart.name} · Οι αξίες προέρχονται από το αρχικό τιμολόγιο.</p>
+        <div className="divide-y">{draftBundle.lines.map(line => <div key={line.id} className="flex justify-between gap-3 py-3"><span>{line.description} × {line.quantity}</span><strong>{money(line.gross_value)}</strong></div>)}</div>
+        <p className="text-right text-lg font-black">Σύνολο πίστωσης: {money(document.totals.gross)}</p>
+        <p className="text-sm text-slate-500">Το αρχικό τιμολόγιο διατηρείται στο αρχείο. Η επιστροφή ειδών στην αποθήκη καταχωρίζεται χωριστά.</p>
+        {validationErrors.length > 0 && <p role="alert" className="text-red-700">{validationErrors[0].message}</p>}
+        <ActionButton onClick={handleSubmitDraft} disabled={submitDocument.isPending || saveDraft.isPending || validationErrors.length > 0}><Send size={16}/>{submitDocument.isPending ? 'Εκδίδεται…' : 'Έκδοση πιστωτικού μέσω SBZ'}</ActionButton>
+      </section>
+    );
     const editable = isLegalDocumentEditable(document);
     const includesDelivery = documentIncludesDeliveryNote(document);
     const isStandaloneDeliveryNote = document.document_kind === 'delivery_note';
@@ -1774,7 +1780,7 @@ export default function LegalDocumentsPage({
             </SelectInput>
             <TextInput label="Ημερομηνία" type="date" value={document.issue_date} onChange={(value) => updateDraftDocument((current) => ({ ...current, issue_date: value }))} />
             <SelectInput label="Πληρωμή" value={document.payment_method_code} onChange={(value) => updateDraftDocument((current) => ({ ...current, payment_method_code: Number(value) }))}>
-              {PAYMENT_METHOD_CODES.map((code) => <option key={code} value={code}>{PAYMENT_METHOD_LABELS[code]}</option>)}
+              {PAYMENT_METHOD_CODES.filter(code => ![7, 8].includes(code)).map((code) => <option key={code} value={code}>{PAYMENT_METHOD_LABELS[code]}</option>)}
             </SelectInput>
             <TextInput label="ΑΦΜ Πελάτη" value={document.counterpart.vat_number || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, vat_number: normalizeVatNumber(value) } }))} />
             <TextInput label="Επωνυμία Πελάτη" value={document.counterpart.name || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, name: value } }))} />
@@ -1847,7 +1853,7 @@ export default function LegalDocumentsPage({
                     </SelectInput>
                     <TextInput label="Φόρτωση" value={document.delivery?.loading_address?.street || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), loading_address: { ...(current.delivery?.loading_address || {}), street: value } } }))} />
                     <TextInput label="Παράδοση" value={document.delivery?.delivery_address?.street || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), delivery_address: { ...(current.delivery?.delivery_address || {}), street: value } } }))} />
-                    <TextInput label="Σκοπός" type="number" value={document.delivery?.move_purpose || settingsDraft.default_move_purpose} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), move_purpose: Number(value) || 1 } }))} help="Κωδικός σκοπού διακίνησης ΑΑΔΕ. Συνήθως 1 για πώληση." />
+                    <SelectInput label="Σκοπός" value={document.delivery?.move_purpose || settingsDraft.default_move_purpose} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), move_purpose: Number(value) || 1 } }))}>{Object.entries(SBZ_MOVE_PURPOSES).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</SelectInput>
                   </div>
                 </div>
               ) : null}
@@ -1885,7 +1891,7 @@ export default function LegalDocumentsPage({
                   <th className="w-16 px-2 py-2 text-right">Τιμή</th>
                   <th className="w-20 px-2 py-2 text-right">ΦΠΑ</th>
                   <th className="w-24 px-2 py-2 text-right" title="Καθαρή / ΦΠΑ / Σύνολο">Ποσά</th>
-                  <th className="min-w-[11rem] px-2 py-2" title="Χαρακτηρισμός εσόδου myDATA">Χαρ.</th>
+
                   <th className="w-8 px-2 py-2"></th>
                 </tr>
               </thead>
@@ -1924,14 +1930,6 @@ export default function LegalDocumentsPage({
                       <div className="font-medium text-slate-600">{money(line.net_value)}</div>
                       <div className="text-[10px] text-slate-400">{money(line.vat_amount)}</div>
                       <div className="font-black text-slate-900">{money(line.gross_value)}</div>
-                    </td>
-                    <td className="px-2 py-1.5">
-                      <IncomeClassificationTypeSelect
-                        documentType={draftBundle.document.aade_document_type}
-                        category={line.income_classification.classification_category}
-                        value={line.income_classification.classification_type || ''}
-                        onChange={(classification_type) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, income_classification: { ...item.income_classification, classification_type } } : item), settingsDraft))}
-                      />
                     </td>
                     <td className="px-2 py-1.5 text-right">
                       <button
@@ -1976,7 +1974,7 @@ export default function LegalDocumentsPage({
           </div>
         ) : validationIssues.length === 0 ? (
           <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-700">
-            <CheckCircle2 size={16} /> Έτοιμο για υποβολή στη myDATA
+            <CheckCircle2 size={16} /> Έτοιμο για έκδοση μέσω SBZ
           </div>
         ) : (
           <div className="space-y-2">
@@ -2000,7 +1998,7 @@ export default function LegalDocumentsPage({
               </ActionButton>
             )}
             <ActionButton onClick={handleSubmitDraft} disabled={!draftBundle || validationErrors.length > 0 || submitDocument.isPending || saveDraft.isPending}>
-              {submitDocument.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Υποβολή στη myDATA
+              {submitDocument.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Έκδοση μέσω SBZ
             </ActionButton>
           </div>
         )}
@@ -2015,7 +2013,7 @@ export default function LegalDocumentsPage({
     return (
     <div className="space-y-4">
       <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
-        <span className="font-black">Δημιουργία</span> — νέο πρόχειρο τιμολόγιο, προτιμολόγιο, έλεγχος και υποβολή στη myDATA.
+        <span className="font-black">Δημιουργία</span> — νέο πρόχειρο τιμολόγιο, προτιμολόγιο, έλεγχος και έκδοση μέσω SBZ.
         {' '}Μετά την έκδοση, το παραστατικό μεταφέρεται αυτόματα στο <span className="font-black">Αρχείο</span>.
       </div>
       <div className="grid gap-5 lg:grid-cols-[minmax(250px,290px)_minmax(0,1fr)]">
@@ -2207,7 +2205,7 @@ export default function LegalDocumentsPage({
             <TextInput label="Τ.Κ." value={document.counterpart.address?.postal_code || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, counterpart: { ...current.counterpart, address: { ...(current.counterpart.address || {}), postal_code: value } } }, lines, settingsDraft))} />
             <TextInput label="Πόλη" value={document.counterpart.address?.city || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, counterpart: { ...current.counterpart, address: { ...(current.counterpart.address || {}), city: value } } }, lines, settingsDraft))} />
             <SelectInput label="Πληρωμή" value={document.payment_method_code} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, payment_method_code: Number(value) }, lines, settingsDraft))}>
-              {PAYMENT_METHOD_CODES.map((code) => <option key={code} value={code}>{PAYMENT_METHOD_LABELS[code]}</option>)}
+              {PAYMENT_METHOD_CODES.filter(code => ![7, 8].includes(code)).map((code) => <option key={code} value={code}>{PAYMENT_METHOD_LABELS[code]}</option>)}
             </SelectInput>
           </div>
 
@@ -2880,7 +2878,7 @@ export default function LegalDocumentsPage({
           </ActionButton>
           {document.status === 'draft' && (
             <ActionButton onClick={() => void handleSubmitLegalDocument(document)} disabled={submitDocument.isPending}>
-              {submitDocument.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Υποβολή στη myDATA
+              {submitDocument.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Έκδοση μέσω SBZ
             </ActionButton>
           )}
           {document.status === 'failed' && (
@@ -2888,9 +2886,9 @@ export default function LegalDocumentsPage({
               {submitDocument.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Επανάληψη
             </ActionButton>
           )}
-          {document.status === 'issued' && (
+          {document.status === 'issued' && document.document_kind === 'delivery_note' && document.provider === 'sbz' && (
             <ActionButton variant="danger" onClick={() => handleCancel(document)} disabled={cancelDocument.isPending}>
-              <Ban size={16} /> Ακύρωση myDATA
+              <Ban size={16} /> Ακύρωση δελτίου διακίνησης
             </ActionButton>
           )}
           <ActionButton
@@ -2910,7 +2908,7 @@ export default function LegalDocumentsPage({
     <div className="space-y-4">
       <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
         <span className="font-black">Αρχείο</span> — όλα τα πρόχειρα, εκδοθέντα και ακυρωμένα παραστατικά και προτιμολόγια.
-        {' '}Εδώ βλέπετε MARK, QR και ενέργειες (εκτύπωση, ακύρωση myDATA, διαγραφή από Ilios).
+        {' '}Εδώ βλέπετε MARK, QR και ενέργειες (εκτύπωση, πίστωση ή ακύρωση διακίνησης, διαγραφή από Ilios).
       </div>
     <section className="rounded-lg border border-slate-200 bg-white">
       <div className="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center md:justify-between">
@@ -3000,6 +2998,9 @@ export default function LegalDocumentsPage({
       onPrintLegal={(document) => void handlePrint(document)}
       onSubmitLegal={(document) => void handleSubmitLegalDocument(document)}
       onCancelLegal={(document) => void handleCancel(document)}
+      onCreditLegal={(document) => void openCredit(document)}
+      onReconcileLegal={(document) => void reconcileSbz(document)}
+      onAttachLegal={(document, file) => void attachSbz(document, file)}
       onDeleteLegal={(document) => void handleDeleteLegalDocument(document)}
       onEditProforma={(document) => void handleEditProforma(document)}
       onPrintProforma={(document) => void handlePrintProforma(document)}
@@ -3027,33 +3028,32 @@ export default function LegalDocumentsPage({
           <h2 className="font-black text-slate-900">Συγχρονισμός παλιών παραστατικών</h2>
         </div>
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800">
-          Συγχρονίζει τιμολόγια χονδρικής, πιστωτικά και παραστατικά διακίνησης που έχουν ήδη εκδοθεί ή ακυρωθεί, με μία ενιαία ασφαλή ροή προς την ΑΑΔΕ. Παραστατικά λιανικής και λοιπές μη εμπορικές εγγραφές απορρίπτονται πριν από την αποθήκευση και δεν συμμετέχουν ποτέ στο Αρχείο ή στα ποσά.
+          Συγχρονίζει τιμολόγια χονδρικής, πιστωτικά και παραστατικά διακίνησης που έχουν ήδη εκδοθεί ή ακυρωθεί, με μία ενιαία ασφαλή ροή προς την SBZ. Παραστατικά λιανικής και λοιπές μη εμπορικές εγγραφές απορρίπτονται πριν από την αποθήκευση και δεν συμμετέχουν ποτέ στο Αρχείο ή στα ποσά.
         </div>
         <div className="mt-4 space-y-4">
-          <TextInput label="Από ημερομηνία" type="date" value={syncDraft.dateFrom} onChange={(value) => setSyncDraft((current) => ({ ...current, dateFrom: value }))} help="Η εφαρμογή μετατρέπει αυτόματα σε μορφή ΑΑΔΕ (ηη/μμ/εεεε)." />
+          <TextInput label="Από ημερομηνία" type="date" value={syncDraft.dateFrom} onChange={(value) => setSyncDraft((current) => ({ ...current, dateFrom: value }))} help="Επιλέξτε την αρχή του διαστήματος αναζήτησης." />
           <TextInput label="Έως ημερομηνία" type="date" value={syncDraft.dateTo} onChange={(value) => setSyncDraft((current) => ({ ...current, dateTo: value }))} help="Αν δεν υπάρχουν παραστατικά στο διάστημα, ο συγχρονισμός ολοκληρώνεται κανονικά με 0 εισαγωγές." />
           <TextInput label="Από MARK" value={syncDraft.markFrom} onChange={(value) => setSyncDraft((current) => ({ ...current, markFrom: value }))} help="Προαιρετικό σημείο εκκίνησης της ΑΑΔΕ. Αφήστε 0 για συγχρονισμό με βάση ημερομηνίες." />
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
             <div className="mb-3 flex items-center gap-2 text-sm font-black text-slate-800">
-              Προαιρετικά φίλτρα ΑΑΔΕ
+              Περιορισμός αναζήτησης
               <InfoTip text="Χρησιμοποιήστε τα μόνο όταν θέλετε να περιορίσετε τον συγχρονισμό σε συγκεκριμένο ΑΦΜ, τύπο παραστατικού ή μέχρι συγκεκριμένο MARK." />
             </div>
             <div className="grid gap-3 md:grid-cols-2">
-              <TextInput label="ΑΦΜ οντότητας" value={syncDraft.entityVatNumber} onChange={(value) => setSyncDraft((current) => ({ ...current, entityVatNumber: normalizeVatNumber(value) }))} help="Για λογιστή/εκπρόσωπο: ο ΑΦΜ της επιχείρησης για την οποία γίνεται η αναζήτηση. Συνήθως μένει κενό." />
               <TextInput label="ΑΦΜ αντισυμβαλλόμενου" value={syncDraft.receiverVatNumber} onChange={(value) => setSyncDraft((current) => ({ ...current, receiverVatNumber: normalizeVatNumber(value) }))} help="Φέρνει μόνο παραστατικά για συγκεκριμένο πελάτη/λήπτη." />
-              <SelectInput label="Τύπος παραστατικού" value={syncDraft.invType} onChange={(value) => setSyncDraft((current) => ({ ...current, invType: value }))} help="Επίσημος τύπος myDATA. Η συνολική επιλογή περιλαμβάνει μόνο το εμπορικό αρχείο χονδρικής.">
+              <SelectInput label="Τύπος παραστατικού" value={syncDraft.invType} onChange={(value) => setSyncDraft((current) => ({ ...current, invType: value }))} help="Επιλέξτε ένα είδος ή αναζητήστε όλο το αρχείο χονδρικής.">
                 <option value="">Όλοι οι τύποι χονδρικής</option>
-                <option value="1.1">Τιμολόγιο Πώλησης (1.1)</option>
-                <option value="5.1">Πιστωτικό Συσχετιζόμενο (5.1)</option>
-                <option value="5.2">Πιστωτικό Μη Συσχετιζόμενο (5.2)</option>
-                <option value="9.3">Δελτίο Αποστολής (9.3)</option>
+                <option value="1.1">Τιμολόγιο Πώλησης</option>
+                <option value="5.1">Πιστωτικό Συσχετιζόμενο</option>
+                <option value="5.2">Πιστωτικό Μη Συσχετιζόμενο</option>
+                <option value="9.3">Δελτίο Αποστολής</option>
               </SelectInput>
-              <TextInput label="Έως MARK" value={syncDraft.maxMark} onChange={(value) => setSyncDraft((current) => ({ ...current, maxMark: value.replace(/\D/g, '') }))} help="Ανώτερο MARK που θα ζητηθεί από την ΑΑΔΕ. Κενό σημαίνει χωρίς άνω όριο." />
+              <TextInput label="Έως MARK" value={syncDraft.maxMark} onChange={(value) => setSyncDraft((current) => ({ ...current, maxMark: value.replace(/\D/g, '') }))} help="Ανώτερο MARK που θα ζητηθεί από τον πάροχο. Κενό σημαίνει χωρίς άνω όριο." />
             </div>
           </div>
           <SelectInput label="Περιβάλλον" value={settingsDraft.environment} onChange={handleEnvironmentChange} help="Δοκιμές για ελέγχους, Παραγωγή για πραγματικά παραστατικά.">
-            <option value="dev">myDATA Δοκιμών</option>
-            <option value="prod">myDATA Παραγωγής</option>
+            <option value="dev">SBZ Δοκιμών</option>
+            <option value="prod">SBZ Παραγωγής</option>
           </SelectInput>
           <ActionButton onClick={handleSyncTransmitted} disabled={syncTransmittedDocuments.isPending}>
             {syncTransmittedDocuments.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Συγχρονισμός
@@ -3101,7 +3101,7 @@ export default function LegalDocumentsPage({
                   <span className={`rounded-lg border px-2 py-1 text-xs font-black ${run.status === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : run.status === 'failed' ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
                     {run.status === 'success' ? 'Ολοκληρώθηκε' : run.status === 'failed' ? 'Απέτυχε' : 'Μερικό αποτέλεσμα'}
                   </span>
-                  <span className="text-sm font-black text-slate-900">{run.environment.toUpperCase()}</span>
+                  <span className="text-sm font-black text-slate-900">{run.environment === 'dev' ? 'Δοκιμαστικό περιβάλλον' : 'Παραγωγή'}</span>
                   <span className="text-xs font-medium text-slate-500">{new Date(run.started_at).toLocaleString('el-GR')}</span>
                 </div>
                 <div className="mt-1 text-sm font-medium text-slate-600">
@@ -3110,7 +3110,7 @@ export default function LegalDocumentsPage({
                 {run.error_message && <div className="mt-2 rounded-lg bg-red-50 px-2 py-1 text-xs font-bold text-red-700">{run.error_message}</div>}
                 {(run.next_partition_key || run.next_row_key) && (
                   <div className="mt-2 text-xs font-bold text-slate-500">
-                    Υπάρχουν επιπλέον σελίδες από την ΑΑΔΕ. Τα κλειδιά συνέχειας εμφανίζονται στις τεχνικές λεπτομέρειες.
+                    Υπάρχουν επιπλέον σελίδες από τον πάροχο. Τα κλειδιά συνέχειας εμφανίζονται στις τεχνικές λεπτομέρειες.
                   </div>
                 )}
               </div>
@@ -3151,10 +3151,7 @@ export default function LegalDocumentsPage({
               </div>
             </div>
             <div className="flex flex-wrap gap-2 md:justify-end">
-              <ActionButton variant="secondary" disabled={document.status !== 'issued'} onClick={() => handleDeliveryAction(document, 'register')}><Truck size={16} /> Έναρξη</ActionButton>
-              <ActionButton variant="secondary" disabled={document.status !== 'issued'} onClick={() => handleDeliveryAction(document, 'confirm')}><CheckCircle2 size={16} /> Παραδόθηκε</ActionButton>
-              <ActionButton variant="danger" disabled={document.status !== 'issued'} onClick={() => handleDeliveryAction(document, 'failed')}><XCircle size={16} /> Απέτυχε</ActionButton>
-              <ActionButton variant="quiet" disabled={document.status !== 'issued'} onClick={() => handleDeliveryAction(document, 'poll')}><RefreshCw size={16} /> Έλεγχος</ActionButton>
+              <p className="text-sm text-slate-500">Η ενημέρωση παράδοσης αναμένει υποστήριξη από την SBZ.</p>
             </div>
           </div>
         ))}
@@ -3166,123 +3163,7 @@ export default function LegalDocumentsPage({
     <div className="grid gap-5 xl:grid-cols-[1fr_420px]">
       <div className="space-y-5">
         <section className="rounded-lg border border-slate-200 bg-white p-5">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <KeyRound size={18} className="text-emerald-600" />
-              <h2 className="font-black text-slate-900">Στοιχεία σύνδεσης ΑΑΔΕ</h2>
-            </div>
-            <ActionButton variant="quiet" onClick={() => void refetchCredentialStatus()} disabled={loadingCredentialStatus}>
-              {loadingCredentialStatus ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Έλεγχος
-            </ActionButton>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-4">
-            {(['dev', 'prod'] as LegalEnvironment[]).map((environment) => {
-              const status = credentialStatus?.[environment];
-              const ready = !!status?.ready;
-              return (
-                <div key={environment} className={`rounded-lg border px-3 py-2 ${ready ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
-                  <div className="text-[10px] font-black uppercase">
-                    myDATA {environment === 'prod' ? 'Παραγωγής' : 'Δοκιμών'}
-                  </div>
-                  <div className="mt-1 flex items-center gap-2 text-sm font-black">
-                    {ready ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
-                    {ready ? 'Έτοιμο' : 'Λείπουν στοιχεία'}
-                  </div>
-                </div>
-              );
-            })}
-            <div className={`rounded-lg border px-3 py-2 ${
-              registryConnectionStatus.verified
-                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                : credentialStatus?.registry?.ready
-                  ? 'border-sky-200 bg-sky-50 text-sky-800'
-                  : 'border-amber-200 bg-amber-50 text-amber-800'
-            }`}>
-              <div className="text-[10px] font-black uppercase">Μητρώο ΑΦΜ ΑΑΔΕ</div>
-              <div className="mt-1 flex items-center gap-2 text-sm font-black">
-                {registryConnectionStatus.verified
-                  ? <CheckCircle2 size={16} />
-                  : credentialStatus?.registry?.ready
-                    ? <Info size={16} />
-                    : <AlertTriangle size={16} />}
-                {registryConnectionStatus.verified
-                  ? 'Σύνδεση επαληθευμένη'
-                  : credentialStatus?.registry?.ready
-                    ? 'Κωδικοί αποθηκευμένοι'
-                    : 'Χρειάζεται ειδικούς κωδικούς'}
-              </div>
-            </div>
-            <div className={`rounded-lg border px-3 py-2 ${credentialStatus?.workerCanStoreSecrets ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
-              <div className="text-[10px] font-black uppercase">Cloudflare Secrets</div>
-              <div className="mt-1 flex items-center gap-2 text-sm font-black">
-                {credentialStatus?.workerCanStoreSecrets ? <ShieldCheck size={16} /> : <XCircle size={16} />}
-                {credentialStatus?.workerCanStoreSecrets ? 'Μπορεί να αποθηκεύσει' : 'Χρειάζεται ρύθμιση'}
-              </div>
-            </div>
-          </div>
-          <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-bold text-sky-800">
-            Τα περιβάλλοντα είναι ανεξάρτητα. Για πραγματική έκδοση αρκεί το myDATA Παραγωγής να εμφανίζεται ως «Έτοιμο»· δεν απαιτείται προηγούμενη έκδοση στο περιβάλλον Δοκιμών.
-          </div>
-
-          {missingSecretManager.length > 0 && (
-            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">
-              Πρώτη ρύθμιση: συμπληρώστε παρακάτω Cloudflare API Token και Account ID μαζί με τα AADE credentials. Αποθηκεύονται μόνο στο Worker, όχι στη βάση ή στον browser.
-            </div>
-          )}
-
-          {(missingAadeCredentials.length > 0 || missingSecretManager.length > 0) && (
-            <div className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-              <div className="mb-2 flex items-center gap-2 font-black text-slate-800">
-                Τι χρειάζεται ακόμη
-                <InfoTip text={`Τεχνικά ονόματα μυστικών: ${[...missingAadeCredentials, ...missingSecretManager].join(', ') || 'κανένα'}`} />
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {[...missingAadeCredentials, ...missingSecretManager].map((name) => (
-                  <span key={name} className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-bold text-amber-800">
-                    {credentialSecretLabel(name)}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {!credentialStatus?.workerCanStoreSecrets && (
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <TextInput
-                label="Cloudflare API Token (μία φορά)"
-                type="password"
-                value={cloudflareBootstrapDraft.apiToken}
-                onChange={(value) => setCloudflareBootstrapDraft((current) => ({ ...current, apiToken: value }))}
-                help="Χρειάζεται μόνο την πρώτη φορά ώστε το Worker να αποθηκεύσει με ασφάλεια τα μυστικά ΑΑΔΕ."
-              />
-              <TextInput
-                label="Cloudflare Account ID (μία φορά)"
-                value={cloudflareBootstrapDraft.accountId}
-                onChange={(value) => setCloudflareBootstrapDraft((current) => ({ ...current, accountId: value }))}
-                help="Ο λογαριασμός Cloudflare όπου είναι ανεβασμένο το Worker του ERP."
-              />
-            </div>
-          )}
-
-          <div className="mt-4 grid gap-4 md:grid-cols-[180px_1fr_1fr_auto] md:items-end">
-            <SelectInput label="Περιβάλλον" value={credentialEnvironment} onChange={(value) => setCredentialEnvironment(value === 'prod' ? 'prod' : 'dev')} help="Δοκιμές για ελέγχους, Παραγωγή για πραγματικά παραστατικά.">
-              <option value="dev">myDATA Δοκιμών</option>
-              <option value="prod">myDATA Παραγωγής</option>
-            </SelectInput>
-            <TextInput label="AADE User ID" value={credentialDraft.userId} onChange={(value) => setCredentialDraft((current) => ({ ...current, userId: value }))} help="Το όνομα χρήστη API που εκδίδεται από την ΑΑΔΕ για το myDATA." />
-            <TextInput label="Subscription Key" type="password" value={credentialDraft.subscriptionKey} onChange={(value) => setCredentialDraft((current) => ({ ...current, subscriptionKey: value }))} help="Το κλειδί πρόσβασης myDATA. Αποθηκεύεται ως μυστικό στο Cloudflare Worker." />
-            <ActionButton onClick={handleSaveAadeCredentials} disabled={saveAadeCredentials.isPending}>
-              {saveAadeCredentials.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Αποθήκευση
-            </ActionButton>
-          </div>
-
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-500">
-            <span className={`rounded-lg border px-2 py-1 ${activeCredentialStatus?.ready ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
-              Ενεργό περιβάλλον {settingsDraft.environment === 'prod' ? 'Παραγωγής' : 'Δοκιμών'}: {activeCredentialStatus?.ready ? 'έτοιμο για myDATA' : 'δεν θα επιτρέψει αποστολή'}
-            </span>
-            <span>Τα credentials δεν εμφανίζονται ξανά μετά την αποθήκευση.</span>
-          </div>
+          <SbzSettings />
 
           <div className="mt-5 rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -3369,8 +3250,8 @@ export default function LegalDocumentsPage({
           <div className="mb-4 flex items-center gap-2"><ShieldCheck size={18} className="text-emerald-600" /><h2 className="font-black text-slate-900">Εκδότης / ΑΑΔΕ</h2></div>
           <div className="grid gap-4 md:grid-cols-4">
             <SelectInput label="Περιβάλλον" value={settingsDraft.environment} onChange={handleEnvironmentChange} help="Το ενεργό περιβάλλον που θα χρησιμοποιείται για αποστολή και συγχρονισμό.">
-              <option value="dev">myDATA Δοκιμών</option>
-              <option value="prod">myDATA Παραγωγής</option>
+              <option value="dev">SBZ Δοκιμών</option>
+              <option value="prod">SBZ Παραγωγής</option>
             </SelectInput>
             <TextInput label="ΑΦΜ Εκδότη" value={settingsDraft.issuer.vat_number || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, vat_number: normalizeVatNumber(value) } }))} help="Πρέπει να είναι ο πραγματικός ΑΦΜ της εγγραφής API myDATA (ίδιος με το αναγνωριστικό χρήστη ΑΑΔΕ). Το περιβάλλον Δοκιμών δεν δέχεται πλασματικούς αριθμούς." />
             <TextInput label="Επωνυμία" value={settingsDraft.issuer.business_name || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, business_name: value, name: value } }))} />
@@ -3395,7 +3276,7 @@ export default function LegalDocumentsPage({
             <TextInput label="Τηλέφωνο" value={settingsDraft.issuer.phone || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, phone: value } }))} />
             <TextInput label="Email" value={settingsDraft.issuer.email || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, email: value } }))} />
             <SelectInput label="Προεπιλογή πληρωμής" value={settingsDraft.default_payment_method} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_payment_method: Number(value) }))}>
-              {PAYMENT_METHOD_CODES.map((code) => <option key={code} value={code}>{PAYMENT_METHOD_LABELS[code]}</option>)}
+              {PAYMENT_METHOD_CODES.filter(code => ![7, 8].includes(code)).map((code) => <option key={code} value={code}>{PAYMENT_METHOD_LABELS[code]}</option>)}
             </SelectInput>
             <VatExemptionCategorySelect
               label="Προεπιλογή αιτίας απαλλαγής ΦΠΑ"
@@ -3404,25 +3285,25 @@ export default function LegalDocumentsPage({
             />
           </div>
           <div className="mt-4 grid gap-4 md:grid-cols-4">
-            <SelectInput label="Προεπιλογή πώλησης" value={settingsDraft.default_income_classification_type} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_income_classification_type: value, inhouse_income_classification_type: value, imported_income_classification_type: value }))} help="Ο χαρακτηρισμός εσόδου που θα μπαίνει αυτόματα στις γραμμές. Ο κωδικός ΑΑΔΕ φαίνεται σε παρένθεση.">
+            <SelectInput label="Προεπιλογή πώλησης" value={settingsDraft.default_income_classification_type} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_income_classification_type: value, inhouse_income_classification_type: value, imported_income_classification_type: value }))} help="Ο χαρακτηρισμός εσόδου που θα μπαίνει αυτόματα στις γραμμές.">
               {!incomeTypeOptions.some((option) => option.value === settingsDraft.default_income_classification_type) && (
                 <option value={settingsDraft.default_income_classification_type}>{settingsDraft.default_income_classification_type}</option>
               )}
               {incomeTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </SelectInput>
-            <SelectInput label="Προϊόντα δικής μας παραγωγής" value={settingsDraft.inhouse_income_classification_category} onChange={(value) => setSettingsDraft((current) => ({ ...current, inhouse_income_classification_category: value }))} help="Ποια κατηγορία εσόδου θα χρησιμοποιείται για προϊόντα που παράγονται εσωτερικά. Ο κωδικός ΑΑΔΕ φαίνεται σε παρένθεση.">
+            <SelectInput label="Προϊόντα δικής μας παραγωγής" value={settingsDraft.inhouse_income_classification_category} onChange={(value) => setSettingsDraft((current) => ({ ...current, inhouse_income_classification_category: value }))} help="Ποια κατηγορία εσόδου θα χρησιμοποιείται για προϊόντα που παράγονται εσωτερικά.">
               {!incomeCategoryOptions.some((option) => option.value === settingsDraft.inhouse_income_classification_category) && (
                 <option value={settingsDraft.inhouse_income_classification_category}>{settingsDraft.inhouse_income_classification_category}</option>
               )}
               {incomeCategoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </SelectInput>
-            <SelectInput label="Εμπορεύματα / εισαγόμενα" value={settingsDraft.imported_income_classification_category} onChange={(value) => setSettingsDraft((current) => ({ ...current, imported_income_classification_category: value }))} help="Ποια κατηγορία εσόδου θα χρησιμοποιείται για εμπορεύματα ή εισαγόμενα προϊόντα. Ο κωδικός ΑΑΔΕ φαίνεται σε παρένθεση.">
+            <SelectInput label="Εμπορεύματα / εισαγόμενα" value={settingsDraft.imported_income_classification_category} onChange={(value) => setSettingsDraft((current) => ({ ...current, imported_income_classification_category: value }))} help="Ποια κατηγορία εσόδου θα χρησιμοποιείται για εμπορεύματα ή εισαγόμενα προϊόντα.">
               {!incomeCategoryOptions.some((option) => option.value === settingsDraft.imported_income_classification_category) && (
                 <option value={settingsDraft.imported_income_classification_category}>{settingsDraft.imported_income_classification_category}</option>
               )}
               {incomeCategoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </SelectInput>
-            <TextInput label="Σκοπός Διακίνησης" type="number" value={settingsDraft.default_move_purpose} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_move_purpose: Number(value) || 1 }))} help="Κωδικός σκοπού διακίνησης της ΑΑΔΕ. Συνήθως 1 για πώληση." />
+            <SelectInput label="Σκοπός Διακίνησης" value={settingsDraft.default_move_purpose} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_move_purpose: Number(value) || 1 }))}>{Object.entries(SBZ_MOVE_PURPOSES).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</SelectInput>
           </div>
           <div className="mt-5">
             <ActionButton onClick={handleSaveSettings} disabled={saveSettings.isPending}>
@@ -3434,22 +3315,13 @@ export default function LegalDocumentsPage({
         <section className="rounded-lg border border-slate-200 bg-white p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="font-black text-slate-900">Σειρές και αρίθμηση</h2>
-            <ActionButton
-              variant="secondary"
-              onClick={() => void promptLegalNumberingAlignment()}
-              disabled={saveSequence.isPending || numberingAlignmentModal.status === 'loading' || numberingAlignmentModal.status === 'applying'}
-            >
-              {numberingAlignmentModal.status === 'loading'
-                ? <Loader2 size={16} className="animate-spin" />
-                : <RefreshCw size={16} />}
-              Ευθυγράμμιση με Αρχείο
-            </ActionButton>
+
           </div>
           <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-900">
-            Το «Επόμενο» ενημερώνεται μόνο με επιβεβαίωση, βάσει του μεγαλύτερου αριθμού στο Αρχείο (συμπεριλαμβανομένων συγχρονισμένων από PrismaNET). Ποτέ δεν μειώνεται αυτόματα.
+            Ο επόμενος αριθμός ελέγχεται αυτόματα κατά την έκδοση, για το επιλεγμένο περιβάλλον. Η παραγωγική αρίθμηση συνεχίζεται χωρίς μηδενισμό.
           </div>
           <div className="space-y-3">
-            {sequences.map((sequence) => {
+            {sequences.filter(sequence => (sequence.environment || 'prod') === settingsDraft.environment).map((sequence) => {
               const draft = sequenceDrafts[sequence.id] || sequence;
               const hasHistory = sequence.next_aa > 1 || visibleLegalDocuments.some((document) =>
                 document.document_kind === sequence.document_kind
@@ -3581,19 +3453,20 @@ export default function LegalDocumentsPage({
       <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700"><div className="text-[10px] font-black uppercase">Σφάλματα</div><div className="text-lg font-black">{stats.failed}</div></div>
       <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-700"><div className="text-[10px] font-black uppercase">Εκτυπώσιμα</div><div className="text-lg font-black">{stats.printable}</div></div>
       <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sky-700"><div className="text-[10px] font-black uppercase">Προτιμολόγια</div><div className="text-lg font-black">{stats.proformas}</div></div>
-      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700"><div className="text-[10px] font-black uppercase">Περιβάλλον</div><div className="text-lg font-black">{settingsDraft.environment.toUpperCase()}</div></div>
+      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700"><div className="text-[10px] font-black uppercase">Περιβάλλον</div><div className="text-lg font-black">{settingsDraft.environment === 'dev' ? 'Δοκιμές' : 'Παραγωγή'}</div></div>
     </div>
   );
 
   return (
     <div className="space-y-5">
+      {settingsDraft.environment === 'dev' && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><strong>Δοκιμαστικό περιβάλλον</strong> · Οι εκδόσεις εδώ είναι δοκιμαστικές και έχουν ξεχωριστή αρίθμηση.</div>}
       {isInspectionPresentation ? (
         statsStrip
       ) : (
         <DesktopPageHeader
           icon={FileCheck2}
           title="Παραστατικά"
-          subtitle="Προτιμολόγια, τιμολόγια myDATA, αρχείο και εκτύπωση"
+          subtitle="Τιμολόγηση χονδρικής μέσω SBZ, πιστωτικά και αρχείο"
           roundedClassName="rounded-lg"
           tail={statsStrip}
           below={(
@@ -3638,6 +3511,7 @@ export default function LegalDocumentsPage({
         {activeTab === 'settings' && renderSettingsTab()}
       </div>
 
+      {creditSource && <CreditDocumentModal original={creditSource.document} lines={creditSource.lines} available={creditSource.available} reservedLines={creditSource.reservedLines} onClose={() => setCreditSource(null)} onCreate={async bundle => { await saveDraft.mutateAsync(bundle); setCreditSource(null); setDraftBundle(bundle); setActiveTab('new'); showToast('Το πιστωτικό αποθηκεύτηκε ως προσχέδιο. Ελέγξτε το πριν την έκδοση.', 'success'); }} />}
       <ProformaConvertModal
         isOpen={!!convertModal.proforma}
         step={convertModal.step}

@@ -391,7 +391,7 @@ export function getAllowedIncomeTypeOptions(
   documentType: AadeDocumentType,
   category?: string | null,
 ): Array<{ value: string; label: string }> {
-  const combinations = AADE_REVENUE_CLASSIFICATION_COMBINATIONS[documentType];
+  const combinations = AADE_REVENUE_CLASSIFICATION_COMBINATIONS[documentType === '5.1' ? '5.2' : documentType];
   if (!combinations) return AADE_INCOME_TYPE_OPTIONS;
   const normalizedCategory = String(category || '').trim();
   const allowedTypes = new Set(
@@ -699,8 +699,7 @@ function normalizeIncomeClassificationForDocumentType(
 }
 
 function isAllowedIncomeClassification(documentType: AadeDocumentType, item: LegalIncomeClassification): boolean {
-  if (documentType === '5.1') return false;
-  const combinations = AADE_REVENUE_CLASSIFICATION_COMBINATIONS[documentType];
+  const combinations = AADE_REVENUE_CLASSIFICATION_COMBINATIONS[documentType === '5.1' ? '5.2' : documentType];
   if (!combinations) return true;
   const category = String(item.classification_category || '').trim();
   const type = String(item.classification_type || '').trim();
@@ -1252,6 +1251,7 @@ export function serializeLegalDocumentLineForDb(
     item_code: line.item_code ?? null,
     income_classification: line.income_classification,
     source_order_line_key: line.source_order_line_key ?? null,
+    ...('document_id' in line && !('proforma_id' in line) ? { credited_line_id: line.credited_line_id ?? null } : {}),
     line_id: line.line_id ?? null,
     source_metadata: line.source_metadata ?? {},
     created_at: line.created_at ?? new Date().toISOString(),
@@ -1471,8 +1471,8 @@ export function validateLegalDocument(document: LegalDocument, lines: LegalDocum
   if (!lines.length) {
     issues.push({ field: 'lines', severity: 'error', message: 'Το παραστατικό δεν έχει γραμμές.' });
   }
-  if (document.aade_document_type === '5.1') {
-    issues.push({ field: 'aade_document_type', severity: 'error', message: 'Το 5.1 είναι συσχετιζόμενο πιστωτικό και απαιτεί σύνδεση με αρχικό παραστατικό/ΜΑΡΚ. Χρησιμοποιήστε 5.2 για μη συσχετιζόμενο πιστωτικό από αυτή την οθόνη.' });
+  if (document.aade_document_type === '5.1' && (!document.credited_document_id || !document.correlated_mark)) {
+    issues.push({ field: 'aade_document_type', severity: 'error', message: 'Επιλέξτε το αρχικό τιμολόγιο από το Αρχείο και πατήστε Έκδοση πιστωτικού.' });
   }
   if (
     document.vat_exemption_category !== null
@@ -1594,6 +1594,7 @@ function buildHeaderXml(document: LegalDocument): string {
     xmlTag('issueDate', document.issue_date),
     xmlTag('invoiceType', document.aade_document_type),
     xmlTag('currency', document.currency || 'EUR'),
+    document.aade_document_type === '5.1' ? xmlTag('correlatedInvoices', document.correlated_mark) : '',
     isDelivery ? xmlTag('dispatchDate', toXmlDateTimeDate(delivery?.dispatch_date)) : '',
     isDelivery ? xmlTag('dispatchTime', toXmlTime(delivery?.dispatch_time)) : '',
     isDelivery ? xmlTag('vehicleNumber', delivery?.vehicle_number || delivery?.carrier_vehicle_number) : '',

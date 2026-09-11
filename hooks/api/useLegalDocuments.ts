@@ -332,9 +332,12 @@ export const useSubmitLegalDocument = () => {
   return useMutation({
     mutationFn: ({ documentId, userName }: { documentId: string; userName?: string | null }) =>
       legalRepository.submitDocument(documentId, userName),
-    onSuccess: (document) => {
+    onSettled: (_data, _error, { documentId }) => {
       queryClient.invalidateQueries({ queryKey: legalKeys.documents() });
-      queryClient.invalidateQueries({ queryKey: legalKeys.documentLines(document.id) });
+      queryClient.invalidateQueries({ queryKey: legalKeys.sequences() });
+      queryClient.invalidateQueries({ queryKey: legalKeys.transmissions(documentId) });
+      queryClient.invalidateQueries({ queryKey: ['legal_sbz_status'] });
+      queryClient.invalidateQueries({ queryKey: legalKeys.documentLines(documentId) });
     },
   });
 };
@@ -344,9 +347,12 @@ export const useCancelLegalDocument = () => {
   return useMutation({
     mutationFn: ({ documentId, userName }: { documentId: string; userName?: string | null }) =>
       legalRepository.cancelDocument(documentId, userName),
-    onSuccess: (document) => {
+    onSettled: (_data, _error, { documentId }) => {
       queryClient.invalidateQueries({ queryKey: legalKeys.documents() });
-      queryClient.invalidateQueries({ queryKey: legalKeys.documentLines(document.id) });
+      queryClient.invalidateQueries({ queryKey: legalKeys.sequences() });
+      queryClient.invalidateQueries({ queryKey: legalKeys.transmissions(documentId) });
+      queryClient.invalidateQueries({ queryKey: ['legal_sbz_status'] });
+      queryClient.invalidateQueries({ queryKey: legalKeys.documentLines(documentId) });
     },
   });
 };

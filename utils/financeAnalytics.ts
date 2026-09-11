@@ -882,11 +882,11 @@ export function rankFinanceAnalyticsFromEvents(
   });
 
   const legalDocuments = input.legalDocuments || [];
-  const issuedLegal = legalDocuments.filter((document) => document.status === 'issued' && isWithinFinancePeriod(document.issue_date || document.created_at, effectivePeriod));
+  const issuedLegal = legalDocuments.filter((document) => document.environment !== 'dev' && document.document_kind !== 'delivery_note' && document.status === 'issued' && isWithinFinancePeriod(document.issue_date || document.created_at, effectivePeriod));
   const legal: FinanceLegalReconciliation = {
-    issuedNet: roundMoney(issuedLegal.reduce((sum, document) => sum + (document.totals?.net || 0), 0)),
-    issuedVat: roundMoney(issuedLegal.reduce((sum, document) => sum + (document.totals?.vat || 0), 0)),
-    issuedGross: roundMoney(issuedLegal.reduce((sum, document) => sum + (document.totals?.gross || 0), 0)),
+    issuedNet: roundMoney(issuedLegal.reduce((sum, document) => sum + (document.document_kind === 'credit' ? -1 : 1) * (document.totals?.net || 0), 0)),
+    issuedVat: roundMoney(issuedLegal.reduce((sum, document) => sum + (document.document_kind === 'credit' ? -1 : 1) * (document.totals?.vat || 0), 0)),
+    issuedGross: roundMoney(issuedLegal.reduce((sum, document) => sum + (document.document_kind === 'credit' ? -1 : 1) * (document.totals?.gross || 0), 0)),
     issuedCount: issuedLegal.length,
     netGap: 0,
   };

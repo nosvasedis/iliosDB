@@ -213,41 +213,10 @@ describe('AADE Worker proxy', () => {
     expect(fetchMock.mock.calls[0][1].body).toBeUndefined();
   });
 
-  it('treats empty transmitted document sync as an empty successful response', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response('<RequestedDoc />', { status: 404 }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    const response = await worker.fetch(new Request('https://worker.example/aade/request-transmitted-docs', {
-      method: 'POST',
-      headers: { Authorization: 'secret', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ environment: 'dev', query: { dateFrom: '2026-06-11', dateTo: '2026-06-11', mark: '0' } }),
-    }), env);
-    const data = await response.json();
-
-    expect(response.status).toBe(200);
-    expect(data.ok).toBe(true);
-    expect(data.status).toBe(204);
-    expect(data.parsed.statusCode).toBe('NoDocuments');
-    expect(fetchMock.mock.calls[0][1].method).toBe('GET');
-  });
-
-  it('sends cancellation to AADE as POST with mark query and no XML body', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response('<ResponseDoc><response><statusCode>Success</statusCode><cancellationMark>456</cancellationMark></response></ResponseDoc>', { status: 200 }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    const response = await worker.fetch(new Request('https://worker.example/aade/cancel-invoice', {
-      method: 'POST',
-      headers: { Authorization: 'secret', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ environment: 'dev', mark: '123', entityVatNumber: '999999999' }),
-    }), env);
-
-    expect(response.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledOnce();
-    expect(fetchMock.mock.calls[0][0]).toContain('/CancelInvoice?');
-    expect(fetchMock.mock.calls[0][0]).toContain('mark=123');
-    expect(fetchMock.mock.calls[0][0]).toContain('entityVatNumber=999999999');
-    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
-    expect(fetchMock.mock.calls[0][1].body).toBe('');
+  it.each(['/aade/request-transmitted-docs','/aade/cancel-invoice','/aade/send-invoices','/aade/register-transfer','/aade/send-payments-method'])('permanently disables direct transmission %s', async route => {
+    const fetchMock = vi.fn();vi.stubGlobal('fetch',fetchMock);
+    const response=await worker.fetch(new Request('https://worker.example'+route,{method:'POST',headers:{Authorization:'secret'},body:'{}'}),env);
+    expect(response.status).toBe(410);expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('returns missing credential diagnostics instead of calling AADE', async () => {

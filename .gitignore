@@ -71,9 +71,17 @@ tmp/
 # Generated samples, exports, and visual QA artifacts
 output/
 design-qa.md
+SBZ_MIGRATION.md
 
 # Local git worktrees
 .worktrees/
 
 # Freebuff desktop runtime data (local database, logs)
 .freebuff/
+
+# Local SBZ build and browser verification output
+.tmp/
+tests/ui/*.png
+
+.vercel/
+.env*

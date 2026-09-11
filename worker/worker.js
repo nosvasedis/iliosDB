@@ -4,6 +4,8 @@
  * Events are fetched from online sources (greek-namedays) + computed major holidays; no hardcoded nameday list.
  */
 
+import { handleSbzRoute } from './sbz.ts';
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS',
@@ -11,18 +13,72 @@ const CORS_HEADERS = {
   'Access-Control-Max-Age': '86400',
 };
 
+// Keep synchronized with BACKUP_TABLE_REGISTRY and private.backup_allowed_tables().
 const BACKUP_TABLES = [
-  'global_settings', 'warehouses', 'profiles', 'tag_color_overrides',
-  'suppliers', 'customers', 'molds', 'materials', 'collections', 'products',
-  'product_variants', 'recipes', 'product_molds', 'product_collections',
-  'product_stock', 'stock_movements', 'orders', 'order_delivery_plans',
-  'order_delivery_reminders', 'order_shipments', 'order_shipment_items',
-  'legal_settings', 'legal_numbering_sequences', 'legal_sync_runs',
-  'legal_carriers', 'legal_documents', 'legal_document_lines', 'legal_payments',
-  'legal_transmissions', 'legal_delivery_events', 'legal_audit_log',
-  'proforma_documents', 'proforma_document_lines', 'production_batches',
-  'batch_stage_history', 'offers', 'supplier_orders', 'price_snapshots',
-  'price_snapshot_items', 'audit_logs',
+  'global_settings',
+  'warehouses',
+  'profiles',
+  'tag_color_overrides',
+  'suppliers',
+  'customers',
+  'molds',
+  'materials',
+  'collections',
+  'products',
+  'product_variants',
+  'recipes',
+  'product_molds',
+  'product_collections',
+  'product_stock',
+  'inventory_balances',
+  'inventory_reorder_policies',
+  'stock_movements',
+  'orders',
+  'inventory_reservations',
+  'order_delivery_plans',
+  'order_delivery_reminders',
+  'order_shipments',
+  'order_shipment_items',
+  'inventory_shipment_allocations',
+  'legal_settings',
+  'legal_numbering_sequences',
+  'legal_sync_runs',
+  'legal_carriers',
+  'legal_documents',
+  'legal_document_lines',
+  'legal_external_item_aliases',
+  'legal_payments',
+  'legal_transmissions',
+  'legal_delivery_events',
+  'legal_audit_log',
+  'proforma_documents',
+  'proforma_document_lines',
+  'consignments',
+  'consignment_lines',
+  'consignment_allocations',
+  'consignment_settlements',
+  'consignment_payments',
+  'consignment_returns',
+  'consignment_events',
+  'repair_intakes',
+  'repair_items',
+  'repair_cycles',
+  'repair_cost_lines',
+  'repair_charges',
+  'repair_attachments',
+  'repair_events',
+  'customer_service_command_results',
+  'production_batches',
+  'batch_stage_history',
+  'offers',
+  'supplier_orders',
+  'price_snapshots',
+  'price_snapshot_items',
+  'audit_logs',
+  'inventory_events',
+  'inventory_command_results',
+  'inventory_cutover_balance_snapshot',
+  'inventory_reconciliation_issues',
 ];
 
 export function selectExpiredBackupKeys(keys, dailyRetention = 30, monthlyRetention = 12) {
@@ -1400,7 +1456,7 @@ async function getOrthodoxCalendarEventsForYear(year) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
@@ -1408,6 +1464,28 @@ export default {
     try {
       const authHeader = request.headers.get('Authorization');
       const url = new URL(request.url);
+
+      if (url.pathname.startsWith('/sbz/')) {
+        const access = await verifyAdminAccess(request, env);
+        if (!access.ok) return jsonResponse({ error: access.error }, access.status, CORS_HEADERS);
+        if (url.pathname === '/sbz/configure' && request.method === 'POST') {
+          const payload = await request.json();
+          if (!['dev', 'prod'].includes(payload.environment) || typeof payload.apiKey !== 'string' || !payload.apiKey.trim() || payload.apiKey.length > 2048) {
+            return jsonResponse({ error: 'Συμπληρώστε το κλειδί σύνδεσης SBZ.' }, 400, CORS_HEADERS);
+          }
+          const manager = resolveSecretManager(env, {});
+          if (manager.missing.length) return jsonResponse({ error: 'Ο διαχειριστής υποδομής πρέπει πρώτα να ενεργοποιήσει την ασφαλή αποθήκευση κλειδιών.' }, 409, CORS_HEADERS);
+          await putWorkerSecretWithManager(manager, payload.environment === 'prod' ? 'SBZ_API_KEY_PROD' : 'SBZ_API_KEY_DEV', payload.apiKey.trim());
+          return jsonResponse({ ok: true }, 200, CORS_HEADERS);
+        }
+        const operation = handleSbzRoute(request, env, CORS_HEADERS, access.userId);
+        if (ctx) ctx.waitUntil(operation.then(() => undefined));
+        return operation;
+      }
+      const registryRoutes = new Set(['/aade/credential-status', '/aade/configure-registry-credentials', '/aade/test-registry-connection', '/aade/lookup-vat-registry']);
+      if (url.pathname.startsWith('/aade/') && !registryRoutes.has(url.pathname)) {
+        return jsonResponse({ error: 'Η απευθείας διαβίβαση myDATA έχει καταργηθεί. Χρησιμοποιήστε τον πάροχο SBZ.' }, 410, CORS_HEADERS);
+      }
 
       if (!env.R2_BUCKET && !url.pathname.startsWith('/aade/')) {
         throw new Error('Server Configuration Error: R2_BUCKET binding is missing.');

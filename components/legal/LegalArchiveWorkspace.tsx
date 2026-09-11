@@ -73,9 +73,9 @@ const money = (value: number) => euroFormatter.format(Number(value || 0));
 
 const legalStatusLabel: Record<LegalDocument['status'], string> = {
   draft: 'Πρόχειρο',
-  submitted: 'Υποβλήθηκε',
+  submitted: 'Ελέγχεται η έκδοση',
   issued: 'Εκδόθηκε',
-  failed: 'Απέτυχε',
+  failed: 'Χρειάζεται διόρθωση',
   cancelled: 'Ακυρώθηκε',
 };
 
@@ -679,6 +679,9 @@ interface LegalArchiveWorkspaceProps {
   onPrintLegal: (document: LegalDocument) => void;
   onSubmitLegal: (document: LegalDocument) => void;
   onCancelLegal: (document: LegalDocument) => void;
+  onCreditLegal?: (document: LegalDocument) => void;
+  onReconcileLegal?: (document: LegalDocument) => void;
+  onAttachLegal?: (document: LegalDocument, file: File) => void;
   onDeleteLegal: (document: LegalDocument) => void;
   onEditProforma: (document: ProformaDocument) => void;
   onPrintProforma: (document: ProformaDocument) => void;
@@ -887,14 +890,17 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
               <RefreshCw size={14} /> Επανάληψη
             </ArchiveActionButton>
           )}
-          {document.status === 'issued' && (
+          {document.status === 'issued' && document.document_kind === 'delivery_note' && document.provider === 'sbz' && (
             <ArchiveActionButton tone="danger" onClick={() => props.onCancelLegal(document)} disabled={props.mutating}>
               <Ban size={14} /> Ακύρωση
             </ArchiveActionButton>
           )}
-          <ArchiveActionButton tone="danger" onClick={() => props.onDeleteLegal(document)} disabled={props.mutating}>
+          {document.status === 'issued' && ['invoice', 'invoice_delivery'].includes(document.document_kind) && <ArchiveActionButton onClick={() => props.onCreditLegal?.(document)} disabled={props.mutating}><FileText size={14} /> Έκδοση πιστωτικού</ArchiveActionButton>}
+          {['sending', 'unknown'].includes(document.provider_state) && <ArchiveActionButton onClick={() => props.onReconcileLegal?.(document)} disabled={props.mutating}><RefreshCw size={14} /> Έλεγχος έκδοσης</ArchiveActionButton>}
+          {document.status === 'issued' && document.provider === 'sbz' && !['sending','unknown','accepted'].includes(document.provider_attachment_state) && <label className="cursor-pointer rounded-lg border px-3 py-2 text-xs font-bold">Επισύναψη PDF / JPG<input type="file" accept="application/pdf,image/jpeg" className="sr-only" onChange={e=>{const file=e.target.files?.[0];if(file)props.onAttachLegal?.(document,file);e.target.value='';}} /></label>}
+          {!document.aa && ['draft','failed'].includes(document.status) && <ArchiveActionButton tone="danger" onClick={() => props.onDeleteLegal(document)} disabled={props.mutating}>
             <Trash2 size={14} /> Διαγραφή
-          </ArchiveActionButton>
+          </ArchiveActionButton>}
         </div>
       );
     }
@@ -1311,7 +1317,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
           <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-slate-100/80 p-1 sm:flex sm:w-fit">
             {([
               ['all', 'Όλα', sourceCounts.all],
-              ['legal', 'myDATA', sourceCounts.legal],
+              ['legal', 'Παραστατικά', sourceCounts.legal],
               ['proforma', 'Προτιμολόγια', sourceCounts.proforma],
             ] as const).map(([scope, label, count]) => (
               <button
@@ -1606,7 +1612,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                               {document.issue_date}
                             </div>
                             <div className="mt-1.5 flex items-center gap-1 whitespace-nowrap">
-                              <span className={`inline-flex rounded-full px-1.5 py-0.5 text-[9px] font-black leading-none ${record.source === 'legal' ? 'bg-emerald-100 text-emerald-800' : 'bg-violet-100 text-violet-800'}`}>{record.source === 'legal' ? 'myDATA' : 'Προτιμολόγιο'}</span>
+                              <span className={`inline-flex rounded-full px-1.5 py-0.5 text-[9px] font-black leading-none ${record.source === 'legal' ? 'bg-emerald-100 text-emerald-800' : 'bg-violet-100 text-violet-800'}`}>{record.source === 'legal' ? ((document as LegalDocument).provider === 'sbz' ? 'SBZ' : 'Ιστορικό') : 'Προτιμολόγιο'}</span>
                               <span className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[9px] font-bold leading-none ${presentation.badge}`}>
                                 <DocumentIcon size={9} /> {presentation.label}
                               </span>
@@ -1619,8 +1625,9 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                           </td>
                           <td className="px-3 py-3">
                             <span className={`inline-flex rounded-lg border px-2 py-1 text-xs font-black ${statusClass[document.status]}`}>
-                              {record.source === 'legal' ? legalStatusLabel[(document as LegalDocument).status] : proformaStatusLabel[(document as ProformaDocument).status]}
+                              {record.source === 'legal' ? ((document as LegalDocument).provider_state === 'unknown' ? 'Ελέγχεται η έκδοση' : (document as LegalDocument).provider_state === 'sending' ? 'Εκδίδεται' : legalStatusLabel[(document as LegalDocument).status]) : proformaStatusLabel[(document as ProformaDocument).status]}
                             </span>
+                            {record.source === 'legal' && props.records.some(r => r.source === 'legal' && (r.document as LegalDocument).credited_document_id === document.id && r.document.status === 'issued') && <div className="mt-2 text-xs font-bold text-violet-700">Έχει εκδοθεί πιστωτικό</div>}
                             {record.source === 'legal' && (document as LegalDocument).aade_mark && (
                               <div className="mt-2 max-w-44 truncate font-mono text-[10px] text-slate-500" title={(document as LegalDocument).aade_mark || ''}>
                                 MARK {(document as LegalDocument).aade_mark}
@@ -1694,7 +1701,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                       <div className="mt-1 font-mono text-xs text-slate-500">ΑΦΜ {document.counterpart?.vat_number || '—'}</div>
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         <span className={`inline-flex rounded-lg border px-2 py-1 text-xs font-black ${statusClass[document.status]}`}>
-                          {record.source === 'legal' ? legalStatusLabel[(document as LegalDocument).status] : proformaStatusLabel[(document as ProformaDocument).status]}
+                          {record.source === 'legal' ? ((document as LegalDocument).provider_state === 'unknown' ? 'Ελέγχεται η έκδοση' : (document as LegalDocument).provider_state === 'sending' ? 'Εκδίδεται' : legalStatusLabel[(document as LegalDocument).status]) : proformaStatusLabel[(document as ProformaDocument).status]}
                         </span>
                         {renderMatchBadge(record)}
                       </div>

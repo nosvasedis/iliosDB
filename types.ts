@@ -1071,6 +1071,7 @@ export interface LegalSettings {
 }
 
 export interface LegalNumberingSequence {
+  environment?: LegalEnvironment;
   id: string;
   document_kind: LegalDocumentKind;
   aade_document_type: AadeIssuableDocumentType;
@@ -1138,6 +1139,7 @@ export interface LegalCarrier {
 }
 
 export interface LegalDocumentLine {
+  credited_line_id?: string | null;
   id: string;
   document_id: string;
   line_number: number;
@@ -1168,6 +1170,15 @@ export interface LegalDocumentLine {
 }
 
 export interface LegalDocument {
+  provider?: 'sbz' | 'legacy';
+  environment?: LegalEnvironment | null;
+  provider_state?: 'idle' | 'sending' | 'unknown' | 'accepted' | 'rejected';
+  provider_invoice_url?: string | null;
+  provider_mydata_url?: string | null;
+  provider_units?: string | null;
+  provider_attachment_state?: 'idle' | 'sending' | 'unknown' | 'accepted' | 'rejected';
+  credited_document_id?: string | null;
+  correlated_mark?: string | null;
   id: string;
   order_id?: string | null;
   order_link_mode?: LegalOrderLinkMode;

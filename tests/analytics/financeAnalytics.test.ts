@@ -469,6 +469,47 @@ describe('buildFinanceAnalytics', () => {
     expect(analytics.legal.netGap).toBe(20);
   });
 
+  it('excludes sandbox and delivery values and subtracts credits in reconciliation', () => {
+    const issued = {
+      id: 'legal-1',
+      source_kind: 'order',
+      document_kind: 'invoice',
+      aade_document_type: '1.1',
+      status: 'issued',
+      issue_date: '2026-03-06',
+      issuer: {} as any,
+      counterpart: {} as any,
+      payment_method_code: 5,
+      currency: 'EUR',
+      revenue_classification: [],
+      totals: { net: 80, vat: 19.2, gross: 99.2, quantity: 1 },
+      created_at: '2026-03-06T10:00:00.000Z',
+      updated_at: '2026-03-06T10:00:00.000Z',
+    } as LegalDocument;
+
+    const draft = { ...issued, id: 'legal-draft', status: 'draft', totals: { net: 999, vat: 0, gross: 999, quantity: 1 } } as LegalDocument;
+
+    const analytics = buildFinanceAnalytics({
+      orders: [order({ id: 'legal-order', status: OrderStatus.Delivered, items: [{ sku: 'LGL', quantity: 1, price_at_order: 100 }] })],
+      shipments: [],
+      shipmentItems: [],
+      products: [product({ sku: 'LGL' })],
+      materials,
+      settings,
+      collections: [],
+      sellers: [],
+      legalDocuments: [issued, draft, {...issued,id:'test',environment:'dev'}, {...issued,id:'delivery',document_kind:'delivery_note'}, {...issued,id:'credit',document_kind:'credit',totals:{net:20,vat:4.8,gross:24.8,quantity:1}}],
+      period: { mode: 'all_time' },
+      now: new Date('2026-06-12T10:00:00.000Z'),
+    });
+
+    expect(analytics.legal.issuedNet).toBe(60);
+    expect(analytics.legal.issuedVat).toBe(14.4);
+    expect(analytics.legal.issuedGross).toBe(74.4);
+    expect(analytics.legal.netGap).toBe(40);
+  });
+
+
   it('exposes Greek user-facing labels for the main economic concepts', () => {
     const analytics = buildFinanceAnalytics({
       orders: [],
