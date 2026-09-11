@@ -54,7 +54,8 @@ export const formatPrintMoney = (value: number | null | undefined, currency = 'E
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  return currency === 'EUR' ? `${amount} €` : `${amount} ${currency}`;
+  // Keep the currency attached to the amount in narrow PDF table cells.
+  return currency === 'EUR' ? `${amount}\u00a0€` : `${amount}\u00a0${currency}`;
 };
 
 export const formatPrintDate = (value?: string | null) => {
@@ -92,6 +93,13 @@ const formatDeliveryAddress = (address?: LegalDeliveryDetails['delivery_address'
 
 export const getVatCategoryLabel = (category: number) =>
   AADE_VAT_CATEGORY_OPTIONS.find((option) => option.category === category)?.label || `Κατ. ${category}`;
+
+export const getVatCategoryPrintRate = (category: number) => {
+  const option = AADE_VAT_CATEGORY_OPTIONS.find((item) => item.category === category);
+  if (!option) return `Κατ. ${category}`;
+  if (category === 8) return '—';
+  return `${Number(option.value * 100).toLocaleString('el-GR', { maximumFractionDigits: 2 })}%`;
+};
 
 export const getMeasurementUnitLabel = (unit: number) => {
   const labels: Record<number, string> = {
@@ -149,7 +157,7 @@ export function LegalPrintHeader(props: {
         <div className="flex h-[25mm] items-center justify-start">
           <img src={APP_LOGO} alt="ILIOS" className="legal-print-logo max-h-[20mm] max-w-[52mm] object-contain object-left" />
         </div>
-        <div className="border-l-[3px] border-emerald-600 pl-4 text-[8.5px] leading-[1.35] text-slate-600">
+        <div className="border-l-[3px] border-[#b58b47] pl-4 text-[8.5px] leading-[1.35] text-slate-600">
           <p className="mb-0.5 text-[13px] font-black uppercase tracking-[0.03em] text-slate-950">{issuerName}</p>
           {issuer.trade_name && issuer.trade_name !== issuerName && <p className="font-bold text-slate-700">{issuer.trade_name}</p>}
           {issuer.activity && <p><span className="font-bold text-slate-700">Δραστηριότητα:</span> {issuer.activity}</p>}
@@ -303,7 +311,7 @@ export function LegalPrintAadePanel(props: {
         )}
       </div>
       <div className="grid content-center gap-1 text-[8px] leading-tight">
-        <p className="mb-0.5 font-black uppercase tracking-[0.12em] text-emerald-700">Στοιχεία επαλήθευσης myDATA / ΑΑΔΕ</p>
+        <p className="mb-0.5 font-black uppercase tracking-[0.12em] text-[#946b2d]">Στοιχεία επαλήθευσης myDATA / ΑΑΔΕ</p>
         <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">MARK</span><span className="font-mono font-bold text-slate-800">{props.mark || '-'}</span></div>
         <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">UID</span><span className="break-all font-mono text-[7px] text-slate-700">{props.uid || '-'}</span></div>
         {props.authenticationCode && <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">Αυθεντικοποίηση</span><span className="break-all font-mono text-[7px] text-slate-700">{props.authenticationCode}</span></div>}
@@ -348,7 +356,7 @@ export function LegalPrintLinesTable({ lines, currency }: { lines: LegalDocument
                 <td className="px-1 py-1.5 text-right font-mono tabular-nums">{formatPrintMoney(originalUnitPrice, currency)}</td>
                 <td className="px-1 py-1.5 text-right font-mono tabular-nums">{Number(discountPercent).toLocaleString('el-GR', { maximumFractionDigits: 2 })}%</td>
                 <td className="px-1 py-1.5 text-right font-mono font-bold tabular-nums text-slate-900">{formatPrintMoney(line.net_value, currency)}</td>
-                <td className="px-1 py-1.5 text-right font-bold tabular-nums text-slate-700">{getVatCategoryLabel(line.vat_category)}</td>
+                <td className="whitespace-nowrap px-1 py-1.5 text-right font-bold tabular-nums text-slate-700">{getVatCategoryPrintRate(line.vat_category)}</td>
               </tr>
             );
           })}
@@ -395,7 +403,7 @@ export function LegalPrintTotalsSection(props: {
 
   return (
     <section className="legal-print-break-inside mt-2.5 shrink-0">
-      <div className="grid grid-cols-[0.9fr_1.25fr_1fr] items-start gap-2">
+      <div className="grid grid-cols-[0.78fr_1.42fr_0.95fr] items-start gap-2">
         <div className="overflow-hidden rounded-md border border-slate-300 text-[8px]">
           <div className="bg-slate-100 px-2 py-1 font-black uppercase tracking-[0.08em] text-slate-700">Σύνοψη</div>
           <div className="px-2 py-1.5">
@@ -408,24 +416,24 @@ export function LegalPrintTotalsSection(props: {
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-md border border-slate-300 text-[8px]">
-          <div className="bg-slate-100 px-2 py-1 text-center font-black uppercase tracking-[0.08em] text-slate-700">Ανάλυση υπολογισμού ΦΠΑ</div>
+        <div className="overflow-hidden rounded-md border border-slate-300 text-[7px] leading-tight">
+          <div className="bg-slate-100 px-1.5 py-1 text-center text-[7px] font-black uppercase tracking-[0.055em] text-slate-700">Ανάλυση υπολογισμού ΦΠΑ</div>
           <table className="w-full border-collapse">
             <thead>
-              <tr className="border-b border-slate-200 text-[7px] font-bold uppercase text-slate-500">
-                <th className="px-1 py-1 text-right">Καθαρή αξία</th>
-                <th className="px-1 py-1 text-center">% ΦΠΑ</th>
-                <th className="px-1 py-1 text-right">Αξία ΦΠΑ</th>
-                <th className="px-1 py-1 text-right">Σύνολο</th>
+              <tr className="border-b border-slate-200 text-[6.25px] font-bold uppercase tracking-tight text-slate-500">
+                <th className="px-0.5 py-0.5 text-right">Καθαρή αξία</th>
+                <th className="px-0.5 py-0.5 text-center">ΦΠΑ</th>
+                <th className="px-0.5 py-0.5 text-right">Αξία ΦΠΑ</th>
+                <th className="px-0.5 py-0.5 text-right">Σύνολο</th>
               </tr>
             </thead>
             <tbody>
               {Array.from(vatGroups.entries()).map(([category, totals]) => (
                 <tr key={category} className="border-b border-slate-100 last:border-b-0">
-                  <td className="px-1 py-1.5 text-right font-mono">{formatPrintMoney(totals.net, props.currency)}</td>
-                  <td className="px-1 py-1.5 text-center font-bold">{getVatCategoryLabel(category)}</td>
-                  <td className="px-1 py-1.5 text-right font-mono">{formatPrintMoney(totals.vat, props.currency)}</td>
-                  <td className="px-1 py-1.5 text-right font-mono font-bold">{formatPrintMoney(totals.net + totals.vat, props.currency)}</td>
+                  <td className="whitespace-nowrap px-0.5 py-1 text-right font-mono tabular-nums">{formatPrintMoney(totals.net, props.currency)}</td>
+                  <td className="whitespace-nowrap px-0.5 py-1 text-center font-bold">{getVatCategoryPrintRate(category)}</td>
+                  <td className="whitespace-nowrap px-0.5 py-1 text-right font-mono tabular-nums">{formatPrintMoney(totals.vat, props.currency)}</td>
+                  <td className="whitespace-nowrap px-0.5 py-1 text-right font-mono font-bold tabular-nums">{formatPrintMoney(totals.net + totals.vat, props.currency)}</td>
                 </tr>
               ))}
             </tbody>

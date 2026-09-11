@@ -1163,6 +1163,7 @@ export interface LegalDocumentLine {
     raw_item_code?: string | null;
     original_unit_price?: number | null;
     discount_percent?: number | null;
+    income_classification_source?: 'automatic' | 'manual';
     income_classifications?: LegalIncomeClassification[];
     parser_version?: number;
   } | null;

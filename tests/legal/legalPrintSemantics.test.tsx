@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import LegalDocumentPrintView from '../../components/LegalDocumentPrintView';
 import {
   getMeasurementUnitLabel,
+  getVatCategoryPrintRate,
   LegalPrintCustomerBar,
   LegalPrintHeader,
 } from '../../components/legal/legalPrintShared';
@@ -121,6 +122,11 @@ describe('legal print semantics', () => {
     ]);
   });
 
+  it('uses compact VAT rates and non-breaking currency amounts in narrow PDF cells', () => {
+    expect(getVatCategoryPrintRate(7)).toBe('0%');
+    expect(getVatCategoryPrintRate(1)).toBe('24%');
+  });
+
   it('keeps the customer section focused on identity and never duplicates the amount due', () => {
     const html = renderToStaticMarkup(
       <LegalPrintCustomerBar counterpart={counterpart} />,
@@ -194,9 +200,10 @@ describe('legal print semantics', () => {
     expect(html).toContain('Τεμάχια');
     expect(html).toContain('Τιμή μον.');
     expect(html).toContain('Έκπτ.%');
-    expect(html).toContain('125,00 €');
+    expect(html).toContain('125,00 €');
     expect(html).toContain('20%');
     expect(html).toContain('24%');
+    expect(html).not.toContain('απαιτεί αιτία');
     expect(html).toContain('Τρόπος πληρωμής');
     expect(html).not.toContain('Όχημα');
     expect(html).not.toContain('Σκοπός');

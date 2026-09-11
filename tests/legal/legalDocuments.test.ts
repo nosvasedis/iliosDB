@@ -12,6 +12,7 @@ import {
   getAadeRateLimitRetrySeconds,
   getAadeVatExemptionCategoryLabel,
   getAllowedIncomeTypeOptions,
+  applyAutomaticLegalItemClassification,
   applyLegalDocumentDeliveryToggle,
   buildAadeInvoiceXml,
   buildAadeTransmittedDocsQuery,
@@ -492,10 +493,57 @@ describe('legal document helpers', () => {
     expect(updated.lines[1].net_value).toBe(30);
     expect(updated.document.totals).toMatchObject({ net: 110, vat: 26.4, gross: 136.4, quantity: 4 });
     expect(updated.document.revenue_classification.reduce((sum, item) => sum + item.amount, 0)).toBe(110);
-    expect(updated.document.revenue_classification).toEqual(expect.arrayContaining([
-      expect.objectContaining({ classification_category: 'category1_1', amount: 80 }),
-      expect.objectContaining({ classification_category: settings.default_income_classification_category, amount: 30 }),
-    ]));
+    expect(updated.document.revenue_classification).toEqual([
+      expect.objectContaining({ classification_category: 'category1_1', amount: 110 }),
+    ]);
+  });
+
+  it('reclassifies a former shipping line when its item code changes', () => {
+    const line = createManualLegalDocumentLine({
+      documentId: 'classification-test',
+      lineNumber: 1,
+      settings,
+      sku: '000',
+      itemCode: '000',
+      description: 'Μεταφορικά',
+      unitPrice: 10,
+      aadeDocumentType: '1.1',
+    });
+    const shipping = applyAutomaticLegalItemClassification(line, '000', settings, '1.1');
+    const merchandise = applyAutomaticLegalItemClassification(shipping, 'ΤΕΣΤ0001Χ', settings, '1.1');
+
+    expect(shipping.income_classification.classification_category).toBe('category1_3');
+    expect(merchandise.income_classification).toMatchObject({
+      classification_category: 'category1_1',
+      classification_type: 'E3_561_001',
+    });
+    expect(merchandise.source_metadata?.income_classification_source).toBe('automatic');
+  });
+
+  it('blocks a sticky automatic service classification on a non-shipping code', () => {
+    const document = buildLegalDocumentFromOrder({
+      order: baseOrder,
+      customer,
+      products: [product],
+      settings,
+      kind: 'invoice',
+    });
+    const stickyLine = {
+      ...document.lines![0],
+      item_code: 'ΤΕΣΤ0001Χ',
+      income_classification: {
+        ...document.lines![0].income_classification,
+        classification_category: 'category1_3',
+      },
+      source_metadata: {
+        ...(document.lines![0].source_metadata || {}),
+        income_classification_source: 'automatic' as const,
+      },
+    };
+
+    expect(validateLegalDocument(document, [stickyLine]).some((issue) =>
+      issue.message.includes('δεν αντιστοιχεί στον κωδικό 000')
+    )).toBe(true);
   });
 
   it('recognizes an existing order discount without applying it twice', () => {

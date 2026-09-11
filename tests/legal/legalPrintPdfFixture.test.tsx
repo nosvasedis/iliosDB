@@ -103,6 +103,24 @@ describe.skipIf(!fixtureDirectory)('legal PDF rendering fixtures', () => {
       buildFixture('cancelled', 'invoice', 3, 'cancelled'),
       buildFixture('draft', 'invoice', 3, 'draft'),
     ];
+    const exemptFixture = buildFixture('invoice-exempt', 'invoice', 4);
+    exemptFixture.lines = exemptFixture.lines.map((line, index) => ({
+      ...line,
+      vat_category: 7,
+      vat_amount: 0,
+      gross_value: line.net_value,
+      source_metadata: {
+        ...(line.source_metadata || {}),
+        original_unit_price: index === 0 ? 1720 : line.source_metadata?.original_unit_price,
+        discount_percent: index === 0 ? 50 : line.source_metadata?.discount_percent,
+      },
+    }));
+    const exemptRecalculated = recalculateLegalDocument({
+      ...exemptFixture.document,
+      vat_rate: 0,
+      vat_exemption_category: 1,
+    }, exemptFixture.lines, settings);
+    fixtures.push(exemptRecalculated);
     fixtures[1].document.counterpart = {
       ...fixtures[1].document.counterpart,
       country: 'CY',

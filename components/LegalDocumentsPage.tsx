@@ -92,6 +92,7 @@ import {
   normalizeExternalItemCode,
 } from '../features/legal';
 import {
+  applyAutomaticLegalItemClassification,
   applyLegalLineDiscount,
   applyLegalDocumentDeliveryToggle,
   buildDefaultDeliveryDetails,
@@ -109,6 +110,7 @@ import {
   documentIncludesDeliveryNote,
   getLegalCatalogLineDetails,
   getLegalDocumentCatalogProducts,
+  getAllowedIncomeTypeOptions,
   isOfficialLegalDocumentPrint,
   isWholesaleAadeDocumentType,
   AADE_INCOME_CATEGORY_OPTIONS,
@@ -189,6 +191,43 @@ const vatRateOptions = AADE_VAT_CATEGORY_LINE_OPTIONS;
 const vatLineOptions = AADE_VAT_CATEGORY_LINE_OPTIONS;
 const incomeCategoryOptions = AADE_INCOME_CATEGORY_OPTIONS.map(option => ({ ...option, label: option.label.replace(/\s*\((?:category|E3)[^)]*\)/g, '') }));
 const incomeTypeOptions = AADE_INCOME_TYPE_OPTIONS.map(option => ({ ...option, label: option.label.replace(/\s*\((?:category|E3)[^)]*\)/g, '') }));
+const proformaIncomeCategoryOptions = incomeCategoryOptions.filter((option) => getAllowedIncomeTypeOptions('1.1', option.value).length > 0);
+
+const withManualIncomeCategory = (
+  line: LegalDocumentLine,
+  classificationCategory: string,
+  documentType: LegalDocument['aade_document_type'],
+): LegalDocumentLine => {
+  const allowedTypes = getAllowedIncomeTypeOptions(documentType, classificationCategory);
+  const currentType = line.income_classification.classification_type || '';
+  const classificationType = allowedTypes.some((option) => option.value === currentType)
+    ? currentType
+    : allowedTypes.find((option) => option.value === 'E3_561_001')?.value || allowedTypes[0]?.value || '';
+  return {
+    ...line,
+    income_classification: {
+      ...line.income_classification,
+      classification_category: classificationCategory,
+      classification_type: classificationType,
+    },
+    source_metadata: {
+      ...(line.source_metadata || {}),
+      income_classification_source: 'manual',
+    },
+  };
+};
+
+const withManualIncomeType = (line: LegalDocumentLine, classificationType: string): LegalDocumentLine => ({
+  ...line,
+  income_classification: {
+    ...line.income_classification,
+    classification_type: classificationType,
+  },
+  source_metadata: {
+    ...(line.source_metadata || {}),
+    income_classification_source: 'manual',
+  },
+});
 const proformaStatusLabel: Record<ProformaDocument['status'], string> = {
   draft: 'Πρόχειρο',
   converted: 'Μετατράπηκε',
@@ -746,9 +785,16 @@ export default function LegalDocumentsPage({
 
   useEffect(() => {
     if (legalSettings) {
+      const usesLegacyProductDefaults = legalSettings.default_income_classification_category === 'category1_2'
+        && legalSettings.inhouse_income_classification_category === 'category1_2'
+        && legalSettings.imported_income_classification_category === 'category1_1';
       setSettingsDraft({
         ...DEFAULT_LEGAL_SETTINGS,
         ...legalSettings,
+        ...(usesLegacyProductDefaults ? {
+          default_income_classification_category: 'category1_1',
+          inhouse_income_classification_category: 'category1_1',
+        } : {}),
         issuer: { ...DEFAULT_LEGAL_SETTINGS.issuer, ...(legalSettings.issuer || {}) },
         loading_address: legalSettings.loading_address || DEFAULT_LEGAL_SETTINGS.loading_address,
       });
@@ -1029,16 +1075,19 @@ export default function LegalDocumentsPage({
       if (line.id !== lineId) return line;
       const product = legalCatalogProducts.find((item) => item.sku === selection.sku);
       if (!product) {
-        return {
+        return applyAutomaticLegalItemClassification({
           ...line,
           sku: selection.displaySku,
           variant_suffix: null,
-          item_code: selection.displaySku,
-        };
+        }, selection.displaySku, settingsDraft, current.aade_document_type);
       }
       return {
         ...line,
         ...getLegalCatalogLineDetails(product, settingsDraft, selection.variant_suffix, current.aade_document_type),
+        source_metadata: {
+          ...(line.source_metadata || {}),
+          income_classification_source: 'automatic',
+        },
       };
     }), settingsDraft));
   };
@@ -1049,15 +1098,21 @@ export default function LegalDocumentsPage({
       const product = legalCatalogProducts.find((item) => item.sku === selection.sku);
       if (!product) {
         return {
-          ...line,
-          sku: selection.displaySku,
-          variant_suffix: null,
-          item_code: selection.displaySku,
+          ...applyAutomaticLegalItemClassification({
+            ...line,
+            sku: selection.displaySku,
+            variant_suffix: null,
+          }, selection.displaySku, settingsDraft, '1.1'),
+          proforma_id: line.proforma_id,
         };
       }
       return {
         ...line,
         ...getLegalCatalogLineDetails(product, settingsDraft, selection.variant_suffix, '1.1'),
+        source_metadata: {
+          ...(line.source_metadata || {}),
+          income_classification_source: 'automatic',
+        },
       };
     }), settingsDraft));
   };
@@ -1132,7 +1187,7 @@ export default function LegalDocumentsPage({
       handleGenerateProforma();
       return;
     }
-    const settings = legalSettings || settingsDraft;
+    const settings = settingsDraft;
     const documentKind = creationDocumentType;
     if (creationSource === 'manual') {
       const document = buildManualLegalDocument({
@@ -1204,7 +1259,7 @@ export default function LegalDocumentsPage({
   };
 
   const handleGenerateProforma = (source: DocumentCreationSource = creationSource) => {
-    const settings = legalSettings || settingsDraft;
+    const settings = settingsDraft;
     setCreationDocumentType('proforma');
     setDraftBundle(null);
     if (source === 'manual') {
@@ -1763,6 +1818,9 @@ export default function LegalDocumentsPage({
     const originalNet = draftBundle.lines.reduce((sum, line) => sum
       + Number(line.source_metadata?.original_unit_price ?? line.unit_price) * Number(line.quantity || 0), 0);
     const documentDiscountAmount = Math.max(0, originalNet - document.totals.net);
+    const allowedLineIncomeCategories = incomeCategoryOptions.filter((option) =>
+      getAllowedIncomeTypeOptions(document.aade_document_type, option.value).length > 0
+    );
 
     return (
       <div className="min-w-0 space-y-4">
@@ -1925,12 +1983,12 @@ export default function LegalDocumentsPage({
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full table-fixed text-xs">
+            <table className="w-full min-w-[78rem] table-fixed text-xs">
               <thead className="bg-slate-50 text-left text-[10px] uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="w-8 px-2 py-2">#</th>
                   <th className="w-[7.5rem] px-2 py-2">SKU</th>
-                  <th className="px-2 py-2">Περιγραφή</th>
+                  <th className="px-2 py-2">Περιγραφή & χαρακτηρισμός myDATA</th>
                   <th className="w-14 px-2 py-2 text-right">Ποσ.</th>
                   <th className="w-20 px-2 py-2 text-right">Τιμή προ έκπτ.</th>
                   <th className="w-16 px-2 py-2 text-right">Έκπτ.%</th>
@@ -1958,7 +2016,29 @@ export default function LegalDocumentsPage({
                     </td>
                     <td className="px-2 py-1.5">
                       <input value={line.description} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, description: event.target.value } : item), settingsDraft))} className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs outline-none" />
-                      <input value={line.item_code || ''} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, item_code: event.target.value } : item), settingsDraft))} className="mt-1 w-full rounded border border-slate-100 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 outline-none" placeholder="Κωδικός είδους" title="Κωδικός είδους AADE (itemCode)" />
+                      <input value={line.item_code || ''} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyAutomaticLegalItemClassification(item, event.target.value, settingsDraft, current.aade_document_type) : item), settingsDraft))} className="mt-1 w-full rounded border border-slate-100 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 outline-none" placeholder="Κωδικός είδους" title="Κωδικός είδους AADE (itemCode)" />
+                      {document.aade_document_type !== '9.3' && (
+                        <div className="mt-1 grid grid-cols-[minmax(9rem,0.9fr)_minmax(11rem,1.1fr)] gap-1 rounded border border-amber-100 bg-amber-50/50 p-1" title="Ο κωδικός 000 χαρακτηρίζεται αυτόματα ως υπηρεσία. Οι υπόλοιπες γραμμές ως εμπορεύματα, εκτός αν επιλέξετε ρητά άλλη κατηγορία.">
+                          <select
+                            value={line.income_classification.classification_category}
+                            onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? withManualIncomeCategory(item, event.target.value, current.aade_document_type) : item), settingsDraft))}
+                            className="min-w-0 rounded border border-amber-200 bg-white px-1 py-1 text-[9px] font-semibold text-slate-700 outline-none"
+                            aria-label={`Κατηγορία εσόδου γραμμής ${line.line_number}`}
+                          >
+                            {allowedLineIncomeCategories.map((option) => (
+                              <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                          </select>
+                          <IncomeClassificationTypeSelect
+                            documentType={document.aade_document_type}
+                            category={line.income_classification.classification_category}
+                            value={line.income_classification.classification_type || ''}
+                            onChange={(classificationType) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? withManualIncomeType(item, classificationType) : item), settingsDraft))}
+                            showCategoryHint={false}
+                            selectClassName="min-w-0 border-amber-200 bg-white text-[9px]"
+                          />
+                        </div>
+                      )}
                     </td>
                     <td className="px-2 py-1.5 text-right">
                       <input type="number" min="0.001" step="0.001" value={line.quantity} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, quantity: Number(event.target.value) || 0 } : item), settingsDraft))} className="w-full rounded-lg border border-slate-200 px-1 py-1 text-right outline-none" />
@@ -2321,7 +2401,7 @@ export default function LegalDocumentsPage({
                         autoFocus={proformaSkuFocusLineId === line.id}
                       />
                     </td>
-                    <td className="px-3 py-2"><input value={line.item_code || ''} onChange={(event) => updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((item) => item.id === line.id ? { ...item, item_code: event.target.value } : item), settingsDraft))} className="w-28 rounded-lg border border-slate-200 px-2 py-1 font-mono text-xs outline-none" /></td>
+                    <td className="px-3 py-2"><input value={line.item_code || ''} onChange={(event) => updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((item) => item.id === line.id ? { ...applyAutomaticLegalItemClassification(item, event.target.value, settingsDraft, '1.1'), proforma_id: item.proforma_id } : item), settingsDraft))} className="w-28 rounded-lg border border-slate-200 px-2 py-1 font-mono text-xs outline-none" /></td>
                     <td className="px-3 py-2"><input value={line.description} onChange={(event) => updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((item) => item.id === line.id ? { ...item, description: event.target.value } : item), settingsDraft))} className="min-w-56 rounded-lg border border-slate-200 px-2 py-1 outline-none" /></td>
                     <td className="px-3 py-2 text-right"><input type="number" min="0.001" step="0.001" value={line.quantity} onChange={(event) => updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((item) => item.id === line.id ? { ...item, quantity: Number(event.target.value) || 0 } : item), settingsDraft))} className="w-24 rounded-lg border border-slate-200 px-2 py-1 text-right outline-none" /></td>
                     <td className="px-3 py-2 text-right"><input type="number" min="1" step="1" value={line.measurement_unit} onChange={(event) => updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((item) => item.id === line.id ? { ...item, measurement_unit: Number(event.target.value) || 1 } : item), settingsDraft))} className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-right outline-none" title="Μονάδα μέτρησης. Συνήθως 1 για τεμάχιο." /></td>
@@ -2333,11 +2413,21 @@ export default function LegalDocumentsPage({
                     </td>
                     <td className="px-3 py-2 text-right font-black">{money(line.gross_value)}</td>
                     <td className="min-w-[11rem] px-3 py-2">
+                      <select
+                        value={line.income_classification.classification_category}
+                        onChange={(event) => updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((item) => item.id === line.id ? { ...withManualIncomeCategory(item, event.target.value, '1.1'), proforma_id: item.proforma_id } : item), settingsDraft))}
+                        className="mb-1 w-full min-w-[10rem] rounded-lg border border-slate-200 px-1 py-1 text-[10px] outline-none"
+                        aria-label={`Κατηγορία εσόδου γραμμής προτιμολογίου ${line.line_number}`}
+                      >
+                        {proformaIncomeCategoryOptions.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
                       <IncomeClassificationTypeSelect
                         documentType="1.1"
                         category={line.income_classification.classification_category}
                         value={line.income_classification.classification_type || ''}
-                        onChange={(classification_type) => updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((item) => item.id === line.id ? { ...item, income_classification: { ...item.income_classification, classification_type } } : item), settingsDraft))}
+                        onChange={(classification_type) => updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((item) => item.id === line.id ? { ...withManualIncomeType(item, classification_type), proforma_id: item.proforma_id } : item), settingsDraft))}
                         selectClassName="text-xs"
                       />
                     </td>
@@ -3333,25 +3423,17 @@ export default function LegalDocumentsPage({
               onChange={(value) => setSettingsDraft((current) => ({ ...current, default_vat_exemption_category: value }))}
             />
           </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-4">
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
+            <SelectInput label="Κατηγορία κανονικών ειδών" value={settingsDraft.default_income_classification_category} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_income_classification_category: value, inhouse_income_classification_category: value, imported_income_classification_category: value }))} help="Εφαρμόζεται σε όλες τις κανονικές γραμμές. Για τη συνήθη μεταπώληση επιλέξτε «Πώληση εμπορευμάτων». Ο ακριβής κωδικός 000 παραμένει πάντα παροχή υπηρεσίας.">
+              {incomeCategoryOptions.filter((option) => ['category1_1', 'category1_2'].includes(option.value)).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </SelectInput>
             <SelectInput label="Προεπιλογή πώλησης" value={settingsDraft.default_income_classification_type} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_income_classification_type: value, inhouse_income_classification_type: value, imported_income_classification_type: value }))} help="Ο χαρακτηρισμός εσόδου που θα μπαίνει αυτόματα στις γραμμές.">
               {!incomeTypeOptions.some((option) => option.value === settingsDraft.default_income_classification_type) && (
                 <option value={settingsDraft.default_income_classification_type}>{settingsDraft.default_income_classification_type}</option>
               )}
               {incomeTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </SelectInput>
-            <SelectInput label="Προϊόντα δικής μας παραγωγής" value={settingsDraft.inhouse_income_classification_category} onChange={(value) => setSettingsDraft((current) => ({ ...current, inhouse_income_classification_category: value }))} help="Ποια κατηγορία εσόδου θα χρησιμοποιείται για προϊόντα που παράγονται εσωτερικά.">
-              {!incomeCategoryOptions.some((option) => option.value === settingsDraft.inhouse_income_classification_category) && (
-                <option value={settingsDraft.inhouse_income_classification_category}>{settingsDraft.inhouse_income_classification_category}</option>
-              )}
-              {incomeCategoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </SelectInput>
-            <SelectInput label="Εμπορεύματα / εισαγόμενα" value={settingsDraft.imported_income_classification_category} onChange={(value) => setSettingsDraft((current) => ({ ...current, imported_income_classification_category: value }))} help="Ποια κατηγορία εσόδου θα χρησιμοποιείται για εμπορεύματα ή εισαγόμενα προϊόντα.">
-              {!incomeCategoryOptions.some((option) => option.value === settingsDraft.imported_income_classification_category) && (
-                <option value={settingsDraft.imported_income_classification_category}>{settingsDraft.imported_income_classification_category}</option>
-              )}
-              {incomeCategoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </SelectInput>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-950"><strong>Αυτόματος κανόνας:</strong> μόνο ο ακριβής κωδικός <span className="font-mono">000</span> χαρακτηρίζεται ως υπηρεσία. Κάθε γραμμή μπορεί να αλλάξει ρητά πριν από τη διαβίβαση.</div>
             <SelectInput label="Σκοπός Διακίνησης" value={settingsDraft.default_move_purpose} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_move_purpose: Number(value) || 1 }))}>{Object.entries(SBZ_MOVE_PURPOSES).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</SelectInput>
           </div>
           <div className="mt-5">

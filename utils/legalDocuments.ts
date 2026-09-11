@@ -156,9 +156,9 @@ export const DEFAULT_LEGAL_SETTINGS: LegalSettings = {
   },
   default_payment_method: 5,
   default_vat_exemption_category: null,
-  default_income_classification_category: 'category1_2',
+  default_income_classification_category: 'category1_1',
   default_income_classification_type: 'E3_561_001',
-  inhouse_income_classification_category: 'category1_2',
+  inhouse_income_classification_category: 'category1_1',
   inhouse_income_classification_type: 'E3_561_001',
   imported_income_classification_category: 'category1_1',
   imported_income_classification_type: 'E3_561_001',
@@ -748,11 +748,12 @@ export function resolveLegalIncomeClassification(params: {
   if (override) return { ...override, amount };
 
   // Production type describes the operational source of an item, not its
-  // myDATA revenue category. Ilios catalog items are goods for resale.
+  // myDATA revenue category. The configured normal-item category is applied
+  // to every catalog item; the exact virtual code 000 remains a service.
   if (params.product) {
     return {
-      classification_category: 'category1_1',
-      classification_type: 'E3_561_001',
+      classification_category: params.settings.default_income_classification_category || 'category1_1',
+      classification_type: params.settings.default_income_classification_type || 'E3_561_001',
       amount,
     };
   }
@@ -962,6 +963,30 @@ export function recalculateLegalLine(
       existing: line.income_classification
         || defaultIncomeClassificationForDocumentType(settings, netValue, aadeDocumentType),
     }),
+  };
+}
+
+/** Reclassifies a line after its SKU/itemCode changes. Code 000 is the only automatic service override. */
+export function applyAutomaticLegalItemClassification(
+  line: LegalDocumentLine,
+  itemCode: string,
+  settings: LegalSettings,
+  documentType?: AadeDocumentType,
+): LegalDocumentLine {
+  return {
+    ...line,
+    item_code: itemCode,
+    income_classification: resolveLegalIncomeClassification({
+      settings,
+      amount: line.net_value,
+      documentType,
+      itemCode,
+      existing: null,
+    }),
+    source_metadata: {
+      ...(line.source_metadata || {}),
+      income_classification_source: 'automatic',
+    },
   };
 }
 
@@ -1537,6 +1562,7 @@ export function validateLegalDocument(document: LegalDocument, lines: LegalDocum
   }
 
   for (const line of lines) {
+    const normalizedItemCode = normalizeLegalItemCode(line.item_code || line.sku);
     if (line.quantity <= 0) issues.push({ field: `line.${line.line_number}.quantity`, severity: 'error', message: `Η γραμμή ${line.line_number} έχει μηδενική ποσότητα.` });
     if (line.net_value < 0) issues.push({ field: `line.${line.line_number}.net_value`, severity: 'error', message: `Η γραμμή ${line.line_number} έχει αρνητική αξία.` });
     if (line.vat_category === 7 && !document.vat_exemption_category) {
@@ -1550,6 +1576,17 @@ export function validateLegalDocument(document: LegalDocument, lines: LegalDocum
     }
     if (!line.income_classification?.classification_category) {
       issues.push({ field: `line.${line.line_number}.classification`, severity: 'error', message: `Η γραμμή ${line.line_number} δεν έχει χαρακτηρισμό εσόδου.` });
+    }
+    if (document.aade_document_type !== '9.3' && normalizedItemCode === LEGAL_SHIPPING_ITEM_CODE && line.income_classification?.classification_category !== 'category1_3') {
+      issues.push({ field: `line.${line.line_number}.classification`, severity: 'error', message: `Ο κωδικός 000 της γραμμής ${line.line_number} πρέπει να χαρακτηριστεί ως Παροχή υπηρεσιών.` });
+    }
+    if (
+      document.aade_document_type !== '9.3'
+      && normalizedItemCode !== LEGAL_SHIPPING_ITEM_CODE
+      && line.income_classification?.classification_category === 'category1_3'
+      && line.source_metadata?.income_classification_source !== 'manual'
+    ) {
+      issues.push({ field: `line.${line.line_number}.classification`, severity: 'error', message: `Η γραμμή ${line.line_number} έχει χαρακτηρισμό υπηρεσίας που δεν αντιστοιχεί στον κωδικό 000. Επιλέξτε ρητά τον σωστό χαρακτηρισμό πριν από τη διαβίβαση.` });
     }
     if (line.income_classification?.classification_category && !isAllowedIncomeClassification(document.aade_document_type, line.income_classification)) {
       issues.push({ field: `line.${line.line_number}.classification`, severity: 'error', message: `Ο χαρακτηρισμός της γραμμής ${line.line_number} δεν επιτρέπεται για τύπο ΑΑΔΕ ${document.aade_document_type} σύμφωνα με τους επίσημους συνδυασμούς χαρακτηρισμών.` });
