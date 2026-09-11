@@ -56,6 +56,14 @@ describe('SBZ Worker boundary',()=>{
     expect(options).toMatchObject({method:'GET',redirect:'manual',headers:{'Api-Key':'sandbox-key'}});
     expect(h.attempts).toHaveLength(0);
   });
+  it('accepts the AADE no-document response returned for an empty SBZ sandbox archive',async()=>{
+    const h=harness(async()=>new Response('<ResponseDoc><response><statusCode>ValidationError</statusCode><errors><error><message>Requested Invoice was not found</message></error></errors></response></ResponseDoc>'));
+    const request=new Request('https://worker.example/sbz/check',{method:'POST',body:JSON.stringify({environment:'dev'})});
+    const response=await handleSbzRoute(request,env,{},actor,h.fetcher as any);
+    expect(response.status).toBe(200);expect(await response.json()).toMatchObject({ok:true});
+    expect(h.fetcher.mock.calls.filter(c=>String(c[0]).startsWith('https://api.sbz.gr/'))).toHaveLength(1);
+    expect(h.attempts).toHaveLength(0);
+  });
   it.each([301,302,303,307,308])('rejects a %s redirect without forwarding credentials',async status=>{
     const h=harness(async()=>new Response(null,{status,headers:{Location:'https://other.example/collect'}}));
     const request=new Request('https://worker.example/sbz/check',{method:'POST',body:JSON.stringify({environment:'dev'})});

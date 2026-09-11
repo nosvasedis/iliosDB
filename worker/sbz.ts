@@ -1,6 +1,6 @@
 import { XMLValidator } from 'fast-xml-parser';
 import { buildSbzInvoiceXml, parseSbzResponse, sbzFailureMessage, SBZ_BASE_URL, SBZ_UNKNOWN_MESSAGE, validateSbzDocument } from '../features/legal/sbz';
-import { parseTransmittedDocumentsXml, parseAadeResponseXml, isWholesaleAadeDocumentType, getDocumentKindFromAadeType, groupIncomeClassifications } from '../utils/legalDocuments';
+import { parseTransmittedDocumentsXml, parseAadeResponseXml, normalizeAadeResponseXml, isWholesaleAadeDocumentType, getDocumentKindFromAadeType, groupIncomeClassifications } from '../utils/legalDocuments';
 
 type Env = { SUPABASE_URL: string; SUPABASE_SERVICE_ROLE_KEY: string; SBZ_API_KEY_DEV?: string; SBZ_API_KEY_PROD?: string };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -50,8 +50,23 @@ export async function handleSbzRoute(request: Request, env: Env, cors: Record<st
     const s = await settings();
     const result = await provider('requesttransmitteddocs.php',environment,'GET',undefined,{ issuerVAT: s.issuer.vat_number, mark, ...(maxMark ? {maxMark} : {}) });
     if (!result.ok || result.text.trim().startsWith('{')) throw new Error(sbzFailureMessage(parseSbzResponse(result.text).statusCode));
-    if (/<!DOCTYPE|<!ENTITY/i.test(result.text) || XMLValidator.validate(result.text) !== true || !/<(?:\w+:)?RequestedDoc\b/i.test(result.text)) throw new Error('Μη αναμενόμενη απάντηση αρχείου SBZ.');
-    return { ...result, parsed: parseTransmittedDocumentsXml(result.text) };
+    const normalized = normalizeAadeResponseXml(result.text);
+    if (/<!DOCTYPE|<!ENTITY/i.test(result.text) || /<!DOCTYPE|<!ENTITY/i.test(normalized)
+      || XMLValidator.validate(result.text) !== true || XMLValidator.validate(normalized) !== true) {
+      throw new Error('Μη αναμενόμενη απάντηση αρχείου SBZ.');
+    }
+    const root = normalized.match(/^\s*(?:<\?xml[^>]*>\s*)?<(?:\w+:)?(RequestedDoc|ResponseDoc)\b/i)?.[1]?.toLowerCase();
+    if (root === 'requesteddoc') return { ...result, parsed: parseTransmittedDocumentsXml(normalized) };
+    if (root === 'responsedoc') {
+      const response = parseAadeResponseXml(normalized);
+      const messages = response.errors.map(message => message.toLowerCase());
+      const emptyArchive = response.statusCode === 'Success' || response.statusCode === 'NoDocuments' || messages.some(message =>
+        message.includes('not found') || message.includes('δεν βρέθη') || message.includes('no documents')
+      );
+      if (emptyArchive) return { ...result, parsed: parseTransmittedDocumentsXml(normalized) };
+      if (response.errors.length) throw new Error(response.errors.join('\n'));
+    }
+    throw new Error('Μη αναμενόμενη απάντηση αρχείου SBZ.');
   };
   const path = new URL(request.url).pathname;
   try {
