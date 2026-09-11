@@ -118,6 +118,7 @@ import {
   DEFAULT_LEGAL_SETTINGS,
   getLegalDocumentDeletePrompt,
   getLegalDocumentDisplayNumber,
+  getLegalDocumentKindLabel,
   getProformaDeletePrompt,
   isLegalDocumentEditable,
   LEGAL_DOCUMENT_KIND_LABELS,
@@ -3163,7 +3164,7 @@ export default function LegalDocumentsPage({
     <div className="grid gap-5 xl:grid-cols-[1fr_420px]">
       <div className="space-y-5">
         <section className="rounded-lg border border-slate-200 bg-white p-5">
-          <SbzSettings />
+          <SbzSettings environment={settingsDraft.environment} onEnvironmentChange={handleEnvironmentChange} />
 
           <div className="mt-5 rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -3333,7 +3334,7 @@ export default function LegalDocumentsPage({
               return (
                 <div key={sequence.id} className="grid gap-3 rounded-lg border border-slate-200 p-3 md:grid-cols-[1fr_120px_120px_120px_auto] md:items-end">
                   <div>
-                    <div className="text-sm font-black text-slate-900">{LEGAL_DOCUMENT_KIND_LABELS[sequence.document_kind]}</div>
+                    <div className="text-sm font-black text-slate-900">{getLegalDocumentKindLabel(sequence.document_kind, sequence.aade_document_type)}</div>
                     <div className="flex items-center gap-1 text-xs font-medium text-slate-500">
                       Τύπος ΑΑΔΕ {sequence.aade_document_type}
                       <InfoTip text="Ο επίσημος τύπος παραστατικού myDATA για αυτή τη σειρά." />

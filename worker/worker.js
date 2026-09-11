@@ -1475,8 +1475,17 @@ export default {
           }
           const manager = resolveSecretManager(env, {});
           if (manager.missing.length) return jsonResponse({ error: 'Ο διαχειριστής υποδομής πρέπει πρώτα να ενεργοποιήσει την ασφαλή αποθήκευση κλειδιών.' }, 409, CORS_HEADERS);
+          const [settings] = await adminFetch(env, '/rest/v1/legal_settings?select=id&order=updated_at.desc&limit=1');
+          if (!settings) return jsonResponse({ error: 'Συμπληρώστε πρώτα τις ρυθμίσεις της επιχείρησης.' }, 400, CORS_HEADERS);
           await putWorkerSecretWithManager(manager, payload.environment === 'prod' ? 'SBZ_API_KEY_PROD' : 'SBZ_API_KEY_DEV', payload.apiKey.trim());
-          return jsonResponse({ ok: true }, 200, CORS_HEADERS);
+          // Select the saved connection for future work; issued documents keep their own environment.
+          const updated = await adminFetch(env, `/rest/v1/legal_settings?id=eq.${encodeURIComponent(settings.id)}`, {
+            method: 'PATCH',
+            headers: { Prefer: 'return=representation' },
+            body: JSON.stringify({ environment: payload.environment }),
+          });
+          if (!updated?.length) throw new Error('Το κλειδί αποθηκεύτηκε, αλλά το περιβάλλον δεν ενημερώθηκε. Αποθηκεύστε ξανά τη σύνδεση.');
+          return jsonResponse({ ok: true, environment: payload.environment }, 200, CORS_HEADERS);
         }
         const operation = handleSbzRoute(request, env, CORS_HEADERS, access.userId);
         if (ctx) ctx.waitUntil(operation.then(() => undefined));

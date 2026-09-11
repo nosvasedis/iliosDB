@@ -37,7 +37,12 @@ export async function handleSbzRoute(request: Request, env: Env, cors: Record<st
   const provider = async (endpoint: string, environment: string, method: string, body?: BodyInit, query: Record<string,string> = {}) => {
     const { key, action } = sbzEnvironment(environment,env);
     const url = new URL(endpoint,SBZ_BASE_URL); url.search = new URLSearchParams({ ...query, action }).toString();
-    const response = await fetchFn(url.href, { method, redirect: 'error', headers: { 'Api-Key': key, ...(body instanceof FormData ? {} : { 'Content-Type': 'application/xml; charset=utf-8' }) }, body, signal: AbortSignal.timeout(45000) });
+    // Workers only supports manual/follow. Never forward the API key or invoice to a redirect target.
+    const response = await fetchFn(url.href, { method, redirect: 'manual', headers: { 'Api-Key': key, ...(body instanceof FormData ? {} : { 'Content-Type': 'application/xml; charset=utf-8' }) }, body, signal: AbortSignal.timeout(45000) });
+    if (response.status >= 300 && response.status < 400) {
+      await response.body?.cancel();
+      throw new Error('Η SBZ επέστρεψε μη αναμενόμενη ανακατεύθυνση. Δοκιμάστε ξανά αργότερα ή επικοινωνήστε με την υποστήριξη.');
+    }
     return { ok: response.ok, status: response.status, text: await boundedText(response), endpoint: url.href };
   };
   const retrieve = async (environment: string, mark: string, maxMark?: string) => {

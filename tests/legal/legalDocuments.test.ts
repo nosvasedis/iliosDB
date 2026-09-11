@@ -47,6 +47,7 @@ import {
   getDocumentKindFromAadeType,
   getLegalDocumentCatalogProducts,
   getLegalDocumentDeletePrompt,
+  getLegalDocumentKindLabel,
   getLegalProductLineDescription,
   getHighestAadeMark,
   LEGAL_VIRTUAL_SHIPPING_PRODUCT,
@@ -129,6 +130,12 @@ const baseOrder: Order = {
 };
 
 describe('legal document helpers', () => {
+  it('distinguishes correlated and non-correlated credit invoice labels', () => {
+    expect(getLegalDocumentKindLabel('credit', '5.1')).toBe('Πιστωτικό Τιμολόγιο / Συσχετιζόμενο');
+    expect(getLegalDocumentKindLabel('credit', '5.2')).toBe('Πιστωτικό Τιμολόγιο / Μη Συσχετιζόμενο');
+    expect(getLegalDocumentKindLabel('invoice', '1.1')).toBe('Τιμολόγιο Πώλησης');
+  });
+
   it('maps Greek VAT rates to AADE VAT categories', () => {
     expect(vatRateToAadeCategory(0.24)).toBe(1);
     expect(vatRateToAadeCategory(0.17)).toBe(4);

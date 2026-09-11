@@ -179,6 +179,12 @@ export const LEGAL_DOCUMENT_KIND_LABELS: Record<LegalDocumentKind, string> = {
   credit: 'Πιστωτικό Τιμολόγιο',
 };
 
+export function getLegalDocumentKindLabel(kind: LegalDocumentKind, aadeDocumentType?: string | null): string {
+  if (aadeDocumentType === '5.1') return 'Πιστωτικό Τιμολόγιο / Συσχετιζόμενο';
+  if (aadeDocumentType === '5.2') return 'Πιστωτικό Τιμολόγιο / Μη Συσχετιζόμενο';
+  return LEGAL_DOCUMENT_KIND_LABELS[kind];
+}
+
 export const PAYMENT_METHOD_LABELS: Record<number, string> = {
   1: 'Επαγ. λογαριασμός ημεδαπής',
   2: 'Επαγ. λογαριασμός αλλοδαπής',

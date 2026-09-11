@@ -18,7 +18,7 @@ describe('AADE environment selection contract', () => {
     expect(pageSource).toContain(
       "setSettingsDraft((current) => ({ ...current, environment: value === 'prod' ? 'prod' : 'dev' }));",
     );
-    expect(pageSource).toContain('<SbzSettings />');
+    expect(pageSource).toContain('<SbzSettings environment={settingsDraft.environment} onEnvironmentChange={handleEnvironmentChange} />');
   });
 
   it('keeps the selected environment credential check before AADE submission', () => {
