@@ -153,6 +153,7 @@ describe('legal document helpers', () => {
     expect(AADE_VAT_EXEMPTION_CATEGORY_OPTIONS.map((option) => option.category)).toEqual(
       Array.from({ length: 31 }, (_, index) => index + 1),
     );
+    expect(AADE_VAT_EXEMPTION_CATEGORY_OPTIONS.every((option) => option.label.length > 8 && option.guidance.length > 20)).toBe(true);
     expect(getAadeVatExemptionCategoryLabel(16)).toBe('16 - Χωρίς ΦΠΑ - άρθρο 45 του Κώδικα ΦΠΑ');
     expect(getAadeVatExemptionCategoryLabel(31)).toContain('IOSS');
     expect(isAadeVatExemptionCategory(1)).toBe(true);

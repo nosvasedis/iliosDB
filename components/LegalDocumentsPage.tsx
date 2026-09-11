@@ -115,7 +115,6 @@ import {
   AADE_INCOME_TYPE_OPTIONS,
   AADE_VAT_EXEMPTION_CATEGORY_OPTIONS,
   AADE_VAT_CATEGORY_LINE_OPTIONS,
-  AADE_VAT_CATEGORY_OPTIONS,
   DEFAULT_LEGAL_SETTINGS,
   getLegalDocumentDeletePrompt,
   getLegalDocumentDisplayNumber,
@@ -184,7 +183,9 @@ const creationTypeItems: Array<{ id: CreationDocumentType; label: string; help: 
     help: 'Εμπορικό/ενημερωτικό έγγραφο μόνο. Δεν είναι νόμιμο παραστατικό, δεν παίρνει MARK και δεν αποστέλλεται στη myDATA.',
   },
 ];
-const vatRateOptions = AADE_VAT_CATEGORY_OPTIONS;
+// Category 8 is reserved by myDATA for accounting entries (e.g. payroll/depreciation),
+// not for invoices, credit notes, delivery notes, or proformas created by this screen.
+const vatRateOptions = AADE_VAT_CATEGORY_LINE_OPTIONS;
 const vatLineOptions = AADE_VAT_CATEGORY_LINE_OPTIONS;
 const incomeCategoryOptions = AADE_INCOME_CATEGORY_OPTIONS.map(option => ({ ...option, label: option.label.replace(/\s*\((?:category|E3)[^)]*\)/g, '') }));
 const incomeTypeOptions = AADE_INCOME_TYPE_OPTIONS.map(option => ({ ...option, label: option.label.replace(/\s*\((?:category|E3)[^)]*\)/g, '') }));
@@ -318,24 +319,37 @@ const VatExemptionCategorySelect = ({
   const hasInvalidStoredValue = value !== null
     && value !== undefined
     && !AADE_VAT_EXEMPTION_CATEGORY_OPTIONS.some((option) => option.category === value);
+  const selectedOption = AADE_VAT_EXEMPTION_CATEGORY_OPTIONS.find((option) => option.category === value);
 
   return (
-    <SelectInput
-      label={label}
-      value={value ?? ''}
-      onChange={(nextValue) => onChange(nextValue ? Number(nextValue) : null)}
-      help="Επίσημες αιτίες myDATA v2.0.1, Παράρτημα 8.3 (ισχύων Κώδικας ΦΠΑ, ν. 5144/2024). Υποχρεωτικό όταν η κατηγορία ΦΠΑ γραμμής είναι 7 (0%)."
-    >
-      <option value="">Επιλέξτε αιτία απαλλαγής...</option>
-      {hasInvalidStoredValue && (
-        <option value={value}>Μη έγκυρος αποθηκευμένος κωδικός: {value}</option>
-      )}
-      {AADE_VAT_EXEMPTION_CATEGORY_OPTIONS.map((option) => (
-        <option key={option.category} value={option.category}>
-          {option.category} - {option.description}
-        </option>
-      ))}
-    </SelectInput>
+    <div>
+      <SelectInput
+        label={label}
+        value={value ?? ''}
+        onChange={(nextValue) => onChange(nextValue ? Number(nextValue) : null)}
+        help="Επίσημοι κωδικοί myDATA v2.0.1, Παράρτημα 8.3. Η επιλογή πρέπει να ανταποκρίνεται στην πραγματική φορολογική μεταχείριση της συναλλαγής."
+      >
+        <option value="">Επιλέξτε την πραγματική περίπτωση...</option>
+        {hasInvalidStoredValue && (
+          <option value={value}>Μη έγκυρος αποθηκευμένος κωδικός: {value}</option>
+        )}
+        {AADE_VAT_EXEMPTION_CATEGORY_OPTIONS.map((option) => (
+          <option key={option.category} value={option.category}>
+            {option.category} · {option.label}
+          </option>
+        ))}
+      </SelectInput>
+      <div className={`mt-2 rounded-lg border px-3 py-2 text-xs leading-relaxed ${selectedOption ? 'border-sky-200 bg-sky-50 text-sky-950' : 'border-amber-200 bg-amber-50 text-amber-950'}`}>
+        {selectedOption ? (
+          <>
+            <div className="font-semibold">{selectedOption.guidance}</div>
+            <div className="mt-1 text-[11px] opacity-75">Νομική βάση myDATA: {selectedOption.description}</div>
+          </>
+        ) : (
+          <>Επιλέξτε αιτία μόνο όταν υπάρχει νόμιμη βάση απαλλαγής. Δεν αρκεί να ζητήσει ο πελάτης παραστατικό χωρίς ΦΠΑ. Αν δεν είστε βέβαιοι, επιβεβαιώστε την επιλογή με τον λογιστή σας.</>
+        )}
+      </div>
+    </div>
   );
 };
 
@@ -1095,20 +1109,22 @@ export default function LegalDocumentsPage({
     });
   };
 
-  const applyLegalVatProfile = (vatRate: number) => {
+  const applyLegalVatProfile = (vatCategory: number) => {
+    const vatRate = vatRateOptions.find((option) => option.category === vatCategory)?.value ?? 0.24;
     updateDraftBundle((current, lines) => recalculateLegalDocument({
       ...current,
       vat_rate: vatRate,
       vat_exemption_category: vatRate === 0 ? current.vat_exemption_category : null,
-    }, lines.map((line) => ({ ...line, vat_category: vatRateToAadeCategory(vatRate) })), settingsDraft));
+    }, lines.map((line) => ({ ...line, vat_category: vatCategory })), settingsDraft));
   };
 
-  const applyProformaVatProfile = (vatRate: number) => {
+  const applyProformaVatProfile = (vatCategory: number) => {
+    const vatRate = vatRateOptions.find((option) => option.category === vatCategory)?.value ?? 0.24;
     updateProformaBundle((current, lines) => recalculateProforma({
       ...current,
       vat_rate: vatRate,
       vat_exemption_category: vatRate === 0 ? current.vat_exemption_category : null,
-    }, lines.map((line) => ({ ...line, vat_category: vatRateToAadeCategory(vatRate) })), settingsDraft));
+    }, lines.map((line) => ({ ...line, vat_category: vatCategory })), settingsDraft));
   };
 
   const handleGenerateDraft = () => {
@@ -1794,8 +1810,8 @@ export default function LegalDocumentsPage({
             <TextInput label="ΑΦΜ Πελάτη" value={document.counterpart.vat_number || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, vat_number: normalizeVatNumber(value) } }))} />
             <TextInput label="Επωνυμία Πελάτη" value={document.counterpart.name || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, name: value } }))} />
             <TextInput label="Τηλέφωνο Πελάτη" value={document.counterpart.phone || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, phone: value } }))} />
-            <SelectInput label="Καθεστώς ΦΠΑ" value={document.vat_rate ?? 0.24} onChange={(value) => applyLegalVatProfile(Number(value))} help="Ο βασικός συντελεστής ΦΠΑ για τις γραμμές. Αν χρειάζεται, κάθε γραμμή μπορεί να έχει διαφορετική κατηγορία ΦΠΑ.">
-              {vatRateOptions.map((option) => <option key={option.category} value={option.value}>{option.label}</option>)}
+            <SelectInput label="Καθεστώς ΦΠΑ" value={draftBundle.lines[0]?.vat_category ?? vatRateToAadeCategory(document.vat_rate ?? 0.24)} onChange={(value) => applyLegalVatProfile(Number(value))} help="Ο βασικός συντελεστής ΦΠΑ για τις γραμμές. Το «Άνευ ΦΠΑ» απαιτεί σωστή αιτία απαλλαγής. Οι λογιστικές εγγραφές χωρίς ΦΠΑ δεν εκδίδονται ως παραστατικά από αυτή την οθόνη.">
+              {vatRateOptions.map((option) => <option key={option.category} value={option.category}>{option.label}</option>)}
             </SelectInput>
             <TextInput label="Οδός Πελάτη" value={document.counterpart.address?.street || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, address: { ...(current.counterpart.address || {}), street: value } } }))} />
             <TextInput label="Αριθμός" value={document.counterpart.address?.number || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, address: { ...(current.counterpart.address || {}), number: value } } }))} />
@@ -2243,8 +2259,8 @@ export default function LegalDocumentsPage({
           </div>
 
           <div className="mt-4 grid gap-4 md:grid-cols-[160px_160px_1fr]">
-            <SelectInput label="Καθεστώς ΦΠΑ" value={document.vat_rate ?? 0.24} onChange={(value) => applyProformaVatProfile(Number(value))} help="Το προφίλ ΦΠΑ του προτιμολογίου. Κάθε γραμμή μπορεί να αλλαχθεί ξεχωριστά.">
-              {vatRateOptions.map((option) => <option key={option.category} value={option.value}>{option.label}</option>)}
+            <SelectInput label="Καθεστώς ΦΠΑ" value={proformaBundle.lines[0]?.vat_category ?? vatRateToAadeCategory(document.vat_rate ?? 0.24)} onChange={(value) => applyProformaVatProfile(Number(value))} help="Το προφίλ ΦΠΑ του προτιμολογίου. Το «Άνευ ΦΠΑ» απαιτεί σωστή αιτία απαλλαγής. Κάθε γραμμή μπορεί να αλλαχθεί ξεχωριστά.">
+              {vatRateOptions.map((option) => <option key={option.category} value={option.category}>{option.label}</option>)}
             </SelectInput>
             <VatExemptionCategorySelect
               label="Αιτία απαλλαγής ΦΠΑ"
@@ -2312,7 +2328,7 @@ export default function LegalDocumentsPage({
                     <td className="px-3 py-2 text-right"><input type="number" step="0.01" value={line.unit_price} onChange={(event) => updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((item) => item.id === line.id ? { ...item, unit_price: Number(event.target.value) || 0 } : item), settingsDraft))} className="w-24 rounded-lg border border-slate-200 px-2 py-1 text-right outline-none" /></td>
                     <td className="px-3 py-2 text-right">
                       <select value={line.vat_category} onChange={(event) => updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((item) => item.id === line.id ? { ...item, vat_category: Number(event.target.value) } : item), settingsDraft))} className="w-40 rounded-lg border border-slate-200 px-2 py-1 text-right outline-none">
-                        {vatRateOptions.map((option) => <option key={option.category} value={option.category}>{option.label}</option>)}
+                        {vatLineOptions.map((option) => <option key={option.category} value={option.category}>{option.label}</option>)}
                       </select>
                     </td>
                     <td className="px-3 py-2 text-right font-black">{money(line.gross_value)}</td>
