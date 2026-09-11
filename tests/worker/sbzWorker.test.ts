@@ -64,6 +64,18 @@ describe('SBZ Worker boundary',()=>{
     expect(h.fetcher.mock.calls.filter(c=>String(c[0]).startsWith('https://api.sbz.gr/'))).toHaveLength(1);
     expect(h.attempts).toHaveLength(0);
   });
+  it('treats a non-XML AADE no-document payload as a successful authentication probe',async()=>{
+    const h=harness(async()=>new Response('Requested Invoice was not found'));
+    const request=new Request('https://worker.example/sbz/check',{method:'POST',body:JSON.stringify({environment:'dev'})});
+    const response=await handleSbzRoute(request,env,{},actor,h.fetcher as any);
+    expect(response.status).toBe(200);expect(await response.json()).toMatchObject({ok:true});
+  });
+  it('still rejects an invalid SBZ API key during the authentication probe',async()=>{
+    const h=harness(async()=>Response.json({statusCode:5006}));
+    const request=new Request('https://worker.example/sbz/check',{method:'POST',body:JSON.stringify({environment:'dev'})});
+    const response=await handleSbzRoute(request,env,{},actor,h.fetcher as any);
+    expect(response.status).toBe(400);expect((await response.json()).error).toContain('σύνδεση με τον πάροχο');
+  });
   it.each([301,302,303,307,308])('rejects a %s redirect without forwarding credentials',async status=>{
     const h=harness(async()=>new Response(null,{status,headers:{Location:'https://other.example/collect'}}));
     const request=new Request('https://worker.example/sbz/check',{method:'POST',body:JSON.stringify({environment:'dev'})});

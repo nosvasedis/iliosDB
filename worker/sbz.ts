@@ -68,6 +68,22 @@ export async function handleSbzRoute(request: Request, env: Env, cors: Record<st
     }
     throw new Error('Μη αναμενόμενη απάντηση αρχείου SBZ.');
   };
+  const checkConnection = async (environment: string) => {
+    const s = await settings();
+    const result = await provider('requesttransmitteddocs.php',environment,'GET',undefined,{ issuerVAT: s.issuer.vat_number, mark: '0', maxMark: '0' });
+    if (!result.ok) throw new Error('Η SBZ δεν αποδέχθηκε τον έλεγχο σύνδεσης. Δοκιμάστε ξανά ή επικοινωνήστε με την υποστήριξη.');
+    const text = result.text.trim();
+    if (!text) throw new Error('Η SBZ δεν επέστρεψε απάντηση στον έλεγχο σύνδεσης.');
+    if (text.startsWith('{')) {
+      const parsed = parseSbzResponse(text);
+      if (parsed.statusCode === '5006') throw new Error(sbzFailureMessage(parsed.statusCode));
+      return;
+    }
+    // RequestTransmittedDocs is only an authentication probe here. SBZ returns
+    // the downstream AADE payload as-is, so its archive shape is validated only
+    // by retrieve() when data is actually imported.
+    if (/<!DOCTYPE|<!ENTITY|<(?:\w+:)?html\b/i.test(text)) throw new Error('Η SBZ επέστρεψε μη αναμενόμενη απάντηση στον έλεγχο σύνδεσης.');
+  };
   const path = new URL(request.url).pathname;
   try {
     if (path === '/sbz/status' && request.method === 'GET') {
@@ -114,7 +130,7 @@ export async function handleSbzRoute(request: Request, env: Env, cors: Record<st
       return json({ok:true});
     }
     if (path === '/sbz/check') {
-      await retrieve(payload.environment,'0','0');
+      await checkConnection(payload.environment);
       return json({ok:true,message:'Η σύνδεση με την SBZ επαληθεύτηκε.'});
     }
     if (path === '/sbz/sync') {
