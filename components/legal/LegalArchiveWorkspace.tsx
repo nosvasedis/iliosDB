@@ -747,10 +747,25 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
   );
   const stats = useMemo(() => getLegalArchiveStats(filtered), [filtered]);
   const sourceCounts = useMemo(() => props.records.reduce((counts, record) => {
-    counts.all += 1;
-    counts[record.source] += 1;
+    if (record.source === 'legal' && record.document.status === 'draft') counts.drafts += 1;
+    else counts[record.source] += 1;
     return counts;
-  }, { all: 0, legal: 0, proforma: 0 }), [props.records]);
+  }, { legal: 0, drafts: 0, proforma: 0 }), [props.records]);
+  const sectionTotal = filters.scope === 'drafts'
+    ? sourceCounts.drafts
+    : filters.scope === 'proforma'
+      ? sourceCounts.proforma
+      : filters.scope === 'legal'
+        ? sourceCounts.legal
+        : sourceCounts.legal + sourceCounts.proforma;
+  const archiveLegend = filters.scope === 'proforma'
+    ? [documentPresentation.proforma]
+    : [
+        documentPresentation.invoice,
+        documentPresentation.invoice_delivery,
+        documentPresentation.credit,
+        documentPresentation.delivery_note,
+      ];
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRecords = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
@@ -1294,14 +1309,14 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
   return (
     <div className="space-y-4">
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 bg-gradient-to-r from-emerald-50 via-white to-sky-50 p-4 sm:p-5">
+        <div className="border-b border-slate-100 bg-white p-4 sm:p-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <div className="rounded-xl bg-emerald-600 p-2 text-white"><FileText size={20} /></div>
+                <div className="rounded-xl bg-emerald-50 p-2 text-emerald-700 ring-1 ring-emerald-100"><FileText size={20} /></div>
                 <div>
-                  <h2 className="text-lg font-black text-slate-950">Έξυπνο Αρχείο</h2>
-                  <p className="text-sm font-medium text-slate-600">Παραστατικά, πελάτες και προϊόντα σε μία ενιαία εικόνα.</p>
+                  <h2 className="text-lg font-black text-slate-950">Αρχείο παραστατικών</h2>
+                  <p className="text-sm font-medium text-slate-500">Κάθε κατάσταση στη δική της, καθαρή ενότητα.</p>
                 </div>
               </div>
             </div>
@@ -1314,21 +1329,35 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
             </button>
           </div>
 
-          <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-slate-100/80 p-1 sm:flex sm:w-fit">
+          <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1 sm:flex sm:w-fit">
             {([
-              ['all', 'Όλα', sourceCounts.all],
-              ['legal', 'Παραστατικά', sourceCounts.legal],
-              ['proforma', 'Προτιμολόγια', sourceCounts.proforma],
-            ] as const).map(([scope, label, count]) => (
+              ['legal', 'Παραστατικά', sourceCounts.legal, ReceiptText],
+              ['drafts', 'Πρόχειρα', sourceCounts.drafts, FileClock],
+              ['proforma', 'Προτιμολόγια', sourceCounts.proforma, FileText],
+            ] as const).map(([scope, label, count, Icon]) => (
               <button
                 key={scope}
                 type="button"
-                onClick={() => setFilters((current) => ({ ...current, scope }))}
-                className={`rounded-lg px-3 py-2 text-xs font-black transition sm:min-w-28 ${filters.scope === scope ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                onClick={() => setFilters((current) => ({
+                  ...current,
+                  scope,
+                  status: 'all',
+                  documentKind: 'all',
+                  externalSource: 'all',
+                }))}
+                className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-black transition sm:min-w-36 ${filters.scope === scope ? 'bg-white text-emerald-800 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:bg-white/70 hover:text-slate-800'}`}
               >
-                {label} <span className="ml-1 text-[10px] text-slate-400">{count}</span>
+                <Icon size={14} /> {label} <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{count}</span>
               </button>
             ))}
+          </div>
+
+          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-xs font-medium leading-relaxed text-slate-600">
+            {filters.scope === 'drafts'
+              ? <><span className="font-black text-slate-800">Πρόχειρα παραστατικά</span> · Δεν έχουν εκδοθεί και δεν έχουν σταλεί στον πάροχο. Ανοίξτε τα για επεξεργασία ή υποβολή.</>
+              : filters.scope === 'proforma'
+                ? <><span className="font-black text-slate-800">Προτιμολόγια</span> · Εμπορικά έγγραφα χωρίς MARK, χωριστά από τα φορολογικά παραστατικά.</>
+                : <><span className="font-black text-slate-800">Παραστατικά</span> · Εκδοθέντα, υποβληθέντα, αποτυχημένα ή ακυρωμένα. Τα πρόχειρα δεν εμφανίζονται εδώ.</>}
           </div>
 
           <div className="mt-4 grid gap-2 lg:grid-cols-[minmax(260px,1fr)_220px_auto]">
@@ -1446,7 +1475,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
               </select>
               <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value as LegalArchiveFilterState['status'] }))} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700">
                 <option value="all">Όλες οι καταστάσεις</option>
-                <option value="draft">Πρόχειρα</option>
+                {filters.scope === 'drafts' && <option value="draft">Πρόχειρα</option>}
                 <option value="submitted">Υποβληθέντα</option>
                 <option value="issued">Εκδοθέντα</option>
                 <option value="failed">Αποτυχημένα</option>
@@ -1532,16 +1561,10 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
         <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="text-sm font-bold text-slate-600">
-              {filtered.length} από {props.records.length} εγγραφές
+              {filtered.length} από {sectionTotal} εγγραφές
             </div>
             <div className="mt-2 flex flex-wrap gap-2" aria-label="Χρωματική σήμανση τύπων παραστατικών">
-              {([
-                documentPresentation.invoice,
-                documentPresentation.invoice_delivery,
-                documentPresentation.credit,
-                documentPresentation.delivery_note,
-                documentPresentation.proforma,
-              ] as const).map((presentation) => {
+              {archiveLegend.map((presentation) => {
                 const Icon = presentation.icon;
                 return (
                   <span key={presentation.label} className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-black ${presentation.badge}`}>
@@ -1564,8 +1587,14 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
           <div className="flex min-h-64 flex-col items-center justify-center gap-3 px-5 text-center">
             <div className="rounded-2xl bg-slate-100 p-4 text-slate-400"><PackageSearch size={30} /></div>
             <div>
-              <div className="font-black text-slate-800">Δεν βρέθηκαν εγγραφές</div>
-              <div className="mt-1 text-sm font-medium text-slate-500">Δοκιμάστε διαφορετικά φίλτρα ή καθαρίστε την αναζήτηση.</div>
+              <div className="font-black text-slate-800">
+                {filters.scope === 'drafts' ? 'Δεν υπάρχουν πρόχειρα παραστατικά' : filters.scope === 'proforma' ? 'Δεν βρέθηκαν προτιμολόγια' : 'Δεν βρέθηκαν παραστατικά'}
+              </div>
+              <div className="mt-1 text-sm font-medium text-slate-500">
+                {filters.scope === 'drafts' && activeFilterCount === 0
+                  ? 'Όταν αποθηκεύετε ένα πρόχειρο από τη Δημιουργία, θα εμφανίζεται αποκλειστικά εδώ.'
+                  : 'Δοκιμάστε διαφορετικά φίλτρα ή καθαρίστε την αναζήτηση.'}
+              </div>
             </div>
             <button type="button" onClick={resetFilters} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-black text-slate-700">Καθαρισμός</button>
           </div>

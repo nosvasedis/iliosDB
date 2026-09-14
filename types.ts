@@ -1417,7 +1417,7 @@ export interface LegalExternalItemAlias {
 }
 
 export interface LegalArchiveFilterState {
-  scope: 'all' | LegalArchiveSource;
+  scope: 'all' | LegalArchiveSource | 'drafts';
   query: string;
   datePreset: LegalArchiveDatePreset;
   dateFrom: string;

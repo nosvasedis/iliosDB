@@ -495,6 +495,26 @@ describe('legal archive intelligence', () => {
     })).toHaveLength(1);
   });
 
+  it('keeps draft legal documents exclusively in the drafts archive section', () => {
+    const records = buildRecords({
+      documents: [
+        legalDocument(),
+        legalDocument({ id: 'draft-1', status: 'draft', aa: null, aade_mark: null }),
+      ],
+    });
+
+    expect(filterLegalArchiveRecords(records, createDefaultLegalArchiveFilters()).map((record) => record.id))
+      .toEqual(['legal-1']);
+    expect(filterLegalArchiveRecords(records, {
+      ...createDefaultLegalArchiveFilters(),
+      scope: 'drafts',
+    }).map((record) => record.id)).toEqual(['draft-1']);
+    expect(filterLegalArchiveRecords(records, {
+      ...createDefaultLegalArchiveFilters(),
+      scope: 'all',
+    }).map((record) => record.id)).toEqual(['legal-1']);
+  });
+
   it('calculates summaries from the filtered record set', () => {
     expect(getLegalArchiveStats(buildRecords())).toEqual({
       count: 1,

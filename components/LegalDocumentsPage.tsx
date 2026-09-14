@@ -320,7 +320,7 @@ const TextInput = ({
       disabled={disabled}
       min={min}
       max={max}
-      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
     />
   </label>
 );
@@ -345,7 +345,7 @@ const SelectInput = ({
     <select
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
     >
       {children}
     </select>
@@ -414,7 +414,7 @@ const ActionButton = ({
   title?: string;
 }) => {
   const classes = {
-    primary: 'bg-[#060b00] text-white hover:bg-emerald-900 disabled:bg-slate-300',
+    primary: 'bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-slate-300',
     secondary: 'bg-white text-slate-800 border border-slate-200 hover:bg-slate-50 disabled:text-slate-400',
     danger: 'bg-red-600 text-white hover:bg-red-700 disabled:bg-slate-300',
     quiet: 'bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:text-slate-400',
@@ -425,7 +425,7 @@ const ActionButton = ({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-black transition active:scale-[0.98] disabled:cursor-not-allowed ${classes[variant]}`}
+      className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-black transition active:scale-[0.98] disabled:cursor-not-allowed ${classes[variant]}`}
     >
       {children}
     </button>
@@ -1850,7 +1850,7 @@ export default function LegalDocumentsPage({
                 ['3', 'Ολοκλήρωση', 'Αποθήκευση ή έκδοση μέσω SBZ'],
               ].map(([step, title, description]) => (
                 <div key={step} className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5">
-                  <div className="mb-2 flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-[11px] font-black text-white">{step}</div>
+                  <div className="mb-2 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-[11px] font-black text-white">{step}</div>
                   <div className="text-sm font-black text-slate-800">{title}</div>
                   <div className="mt-0.5 text-xs leading-relaxed text-slate-500">{description}</div>
                 </div>
@@ -2021,7 +2021,7 @@ export default function LegalDocumentsPage({
           )}
         </section>
 
-        <section className={`rounded-lg border border-slate-200 bg-white p-4 ${!editable ? 'opacity-60' : ''}`}>
+        <section className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ${!editable ? 'opacity-60' : ''}`}>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <h3 className="font-black text-slate-900">Γραμμές</h3>
             <div className="flex flex-wrap items-center gap-2">
@@ -2239,14 +2239,17 @@ export default function LegalDocumentsPage({
     return (
     <div className="space-y-5">
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-5 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 px-5 py-5 text-white lg:flex-row lg:items-center lg:justify-between lg:px-6">
-          <div>
-            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-300">Workspace δημιουργίας</div>
-            <h1 className="mt-1 text-xl font-black tracking-tight">Νέο παραστατικό, βήμα προς βήμα</h1>
-            <p className="mt-1 max-w-2xl text-sm font-medium leading-relaxed text-slate-300">Ξεκινήστε με ένα ασφαλές πρόχειρο, ελέγξτε τα στοιχεία και εκδώστε μόνο όταν είναι έτοιμο.</p>
+        <div className="flex flex-col gap-5 border-b border-slate-100 bg-white px-5 py-5 lg:flex-row lg:items-center lg:justify-between lg:px-6">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100"><FileCheck2 size={21} /></div>
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-700">Νέο παραστατικό</div>
+              <h1 className="mt-0.5 text-xl font-black tracking-tight text-slate-950">Δημιουργία βήμα προς βήμα</h1>
+              <p className="mt-1 max-w-2xl text-sm font-medium leading-relaxed text-slate-500">Ξεκινήστε με ένα ασφαλές πρόχειρο, ελέγξτε τα στοιχεία και εκδώστε μόνο όταν είναι έτοιμο.</p>
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-bold text-slate-200 backdrop-blur">
-            <Archive size={15} className="text-emerald-300" /> Τα αποθηκευμένα πρόχειρα βρίσκονται στο Αρχείο
+          <div className="flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600">
+            <Archive size={15} className="text-emerald-700" /> Τα αποθηκευμένα πρόχειρα βρίσκονται στο Αρχείο
           </div>
         </div>
         <div className="grid grid-cols-3 divide-x divide-slate-100 bg-white">
@@ -2259,7 +2262,7 @@ export default function LegalDocumentsPage({
             const active = (!workspaceStarted && index === 0) || (workspaceStarted && index === 1);
             return (
               <div key={step} className={`flex min-w-0 items-center gap-3 px-3 py-3.5 sm:px-5 ${active ? 'bg-emerald-50/60' : ''}`}>
-                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black ${complete ? 'bg-emerald-600 text-white' : active ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black ${complete || active ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
                   {complete ? <CheckCircle2 size={16} /> : step}
                 </span>
                 <div className="min-w-0">
@@ -2399,10 +2402,10 @@ export default function LegalDocumentsPage({
                   type="button"
                   onClick={() => { setCreationDocumentType(item.id); setDraftBundle(null); setProformaBundle(null); }}
                   aria-pressed={creationDocumentType === item.id}
-                  className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left text-sm font-black transition ${creationDocumentType === item.id ? 'border-slate-900 bg-slate-900 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                  className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left text-sm font-black transition ${creationDocumentType === item.id ? 'border-emerald-500 bg-emerald-50 text-emerald-950 shadow-sm ring-2 ring-emerald-100' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                 >
                   {item.label}
-                  {creationDocumentType === item.id && <CheckCircle2 size={16} className="shrink-0 text-emerald-300" />}
+                  {creationDocumentType === item.id && <CheckCircle2 size={16} className="shrink-0 text-emerald-600" />}
                 </button>
               ))}
             </div>
@@ -2416,7 +2419,7 @@ export default function LegalDocumentsPage({
               type="button"
               onClick={handleGenerateDraft}
               disabled={(creationSource === 'order' && (!selectedOrder || !canUseSelectedOrder)) || loadingOrders}
-              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#060b00] px-4 py-2.5 text-sm font-black text-white transition hover:bg-emerald-900 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-emerald-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               {loadingOrders ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} {primaryActionLabel} <ArrowRight size={16} />
             </button>
@@ -2469,7 +2472,7 @@ export default function LegalDocumentsPage({
           Προτιμολόγιο: εμπορικό/ενημερωτικό έγγραφο μόνο. Δεν είναι νόμιμο φορολογικό παραστατικό, δεν παίρνει MARK και δεν αποστέλλεται στη myDATA.
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-5">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-black text-slate-900">Προτιμολόγιο</h2>
@@ -2524,7 +2527,7 @@ export default function LegalDocumentsPage({
           </div>
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-5">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h3 className="font-black text-slate-900">Γραμμές προτιμολογίου</h3>
             <div className="flex flex-wrap items-center gap-2">
@@ -3351,12 +3354,12 @@ export default function LegalDocumentsPage({
 
   const renderSyncTab = () => (
     <div className="grid gap-5 xl:grid-cols-[minmax(320px,460px)_1fr]">
-      <section className="rounded-lg border border-slate-200 bg-white p-5">
-        <div className="mb-4 flex items-center gap-2">
-          <RefreshCw size={18} className="text-emerald-600" />
-          <h2 className="font-black text-slate-900">Συγχρονισμός παλιών παραστατικών</h2>
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100"><RefreshCw size={18} /></div>
+          <div><h2 className="font-black text-slate-900">Συγχρονισμός παλιών παραστατικών</h2><p className="text-xs font-medium text-slate-500">Ανάκτηση και ενημέρωση του αρχείου από τον πάροχο.</p></div>
         </div>
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm font-medium leading-relaxed text-slate-600">
           Συγχρονίζει τιμολόγια χονδρικής, πιστωτικά και παραστατικά διακίνησης που έχουν ήδη εκδοθεί ή ακυρωθεί, με μία ενιαία ασφαλή ροή προς την SBZ. Παραστατικά λιανικής και λοιπές μη εμπορικές εγγραφές απορρίπτονται πριν από την αποθήκευση και δεν συμμετέχουν ποτέ στο Αρχείο ή στα ποσά.
         </div>
         <div className="mt-4 space-y-4">
@@ -3390,7 +3393,7 @@ export default function LegalDocumentsPage({
         </div>
       </section>
 
-      <section className="rounded-lg border border-slate-200 bg-white">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
           <div>
             <h2 className="font-black text-slate-900">Ιστορικό συγχρονισμών</h2>
@@ -3455,10 +3458,12 @@ export default function LegalDocumentsPage({
   );
 
   const renderDeliveryTab = () => (
-    <section className="rounded-lg border border-slate-200 bg-white">
-      <div className="border-b border-slate-100 p-4">
-        <h2 className="font-black text-slate-900">Διακίνηση</h2>
-        <div className="text-sm font-medium text-slate-500">{deliveryDocuments.length} δελτία ή συνδυασμένα παραστατικά</div>
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-100 p-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100"><Truck size={18} /></div>
+          <div><h2 className="font-black text-slate-900">Διακίνηση</h2><div className="text-sm font-medium text-slate-500">{deliveryDocuments.length} δελτία ή συνδυασμένα παραστατικά</div></div>
+        </div>
         <p className="mt-2 max-w-3xl text-xs font-medium leading-relaxed text-slate-500">
           Προαιρετική ροή μετά την έκδοση: καταγραφή έναρξης/παράδοσης για παραστατικά με δελτίο διακίνησης.
           Τα απλά τιμολόγια 1.1 δεν χρειάζονται αυτή τη διαδικασία.
@@ -3491,7 +3496,7 @@ export default function LegalDocumentsPage({
   const renderSettingsTab = () => (
     <div className="grid gap-5 xl:grid-cols-[1fr_420px]">
       <div className="space-y-5">
-        <section className="rounded-lg border border-slate-200 bg-white p-5">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <SbzSettings environment={settingsDraft.environment} onEnvironmentChange={handleEnvironmentChange} />
 
           <div className="mt-5 rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
@@ -3575,7 +3580,7 @@ export default function LegalDocumentsPage({
           </div>
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-5">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-center gap-2"><ShieldCheck size={18} className="text-emerald-600" /><h2 className="font-black text-slate-900">Εκδότης / ΑΑΔΕ</h2></div>
           <div className="grid gap-4 md:grid-cols-4">
             <SelectInput label="Περιβάλλον" value={settingsDraft.environment} onChange={handleEnvironmentChange} help="Το ενεργό περιβάλλον που θα χρησιμοποιείται για αποστολή και συγχρονισμό.">
@@ -3633,7 +3638,7 @@ export default function LegalDocumentsPage({
           </div>
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-5">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="font-black text-slate-900">Σειρές και αρίθμηση</h2>
 
@@ -3706,7 +3711,7 @@ export default function LegalDocumentsPage({
         </section>
       </div>
 
-      <section className="rounded-lg border border-slate-200 bg-white p-5">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="mb-4 font-black text-slate-900">Μεταφορείς</h2>
         <div className="space-y-3">
           <TextInput label="Όνομα" value={newCarrier.name} onChange={(value) => setNewCarrier((current) => ({ ...current, name: value }))} />
@@ -3728,7 +3733,7 @@ export default function LegalDocumentsPage({
       </section>
 
       {showInspectionPinSection && !isInspectionModeActive() && (
-        <section className="rounded-lg border border-slate-200 bg-white p-5">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-center gap-2">
             <KeyRound size={18} className="text-slate-600" />
             <h2 className="font-black text-slate-900">Κωδικός εξόδου λειτουργίας ελέγχου</h2>
@@ -3788,7 +3793,7 @@ export default function LegalDocumentsPage({
           icon={FileCheck2}
           title="Παραστατικά"
           subtitle="Τιμολόγηση χονδρικής μέσω SBZ, πιστωτικά και αρχείο"
-          roundedClassName="rounded-lg"
+          roundedClassName="rounded-2xl"
           tail={statsStrip}
           below={(
             <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl bg-slate-50 p-1.5 border border-slate-200/60 shadow-sm">

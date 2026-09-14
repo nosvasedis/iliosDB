@@ -139,7 +139,7 @@ export function normalizeExternalItemCode(value?: string | null): string {
 
 export function createDefaultLegalArchiveFilters(): LegalArchiveFilterState {
   return {
-    scope: 'all',
+    scope: 'legal',
     query: '',
     datePreset: 'all',
     dateFrom: '',
@@ -749,7 +749,15 @@ export function filterLegalArchiveRecords(
   const dateRange = resolveLegalArchiveDateRange(filters, now);
   const filtered = records.filter((record) => {
     const document = record.document;
-    if (filters.scope !== 'all' && record.source !== filters.scope) return false;
+    if (filters.scope === 'drafts') {
+      if (record.source !== 'legal' || document.status !== 'draft') return false;
+    } else if (filters.scope === 'legal') {
+      if (record.source !== 'legal' || document.status === 'draft') return false;
+    } else if (filters.scope === 'proforma') {
+      if (record.source !== 'proforma') return false;
+    } else if (record.source === 'legal' && document.status === 'draft') {
+      return false;
+    }
     if (queryTokens.length && !queryTokens.every((token) => record.searchText.includes(token))) return false;
     if (dateRange && (document.issue_date < dateRange.from || document.issue_date > dateRange.to)) return false;
     if (filters.customerId && record.customerMatch.customer?.id !== filters.customerId) return false;
