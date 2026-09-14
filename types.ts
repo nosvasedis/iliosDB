@@ -509,6 +509,8 @@ export interface Customer {
   profession?: string;
   tax_office?: string;
   vat_rate?: number; // New: 0.24, 0.17, 0.00
+  vat_exemption_category?: number | null;
+  vat_exemption_legal_note?: string | null;
   notes?: string;
   created_at: string;
 }
@@ -1220,6 +1222,7 @@ export interface LegalDocument {
   currency: string;
   vat_rate?: number | null;
   vat_exemption_category?: number | null;
+  vat_exemption_legal_note?: string | null;
   revenue_classification: LegalIncomeClassification[];
   totals: LegalTotals;
   aade_uid?: string | null;
@@ -1271,6 +1274,7 @@ export interface ProformaDocument {
   currency: string;
   vat_rate?: number | null;
   vat_exemption_category?: number | null;
+  vat_exemption_legal_note?: string | null;
   revenue_classification: LegalIncomeClassification[];
   totals: LegalTotals;
   notes?: string | null;

@@ -220,7 +220,7 @@ export const AADE_VAT_CATEGORY_LINE_OPTIONS = AADE_VAT_CATEGORY_OPTIONS.filter((
  * Source: myDATA REST API v2.0.1, Appendix 8.3, current VAT Code (ν. 5144/2024).
  */
 export const AADE_VAT_EXEMPTION_CATEGORY_OPTIONS = [
-  { category: 1, label: 'Πράξη εκτός πεδίου εφαρμογής ΦΠΑ', guidance: 'Για πράξεις που δεν αποτελούν αντικείμενο ΦΠΑ ή δεν πραγματοποιούνται από υποκείμενο στον φόρο. Δεν είναι γενική απαλλαγή πώλησης.', description: 'Χωρίς ΦΠΑ - άρθρο 2 και 3 του Κώδικα ΦΠΑ' },
+  { category: 1, label: 'Πράξη εκτός πεδίου εφαρμογής ΦΠΑ', guidance: 'Για πράξεις εκτός πεδίου ΦΠΑ. Περιλαμβάνει συναλλαγές προς το ειδικό φορολογικό έδαφος του Αγίου Όρους, μόνο όταν πληρούνται η Π.7395/4269/1987 και τα απαιτούμενα δικαιολογητικά. Δεν είναι γενική απαλλαγή πώλησης.', description: 'Χωρίς ΦΠΑ - άρθρο 2 και 3 του Κώδικα ΦΠΑ' },
   { category: 2, label: 'Πράξη που δεν θεωρείται παράδοση αγαθών', guidance: 'Μόνο όταν η συγκεκριμένη πράξη δεν αποτελεί φορολογητέα παράδοση αγαθών κατά τον Κώδικα ΦΠΑ.', description: 'Χωρίς ΦΠΑ - άρθρο 5 του Κώδικα ΦΠΑ' },
   { category: 3, label: 'Αγαθά με τόπο φορολόγησης εκτός Ελλάδας', guidance: 'Για παράδοση αγαθών της οποίας ο φορολογικός τόπος, βάσει των κανόνων του Κώδικα, δεν είναι η Ελλάδα.', description: 'Χωρίς ΦΠΑ - άρθρο 17 του Κώδικα ΦΠΑ' },
   { category: 4, label: 'Υπηρεσίες με τόπο φορολόγησης εκτός Ελλάδας', guidance: 'Για υπηρεσία που φορολογείται σε άλλη χώρα βάσει των κανόνων τόπου παροχής. Ελέγξτε ιδίως χώρα και ιδιότητα του πελάτη.', description: 'Χωρίς ΦΠΑ - άρθρο 18 του Κώδικα ΦΠΑ' },
@@ -252,6 +252,10 @@ export const AADE_VAT_EXEMPTION_CATEGORY_OPTIONS = [
   { category: 30, label: 'OSS – ενωσιακό καθεστώς', guidance: 'Για επιλέξιμες διασυνοριακές B2C πράξεις που δηλώνονται στο ενωσιακό OSS.', description: 'Χωρίς ΦΠΑ - άρθρο 57 του Κώδικα ΦΠΑ (OSS_ενωσιακό καθεστώς)' },
   { category: 31, label: 'IOSS – πωλήσεις εισαγόμενων αγαθών', guidance: 'Για επιλέξιμες εξ αποστάσεως πωλήσεις εισαγόμενων αγαθών που δηλώνονται μέσω IOSS.', description: 'Χωρίς ΦΠΑ - άρθρο 58 του Κώδικα ΦΠΑ (IOSS)' },
 ] as const;
+
+/** SBZ/myDATA profile for supplies to the special VAT territory of Mount Athos. */
+export const MOUNT_ATHOS_VAT_EXEMPTION_CATEGORY = 1;
+export const MOUNT_ATHOS_VAT_EXEMPTION_NOTE = 'ΧΩΡΙΣ ΦΠΑ ΩΣ Α.Υ.Ο. Π.7395/4269/5.11.1987';
 
 export function isAadeVatExemptionCategory(value: number | null | undefined): value is number {
   return AADE_VAT_EXEMPTION_CATEGORY_OPTIONS.some((option) => option.category === value);
@@ -1074,6 +1078,55 @@ export function recalculateLegalDocument(
   };
 }
 
+function customerVatExemptionCategory(customer: Customer | null | undefined, vatRate: number): number | null {
+  if (Math.abs(vatRate) >= 0.001) return null;
+  return isAadeVatExemptionCategory(customer?.vat_exemption_category)
+    ? customer.vat_exemption_category
+    : null;
+}
+
+function customerVatExemptionLegalNote(customer: Customer | null | undefined, vatRate: number): string | null {
+  if (Math.abs(vatRate) >= 0.001) return null;
+  const note = String(customer?.vat_exemption_legal_note || '').trim();
+  return note || null;
+}
+
+export function applyCustomerVatProfileToLegalDocument(
+  document: LegalDocument,
+  lines: LegalDocumentLine[],
+  customer: Customer,
+  settings: LegalSettings,
+): { document: LegalDocument; lines: LegalDocumentLine[] } {
+  const vatRate = customer.vat_rate ?? document.vat_rate ?? 0.24;
+  const vatCategory = vatRateToAadeCategory(vatRate);
+  return recalculateLegalDocument({
+    ...document,
+    counterpart_customer_id: customer.id,
+    counterpart: buildCounterpartFromCustomer(customer),
+    vat_rate: vatRate,
+    vat_exemption_category: customerVatExemptionCategory(customer, vatRate),
+    vat_exemption_legal_note: customerVatExemptionLegalNote(customer, vatRate),
+  }, lines.map((line) => ({ ...line, vat_category: vatCategory })), settings);
+}
+
+export function applyCustomerVatProfileToProforma(
+  document: ProformaDocument,
+  lines: ProformaDocumentLine[],
+  customer: Customer,
+  settings: LegalSettings,
+): { document: ProformaDocument; lines: ProformaDocumentLine[] } {
+  const vatRate = customer.vat_rate ?? document.vat_rate ?? 0.24;
+  const vatCategory = vatRateToAadeCategory(vatRate);
+  return recalculateProforma({
+    ...document,
+    counterpart_customer_id: customer.id,
+    counterpart: buildCounterpartFromCustomer(customer),
+    vat_rate: vatRate,
+    vat_exemption_category: customerVatExemptionCategory(customer, vatRate),
+    vat_exemption_legal_note: customerVatExemptionLegalNote(customer, vatRate),
+  }, lines.map((line) => ({ ...line, vat_category: vatCategory })), settings);
+}
+
 function toProformaLine(line: LegalDocumentLine, proformaId: string): ProformaDocumentLine {
   return {
     ...line,
@@ -1108,6 +1161,7 @@ export function buildManualLegalDocument(params: {
     order_id: null,
     shipment_id: null,
     source_kind: 'manual',
+    counterpart_customer_id: params.customer?.id || null,
     document_kind: params.kind,
     aade_document_type: aadeDocumentType,
     status: 'draft',
@@ -1118,7 +1172,10 @@ export function buildManualLegalDocument(params: {
     payment_method_code: params.settings.default_payment_method,
     currency: 'EUR',
     vat_rate: vatRate,
-    vat_exemption_category: vatCategoryToExemption(vatRate, params.settings),
+    vat_exemption_category: params.customer
+      ? customerVatExemptionCategory(params.customer, vatRate)
+      : vatCategoryToExemption(vatRate, params.settings),
+    vat_exemption_legal_note: customerVatExemptionLegalNote(params.customer, vatRate),
     revenue_classification: groupIncomeClassifications(lines),
     totals,
     created_by: params.userName || null,
@@ -1146,6 +1203,7 @@ export function buildManualProforma(params: {
     order_id: null,
     shipment_id: null,
     source_kind: 'manual',
+    counterpart_customer_id: params.customer?.id || null,
     document_kind: 'proforma',
     status: 'draft',
     series: null,
@@ -1158,6 +1216,7 @@ export function buildManualProforma(params: {
     currency: legalLike.currency,
     vat_rate: legalLike.vat_rate,
     vat_exemption_category: legalLike.vat_exemption_category,
+    vat_exemption_legal_note: legalLike.vat_exemption_legal_note,
     revenue_classification: legalLike.revenue_classification,
     totals: legalLike.totals,
     notes: null,
@@ -1194,6 +1253,7 @@ export function buildProformaFromOrder(params: {
     order_id: params.order.id,
     shipment_id: null,
     source_kind: 'order',
+    counterpart_customer_id: params.customer?.id || null,
     document_kind: 'proforma',
     status: 'draft',
     series: null,
@@ -1206,6 +1266,7 @@ export function buildProformaFromOrder(params: {
     currency: legalLike.currency,
     vat_rate: legalLike.vat_rate,
     vat_exemption_category: legalLike.vat_exemption_category,
+    vat_exemption_legal_note: legalLike.vat_exemption_legal_note,
     revenue_classification: legalLike.revenue_classification,
     totals: legalLike.totals,
     notes: null,
@@ -1377,6 +1438,7 @@ export function convertProformaToLegalDraft(params: {
     currency: params.proforma.currency || 'EUR',
     vat_rate: params.proforma.vat_rate,
     vat_exemption_category: params.proforma.vat_exemption_category,
+    vat_exemption_legal_note: params.proforma.vat_exemption_legal_note,
     revenue_classification: groupIncomeClassifications(lines),
     totals,
     aade_uid: null,
@@ -1413,7 +1475,7 @@ export function buildLegalDocumentFromOrder(params: {
 }): LegalDocument {
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
-  const vatRate = params.order.vat_rate ?? params.customer?.vat_rate ?? 0.24;
+  const vatRate = params.customer?.vat_rate ?? params.order.vat_rate ?? 0.24;
   const lines = buildLinesFromOrderItems({
     documentId: id,
     items: params.order.items || [],
@@ -1429,6 +1491,7 @@ export function buildLegalDocumentFromOrder(params: {
     order_id: params.order.id,
     shipment_id: null,
     source_kind: 'order',
+    counterpart_customer_id: params.customer?.id || null,
     document_kind: params.kind,
     aade_document_type: getAadeDocumentTypeForKind(params.kind),
     status: 'draft',
@@ -1439,7 +1502,10 @@ export function buildLegalDocumentFromOrder(params: {
     payment_method_code: params.settings.default_payment_method,
     currency: 'EUR',
     vat_rate: vatRate,
-    vat_exemption_category: vatCategoryToExemption(vatRate, params.settings),
+    vat_exemption_category: params.customer
+      ? customerVatExemptionCategory(params.customer, vatRate)
+      : vatCategoryToExemption(vatRate, params.settings),
+    vat_exemption_legal_note: customerVatExemptionLegalNote(params.customer, vatRate),
     revenue_classification: groupIncomeClassifications(lines),
     totals,
     created_by: params.userName || null,
@@ -1462,7 +1528,7 @@ export function buildLegalDocumentFromShipment(params: {
 }): LegalDocument {
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
-  const vatRate = params.order.vat_rate ?? params.customer?.vat_rate ?? 0.24;
+  const vatRate = params.customer?.vat_rate ?? params.order.vat_rate ?? 0.24;
   const lines = buildLinesFromOrderItems({
     documentId: id,
     items: params.shipmentItems || [],
@@ -1478,6 +1544,7 @@ export function buildLegalDocumentFromShipment(params: {
     order_id: params.order.id,
     shipment_id: params.shipment.id,
     source_kind: 'shipment',
+    counterpart_customer_id: params.customer?.id || null,
     document_kind: params.kind,
     aade_document_type: getAadeDocumentTypeForKind(params.kind),
     status: 'draft',
@@ -1490,7 +1557,10 @@ export function buildLegalDocumentFromShipment(params: {
     payment_method_code: params.settings.default_payment_method,
     currency: 'EUR',
     vat_rate: vatRate,
-    vat_exemption_category: vatCategoryToExemption(vatRate, params.settings),
+    vat_exemption_category: params.customer
+      ? customerVatExemptionCategory(params.customer, vatRate)
+      : vatCategoryToExemption(vatRate, params.settings),
+    vat_exemption_legal_note: customerVatExemptionLegalNote(params.customer, vatRate),
     revenue_classification: groupIncomeClassifications(lines),
     totals,
     created_by: params.userName || null,

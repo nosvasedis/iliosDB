@@ -19,6 +19,7 @@ import { useCustomers, useOrdersWithItems } from '../../hooks/api/useOrders';
 import { useSuppliers } from '../../hooks/api/useSuppliers';
 import MobileCustomerDetails from './MobileCustomerDetails';
 import { resolveCustomerAnalyticsCategory } from '../../features/customers/customerAnalytics';
+import CustomerVatExemptionFields from '../CustomerVatExemptionFields';
 
 interface Props {
     mode: 'customers' | 'suppliers';
@@ -52,7 +53,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
         const stats: Record<string, number> = {};
         orders.forEach(o => {
             // Net Value = Total / (1 + VAT)
-            const netValue = o.total_price / (1 + (o.vat_rate || 0.24));
+            const netValue = o.total_price / (1 + (o.vat_rate ?? 0.24));
             const cid = o.customer_id;
             if (cid) {
                 stats[cid] = (stats[cid] || 0) + netValue;
@@ -84,7 +85,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
         if (!orders || !editData || editData.id !== RETAIL_CUSTOMER_ID) return null;
         const customerOrders = orders.filter(o => o.status !== OrderStatus.Cancelled && (o.customer_id === RETAIL_CUSTOMER_ID)).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-        const totalSpent = customerOrders.reduce((acc, o) => acc + o.total_price / (1 + (o.vat_rate || 0.24)), 0);
+        const totalSpent = customerOrders.reduce((acc, o) => acc + o.total_price / (1 + (o.vat_rate ?? 0.24)), 0);
         const orderCount = customerOrders.length;
         const avgOrderValue = orderCount > 0 ? totalSpent / orderCount : 0;
         let totalItems = 0;
@@ -113,7 +114,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
             const label = extractRetailClientFromNotes(o.notes).retailClientLabel || 'Χωρίς τελικό πελάτη';
             if (!clientMap[label]) clientMap[label] = { name: label, orderCount: 0, totalRevenue: 0 };
             clientMap[label].orderCount += 1;
-            clientMap[label].totalRevenue += o.total_price / (1 + (o.vat_rate || 0.24));
+            clientMap[label].totalRevenue += o.total_price / (1 + (o.vat_rate ?? 0.24));
         });
         const topClients = Object.values(clientMap).sort((a, b) => b.totalRevenue - a.totalRevenue).slice(0, 8);
 
@@ -166,6 +167,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
 
     const handleSave = async () => {
         if (editType === 'customer' && !editData.full_name.trim()) { showToast('Το όνομα είναι υποχρεωτικό', 'error'); return; }
+        if (editType === 'customer' && editData.vat_rate === 0 && !editData.vat_exemption_category) { showToast('Επιλέξτε την πραγματική αιτία απαλλαγής ΦΠΑ.', 'error'); return; }
         if (editType === 'supplier' && !editData.name.trim()) { showToast('Η επωνυμία είναι υποχρεωτική', 'error'); return; }
 
         try {
@@ -368,7 +370,7 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                         {retailStats.recentOrders.length > 0 ? (
                             <div className="space-y-2">
                                 {retailStats.recentOrders.map(({ order, retailClientLabel }) => {
-                                    const netValue = order.total_price / (1 + (order.vat_rate || 0.24));
+                                    const netValue = order.total_price / (1 + (order.vat_rate ?? 0.24));
                                     const hasLabel = !!retailClientLabel;
                                     return (
                                         <div key={order.id} className="flex items-center justify-between gap-2 bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
@@ -538,7 +540,10 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                 <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Καθεστώς ΦΠΑ</label>
                                 <select
                                     value={editData.vat_rate !== undefined ? editData.vat_rate : VatRegime.Standard}
-                                    onChange={e => setEditData({ ...editData, vat_rate: parseFloat(e.target.value) })}
+                                    onChange={e => {
+                                        const vatRate = parseFloat(e.target.value);
+                                        setEditData({ ...editData, vat_rate: vatRate, ...(vatRate === 0 ? {} : { vat_exemption_category: null, vat_exemption_legal_note: null }) });
+                                    }}
                                     disabled={isRetailSystemCustomer}
                                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900 font-bold"
                                 >
@@ -546,6 +551,9 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                     <option value={VatRegime.Reduced}>17% (Μειωμένο)</option>
                                     <option value={VatRegime.Zero}>0% (Μηδενικό)</option>
                                 </select>
+                                <div className="mt-3">
+                                    <CustomerVatExemptionFields customer={editData as Customer} onChange={setEditData} />
+                                </div>
                             </div>
                         )}
                         <div>

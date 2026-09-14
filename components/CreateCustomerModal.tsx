@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useUI } from './UIProvider';
 import { applyCustomerVatLookup, describeCustomerVatLookup, lookupCustomerVat } from '../features/customers/vatLookup';
+import CustomerVatExemptionFields from './CustomerVatExemptionFields';
 
 export interface CreateCustomerModalProps {
     draft: Customer;
@@ -61,6 +62,11 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
         if (!form.full_name.trim()) {
             showToast('Το ονοματεπώνυμο είναι υποχρεωτικό.', 'error');
             setTab('general');
+            return;
+        }
+        if (form.vat_rate === 0 && !form.vat_exemption_category) {
+            showToast('Επιλέξτε την πραγματική αιτία απαλλαγής ΦΠΑ.', 'error');
+            setTab('fiscal');
             return;
         }
         setIsSaving(true);
@@ -290,12 +296,18 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
                                     <select
                                         className={`${inputClass} cursor-pointer font-bold text-slate-700`}
                                         value={form.vat_rate ?? VatRegime.Standard}
-                                        onChange={e => setForm({ ...form, vat_rate: parseFloat(e.target.value) })}
+                                        onChange={e => {
+                                            const vatRate = parseFloat(e.target.value);
+                                            setForm({ ...form, vat_rate: vatRate, ...(vatRate === 0 ? {} : { vat_exemption_category: null, vat_exemption_legal_note: null }) });
+                                        }}
                                     >
                                         <option value={VatRegime.Standard}>24% — Κανονικό</option>
                                         <option value={VatRegime.Reduced}>17% — Μειωμένο</option>
                                         <option value={VatRegime.Zero}>0% — Μηδενικό / απαλλαγή</option>
                                     </select>
+                                </div>
+                                <div className="mt-5">
+                                    <CustomerVatExemptionFields customer={form} onChange={setForm} />
                                 </div>
                             </div>
                         )}

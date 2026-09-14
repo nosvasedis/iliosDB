@@ -81,6 +81,7 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
         currency={document.currency}
         paymentMethodLabel={PAYMENT_METHOD_LABELS[document.payment_method_code] || String(document.payment_method_code)}
         vatExemptionCategory={document.vat_exemption_category}
+        vatExemptionLegalNote={document.vat_exemption_legal_note}
         documentTypeCode={document.aade_document_type}
         revenueClassificationText={revenueClassificationText}
         delivery={document.delivery}

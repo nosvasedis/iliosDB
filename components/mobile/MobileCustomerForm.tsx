@@ -3,6 +3,7 @@ import { Customer, VatRegime } from '../../types';
 import { X, Save, Loader2, Zap, Phone, Mail, MapPin, FileText, User, CreditCard, MessageSquare } from 'lucide-react';
 import { useUI } from '../UIProvider';
 import { applyCustomerVatLookup, describeCustomerVatLookup, lookupCustomerVat } from '../../features/customers/vatLookup';
+import CustomerVatExemptionFields from '../CustomerVatExemptionFields';
 
 export interface MobileCustomerFormProps {
     /** Initial values (empty for new customer) */
@@ -42,6 +43,10 @@ export default function MobileCustomerForm({ customer, onSave, onCancel }: Mobil
         e.preventDefault();
         if (!form.full_name.trim()) {
             showToast('Το ονοματεπώνυμο είναι υποχρεωτικό.', 'error');
+            return;
+        }
+        if (form.vat_rate === 0 && !form.vat_exemption_category) {
+            showToast('Επιλέξτε την πραγματική αιτία απαλλαγής ΦΠΑ.', 'error');
             return;
         }
         setIsSaving(true);
@@ -200,12 +205,16 @@ export default function MobileCustomerForm({ customer, onSave, onCancel }: Mobil
                         <select
                             className={`${inputClass} cursor-pointer`}
                             value={form.vat_rate ?? VatRegime.Standard}
-                            onChange={e => setForm({ ...form, vat_rate: parseFloat(e.target.value) })}
+                            onChange={e => {
+                                const vatRate = parseFloat(e.target.value);
+                                setForm({ ...form, vat_rate: vatRate, ...(vatRate === 0 ? {} : { vat_exemption_category: null, vat_exemption_legal_note: null }) });
+                            }}
                         >
                             <option value={VatRegime.Standard}>24% — Κανονικό ΦΠΑ</option>
                             <option value={VatRegime.Reduced}>17% — Μειωμένο</option>
                             <option value={VatRegime.Zero}>0% — Απαλλαγή</option>
                         </select>
+                        <CustomerVatExemptionFields customer={form} onChange={setForm} />
                     </div>
 
                     {/* Notes */}

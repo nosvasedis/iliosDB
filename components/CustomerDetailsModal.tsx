@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Customer, Order, OrderShipmentItem, OrderStatus, VatRegime } from '../types';
 import {
     Phone,
@@ -34,6 +34,7 @@ import {
     ArrowRightLeft,
     HandHeart,
     Wrench,
+    ChevronDown,
 } from 'lucide-react';
 import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
 import { applyCustomerVatLookup, describeCustomerVatLookup, lookupCustomerVat } from '../features/customers/vatLookup';
@@ -56,6 +57,7 @@ import { CONSIGNMENT_STATUS_LABELS, REPAIR_ORIGIN_LABELS, REPAIR_STATUS_LABELS, 
 import ConsignmentBadge from './customerService/ConsignmentBadge';
 import RepairBadge from './customerService/RepairBadge';
 import SkuColorizedText from './SkuColorizedText';
+import CustomerVatExemptionFields from './CustomerVatExemptionFields';
 
 export interface CustomerDetailsModalProps {
     customer: Customer;
@@ -171,13 +173,34 @@ export default function CustomerDetailsModal({
     type RetailTab = 'overview' | 'end_clients' | 'categories' | 'orders';
     const [activeTab, setActiveTab] = useState<NormalTab | RetailTab>('overview');
     const [orderQuery, setOrderQuery] = useState('');
+    const [isTabMenuOpen, setIsTabMenuOpen] = useState(false);
+    const tabMenuRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
         setEditForm(customer);
         setIsEditing(false);
         setActiveTab('overview');
         setOrderQuery('');
+        setIsTabMenuOpen(false);
     }, [customer.id]);
+
+    useEffect(() => {
+        if (!isTabMenuOpen) return;
+        const handleClickOutside = (event: MouseEvent) => {
+            if (tabMenuRef.current && !tabMenuRef.current.contains(event.target as Node)) {
+                setIsTabMenuOpen(false);
+            }
+        };
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setIsTabMenuOpen(false);
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('keydown', handleEscape);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleEscape);
+        };
+    }, [isTabMenuOpen]);
 
     const stats = useMemo(() => {
         const customerOrders = orders
@@ -189,7 +212,7 @@ export default function CustomerDetailsModal({
             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
         const totalSpent = customerOrders.reduce((acc, o) => {
-            const netValue = o.total_price / (1 + (o.vat_rate || 0.24));
+            const netValue = o.total_price / (1 + (o.vat_rate ?? 0.24));
             return acc + netValue;
         }, 0);
 
@@ -322,7 +345,7 @@ export default function CustomerDetailsModal({
             const label = retailClientLabel || 'Χωρίς τελικό πελάτη';
             if (!clientMap[label]) clientMap[label] = { name: label, orderCount: 0, totalRevenue: 0 };
             clientMap[label].orderCount += 1;
-            clientMap[label].totalRevenue += order.total_price / (1 + (order.vat_rate || 0.24));
+            clientMap[label].totalRevenue += order.total_price / (1 + (order.vat_rate ?? 0.24));
         });
         return Object.values(clientMap)
             .sort((a, b) => b.totalRevenue - a.totalRevenue)
@@ -336,6 +359,10 @@ export default function CustomerDetailsModal({
         }
         if (!editForm.full_name.trim()) {
             showToast('Το ονοματεπώνυμο είναι υποχρεωτικό.', 'error');
+            return;
+        }
+        if (editForm.vat_rate === 0 && !editForm.vat_exemption_category) {
+            showToast('Επιλέξτε την πραγματική αιτία απαλλαγής ΦΠΑ.', 'error');
             return;
         }
         setIsSaving(true);
@@ -401,6 +428,7 @@ export default function CustomerDetailsModal({
         { id: 'orders', label: `Παραγγελίες (${stats.orderCount})`, Icon: ShoppingBag },
     ];
     const tabList = isRetailSystemCustomer ? retailTabList : normalTabList;
+    const activeTabMeta = tabList.find(tab => tab.id === activeTab) || tabList[0];
 
     /** Λιανική is a bucket for many real clients — no single identity, nameday, or "VIP" person. */
     const nextNameday =
@@ -585,24 +613,52 @@ export default function CustomerDetailsModal({
                 </div>
 
                 {customer.id && (
-                    <div className="shrink-0 border-b border-slate-100 bg-slate-50/90 px-2 py-2 sm:px-4">
-                        <div className="flex gap-1 overflow-x-auto rounded-xl bg-slate-200/50 p-1 custom-scrollbar">
-                            {tabList.map(({ id, label, Icon }) => (
-                                <button
-                                    key={id}
-                                    type="button"
-                                    onClick={() => setActiveTab(id)}
-                                    className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-bold transition-all sm:gap-2 sm:px-3.5 sm:text-sm ${
-                                        activeTab === id
-                                            ? 'bg-white text-[#060b00] shadow-sm'
-                                            : 'text-slate-500 hover:text-slate-800'
-                                    }`}
-                                >
-                                    <Icon size={15} className="shrink-0 opacity-80" />
-                                    {label}
-                                </button>
-                            ))}
-                        </div>
+                    <div className="relative shrink-0 border-b border-slate-100 bg-slate-50/90 px-2 py-2 sm:px-4" ref={tabMenuRef}>
+                        <button
+                            type="button"
+                            onClick={() => setIsTabMenuOpen(open => !open)}
+                            aria-haspopup="true"
+                            aria-expanded={isTabMenuOpen}
+                            className={`flex w-full items-center justify-between gap-3 rounded-xl border bg-white px-3.5 py-2.5 text-left shadow-sm transition-all sm:w-auto sm:min-w-[240px] ${
+                                isTabMenuOpen ? 'border-[#060b00]/30 ring-2 ring-[#060b00]/10' : 'border-slate-200 hover:border-slate-300'
+                            }`}
+                        >
+                            <span className="flex min-w-0 items-center gap-2.5">
+                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#060b00]/[0.06] text-[#060b00]">
+                                    <activeTabMeta.Icon size={16} />
+                                </span>
+                                <span className="truncate text-sm font-bold text-[#060b00]">{activeTabMeta.label}</span>
+                            </span>
+                            <ChevronDown
+                                size={16}
+                                className={`shrink-0 text-slate-400 transition-transform ${isTabMenuOpen ? 'rotate-180' : ''}`}
+                            />
+                        </button>
+
+                        {isTabMenuOpen && (
+                            <div className="absolute left-2 right-2 top-full z-30 mt-1.5 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl sm:left-0 sm:right-auto sm:w-80">
+                                <div className="grid grid-cols-2 gap-1 sm:grid-cols-1">
+                                    {tabList.map(({ id, label, Icon }) => (
+                                        <button
+                                            key={id}
+                                            type="button"
+                                            onClick={() => {
+                                                setActiveTab(id);
+                                                setIsTabMenuOpen(false);
+                                            }}
+                                            className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs font-bold transition-colors sm:text-sm ${
+                                                activeTab === id
+                                                    ? 'bg-[#060b00] text-white'
+                                                    : 'text-slate-600 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            <Icon size={15} className={`shrink-0 ${activeTab === id ? 'opacity-90' : 'opacity-70'}`} />
+                                            <span className="truncate">{label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -695,7 +751,7 @@ export default function CustomerDetailsModal({
                                     {retailOrdersWithLabels.length > 0 ? (
                                         <div className="space-y-2">
                                             {retailOrdersWithLabels.slice(0, 5).map(({ order, retailClientLabel }) => {
-                                                const netValue = order.total_price / (1 + (order.vat_rate || 0.24));
+                                                const netValue = order.total_price / (1 + (order.vat_rate ?? 0.24));
                                                 const hasLabel = !!retailClientLabel;
                                                 return (
                                                     <div
@@ -786,7 +842,7 @@ export default function CustomerDetailsModal({
                                     {stats.history.length > 0 ? (
                                         <div className="space-y-2">
                                             {stats.history.slice(0, 3).map(o => {
-                                                const netValue = o.total_price / (1 + (o.vat_rate || 0.24));
+                                                const netValue = o.total_price / (1 + (o.vat_rate ?? 0.24));
                                                 return (
                                                     <div
                                                         key={o.id}
@@ -974,7 +1030,10 @@ export default function CustomerDetailsModal({
                                         <select
                                             className={`${inputClass} cursor-pointer font-bold`}
                                             value={editForm.vat_rate ?? VatRegime.Standard}
-                                            onChange={e => setEditForm({ ...editForm, vat_rate: parseFloat(e.target.value) })}
+                                            onChange={e => {
+                                                const vatRate = parseFloat(e.target.value);
+                                                setEditForm({ ...editForm, vat_rate: vatRate, ...(vatRate === 0 ? {} : { vat_exemption_category: null, vat_exemption_legal_note: null }) });
+                                            }}
                                         >
                                             <option value={VatRegime.Standard}>24% (Κανονικό)</option>
                                             <option value={VatRegime.Reduced}>17% (Μειωμένο)</option>
@@ -982,10 +1041,18 @@ export default function CustomerDetailsModal({
                                         </select>
                                     ) : (
                                         <div className="inline-block rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-bold text-blue-600">
-                                            {((customer.vat_rate || 0.24) * 100).toFixed(0)}% ΦΠΑ
+                                            {((customer.vat_rate ?? 0.24) * 100).toFixed(0)}% ΦΠΑ
                                         </div>
                                     )}
                                 </div>
+                                {isEditing ? (
+                                    <CustomerVatExemptionFields customer={editForm} onChange={setEditForm} />
+                                ) : customer.vat_rate === 0 ? (
+                                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                                        <div className="font-black">Αιτία απαλλαγής myDATA: {customer.vat_exemption_category || 'δεν έχει οριστεί'}</div>
+                                        {customer.vat_exemption_legal_note && <div className="mt-1 text-xs font-semibold">{customer.vat_exemption_legal_note}</div>}
+                                    </div>
+                                ) : null}
                             </div>
                         </div>
                     )}
@@ -1196,7 +1263,7 @@ export default function CustomerDetailsModal({
                                 </p>
                             </div>
                             {filteredOrders.map(o => {
-                                const netValue = o.total_price / (1 + (o.vat_rate || 0.24));
+                                const netValue = o.total_price / (1 + (o.vat_rate ?? 0.24));
                                 const gross = o.total_price;
                                 const retailLabel = isRetailSystemCustomer
                                     ? extractRetailClientFromNotes(o.notes).retailClientLabel

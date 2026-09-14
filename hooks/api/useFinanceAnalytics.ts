@@ -7,8 +7,104 @@ import { useAllShipmentItems, useAllShipments, useOrdersWithItems } from './useO
 import { useCollections } from './useCollections';
 import { useSellers } from './useSellers';
 import { useSettings } from './useSettings';
-import { buildFinanceLineEvents, rankFinanceAnalyticsFromEvents, FinanceAnalytics, FinancePeriodSelection } from '../../utils/financeAnalytics';
+import {
+  buildFinanceLineEvents,
+  rankFinanceAnalyticsFromEvents,
+  FinanceAnalytics,
+  FinanceLineEventBundle,
+  FinancePeriodSelection,
+} from '../../utils/financeAnalytics';
 import { GlobalSettings, Product } from '../../types';
+
+// The event bundle and ranking computations below are pure, but can be fairly expensive
+// (they walk every order/shipment line in the system). Multiple screens call this hook with
+// the same underlying react-query data (which keeps stable object references between
+// re-renders/re-mounts), so we cache results by reference-identity of the inputs. This avoids
+// redoing the full-system computation every time e.g. a modal tab is opened/closed, while still
+// recomputing correctly whenever the underlying data actually changes (new references).
+const EVENT_BUNDLE_CACHE_SIZE = 6;
+const eventBundleCache: Array<{
+  orders: unknown;
+  shipments: unknown;
+  shipmentItems: unknown;
+  products: unknown;
+  materials: unknown;
+  settings: unknown;
+  collections: unknown;
+  sellers: unknown;
+  result: FinanceLineEventBundle;
+}> = [];
+
+function getCachedEventBundle(params: {
+  orders: unknown;
+  shipments: unknown;
+  shipmentItems: unknown;
+  products: unknown;
+  materials: unknown;
+  settings: unknown;
+  collections: unknown;
+  sellers: unknown;
+}): FinanceLineEventBundle {
+  const hit = eventBundleCache.find(entry =>
+    entry.orders === params.orders &&
+    entry.shipments === params.shipments &&
+    entry.shipmentItems === params.shipmentItems &&
+    entry.products === params.products &&
+    entry.materials === params.materials &&
+    entry.settings === params.settings &&
+    entry.collections === params.collections &&
+    entry.sellers === params.sellers
+  );
+  if (hit) return hit.result;
+
+  const result = buildFinanceLineEvents({
+    orders: params.orders as any,
+    shipments: params.shipments as any,
+    shipmentItems: params.shipmentItems as any,
+    products: params.products as any,
+    materials: params.materials as any,
+    settings: params.settings as any,
+    collections: params.collections as any,
+    sellers: params.sellers as any,
+  });
+  eventBundleCache.unshift({ ...params, result });
+  if (eventBundleCache.length > EVENT_BUNDLE_CACHE_SIZE) eventBundleCache.length = EVENT_BUNDLE_CACHE_SIZE;
+  return result;
+}
+
+const RANKED_ANALYTICS_CACHE_SIZE = 8;
+const rankedAnalyticsCache: Array<{
+  eventBundle: FinanceLineEventBundle;
+  orders: unknown;
+  legalDocuments: unknown;
+  periodKey: string;
+  result: FinanceAnalytics;
+}> = [];
+
+function getCachedRankedAnalytics(params: {
+  eventBundle: FinanceLineEventBundle;
+  orders: unknown;
+  legalDocuments: unknown;
+  period: FinancePeriodSelection | undefined;
+}): FinanceAnalytics {
+  const periodKey = params.period?.mode || 'current_year';
+  const hit = rankedAnalyticsCache.find(entry =>
+    entry.eventBundle === params.eventBundle &&
+    entry.orders === params.orders &&
+    entry.legalDocuments === params.legalDocuments &&
+    entry.periodKey === periodKey
+  );
+  if (hit) return hit.result;
+
+  const result = rankFinanceAnalyticsFromEvents({
+    orders: params.orders as any,
+    legalDocuments: params.legalDocuments as any,
+    period: params.period,
+  }, params.eventBundle);
+  rankedAnalyticsCache.unshift({ eventBundle: params.eventBundle, orders: params.orders, legalDocuments: params.legalDocuments, periodKey, result });
+  if (rankedAnalyticsCache.length > RANKED_ANALYTICS_CACHE_SIZE) rankedAnalyticsCache.length = RANKED_ANALYTICS_CACHE_SIZE;
+  return result;
+}
 
 interface UseFinanceAnalyticsParams {
   products: Product[];
@@ -33,37 +129,44 @@ export function useFinanceAnalytics({ products, settings, period }: UseFinanceAn
   const settingsQuery = useSettings();
   const effectiveSettings = settings || settingsQuery.data || null;
 
+  const shipments = shipmentsQuery.data || [];
+  const shipmentItems = shipmentItemsQuery.data || [];
+  const collections = collectionsQuery.data || [];
+  const sellers = sellersQuery.data || [];
+  const legalDocuments = legalDocumentsQuery.data || [];
+
   const eventBundle = useMemo(() => {
     if (!effectiveSettings || !ordersQuery.data || !materialsQuery.data) return null;
-    return buildFinanceLineEvents({
+    return getCachedEventBundle({
       orders: ordersQuery.data,
-      shipments: shipmentsQuery.data || [],
-      shipmentItems: shipmentItemsQuery.data || [],
+      shipments,
+      shipmentItems,
       products: products || [],
-      materials: materialsQuery.data || [],
+      materials: materialsQuery.data,
       settings: effectiveSettings,
-      collections: collectionsQuery.data || [],
-      sellers: sellersQuery.data || [],
+      collections,
+      sellers,
     });
   }, [
-    collectionsQuery.data,
+    collections,
     materialsQuery.data,
     ordersQuery.data,
     products,
-    sellersQuery.data,
+    sellers,
     effectiveSettings,
-    shipmentItemsQuery.data,
-    shipmentsQuery.data,
+    shipmentItems,
+    shipments,
   ]);
 
   const analytics = useMemo(() => {
     if (!eventBundle || !ordersQuery.data) return null;
-    return rankFinanceAnalyticsFromEvents({
+    return getCachedRankedAnalytics({
+      eventBundle,
       orders: ordersQuery.data,
-      legalDocuments: legalDocumentsQuery.data || [],
+      legalDocuments,
       period,
-    }, eventBundle);
-  }, [eventBundle, legalDocumentsQuery.data, ordersQuery.data, period]);
+    });
+  }, [eventBundle, legalDocuments, ordersQuery.data, period]);
 
   const isLoading = ordersQuery.isLoading
     || shipmentsQuery.isLoading

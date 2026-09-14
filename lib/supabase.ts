@@ -2356,6 +2356,13 @@ export const api = {
         if ((payload.full_name || '').trim() === RETAIL_CUSTOMER_NAME && payload.id !== RETAIL_CUSTOMER_ID) {
             throw new Error("Το όνομα 'Λιανική' είναι δεσμευμένο από το σύστημα.");
         }
+        if (payload.vat_rate === 0 && !payload.vat_exemption_category) {
+            throw new Error('Ο πελάτης με 0% ΦΠΑ χρειάζεται συγκεκριμένη αιτία απαλλαγής myDATA.');
+        }
+        if (payload.vat_rate !== undefined && Math.abs(payload.vat_rate) >= 0.001) {
+            payload.vat_exemption_category = null;
+            payload.vat_exemption_legal_note = null;
+        }
         if (payload.id === '') delete payload.id;
 
         const result = await safeMutate('customers', 'UPSERT', payload, { onConflict: 'id' });
@@ -2387,6 +2394,12 @@ export const api = {
         }
         if ((updates.full_name || '').trim() === RETAIL_CUSTOMER_NAME) {
             throw new Error("Το όνομα 'Λιανική' είναι δεσμευμένο από το σύστημα.");
+        }
+        if (updates.vat_rate === 0 && !updates.vat_exemption_category) {
+            throw new Error('Ο πελάτης με 0% ΦΠΑ χρειάζεται συγκεκριμένη αιτία απαλλαγής myDATA.');
+        }
+        if (updates.vat_rate !== undefined && Math.abs(updates.vat_rate) >= 0.001) {
+            updates = { ...updates, vat_exemption_category: null, vat_exemption_legal_note: null };
         }
         await safeMutate('customers', 'UPDATE', updates, { match: { id } });
     },

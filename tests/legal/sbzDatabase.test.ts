@@ -18,6 +18,7 @@ describe('SBZ PostgreSQL transactions',()=>{
     for(const name of ['20260611091210_legal_documents_module.sql','20260611095523_legal_documents_admin_rls.sql','20260611123000_legal_proformas_sync.sql','20260709104336_backup_restore_v4.sql','20260728085650_legal_archive_intelligence.sql','20260728101952_legal_archive_relationships.sql','20260729082559_legal_numbering_submission_hardening.sql','20260806094743_link_legal_invoice_delivery_note.sql']) await db.exec(read(name));
     await db.exec('GRANT USAGE ON SCHEMA public,auth TO authenticated,service_role; GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public TO authenticated,service_role;');
     await db.exec(read('20260911070545_sbz_provider_wholesale.sql'));
+    await db.exec(read('20260914094500_customer_vat_exemption_profile.sql'));
 
   },60000);
   afterAll(async()=>{await db?.close();});
@@ -39,6 +40,18 @@ describe('SBZ PostgreSQL transactions',()=>{
     await db.exec('SET ROLE authenticated');
     try {await expect(db.exec("UPDATE legal_documents SET provider_state='rejected'")).rejects.toThrow();}
     finally {await db.exec('RESET ROLE');}
+  });
+  it('persists exemption wording and locks it after provider acceptance',async()=>{
+    const source=sbzFixture();
+    const legalNote='ΧΩΡΙΣ ΦΠΑ ΩΣ Α.Υ.Ο. Π.7395/4269/5.11.1987';
+    const document={...source.document,id:'20000000-0000-4000-8000-000000000008',vat_rate:0,vat_exemption_category:1,vat_exemption_legal_note:legalNote};
+    const lines=source.lines.map(line=>({...line,id:'10000000-0000-4000-8000-000000000008',document_id:document.id,vat_category:7,vat_amount:0,gross_value:line.net_value}));
+    await db.query('SELECT save_sbz_draft($1,$2)',[serializeLegalDocumentForDb(document),lines.map(line=>serializeLegalDocumentLineForDb(line,document.id))]);
+    const saved=await db.query<any>('SELECT vat_exemption_legal_note FROM legal_documents WHERE id=$1',[document.id]);
+    expect(saved.rows[0].vat_exemption_legal_note).toBe(legalNote);
+    const claim=await db.query<any>('SELECT claim_sbz_operation($1,\'send\',$2) result',[document.id,actor]);
+    await db.query('SELECT finish_sbz_operation($1,\'accepted\',$2,\'response\',null)',[claim.rows[0].result.operationId,{invoiceMark:'600',invoiceUid:'athos',authenticationCode:'auth',invoiceUrl:'https://api.sbz.gr/sign/doc.php?ac=athos'}]);
+    await expect(db.query('UPDATE legal_documents SET vat_exemption_legal_note=$1 WHERE id=$2',['changed',document.id])).rejects.toThrow('κλειδωμένο');
   });
   it('saves credits atomically and prevents over-crediting pending quantities',async()=>{
     const source=sbzFixture();const original={...source.document,status:'issued' as const,aade_mark:'9007199254740993123'};

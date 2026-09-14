@@ -41,7 +41,9 @@ import { useProducts } from '../../hooks/api/useProducts';
 import { useFinanceAnalytics } from '../../hooks/api/useFinanceAnalytics';
 import {
   buildCustomerAnalytics,
+  BuildCustomerAnalyticsInput,
   CustomerAnalyticsPeriod,
+  CustomerAnalyticsViewModel,
   CustomerMixRow,
   CustomerOpportunity,
   CustomerPerformanceRow,
@@ -85,6 +87,49 @@ const successOptions: Array<{ id: CustomerSuccessMetric; label: string }> = [
 ];
 
 const cardClass = 'rounded-2xl border border-slate-100 bg-white shadow-sm';
+
+// buildCustomerAnalytics is pure but scans the customer's full order/event history (plus a
+// system-wide scan for cross-sell suggestions). Cache the result by reference-identity of its
+// inputs so re-entering the "Ανάλυση" tab for the same customer (e.g. after switching tabs or
+// reopening the modal within the same session) is instant instead of recomputing from scratch.
+const CUSTOMER_ANALYTICS_CACHE_SIZE = 8;
+const customerAnalyticsCache: Array<{
+  customerId: string;
+  allOrders: unknown;
+  realizedEvents: unknown;
+  backlogEvents: unknown;
+  products: unknown;
+  period: CustomerAnalyticsPeriod;
+  isRetailSystemCustomer: boolean;
+  result: CustomerAnalyticsViewModel;
+}> = [];
+
+function getCachedCustomerAnalytics(params: BuildCustomerAnalyticsInput): CustomerAnalyticsViewModel {
+  const hit = customerAnalyticsCache.find(entry =>
+    entry.customerId === params.customer.id &&
+    entry.allOrders === params.allOrders &&
+    entry.realizedEvents === params.realizedEvents &&
+    entry.backlogEvents === params.backlogEvents &&
+    entry.products === params.products &&
+    entry.period === params.period &&
+    entry.isRetailSystemCustomer === params.isRetailSystemCustomer
+  );
+  if (hit) return hit.result;
+
+  const result = buildCustomerAnalytics(params);
+  customerAnalyticsCache.unshift({
+    customerId: params.customer.id,
+    allOrders: params.allOrders,
+    realizedEvents: params.realizedEvents,
+    backlogEvents: params.backlogEvents,
+    products: params.products,
+    period: params.period,
+    isRetailSystemCustomer: params.isRetailSystemCustomer,
+    result,
+  });
+  if (customerAnalyticsCache.length > CUSTOMER_ANALYTICS_CACHE_SIZE) customerAnalyticsCache.length = CUSTOMER_ANALYTICS_CACHE_SIZE;
+  return result;
+}
 
 function formatDate(value: string | null) {
   if (!value) return '—';
@@ -252,7 +297,7 @@ export default function CustomerAnalyticsPanel({ customer, orders, isRetailSyste
 
   const viewModel = useMemo(() => {
     if (!financeQuery.analytics || !productsQuery.data) return null;
-    return buildCustomerAnalytics({
+    return getCachedCustomerAnalytics({
       customer,
       allOrders: orders,
       realizedEvents: financeQuery.analytics.events.realized,

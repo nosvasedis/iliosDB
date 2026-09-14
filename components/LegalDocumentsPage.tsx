@@ -94,6 +94,8 @@ import {
 } from '../features/legal';
 import {
   applyAutomaticLegalItemClassification,
+  applyCustomerVatProfileToLegalDocument,
+  applyCustomerVatProfileToProforma,
   applyLegalLineDiscount,
   applyLegalDocumentDeliveryToggle,
   buildDefaultDeliveryDetails,
@@ -1058,19 +1060,10 @@ export default function LegalDocumentsPage({
   const applyCustomerToDraft = (customerId: string, target: 'legal' | 'proforma') => {
     const customer = customers.find((item) => item.id === customerId);
     if (!customer) return;
-    const counterpart = buildCounterpartFromCustomer(customer);
     if (target === 'legal') {
-      updateDraftDocument((current) => ({
-        ...current,
-        counterpart,
-        vat_rate: customer.vat_rate ?? current.vat_rate,
-      }));
+      updateDraftBundle((document, lines) => applyCustomerVatProfileToLegalDocument(document, lines, customer, settingsDraft));
     } else {
-      updateProformaBundle((document, lines) => recalculateProforma({
-        ...document,
-        counterpart,
-        vat_rate: customer.vat_rate ?? document.vat_rate,
-      }, lines, settingsDraft));
+      updateProformaBundle((document, lines) => applyCustomerVatProfileToProforma(document, lines, customer, settingsDraft));
     }
   };
 
@@ -1099,8 +1092,21 @@ export default function LegalDocumentsPage({
           tax_office: result.taxOffice || document.counterpart.tax_office,
         },
       });
-      if (target === 'legal') updateDraftDocument(applyResult);
-      else updateProformaBundle((document, lines) => recalculateProforma(applyResult(document), lines, settingsDraft));
+      if (target === 'legal') {
+        updateDraftBundle((document, lines) => {
+          const profiled = matchedCustomer
+            ? applyCustomerVatProfileToLegalDocument(document, lines, matchedCustomer, settingsDraft)
+            : recalculateLegalDocument(document, lines, settingsDraft);
+          return { ...profiled, document: applyResult(profiled.document) };
+        });
+      } else {
+        updateProformaBundle((document, lines) => {
+          const profiled = matchedCustomer
+            ? applyCustomerVatProfileToProforma(document, lines, matchedCustomer, settingsDraft)
+            : recalculateProforma(document, lines, settingsDraft);
+          return { ...profiled, document: applyResult(profiled.document) };
+        });
+      }
       showToast(describeCustomerVatLookup(result), result.active === false ? 'error' : 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Ο έλεγχος ΑΦΜ απέτυχε.', 'error');
@@ -1209,6 +1215,7 @@ export default function LegalDocumentsPage({
       ...current,
       vat_rate: vatRate,
       vat_exemption_category: vatRate === 0 ? current.vat_exemption_category : null,
+      vat_exemption_legal_note: vatRate === 0 ? current.vat_exemption_legal_note : null,
     }, lines.map((line) => ({ ...line, vat_category: vatCategory })), settingsDraft));
   };
 
@@ -1218,6 +1225,7 @@ export default function LegalDocumentsPage({
       ...current,
       vat_rate: vatRate,
       vat_exemption_category: vatRate === 0 ? current.vat_exemption_category : null,
+      vat_exemption_legal_note: vatRate === 0 ? current.vat_exemption_legal_note : null,
     }, lines.map((line) => ({ ...line, vat_category: vatCategory })), settingsDraft));
   };
 
@@ -1924,6 +1932,9 @@ export default function LegalDocumentsPage({
               value={document.vat_exemption_category}
               onChange={(value) => updateDraftDocument((current) => ({ ...current, vat_exemption_category: value }))}
             />
+            {document.vat_rate === 0 && (
+              <TextInput label="Υποχρεωτική ένδειξη απαλλαγής στο PDF" value={document.vat_exemption_legal_note || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, vat_exemption_legal_note: value || null }))} />
+            )}
           </fieldset>
 
           {(isStandaloneDeliveryNote || canToggleDelivery) && (
@@ -2398,6 +2409,9 @@ export default function LegalDocumentsPage({
               value={document.vat_exemption_category}
               onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, vat_exemption_category: value }, lines, settingsDraft))}
             />
+            {document.vat_rate === 0 && (
+              <TextInput label="Υποχρεωτική ένδειξη απαλλαγής στο PDF" value={document.vat_exemption_legal_note || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, vat_exemption_legal_note: value || null }, lines, settingsDraft))} />
+            )}
             <TextInput label="Σημειώσεις" value={document.notes || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, notes: value }, lines, settingsDraft))} />
           </div>
         </section>

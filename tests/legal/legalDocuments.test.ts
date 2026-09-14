@@ -13,6 +13,7 @@ import {
   getAadeVatExemptionCategoryLabel,
   getAllowedIncomeTypeOptions,
   applyAutomaticLegalItemClassification,
+  applyCustomerVatProfileToLegalDocument,
   applyLegalDocumentDeliveryToggle,
   buildAadeInvoiceXml,
   buildAadeTransmittedDocsQuery,
@@ -57,6 +58,8 @@ import {
   parseLegalDocumentAa,
   parseLegalPartyAddress,
   resolveWholesaleAadeSyncDocumentTypes,
+  MOUNT_ATHOS_VAT_EXEMPTION_CATEGORY,
+  MOUNT_ATHOS_VAT_EXEMPTION_NOTE,
 } from '../../utils/legalDocuments';
 import type { LegalDocument, LegalNumberingSequence } from '../../types';
 
@@ -507,6 +510,46 @@ describe('legal document helpers', () => {
     expect(updated.document.revenue_classification).toEqual([
       expect.objectContaining({ classification_category: 'category1_1', amount: 110 }),
     ]);
+  });
+
+  it('applies the Mount Athos customer profile over an existing taxable order', () => {
+    const athosCustomer: Customer = {
+      ...customer,
+      id: 'customer-athos',
+      vat_rate: 0,
+      vat_exemption_category: MOUNT_ATHOS_VAT_EXEMPTION_CATEGORY,
+      vat_exemption_legal_note: MOUNT_ATHOS_VAT_EXEMPTION_NOTE,
+    };
+    const document = buildLegalDocumentFromOrder({
+      order: { ...baseOrder, vat_rate: 0.24 },
+      customer: athosCustomer,
+      products: [product],
+      settings,
+      kind: 'invoice',
+    });
+
+    expect(document.vat_rate).toBe(0);
+    expect(document.vat_exemption_category).toBe(1);
+    expect(document.vat_exemption_legal_note).toBe(MOUNT_ATHOS_VAT_EXEMPTION_NOTE);
+    expect(document.lines.every((line) => line.vat_category === 7 && line.vat_amount === 0)).toBe(true);
+    expect(document.totals).toMatchObject({ net: 200, vat: 0, gross: 200 });
+    expect(validateLegalDocument(document, document.lines)).toEqual([]);
+  });
+
+  it('recalculates every existing line when an exempt customer is selected', () => {
+    const taxable = buildLegalDocumentFromOrder({ order: baseOrder, customer, products: [product], settings, kind: 'invoice' });
+    const athosCustomer: Customer = {
+      ...customer,
+      id: 'customer-athos',
+      vat_rate: 0,
+      vat_exemption_category: 1,
+      vat_exemption_legal_note: MOUNT_ATHOS_VAT_EXEMPTION_NOTE,
+    };
+    const updated = applyCustomerVatProfileToLegalDocument(taxable, taxable.lines, athosCustomer, settings);
+
+    expect(updated.lines.every((line) => line.vat_category === 7 && line.vat_amount === 0)).toBe(true);
+    expect(updated.document.totals.gross).toBe(updated.document.totals.net);
+    expect(updated.document.counterpart_customer_id).toBe(athosCustomer.id);
   });
 
   it('reclassifies a former shipping line when its item code changes', () => {

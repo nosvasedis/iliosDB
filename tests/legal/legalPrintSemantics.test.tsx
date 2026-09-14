@@ -224,4 +224,14 @@ describe('legal print semantics', () => {
     expect(html).not.toContain('Σκοπός');
     expect(html).not.toContain('Φόρτωση');
   });
+
+  it('prints the persisted legal exemption wording for Mount Athos', () => {
+    const html = renderToStaticMarkup(
+      <LegalDocumentPrintView
+        document={{ ...document, vat_rate: 0, vat_exemption_category: 1, vat_exemption_legal_note: 'ΧΩΡΙΣ ΦΠΑ ΩΣ Α.Υ.Ο. Π.7395/4269/5.11.1987' }}
+        lines={[{ ...lines[0], vat_category: 7, vat_amount: 0, gross_value: 200 }]}
+      />,
+    );
+    expect(html).toContain('ΧΩΡΙΣ ΦΠΑ ΩΣ Α.Υ.Ο. Π.7395/4269/5.11.1987');
+  });
 });

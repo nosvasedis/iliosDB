@@ -37,7 +37,7 @@ export default function EmployeeDashboard({ onNavigate }: Props) {
         // Calculate NET Sales for Today
         const todaySales = orders
             .filter(o => o.created_at.startsWith(today))
-            .reduce((acc, o) => acc + (o.total_price / (1 + (o.vat_rate || 0.24))), 0);
+            .reduce((acc, o) => acc + (o.total_price / (1 + (o.vat_rate ?? 0.24))), 0);
 
         return { pending, todaySales, ready };
     }, [orders]);
@@ -87,7 +87,7 @@ export default function EmployeeDashboard({ onNavigate }: Props) {
                     
                     <div className="space-y-3 flex-1 overflow-y-auto max-h-[400px] custom-scrollbar pr-2">
                         {orders?.slice(0, 10).map(order => {
-                            const netValue = order.total_price / (1 + (order.vat_rate || 0.24));
+                            const netValue = order.total_price / (1 + (order.vat_rate ?? 0.24));
                             return (
                                 <div key={order.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-emerald-200 transition-colors">
                                     <div className="flex items-center gap-3">

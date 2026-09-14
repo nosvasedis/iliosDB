@@ -384,6 +384,7 @@ export function LegalPrintTotalsSection(props: {
   currency?: string;
   paymentMethodLabel?: string;
   vatExemptionCategory?: number | null;
+  vatExemptionLegalNote?: string | null;
   documentTypeCode?: string | null;
   revenueClassificationText?: string;
   notes?: React.ReactNode;
@@ -459,9 +460,10 @@ export function LegalPrintTotalsSection(props: {
         </div>
       </div>
 
-      {(props.vatExemptionCategory || props.documentTypeCode || props.revenueClassificationText) && (
+      {(props.vatExemptionCategory || props.vatExemptionLegalNote || props.documentTypeCode || props.revenueClassificationText) && (
         <div className="mt-1.5 space-y-0.5 text-[7px] leading-tight text-slate-500">
           {props.vatExemptionCategory && <p><span className="font-bold uppercase">Αιτία απαλλαγής ΦΠΑ:</span> {getAadeVatExemptionCategoryLabel(props.vatExemptionCategory)}</p>}
+          {props.vatExemptionLegalNote && <p className="font-black uppercase text-slate-800">{props.vatExemptionLegalNote}</p>}
           {props.documentTypeCode && <p><span className="font-bold uppercase">Τύπος myDATA:</span> <span className="font-mono">{props.documentTypeCode}</span></p>}
           {props.revenueClassificationText && <p><span className="font-bold uppercase">Χαρακτηρισμοί:</span> {props.revenueClassificationText}</p>}
         </div>

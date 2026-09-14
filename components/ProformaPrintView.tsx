@@ -66,6 +66,7 @@ const ProformaPrintView: React.FC<ProformaPrintViewProps> = ({ document, lines }
         gross={document.totals.gross}
         currency={document.currency}
         vatExemptionCategory={document.vat_exemption_category}
+        vatExemptionLegalNote={document.vat_exemption_legal_note}
         notes={document.notes ? (
           <div><span className="font-bold text-slate-900">Σημειώσεις:</span> {document.notes}</div>
         ) : (
