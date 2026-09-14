@@ -76,6 +76,7 @@ const document: LegalDocument = {
   document_kind: 'invoice',
   aade_document_type: '1.1',
   status: 'issued',
+  provider: 'sbz',
   series: 'ΤΙΜ',
   aa: '42',
   issue_date: '2026-07-29',
@@ -96,6 +97,7 @@ const document: LegalDocument = {
   },
   aade_mark: '40000000000042',
   aade_uid: 'UID-DOCUMENT-42',
+  authentication_code: 'SIGNATURE-DOCUMENT-42',
   qr_url: 'https://example.test/aade/document-42',
   created_at: '2026-07-29T10:00:00.000Z',
   updated_at: '2026-07-29T10:00:00.000Z',
@@ -193,6 +195,19 @@ describe('legal print semantics', () => {
     expect(html.indexOf('Τύπος myDATA:')).toBeLessThan(html.indexOf('Χαρακτηρισμοί:'));
     expect(html).toContain('40000000000042');
     expect(html).toContain('UID-DOCUMENT-42');
+    expect(html).toContain('SIGNATURE-DOCUMENT-42');
+    expect(html).toContain('Στοιχεία επαλήθευσης');
+    expect(html).not.toContain('Στοιχεία επαλήθευσης myDATA / ΑΑΔΕ');
+    expect(html).not.toContain('Πάροχος ηλεκτρονικής τιμολόγησης:');
+    expect(html).not.toContain('SBZ Systems');
+    expect(html).toContain('Μ.Αρ.Κ.:');
+    expect(html).toContain('Υπογραφή:');
+    expect(html).toContain('Αναγνωριστικό:');
+    expect(html).toContain('Υ.ΠΑ.Η.Ε.Σ:');
+    expect(html).toContain('SBZ IKE - www.sbz.gr');
+    expect(html).toContain('Αριθμός Αδειοδότησης:');
+    expect(html).toContain('2023_05_113SBZ IKE_001_EMDI_V1_18052023');
+    expect(html.indexOf('SBZ IKE - www.sbz.gr')).toBeLessThan(html.indexOf('2023_05_113SBZ IKE_001_EMDI_V1_18052023'));
     expect(html).toContain('RNG001');
     expect(html).toContain('Ασημένιο δαχτυλίδι');
     expect(html).toContain('Ειδική συσκευασία');

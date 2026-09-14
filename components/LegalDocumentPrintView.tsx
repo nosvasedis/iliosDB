@@ -40,7 +40,6 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
     <LegalPrintPage>
       {document.environment === 'dev' && <div className="mb-3 border-2 border-amber-500 p-3 text-center font-black text-amber-900">ΔΟΚΙΜΑΣΤΙΚΟ ΠΕΡΙΒΑΛΛΟΝ · ΧΩΡΙΣ ΦΟΡΟΛΟΓΙΚΗ ΙΣΧΥ</div>}
       {document.credited_document_id && <div className="mb-2 text-sm">Πιστωτικό για το αρχικό παραστατικό με MARK {document.correlated_mark}</div>}
-      {document.provider === 'sbz' && <p className="mb-2 text-xs">Πάροχος ηλεκτρονικής τιμολόγησης: SBZ Systems</p>}
       <LegalPrintHeader
         title={kindLabel.toUpperCase()}
         documentNumber={getLegalDocumentDisplayNumber(document)}
@@ -93,6 +92,7 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
         mark={document.aade_mark}
         uid={document.aade_uid}
         authenticationCode={document.authentication_code}
+        provider={document.provider}
       />
     </LegalPrintPage>
   );

@@ -283,6 +283,7 @@ export function LegalPrintAadePanel(props: {
   mark?: string | null;
   uid?: string | null;
   authenticationCode?: string | null;
+  provider?: string | null;
 }) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
@@ -314,10 +315,16 @@ export function LegalPrintAadePanel(props: {
         )}
       </div>
       <div className="grid content-center gap-1 text-[8px] leading-tight">
-        <p className="mb-0.5 font-black uppercase tracking-[0.12em] text-[#946b2d]">Στοιχεία επαλήθευσης myDATA / ΑΑΔΕ</p>
-        <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">MARK</span><span className="font-mono font-bold text-slate-800">{props.mark || '-'}</span></div>
-        <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">UID</span><span className="break-all font-mono text-[7px] text-slate-700">{props.uid || '-'}</span></div>
-        {props.authenticationCode && <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">Αυθεντικοποίηση</span><span className="break-all font-mono text-[7px] text-slate-700">{props.authenticationCode}</span></div>}
+        <p className="mb-0.5 font-black uppercase tracking-[0.12em] text-[#946b2d]">Στοιχεία επαλήθευσης</p>
+        <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">Μ.Αρ.Κ.:</span><span className="font-mono font-bold text-slate-800">{props.mark || '-'}</span></div>
+        {props.authenticationCode && <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">Υπογραφή:</span><span className="break-all font-mono text-[7px] text-slate-700">{props.authenticationCode}</span></div>}
+        <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">Αναγνωριστικό:</span><span className="break-all font-mono text-[7px] text-slate-700">{props.uid || '-'}</span></div>
+        {props.provider === 'sbz' && (
+          <>
+            <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">Υ.ΠΑ.Η.Ε.Σ:</span><span className="font-semibold text-slate-700">SBZ IKE - www.sbz.gr</span></div>
+            <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">Αριθμός Αδειοδότησης:</span><span className="break-all font-mono text-[7px] text-slate-700">2023_05_113SBZ IKE_001_EMDI_V1_18052023</span></div>
+          </>
+        )}
       </div>
       <div className="flex flex-col items-center justify-center text-center text-[7px] text-slate-500">
         <p className="font-black uppercase tracking-[0.12em] text-slate-700">Αντίγραφο παραστατικού</p>

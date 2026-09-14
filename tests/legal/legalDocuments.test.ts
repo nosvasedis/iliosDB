@@ -444,14 +444,25 @@ describe('legal document helpers', () => {
     const issuedDocument = {
       ...document,
       status: 'issued',
+      provider: 'sbz',
       series: 'TIM',
       aa: '1',
       aade_mark: parsed.invoiceMark,
+      aade_uid: parsed.invoiceUid,
+      authentication_code: parsed.authenticationCode,
       qr_url: parsed.qrUrl,
     } as LegalDocument;
     expect(isOfficialLegalDocumentPrint(issuedDocument, document.lines)).toBe(true);
     expect(getLegalOfficialPrintValidationIssues(issuedDocument, document.lines)).toEqual([]);
     expect(canPrintLegalDocument(issuedDocument, document.lines)).toBe(true);
+    expect(isOfficialLegalDocumentPrint({
+      ...issuedDocument,
+      authentication_code: null,
+    }, document.lines)).toBe(false);
+    expect(isOfficialLegalDocumentPrint({
+      ...issuedDocument,
+      aade_uid: null,
+    }, document.lines)).toBe(false);
     expect(isOfficialLegalDocumentPrint({
       ...issuedDocument,
       totals: { ...issuedDocument.totals, gross: issuedDocument.totals.gross + 1 },

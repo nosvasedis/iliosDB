@@ -2065,6 +2065,12 @@ export function getLegalOfficialPrintValidationIssues(
   if (!document.qr_url?.trim()) {
     issues.push({ field: 'qr_url', severity: 'error', message: 'Λείπει το QR της ΑΑΔΕ.' });
   }
+  if (document.provider === 'sbz' && !document.aade_uid?.trim()) {
+    issues.push({ field: 'aade_uid', severity: 'error', message: 'Λείπει το αναγνωριστικό παραστατικού που επέστρεψε η SBZ.' });
+  }
+  if (document.provider === 'sbz' && !document.authentication_code?.trim()) {
+    issues.push({ field: 'authentication_code', severity: 'error', message: 'Λείπει η υπογραφή παραστατικού που επέστρεψε η SBZ.' });
+  }
   if (document.status === 'cancelled' && !document.cancellation_mark?.trim()) {
     issues.push({ field: 'cancellation_mark', severity: 'error', message: 'Λείπει το MARK ακύρωσης.' });
   }
