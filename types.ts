@@ -500,11 +500,14 @@ export interface Offer {
 
 export interface Customer {
   id: string;
+  customer_code?: string;
   full_name: string;
   phone?: string;
   email?: string;
   address?: string;
   vat_number?: string;
+  profession?: string;
+  tax_office?: string;
   vat_rate?: number; // New: 0.24, 0.17, 0.00
   notes?: string;
   created_at: string;
@@ -969,6 +972,18 @@ export interface PublicVatLookupResult {
   email: string | null;
 }
 
+export interface CustomerVatLookupResult {
+  source: VatLookupSource;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  profession: string | null;
+  taxOffice: string | null;
+  active: boolean | null;
+  fallbackReason?: string | null;
+}
+
 export interface AadeVatRegistryResult {
   source?: VatLookupSource;
   vatNumber: string;
@@ -1005,6 +1020,7 @@ export interface LegalPartyAddress {
 }
 
 export interface LegalParty {
+  customer_code?: string | null;
   vat_number?: string | null;
   country?: string;
   branch?: number;
@@ -1012,6 +1028,8 @@ export interface LegalParty {
   address?: LegalPartyAddress | null;
   phone?: string | null;
   email?: string | null;
+  profession?: string | null;
+  tax_office?: string | null;
 }
 
 export interface LegalIssuerSettings extends LegalParty {

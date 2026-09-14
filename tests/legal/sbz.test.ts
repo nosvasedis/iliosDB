@@ -9,6 +9,7 @@ describe('SBZ wholesale contract',()=>{
     const {document,lines}=sbzFixture(); const xml=buildSbzInvoiceXml(document,lines,document.created_at);
     expect(xml).toContain('xmlns:N1=');expect(xml).not.toContain('N2:');expect(xml).not.toContain('icls:');
     expect(xml).toContain('<API_InvoiceDetails>');expect(xml).toContain('<lineUnitPrice>100.00</lineUnitPrice>');
+    expect(xml).toContain('<CounterpartCode>0018</CounterpartCode>');expect(xml).toContain('<CounterpartProfession>Χονδρικό εμπόριο κοσμημάτων</CounterpartProfession>');expect(xml).toContain('<CounterpartTaxOffice>Αθηνών</CounterpartTaxOffice>');
     expect(xml).toContain('<totalDiscountValue>20.00</totalDiscountValue>');expect(xml).toContain('<IssuerPhone>2101234567</IssuerPhone>');expect(xml).toContain('<CounterpartPhone>2101234567</CounterpartPhone>');expect(xml).toContain('Δαχτυλίδι &amp; κόσμημα');expect(xml).toContain('<docTime>11:00:00</docTime>');
   });
   it.each(['invoice_delivery', 'delivery_note'] as const)('serializes %s with dispatch details', kind => {
@@ -47,5 +48,10 @@ describe('SBZ wholesale contract',()=>{
   it('blocks unsupported payment integration and inconsistent amounts',()=>{
     const {document,lines}=sbzFixture();expect(validateSbzDocument({...document,payment_method_code:7},lines).length).toBeGreaterThan(0);
     expect(()=>buildSbzInvoiceXml(document,[{...lines[0],vat_amount:1}],document.created_at)).toThrow();
+  });
+  it('blocks provider issuance when customer fiscal identity is incomplete',()=>{
+    const {document,lines}=sbzFixture();
+    const errors=validateSbzDocument({...document,counterpart:{...document.counterpart,customer_code:null,profession:null,tax_office:null}},lines);
+    expect(errors.join(' ')).toContain('κωδικό ERP');expect(errors.join(' ')).toContain('επάγγελμα');expect(errors.join(' ')).toContain('ΔΟΥ');
   });
 });

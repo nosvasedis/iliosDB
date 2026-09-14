@@ -29,6 +29,7 @@ import {
   ShieldCheck,
   Trash2,
   Truck,
+  Zap,
   XCircle,
   type LucideIcon,
 } from 'lucide-react';
@@ -128,6 +129,7 @@ import {
   normalizeLegalSeriesKey,
   normalizeProformaDocumentAddresses,
   normalizeVatNumber,
+  parseLegalPartyAddress,
   PAYMENT_METHOD_CODES,
   PAYMENT_METHOD_LABELS,
   recalculateLegalDocument,
@@ -143,6 +145,7 @@ import {
   getShipmentItemsForOrder,
 } from '../utils/legalOrderSources';
 import { formatOrderId } from '../utils/orderUtils';
+import { describeCustomerVatLookup, lookupCustomerVat } from '../features/customers/vatLookup';
 
 export type LegalTab = 'new' | 'archive' | 'sync' | 'delivery' | 'settings';
 type DocumentCreationSource = 'order' | 'manual';
@@ -656,6 +659,7 @@ export default function LegalDocumentsPage({
   const [proformaBundle, setProformaBundle] = useState<{ document: ProformaDocument; lines: ProformaDocumentLine[] } | null>(null);
   const [legalSkuFocusLineId, setLegalSkuFocusLineId] = useState<string | null>(null);
   const [proformaSkuFocusLineId, setProformaSkuFocusLineId] = useState<string | null>(null);
+  const [draftVatLookupTarget, setDraftVatLookupTarget] = useState<'legal' | 'proforma' | null>(null);
   const [archiveSearch, setArchiveSearch] = useState('');
   const [proformaSearch, setProformaSearch] = useState('');
   const [proformaStatusFilter, setProformaStatusFilter] = useState<'all' | ProformaDocument['status']>('all');
@@ -1067,6 +1071,41 @@ export default function LegalDocumentsPage({
         counterpart,
         vat_rate: customer.vat_rate ?? document.vat_rate,
       }, lines, settingsDraft));
+    }
+  };
+
+  const handleDraftVatLookup = async (target: 'legal' | 'proforma') => {
+    const current = target === 'legal' ? draftBundle?.document : proformaBundle?.document;
+    const vatNumber = normalizeVatNumber(current?.counterpart.vat_number);
+    if (!/^\d{9}$/.test(vatNumber)) {
+      showToast('Συμπληρώστε έγκυρο ΑΦΜ πελάτη 9 ψηφίων.', 'error');
+      return;
+    }
+    setDraftVatLookupTarget(target);
+    try {
+      const result = await lookupCustomerVat(vatNumber);
+      const matchedCustomer = customers.find(customer => normalizeVatNumber(customer.vat_number) === vatNumber);
+      const applyResult = <T extends LegalDocument | ProformaDocument>(document: T): T => ({
+        ...document,
+        counterpart_customer_id: matchedCustomer?.id || document.counterpart_customer_id,
+        counterpart: {
+          ...document.counterpart,
+          customer_code: matchedCustomer?.customer_code || document.counterpart.customer_code,
+          name: result.name || document.counterpart.name,
+          address: parseLegalPartyAddress(result.address) || document.counterpart.address,
+          phone: document.counterpart.phone || result.phone,
+          email: document.counterpart.email || result.email,
+          profession: result.profession || document.counterpart.profession,
+          tax_office: result.taxOffice || document.counterpart.tax_office,
+        },
+      });
+      if (target === 'legal') updateDraftDocument(applyResult);
+      else updateProformaBundle((document, lines) => recalculateProforma(applyResult(document), lines, settingsDraft));
+      showToast(describeCustomerVatLookup(result), result.active === false ? 'error' : 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Ο έλεγχος ΑΦΜ απέτυχε.', 'error');
+    } finally {
+      setDraftVatLookupTarget(null);
     }
   };
 
@@ -1866,7 +1905,13 @@ export default function LegalDocumentsPage({
               {PAYMENT_METHOD_CODES.filter(code => ![7, 8].includes(code)).map((code) => <option key={code} value={code}>{PAYMENT_METHOD_LABELS[code]}</option>)}
             </SelectInput>
             <TextInput label="ΑΦΜ Πελάτη" value={document.counterpart.vat_number || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, vat_number: normalizeVatNumber(value) } }))} />
+            <ActionButton variant="secondary" onClick={() => void handleDraftVatLookup('legal')} disabled={draftVatLookupTarget !== null} title="Επίσημος έλεγχος Μητρώου ΑΑΔΕ με fallback μόνο για βασικά στοιχεία.">
+              {draftVatLookupTarget === 'legal' ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />} Επίσημος έλεγχος ΑΦΜ
+            </ActionButton>
             <TextInput label="Επωνυμία Πελάτη" value={document.counterpart.name || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, name: value } }))} />
+            <TextInput label="Κωδικός Πελάτη" value={document.counterpart.customer_code || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, customer_code: value } }))} />
+            <TextInput label="Επάγγελμα Πελάτη" value={document.counterpart.profession || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, profession: value } }))} />
+            <TextInput label="ΔΟΥ Πελάτη" value={document.counterpart.tax_office || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, tax_office: value } }))} />
             <TextInput label="Τηλέφωνο Πελάτη" value={document.counterpart.phone || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, phone: value } }))} />
             <SelectInput label="Καθεστώς ΦΠΑ" value={draftBundle.lines[0]?.vat_category ?? vatRateToAadeCategory(document.vat_rate ?? 0.24)} onChange={(value) => applyLegalVatProfile(Number(value))} help="Ο βασικός συντελεστής ΦΠΑ για τις γραμμές. Το «Άνευ ΦΠΑ» απαιτεί σωστή αιτία απαλλαγής. Οι λογιστικές εγγραφές χωρίς ΦΠΑ δεν εκδίδονται ως παραστατικά από αυτή την οθόνη.">
               {vatRateOptions.map((option) => <option key={option.category} value={option.category}>{option.label}</option>)}
@@ -2324,7 +2369,13 @@ export default function LegalDocumentsPage({
             <TextInput label="Ημερομηνία" type="date" value={document.issue_date} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, issue_date: value }, lines, settingsDraft))} />
             <TextInput label="Ισχύει έως" type="date" value={document.valid_until || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, valid_until: value || null }, lines, settingsDraft))} />
             <TextInput label="ΑΦΜ Πελάτη" value={document.counterpart.vat_number || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, counterpart: { ...current.counterpart, vat_number: normalizeVatNumber(value) } }, lines, settingsDraft))} />
+            <ActionButton variant="secondary" onClick={() => void handleDraftVatLookup('proforma')} disabled={draftVatLookupTarget !== null} title="Επίσημος έλεγχος Μητρώου ΑΑΔΕ με fallback μόνο για βασικά στοιχεία.">
+              {draftVatLookupTarget === 'proforma' ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />} Επίσημος έλεγχος ΑΦΜ
+            </ActionButton>
             <TextInput label="Επωνυμία Πελάτη" value={document.counterpart.name || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, counterpart: { ...current.counterpart, name: value } }, lines, settingsDraft))} />
+            <TextInput label="Κωδικός Πελάτη" value={document.counterpart.customer_code || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, counterpart: { ...current.counterpart, customer_code: value } }, lines, settingsDraft))} />
+            <TextInput label="Επάγγελμα Πελάτη" value={document.counterpart.profession || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, counterpart: { ...current.counterpart, profession: value } }, lines, settingsDraft))} />
+            <TextInput label="ΔΟΥ Πελάτη" value={document.counterpart.tax_office || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, counterpart: { ...current.counterpart, tax_office: value } }, lines, settingsDraft))} />
             <TextInput label="Τηλέφωνο Πελάτη" value={document.counterpart.phone || ''} onChange={(value) => updateProformaBundle((current, lines) => recalculateProforma({ ...current, counterpart: { ...current.counterpart, phone: value } }, lines, settingsDraft))} />
           </div>
 
@@ -2735,10 +2786,17 @@ export default function LegalDocumentsPage({
       result.address.postalCode,
       result.address.city,
     ].filter(Boolean).join(', ');
+    const primaryActivity = result.activities.find((activity) =>
+      String(activity.kindDescription || '').toLocaleUpperCase('el-GR').includes('ΚΥΡΙΑ')
+    ) || result.activities[0];
+    const profession = primaryActivity?.description || null;
+    const taxOffice = result.taxOfficeDescription || result.taxOfficeCode || null;
     const counterpart = {
       ...record.document.counterpart,
       vat_number: result.vatNumber || record.document.counterpart.vat_number,
       name: result.businessName || record.document.counterpart.name,
+      profession: profession || record.document.counterpart.profession,
+      tax_office: taxOffice || record.document.counterpart.tax_office,
       address: {
         ...record.document.counterpart.address,
         street: result.address.street || record.document.counterpart.address?.street,
@@ -2757,6 +2815,8 @@ export default function LegalDocumentsPage({
           address: address || customer.address,
           phone: result.phone || customer.phone,
           email: result.email || customer.email,
+          profession: profession || customer.profession,
+          tax_office: taxOffice || customer.tax_office,
         });
       } else {
         const newCustomer: Customer = {
@@ -2766,6 +2826,8 @@ export default function LegalDocumentsPage({
           address: address || undefined,
           phone: result.phone || undefined,
           email: result.email || undefined,
+          profession: profession || undefined,
+          tax_office: taxOffice || undefined,
           vat_rate: record.document.vat_rate ?? 0.24,
           notes: `Δημιουργήθηκε από εύρεση ΑΦΜ μέσω ${resultSourceLabel}.`,
           created_at: new Date().toISOString(),

@@ -191,8 +191,11 @@ export function LegalPrintCustomerBar(props: {
 
   return (
     <section className="min-w-0">
+      {props.counterpart.customer_code && <InfoRow label="Κωδικός" value={props.counterpart.customer_code} mono />}
       <InfoRow label="Επωνυμία" value={getPartyName(props.counterpart)} />
       <InfoRow label="ΑΦΜ" value={props.counterpart.vat_number || '-'} mono />
+      {props.counterpart.profession && <InfoRow label="Επάγγελμα" value={props.counterpart.profession} />}
+      {props.counterpart.tax_office && <InfoRow label="ΔΟΥ" value={props.counterpart.tax_office} />}
       <InfoRow label="Διεύθυνση" value={formatPartyAddress(props.counterpart)} />
       <InfoRow label="Χώρα" value={counterpartCountry} />
       <InfoRow label="Υποκ." value={counterpartBranch} />

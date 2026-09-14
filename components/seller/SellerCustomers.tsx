@@ -29,7 +29,9 @@ export default function SellerCustomers() {
         if (!customers) return [];
         return customers.filter(c =>
             normalizedIncludes(c.full_name, search) ||
-            (c.phone && c.phone.includes(search))
+            (c.phone && c.phone.includes(search)) ||
+            (c.customer_code && c.customer_code.includes(search)) ||
+            (c.vat_number && c.vat_number.includes(search))
         ).sort((a, b) => a.full_name.localeCompare(b.full_name, 'el', { sensitivity: 'base' }));
     }, [customers, search]);
 
@@ -165,6 +167,7 @@ export default function SellerCustomers() {
                             <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2">
                                     <div className="font-bold text-slate-900 truncate">{c.full_name}</div>
+                                    {c.customer_code && <span className="font-mono text-[9px] font-black text-slate-500">#{c.customer_code}</span>}
                                     {c.id === RETAIL_CUSTOMER_ID && (
                                         <span className="text-[9px] font-black px-2 py-0.5 rounded-full border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 uppercase">
                                             Σύστημα

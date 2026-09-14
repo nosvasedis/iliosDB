@@ -35,7 +35,8 @@ import {
     HandHeart,
     Wrench,
 } from 'lucide-react';
-import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
+import { RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../lib/supabase';
+import { applyCustomerVatLookup, describeCustomerVatLookup, lookupCustomerVat } from '../features/customers/vatLookup';
 import { useUI } from './UIProvider';
 import { formatCurrency } from '../utils/pricingEngine';
 import { extractRetailClientFromNotes } from '../utils/retailNotes';
@@ -355,24 +356,10 @@ export default function CustomerDetailsModal({
         }
         setIsSearchingAfm(true);
         try {
-            const result = await api.lookupAfm(editForm.vat_number);
+            const result = await lookupCustomerVat(editForm.vat_number);
             if (result) {
-                setEditForm(prev => ({
-                    ...prev,
-                    full_name: result.name || prev.full_name,
-                    address: result.address || prev.address,
-                    phone: !prev.phone && result.phone ? result.phone : prev.phone,
-                    email: !prev.email && result.email ? result.email : prev.email,
-                }));
-                const filled = [
-                    'Επωνυμία',
-                    result.address ? 'Διεύθυνση' : null,
-                    result.phone ? 'Τηλέφωνο' : null,
-                    result.email ? 'Ηλ. ταχυδρομείο' : null,
-                ]
-                    .filter(Boolean)
-                    .join(', ');
-                showToast(`Βρέθηκαν: ${filled}`, 'success');
+                setEditForm(prev => applyCustomerVatLookup(prev, result));
+                showToast(describeCustomerVatLookup(result), result.active === false ? 'error' : 'success');
             } else {
                 showToast('Δεν βρέθηκαν στοιχεία.', 'info');
             }
@@ -460,6 +447,11 @@ export default function CustomerDetailsModal({
                                         : 'Καρτέλα πελάτη — επισκόπηση, στοιχεία, ανάλυση και παραγγελίες.'}
                                 </p>
                                 <div className="mt-2 flex flex-wrap items-center gap-2">
+                                    {customer.customer_code && (
+                                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 font-mono text-[10px] font-black text-slate-700">
+                                            Κωδικός {customer.customer_code}
+                                        </span>
+                                    )}
                                     {isRetailSystemCustomer && (
                                         <span className="rounded-full border border-fuchsia-200 bg-fuchsia-50 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-fuchsia-800">
                                             Συστημικός πελάτης
@@ -919,9 +911,15 @@ export default function CustomerDetailsModal({
                                     <Receipt size={16} className="text-amber-500" /> Τιμολόγηση
                                 </h3>
                                 {!isEditing && (
-                                    <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
-                                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">ΑΦΜ</div>
-                                        <div className="mt-1 font-mono text-sm font-bold text-slate-800">{customer.vat_number || '—'}</div>
+                                    <div className="grid gap-3 sm:grid-cols-2">
+                                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Κωδικός πελάτη</div>
+                                        <div className="mt-1 font-mono text-sm font-bold text-slate-800">{customer.customer_code || '—'}</div>
+                                      </div>
+                                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                                          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">ΑΦΜ</div>
+                                          <div className="mt-1 font-mono text-sm font-bold text-slate-800">{customer.vat_number || '—'}</div>
+                                      </div>
                                     </div>
                                 )}
                                 {isEditing && (
@@ -952,6 +950,22 @@ export default function CustomerDetailsModal({
                                         </div>
                                     </div>
                                 )}
+                                <div>
+                                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-400">Επάγγελμα / κύρια δραστηριότητα</label>
+                                    {isEditing ? (
+                                        <input className={inputClass} value={editForm.profession || ''} onChange={e => setEditForm({ ...editForm, profession: e.target.value })} />
+                                    ) : (
+                                        <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">{customer.profession || '—'}</div>
+                                    )}
+                                </div>
+                                <div>
+                                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-400">ΔΟΥ</label>
+                                    {isEditing ? (
+                                        <input className={inputClass} value={editForm.tax_office || ''} onChange={e => setEditForm({ ...editForm, tax_office: e.target.value })} />
+                                    ) : (
+                                        <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">{customer.tax_office || '—'}</div>
+                                    )}
+                                </div>
                                 <div>
                                     <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                         Καθεστώς ΦΠΑ

@@ -66,6 +66,7 @@ export default function MobileCustomerDetails({ customer, orders, onClose, onEdi
           <div className="min-w-0 flex-1">
             <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Καρτέλα πελάτη</p>
             <h1 className="truncate text-lg font-black tracking-tight text-slate-900">{customer.full_name}</h1>
+            {customer.customer_code && <p className="mt-0.5 font-mono text-[10px] font-black text-cyan-700">Κωδικός {customer.customer_code}</p>}
             <p className="mt-0.5 text-[10px] font-semibold text-slate-500">{customerOrders.length} παραγγελίες · {formatCurrency(totalNet)} καθαρή αξία παραγγελιών</p>
           </div>
           <button type="button" onClick={onEdit} className="rounded-xl bg-slate-900 p-2.5 text-white shadow-sm active:scale-95" aria-label="Επεξεργασία πελάτη"><Edit3 size={18} /></button>
@@ -90,7 +91,7 @@ export default function MobileCustomerDetails({ customer, orders, onClose, onEdi
             <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
               <h2 className="flex items-center gap-2 text-xs font-black text-slate-900"><Building2 size={15} className="text-cyan-600" /> Στοιχεία επικοινωνίας και τιμολόγησης</h2>
               <div className="mt-4 space-y-3">
-                {[{ icon: Phone, label: 'Τηλέφωνο', value: customer.phone }, { icon: Mail, label: 'Email', value: customer.email }, { icon: MapPin, label: 'Διεύθυνση', value: customer.address }, { icon: Receipt, label: 'ΑΦΜ', value: customer.vat_number }].map(row => { const Icon = row.icon; return <div key={row.label} className="flex items-start gap-3 rounded-xl bg-slate-50 p-3"><Icon size={15} className="mt-0.5 shrink-0 text-slate-400" /><div className="min-w-0"><p className="text-[9px] font-black uppercase tracking-wider text-slate-400">{row.label}</p><p className="mt-0.5 break-words text-xs font-bold text-slate-700">{row.value || 'Δεν έχει καταχωρηθεί'}</p></div></div>; })}
+                {[{ icon: Phone, label: 'Τηλέφωνο', value: customer.phone }, { icon: Mail, label: 'Email', value: customer.email }, { icon: MapPin, label: 'Διεύθυνση', value: customer.address }, { icon: Receipt, label: 'ΑΦΜ', value: customer.vat_number }, { icon: Building2, label: 'Επάγγελμα', value: customer.profession }, { icon: Building2, label: 'ΔΟΥ', value: customer.tax_office }].map(row => { const Icon = row.icon; return <div key={row.label} className="flex items-start gap-3 rounded-xl bg-slate-50 p-3"><Icon size={15} className="mt-0.5 shrink-0 text-slate-400" /><div className="min-w-0"><p className="text-[9px] font-black uppercase tracking-wider text-slate-400">{row.label}</p><p className="mt-0.5 break-words text-xs font-bold text-slate-700">{row.value || 'Δεν έχει καταχωρηθεί'}</p></div></div>; })}
               </div>
             </section>
             {customer.notes && <section className="rounded-2xl border border-amber-100 bg-amber-50 p-4"><h2 className="flex items-center gap-2 text-xs font-black text-amber-950"><StickyNote size={15} /> Σημειώσεις</h2><p className="mt-2 whitespace-pre-wrap text-xs font-medium leading-relaxed text-amber-900">{customer.notes}</p></section>}

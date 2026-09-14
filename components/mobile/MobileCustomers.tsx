@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
+import { applyCustomerVatLookup, describeCustomerVatLookup, lookupCustomerVat } from '../../features/customers/vatLookup';
 import { Search, Phone, Mail, User, MapPin, Globe, Plus, X, Save, Trash2, Edit, Hash, Zap, Loader2, Wallet, ShoppingBag, PieChart, Package, Calendar, Clock, Trophy, Users as UsersIcon, Users, ArrowLeft, Gift } from 'lucide-react';
 import MobileScreenHeader from './MobileScreenHeader';
 import { Customer, Supplier, SupplierOrder, VatRegime, OrderStatus } from '../../types';
@@ -65,7 +66,10 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
             if (!customers) return [];
             return customers.filter(c =>
                 normalizedIncludes(c.full_name, search) ||
-                (c.phone && c.phone.includes(search))
+                (c.phone && c.phone.includes(search)) ||
+                (c.customer_code && c.customer_code.includes(search)) ||
+                (c.vat_number && c.vat_number.includes(search)) ||
+                (c.profession && normalizedIncludes(c.profession, search))
             ).sort((a, b) => a.full_name.localeCompare(b.full_name, 'el', { sensitivity: 'base' }));
         } else {
             if (!suppliers) return [];
@@ -214,18 +218,10 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
         }
         setIsSearchingAfm(true);
         try {
-            const result = await api.lookupAfm(afm);
+            const result = await lookupCustomerVat(afm);
             if (result) {
-                setEditData((prev: any) => ({
-                    ...prev,
-                    full_name: result.name || prev.full_name,
-                    address: result.address || prev.address,
-                    // Fill phone / email only if the field is currently empty
-                    phone: (!prev.phone && result.phone) ? result.phone : prev.phone,
-                    email: (!prev.email && result.email) ? result.email : prev.email,
-                }));
-                const filled = ['Επωνυμία', result.address ? 'Διεύθυνση' : null, result.phone ? 'Τηλέφωνο' : null, result.email ? 'Email' : null].filter(Boolean).join(', ');
-                showToast(`Βρέθηκαν: ${filled}`, "success");
+                setEditData((prev: Customer) => applyCustomerVatLookup(prev, result));
+                showToast(describeCustomerVatLookup(result), result.active === false ? 'error' : 'success');
             } else {
                 showToast("Δεν βρέθηκαν στοιχεία.", "info");
             }
@@ -464,6 +460,12 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                 </div>
                             </div>
                         )}
+                        {editType === 'customer' && editData.customer_code && (
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                <div className="text-[10px] font-bold uppercase text-slate-400">Κωδικός πελάτη</div>
+                                <div className="mt-1 font-mono font-black text-slate-800">{editData.customer_code}</div>
+                            </div>
+                        )}
 
                         <div>
                             <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">
@@ -519,6 +521,18 @@ export default function MobileCustomers({ mode, onPrintSupplierOrder }: Props) {
                                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900"
                             />
                         </div>
+                        {editType === 'customer' && (
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div>
+                                    <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Επάγγελμα</label>
+                                    <input value={editData.profession || ''} onChange={e => setEditData({ ...editData, profession: e.target.value })} disabled={isRetailSystemCustomer} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900" />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">ΔΟΥ</label>
+                                    <input value={editData.tax_office || ''} onChange={e => setEditData({ ...editData, tax_office: e.target.value })} disabled={isRetailSystemCustomer} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-slate-900" />
+                                </div>
+                            </div>
+                        )}
                         {editType === 'customer' && (
                             <div>
                                 <label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Καθεστώς ΦΠΑ</label>

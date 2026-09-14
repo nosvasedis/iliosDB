@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Customer, VatRegime } from '../../types';
 import { X, Save, Loader2, Zap, Phone, Mail, MapPin, FileText, User, CreditCard, MessageSquare } from 'lucide-react';
-import { api } from '../../lib/supabase';
 import { useUI } from '../UIProvider';
+import { applyCustomerVatLookup, describeCustomerVatLookup, lookupCustomerVat } from '../../features/customers/vatLookup';
 
 export interface MobileCustomerFormProps {
     /** Initial values (empty for new customer) */
@@ -24,17 +24,10 @@ export default function MobileCustomerForm({ customer, onSave, onCancel }: Mobil
         }
         setIsSearchingAfm(true);
         try {
-            const result = await api.lookupAfm(form.vat_number);
+            const result = await lookupCustomerVat(form.vat_number);
             if (result) {
-                setForm(prev => ({
-                    ...prev,
-                    full_name: result.name || prev.full_name,
-                    address: result.address || prev.address,
-                    phone: (!prev.phone && result.phone) ? result.phone : prev.phone,
-                    email: (!prev.email && result.email) ? result.email : prev.email,
-                }));
-                const filled = ['Επωνυμία', result.address ? 'Διεύθυνση' : null, result.phone ? 'Τηλέφωνο' : null, result.email ? 'Email' : null].filter(Boolean).join(', ');
-                showToast(`Βρέθηκαν: ${filled}`, 'success');
+                setForm(prev => applyCustomerVatLookup(prev, result));
+                showToast(describeCustomerVatLookup(result), result.active === false ? 'error' : 'success');
             } else {
                 showToast('Δεν βρέθηκαν στοιχεία.', 'info');
             }
@@ -99,6 +92,7 @@ export default function MobileCustomerForm({ customer, onSave, onCancel }: Mobil
                             <div className="text-white font-black text-lg leading-tight">
                                 {form.full_name || <span className="text-white/30 font-medium">Όνομα πελάτη...</span>}
                             </div>
+                            {form.customer_code && <div className="mt-0.5 font-mono text-[10px] font-black text-amber-300">Κωδικός {form.customer_code}</div>}
                             {form.phone && (
                                 <div className="text-white/50 text-xs font-medium mt-0.5">{form.phone}</div>
                             )}
@@ -186,6 +180,21 @@ export default function MobileCustomerForm({ customer, onSave, onCancel }: Mobil
                                 <span className="hidden sm:block">Αυτόματο</span>
                             </button>
                         </div>
+
+                        <input
+                            type="text"
+                            className={inputClass}
+                            placeholder="Επάγγελμα / κύρια δραστηριότητα"
+                            value={form.profession || ''}
+                            onChange={e => setForm({ ...form, profession: e.target.value })}
+                        />
+                        <input
+                            type="text"
+                            className={inputClass}
+                            placeholder="ΔΟΥ"
+                            value={form.tax_office || ''}
+                            onChange={e => setForm({ ...form, tax_office: e.target.value })}
+                        />
 
                         {/* VAT regime */}
                         <select

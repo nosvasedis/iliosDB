@@ -12,8 +12,8 @@ import {
     MessageSquare,
     Users,
 } from 'lucide-react';
-import { api } from '../lib/supabase';
 import { useUI } from './UIProvider';
+import { applyCustomerVatLookup, describeCustomerVatLookup, lookupCustomerVat } from '../features/customers/vatLookup';
 
 export interface CreateCustomerModalProps {
     draft: Customer;
@@ -42,24 +42,10 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
         }
         setIsSearchingAfm(true);
         try {
-            const result = await api.lookupAfm(form.vat_number);
+            const result = await lookupCustomerVat(form.vat_number);
             if (result) {
-                setForm(prev => ({
-                    ...prev,
-                    full_name: result.name || prev.full_name,
-                    address: result.address || prev.address,
-                    phone: !prev.phone && result.phone ? result.phone : prev.phone,
-                    email: !prev.email && result.email ? result.email : prev.email,
-                }));
-                const filled = [
-                    'Επωνυμία',
-                    result.address ? 'Διεύθυνση' : null,
-                    result.phone ? 'Τηλέφωνο' : null,
-                    result.email ? 'Email' : null,
-                ]
-                    .filter(Boolean)
-                    .join(', ');
-                showToast(`Βρέθηκαν: ${filled}`, 'success');
+                setForm(prev => applyCustomerVatLookup(prev, result));
+                showToast(describeCustomerVatLookup(result), result.active === false ? 'error' : 'success');
             } else {
                 showToast('Δεν βρέθηκαν στοιχεία.', 'info');
             }
@@ -278,6 +264,25 @@ export default function CreateCustomerModal({ draft, onSave, onCancel }: CreateC
                                     Συμπληρώνει όπου είναι διαθέσιμα επωνυμία, διεύθυνση, τηλέφωνο και email. Μπορείτε να επιστρέψετε
                                     στα «Γενικά» για διόρθωση.
                                 </p>
+                                <div className="mt-5">
+                                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                                        Επάγγελμα / κύρια δραστηριότητα
+                                    </label>
+                                    <input
+                                        className={inputClass}
+                                        placeholder="Συμπληρώνεται από το επίσημο Μητρώο ΑΑΔΕ"
+                                        value={form.profession || ''}
+                                        onChange={e => setForm({ ...form, profession: e.target.value })}
+                                    />
+                                </div>
+                                <div className="mt-5">
+                                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">ΔΟΥ</label>
+                                    <input
+                                        className={inputClass}
+                                        value={form.tax_office || ''}
+                                        onChange={e => setForm({ ...form, tax_office: e.target.value })}
+                                    />
+                                </div>
                                 <div className="mt-5">
                                     <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">
                                         Καθεστώς ΦΠΑ

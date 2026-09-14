@@ -18,6 +18,9 @@ export function validateSbzDocument(document: LegalDocument, lines: LegalDocumen
   if (!['1.1', '9.3', '5.1', '5.2'].includes(document.aade_document_type)) errors.push('Αυτό το είδος παραστατικού δεν υποστηρίζεται για έκδοση.');
   if (!document.issuer.business_name && !document.issuer.name) errors.push('Συμπληρώστε την επωνυμία της επιχείρησης.');
   if (!document.issuer.activity || !document.issuer.doy) errors.push('Συμπληρώστε δραστηριότητα και ΔΟΥ της επιχείρησης.');
+  if (!document.counterpart.customer_code) errors.push('Ο πελάτης δεν έχει κωδικό ERP. Αποθηκεύστε ή επιλέξτε πελάτη πριν την έκδοση.');
+  if (!document.counterpart.profession) errors.push('Συμπληρώστε το επάγγελμα του πελάτη ή εκτελέστε τον επίσημο έλεγχο Μητρώου ΑΦΜ.');
+  if (!document.counterpart.tax_office) errors.push('Συμπληρώστε τη ΔΟΥ του πελάτη ή εκτελέστε τον επίσημο έλεγχο Μητρώου ΑΦΜ.');
   for (const party of [document.issuer, document.counterpart]) {
     if (!party.name && !('business_name' in party && party.business_name)) errors.push('Συμπληρώστε την επωνυμία.');
     if (!party.address?.street || !party.address?.city || !party.address?.postal_code) errors.push('Συμπληρώστε οδό, πόλη και ταχυδρομικό κώδικα εκδότη και πελάτη.');
@@ -57,9 +60,10 @@ export function buildSbzInvoiceXml(document: LegalDocument, lines: LegalDocument
       + tag('vatCategoryPercent', rates[l.vat_category]);
     return '<invoiceDetails>' + content.replace('</vatAmount>', '</vatAmount>' + extra) + '</invoiceDetails>';
   });
-  const party = (prefix: string, p: LegalParty, name: string) => tag(`${prefix}Name`, name)
-    + tag(`${prefix}Profession`, prefix === 'Issuer' ? document.issuer.activity : '')
-    + tag(`${prefix}TaxOffice`, prefix === 'Issuer' ? document.issuer.doy : '')
+  const party = (prefix: string, p: LegalParty, name: string) => (prefix === 'Counterpart' ? tag('CounterpartCode', p.customer_code) : '')
+    + tag(`${prefix}Name`, name)
+    + tag(`${prefix}Profession`, prefix === 'Issuer' ? document.issuer.activity : p.profession)
+    + tag(`${prefix}TaxOffice`, prefix === 'Issuer' ? document.issuer.doy : p.tax_office)
     + tag(`${prefix}AddressStreet`, p.address?.street) + tag(`${prefix}AddressNumber`, p.address?.number)
     + tag(`${prefix}AddressPostalCode`, p.address?.postal_code) + tag(`${prefix}AddressCity`, p.address?.city)
     + tag(`${prefix}AddressCountry`, p.country || 'GR') + tag(`${prefix}Phone`, p.phone) + tag(`${prefix}Email`, p.email);

@@ -645,6 +645,7 @@ export function buildPublicVatLookupResult(
 
 function buildEmptyCounterpart(): LegalParty {
   return {
+    customer_code: null,
     vat_number: '',
     country: 'GR',
     branch: 0,
@@ -652,12 +653,15 @@ function buildEmptyCounterpart(): LegalParty {
     address: null,
     phone: null,
     email: null,
+    profession: null,
+    tax_office: null,
   };
 }
 
 export function buildCounterpartFromCustomer(customer?: Customer | null): LegalParty {
   if (!customer) return buildEmptyCounterpart();
   return {
+    customer_code: customer.customer_code || null,
     vat_number: normalizeVatNumber(customer.vat_number),
     country: 'GR',
     branch: 0,
@@ -665,6 +669,8 @@ export function buildCounterpartFromCustomer(customer?: Customer | null): LegalP
     address: customer.address ? parseLegalPartyAddress(customer.address) : null,
     phone: customer.phone || null,
     email: customer.email || null,
+    profession: customer.profession || null,
+    tax_office: customer.tax_office || null,
   };
 }
 

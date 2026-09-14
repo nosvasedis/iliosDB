@@ -51,6 +51,9 @@ const CustomerCard: React.FC<CustomerCardProps> = ({ customer, onClick, latestOr
                         </span>
                     )}
                 </div>
+                {customer.customer_code && (
+                    <div className="mt-1 font-mono text-[10px] font-bold text-slate-500">Κωδικός: {customer.customer_code}</div>
+                )}
                 {isSystem ? (
                     <p className="text-[10px] text-slate-500 leading-snug mt-1">
                         Πολλοί τελικοί πελάτες· χωρίς κοινό ΑΦΜ ή διεύθυνση εδώ.
@@ -104,7 +107,10 @@ export default function CustomersPage({ onPrintOrder }: Props) {
         if (!customers) return [];
         return customers.filter(c =>
             normalizedIncludes(c.full_name, searchTerm) ||
-            (c.phone && c.phone.includes(searchTerm))
+            (c.phone && c.phone.includes(searchTerm)) ||
+            (c.customer_code && c.customer_code.includes(searchTerm)) ||
+            (c.vat_number && c.vat_number.includes(searchTerm)) ||
+            (c.profession && normalizedIncludes(c.profession, searchTerm))
         ).sort((a, b) => a.full_name.localeCompare(b.full_name, 'el', { sensitivity: 'base' }));
     }, [customers, searchTerm]);
 
