@@ -24,7 +24,7 @@ import { requiresAssemblyStage } from '../constants';
 import { isSpecialCreationSku } from '../utils/specialCreationSku';
 import ProductionMoldRequirementsModal from './ProductionMoldRequirementsModal';
 import { invalidateOrdersAndBatches, invalidateProductionBatches, invalidateAndRefetchAfterShipmentChange } from '../lib/queryInvalidation';
-import { PRODUCTION_STAGES, getProductionStageLabel, getProductionStageShortLabel } from '../utils/productionStages';
+import { PRODUCTION_STAGES, getProductionStageLabel, getProductionStageShortLabel, getPolishingSubStageLabel } from '../utils/productionStages';
 import RepairBadge from './customerService/RepairBadge';
 import { StageOnHoldMiniStrip } from './production/StageOnHoldMiniStrip';
 import ProductionBatchFinder from './production/ProductionBatchFinder';
@@ -2663,9 +2663,12 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
 
     const handleImportReceive = async (batch: ProductionBatch, targetStage: ProductionStage, pendingDispatch?: boolean) => {
         const targetStageInfo = STAGES.find(s => s.id === targetStage);
+        const targetLabel = targetStage === ProductionStage.Polishing
+            ? getPolishingSubStageLabel(pendingDispatch === false ? 'dispatched' : 'pending')
+            : targetStageInfo?.label;
         const confirmed = await confirm({
             title: 'Παραλαβή Εισαγόμενου',
-            message: `Επιβεβαιώνετε την παραλαβή για την παρτίδα ${batch.sku}${batch.variant_suffix || ''} (${batch.quantity} τμχ) και τη μετακίνηση στο στάδιο "${targetStageInfo?.label}"?`,
+            message: `Επιβεβαιώνετε την παραλαβή για την παρτίδα ${batch.sku}${batch.variant_suffix || ''} (${batch.quantity} τμχ) και τη μετακίνηση στο στάδιο "${targetLabel}"?`,
             confirmText: 'Επιβεβαίωση'
         });
 
@@ -3511,51 +3514,76 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                     />
                 </div>
 
-            <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex items-center gap-1 rounded-2xl border border-slate-200 bg-slate-50 p-1 shrink-0">
                     <button
                         onClick={() => setShowRepairIntake(value => !value)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold transition-all shadow-sm border text-[11px] ${showRepairIntake ? 'bg-blue-600 border-blue-600 text-white' : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'}`}
+                        title="Παραλαβή Επισκευών"
+                        aria-label="Παραλαβή Επισκευών"
+                        className={`relative flex h-9 w-9 items-center justify-center rounded-xl border transition-all shadow-sm ${showRepairIntake ? 'bg-blue-600 border-blue-600 text-white' : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'}`}
                     >
-                        <Wrench size={12} /> Παραλαβή Επισκευών
-                        <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-black ${showRepairIntake ? 'bg-white/20' : 'bg-blue-100'}`}>{pendingRepairBatches.length}</span>
+                        <Wrench size={15} />
+                        {pendingRepairBatches.length > 0 && (
+                            <span className={`absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-black ${showRepairIntake ? 'bg-white text-blue-700' : 'bg-blue-600 text-white'}`}>
+                                {pendingRepairBatches.length}
+                            </span>
+                        )}
                     </button>
                     <button
                         onClick={() => setWorkflowFilter(value => value === 'repair' ? 'all' : 'repair')}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold transition-all shadow-sm border text-[11px] ${workflowFilter === 'repair' ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                        title="Μόνο Επισκευές"
+                        aria-label="Μόνο Επισκευές"
+                        className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-all shadow-sm ${workflowFilter === 'repair' ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'}`}
                     >
-                        <CheckSquare size={12} /> Μόνο Επισκευές
+                        <CheckSquare size={15} />
                     </button>
                     <button
                         onClick={() => setWorkflowFilter(value => value === 'consignment' ? 'all' : 'consignment')}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold transition-all shadow-sm border text-[11px] ${workflowFilter === 'consignment' ? 'bg-indigo-700 border-indigo-700 text-white' : 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100'}`}
+                        title="Μόνο Παρακαταθήκες"
+                        aria-label="Μόνο Παρακαταθήκες"
+                        className={`relative flex h-9 w-9 items-center justify-center rounded-xl border transition-all shadow-sm ${workflowFilter === 'consignment' ? 'bg-indigo-700 border-indigo-700 text-white' : 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100'}`}
                     >
-                        <HandHeart size={12} /> Μόνο Παρακαταθήκες
-                        <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-black ${workflowFilter === 'consignment' ? 'bg-white/20' : 'bg-indigo-100'}`}>{consignmentBatchCount}</span>
+                        <HandHeart size={15} />
+                        {consignmentBatchCount > 0 && (
+                            <span className={`absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-black ${workflowFilter === 'consignment' ? 'bg-white text-indigo-700' : 'bg-indigo-600 text-white'}`}>
+                                {consignmentBatchCount}
+                            </span>
+                        )}
                     </button>
+
+                    <div className="w-px h-5 bg-slate-300 mx-0.5" />
+
                     <button
                         onClick={() => setAssemblyOrderSelectorOpen(true)}
                         disabled={assemblyOrderCandidates.length === 0}
-                        className="flex items-center gap-1.5 bg-pink-50 text-pink-700 px-3 py-1.5 rounded-xl hover:bg-pink-100 font-semibold transition-all shadow-sm border border-pink-200 disabled:opacity-50 disabled:cursor-not-allowed text-[11px]"
+                        title="Συναρμολόγηση"
+                        aria-label="Συναρμολόγηση"
+                        className="flex h-9 w-9 items-center justify-center rounded-xl border border-pink-200 bg-pink-50 text-pink-700 transition-all shadow-sm hover:bg-pink-100 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                        <Layers size={12} /> Συναρμολόγηση
+                        <Layers size={15} />
                     </button>
                     <button
                         onClick={() => handlePrintRequest(preparationBatches, 'preparation')}
-                        className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-xl hover:bg-blue-100 font-semibold transition-all shadow-sm border border-blue-200 disabled:opacity-50 text-[11px]"
+                        title="Εκτύπωση Προετοιμασίας"
+                        aria-label="Εκτύπωση Προετοιμασίας"
+                        className="flex h-9 w-9 items-center justify-center rounded-xl border border-blue-200 bg-blue-50 text-blue-700 transition-all shadow-sm hover:bg-blue-100 disabled:opacity-40"
                     >
-                        <BookOpen size={12} /> Προετοιμασία
+                        <BookOpen size={15} />
                     </button>
                     <button
                         onClick={() => handlePrintRequest(technicianBatches, 'technician')}
-                        className="flex items-center gap-1.5 bg-purple-50 text-purple-700 px-3 py-1.5 rounded-xl hover:bg-purple-100 font-semibold transition-all shadow-sm border border-purple-200 disabled:opacity-50 text-[11px]"
+                        title="Εκτύπωση Τεχνίτη"
+                        aria-label="Εκτύπωση Τεχνίτη"
+                        className="flex h-9 w-9 items-center justify-center rounded-xl border border-purple-200 bg-purple-50 text-purple-700 transition-all shadow-sm hover:bg-purple-100 disabled:opacity-40"
                     >
-                        <Hammer size={12} /> Τεχνίτης
+                        <Hammer size={15} />
                     </button>
                     <button
                         onClick={() => handlePrintRequest(enhancedBatches, 'aggregated')}
-                        className="flex items-center gap-1.5 bg-slate-100 text-slate-700 px-3 py-1.5 rounded-xl hover:bg-slate-200 font-semibold transition-all shadow-sm border border-slate-200 disabled:opacity-50 text-[11px]"
+                        title="Συγκεντρωτική Εκτύπωση"
+                        aria-label="Συγκεντρωτική Εκτύπωση"
+                        className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-slate-700 transition-all shadow-sm hover:bg-slate-200 disabled:opacity-40"
                     >
-                        <FileText size={12} /> Συγκεντρωτική
+                        <FileText size={15} />
                     </button>
                 </div>
                     </>
@@ -3599,18 +3627,38 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                                     </div>
                                                     <span className="rounded-full bg-white px-2 py-1 text-[9px] font-black text-slate-600 shadow-sm">{batch.quantity} τεμ.</span>
                                                 </div>
-                                                <div className="mt-3 grid grid-cols-3 gap-1">
-                                                    {PRODUCTION_STAGES.filter(stage => stage.id !== ProductionStage.AwaitingDelivery && stage.id !== ProductionStage.Ready).map(stage => {
+                                                <div className="mt-3 grid grid-cols-2 gap-1">
+                                                    {PRODUCTION_STAGES.filter(stage => stage.id !== ProductionStage.AwaitingDelivery && stage.id !== ProductionStage.Ready).flatMap(stage => {
                                                         const colors = STAGE_COLORS[stage.colorKey];
-                                                        return (
+                                                        if (stage.id !== ProductionStage.Polishing) {
+                                                            return [
+                                                                <button
+                                                                    key={stage.id}
+                                                                    onClick={() => handleCardMoveToStage(batch, stage.id)}
+                                                                    className={`rounded-lg px-2 py-1.5 text-[9px] font-black ${colors.bg} ${colors.text} hover:opacity-80`}
+                                                                >
+                                                                    {stage.shortLabel}
+                                                                </button>,
+                                                            ];
+                                                        }
+                                                        return [
                                                             <button
-                                                                key={stage.id}
-                                                                onClick={() => handleCardMoveToStage(batch, stage.id)}
-                                                                className={`rounded-lg px-2 py-1.5 text-[9px] font-black ${colors.bg} ${colors.text} hover:opacity-80`}
+                                                                key={`${stage.id}-pending`}
+                                                                onClick={() => handleCardMoveToStage(batch, stage.id, { pendingDispatch: true })}
+                                                                className="rounded-lg border border-teal-200 bg-teal-50 px-2 py-1.5 text-[9px] font-black text-teal-700 hover:bg-teal-100"
+                                                                title={getPolishingSubStageLabel('pending')}
                                                             >
-                                                                {stage.shortLabel}
-                                                            </button>
-                                                        );
+                                                                Τεχνίτης σε Αναμονή
+                                                            </button>,
+                                                            <button
+                                                                key={`${stage.id}-dispatched`}
+                                                                onClick={() => handleCardMoveToStage(batch, stage.id, { pendingDispatch: false })}
+                                                                className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-1.5 text-[9px] font-black text-blue-700 hover:bg-blue-100"
+                                                                title={getPolishingSubStageLabel('dispatched')}
+                                                            >
+                                                                Τεχνίτης στον Τεχνίτη
+                                                            </button>,
+                                                        ];
                                                     })}
                                                 </div>
                                             </div>

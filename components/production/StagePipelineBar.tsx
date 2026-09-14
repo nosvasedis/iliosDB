@@ -2,8 +2,7 @@ import React from 'react';
 import { ProductionStage } from '../../types';
 import { UNBATCHED_STRIPE_STYLE } from '../../utils/orderReadiness';
 import { STAGES, VIBRANT_STAGES } from './stageConstants';
-
-export type PolishingSubStage = 'pending' | 'dispatched';
+import { PolishingSubStage, getPolishingSubStageLabel } from '../../utils/productionStages';
 
 interface StagePipelineBarProps {
     stageCounts: Record<string, number>;
@@ -58,7 +57,7 @@ export const StagePipelineBar = React.memo(function StagePipelineBar({
                                         onClick={() => onStageClick(stage.id as ProductionStage, 'pending')}
                                         className={`relative group flex items-center justify-center first:rounded-l-[0.45rem] last:rounded-r-[0.45rem] transition-all hover:brightness-110 active:scale-y-95 bg-teal-500 ${leftBorder}`}
                                         style={{ width: `${Math.max(pendingPct, 6)}%` }}
-                                        title={`${stage.label} • Αναμονή Αποστολής: ${pendingCount} τμχ${pendingOnHold > 0 ? ` (${pendingOnHold} σε αναμονή)` : ''} — πατήστε για λεπτομέρειες`}
+                                        title={`${getPolishingSubStageLabel('pending')}: ${pendingCount} τμχ${pendingOnHold > 0 ? ` (${pendingOnHold} σε αναμονή)` : ''} — πατήστε για λεπτομέρειες`}
                                     >
                                         <span className="text-white text-[10px] font-black truncate px-1 drop-shadow-sm">
                                             {pendingPct >= 14 ? `Τεχν. • Αναμονή ` : ''}{pendingCount}
@@ -73,7 +72,7 @@ export const StagePipelineBar = React.memo(function StagePipelineBar({
                                         onClick={() => onStageClick(stage.id as ProductionStage, 'dispatched')}
                                         className={`relative group flex items-center justify-center first:rounded-l-[0.45rem] last:rounded-r-[0.45rem] transition-all hover:brightness-110 active:scale-y-95 bg-blue-500 ${pendingCount > 0 || i > 0 ? 'border-l border-white/20' : ''}`}
                                         style={{ width: `${Math.max(dispatchedPct, 6)}%` }}
-                                        title={`${stage.label} • Στον Τεχνίτη: ${dispatchedCount} τμχ${dispatchedOnHold > 0 ? ` (${dispatchedOnHold} σε αναμονή)` : ''} — πατήστε για λεπτομέρειες`}
+                                        title={`${getPolishingSubStageLabel('dispatched')}: ${dispatchedCount} τμχ${dispatchedOnHold > 0 ? ` (${dispatchedOnHold} σε αναμονή)` : ''} — πατήστε για λεπτομέρειες`}
                                     >
                                         <span className="text-white text-[10px] font-black truncate px-1 drop-shadow-sm">
                                             {dispatchedPct >= 14 ? `Τεχν. • Στον Τεχν. ` : ''}{dispatchedCount}

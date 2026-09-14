@@ -105,6 +105,22 @@ export const PRODUCTION_STAGE_ORDER_INDEX: Record<ProductionStage, number> = PRO
   {} as Record<ProductionStage, number>,
 );
 
+/**
+ * Τεχνίτης is one production stage with two operational substages.
+ * Keep these labels centralized so intake, board, finder, and agent-facing
+ * actions never reduce it to an ambiguous single stage.
+ */
+export type PolishingSubStage = 'pending' | 'dispatched';
+
+export const POLISHING_SUBSTAGE_LABELS: Record<PolishingSubStage, string> = {
+  pending: 'Τεχνίτης σε Αναμονή',
+  dispatched: 'Τεχνίτης στον Τεχνίτη',
+};
+
+export function getPolishingSubStageLabel(substage: PolishingSubStage): string {
+  return POLISHING_SUBSTAGE_LABELS[substage];
+}
+
 export function getProductionStageMeta(stage: ProductionStage | string): ProductionStageMeta | null {
   return (PRODUCTION_STAGE_META as Record<string, ProductionStageMeta | undefined>)[stage] || null;
 }
