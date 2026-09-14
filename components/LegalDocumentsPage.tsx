@@ -7,6 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
   Archive,
+  ArrowRight,
   Ban,
   CheckCircle2,
   ChevronDown,
@@ -1346,7 +1347,7 @@ export default function LegalDocumentsPage({
     }
     try {
       await saveDraft.mutateAsync(draftBundle);
-      showToast('Το παραστατικό αποθηκεύτηκε ως πρόχειρο.', 'success');
+      showToast('Το πρόχειρο αποθηκεύτηκε. Θα το βρείτε στο Αρχείο → Πρόχειρα.', 'success');
     } catch (error: any) {
       showToast(error?.message || 'Δεν αποθηκεύτηκε το πρόχειρο.', 'error');
     }
@@ -1356,7 +1357,7 @@ export default function LegalDocumentsPage({
     if (!proformaBundle) return;
     try {
       await saveProforma.mutateAsync(proformaBundle);
-      showToast('Το προτιμολόγιο αποθηκεύτηκε.', 'success');
+      showToast('Το προτιμολόγιο αποθηκεύτηκε. Θα το βρείτε στο Αρχείο → Προτιμολόγια.', 'success');
     } catch (error: any) {
       showToast(error?.message || 'Δεν αποθηκεύτηκε το προτιμολόγιο.', 'error');
     }
@@ -1833,10 +1834,29 @@ export default function LegalDocumentsPage({
   const renderDraftEditor = () => {
     if (!draftBundle) {
       return (
-        <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
-          <FileCheck2 size={36} className="mx-auto mb-3 text-slate-300" />
-          <div className="font-black text-slate-700">Καμία προεπισκόπηση</div>
-          <div className="mt-1 text-sm">Δημιουργήστε από παραγγελία ή ξεκινήστε κενό χειροκίνητο παραστατικό.</div>
+        <div className="overflow-hidden rounded-2xl border border-dashed border-slate-300 bg-white">
+          <div className="flex min-h-[330px] flex-col items-center justify-center px-6 py-10 text-center">
+            <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+              <FileCheck2 size={30} />
+            </div>
+            <div className="text-lg font-black text-slate-900">Ο χώρος εργασίας είναι έτοιμος</div>
+            <div className="mt-2 max-w-lg text-sm font-medium leading-relaxed text-slate-500">
+              Ορίστε αριστερά την προέλευση και τον τύπο. Θα δημιουργηθεί ένα επεξεργάσιμο πρόχειρο χωρίς να εκδοθεί τίποτα.
+            </div>
+            <div className="mt-7 grid w-full max-w-2xl gap-3 text-left sm:grid-cols-3">
+              {[
+                ['1', 'Επιλογή', 'Πηγή και τύπος παραστατικού'],
+                ['2', 'Επεξεργασία', 'Πελάτης, είδη και αξίες'],
+                ['3', 'Ολοκλήρωση', 'Αποθήκευση ή έκδοση μέσω SBZ'],
+              ].map(([step, title, description]) => (
+                <div key={step} className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5">
+                  <div className="mb-2 flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-[11px] font-black text-white">{step}</div>
+                  <div className="text-sm font-black text-slate-800">{title}</div>
+                  <div className="mt-0.5 text-xs leading-relaxed text-slate-500">{description}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       );
     }
@@ -1871,7 +1891,7 @@ export default function LegalDocumentsPage({
 
     return (
       <div className="min-w-0 space-y-4">
-        <section className="rounded-lg border border-slate-200 bg-white p-4">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-black text-slate-900">{LEGAL_DOCUMENT_KIND_LABELS[document.document_kind]}</h2>
@@ -2139,11 +2159,20 @@ export default function LegalDocumentsPage({
     const editable = draftBundle ? isLegalDocumentEditable(draftBundle.document) : false;
 
     return (
-      <section className="rounded-lg border border-slate-200 bg-white p-5">
-        <div className="mb-4 flex items-center gap-2">
-          <ClipboardCheck size={18} className="text-emerald-600" />
-          <h3 className="font-black text-slate-900">Έλεγχος & υποβολή</h3>
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+              <ClipboardCheck size={18} />
+            </div>
+            <div>
+              <h3 className="font-black text-slate-900">Τελικός έλεγχος</h3>
+              <p className="text-xs font-medium text-slate-500">Ελέγξτε τις εκκρεμότητες πριν από την έκδοση.</p>
+            </div>
+          </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-slate-500">Βήμα 3 από 3</span>
         </div>
+        <div className="p-5">
         {!draftBundle ? (
           <div className="text-sm font-medium text-slate-500">Δημιουργήστε πρόχειρο για έλεγχο και αποστολή στη myDATA.</div>
         ) : !editable ? (
@@ -2171,21 +2200,31 @@ export default function LegalDocumentsPage({
           </div>
         )}
         {editable && (
-          <div className="mt-5 flex flex-wrap gap-2">
-            <ActionButton variant="secondary" onClick={handleSaveDraft} disabled={!draftBundle || saveDraft.isPending}>
-              {saveDraft.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Αποθήκευση πρόχειρου
-            </ActionButton>
-            {draftBundle && canPrintLegalDocument(draftBundle.document, draftBundle.lines) && (
-              <ActionButton variant="secondary" onClick={() => void handlePrint(draftBundle.document)}>
-                <Printer size={16} />
-                {isOfficialLegalDocumentPrint(draftBundle.document, draftBundle.lines) ? 'Εκτύπωση' : 'Εκτύπωση πρόχειρου'}
+          <div className="mt-5 grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+            <div className="flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sky-950">
+              <Archive size={17} className="mt-0.5 shrink-0 text-sky-700" />
+              <div className="text-xs font-medium leading-relaxed">
+                <div className="font-black">Θέλετε να συνεχίσετε αργότερα;</div>
+                Πατήστε «Αποθήκευση πρόχειρου». Θα το βρείτε στο <span className="font-black">Αρχείο → Πρόχειρα</span> και δεν θα σταλεί στον πάροχο.
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 xl:justify-end">
+              <ActionButton variant="secondary" onClick={handleSaveDraft} disabled={!draftBundle || saveDraft.isPending}>
+                {saveDraft.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Αποθήκευση πρόχειρου
               </ActionButton>
-            )}
-            <ActionButton onClick={handleSubmitDraft} disabled={!draftBundle || validationErrors.length > 0 || submitDocument.isPending || saveDraft.isPending}>
-              {submitDocument.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Έκδοση μέσω SBZ
-            </ActionButton>
+              {draftBundle && canPrintLegalDocument(draftBundle.document, draftBundle.lines) && (
+                <ActionButton variant="secondary" onClick={() => void handlePrint(draftBundle.document)}>
+                  <Printer size={16} />
+                  {isOfficialLegalDocumentPrint(draftBundle.document, draftBundle.lines) ? 'Εκτύπωση' : 'Εκτύπωση πρόχειρου'}
+                </ActionButton>
+              )}
+              <ActionButton onClick={handleSubmitDraft} disabled={!draftBundle || validationErrors.length > 0 || submitDocument.isPending || saveDraft.isPending}>
+                {submitDocument.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Έκδοση μέσω SBZ
+              </ActionButton>
+            </div>
           </div>
         )}
+        </div>
       </section>
     );
   };
@@ -2193,43 +2232,88 @@ export default function LegalDocumentsPage({
   const renderNewTab = () => {
     const selectedCreationType = creationTypeItems.find((item) => item.id === creationDocumentType) || creationTypeItems[0];
     const isProformaWorkspace = Boolean(proformaBundle) || (creationDocumentType === 'proforma' && !draftBundle);
+    const workspaceStarted = Boolean(draftBundle || proformaBundle);
+    const sourceTitle = creationSource === 'order' ? 'Από παραγγελία' : 'Χειροκίνητη καταχώριση';
+    const primaryActionLabel = creationSource === 'order' ? 'Σύνθεση πρόχειρου' : 'Έναρξη καταχώρισης';
 
     return (
-    <div className="space-y-4">
-      <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
-        <span className="font-black">Δημιουργία</span> — νέο πρόχειρο τιμολόγιο, προτιμολόγιο, έλεγχος και έκδοση μέσω SBZ.
-        {' '}Μετά την έκδοση, το παραστατικό μεταφέρεται αυτόματα στο <span className="font-black">Αρχείο</span>.
-      </div>
-      <div className="grid gap-5 lg:grid-cols-[minmax(250px,290px)_minmax(0,1fr)]">
-      <section className="rounded-lg border border-slate-200 bg-white p-5 lg:sticky lg:top-4 lg:self-start">
-        <div className="mb-4 flex items-center gap-2">
-          <FileCheck2 size={18} className="text-slate-700" />
-          <h2 className="font-black text-slate-900">Νέο παραστατικό</h2>
-        </div>
-        <div className="space-y-4">
+    <div className="space-y-5">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-5 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 px-5 py-5 text-white lg:flex-row lg:items-center lg:justify-between lg:px-6">
           <div>
-            <span className="block text-[11px] font-black uppercase tracking-wide text-slate-500 mb-2">Πηγή</span>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => { setCreationSource('order'); setDraftBundle(null); setProformaBundle(null); }}
-                className={`rounded-lg border px-3 py-2 text-left text-sm font-black transition ${creationSource === 'order' ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
-              >
-                Από παραγγελία
-              </button>
-              <button
-                type="button"
-                onClick={() => { setCreationSource('manual'); setSelectedShipmentId(''); setDraftBundle(null); setProformaBundle(null); }}
-                className={`rounded-lg border px-3 py-2 text-left text-sm font-black transition ${creationSource === 'manual' ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
-              >
-                Χειροκίνητα
-              </button>
+            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-300">Workspace δημιουργίας</div>
+            <h1 className="mt-1 text-xl font-black tracking-tight">Νέο παραστατικό, βήμα προς βήμα</h1>
+            <p className="mt-1 max-w-2xl text-sm font-medium leading-relaxed text-slate-300">Ξεκινήστε με ένα ασφαλές πρόχειρο, ελέγξτε τα στοιχεία και εκδώστε μόνο όταν είναι έτοιμο.</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-bold text-slate-200 backdrop-blur">
+            <Archive size={15} className="text-emerald-300" /> Τα αποθηκευμένα πρόχειρα βρίσκονται στο Αρχείο
+          </div>
+        </div>
+        <div className="grid grid-cols-3 divide-x divide-slate-100 bg-white">
+          {[
+            ['1', 'Ρύθμιση', 'Πηγή & τύπος'],
+            ['2', 'Στοιχεία', 'Πελάτης & γραμμές'],
+            ['3', 'Ολοκλήρωση', 'Έλεγχος & έκδοση'],
+          ].map(([step, label, detail], index) => {
+            const complete = workspaceStarted && index === 0;
+            const active = (!workspaceStarted && index === 0) || (workspaceStarted && index === 1);
+            return (
+              <div key={step} className={`flex min-w-0 items-center gap-3 px-3 py-3.5 sm:px-5 ${active ? 'bg-emerald-50/60' : ''}`}>
+                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black ${complete ? 'bg-emerald-600 text-white' : active ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                  {complete ? <CheckCircle2 size={16} /> : step}
+                </span>
+                <div className="min-w-0">
+                  <div className={`truncate text-sm font-black ${active || complete ? 'text-slate-900' : 'text-slate-400'}`}>{label}</div>
+                  <div className="hidden truncate text-[11px] font-medium text-slate-500 sm:block">{detail}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+      <div className="grid gap-5 lg:grid-cols-[minmax(290px,330px)_minmax(0,1fr)]">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:sticky lg:top-4 lg:self-start">
+        <div className="border-b border-slate-100 px-5 py-4">
+          <div className="flex items-center justify-between gap-3">
+            <div><div className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-700">Βήμα 1</div><h2 className="mt-0.5 font-black text-slate-900">Ρύθμιση παραστατικού</h2></div>
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-slate-500">Δεν εκδίδεται ακόμη</span>
+          </div>
+        </div>
+        <div className="space-y-5 p-5">
+          <div>
+            <span className="mb-2 block text-[11px] font-black uppercase tracking-wide text-slate-500">1. Πώς θέλετε να ξεκινήσετε;</span>
+            <div className="grid gap-2">
+              {([
+                ['order', FileCheck2, 'Από παραγγελία', 'Με έτοιμο πελάτη, είδη και αξίες'],
+                ['manual', Edit3, 'Χειροκίνητα', 'Κενό παραστατικό για ελεύθερη καταχώριση'],
+              ] as const).map(([id, Icon, title, description]) => (
+                <button
+                  key={id}
+                  type="button"
+                  aria-pressed={creationSource === id}
+                  onClick={() => {
+                    setCreationSource(id);
+                    if (id === 'manual') setSelectedShipmentId('');
+                    setDraftBundle(null);
+                    setProformaBundle(null);
+                  }}
+                  className={`group flex items-center gap-3 rounded-xl border p-3 text-left transition ${creationSource === id ? 'border-emerald-500 bg-emerald-50 shadow-sm ring-2 ring-emerald-100' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'}`}
+                >
+                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${creationSource === id ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-white'}`}><Icon size={18} /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className={`block text-sm font-black ${creationSource === id ? 'text-emerald-950' : 'text-slate-800'}`}>{title}</span>
+                    <span className="mt-0.5 block text-xs font-medium leading-snug text-slate-500">{description}</span>
+                  </span>
+                  {creationSource === id && <CheckCircle2 size={17} className="shrink-0 text-emerald-600" />}
+                </button>
+              ))}
             </div>
           </div>
           {creationSource === 'order' ? (
             <>
+              <div className="border-t border-slate-100 pt-5">
               <SelectInput
-                label="Παραγγελία"
+                label="2. Επιλέξτε παραγγελία"
                 value={selectedOrderId}
                 onChange={(value) => { setSelectedOrderId(value); setSelectedShipmentId(''); setDraftBundle(null); setProformaBundle(null); }}
                 help="Εμφανίζει το πραγματικό ποσό τιμολόγησης από τα τρέχοντα είδη. Παραγγελίες που άδειασαν από μεταφορά υπόλοιπου δείχνουν πού μεταφέρθηκαν τα είδη."
@@ -2250,6 +2334,7 @@ export default function LegalDocumentsPage({
                   </optgroup>
                 )}
               </SelectInput>
+              </div>
               {selectedPickerRow?.hint ? (
                 <div className={`rounded-lg border px-3 py-2 text-xs font-medium leading-relaxed ${selectedPickerRow.selectable ? 'border-sky-200 bg-sky-50 text-sky-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
                   <div>{selectedPickerRow.hint}</div>
@@ -2270,7 +2355,7 @@ export default function LegalDocumentsPage({
                 </div>
               ) : null}
               <SelectInput
-                label="Πηγή γραμμών"
+                label="Ποια είδη θα συμπεριληφθούν;"
                 value={selectedShipmentId}
                 onChange={(value) => { setSelectedShipmentId(value); setDraftBundle(null); setProformaBundle(null); }}
                 help="Επιλέξτε ολόκληρη την παραγγελία, μόνο τα υπόλοιπα είδη ή μια συγκεκριμένη μερική αποστολή (ΔΑ)."
@@ -2299,23 +2384,25 @@ export default function LegalDocumentsPage({
               ) : null}
             </>
           ) : (
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-600">
+            <div className="rounded-xl border border-violet-200 bg-violet-50 px-3.5 py-3 text-sm font-medium leading-relaxed text-violet-950">
               {creationDocumentType === 'proforma'
                 ? 'Ξεκινάτε κενό προτιμολόγιο. Συμπληρώστε πελάτη, γραμμές και σημειώσεις χειροκίνητα στον επεξεργαστή.'
                 : 'Ξεκινάτε κενό παραστατικό. Συμπληρώστε πελάτη, γραμμές και στοιχεία χειροκίνητα στον επεξεργαστή.'}
             </div>
           )}
-          <div>
-            <span className="block text-[11px] font-black uppercase tracking-wide text-slate-500 mb-2">Τύπος</span>
+          <div className="border-t border-slate-100 pt-5">
+            <span className="mb-2 block text-[11px] font-black uppercase tracking-wide text-slate-500">{creationSource === 'order' ? '3' : '2'}. Τι θέλετε να δημιουργήσετε;</span>
             <div className="grid gap-2">
               {creationTypeItems.map((item) => (
                 <button
                   key={item.id}
                   type="button"
                   onClick={() => { setCreationDocumentType(item.id); setDraftBundle(null); setProformaBundle(null); }}
-                  className={`rounded-lg border px-3 py-2 text-left text-sm font-black transition ${creationDocumentType === item.id ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                  aria-pressed={creationDocumentType === item.id}
+                  className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left text-sm font-black transition ${creationDocumentType === item.id ? 'border-slate-900 bg-slate-900 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                 >
                   {item.label}
+                  {creationDocumentType === item.id && <CheckCircle2 size={16} className="shrink-0 text-emerald-300" />}
                 </button>
               ))}
             </div>
@@ -2323,13 +2410,34 @@ export default function LegalDocumentsPage({
               <p className="mt-2 text-xs font-medium leading-relaxed text-slate-500">{selectedCreationType.help}</p>
             ) : null}
           </div>
-          <ActionButton onClick={handleGenerateDraft} disabled={(creationSource === 'order' && (!selectedOrder || !canUseSelectedOrder)) || loadingOrders}>
-            {loadingOrders ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Δημιουργία
-          </ActionButton>
+          <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
+            <div className="mb-2 text-xs font-medium text-slate-500"><span className="font-black text-slate-700">{sourceTitle}</span> · {selectedCreationType.label}</div>
+            <button
+              type="button"
+              onClick={handleGenerateDraft}
+              disabled={(creationSource === 'order' && (!selectedOrder || !canUseSelectedOrder)) || loadingOrders}
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#060b00] px-4 py-2.5 text-sm font-black text-white transition hover:bg-emerald-900 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              {loadingOrders ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} {primaryActionLabel} <ArrowRight size={16} />
+            </button>
+            {creationSource === 'order' && !selectedOrder && <p className="mt-2 text-center text-[11px] font-medium text-slate-500">Επιλέξτε παραγγελία για να συνεχίσετε.</p>}
+          </div>
         </div>
       </section>
 
       <div className="min-w-0 space-y-4">
+        {workspaceStarted && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 size={18} className="shrink-0 text-emerald-700" />
+              <div>
+                <div className="text-sm font-black text-emerald-950">{proformaBundle ? 'Προτιμολόγιο' : 'Πρόχειρο παραστατικό'} σε επεξεργασία</div>
+                <div className="text-xs font-medium text-emerald-800">Οι αλλαγές αποθηκεύονται οριστικά μόνο όταν πατήσετε «{proformaBundle ? 'Αποθήκευση' : 'Αποθήκευση πρόχειρου'}».</div>
+              </div>
+            </div>
+            <span className="rounded-full bg-white px-3 py-1 text-[11px] font-black text-emerald-800 ring-1 ring-emerald-200">Βήμα 2 από 3</span>
+          </div>
+        )}
         {isProformaWorkspace ? renderProformaEditor() : (
           <>
             {renderDraftEditor()}
@@ -2345,10 +2453,10 @@ export default function LegalDocumentsPage({
   const renderProformaEditor = () => {
     if (!proformaBundle) {
       return (
-        <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
-          <FileText size={36} className="mx-auto mb-3 text-slate-300" />
-          <div className="font-black text-slate-700">Δεν έχει ανοιχτεί προτιμολόγιο</div>
-          <div className="mt-1 text-sm">Επιλέξτε «Προτιμολόγιο» ως τύπο και πατήστε Δημιουργία, ή ανοίξτε παλιότερο από το Αρχείο.</div>
+        <div className="flex min-h-[330px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
+          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 ring-1 ring-sky-100"><FileText size={30} /></div>
+          <div className="text-lg font-black text-slate-900">Έτοιμο για νέο προτιμολόγιο</div>
+          <div className="mt-2 max-w-lg text-sm font-medium leading-relaxed text-slate-500">Ολοκληρώστε τη ρύθμιση αριστερά και ξεκινήστε ένα επεξεργάσιμο, μη φορολογικό έγγραφο. Τα αποθηκευμένα προτιμολόγια παραμένουν διαθέσιμα στο Αρχείο.</div>
         </div>
       );
     }
@@ -2507,16 +2615,22 @@ export default function LegalDocumentsPage({
             </table>
           </div>
 
-          <div className="mt-5 flex flex-wrap gap-2">
-            <ActionButton variant="secondary" onClick={handleSaveProforma} disabled={saveProforma.isPending}>
-              {saveProforma.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Αποθήκευση
-            </ActionButton>
-            <ActionButton onClick={() => handlePrintProforma(document, proformaBundle.lines)}>
-              <Printer size={16} /> Εκτύπωση
-            </ActionButton>
-            <ActionButton variant="secondary" onClick={() => void openConvertModal(document, proformaBundle.lines)} disabled={document.status !== 'draft' || saveDraft.isPending}>
-              <Copy size={16} /> Μετατροπή σε τιμολόγιο
-            </ActionButton>
+          <div className="mt-5 grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+            <div className="flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sky-950">
+              <Archive size={17} className="mt-0.5 shrink-0 text-sky-700" />
+              <div className="text-xs font-medium leading-relaxed"><div className="font-black">Αποθήκευση για αργότερα</div>Μετά την αποθήκευση θα το βρείτε στο <span className="font-black">Αρχείο → Προτιμολόγια</span>.</div>
+            </div>
+            <div className="flex flex-wrap gap-2 xl:justify-end">
+              <ActionButton variant="secondary" onClick={handleSaveProforma} disabled={saveProforma.isPending}>
+                {saveProforma.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Αποθήκευση
+              </ActionButton>
+              <ActionButton onClick={() => handlePrintProforma(document, proformaBundle.lines)}>
+                <Printer size={16} /> Εκτύπωση
+              </ActionButton>
+              <ActionButton variant="secondary" onClick={() => void openConvertModal(document, proformaBundle.lines)} disabled={document.status !== 'draft' || saveDraft.isPending}>
+                <Copy size={16} /> Μετατροπή σε τιμολόγιο
+              </ActionButton>
+            </div>
           </div>
         </section>
       </div>

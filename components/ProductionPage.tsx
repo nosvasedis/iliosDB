@@ -3453,51 +3453,61 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                 tail={(
                     <>
                         <div className="mx-4 flex w-full min-w-[260px] flex-1 gap-2">
-                    <button
-                        onClick={() => setIsMoldModalOpen(true)}
-                        className="hidden lg:flex p-3 rounded-2xl border transition-all shadow-sm bg-white border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-300"
-                        title="Υπολογισμός Λάστιχων"
-                    >
-                        <Grid size={20} />
-                    </button>
-                    <button
-                        onClick={() => setQuickPickerOpen(true)}
-                        disabled={quickPickEntries.length === 0}
-                        className={`hidden lg:flex p-3 rounded-2xl border transition-all shadow-sm ${quickPickEntries.length > 0 ? 'bg-white border-slate-200 text-slate-500 hover:text-slate-800' : 'bg-slate-100 border-slate-100 text-slate-300 cursor-not-allowed'}`}
-                        title={quickPickEntries.length > 0 ? "Άμεση Διαχείριση Παραγωγής" : "Δεν υπάρχουν πελάτες σε παραγωγή"}
-                    >
-                        <ClipboardList size={20} />
-                    </button>
-                    {/* Compact Sorting Controls */}
-                    <div className="hidden lg:flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
+                    <div className="hidden lg:flex items-center gap-1 rounded-2xl border border-slate-200 bg-slate-50 p-1 shrink-0">
+                        <button
+                            onClick={() => setIsMoldModalOpen(true)}
+                            title="Υπολογισμός Λάστιχων"
+                            aria-label="Υπολογισμός Λάστιχων"
+                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:text-slate-800"
+                        >
+                            <Grid size={16} />
+                        </button>
+                        <button
+                            onClick={() => setQuickPickerOpen(true)}
+                            disabled={quickPickEntries.length === 0}
+                            title={quickPickEntries.length > 0 ? "Άμεση Διαχείριση Παραγωγής" : "Δεν υπάρχουν πελάτες σε παραγωγή"}
+                            aria-label="Άμεση Διαχείριση Παραγωγής"
+                            className={`flex h-9 w-9 items-center justify-center rounded-xl border shadow-sm transition-all ${quickPickEntries.length > 0 ? 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-800' : 'border-slate-100 bg-slate-100 text-slate-300 cursor-not-allowed'}`}
+                        >
+                            <ClipboardList size={16} />
+                        </button>
+
+                        <div className="w-px h-5 bg-slate-300 mx-0.5" />
+
                         <button
                             onClick={() => setGroupMode('gender')}
-                            className={`p-1.5 rounded-md transition-all ${groupMode === 'gender' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
                             title="Κατά Φύλο"
+                            aria-label="Κατά Φύλο"
+                            className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-all ${groupMode === 'gender' ? 'border-slate-200 bg-white text-slate-800 shadow-sm' : 'border-transparent text-slate-400 hover:bg-white/70 hover:text-slate-600'}`}
                         >
-                            <Palette size={12} />
+                            <Palette size={15} />
                         </button>
                         <button
                             onClick={() => setGroupMode('customer')}
-                            className={`p-1.5 rounded-md transition-all ${groupMode === 'customer' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
                             title="Ανά Πελάτη"
+                            aria-label="Ανά Πελάτη"
+                            className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-all ${groupMode === 'customer' ? 'border-emerald-200 bg-white text-emerald-600 shadow-sm' : 'border-transparent text-slate-400 hover:bg-white/70 hover:text-slate-600'}`}
                         >
-                            <Users size={12} />
+                            <Users size={15} />
                         </button>
-                        <div className="w-px h-3 bg-slate-300 mx-0.5" />
+
+                        <div className="w-px h-5 bg-slate-300 mx-0.5" />
+
                         <button
                             onClick={() => setSortOrder(sortOrder === 'newest' ? 'alpha' : 'newest')}
-                            className={`p-1.5 rounded-md transition-all ${sortOrder === 'newest' ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                             title="Νεότερα Πρώτα"
+                            aria-label="Νεότερα Πρώτα"
+                            className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-all ${sortOrder === 'newest' ? 'border-blue-500 bg-blue-500 text-white shadow-sm' : 'border-transparent text-slate-400 hover:bg-white/70 hover:text-slate-600'}`}
                         >
-                            <ArrowDown size={12} />
+                            <ArrowDown size={15} />
                         </button>
                         <button
                             onClick={() => setSortOrder(sortOrder === 'oldest' ? 'alpha' : 'oldest')}
-                            className={`p-1.5 rounded-md transition-all ${sortOrder === 'oldest' ? 'bg-orange-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                             title="Παλαιότερα Πρώτα"
+                            aria-label="Παλαιότερα Πρώτα"
+                            className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-all ${sortOrder === 'oldest' ? 'border-orange-500 bg-orange-500 text-white shadow-sm' : 'border-transparent text-slate-400 hover:bg-white/70 hover:text-slate-600'}`}
                         >
-                            <ArrowUp size={12} />
+                            <ArrowUp size={15} />
                         </button>
                     </div>
                     <ProductionBatchFinder
