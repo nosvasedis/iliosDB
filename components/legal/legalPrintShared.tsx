@@ -9,6 +9,8 @@ export const LEGAL_PRINT_CSS = `
   .legal-print-page {
     background: #fff !important;
     color: #0f172a !important;
+    font-size: 9.5px;
+    line-height: 1.3;
     break-after: page;
     page-break-after: always;
     -webkit-print-color-adjust: exact !important;
@@ -157,8 +159,8 @@ export function LegalPrintHeader(props: {
         <div className="flex h-[25mm] items-center justify-start">
           <img src={APP_LOGO} alt="ILIOS" className="legal-print-logo max-h-[20mm] max-w-[52mm] object-contain object-left" />
         </div>
-        <div className="border-l-[3px] border-[#b58b47] pl-4 text-[8.5px] leading-[1.35] text-slate-600">
-          <p className="mb-0.5 text-[13px] font-black uppercase tracking-[0.03em] text-slate-950">{issuerName}</p>
+        <div className="border-l-[3px] border-[#b58b47] pl-4 text-[9.5px] leading-[1.35] text-slate-600">
+          <p className="mb-0.5 text-[14px] font-black uppercase tracking-[0.03em] text-slate-950">{issuerName}</p>
           {issuer.trade_name && issuer.trade_name !== issuerName && <p className="font-bold text-slate-700">{issuer.trade_name}</p>}
           {issuer.activity && <p><span className="font-bold text-slate-700">Δραστηριότητα:</span> {issuer.activity}</p>}
           <p><span className="font-bold text-slate-700">ΑΦΜ:</span> <span className="font-mono">{issuer.vat_number || '-'}</span> · <span className="font-bold text-slate-700">ΔΟΥ:</span> {issuer.doy || '-'} · <span className="font-bold text-slate-700">Υποκ.:</span> {issuer.branch ?? 0}</p>
@@ -171,8 +173,8 @@ export function LegalPrintHeader(props: {
       <div className="grid grid-cols-[1.35fr_0.7fr_0.8fr_1.2fr_0.55fr] overflow-hidden rounded-md border border-slate-300">
         {metadata.map((item, index) => (
           <div key={item.label} className={index < metadata.length - 1 ? 'border-r border-slate-300' : ''}>
-            <div className={`${index === 0 ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'} px-1 py-1 text-center text-[7px] font-black uppercase tracking-[0.08em]`}>{item.label}</div>
-            <div className={`${index === 0 ? 'text-[10px] font-black uppercase text-slate-900' : 'text-[9.5px] font-bold text-slate-800'} min-h-[9mm] px-1 py-1.5 text-center leading-tight`}>{item.value}</div>
+            <div className={`${index === 0 ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'} px-1 py-1 text-center text-[8px] font-black uppercase tracking-[0.08em]`}>{item.label}</div>
+            <div className={`${index === 0 ? 'text-[11px] font-black uppercase text-slate-900' : 'text-[10.5px] font-bold text-slate-800'} min-h-[9mm] px-1 py-1.5 text-center leading-tight`}>{item.value}</div>
           </div>
         ))}
       </div>
@@ -243,18 +245,18 @@ export function LegalPrintInfoGrid(props: {
   return (
     <section className="legal-print-break-inside mb-2.5 grid shrink-0 grid-cols-[1.08fr_0.92fr] gap-2">
       <div className="overflow-hidden rounded-md border border-slate-300">
-        <div className="bg-slate-100 px-2.5 py-1.5 text-center text-[8px] font-black uppercase tracking-[0.12em] text-slate-800">
+        <div className="bg-slate-100 px-2.5 py-1.5 text-center text-[9px] font-black uppercase tracking-[0.12em] text-slate-800">
           {props.counterpartTitle || 'Στοιχεία πελάτη'}
         </div>
-        <div className="px-2.5 py-1.5 text-[8.5px] leading-[1.3]">
+        <div className="px-2.5 py-1.5 text-[9.5px] leading-[1.3]">
           <LegalPrintCustomerBar counterpart={props.counterpart} extraMeta={props.extraMeta} />
         </div>
       </div>
       <div className="overflow-hidden rounded-md border border-slate-300">
-        <div className="bg-slate-100 px-2.5 py-1.5 text-center text-[8px] font-black uppercase tracking-[0.12em] text-slate-800">
+        <div className="bg-slate-100 px-2.5 py-1.5 text-center text-[9px] font-black uppercase tracking-[0.12em] text-slate-800">
           {props.delivery ? 'Στοιχεία αποστολής & πληρωμής' : 'Στοιχεία συναλλαγής'}
         </div>
-        <div className="px-2.5 py-1.5 text-[8.5px] leading-[1.3]">
+        <div className="px-2.5 py-1.5 text-[9.5px] leading-[1.3]">
           <LegalPrintTransactionPanel
             counterpart={props.counterpart}
             delivery={props.delivery}
@@ -311,22 +313,22 @@ export function LegalPrintAadePanel(props: {
         {qrDataUrl ? (
           <img src={qrDataUrl} alt="AADE QR" className="h-full w-full object-contain" />
         ) : (
-          <span className="px-1 text-center text-[7px] font-semibold leading-tight text-slate-400">QR μετά την αποδοχή από την ΑΑΔΕ</span>
+          <span className="px-1 text-center text-[8px] font-semibold leading-tight text-slate-400">QR μετά την αποδοχή από την ΑΑΔΕ</span>
         )}
       </div>
-      <div className="grid content-center gap-1 text-[8px] leading-tight">
+      <div className="grid content-center gap-1 text-[9px] leading-tight">
         <p className="mb-0.5 font-black uppercase tracking-[0.12em] text-[#946b2d]">Στοιχεία επαλήθευσης</p>
         <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">Μ.Αρ.Κ.:</span><span className="font-mono font-bold text-slate-800">{props.mark || '-'}</span></div>
-        {props.authenticationCode && <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">Υπογραφή:</span><span className="break-all font-mono text-[7px] text-slate-700">{props.authenticationCode}</span></div>}
-        <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">Αναγνωριστικό:</span><span className="break-all font-mono text-[7px] text-slate-700">{props.uid || '-'}</span></div>
+        {props.authenticationCode && <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">Υπογραφή:</span><span className="break-all font-mono text-[8px] text-slate-700">{props.authenticationCode}</span></div>}
+        <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">Αναγνωριστικό:</span><span className="break-all font-mono text-[8px] text-slate-700">{props.uid || '-'}</span></div>
         {props.provider === 'sbz' && (
           <>
             <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">Υ.ΠΑ.Η.Ε.Σ:</span><span className="font-semibold text-slate-700">SBZ IKE - www.sbz.gr</span></div>
-            <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">Αριθμός Αδειοδότησης:</span><span className="break-all font-mono text-[7px] text-slate-700">2023_05_113SBZ IKE_001_EMDI_V1_18052023</span></div>
+            <div className="grid grid-cols-[25mm_1fr] gap-1"><span className="font-bold text-slate-500">Αριθμός Αδειοδότησης:</span><span className="break-all font-mono text-[8px] text-slate-700">2023_05_113SBZ IKE_001_EMDI_V1_18052023</span></div>
           </>
         )}
       </div>
-      <div className="flex flex-col items-center justify-center text-center text-[7px] text-slate-500">
+      <div className="flex flex-col items-center justify-center text-center text-[8px] text-slate-500">
         <p className="font-black uppercase tracking-[0.12em] text-slate-700">Αντίγραφο παραστατικού</p>
         <div className="mt-8 w-full border-t border-slate-300 pt-1">Υπογραφή / Σφραγίδα</div>
       </div>
@@ -337,9 +339,9 @@ export function LegalPrintAadePanel(props: {
 export function LegalPrintLinesTable({ lines, currency }: { lines: LegalDocumentLine[]; currency?: string }) {
   return (
     <section className="legal-print-lines-table min-h-[78mm] grow overflow-hidden rounded-md border border-slate-300">
-      <table className="w-full table-fixed border-collapse text-[8.5px] leading-[1.2]">
+      <table className="w-full table-fixed border-collapse text-[9.5px] leading-[1.25]">
         <thead>
-          <tr className="bg-slate-900 text-left text-[7px] font-black uppercase tracking-[0.06em] text-white">
+          <tr className="bg-slate-900 text-left text-[8px] font-black uppercase tracking-[0.06em] text-white">
             <th className="w-[18mm] px-1.5 py-1.5">Κωδικός</th>
             <th className="px-1.5 py-1.5">Περιγραφή</th>
             <th className="w-[13mm] px-1 py-1.5 text-right">Ποσ.</th>
@@ -356,13 +358,13 @@ export function LegalPrintLinesTable({ lines, currency }: { lines: LegalDocument
             const discountPercent = line.source_metadata?.discount_percent ?? 0;
             return (
               <tr key={line.id} className="border-b border-slate-100 align-top last:border-b-0 even:bg-slate-50/60">
-                <td className="break-words px-1.5 py-1.5 font-mono text-[7.5px] font-bold text-slate-800">{line.item_code || `${line.sku}${line.variant_suffix || ''}`}</td>
+                <td className="break-words px-1.5 py-1.5 font-mono text-[8.5px] font-bold text-slate-800">{line.item_code || `${line.sku}${line.variant_suffix || ''}`}</td>
                 <td className="px-1.5 py-1.5">
                   <div className="font-semibold text-slate-800">{line.description}</div>
-                  {line.source_metadata?.line_comments && <div className="mt-0.5 text-[7px] italic text-slate-500">{line.source_metadata.line_comments}</div>}
+                  {line.source_metadata?.line_comments && <div className="mt-0.5 text-[8px] italic text-slate-500">{line.source_metadata.line_comments}</div>}
                 </td>
                 <td className="px-1 py-1.5 text-right font-bold tabular-nums text-slate-800">{line.quantity.toLocaleString('el-GR')}</td>
-                <td className="px-1 py-1.5 text-center text-[7px] font-semibold text-slate-600">{getMeasurementUnitLabel(line.measurement_unit)}</td>
+                <td className="px-1 py-1.5 text-center text-[8px] font-semibold text-slate-600">{getMeasurementUnitLabel(line.measurement_unit)}</td>
                 <td className="px-1 py-1.5 text-right font-mono tabular-nums">{formatPrintMoney(originalUnitPrice, currency)}</td>
                 <td className="px-1 py-1.5 text-right font-mono tabular-nums">{Number(discountPercent).toLocaleString('el-GR', { maximumFractionDigits: 2 })}%</td>
                 <td className="px-1 py-1.5 text-right font-mono font-bold tabular-nums text-slate-900">{formatPrintMoney(line.net_value, currency)}</td>
@@ -415,7 +417,7 @@ export function LegalPrintTotalsSection(props: {
   return (
     <section className="legal-print-break-inside mt-2.5 shrink-0">
       <div className="grid grid-cols-[0.78fr_1.42fr_0.95fr] items-start gap-2">
-        <div className="overflow-hidden rounded-md border border-slate-300 text-[8px]">
+        <div className="overflow-hidden rounded-md border border-slate-300 text-[9px]">
           <div className="bg-slate-100 px-2 py-1 font-black uppercase tracking-[0.08em] text-slate-700">Σύνοψη</div>
           <div className="px-2 py-1.5">
             <InfoRow label="Συν. ποσότητα" value={totalQuantity.toLocaleString('el-GR')} />
@@ -427,11 +429,11 @@ export function LegalPrintTotalsSection(props: {
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-md border border-slate-300 text-[7px] leading-tight">
-          <div className="bg-slate-100 px-1.5 py-1 text-center text-[7px] font-black uppercase tracking-[0.055em] text-slate-700">Ανάλυση υπολογισμού ΦΠΑ</div>
+        <div className="overflow-hidden rounded-md border border-slate-300 text-[8px] leading-tight">
+          <div className="bg-slate-100 px-1.5 py-1 text-center text-[8px] font-black uppercase tracking-[0.055em] text-slate-700">Ανάλυση υπολογισμού ΦΠΑ</div>
           <table className="w-full border-collapse">
             <thead>
-              <tr className="border-b border-slate-200 text-[6.25px] font-bold uppercase tracking-tight text-slate-500">
+              <tr className="border-b border-slate-200 text-[7.25px] font-bold uppercase tracking-tight text-slate-500">
                 <th className="px-0.5 py-0.5 text-right">Καθαρή αξία</th>
                 <th className="px-0.5 py-0.5 text-center">ΦΠΑ</th>
                 <th className="px-0.5 py-0.5 text-right">Αξία ΦΠΑ</th>
@@ -451,24 +453,24 @@ export function LegalPrintTotalsSection(props: {
           </table>
         </div>
 
-        <div className="overflow-hidden rounded-md border border-slate-400 text-[8.5px]">
+        <div className="overflow-hidden rounded-md border border-slate-400 text-[9.5px]">
           <div className="grid grid-cols-[1fr_auto] gap-2 border-b border-slate-100 px-2 py-1"><span>Αξία</span><span className="font-mono font-bold">{formatPrintMoney(originalNet, props.currency)}</span></div>
           <div className="grid grid-cols-[1fr_auto] gap-2 border-b border-slate-100 px-2 py-1"><span>Έκπτωση</span><span className="font-mono font-bold">{formatPrintMoney(discountAmount, props.currency)}</span></div>
           <div className="grid grid-cols-[1fr_auto] gap-2 border-b border-slate-100 px-2 py-1"><span>Καθαρή αξία</span><span className="font-mono font-bold">{formatPrintMoney(props.net, props.currency)}</span></div>
           <div className="grid grid-cols-[1fr_auto] gap-2 px-2 py-1"><span>Αξία ΦΠΑ</span><span className="font-mono font-bold">{formatPrintMoney(props.vat, props.currency)}</span></div>
-          <div className="grid grid-cols-[1fr_auto] items-center gap-2 bg-slate-900 px-2 py-1.5 text-[10px] font-black uppercase text-white"><span>Τελική αξία</span><span className="font-mono text-[11px]">{formatPrintMoney(props.gross, props.currency)}</span></div>
+          <div className="grid grid-cols-[1fr_auto] items-center gap-2 bg-slate-900 px-2 py-1.5 text-[11px] font-black uppercase text-white"><span>Τελική αξία</span><span className="font-mono text-[12px]">{formatPrintMoney(props.gross, props.currency)}</span></div>
         </div>
       </div>
 
       {(props.vatExemptionCategory || props.vatExemptionLegalNote || props.documentTypeCode || props.revenueClassificationText) && (
-        <div className="mt-1.5 space-y-0.5 text-[7px] leading-tight text-slate-500">
+        <div className="mt-1.5 space-y-0.5 text-[8px] leading-tight text-slate-500">
           {props.vatExemptionCategory && <p><span className="font-bold uppercase">Αιτία απαλλαγής ΦΠΑ:</span> {getAadeVatExemptionCategoryLabel(props.vatExemptionCategory)}</p>}
           {props.vatExemptionLegalNote && <p className="font-black uppercase text-slate-800">{props.vatExemptionLegalNote}</p>}
           {props.documentTypeCode && <p><span className="font-bold uppercase">Τύπος myDATA:</span> <span className="font-mono">{props.documentTypeCode}</span></p>}
           {props.revenueClassificationText && <p><span className="font-bold uppercase">Χαρακτηρισμοί:</span> {props.revenueClassificationText}</p>}
         </div>
       )}
-      {props.footerText && <p className="mt-1 text-[6.5px] leading-tight text-slate-400">{props.footerText}</p>}
+      {props.footerText && <p className="mt-1 text-[7.5px] leading-tight text-slate-400">{props.footerText}</p>}
     </section>
   );
 }
@@ -476,7 +478,7 @@ export function LegalPrintTotalsSection(props: {
 /** @deprecated Shipment details now render inside LegalPrintInfoGrid. */
 export function LegalPrintDeliverySection({ delivery }: { delivery: LegalDeliveryDetails }) {
   return (
-    <section className="legal-print-break-inside mb-2 rounded-md border border-slate-300 p-2 text-[8px]">
+    <section className="legal-print-break-inside mb-2 rounded-md border border-slate-300 p-2 text-[9px]">
       <InfoRow label="Τρόπος αποστολής" value={delivery.carrier_name || 'Courier'} />
       <InfoRow label="Παράδοση" value={formatDeliveryAddress(delivery.delivery_address)} />
       <InfoRow label="Ημερ. αποστολής" value={`${formatPrintDate(delivery.dispatch_date)}${delivery.dispatch_time ? ` · ${formatPrintTime(delivery.dispatch_time)}` : ''}`} />
@@ -486,7 +488,7 @@ export function LegalPrintDeliverySection({ delivery }: { delivery: LegalDeliver
 
 export function LegalPrintFooter({ children }: { children: React.ReactNode }) {
   return (
-    <div className="legal-print-break-inside mt-auto shrink-0 pt-2 text-center text-[7px] leading-tight text-slate-400">
+    <div className="legal-print-break-inside mt-auto shrink-0 pt-2 text-center text-[8px] leading-tight text-slate-400">
       <p className="font-black uppercase tracking-[0.16em] text-slate-500">Αντίγραφο παραστατικού · IliosERP</p>
       {children && <p className="mt-1 font-medium text-slate-500">{children}</p>}
       <div className="mx-auto mt-3 w-[45mm] border-t border-slate-300 pt-1">Υπογραφή / Σφραγίδα</div>

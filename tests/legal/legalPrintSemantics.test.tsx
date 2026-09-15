@@ -5,6 +5,7 @@ import LegalDocumentPrintView from '../../components/LegalDocumentPrintView';
 import {
   getMeasurementUnitLabel,
   getVatCategoryPrintRate,
+  LEGAL_PRINT_CSS,
   LegalPrintCustomerBar,
   LegalPrintHeader,
 } from '../../components/legal/legalPrintShared';
@@ -104,6 +105,17 @@ const document: LegalDocument = {
 };
 
 describe('legal print semantics', () => {
+  it('keeps the shared PDF typography readable without the previous extra-small sizes', () => {
+    const html = renderToStaticMarkup(
+      <LegalDocumentPrintView document={document} lines={lines} />,
+    );
+
+    expect(LEGAL_PRINT_CSS).toContain('font-size: 9.5px;');
+    expect(LEGAL_PRINT_CSS).toContain('line-height: 1.3;');
+    expect(html).not.toContain('text-[6.25px]');
+    expect(html).not.toContain('text-[6.5px]');
+  });
+
   it('maps every myDATA 8.13 measurement-unit code to its official Greek label', () => {
     expect([
       getMeasurementUnitLabel(1),

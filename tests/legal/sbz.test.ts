@@ -49,6 +49,13 @@ describe('SBZ wholesale contract',()=>{
     const {document,lines}=sbzFixture();expect(validateSbzDocument({...document,payment_method_code:7},lines).length).toBeGreaterThan(0);
     expect(()=>buildSbzInvoiceXml(document,[{...lines[0],vat_amount:1}],document.created_at)).toThrow();
   });
+  it('stops a zero-value invoice line before calling the provider',()=>{
+    const {document,lines}=sbzFixture();
+    const zeroLine={...lines[0],unit_price:0,net_value:0,vat_amount:0,gross_value:0,income_classification:{...lines[0].income_classification,amount:0},source_metadata:{...(lines[0].source_metadata||{}),original_unit_price:0}};
+    const zeroDocument={...document,totals:{net:0,vat:0,gross:0,quantity:zeroLine.quantity}};
+    expect(validateSbzDocument(zeroDocument,[zeroLine])).toContain('Η γραμμή 1 έχει μηδενική αξία. Συμπληρώστε τιμή πριν την έκδοση.');
+    expect(()=>buildSbzInvoiceXml(zeroDocument,[zeroLine],document.created_at)).toThrow('Η γραμμή 1 έχει μηδενική αξία');
+  });
   it('blocks provider issuance when customer fiscal identity is incomplete',()=>{
     const {document,lines}=sbzFixture();
     const errors=validateSbzDocument({...document,counterpart:{...document.counterpart,customer_code:null,profession:null,tax_office:null}},lines);

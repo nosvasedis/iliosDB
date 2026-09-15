@@ -49,18 +49,18 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
         issueDate={document.issue_date}
         issueTime={document.submitted_at || document.created_at}
         statusBadge={document.status === 'cancelled' ? (
-          <span className="inline-flex rounded border border-red-300 bg-red-50 px-2 py-1 text-[10px] font-bold text-red-700">
+          <span className="inline-flex rounded border border-red-300 bg-red-50 px-2 py-1 text-[11px] font-bold text-red-700">
             ΑΚΥΡΩΜΕΝΟ · MARK {document.cancellation_mark || '-'}
           </span>
         ) : !isOfficialPrint ? (
-          <span className="inline-flex rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-amber-950">
+          <span className="inline-flex rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-950">
             Πρόχειρο — όχι νόμιμο παραστατικό
           </span>
         ) : undefined}
       />
 
       {!isOfficialPrint && (
-        <section className="legal-print-break-inside mb-3 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-center text-[9px] font-bold leading-snug text-amber-950">
+        <section className="legal-print-break-inside mb-3 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-center text-[10px] font-bold leading-snug text-amber-950">
           Δεν έχει διαβιβαστεί στη myDATA · χωρίς MARK, UID ή QR ΑΑΔΕ · δεν αντικαθιστά εκδοθέν τιμολόγιο
         </section>
       )}

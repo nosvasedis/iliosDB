@@ -1883,7 +1883,6 @@ export default function LegalDocumentsPage({
         <p className="text-right text-lg font-black">Σύνολο πίστωσης: {money(document.totals.gross)}</p>
         <p className="text-sm text-slate-500">Το αρχικό τιμολόγιο διατηρείται στο αρχείο. Η επιστροφή ειδών στην αποθήκη καταχωρίζεται χωριστά.</p>
         {validationErrors.length > 0 && <p role="alert" className="text-red-700">{validationErrors[0].message}</p>}
-        <ActionButton onClick={handleSubmitDraft} disabled={submitDocument.isPending || saveDraft.isPending || validationErrors.length > 0}><Send size={16}/>{submitDocument.isPending ? 'Εκδίδεται…' : 'Έκδοση πιστωτικού μέσω SBZ'}</ActionButton>
       </section>
     );
     const editable = isLegalDocumentEditable(document);

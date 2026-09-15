@@ -588,6 +588,38 @@ describe('legal document helpers', () => {
     expect(merchandise.source_metadata?.income_classification_source).toBe('automatic');
   });
 
+  it('blocks invoice issuance when a positive-quantity line has zero net value', () => {
+    const document = buildLegalDocumentFromOrder({
+      order: baseOrder,
+      customer,
+      products: [product],
+      settings,
+      kind: 'invoice',
+    });
+    const zeroLine = {
+      ...document.lines[0],
+      unit_price: 0,
+      net_value: 0,
+      vat_amount: 0,
+      gross_value: 0,
+      income_classification: { ...document.lines[0].income_classification, amount: 0 },
+      source_metadata: {
+        ...(document.lines[0].source_metadata || {}),
+        original_unit_price: 0,
+      },
+    };
+    const issues = validateLegalDocument({
+      ...document,
+      totals: { net: 0, vat: 0, gross: 0, quantity: zeroLine.quantity },
+    }, [zeroLine]);
+
+    expect(issues).toContainEqual(expect.objectContaining({
+      field: `line.${zeroLine.line_number}.net_value`,
+      severity: 'error',
+      message: `Η γραμμή ${zeroLine.line_number} έχει μηδενική αξία. Συμπληρώστε τιμή πριν την έκδοση.`,
+    }));
+  });
+
   it('blocks a sticky automatic service classification on a non-shipping code', () => {
     const document = buildLegalDocumentFromOrder({
       order: baseOrder,

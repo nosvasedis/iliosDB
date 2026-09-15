@@ -1645,6 +1645,13 @@ export function validateLegalDocument(document: LegalDocument, lines: LegalDocum
   for (const line of lines) {
     const normalizedItemCode = normalizeLegalItemCode(line.item_code || line.sku);
     if (line.quantity <= 0) issues.push({ field: `line.${line.line_number}.quantity`, severity: 'error', message: `Η γραμμή ${line.line_number} έχει μηδενική ποσότητα.` });
+    if (document.aade_document_type !== '9.3' && line.quantity > 0 && line.net_value === 0) {
+      issues.push({
+        field: `line.${line.line_number}.net_value`,
+        severity: 'error',
+        message: `Η γραμμή ${line.line_number} έχει μηδενική αξία. Συμπληρώστε τιμή πριν την έκδοση.`,
+      });
+    }
     if (line.net_value < 0) issues.push({ field: `line.${line.line_number}.net_value`, severity: 'error', message: `Η γραμμή ${line.line_number} έχει αρνητική αξία.` });
     if (line.vat_category === 7 && !document.vat_exemption_category) {
       issues.push({ field: `line.${line.line_number}.vat_exemption`, severity: 'error', message: 'Τα παραστατικά χωρίς ΦΠΑ χρειάζονται αιτία εξαίρεσης ΦΠΑ.' });
