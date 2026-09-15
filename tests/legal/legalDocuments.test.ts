@@ -51,6 +51,7 @@ import {
   getLegalDocumentCatalogProducts,
   getLegalDocumentDeletePrompt,
   getLegalDocumentKindLabel,
+  getLegalCatalogLineDetails,
   getLegalProductLineDescription,
   getHighestAadeMark,
   LEGAL_VIRTUAL_SHIPPING_PRODUCT,
@@ -175,9 +176,9 @@ describe('legal document helpers', () => {
     ]);
   });
 
-  it('uses product category for legal line descriptions instead of registry description', () => {
+  it('keeps the product category and appends the common silver material', () => {
     const details = getLegalProductLineDescription(product);
-    expect(details).toBe('Δαχτυλίδι');
+    expect(details).toBe('Δαχτυλίδι · Ασήμι 925°');
 
     const document = buildLegalDocumentFromOrder({
       order: baseOrder,
@@ -186,7 +187,18 @@ describe('legal document helpers', () => {
       settings,
       kind: 'invoice',
     });
-    expect(document.lines[0]?.description).toBe('Δαχτυλίδι');
+    expect(document.lines[0]?.description).toBe('Δαχτυλίδι · Ασήμι 925°');
+  });
+
+  it('uses Μεταφορικά and 6 euros as the catalog defaults for code 000', () => {
+    const details = getLegalCatalogLineDetails(LEGAL_VIRTUAL_SHIPPING_PRODUCT, settings, null, '1.1');
+
+    expect(details).toMatchObject({
+      sku: '000',
+      item_code: '000',
+      description: 'Μεταφορικά',
+      unit_price: 6,
+    });
   });
 
   it('builds an invoice draft with totals and revenue classification', () => {
@@ -287,7 +299,7 @@ describe('legal document helpers', () => {
     expect(xml).toContain('<invoiceType>1.1</invoiceType>');
     expect(xml).toContain('<isDeliveryNote>true</isDeliveryNote>');
     expect(xml).toContain('<dispatchDate>');
-    expect(xml).toContain('<itemDescr>Δαχτυλίδι</itemDescr>');
+    expect(xml).toContain('<itemDescr>Δαχτυλίδι · Ασήμι 925°</itemDescr>');
     expect(xml).toContain('<itemCode>RNG001</itemCode>');
     expect(xml.indexOf('<itemCode>')).toBeLessThan(xml.indexOf('<itemDescr>'));
     expect(xml.indexOf('<itemDescr>')).toBeLessThan(xml.indexOf('<quantity>'));
@@ -339,7 +351,9 @@ describe('legal document helpers', () => {
     expect(legalCatalog[0]).toBe(LEGAL_VIRTUAL_SHIPPING_PRODUCT);
     expect(legalCatalog[0]).toMatchObject({
       sku: '000',
+      category: 'Μεταφορικά',
       description: 'Μεταφορικά',
+      selling_price: 6,
       stock_qty: 0,
     });
   });

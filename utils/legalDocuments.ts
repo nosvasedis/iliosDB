@@ -96,16 +96,16 @@ export function getHighestAadeMark(values: Array<string | number | null | undefi
 export const LEGAL_VIRTUAL_SHIPPING_PRODUCT: Product = {
   sku: LEGAL_SHIPPING_ITEM_CODE,
   prefix: LEGAL_SHIPPING_ITEM_CODE,
-  category: 'Χρέωση Παραστατικού',
+  category: LEGAL_SHIPPING_ITEM_DESCRIPTION,
   description: LEGAL_SHIPPING_ITEM_DESCRIPTION,
   gender: Gender.Unisex,
   image_url: null,
   weight_g: 0,
   plating_type: PlatingType.None,
   production_type: ProductionType.Imported,
-  active_price: 0,
-  draft_price: 0,
-  selling_price: 0,
+  active_price: 6,
+  draft_price: 6,
+  selling_price: 6,
   stock_qty: 0,
   sample_qty: 0,
   molds: [],
@@ -686,14 +686,19 @@ function buildCounterpart(order: Order, customer?: Customer | null): LegalParty 
   };
 }
 
-/** Invoice/proforma line description: product category from Μητρώο (e.g. Δαχτυλίδι), not STX description. */
+const LEGAL_SILVER_DESCRIPTION_SUFFIX = 'Ασήμι 925°';
+
+/** Invoice/proforma line description: product category from Μητρώο plus the common material. */
 export function getLegalProductLineDescription(
   product?: Pick<Product, 'category' | 'sku'> | null,
   fallbackSku?: string,
 ): string {
-  const category = String(product?.category || '').trim();
-  if (category) return category;
-  return String(fallbackSku || product?.sku || '').trim() || '—';
+  if (isLegalShippingItemCode(product?.sku || fallbackSku)) return LEGAL_SHIPPING_ITEM_DESCRIPTION;
+
+  const baseDescription = String(product?.category || fallbackSku || product?.sku || '').trim();
+  if (!baseDescription) return '—';
+  if (!product || baseDescription.endsWith(LEGAL_SILVER_DESCRIPTION_SUFFIX)) return baseDescription;
+  return `${baseDescription} · ${LEGAL_SILVER_DESCRIPTION_SUFFIX}`;
 }
 
 function getItemDescription(item: OrderItem | OrderShipmentItem, product?: Product): string {
@@ -788,7 +793,7 @@ export function getLegalCatalogLineDetails(
     ? product.variants?.find((item) => item.suffix === variant_suffix)
     : product.variants?.find((item) => item.suffix === '') || null;
   const suffix = variant?.suffix ?? variant_suffix ?? null;
-  const unitPrice = Number(variant?.selling_price || product.selling_price || product.active_price || 0);
+  const unitPrice = Number(variant?.selling_price ?? product.selling_price ?? product.active_price ?? 0);
   return {
     sku: product.sku,
     variant_suffix: suffix,

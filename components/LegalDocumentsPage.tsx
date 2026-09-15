@@ -1165,6 +1165,12 @@ export default function LegalDocumentsPage({
 
   const appendLegalLineAfter = (lineId: string) => {
     if (!draftBundle || !isLegalDocumentEditable(draftBundle.document)) return;
+    const currentIndex = draftBundle.lines.findIndex((line) => line.id === lineId);
+    const nextLine = currentIndex >= 0 ? draftBundle.lines[currentIndex + 1] : null;
+    if (nextLine) {
+      setLegalSkuFocusLineId(nextLine.id);
+      return;
+    }
     const newLine = createManualLegalDocumentLine({
       documentId: draftBundle.document.id,
       lineNumber: draftBundle.lines.length + 1,
@@ -1187,6 +1193,12 @@ export default function LegalDocumentsPage({
 
   const appendProformaLineAfter = (lineId: string) => {
     if (!proformaBundle) return;
+    const currentIndex = proformaBundle.lines.findIndex((line) => line.id === lineId);
+    const nextLine = currentIndex >= 0 ? proformaBundle.lines[currentIndex + 1] : null;
+    if (nextLine) {
+      setProformaSkuFocusLineId(nextLine.id);
+      return;
+    }
     const baseLine = createManualLegalDocumentLine({
       documentId: proformaBundle.document.id,
       lineNumber: proformaBundle.lines.length + 1,
@@ -2058,27 +2070,26 @@ export default function LegalDocumentsPage({
               </ActionButton>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[78rem] table-fixed text-xs">
+          <div className="overflow-visible">
+            <table className="w-full table-fixed text-xs">
               <thead className="bg-slate-50 text-left text-[10px] uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="w-8 px-2 py-2">#</th>
-                  <th className="w-[7.5rem] px-2 py-2">SKU</th>
+                  <th className="w-[3%] px-1.5 py-2">#</th>
+                  <th className="w-[15%] px-1.5 py-2">SKU</th>
                   <th className="px-2 py-2">Περιγραφή & χαρακτηρισμός myDATA</th>
-                  <th className="w-14 px-2 py-2 text-right">Ποσ.</th>
-                  <th className="w-20 px-2 py-2 text-right">Τιμή προ έκπτ.</th>
-                  <th className="w-16 px-2 py-2 text-right">Έκπτ.%</th>
-                  <th className="w-20 px-2 py-2 text-right">ΦΠΑ</th>
-                  <th className="w-24 px-2 py-2 text-right" title="Καθαρή / ΦΠΑ / Σύνολο">Ποσά</th>
-
-                  <th className="w-8 px-2 py-2"></th>
+                  <th className="w-[6%] px-1 py-2 text-right">Ποσ.</th>
+                  <th className="w-[8%] px-1 py-2 text-right">Τιμή</th>
+                  <th className="w-[7%] px-1 py-2 text-right">Έκπτ.%</th>
+                  <th className="w-[8%] px-1 py-2 text-right">ΦΠΑ</th>
+                  <th className="w-[11%] px-1.5 py-2 text-right" title="Καθαρή / ΦΠΑ / Σύνολο">Ποσά</th>
+                  <th className="w-[3%] px-1 py-2"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {draftBundle.lines.map((line, index) => (
                   <tr key={line.id} className="align-middle">
-                    <td className="whitespace-nowrap px-2 py-1.5 font-bold">{line.line_number}</td>
-                    <td className="px-2 py-1.5">
+                    <td className="whitespace-nowrap px-1.5 py-1.5 font-bold">{line.line_number}</td>
+                    <td className="px-1.5 py-1.5">
                       <SkuProductPicker
                         sku={line.sku}
                         variantSuffix={line.variant_suffix}
@@ -2086,6 +2097,7 @@ export default function LegalDocumentsPage({
                         onSelect={(selection) => applyCatalogToLegalLine(line.id, selection)}
                         onEnterCommit={() => appendLegalLineAfter(line.id)}
                         autoFocus={legalSkuFocusLineId === line.id}
+                        onInputFocus={() => setLegalSkuFocusLineId(line.id)}
                         inputClassName="px-1.5 py-1"
                         compact
                       />
@@ -2094,7 +2106,7 @@ export default function LegalDocumentsPage({
                       <input value={line.description} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, description: event.target.value } : item), settingsDraft))} className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs outline-none" />
                       <input value={line.item_code || ''} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyAutomaticLegalItemClassification(item, event.target.value, settingsDraft, current.aade_document_type) : item), settingsDraft))} className="mt-1 w-full rounded border border-slate-100 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 outline-none" placeholder="Κωδικός είδους" title="Κωδικός είδους AADE (itemCode)" />
                       {document.aade_document_type !== '9.3' && (
-                        <div className="mt-1 grid grid-cols-[minmax(9rem,0.9fr)_minmax(11rem,1.1fr)] gap-1 rounded border border-amber-100 bg-amber-50/50 p-1" title="Ο κωδικός 000 χαρακτηρίζεται αυτόματα ως υπηρεσία. Οι υπόλοιπες γραμμές ως εμπορεύματα, εκτός αν επιλέξετε ρητά άλλη κατηγορία.">
+                        <div className="mt-1 grid min-w-0 gap-1 rounded border border-amber-100 bg-amber-50/50 p-1 xl:grid-cols-2" title="Ο κωδικός 000 χαρακτηρίζεται αυτόματα ως υπηρεσία. Οι υπόλοιπες γραμμές ως εμπορεύματα, εκτός αν επιλέξετε ρητά άλλη κατηγορία.">
                           <select
                             value={line.income_classification.classification_category}
                             onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? withManualIncomeCategory(item, event.target.value, current.aade_document_type) : item), settingsDraft))}
@@ -2116,26 +2128,26 @@ export default function LegalDocumentsPage({
                         </div>
                       )}
                     </td>
-                    <td className="px-2 py-1.5 text-right">
+                    <td className="px-1 py-1.5 text-right">
                       <input type="number" min="0.001" step="0.001" value={line.quantity} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, quantity: Number(event.target.value) || 0 } : item), settingsDraft))} className="w-full rounded-lg border border-slate-200 px-1 py-1 text-right outline-none" />
                     </td>
-                    <td className="px-2 py-1.5 text-right">
+                    <td className="px-1 py-1.5 text-right">
                       <input type="number" min="0" step="0.01" value={line.source_metadata?.original_unit_price ?? line.unit_price} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyLegalLineDiscount(item, Number(event.target.value) || 0, Number(item.source_metadata?.discount_percent || 0)) : item), settingsDraft))} className="w-full rounded-lg border border-slate-200 px-1 py-1 text-right outline-none" />
                     </td>
-                    <td className="px-2 py-1.5 text-right">
+                    <td className="px-1 py-1.5 text-right">
                       <input type="number" min="0" max="100" step="0.01" value={line.source_metadata?.discount_percent ?? 0} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyLegalLineDiscount(item, Number(item.source_metadata?.original_unit_price ?? item.unit_price), Number(event.target.value) || 0) : item), settingsDraft))} className="w-full rounded-lg border border-slate-200 px-1 py-1 text-right outline-none" />
                     </td>
-                    <td className="px-2 py-1.5 text-right">
+                    <td className="px-1 py-1.5 text-right">
                       <select value={line.vat_category} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, vat_category: Number(event.target.value) } : item), settingsDraft))} className="w-full rounded-lg border border-slate-200 px-1 py-1 text-right text-[10px] outline-none" title="Κωδικός κατηγορίας ΦΠΑ myDATA (vatCategory)">
                         {vatLineOptions.map((option) => <option key={option.category} value={option.category}>{option.label}</option>)}
                       </select>
                     </td>
-                    <td className="px-2 py-1.5 text-right leading-tight">
+                    <td className="px-1.5 py-1.5 text-right leading-tight">
                       <div className="font-medium text-slate-600">{money(line.net_value)}</div>
                       <div className="text-[10px] text-slate-400">{money(line.vat_amount)}</div>
                       <div className="font-black text-slate-900">{money(line.gross_value)}</div>
                     </td>
-                    <td className="px-2 py-1.5 text-right">
+                    <td className="px-1 py-1.5 text-right">
                       <button
                         type="button"
                         onClick={() => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.filter((_, itemIndex) => itemIndex !== index), settingsDraft))}
@@ -2575,6 +2587,7 @@ export default function LegalDocumentsPage({
                         onSelect={(selection) => applyCatalogToProformaLine(line.id, selection)}
                         onEnterCommit={() => appendProformaLineAfter(line.id)}
                         autoFocus={proformaSkuFocusLineId === line.id}
+                        onInputFocus={() => setProformaSkuFocusLineId(line.id)}
                       />
                     </td>
                     <td className="px-3 py-2"><input value={line.item_code || ''} onChange={(event) => updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((item) => item.id === line.id ? { ...applyAutomaticLegalItemClassification(item, event.target.value, settingsDraft, '1.1'), proforma_id: item.proforma_id } : item), settingsDraft))} className="w-28 rounded-lg border border-slate-200 px-2 py-1 font-mono text-xs outline-none" /></td>

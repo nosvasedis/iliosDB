@@ -111,20 +111,42 @@ describe('sku product picker search', () => {
     expect(variant?.variant_suffix).toBe('DLE');
   });
 
-  it('blocks bare master resolution when metal-finish variants exist', () => {
+  it('blocks and does not suggest a bare master when more than one variant exists', () => {
     expect(allowsBareMasterSkuResolution(products[2])).toBe(false);
     expect(isLustreOnlyProduct(products[2])).toBe(false);
     expect(resolveTypedSkuSelection('RNG020', products)).toBeNull();
     const options = searchSkuProductOptions(products, 'RNG020', 12);
-    expect(options.some((option) => option.displaySku === 'RNG020' && option.variant_suffix === '')).toBe(true);
+    expect(options.some((option) => option.displaySku === 'RNG020' && option.variant_suffix === '')).toBe(false);
     expect(options.some((option) => option.displaySku === 'RNG020PDLE')).toBe(true);
+    expect(searchSkuProductOptions([products[2]], '', 12).some((option) => option.displaySku === 'RNG020')).toBe(false);
   });
 
-  it('allows bare master for lustre-only catalogs with an empty-suffix row', () => {
-    expect(allowsBareMasterSkuResolution(products[1])).toBe(true);
+  it('blocks bare master even for lustre-only catalogs when choices are ambiguous', () => {
+    expect(allowsBareMasterSkuResolution(products[1])).toBe(false);
     expect(isLustreOnlyProduct(products[1])).toBe(true);
-    const resolved = resolveTypedSkuSelection('RNG010', products);
-    expect(resolved).toMatchObject({ sku: 'RNG010', variant_suffix: null, displaySku: 'RNG010' });
+    expect(resolveTypedSkuSelection('RNG010', products)).toBeNull();
+    expect(searchSkuProductOptions(products, 'RNG010', 12).some((option) => option.displaySku === 'RNG010')).toBe(false);
+  });
+
+  it('resolves a bare master to its sole concrete variant and price', () => {
+    const unique = [{
+      ...products[0],
+      sku: 'RN161',
+      variants: [
+        { suffix: 'P', description: 'Μοναδική παραλλαγή', selling_price: 199, stock_qty: 2, stock_by_size: {}, location_stock: {} },
+      ],
+    }];
+
+    expect(allowsBareMasterSkuResolution(unique[0])).toBe(true);
+    expect(resolveTypedSkuSelection('RN161', unique)).toMatchObject({
+      sku: 'RN161',
+      variant_suffix: 'P',
+      displaySku: 'RN161P',
+    });
+    expect(searchSkuProductOptions(unique, 'RN161', 12)[0]).toMatchObject({
+      displaySku: 'RN161P',
+      price: 199,
+    });
   });
 
   it('rejects bare master when only stone lustre variants exist', () => {

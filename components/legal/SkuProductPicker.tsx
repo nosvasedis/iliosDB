@@ -32,6 +32,8 @@ interface SkuProductPickerProps {
   onEnterCommit?: () => void;
   /** Focus this picker's input after it is mounted as the next rapid-entry row. */
   autoFocus?: boolean;
+  /** Keeps the parent rapid-entry cursor aligned when the user focuses a row manually. */
+  onInputFocus?: () => void;
   className?: string;
   inputClassName?: string;
   placeholder?: string;
@@ -50,6 +52,7 @@ export default function SkuProductPicker({
   onSelect,
   onEnterCommit,
   autoFocus = false,
+  onInputFocus,
   className = '',
   inputClassName = '',
   placeholder = 'Πληκτρολογήστε SKU...',
@@ -209,6 +212,10 @@ export default function SkuProductPicker({
       return;
     }
     if (event.key === 'Tab' && !event.shiftKey) {
+      if (rejectInvalidMaster(inputValue)) {
+        event.preventDefault();
+        return;
+      }
       if (open && options.length > 0) {
         event.preventDefault();
         commitSelection(selectionFromOption(options[highlightIndex] || options[0]));
@@ -217,11 +224,11 @@ export default function SkuProductPicker({
     }
     if (event.key === 'Enter') {
       event.preventDefault();
+      if (rejectInvalidMaster(inputValue)) return;
       if (open && options.length > 0) {
         commitSelection(selectionFromOption(options[highlightIndex] || options[0]), true);
         return;
       }
-      if (rejectInvalidMaster(inputValue)) return;
       const resolved = resolveTypedSkuSelection(inputValue, products, { scope });
       if (resolved) commitSelection(resolved, true);
       return;
@@ -373,6 +380,7 @@ export default function SkuProductPicker({
             setHighlightIndex(0);
           }}
           onFocus={() => {
+            onInputFocus?.();
             setOpen(true);
             updateDropdownPosition();
           }}
