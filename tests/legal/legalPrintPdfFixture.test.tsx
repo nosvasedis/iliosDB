@@ -93,13 +93,18 @@ describe.skipIf(!fixtureDirectory)('legal PDF rendering fixtures', () => {
       return recalculated;
     };
 
+    const creditFixture = buildFixture('credit', 'credit', 3);
+    creditFixture.document.credited_document_id = 'original-invoice';
+    creditFixture.document.correlated_mark = '40000000000999';
+
     const fixtures = [
       buildFixture('invoice-1', 'invoice', 1),
+      buildFixture('invoice-5', 'invoice', 5),
       buildFixture('invoice-20', 'invoice', 20),
       buildFixture('invoice-60', 'invoice', 60),
       buildFixture('invoice-delivery', 'invoice_delivery', 3),
       buildFixture('delivery-note', 'delivery_note', 3),
-      buildFixture('credit', 'credit', 3),
+      creditFixture,
       buildFixture('cancelled', 'invoice', 3, 'cancelled'),
       buildFixture('draft', 'invoice', 3, 'draft'),
     ];

@@ -113,8 +113,11 @@ describe('legal print semantics', () => {
     expect(LEGAL_PRINT_CSS).toContain('font-size: 10px;');
     expect(LEGAL_PRINT_CSS).toContain('line-height: 1.3;');
     expect(LEGAL_PRINT_CSS).toContain('.legal-print-final-section');
-    expect(LEGAL_PRINT_CSS).toContain('break-before: avoid-page !important;');
     expect(LEGAL_PRINT_CSS).toContain('break-inside: avoid-page !important;');
+    expect(LEGAL_PRINT_CSS).not.toContain('break-before: avoid-page');
+    expect(LEGAL_PRINT_CSS).not.toContain('break-after: avoid-page');
+    expect(html).toContain('legal-print-lines-table shrink-0');
+    expect(html).not.toContain('legal-print-lines-table min-h-[78mm] grow');
     expect(html).not.toContain('text-[6.25px]');
     expect(html).not.toContain('text-[6.5px]');
   });
@@ -323,6 +326,28 @@ describe('legal print semantics', () => {
     expect(html.match(/Σχόλιο:/g)).toHaveLength(1);
     expect(html).not.toContain('Έδρα μας');
     expect(html).not.toContain('Παράδοση:');
+  });
+
+  it('places a correlated credit MARK inside the document-type cell and never above the logo', () => {
+    const html = renderToStaticMarkup(
+      <LegalDocumentPrintView
+        document={{
+          ...document,
+          document_kind: 'credit',
+          aade_document_type: '5.1',
+          credited_document_id: 'original-document-1',
+          correlated_mark: '40000000000123',
+        }}
+        lines={lines}
+      />,
+    );
+
+    expect(html).toContain('ΠΙΣΤΩΤΙΚΟ ΤΙΜΟΛΟΓΙΟ');
+    expect(html).toContain('MARK αρχικού: 40000000000123');
+    expect(html.match(/MARK αρχικού:/g)).toHaveLength(1);
+    expect(html).not.toContain('Πιστωτικό για το αρχικό παραστατικό');
+    expect(html.indexOf('legal-print-logo')).toBeLessThan(html.indexOf('MARK αρχικού:'));
+    expect(html.indexOf('ΠΙΣΤΩΤΙΚΟ ΤΙΜΟΛΟΓΙΟ')).toBeLessThan(html.indexOf('MARK αρχικού:'));
   });
 
   it('omits every discount-only summary field when the document has no discount', () => {

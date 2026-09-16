@@ -39,15 +39,17 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
   return (
     <LegalPrintPage>
       {document.environment === 'dev' && <div className="mb-3 border-2 border-amber-500 p-3 text-center font-black text-amber-900">ΔΟΚΙΜΑΣΤΙΚΟ ΠΕΡΙΒΑΛΛΟΝ · ΧΩΡΙΣ ΦΟΡΟΛΟΓΙΚΗ ΙΣΧΥ</div>}
-      {document.credited_document_id && <div className="mb-2 text-sm">Πιστωτικό για το αρχικό παραστατικό με MARK {document.correlated_mark}</div>}
       <LegalPrintHeader
-        title={kindLabel.toUpperCase()}
+        title={kindLabel.toLocaleUpperCase('el-GR')}
         documentNumber={getLegalDocumentDisplayNumber(document)}
         issuer={document.issuer}
         series={document.series}
         aa={document.aa}
         issueDate={document.issue_date}
         issueTime={document.submitted_at || document.created_at}
+        documentTypeDetail={document.document_kind === 'credit' && document.correlated_mark
+          ? `MARK αρχικού: ${document.correlated_mark}`
+          : undefined}
         statusBadge={document.status === 'cancelled' ? (
           <span className="inline-flex rounded border border-red-300 bg-red-50 px-2 py-1 text-[11px] font-bold text-red-700">
             ΑΚΥΡΩΜΕΝΟ · MARK {document.cancellation_mark || '-'}

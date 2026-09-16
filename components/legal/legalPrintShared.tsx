@@ -49,9 +49,7 @@ export const LEGAL_PRINT_CSS = `
       page-break-inside: avoid;
     }
     .legal-print-final-section {
-      break-before: avoid-page !important;
       break-inside: avoid-page !important;
-      page-break-before: avoid !important;
       page-break-inside: avoid !important;
     }
     .legal-print-final-section tbody,
@@ -59,10 +57,6 @@ export const LEGAL_PRINT_CSS = `
     .legal-print-final-section td {
       break-inside: avoid-page !important;
       page-break-inside: avoid !important;
-    }
-    .legal-print-lines-table {
-      break-after: avoid-page;
-      page-break-after: avoid;
     }
   }
 `;
@@ -199,9 +193,10 @@ export function LegalPrintHeader(props: {
   aa?: string | null;
   issueDate?: string | null;
   issueTime?: string | null;
+  documentTypeDetail?: React.ReactNode;
   statusBadge?: React.ReactNode;
 }) {
-  const { title, documentNumber, issuer, series, aa, issueDate, issueTime, statusBadge } = props;
+  const { title, documentNumber, issuer, series, aa, issueDate, issueTime, documentTypeDetail, statusBadge } = props;
   const issuerName = getPartyName(issuer);
 
   const metadata = [
@@ -233,7 +228,14 @@ export function LegalPrintHeader(props: {
         {metadata.map((item, index) => (
           <div key={item.label} className={index < metadata.length - 1 ? 'border-r border-slate-300' : ''}>
             <div className={`${index === 0 ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'} px-1 py-1 text-center text-[8.5px] font-black uppercase tracking-[0.08em]`}>{item.label}</div>
-            <div className={`${index === 0 ? 'text-[11px] font-black uppercase text-slate-900' : 'text-[10.5px] font-bold text-slate-800'} min-h-[9mm] px-1 py-1.5 text-center leading-tight`}>{item.value}</div>
+            <div className={`${index === 0 ? 'text-[11px] font-black uppercase text-slate-900' : 'text-[10.5px] font-bold text-slate-800'} min-h-[9mm] px-1 py-1.5 text-center leading-tight`}>
+              <div>{item.value}</div>
+              {index === 0 && documentTypeDetail && (
+                <div className="mt-1 border-t border-slate-200 pt-1 text-[8.5px] font-bold normal-case tracking-normal text-slate-600">
+                  {documentTypeDetail}
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -431,7 +433,7 @@ export function LegalPrintAadePanel(props: {
 
 export function LegalPrintLinesTable({ lines, currency }: { lines: LegalDocumentLine[]; currency?: string }) {
   return (
-    <section className="legal-print-lines-table min-h-[78mm] grow overflow-hidden rounded-md border border-slate-300">
+    <section className="legal-print-lines-table shrink-0 overflow-hidden rounded-md border border-slate-300">
       <table className="w-full table-fixed border-collapse text-[10px] leading-[1.2]">
         <thead>
           <tr className="bg-slate-900 text-left text-[8.5px] font-black uppercase tracking-[0.06em] text-white">
