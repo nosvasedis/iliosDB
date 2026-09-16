@@ -69,9 +69,7 @@ const ProformaPrintView: React.FC<ProformaPrintViewProps> = ({ document, lines }
         vatExemptionLegalNote={document.vat_exemption_legal_note}
         notes={document.notes ? (
           <div><span className="font-bold text-slate-900">Σημειώσεις:</span> {document.notes}</div>
-        ) : (
-          <div className="text-slate-500">Μπορεί να μετατραπεί σε κανονικό πρόχειρο παραστατικό πριν την έκδοση.</div>
-        )}
+        ) : undefined}
         footerText={footerText}
       />
 

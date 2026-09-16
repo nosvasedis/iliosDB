@@ -112,6 +112,9 @@ describe('legal print semantics', () => {
 
     expect(LEGAL_PRINT_CSS).toContain('font-size: 10px;');
     expect(LEGAL_PRINT_CSS).toContain('line-height: 1.3;');
+    expect(LEGAL_PRINT_CSS).toContain('.legal-print-final-section');
+    expect(LEGAL_PRINT_CSS).toContain('break-before: avoid-page !important;');
+    expect(LEGAL_PRINT_CSS).toContain('break-inside: avoid-page !important;');
     expect(html).not.toContain('text-[6.25px]');
     expect(html).not.toContain('text-[6.5px]');
   });
@@ -217,6 +220,7 @@ describe('legal print semantics', () => {
     expect(html).toContain('42');
     expect(html).toContain('29/07/2026');
     expect(html).toContain('Τύπος myDATA:');
+    expect(html.indexOf('Όροι παράδοσης')).toBeLessThan(html.indexOf('Τύπος myDATA:'));
     expect(html.indexOf('Τύπος myDATA:')).toBeLessThan(html.indexOf('Χαρακτηρισμοί:'));
     expect(html).toContain('40000000000042');
     expect(html).toContain('UID-DOCUMENT-42');
@@ -242,6 +246,13 @@ describe('legal print semantics', () => {
     expect(html).toContain('Τα εμπορεύματα ταξιδεύουν για λογαριασμό και με κίνδυνο του αγοραστή.');
     expect(html).toContain('Για κάθε διαφορά αρμόδια είναι τα δικαστήρια του Πειραιά.');
     expect(html).toContain('Η εξόφληση του τιμολογίου πρέπει να γίνεται με την παράδοση.');
+    expect(html.match(/Σύνοψη παραστατικού/g)).toHaveLength(1);
+    expect(html).toContain('legal-print-final-section');
+    expect(html.indexOf('legal-print-final-section')).toBeLessThan(html.indexOf('Σύνοψη παραστατικού'));
+    expect(html.indexOf('Σύνοψη παραστατικού')).toBeLessThan(html.indexOf('Στοιχεία επαλήθευσης'));
+    expect(html).not.toContain('Σχόλιο:');
+    expect(html).not.toContain('Αντίγραφο παραστατικού');
+    expect(html).not.toContain('Το παρόν εκτυπώνεται από το αποθηκευμένο παραστατικό του IliosERP.');
     expect(html).toContain('RNG001');
     expect(html).toContain('Ασημένιο δαχτυλίδι');
     expect(html).toContain('Ειδική συσκευασία');
@@ -280,6 +291,7 @@ describe('legal print semantics', () => {
             loading_address: { street: 'Αποθήκη', number: '8', postal_code: '18233', city: 'Ρέντης' },
             delivery_address: { street: 'Σημείο Παράδοσης', number: '4', postal_code: '11527', city: 'Αθήνα' },
             carrier_name: 'Μεταφορική Δοκιμής',
+            notes: 'Παράδοση στην πίσω είσοδο',
           },
         }}
         lines={lines}
@@ -291,6 +303,9 @@ describe('legal print semantics', () => {
     expect(html).toContain('Σημείο Παράδοσης 4, 11527 Αθήνα, Ελλάδα');
     expect(html).toContain('29/07/2026 · 12:30');
     expect(html).toContain('Μεταφορική Δοκιμής');
+    expect(html).toContain('Σχόλιο:');
+    expect(html).toContain('Παράδοση στην πίσω είσοδο');
+    expect(html.match(/Σχόλιο:/g)).toHaveLength(1);
     expect(html).not.toContain('Έδρα μας');
     expect(html).not.toContain('Παράδοση:');
   });

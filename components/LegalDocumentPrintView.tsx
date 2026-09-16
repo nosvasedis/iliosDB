@@ -33,7 +33,7 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
   const footerText = isOfficialPrint
     ? document.status === 'cancelled'
       ? `Το παραστατικό είχε διαβιβαστεί επιτυχώς στη myDATA και στη συνέχεια ακυρώθηκε. MARK ακύρωσης: ${document.cancellation_mark || '-'}`
-      : 'Το παρόν εκτυπώνεται από το αποθηκευμένο παραστατικό του IliosERP. Τα στοιχεία επαλήθευσης επιβεβαιώνουν την ηλεκτρονική έκδοση.'
+      : null
     : 'Πρόχειρη εκτύπωση εσωτερικής χρήσης IliosERP. Για φορολογική ισχύ απαιτείται υποβολή και αποδοχή στη myDATA.';
 
   return (
@@ -73,28 +73,36 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
 
       <LegalPrintLinesTable lines={lines} currency={document.currency} />
 
-      <LegalPrintTotalsSection
-        lines={lines}
-        net={document.totals.net}
-        vat={document.totals.vat}
-        gross={document.totals.gross}
-        currency={document.currency}
-        paymentMethodLabel={PAYMENT_METHOD_LABELS[document.payment_method_code] || String(document.payment_method_code)}
-        vatExemptionCategory={document.vat_exemption_category}
-        vatExemptionLegalNote={document.vat_exemption_legal_note}
-        documentTypeCode={document.aade_document_type}
-        revenueClassificationText={revenueClassificationText}
-        delivery={document.delivery}
-        footerText={footerText}
-      />
+      <table className="legal-print-final-section mt-2 w-full shrink-0 table-fixed border-collapse">
+        <tbody>
+          <tr>
+            <td className="p-0 align-top">
+              <LegalPrintTotalsSection
+                lines={lines}
+                net={document.totals.net}
+                vat={document.totals.vat}
+                gross={document.totals.gross}
+                currency={document.currency}
+                paymentMethodLabel={PAYMENT_METHOD_LABELS[document.payment_method_code] || String(document.payment_method_code)}
+                vatExemptionCategory={document.vat_exemption_category}
+                vatExemptionLegalNote={document.vat_exemption_legal_note}
+                delivery={document.delivery}
+                footerText={footerText}
+              />
 
-      <LegalPrintAadePanel
-        qrUrl={document.qr_url}
-        mark={document.aade_mark}
-        uid={document.aade_uid}
-        authenticationCode={document.authentication_code}
-        provider={document.provider}
-      />
+              <LegalPrintAadePanel
+                qrUrl={document.qr_url}
+                mark={document.aade_mark}
+                uid={document.aade_uid}
+                authenticationCode={document.authentication_code}
+                provider={document.provider}
+                documentTypeCode={document.aade_document_type}
+                revenueClassificationText={revenueClassificationText}
+              />
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </LegalPrintPage>
   );
 };

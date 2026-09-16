@@ -48,6 +48,22 @@ export const LEGAL_PRINT_CSS = `
       break-inside: avoid;
       page-break-inside: avoid;
     }
+    .legal-print-final-section {
+      break-before: avoid-page !important;
+      break-inside: avoid-page !important;
+      page-break-before: avoid !important;
+      page-break-inside: avoid !important;
+    }
+    .legal-print-final-section tbody,
+    .legal-print-final-section tr,
+    .legal-print-final-section td {
+      break-inside: avoid-page !important;
+      page-break-inside: avoid !important;
+    }
+    .legal-print-lines-table {
+      break-after: avoid-page;
+      page-break-after: avoid;
+    }
   }
 `;
 
@@ -345,6 +361,8 @@ export function LegalPrintAadePanel(props: {
   uid?: string | null;
   authenticationCode?: string | null;
   provider?: string | null;
+  documentTypeCode?: string | null;
+  revenueClassificationText?: string;
 }) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
@@ -401,7 +419,12 @@ export function LegalPrintAadePanel(props: {
           {LEGAL_PRINT_DELIVERY_TERMS.map((term, index) => <li key={term}><span className="mr-1 font-black text-slate-500">{index + 1}.</span>{term}</li>)}
         </ol>
       </div>
-      <p className="ml-[30mm] mt-1 text-[8.5px] font-black uppercase tracking-[0.12em] text-slate-500">Αντίγραφο παραστατικού</p>
+      {(props.documentTypeCode || props.revenueClassificationText) && (
+        <div className="ml-[30mm] mt-1 space-y-0.5 text-[8.5px] leading-tight text-slate-500">
+          {props.documentTypeCode && <p><span className="font-bold uppercase">Τύπος myDATA:</span> <span className="font-mono">{props.documentTypeCode}</span></p>}
+          {props.revenueClassificationText && <p><span className="font-bold uppercase">Χαρακτηρισμοί:</span> {props.revenueClassificationText}</p>}
+        </div>
+      )}
     </section>
   );
 }
@@ -457,8 +480,6 @@ export function LegalPrintTotalsSection(props: {
   paymentMethodLabel?: string;
   vatExemptionCategory?: number | null;
   vatExemptionLegalNote?: string | null;
-  documentTypeCode?: string | null;
-  revenueClassificationText?: string;
   notes?: React.ReactNode;
   delivery?: LegalDeliveryDetails | null;
   footerText?: React.ReactNode;
@@ -470,37 +491,36 @@ export function LegalPrintTotalsSection(props: {
   }, 0);
   const discountAmount = Math.max(0, originalNet - props.net);
   const vatRateSummary = [...new Set(props.lines.map((line) => getVatCategoryPrintRate(line.vat_category)))].join(' · ');
+  const comment = props.delivery?.notes || props.notes;
 
   return (
-    <section className="legal-print-break-inside mt-2 shrink-0">
-      <div className="grid grid-cols-[1fr_70mm] items-stretch gap-2">
-        <div className="overflow-hidden rounded-md border border-slate-300 text-[10px]">
-          <div className="bg-slate-100 px-2 py-1.5 font-black uppercase tracking-[0.08em] text-slate-700">Σύνοψη παραστατικού</div>
-          <div className="px-2.5 py-2">
+    <section className="legal-print-break-inside shrink-0">
+      <div className="overflow-hidden rounded-md border border-slate-400 text-[10px]">
+        <div className="bg-slate-100 px-2 py-1.5 font-black uppercase tracking-[0.08em] text-slate-700">Σύνοψη παραστατικού</div>
+        <div className="grid grid-cols-[1fr_70mm] items-stretch">
+          <div className="px-2.5 py-1.5">
             <InfoRow label="Συν. ποσότητα" value={totalQuantity.toLocaleString('el-GR')} />
             <InfoRow label="Συντελεστής ΦΠΑ" value={vatRateSummary || '-'} />
-            <div className="mt-1.5 min-h-[12mm] rounded border border-slate-100 bg-slate-50 p-2 leading-snug text-slate-600">
-              <span className="font-bold uppercase text-slate-500">Σχόλιο: </span>
-              {props.delivery?.notes || props.notes || '-'}
-            </div>
           </div>
-        </div>
-
-        <div className="overflow-hidden rounded-md border border-slate-400 text-[10px]">
+          <div className="border-l border-slate-300">
           {discountAmount > 0.009 && <div className="grid grid-cols-[1fr_auto] gap-2 border-b border-slate-100 px-2.5 py-1.5"><span>Αρχική αξία</span><span className="font-mono font-bold">{formatPrintMoney(originalNet, props.currency)}</span></div>}
           {discountAmount > 0.009 && <div className="grid grid-cols-[1fr_auto] gap-2 border-b border-slate-100 px-2.5 py-1.5"><span>Έκπτωση</span><span className="font-mono font-bold">{formatPrintMoney(discountAmount, props.currency)}</span></div>}
           <div className="grid grid-cols-[1fr_auto] gap-2 border-b border-slate-100 px-2.5 py-1.5"><span>Καθαρή αξία</span><span className="font-mono font-bold">{formatPrintMoney(props.net, props.currency)}</span></div>
           <div className="grid grid-cols-[1fr_auto] gap-2 px-2.5 py-1.5"><span>Αξία ΦΠΑ</span><span className="font-mono font-bold">{formatPrintMoney(props.vat, props.currency)}</span></div>
           <div className="grid grid-cols-[1fr_auto] items-center gap-2 bg-slate-900 px-2.5 py-2 text-[11px] font-black uppercase text-white"><span>Τελική αξία</span><span className="font-mono text-[12px]">{formatPrintMoney(props.gross, props.currency)}</span></div>
+          </div>
         </div>
+        {comment && (
+          <div className="border-t border-slate-300 bg-slate-50 px-2.5 py-1 text-[9px] leading-snug text-slate-600">
+            <span className="font-bold uppercase text-slate-500">Σχόλιο: </span>{comment}
+          </div>
+        )}
       </div>
 
-      {(props.vatExemptionCategory || props.vatExemptionLegalNote || props.documentTypeCode || props.revenueClassificationText) && (
+      {(props.vatExemptionCategory || props.vatExemptionLegalNote) && (
         <div className="mt-1.5 space-y-0.5 text-[8.5px] leading-tight text-slate-500">
           {props.vatExemptionCategory && <p><span className="font-bold uppercase">Αιτία απαλλαγής ΦΠΑ:</span> {getAadeVatExemptionCategoryLabel(props.vatExemptionCategory)}</p>}
           {props.vatExemptionLegalNote && <p className="font-black uppercase text-slate-800">{props.vatExemptionLegalNote}</p>}
-          {props.documentTypeCode && <p><span className="font-bold uppercase">Τύπος myDATA:</span> <span className="font-mono">{props.documentTypeCode}</span></p>}
-          {props.revenueClassificationText && <p><span className="font-bold uppercase">Χαρακτηρισμοί:</span> {props.revenueClassificationText}</p>}
         </div>
       )}
       {props.footerText && <p className="mt-1 text-[8.5px] leading-tight text-slate-400">{props.footerText}</p>}
@@ -522,8 +542,7 @@ export function LegalPrintDeliverySection({ delivery }: { delivery: LegalDeliver
 export function LegalPrintFooter({ children }: { children: React.ReactNode }) {
   return (
     <div className="legal-print-break-inside mt-auto shrink-0 pt-2 text-center text-[8.5px] leading-tight text-slate-400">
-      <p className="font-black uppercase tracking-[0.16em] text-slate-500">Αντίγραφο παραστατικού · IliosERP</p>
-      {children && <p className="mt-1 font-medium text-slate-500">{children}</p>}
+      {children && <p className="font-medium text-slate-500">{children}</p>}
       <div className="mx-auto mt-3 w-[45mm] border-t border-slate-300 pt-1">Υπογραφή / Σφραγίδα</div>
     </div>
   );
