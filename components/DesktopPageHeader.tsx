@@ -17,6 +17,8 @@ export interface DesktopPageHeaderProps {
   tailClassName?: string;
   /** Second row inside the same card (border-top), e.g. μητρώο search row */
   below?: React.ReactNode;
+  /** Override spacing for `below` (default: `mt-4 border-t border-slate-100 pt-4`). */
+  belowClassName?: string;
   padding?: 'compact' | 'comfortable';
   /** Override rounded corner (e.g. rounded-[2rem]) */
   roundedClassName?: string;
@@ -36,6 +38,7 @@ const DesktopPageHeader = React.forwardRef<HTMLDivElement, DesktopPageHeaderProp
     tail,
     tailClassName,
     below,
+    belowClassName,
     padding = 'comfortable',
     roundedClassName = 'rounded-3xl',
     className = '',
@@ -64,7 +67,7 @@ const DesktopPageHeader = React.forwardRef<HTMLDivElement, DesktopPageHeaderProp
         </div>
         {tail != null ? <div className={tailClassName ?? DEFAULT_TAIL}>{tail}</div> : null}
       </div>
-      {below ? <div className="mt-4 border-t border-slate-100 pt-4">{below}</div> : null}
+      {below ? <div className={belowClassName ?? 'mt-4 border-t border-slate-100 pt-4'}>{below}</div> : null}
     </div>
   );
 });

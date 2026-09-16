@@ -1,15 +1,13 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Product, ProductVariant, Collection } from '../types';
-import { Printer, Loader2, FileText, Check, AlertCircle, Upload, Camera, FileUp, ScanBarcode, Plus, Lightbulb, History, Trash2, ArrowRight, Tag, ImageIcon, Search, Save, PackageCheck, MapPin, List, X, Clock, RotateCcw, BookImage, LayoutGrid, ChevronDown, FolderKanban, Users2, Zap, Eye } from 'lucide-react';
+import { Printer, Loader2, Check, AlertCircle, Camera, FileUp, Plus, Lightbulb, History, Trash2, Tag, ImageIcon, Search, X, RotateCcw, BookImage, LayoutGrid, FolderKanban, Users2, Zap, Eye } from 'lucide-react';
 import { useUI } from './UIProvider';
 import BarcodeScanner from './BarcodeScanner';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 import { extractSkusFromImage } from '../lib/gemini';
-import { analyzeSku, getVariantComponents, formatCurrency, findProductByScannedCode, expandSkuRange, splitSkuComponents } from '../utils/pricingEngine';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, SYSTEM_IDS } from '../lib/supabase';
-import { inventoryRepository } from '../features/inventory';
-import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
+import { getVariantComponents, findProductByScannedCode, expandSkuRange, splitSkuComponents } from '../utils/pricingEngine';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../lib/supabase';
 import DesktopPageHeader from './DesktopPageHeader';
 import { parseBatchLabelInputLine } from '../features/printing/batchLabelInput';
 import { buildBatchLabelOverrideKey, buildLabelText, LabelTextOverrides, PrintLabelItem, readLabelPrintSettings } from '../features/printing';
@@ -53,11 +51,9 @@ const STONE_TEXT_COLORS: Record<string, string> = {
 
 interface ActionLog {
     id: string;
-    type: 'PRINT' | 'COMMIT';
-    timestamp: string; // Store as string for JSON serialization
+    timestamp: string;
     summary: string;
     details: { sku: string; variant?: string; qty: number }[];
-    target?: string;
 }
 
 interface ParsedBatchLabelQueueItem {
@@ -71,26 +67,39 @@ interface ParsedBatchLabelQueueItem {
     size?: string;
 }
 
+function loadPrintHistory(): ActionLog[] {
+    const saved = localStorage.getItem('batch_print_logs');
+    if (!saved) return [];
+    try {
+        const parsed = JSON.parse(saved);
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+            .filter((log: { type?: string }) => !log.type || log.type === 'PRINT')
+            .map((log: ActionLog) => ({
+                id: String(log.id),
+                timestamp: String(log.timestamp),
+                summary: String(log.summary || ''),
+                details: Array.isArray(log.details) ? log.details : [],
+            }))
+            .slice(0, 50);
+    } catch {
+        return [];
+    }
+}
+
 export default function BatchPrintPage({ allProducts, allCollections, setPrintItems, skusText, setSkusText, onPrintPhotoCatalog }: Props) {
-    const queryClient = useQueryClient();
-    const { data: warehouses } = useQuery({ queryKey: ['warehouses'], queryFn: api.getWarehouses });
     const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings });
 
     const [isProcessing, setIsProcessing] = useState(false);
-    const [foundItemsCount, setFoundItemsCount] = useState(0);
-    const [notFoundItems, setNotFoundItems] = useState<string[]>([]);
     const [showScanner, setShowScanner] = useState(false);
 
     // Persistent Settings
     const [labelFormat, setLabelFormat] = useState(() => readLabelPrintSettings().format);
     const [showPrice, setShowPrice] = useState(() => readLabelPrintSettings().showPrice);
     const [priceTier, setPriceTier] = useState(() => readLabelPrintSettings().priceTier);
-    const [targetWarehouse, setTargetWarehouse] = useState(() => {
-        return localStorage.getItem('batch_print_target_warehouse') || SYSTEM_IDS.SHOWROOM;
-    });
 
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const { showToast, confirm } = useUI();
+    const { showToast } = useUI();
 
     // ---- TAB STATE ----
     const [activeTab, setActiveTab] = useState<'labels' | 'catalog'>('labels');
@@ -153,17 +162,8 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
         showToast(`Φωτο-κατάλογος με ${toPrint.length} κωδικούς εστάλη για εκτύπωση.`, 'success');
     };
 
-    // Stock Commit State
-    const [isCommitting, setIsCommitting] = useState(false);
-
     // Persistent History
-    const [actionLogs, setActionLogs] = useState<ActionLog[]>(() => {
-        const saved = localStorage.getItem('batch_print_logs');
-        if (saved) {
-            try { return JSON.parse(saved); } catch (e) { return []; }
-        }
-        return [];
-    });
+    const [actionLogs, setActionLogs] = useState<ActionLog[]>(loadPrintHistory);
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [labelOverrideDrafts, setLabelOverrideDrafts] = useState<Record<string, LabelTextOverrides>>({});
     const [editingLabelKey, setEditingLabelKey] = useState<string | null>(null);
@@ -172,8 +172,15 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
     useEffect(() => { localStorage.setItem('batch_print_format', labelFormat); }, [labelFormat]);
     useEffect(() => { localStorage.setItem('batch_print_show_price', String(showPrice)); }, [showPrice]);
     useEffect(() => { localStorage.setItem('batch_print_price_tier', priceTier); }, [priceTier]);
-    useEffect(() => { localStorage.setItem('batch_print_target_warehouse', targetWarehouse); }, [targetWarehouse]);
     useEffect(() => { localStorage.setItem('batch_print_logs', JSON.stringify(actionLogs)); }, [actionLogs]);
+    useEffect(() => {
+        if (!showHistoryModal) return;
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setShowHistoryModal(false);
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [showHistoryModal]);
 
     // Smart Entry State
     const [scanInput, setScanInput] = useState('');
@@ -267,12 +274,13 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
     };
 
     const handlePrint = () => {
-        setIsProcessing(true);
-        setFoundItemsCount(0);
-        setNotFoundItems([]);
-
         const { items, notFound } = parseItemsFromText();
+        if (items.length === 0) {
+            showToast('Δεν βρέθηκαν έγκυροι κωδικοί.', 'error');
+            return;
+        }
 
+        setIsProcessing(true);
         const printPayload = items.map(i => ({
             product: i.product,
             variant: i.variant,
@@ -283,82 +291,22 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
             priceTier,
             labelOverrides: labelOverrideDrafts[i.key],
         }));
+        const totalPieces = printPayload.reduce((sum, item) => sum + item.quantity, 0);
 
         setTimeout(() => {
-            if (printPayload.length > 0) {
-                setPrintItems(printPayload);
-                showToast(`Στάλθηκαν ${printPayload.reduce((a, b) => a + b.quantity, 0)} τεμάχια για εκτύπωση ετικετών (${labelFormat === 'retail' ? 'Λιανικής' : 'Χονδρικής'}).`, 'success');
-
-                // Add to Log
-                const logDetails = printPayload.map(i => ({ sku: i.product.sku, variant: i.variant?.suffix, qty: i.quantity }));
-                setActionLogs(prev => [{
-                    id: Date.now().toString(),
-                    type: 'PRINT' as const,
-                    timestamp: new Date().toISOString(),
-                    summary: `${logDetails.reduce((a, b) => a + b.qty, 0)} Ετικέτες`,
-                    details: logDetails
-                }, ...prev].slice(0, 50)); // Keep last 50
-
-            } else {
-                showToast("Δεν βρέθηκαν έγκυροι κωδικοί.", 'error');
-            }
-            setFoundItemsCount(printPayload.reduce((acc, item) => acc + item.quantity, 0));
-            setNotFoundItems(notFound);
-            setIsProcessing(false);
-        }, 500);
-    };
-
-    const handleCommitToStock = async () => {
-        const { items } = parseItemsFromText();
-        if (items.length === 0) {
-            showToast("Δεν υπάρχουν έγκυροι κωδικοί για καταχώρηση.", "error");
-            return;
-        }
-
-        const warehouseName = warehouses?.find(w => w.id === targetWarehouse)?.name || 'Μη αναγνωρισμένη αποθήκη';
-
-        const confirmed = await confirm({
-            title: `Καταχώρηση στο ${warehouseName}`,
-            message: `Θα προστεθούν ${items.reduce((acc, i) => acc + i.quantity, 0)} τεμάχια (${items.length} κωδικοί) στο απόθεμα του ${warehouseName}. Είστε σίγουροι;`,
-            confirmText: 'Καταχώρηση',
-            cancelText: 'Άκυρο'
-        });
-
-        if (!confirmed) return;
-
-        setIsCommitting(true);
-        try {
-            const successCount = await inventoryRepository.batchAdjustStock(
-                items.map(({ product, variant, quantity }) => ({
-                    productSku: product.sku,
-                    variantSuffix: variant?.suffix || '',
-                    quantity,
-                })),
-                targetWarehouse,
-                `Μαζική παραλαβή αποθέματος από την εκτύπωση ετικετών στην αποθήκη «${warehouseName}».`,
-            );
-
-            await invalidateProductsAndCatalog(queryClient);
-
-            // Add to Log
-            const logDetails = items.map(i => ({ sku: i.product.sku, variant: i.variant?.suffix, qty: i.quantity }));
+            setPrintItems(printPayload);
+            showToast(`Στάλθηκαν ${totalPieces} τεμάχια για εκτύπωση ετικετών (${labelFormat === 'retail' ? 'Λιανικής' : 'Χονδρικής'}).`, 'success');
             setActionLogs(prev => [{
                 id: Date.now().toString(),
-                type: 'COMMIT' as const,
                 timestamp: new Date().toISOString(),
-                summary: `Εισαγωγή (${logDetails.reduce((a, b) => a + b.qty, 0)} τμχ)`,
-                target: warehouseName,
-                details: logDetails
+                summary: `${totalPieces} Ετικέτες`,
+                details: printPayload.map(i => ({ sku: i.product.sku, variant: i.variant?.suffix, qty: i.quantity })),
             }, ...prev].slice(0, 50));
-
-            showToast(`Η μαζική παραλαβή ολοκληρώθηκε: ${successCount} είδη καταχωρίστηκαν στην αποθήκη «${warehouseName}».`, "success");
-
-        } catch (e) {
-            console.error(e);
-            showToast(e instanceof Error ? e.message : "Η μαζική παραλαβή δεν ολοκληρώθηκε. Δεν πραγματοποιήθηκε καμία μεταβολή.", "error");
-        } finally {
-            setIsCommitting(false);
-        }
+            if (notFound.length > 0) {
+                showToast(`${notFound.length} κωδικοί δεν βρέθηκαν και παραλείφθηκαν.`, 'warning');
+            }
+            setIsProcessing(false);
+        }, 250);
     };
 
     // --- REVAMPED SMART INPUT LOGIC ---
@@ -637,12 +585,23 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
         });
     };
 
+    const readyLineCount = parsedLabelQueue.entries.length;
+    const readyPieceCount = parsedLabelQueue.entries.reduce((sum, item) => sum + item.quantity, 0);
+    const missingCount = parsedLabelQueue.notFound.length;
+    const canPrint = readyLineCount > 0 && !isProcessing;
+    const lastPrint = actionLogs[0];
+    const formatLabel = labelFormat === 'retail' ? 'Λιανικής' : 'Χονδρικής';
+    const triggerPrint = () => {
+        if (!canPrint) return;
+        handlePrint();
+    };
+
     return (
         <div className="max-w-6xl mx-auto space-y-8">
             <DesktopPageHeader
                 icon={Printer}
                 title="Μαζική Εκτύπωση"
-                subtitle="Ετικέτες χονδρικής/λιανικής και φωτο-κατάλογος προϊόντων."
+                subtitle="Ετοιμάστε ουρά ετικετών ή φωτο-κατάλογο και στείλτε τα για εκτύπωση."
                 tailClassName="flex w-full min-w-0 flex-1 flex-wrap items-center gap-2 lg:ml-auto lg:max-w-none lg:justify-end"
                 tail={(
                     <>
@@ -652,27 +611,33 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                 <button
                                     type="button"
                                     onClick={() => setShowHistoryModal(true)}
-                                    title="Ιστορικό"
-                                    className="rounded-xl border border-slate-200 bg-white p-3 font-bold text-slate-700 transition-all hover:bg-slate-100 hover:border-slate-300 shadow-sm"
+                                    title="Ιστορικό εκτυπώσεων"
+                                    aria-label="Ιστορικό εκτυπώσεων"
+                                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-bold text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-100"
                                 >
-                                    <History size={20} />
+                                    <History size={18} />
+                                    <span className="hidden text-sm sm:inline">Ιστορικό</span>
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => fileInputRef.current?.click()}
                                     disabled={isProcessing}
                                     title="Εισαγωγή PDF"
-                                    className="rounded-xl border border-amber-200 bg-amber-50 p-3 font-bold text-amber-700 transition-all hover:bg-amber-100 disabled:opacity-50 shadow-sm"
+                                    aria-label="Εισαγωγή PDF"
+                                    className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 font-bold text-amber-700 shadow-sm transition-all hover:bg-amber-100 disabled:opacity-50"
                                 >
-                                    {isProcessing ? <Loader2 size={20} className="animate-spin" /> : <FileUp size={20} />}
+                                    {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <FileUp size={18} />}
+                                    <span className="hidden text-sm sm:inline">PDF</span>
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setShowScanner(true)}
-                                    title="Σάρωση"
-                                    className="rounded-xl border border-blue-200 bg-blue-50 p-3 font-bold text-blue-700 transition-all hover:bg-blue-100 shadow-sm"
+                                    title="Σάρωση barcode"
+                                    aria-label="Σάρωση barcode"
+                                    className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 font-bold text-blue-700 shadow-sm transition-all hover:bg-blue-100"
                                 >
-                                    <Camera size={20} />
+                                    <Camera size={18} />
+                                    <span className="hidden text-sm sm:inline">Σάρωση</span>
                                 </button>
                             </>
                         )}
@@ -737,6 +702,11 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                         value={scanInput}
                                         onChange={handleSmartInput}
                                         onKeyDown={e => {
+                                            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                                                e.preventDefault();
+                                                triggerPrint();
+                                                return;
+                                            }
                                             if (e.key === 'Enter') { e.preventDefault(); executeSmartAdd(); }
                                         }}
                                         placeholder="Πληκτρολογήστε..."
@@ -835,51 +805,61 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
-                    <div className="md:col-span-3 space-y-6">
-                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 h-full flex flex-col">
-                            <div className="flex justify-between items-center mb-4">
-                                <div className="flex items-center gap-3">
-                                    <h2 className="font-bold text-slate-800">Ουρά Εκτύπωσης</h2>
-                                    <span className="text-[10px] font-black text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 uppercase tracking-widest">{skusText.split('\n').filter(l => l.trim()).length} ΓΡΑΜΜΕΣ</span>
+                <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
+                    <div className="lg:col-span-8">
+                        <div className="flex h-full flex-col rounded-3xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+                            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                                <div className="flex min-w-0 flex-wrap items-center gap-3">
+                                    <div>
+                                        <h2 className="font-bold text-slate-800">Ουρά Εκτύπωσης</h2>
+                                        <p className="text-[11px] font-medium text-slate-400">Ένας κωδικός ανά γραμμή. Ctrl+Enter για εκτύπωση.</p>
+                                    </div>
+                                    <span className="rounded-full border border-slate-100 bg-slate-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                        {skusText.split('\n').filter(l => l.trim()).length} γραμμές
+                                    </span>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={handlePrint}
-                                        disabled={isProcessing || !skusText.trim()}
-                                        className="bg-slate-900 text-white px-4 py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-md active:scale-95 disabled:opacity-50"
-                                    >
-                                        {isProcessing ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />}
-                                        Εκτύπωση
-                                    </button>
-                                    <button
-                                        onClick={() => setSkusText('')}
-                                        title="Καθαρισμός"
-                                        className="p-1.5 rounded-xl font-bold bg-slate-50 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all border border-slate-100"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
-                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setSkusText('')}
+                                    disabled={!skusText.trim()}
+                                    title="Καθαρισμός ουράς"
+                                    className="rounded-xl border border-slate-100 bg-slate-50 p-2 font-bold text-slate-400 transition-all hover:border-red-100 hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
                             </div>
                             <textarea
                                 value={skusText}
                                 onChange={(e) => setSkusText(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                                        e.preventDefault();
+                                        triggerPrint();
+                                    }
+                                }}
                                 rows={12}
-                                className="w-full p-4 border border-slate-200 rounded-xl font-mono text-sm bg-white text-slate-900 focus:ring-4 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all placeholder-slate-400 flex-1 custom-scrollbar"
+                                className="custom-scrollbar min-h-[220px] w-full flex-1 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 font-mono text-sm text-slate-900 outline-none transition-all placeholder-slate-400 focus:border-amber-500 focus:bg-white focus:ring-4 focus:ring-amber-500/20"
                                 placeholder={`Προσθέστε κωδικούς παραπάνω ή πληκτρολογήστε εδώ...\nDA050-DA063 2\nXR2020 5`}
                             />
-                            {(parsedLabelQueue.entries.length > 0 || parsedLabelQueue.notFound.length > 0) && (
-                                <div className="mt-4 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                            {(readyLineCount > 0 || missingCount > 0) ? (
+                                <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
                                     <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
                                         <div>
                                             <h3 className="text-sm font-black text-slate-800">Προεπισκόπηση ετικετών</h3>
                                             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                                                {parsedLabelQueue.entries.length} γραμμές έτοιμες για εκτύπωση
+                                                {readyLineCount} έτοιμες · {formatLabel}
                                             </p>
                                         </div>
-                                        <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-700">
-                                            {parsedLabelQueue.entries.reduce((sum, item) => sum + item.quantity, 0)} τεμ.
-                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            {missingCount > 0 && (
+                                                <span className="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black text-red-600">
+                                                    {missingCount} άγνωστοι
+                                                </span>
+                                            )}
+                                            <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-700">
+                                                {readyPieceCount} τεμ.
+                                            </span>
+                                        </div>
                                     </div>
 
                                     <div className="max-h-72 overflow-y-auto custom-scrollbar divide-y divide-slate-100">
@@ -935,13 +915,22 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                         ))}
                                     </div>
                                 </div>
+                            ) : (
+                                <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center">
+                                    <Tag size={22} className="mx-auto text-slate-300" />
+                                    <p className="mt-2 text-sm font-bold text-slate-500">Η ουρά είναι άδεια</p>
+                                    <p className="mt-1 text-xs text-slate-400">Προσθέστε κωδικούς από την έξυπνη εισαγωγή, σάρωση ή PDF.</p>
+                                </div>
                             )}
                         </div>
                     </div>
 
-                    <div className="md:col-span-2 space-y-6">
-                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-                            <h2 className="font-bold text-slate-800 mb-4 text-center">Ρυθμίσεις Ετικέτας</h2>
+                    <div className="space-y-5 lg:sticky lg:top-4 lg:col-span-4">
+                        <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+                            <div className="mb-4">
+                                <h2 className="font-bold text-slate-800">Ρυθμίσεις Ετικέτας</h2>
+                                <p className="mt-0.5 text-[11px] font-medium text-slate-400">Εφαρμόζονται σε όλες τις ετικέτες της ουράς.</p>
+                            </div>
                             <LabelPrintSettingsPanel
                                 format={labelFormat}
                                 showPrice={showPrice}
@@ -952,85 +941,110 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                             />
                         </div>
 
-                        {/* Stock Commit Section */}
-                        <div className="bg-emerald-50/50 p-6 rounded-3xl shadow-sm border border-emerald-100 space-y-4">
-                            <h2 className="font-bold text-emerald-800 text-sm flex items-center gap-2 uppercase tracking-wide">
-                                <PackageCheck size={16} /> Ενημέρωση Αποθήκης
-                            </h2>
-
-                            <div>
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Χώρος Εισαγωγής</label>
-                                <div className="relative">
-                                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                    <select
-                                        value={targetWarehouse}
-                                        onChange={e => setTargetWarehouse(e.target.value)}
-                                        className="w-full pl-9 p-2.5 bg-white border border-emerald-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 font-bold text-sm text-slate-800 appearance-none cursor-pointer"
-                                    >
-                                        {warehouses?.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                                    </select>
+                        <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
+                            <h2 className="font-bold text-slate-800">Εκτύπωση</h2>
+                            <div className="mt-4 grid grid-cols-2 gap-3">
+                                <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3">
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Έτοιμες</div>
+                                    <div className="mt-1 text-xl font-black text-slate-900">{readyLineCount}</div>
+                                </div>
+                                <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3">
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Τεμάχια</div>
+                                    <div className="mt-1 text-xl font-black text-slate-900">{readyPieceCount}</div>
                                 </div>
                             </div>
-
+                            {missingCount > 0 && (
+                                <div className="mt-3 flex items-start gap-2 rounded-2xl border border-red-100 bg-red-50 px-3 py-2.5 text-xs font-medium text-red-700">
+                                    <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                                    {missingCount} κωδικοί δεν βρέθηκαν και θα παραλειφθούν.
+                                </div>
+                            )}
                             <button
-                                onClick={handleCommitToStock}
-                                disabled={isCommitting || !skusText.trim()}
-                                className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-emerald-700 transition-all shadow-md shadow-emerald-100 disabled:opacity-50 flex items-center justify-center gap-2"
+                                type="button"
+                                onClick={triggerPrint}
+                                disabled={!canPrint}
+                                className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3.5 text-sm font-black text-white shadow-md transition-all hover:bg-slate-800 active:scale-[0.99] disabled:opacity-40"
                             >
-                                {isCommitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                                {isCommitting ? 'Καταχώρηση...' : 'Καταχώρηση στο Απόθεμα'}
+                                {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <Printer size={18} />}
+                                {isProcessing
+                                    ? 'Προετοιμασία...'
+                                    : readyPieceCount > 0
+                                        ? `Εκτύπωση ${readyPieceCount} ετικετών`
+                                        : 'Εκτύπωση ετικετών'}
                             </button>
+                            {lastPrint && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleReloadLog(lastPrint)}
+                                    className="mt-3 flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-left transition-colors hover:border-slate-200 hover:bg-white"
+                                >
+                                    <div className="min-w-0">
+                                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Τελευταία εκτύπωση</div>
+                                        <div className="truncate text-sm font-bold text-slate-700">{lastPrint.summary}</div>
+                                    </div>
+                                    <span className="inline-flex items-center gap-1 rounded-lg bg-white px-2 py-1 text-[11px] font-bold text-slate-500">
+                                        <RotateCcw size={12} /> Επαναφορά
+                                    </span>
+                                </button>
+                            )}
                         </div>
 
                         {/* History Modal */}
                         {showHistoryModal && (
-                            <div className="fixed inset-0 z-[150] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-                                <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl p-6 h-[80vh] flex flex-col animate-in zoom-in-95">
-                                    <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
-                                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><History size={20} className="text-blue-500" /> Ιστορικό Ενεργειών</h3>
+                            <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setShowHistoryModal(false)}>
+                                <div role="dialog" aria-modal="true" aria-labelledby="batch-print-history-title" className="flex h-[80vh] w-full max-w-lg flex-col rounded-3xl bg-white p-6 shadow-2xl animate-in zoom-in-95" onClick={(event) => event.stopPropagation()}>
+                                    <div className="mb-6 flex items-center justify-between border-b border-slate-100 pb-4">
+                                        <h3 id="batch-print-history-title" className="flex items-center gap-2 text-lg font-bold text-slate-800">
+                                            <History size={20} className="text-blue-500" /> Ιστορικό εκτυπώσεων
+                                        </h3>
                                         <div className="flex items-center gap-2">
-                                            <button onClick={() => { localStorage.removeItem('batch_print_logs'); setActionLogs([]); }} className="text-xs text-red-500 hover:text-red-700 font-bold px-3 py-1.5 bg-red-50 rounded-lg">Καθαρισμός</button>
-                                            <button onClick={() => setShowHistoryModal(false)} className="p-2 hover:bg-slate-100 rounded-full"><X size={20} className="text-slate-400" /></button>
+                                            <button
+                                                type="button"
+                                                onClick={() => { localStorage.removeItem('batch_print_logs'); setActionLogs([]); }}
+                                                disabled={actionLogs.length === 0}
+                                                className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-bold text-red-500 hover:text-red-700 disabled:opacity-40"
+                                            >
+                                                Καθαρισμός
+                                            </button>
+                                            <button type="button" onClick={() => setShowHistoryModal(false)} className="rounded-full p-2 hover:bg-slate-100">
+                                                <X size={20} className="text-slate-400" />
+                                            </button>
                                         </div>
                                     </div>
 
-                                    <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-1">
+                                    <div className="custom-scrollbar flex-1 space-y-3 overflow-y-auto pr-1">
                                         {actionLogs.length > 0 ? actionLogs.map(log => (
-                                            <div key={log.id} className="relative pl-4 border-l-2 border-slate-200 pb-2">
-                                                <div className={`absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm ${log.type === 'PRINT' ? 'bg-slate-400' : 'bg-emerald-50'}`}></div>
-
-                                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                                    <div className="flex justify-between items-start mb-1">
-                                                        <span className={`text-[10px] font-black uppercase tracking-wider ${log.type === 'PRINT' ? 'text-slate-500' : 'text-emerald-600'}`}>
-                                                            {log.type === 'PRINT' ? 'ΕΚΤΥΠΩΣΗ' : 'ΚΑΤΑΧΩΡΗΣΗ'}
-                                                        </span>
+                                            <div key={log.id} className="relative border-l-2 border-slate-200 pb-2 pl-4">
+                                                <div className="absolute -left-[5px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-slate-400 shadow-sm" />
+                                                <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                                                    <div className="mb-1 flex items-start justify-between">
+                                                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Εκτύπωση</span>
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-[9px] font-mono text-slate-400">{new Date(log.timestamp).toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}</span>
+                                                            <span className="font-mono text-[9px] text-slate-400">
+                                                                {new Date(log.timestamp).toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
+                                                            </span>
                                                             <button
+                                                                type="button"
                                                                 onClick={() => handleReloadLog(log)}
-                                                                title="Επαναφόρτωση στην Ουρά"
-                                                                className="p-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors"
+                                                                title="Επαναφόρτωση στην ουρά"
+                                                                className="rounded bg-blue-50 p-1 text-blue-600 transition-colors hover:bg-blue-100"
                                                             >
                                                                 <RotateCcw size={12} />
                                                             </button>
                                                         </div>
                                                     </div>
-
-                                                    <div className="font-bold text-slate-800 text-sm mb-2">
-                                                        {log.summary} {log.target && <span className="text-slate-500 font-normal">στο {log.target}</span>}
-                                                    </div>
-
+                                                    <div className="mb-2 text-sm font-bold text-slate-800">{log.summary}</div>
                                                     <div className="flex flex-wrap gap-1">
                                                         {log.details.map((d, i) => (
-                                                            <span key={i} className="text-[9px] px-1.5 py-0.5 bg-white border border-slate-200 rounded text-slate-600 font-bold font-mono">
-                                                                {d.sku}{d.variant} <span className="text-slate-400 font-medium">x{d.qty}</span>
+                                                            <span key={i} className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[9px] font-bold text-slate-600">
+                                                                {d.sku}{d.variant} <span className="font-medium text-slate-400">x{d.qty}</span>
                                                             </span>
                                                         ))}
                                                     </div>
                                                 </div>
                                             </div>
                                         )) : (
-                                            <div className="text-center py-20 text-slate-400 italic">Το ιστορικό είναι άδειο.</div>
+                                            <div className="py-20 text-center italic text-slate-400">Το ιστορικό είναι άδειο.</div>
                                         )}
                                     </div>
                                 </div>

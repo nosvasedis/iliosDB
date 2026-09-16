@@ -580,10 +580,10 @@ function ErpAppContent() {
             <div className="h-8"><img src={APP_LOGO} alt="Ilios" className="h-full w-auto object-contain" /></div>
             <div className={`w-2 h-2 rounded-full ${isLocalMode ? 'bg-amber-500' : isOnline ? (pendingCount > 0 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500') : 'bg-rose-500 animate-pulse'}`} />
           </header>
-          <div className="flex-1 overflow-y-auto p-4 md:p-8 relative scroll-smooth">
-            <div className="max-w-[1600px] mx-auto" key={activePage}>
+          <div className={`flex-1 p-4 md:p-8 relative scroll-smooth ${activePage === 'production' ? 'min-h-0 overflow-hidden' : 'overflow-y-auto'}`}>
+            <div className={`max-w-[1600px] mx-auto ${activePage === 'production' ? 'flex h-full min-h-0 flex-col' : ''}`} key={activePage}>
               <Suspense fallback={<IliosLoader variant="section" detail={adminLoadingDetails[activePage]} />}>
-              <div className="animate-in fade-in slide-in-from-bottom-3 duration-400">
+              <div className={`animate-in fade-in slide-in-from-bottom-3 duration-400 ${activePage === 'production' ? 'flex min-h-0 h-full flex-col' : ''}`}>
               {adminPageRegistry[activePage]}
               </div>
               </Suspense>

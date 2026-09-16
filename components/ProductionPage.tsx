@@ -3443,7 +3443,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     }
 
     return (
-        <div className="h-[calc(100vh-100px)] flex flex-col space-y-4">
+        <div className="flex h-full min-h-0 flex-1 flex-col gap-2 overflow-hidden md:gap-3">
 
             <DesktopPageHeader
                 padding="compact"
@@ -3598,6 +3598,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                 </div>
                     </>
                 )}
+                belowClassName="mt-3 border-t border-slate-100 pt-3"
                 below={(
                     <div className="space-y-3">
                         <ProductionHealthPanel
@@ -3681,8 +3682,8 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                 )}
             />
 
-            <div className="flex-1 overflow-x-auto overflow-y-auto pb-4 custom-scrollbar lg:overflow-y-hidden">
-                <div className="flex flex-col lg:flex-row gap-4 h-auto lg:h-full lg:min-w-max">
+            <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto custom-scrollbar lg:overflow-y-hidden">
+                <div className="flex h-auto min-h-0 flex-col gap-4 lg:h-full lg:min-w-max lg:flex-row">
                     {STAGES.map(stage => {
                         const stageBatches = stageBatchesByStage[stage.id] || [];
                         const groupedData = groupedStageBatches[stage.id] || {};
@@ -3704,7 +3705,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                             return (
                                 <div
                                     key={stage.id}
-                                    className="flex flex-col gap-4 w-full lg:w-80 lg:h-full"
+                                    className="flex min-h-0 flex-col gap-4 w-full lg:h-full lg:w-80"
                                     onDragLeave={(e) => {
                                         if (!e.currentTarget.contains(e.relatedTarget as Node)) {
                                             setDropTarget(null);
@@ -3842,8 +3843,8 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                                 onDragEnd={handleDragEnd}
                                 onDrop={() => handleDrop(stage.id)}
                                 className={`
-                                relative flex flex-col rounded-3xl border transition-all duration-300 overflow-hidden
-                                lg:w-80 lg:h-full
+                                relative flex min-h-0 flex-col rounded-3xl border transition-all duration-300 overflow-hidden
+                                lg:h-full lg:w-80
                                 w-full
                                 ${isTarget ? 'bg-emerald-50 border-emerald-300 shadow-2xl scale-[1.02]' : `${colors.bg} border-slate-200`}
                                 ${getMovementStageSurfaceClass(isStageMovementActive)}

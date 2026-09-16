@@ -50,7 +50,7 @@ const ProformaPrintView: React.FC<ProformaPrintViewProps> = ({ document, lines }
         paymentMethodLabel={PAYMENT_METHOD_LABELS[document.payment_method_code] || String(document.payment_method_code)}
         validUntil={document.valid_until}
         extraMeta={(
-          <div className="mt-1 text-[9px] text-slate-600">
+          <div className="mt-1 text-[9.5px] text-slate-600">
             <span className="font-bold text-slate-500">Κατάσταση: </span>
             {document.status === 'void' ? 'Ακυρωμένο' : document.status === 'converted' ? 'Μετατράπηκε' : 'Πρόχειρο'}
           </div>

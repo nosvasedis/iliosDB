@@ -110,7 +110,7 @@ describe('legal print semantics', () => {
       <LegalDocumentPrintView document={document} lines={lines} />,
     );
 
-    expect(LEGAL_PRINT_CSS).toContain('font-size: 9.5px;');
+    expect(LEGAL_PRINT_CSS).toContain('font-size: 10px;');
     expect(LEGAL_PRINT_CSS).toContain('line-height: 1.3;');
     expect(html).not.toContain('text-[6.25px]');
     expect(html).not.toContain('text-[6.5px]');
@@ -153,16 +153,27 @@ describe('legal print semantics', () => {
     expect(html).toContain('20');
     expect(html).toContain('11526');
     expect(html).toContain('Αθήνα');
-    expect(html).toContain('Χώρα:');
-    expect(html).toContain('GR');
-    expect(html).toContain('Υποκ.:');
+    expect(html).toContain('Ελλάδα');
+    expect(html).not.toContain('Χώρα:');
+    expect(html).not.toContain('Υποκατάστημα:');
+    expect(html).toContain('Τηλ.');
     expect(html).toContain('2101111111');
+    expect(html).toContain('Ηλ. ταχυδρομείο');
     expect(html).toContain('customer@example.test');
     expect(html).not.toContain('Σύνολο');
     expect(html).not.toContain('248,00');
   });
 
-  it('prints issuer VAT, tax office and branch together, with the tax office immediately after VAT', () => {
+  it('keeps meaningful non-zero customer branches while hiding branch zero', () => {
+    const html = renderToStaticMarkup(
+      <LegalPrintCustomerBar counterpart={{ ...counterpart, branch: 2 }} />,
+    );
+
+    expect(html).toContain('Υποκατάστημα:');
+    expect(html).toContain('>2<');
+  });
+
+  it('prints issuer VAT and tax office together without a useless zero branch', () => {
     const html = renderToStaticMarkup(
       <LegalPrintHeader
         title="Τιμολόγιο Πώλησης"
@@ -172,7 +183,8 @@ describe('legal print semantics', () => {
     );
     const plainText = html.replace(/<[^>]+>/g, '');
 
-    expect(plainText).toContain('ΑΦΜ: 094259216 · ΔΟΥ: ΚΕΦΟΔΕ ΑΤΤΙΚΗΣ · Υποκ.: 0');
+    expect(plainText).toContain('ΑΦΜ: 094259216 · ΔΟΥ: ΚΕΦΟΔΕ ΑΤΤΙΚΗΣ');
+    expect(plainText).not.toContain('Υποκατάστημα: 0');
     expect(html.match(/ΔΟΥ:/g)).toHaveLength(1);
     expect(html).toContain('Οδός Δοκιμής');
     expect(html).toContain('18120');
@@ -198,8 +210,9 @@ describe('legal print semantics', () => {
     expect(html).toContain('ΚΕΦΟΔΕ ΑΤΤΙΚΗΣ');
     expect(html).toContain('ΠΕΛΑΤΗΣ Α.Ε.');
     expect(html).toContain('Λεωφόρος Πελάτη');
-    expect(html).toContain('Χώρα:');
-    expect(html).toContain('Υποκ.:');
+    expect(html).toContain('Αθήνα, Ελλάδα');
+    expect(html).not.toContain('Χώρα:');
+    expect(html).not.toContain('Υποκατάστημα: 0');
     expect(html).toContain('ΤΙΜ');
     expect(html).toContain('42');
     expect(html).toContain('29/07/2026');
@@ -220,6 +233,15 @@ describe('legal print semantics', () => {
     expect(html).toContain('Αριθμός Αδειοδότησης:');
     expect(html).toContain('2023_05_113SBZ IKE_001_EMDI_V1_18052023');
     expect(html.indexOf('SBZ IKE - www.sbz.gr')).toBeLessThan(html.indexOf('2023_05_113SBZ IKE_001_EMDI_V1_18052023'));
+    expect(html).toContain('Εθνική Τράπεζα');
+    expect(html).toContain('Αρ. Λογαριασμού:');
+    expect(html).toContain('088/003361-85');
+    expect(html).toContain('IBAN:');
+    expect(html).toContain('GR1401100880000008800336185');
+    expect(html).toContain('Όροι παράδοσης');
+    expect(html).toContain('Τα εμπορεύματα ταξιδεύουν για λογαριασμό και με κίνδυνο του αγοραστή.');
+    expect(html).toContain('Για κάθε διαφορά αρμόδια είναι τα δικαστήρια του Πειραιά.');
+    expect(html).toContain('Η εξόφληση του τιμολογίου πρέπει να γίνεται με την παράδοση.');
     expect(html).toContain('RNG001');
     expect(html).toContain('Ασημένιο δαχτυλίδι');
     expect(html).toContain('Ειδική συσκευασία');
@@ -227,14 +249,50 @@ describe('legal print semantics', () => {
     expect(html).toContain('Τεμάχια');
     expect(html).toContain('Τιμή μον.');
     expect(html).toContain('Έκπτ.%');
+    expect(html).toContain('odd:bg-white');
+    expect(html).toContain('even:bg-slate-100/80');
+    expect(html).toContain('py-[3px]');
     expect(html).toContain('125,00 €');
     expect(html).toContain('20%');
     expect(html).toContain('24%');
     expect(html).not.toContain('απαιτεί αιτία');
+    expect(html).toContain('Στοιχεία συναλλαγής &amp; διακίνησης');
+    expect(html).toContain('Σκοπός διακίνησης');
+    expect(html).toContain('Πώληση');
     expect(html).toContain('Τρόπος πληρωμής');
+    expect(html).toContain('Τόπος φόρτωσης');
+    expect(html).toContain('Έδρα μας');
+    expect(html).toContain('Τόπος προορισμού');
+    expect(html).not.toContain('Ανάλυση υπολογισμού ΦΠΑ');
     expect(html).not.toContain('Όχημα');
-    expect(html).not.toContain('Σκοπός');
-    expect(html).not.toContain('Φόρτωση');
+  });
+
+  it('uses the actual delivery-note purpose and locations without duplicating generic defaults', () => {
+    const html = renderToStaticMarkup(
+      <LegalDocumentPrintView
+        document={{
+          ...document,
+          document_kind: 'invoice_delivery',
+          delivery: {
+            dispatch_date: '2026-07-29',
+            dispatch_time: '12:30:00',
+            move_purpose: 5,
+            loading_address: { street: 'Αποθήκη', number: '8', postal_code: '18233', city: 'Ρέντης' },
+            delivery_address: { street: 'Σημείο Παράδοσης', number: '4', postal_code: '11527', city: 'Αθήνα' },
+            carrier_name: 'Μεταφορική Δοκιμής',
+          },
+        }}
+        lines={lines}
+      />,
+    );
+
+    expect(html).toContain('Επιστροφή');
+    expect(html).toContain('Αποθήκη 8, 18233 Ρέντης, Ελλάδα');
+    expect(html).toContain('Σημείο Παράδοσης 4, 11527 Αθήνα, Ελλάδα');
+    expect(html).toContain('29/07/2026 · 12:30');
+    expect(html).toContain('Μεταφορική Δοκιμής');
+    expect(html).not.toContain('Έδρα μας');
+    expect(html).not.toContain('Παράδοση:');
   });
 
   it('prints the persisted legal exemption wording for Mount Athos', () => {

@@ -32,78 +32,87 @@ const NOTE_COLORS = [
     'bg-teal-50 border-teal-100 text-teal-800',
 ];
 
+function healthTone(score: number) {
+    if (score > 80) return {
+        box: 'bg-emerald-50 border-emerald-100',
+        ring: 'border-emerald-200 text-emerald-600',
+    };
+    if (score > 50) return {
+        box: 'bg-amber-50 border-amber-100',
+        ring: 'border-amber-200 text-amber-600',
+    };
+    return {
+        box: 'bg-red-50 border-red-100',
+        ring: 'border-red-200 text-red-600',
+    };
+}
+
 export default function ProductionHealthPanel({ summary, notes, onFilterClick }: Props) {
     const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
+    const tone = healthTone(summary.healthScore);
 
     return (
         <>
-            <div className="flex flex-wrap items-center justify-center gap-3 md:gap-4">
-                {/* Health score circle + title — now a unified badge box matching the stat boxes below */}
-                <div className={`px-4 py-3 rounded-2xl border min-w-[128px] shrink-0 h-[100px] flex flex-col justify-center items-center text-center transition-all duration-200 hover:scale-[1.02] ${
-                    summary.healthScore > 80
-                        ? 'bg-emerald-50 border-emerald-100'
-                        : summary.healthScore > 50
-                            ? 'bg-amber-50 border-amber-100'
-                            : 'bg-red-50 border-red-100'
-                }`}>
-                    <div className={`w-12 h-12 mx-auto rounded-full flex items-center justify-center text-lg font-black border-[3px] shadow-inner mb-1 ${
-                        summary.healthScore > 80
-                            ? 'border-emerald-200 text-emerald-600 bg-white'
-                            : summary.healthScore > 50
-                                ? 'border-amber-200 text-amber-600 bg-white'
-                                : 'border-red-200 text-red-600 bg-white'
-                    }`}>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+                <div className={`flex h-10 items-center gap-2 rounded-xl border px-2.5 shrink-0 ${tone.box}`}>
+                    <div className={`flex h-7 min-w-7 items-center justify-center rounded-full border-2 bg-white px-0.5 text-[10px] font-black tabular-nums shadow-inner ${tone.ring}`}>
                         {summary.healthScore.toFixed(0)}%
                     </div>
-                    <div className="text-[10px] font-bold text-slate-600 uppercase tracking-wide leading-tight">Υγεία Παραγωγής</div>
-                    <div className="text-[9px] text-slate-400 font-medium">Βάσει χρον. ορίων</div>
+                    <div className="leading-tight">
+                        <div className="text-[10px] font-bold uppercase tracking-wide text-slate-600">Υγεία Παραγωγής</div>
+                        <div className="text-[9px] font-medium text-slate-400">Βάσει χρον. ορίων</div>
+                    </div>
                 </div>
 
-                {/* Οδηγίες Παραγωγής preview box */}
                 {notes.length > 0 && (
                     <button
                         onClick={() => setIsNotesModalOpen(true)}
-                        className="flex flex-col w-80 h-[100px] bg-white rounded-2xl border-2 border-indigo-100 overflow-hidden shrink-0 shadow-sm hover:border-indigo-300 hover:bg-indigo-50/20 transition-colors text-left"
+                        className="flex h-10 items-center gap-2 rounded-xl border-2 border-indigo-100 bg-white px-3 shrink-0 shadow-sm hover:border-indigo-300 hover:bg-indigo-50/40 transition-colors"
                         title="Άνοιγμα όλων των οδηγιών παραγωγής"
                     >
-                        <div className="bg-indigo-50 px-3 py-1.5 border-b border-indigo-100 flex justify-between items-center shrink-0">
-                            <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest flex items-center gap-1">
-                                <ClipboardList size={10} /> Οδηγίες Παραγωγής
-                            </span>
-                            <span className="bg-white text-indigo-600 px-1.5 rounded text-[9px] font-bold shadow-sm">{notes.length}</span>
-                        </div>
-                        <div className="overflow-y-auto p-2 space-y-1.5 custom-scrollbar bg-white">
-                            {notes.map((note, index) => (
-                                <div key={note.id} className={`p-2 rounded-lg border text-[10px] leading-tight ${NOTE_COLORS[index % NOTE_COLORS.length]}`}>
-                                    <div className="flex justify-between font-bold mb-0.5 opacity-90 border-b border-black/5 pb-0.5">
-                                        <span>{index + 1}. {note.customer}</span>
-                                        <span className="font-mono opacity-70">#{formatOrderId(note.id)}</span>
-                                    </div>
-                                    <div className="font-medium italic opacity-90">"{note.note}"</div>
-                                </div>
-                            ))}
-                        </div>
+                        <ClipboardList size={13} className="text-indigo-600 shrink-0" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-700">Οδηγίες</span>
+                        <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-black tabular-nums text-indigo-600">{notes.length}</span>
                     </button>
                 )}
 
-                {/* Stat boxes — with subtle hover lift */}
-                <button onClick={() => onFilterClick('onHold')} className="bg-amber-50 px-4 py-3 rounded-2xl border border-amber-100 min-w-[128px] shrink-0 h-[100px] flex flex-col justify-center hover:bg-amber-100 transition-all duration-200 hover:scale-[1.02] text-left">
-                    <div className="text-[11px] font-bold text-amber-600 uppercase tracking-wide mb-1 flex items-center gap-1 whitespace-nowrap"><PauseCircle size={12} className="shrink-0" /> Σε Αναμονή</div>
-                    <div className="text-2xl font-black text-amber-700">{summary.onHold}</div>
+                <button
+                    onClick={() => onFilterClick('onHold')}
+                    className="flex h-10 items-center gap-2 rounded-xl border border-amber-100 bg-amber-50 px-3 shrink-0 hover:bg-amber-100 transition-colors"
+                >
+                    <PauseCircle size={13} className="shrink-0 text-amber-600" />
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-amber-600 whitespace-nowrap">Σε Αναμονή</span>
+                    <span className="text-base font-black tabular-nums text-amber-700">{summary.onHold}</span>
                 </button>
-                <button onClick={() => onFilterClick('active')} className="bg-slate-50 px-4 py-3 rounded-2xl border border-slate-100 min-w-[128px] shrink-0 h-[100px] flex flex-col justify-center hover:bg-slate-100 transition-all duration-200 hover:scale-[1.02] text-left">
-                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-1 flex items-center gap-1 whitespace-nowrap"><Activity size={12} className="shrink-0" /> Ενεργά</div>
-                    <div className="text-2xl font-black text-slate-800">{summary.inProgress}</div>
+                <button
+                    onClick={() => onFilterClick('active')}
+                    className="flex h-10 items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 shrink-0 hover:bg-slate-100 transition-colors"
+                >
+                    <Activity size={13} className="shrink-0 text-slate-400" />
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400 whitespace-nowrap">Ενεργά</span>
+                    <span className="text-base font-black tabular-nums text-slate-800">{summary.inProgress}</span>
                 </button>
-                <button onClick={() => onFilterClick('delayed')} className={`px-4 py-3 rounded-2xl border min-w-[128px] shrink-0 h-[100px] flex flex-col justify-center transition-all duration-200 hover:scale-[1.02] text-left ${summary.delayed > 0 ? 'bg-red-50 border-red-100 hover:bg-red-100' : 'bg-slate-50 border-slate-100 hover:bg-slate-100'}`}>
-                    <div className={`text-[11px] font-bold uppercase tracking-wide mb-1 flex items-center gap-1 whitespace-nowrap ${summary.delayed > 0 ? 'text-red-500' : 'text-slate-400'}`}>
-                        <Siren size={12} className={`shrink-0 ${summary.delayed > 0 ? 'animate-pulse' : ''}`} /> Καθυστέρηση
-                    </div>
-                    <div className={`text-2xl font-black ${summary.delayed > 0 ? 'text-red-600' : 'text-slate-800'}`}>{summary.delayed}</div>
+                <button
+                    onClick={() => onFilterClick('delayed')}
+                    className={`flex h-10 items-center gap-2 rounded-xl border px-3 shrink-0 transition-colors ${
+                        summary.delayed > 0
+                            ? 'border-red-100 bg-red-50 hover:bg-red-100'
+                            : 'border-slate-100 bg-slate-50 hover:bg-slate-100'
+                    }`}
+                >
+                    <Siren size={13} className={`shrink-0 ${summary.delayed > 0 ? 'animate-pulse text-red-500' : 'text-slate-400'}`} />
+                    <span className={`text-[10px] font-bold uppercase tracking-wide whitespace-nowrap ${summary.delayed > 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                        Καθυστέρηση
+                    </span>
+                    <span className={`text-base font-black tabular-nums ${summary.delayed > 0 ? 'text-red-600' : 'text-slate-800'}`}>{summary.delayed}</span>
                 </button>
-                <button onClick={() => onFilterClick('ready')} className="bg-emerald-50 px-4 py-3 rounded-2xl border border-emerald-100 min-w-[128px] shrink-0 h-[100px] flex flex-col justify-center hover:bg-emerald-100 transition-all duration-200 hover:scale-[1.02] text-left">
-                    <div className="text-[11px] font-bold text-emerald-600 uppercase tracking-wide mb-1 flex items-center gap-1 whitespace-nowrap"><CheckCircle size={12} className="shrink-0" /> Έτοιμα</div>
-                    <div className="text-2xl font-black text-emerald-700">{summary.ready}</div>
+                <button
+                    onClick={() => onFilterClick('ready')}
+                    className="flex h-10 items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-3 shrink-0 hover:bg-emerald-100 transition-colors"
+                >
+                    <CheckCircle size={13} className="shrink-0 text-emerald-600" />
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-600 whitespace-nowrap">Έτοιμα</span>
+                    <span className="text-base font-black tabular-nums text-emerald-700">{summary.ready}</span>
                 </button>
             </div>
 
