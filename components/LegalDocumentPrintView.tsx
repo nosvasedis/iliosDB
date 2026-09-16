@@ -75,36 +75,38 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
 
       <LegalPrintLinesTable lines={lines} currency={document.currency} />
 
-      <table className="legal-print-final-section mt-2 w-full shrink-0 table-fixed border-collapse">
-        <tbody>
-          <tr>
-            <td className="p-0 align-top">
-              <LegalPrintTotalsSection
-                lines={lines}
-                net={document.totals.net}
-                vat={document.totals.vat}
-                gross={document.totals.gross}
-                currency={document.currency}
-                paymentMethodLabel={PAYMENT_METHOD_LABELS[document.payment_method_code] || String(document.payment_method_code)}
-                vatExemptionCategory={document.vat_exemption_category}
-                vatExemptionLegalNote={document.vat_exemption_legal_note}
-                delivery={document.delivery}
-                footerText={footerText}
-              />
+      <div className="legal-print-final-anchor shrink-0 pt-1">
+        <table className="legal-print-final-section w-full table-fixed border-collapse">
+          <tbody>
+            <tr>
+              <td className="p-0 align-top">
+                <LegalPrintTotalsSection
+                  lines={lines}
+                  net={document.totals.net}
+                  vat={document.totals.vat}
+                  gross={document.totals.gross}
+                  currency={document.currency}
+                  paymentMethodLabel={PAYMENT_METHOD_LABELS[document.payment_method_code] || String(document.payment_method_code)}
+                  vatExemptionCategory={document.vat_exemption_category}
+                  vatExemptionLegalNote={document.vat_exemption_legal_note}
+                  delivery={document.delivery}
+                  footerText={footerText}
+                />
 
-              <LegalPrintAadePanel
-                qrUrl={document.qr_url}
-                mark={document.aade_mark}
-                uid={document.aade_uid}
-                authenticationCode={document.authentication_code}
-                provider={document.provider}
-                documentTypeCode={document.aade_document_type}
-                revenueClassificationText={revenueClassificationText}
-              />
-            </td>
-          </tr>
-        </tbody>
-      </table>
+                <LegalPrintAadePanel
+                  qrUrl={document.qr_url}
+                  mark={document.aade_mark}
+                  uid={document.aade_uid}
+                  authenticationCode={document.authentication_code}
+                  provider={document.provider}
+                  documentTypeCode={document.aade_document_type}
+                  revenueClassificationText={revenueClassificationText}
+                />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </LegalPrintPage>
   );
 };

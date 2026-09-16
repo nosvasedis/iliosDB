@@ -5,6 +5,8 @@ import LegalDocumentPrintView from '../../components/LegalDocumentPrintView';
 import {
   getMeasurementUnitLabel,
   getVatCategoryPrintRate,
+  calculateLegalPrintPageCount,
+  calculatePaginatedLegalPrintPageCount,
   LEGAL_PRINT_CSS,
   LegalPrintCustomerBar,
   LegalPrintHeader,
@@ -113,13 +115,49 @@ describe('legal print semantics', () => {
     expect(LEGAL_PRINT_CSS).toContain('font-size: 10px;');
     expect(LEGAL_PRINT_CSS).toContain('line-height: 1.3;');
     expect(LEGAL_PRINT_CSS).toContain('.legal-print-final-section');
+    expect(LEGAL_PRINT_CSS).toContain('min-height: calc(var(--legal-print-page-count, 1) * 297mm)');
     expect(LEGAL_PRINT_CSS).toContain('break-inside: avoid-page !important;');
     expect(LEGAL_PRINT_CSS).not.toContain('break-before: avoid-page');
     expect(LEGAL_PRINT_CSS).not.toContain('break-after: avoid-page');
     expect(html).toContain('legal-print-lines-table shrink-0');
     expect(html).not.toContain('legal-print-lines-table min-h-[78mm] grow');
+    expect(LEGAL_PRINT_CSS).toContain('position: absolute;');
+    expect(LEGAL_PRINT_CSS).toContain('bottom: 6mm;');
+    expect(html).toContain('legal-print-final-anchor shrink-0');
+    expect(html).not.toContain('legal-print-final-anchor mt-auto');
     expect(html).not.toContain('text-[6.25px]');
     expect(html).not.toContain('text-[6.5px]');
+  });
+
+  it('rounds the measured print content up to complete A4 pages', () => {
+    expect(calculateLegalPrintPageCount(900, 1000)).toBe(1);
+    expect(calculateLegalPrintPageCount(1000, 1000)).toBe(1);
+    expect(calculateLegalPrintPageCount(1001, 1000)).toBe(1);
+    expect(calculateLegalPrintPageCount(1002, 1000)).toBe(2);
+    expect(calculateLegalPrintPageCount(2500, 1000)).toBe(3);
+    expect(calculateLegalPrintPageCount(Number.NaN, 1000)).toBe(1);
+  });
+
+  it('accounts for repeated table headers and keeps the complete footer on the final page', () => {
+    expect(calculatePaginatedLegalPrintPageCount({
+      pageHeight: 100,
+      firstPageContentHeight: 35,
+      tableHeaderHeight: 10,
+      tableFrameHeight: 2,
+      rowHeights: [15, 15],
+      finalSectionHeight: 20,
+      finalPageBottomPadding: 3,
+    })).toBe(1);
+
+    expect(calculatePaginatedLegalPrintPageCount({
+      pageHeight: 100,
+      firstPageContentHeight: 35,
+      tableHeaderHeight: 10,
+      tableFrameHeight: 2,
+      rowHeights: [20, 20, 20, 20, 20],
+      finalSectionHeight: 35,
+      finalPageBottomPadding: 5,
+    })).toBe(3);
   });
 
   it('maps every myDATA 8.13 measurement-unit code to its official Greek label', () => {
