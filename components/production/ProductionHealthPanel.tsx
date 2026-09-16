@@ -53,65 +53,75 @@ export default function ProductionHealthPanel({ summary, notes, onFilterClick }:
 
     return (
         <>
-            <div className="flex flex-wrap items-center justify-center gap-2">
-                <div className={`flex h-10 items-center gap-2 rounded-xl border px-2.5 shrink-0 ${tone.box}`}>
+            <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(10.5rem,1fr))] gap-2">
+                <div className={`flex h-10 min-w-0 items-center gap-2 rounded-xl border px-3 ${tone.box}`}>
                     <div className={`flex h-7 min-w-7 items-center justify-center rounded-full border-2 bg-white px-0.5 text-[10px] font-black tabular-nums shadow-inner ${tone.ring}`}>
                         {summary.healthScore.toFixed(0)}%
                     </div>
-                    <div className="leading-tight">
-                        <div className="text-[10px] font-bold uppercase tracking-wide text-slate-600">Υγεία Παραγωγής</div>
-                        <div className="text-[9px] font-medium text-slate-400">Βάσει χρον. ορίων</div>
+                    <div className="min-w-0 leading-tight">
+                        <div className="truncate text-[10px] font-bold uppercase tracking-wide text-slate-600">Υγεία Παραγωγής</div>
+                        <div className="truncate text-[9px] font-medium text-slate-400">Βάσει χρον. ορίων</div>
                     </div>
                 </div>
 
                 {notes.length > 0 && (
                     <button
                         onClick={() => setIsNotesModalOpen(true)}
-                        className="flex h-10 items-center gap-2 rounded-xl border-2 border-indigo-100 bg-white px-3 shrink-0 shadow-sm hover:border-indigo-300 hover:bg-indigo-50/40 transition-colors"
+                        className="flex h-10 min-w-0 items-center justify-between gap-2 rounded-xl border-2 border-indigo-100 bg-white px-3 shadow-sm hover:border-indigo-300 hover:bg-indigo-50/40 transition-colors"
                         title="Άνοιγμα όλων των οδηγιών παραγωγής"
                     >
-                        <ClipboardList size={13} className="text-indigo-600 shrink-0" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-700">Οδηγίες</span>
+                        <span className="flex min-w-0 items-center gap-2">
+                            <ClipboardList size={13} className="text-indigo-600 shrink-0" />
+                            <span className="truncate text-[10px] font-black uppercase tracking-widest text-indigo-700">Οδηγίες</span>
+                        </span>
                         <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-black tabular-nums text-indigo-600">{notes.length}</span>
                     </button>
                 )}
 
                 <button
                     onClick={() => onFilterClick('onHold')}
-                    className="flex h-10 items-center gap-2 rounded-xl border border-amber-100 bg-amber-50 px-3 shrink-0 hover:bg-amber-100 transition-colors"
+                    className="flex h-10 min-w-0 items-center justify-between gap-2 rounded-xl border border-amber-100 bg-amber-50 px-3 hover:bg-amber-100 transition-colors"
                 >
-                    <PauseCircle size={13} className="shrink-0 text-amber-600" />
-                    <span className="text-[10px] font-bold uppercase tracking-wide text-amber-600 whitespace-nowrap">Σε Αναμονή</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                        <PauseCircle size={13} className="shrink-0 text-amber-600" />
+                        <span className="truncate text-[10px] font-bold uppercase tracking-wide text-amber-600">Σε Αναμονή</span>
+                    </span>
                     <span className="text-base font-black tabular-nums text-amber-700">{summary.onHold}</span>
                 </button>
                 <button
                     onClick={() => onFilterClick('active')}
-                    className="flex h-10 items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 shrink-0 hover:bg-slate-100 transition-colors"
+                    className="flex h-10 min-w-0 items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 hover:bg-slate-100 transition-colors"
                 >
-                    <Activity size={13} className="shrink-0 text-slate-400" />
-                    <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400 whitespace-nowrap">Ενεργά</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                        <Activity size={13} className="shrink-0 text-slate-400" />
+                        <span className="truncate text-[10px] font-bold uppercase tracking-wide text-slate-400">Ενεργά</span>
+                    </span>
                     <span className="text-base font-black tabular-nums text-slate-800">{summary.inProgress}</span>
                 </button>
                 <button
                     onClick={() => onFilterClick('delayed')}
-                    className={`flex h-10 items-center gap-2 rounded-xl border px-3 shrink-0 transition-colors ${
+                    className={`flex h-10 min-w-0 items-center justify-between gap-2 rounded-xl border px-3 transition-colors ${
                         summary.delayed > 0
                             ? 'border-red-100 bg-red-50 hover:bg-red-100'
                             : 'border-slate-100 bg-slate-50 hover:bg-slate-100'
                     }`}
                 >
-                    <Siren size={13} className={`shrink-0 ${summary.delayed > 0 ? 'animate-pulse text-red-500' : 'text-slate-400'}`} />
-                    <span className={`text-[10px] font-bold uppercase tracking-wide whitespace-nowrap ${summary.delayed > 0 ? 'text-red-500' : 'text-slate-400'}`}>
-                        Καθυστέρηση
+                    <span className="flex min-w-0 items-center gap-2">
+                        <Siren size={13} className={`shrink-0 ${summary.delayed > 0 ? 'animate-pulse text-red-500' : 'text-slate-400'}`} />
+                        <span className={`truncate text-[10px] font-bold uppercase tracking-wide ${summary.delayed > 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                            Καθυστέρηση
+                        </span>
                     </span>
                     <span className={`text-base font-black tabular-nums ${summary.delayed > 0 ? 'text-red-600' : 'text-slate-800'}`}>{summary.delayed}</span>
                 </button>
                 <button
                     onClick={() => onFilterClick('ready')}
-                    className="flex h-10 items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-3 shrink-0 hover:bg-emerald-100 transition-colors"
+                    className="flex h-10 min-w-0 items-center justify-between gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-3 hover:bg-emerald-100 transition-colors"
                 >
-                    <CheckCircle size={13} className="shrink-0 text-emerald-600" />
-                    <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-600 whitespace-nowrap">Έτοιμα</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                        <CheckCircle size={13} className="shrink-0 text-emerald-600" />
+                        <span className="truncate text-[10px] font-bold uppercase tracking-wide text-emerald-600">Έτοιμα</span>
+                    </span>
                     <span className="text-base font-black tabular-nums text-emerald-700">{summary.ready}</span>
                 </button>
             </div>
