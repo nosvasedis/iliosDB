@@ -243,10 +243,25 @@ describe('legal print semantics', () => {
     expect(html).toContain('IBAN:');
     expect(html).toContain('GR1401100880000008800336185');
     expect(html).toContain('Όροι παράδοσης');
+    expect(html.match(/legal-print-full-width-details/g)).toHaveLength(2);
+    expect(html).not.toContain('ml-[30mm]');
     expect(html).toContain('Τα εμπορεύματα ταξιδεύουν για λογαριασμό και με κίνδυνο του αγοραστή.');
     expect(html).toContain('Για κάθε διαφορά αρμόδια είναι τα δικαστήρια του Πειραιά.');
     expect(html).toContain('Η εξόφληση του τιμολογίου πρέπει να γίνεται με την παράδοση.');
     expect(html.match(/Σύνοψη παραστατικού/g)).toHaveLength(1);
+    expect(html).toContain('Συνολική ποσότητα');
+    expect(html).not.toContain('Συν. ποσότητα');
+    expect(html.indexOf('Συνολική ποσότητα')).toBeLessThan(html.indexOf('Συντελεστής ΦΠΑ'));
+    expect(html.indexOf('Συντελεστής ΦΠΑ')).toBeLessThan(html.indexOf('Αξία προ έκπτωσης'));
+    expect(html.indexOf('Αξία προ έκπτωσης')).toBeLessThan(html.indexOf('Ποσοστό έκπτωσης'));
+    expect(html.indexOf('Ποσοστό έκπτωσης')).toBeLessThan(html.indexOf('Αξία έκπτωσης'));
+    expect(html.indexOf('Αξία έκπτωσης')).toBeLessThan(html.indexOf('Καθαρή αξία μετά την έκπτωση'));
+    expect(html.indexOf('Καθαρή αξία μετά την έκπτωση')).toBeLessThan(html.indexOf('Αξία ΦΠΑ'));
+    expect(html.indexOf('Αξία ΦΠΑ')).toBeLessThan(html.indexOf('Τελική αξία με έκπτωση'));
+    expect(html).toContain('250,00 €');
+    expect(html).toContain('Ποσοστό έκπτωσης</span><span');
+    expect(html).toContain('>20%</span>');
+    expect(html).toContain('50,00 €');
     expect(html).toContain('legal-print-final-section');
     expect(html.indexOf('legal-print-final-section')).toBeLessThan(html.indexOf('Σύνοψη παραστατικού'));
     expect(html.indexOf('Σύνοψη παραστατικού')).toBeLessThan(html.indexOf('Στοιχεία επαλήθευσης'));
@@ -308,6 +323,26 @@ describe('legal print semantics', () => {
     expect(html.match(/Σχόλιο:/g)).toHaveLength(1);
     expect(html).not.toContain('Έδρα μας');
     expect(html).not.toContain('Παράδοση:');
+  });
+
+  it('omits every discount-only summary field when the document has no discount', () => {
+    const noDiscountLines = [{
+      ...lines[0],
+      source_metadata: { line_comments: 'Ειδική συσκευασία' },
+    }];
+    const html = renderToStaticMarkup(
+      <LegalDocumentPrintView document={document} lines={noDiscountLines} />,
+    );
+
+    expect(html).toContain('Συνολική ποσότητα');
+    expect(html).toContain('Καθαρή αξία');
+    expect(html).toContain('Αξία ΦΠΑ');
+    expect(html).toContain('Τελική αξία');
+    expect(html).not.toContain('Αξία προ έκπτωσης');
+    expect(html).not.toContain('Ποσοστό έκπτωσης');
+    expect(html).not.toContain('Αξία έκπτωσης');
+    expect(html).not.toContain('Καθαρή αξία μετά την έκπτωση');
+    expect(html).not.toContain('Τελική αξία με έκπτωση');
   });
 
   it('prints the persisted legal exemption wording for Mount Athos', () => {
