@@ -53,6 +53,7 @@ import {
   ProformaDocument,
   UserProfile,
 } from '../../types';
+import { canIssueCreditForInvoice } from '../../features/legal/sbz';
 import {
   createDefaultLegalArchiveFilters,
   filterLegalArchiveRecords,
@@ -959,6 +960,17 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
     return map;
   }, [props.records]);
 
+  const creditEligibleIds = useMemo(() => {
+    const legalRecords = props.records.filter((record) => record.source === 'legal');
+    const documents = legalRecords.map((record) => record.document as LegalDocument);
+    const allLines = legalRecords.flatMap((record) => record.lines as LegalDocumentLine[]);
+    return new Set(
+      legalRecords
+        .filter((record) => canIssueCreditForInvoice(record.document as LegalDocument, record.lines as LegalDocumentLine[], documents, allLines))
+        .map((record) => record.document.id),
+    );
+  }, [props.records]);
+
   const pageRecordKeys = pageRecords.map((record) => record.key).join('|');
   useLayoutEffect(() => {
     const frame = listFrameRef.current;
@@ -1131,7 +1143,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
               {icon(<Ban size={14} />, 'Ακύρωση')}
             </ArchiveActionButton>
           )}
-          {document.status === 'issued' && ['invoice', 'invoice_delivery'].includes(document.document_kind) && (
+          {creditEligibleIds.has(document.id) && (
             <ArchiveActionButton compact={compact} tone="credit" title="Έκδοση πιστωτικού" onClick={() => props.onCreditLegal?.(document)} disabled={props.mutating}>
               {icon(<FileText size={14} />, 'Πιστωτικό')}
             </ArchiveActionButton>

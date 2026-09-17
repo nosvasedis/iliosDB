@@ -130,6 +130,11 @@ describe('legal archive database contract', () => {
     });
   });
 
+  it('offers a credit action only while remaining invoice quantity can still be credited', () => {
+    expect(archiveWorkspaceSource).toContain('canIssueCreditForInvoice');
+    expect(archiveWorkspaceSource).toMatch(/creditEligibleIds\.has\(document\.id\) && \([\s\S]*?title="Έκδοση πιστωτικού"/);
+  });
+
   it('shows the archive open action only for editable legal documents', () => {
     expect(archiveWorkspaceSource).toContain('isLegalDocumentEditable');
     expect(archiveWorkspaceSource).toMatch(/isLegalDocumentEditable\(document\) && \([\s\S]*?title="Άνοιγμα"/);

@@ -1,4 +1,4 @@
-import { SBZ_MOVE_PURPOSES, validateSbzDocument } from '../features/legal/sbz';
+import { canIssueCreditForInvoice, remainingCreditQuantityByLine, reservedCreditLinesForOrigin, SBZ_MOVE_PURPOSES, validateSbzDocument } from '../features/legal/sbz';
 import SbzSettings, { useSbzStatus } from './legal/SbzSettings';
 import CreditDocumentModal from './legal/CreditDocumentModal';
 import { api } from '../lib/supabase';
@@ -815,9 +815,12 @@ export default function LegalDocumentsPage({
   const openCredit = async (document: LegalDocument) => {
     try {
       const lines = await legalRepository.getDocumentLines(document.id);
-      const credits = new Set(legalDocuments.filter(d => d.credited_document_id === document.id && (['submitted', 'issued'].includes(d.status) || ['sending', 'unknown'].includes(d.provider_state))).map(d => d.id));
-      const available = Object.fromEntries(lines.map(l => [l.id, Math.max(0, l.quantity - allLegalDocumentLines.filter(c => c.credited_line_id === l.id && credits.has(c.document_id)).reduce((sum, c) => sum + c.quantity, 0))]));
-      setCreditSource({document, lines, available, reservedLines: allLegalDocumentLines.filter(c => credits.has(c.document_id))});
+      if (!canIssueCreditForInvoice(document, lines, legalDocuments, allLegalDocumentLines)) {
+        showToast('Δεν απομένει ποσότητα για πίστωση σε αυτό το τιμολόγιο.', 'info');
+        return;
+      }
+      const reservedLines = reservedCreditLinesForOrigin(document.id, legalDocuments, allLegalDocumentLines);
+      setCreditSource({ document, lines, available: remainingCreditQuantityByLine(lines, reservedLines), reservedLines });
     } catch (e) { showToast((e as Error).message, 'error'); }
   };
   const reconcileSbz = async (document: LegalDocument) => {

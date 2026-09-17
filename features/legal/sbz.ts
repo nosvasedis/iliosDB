@@ -132,6 +132,46 @@ export function sbzFailureMessage(code: string) {
   return messages[code] || 'Ο πάροχος δεν δέχθηκε το παραστατικό. Ελέγξτε τα στοιχεία του ή ζητήστε υποστήριξη.';
 }
 
+export function isReservingCreditDocument(document: Pick<LegalDocument, 'document_kind' | 'status' | 'credited_document_id'>) {
+  return document.document_kind === 'credit' && Boolean(document.credited_document_id) && document.status !== 'cancelled';
+}
+
+export function reservedCreditLinesForOrigin(
+  originId: string,
+  documents: Array<Pick<LegalDocument, 'id' | 'document_kind' | 'status' | 'credited_document_id'>>,
+  lines: LegalDocumentLine[],
+) {
+  const reservedIds = new Set(
+    documents
+      .filter((document) => document.credited_document_id === originId && isReservingCreditDocument(document))
+      .map((document) => document.id),
+  );
+  return lines.filter((line) => reservedIds.has(line.document_id));
+}
+
+export function remainingCreditQuantityByLine(originalLines: LegalDocumentLine[], reservedLines: LegalDocumentLine[]) {
+  return Object.fromEntries(originalLines.map((line) => {
+    const used = reservedLines
+      .filter((creditLine) => creditLine.credited_line_id === line.id)
+      .reduce((sum, creditLine) => sum + Number(creditLine.quantity || 0), 0);
+    return [line.id, Math.max(0, Number(line.quantity || 0) - used)];
+  })) as Record<string, number>;
+}
+
+export function canIssueCreditForInvoice(
+  original: Pick<LegalDocument, 'id' | 'status' | 'document_kind'>,
+  originalLines: LegalDocumentLine[],
+  documents: Array<Pick<LegalDocument, 'id' | 'document_kind' | 'status' | 'credited_document_id'>>,
+  allLines: LegalDocumentLine[],
+) {
+  if (original.status !== 'issued' || !['invoice', 'invoice_delivery'].includes(original.document_kind)) return false;
+  const reservingCredits = documents.filter((document) => document.credited_document_id === original.id && isReservingCreditDocument(document));
+  if (!reservingCredits.length) return originalLines.some((line) => Number(line.quantity || 0) > 0);
+  const reserved = reservedCreditLinesForOrigin(original.id, documents, allLines);
+  if (reservingCredits.length && !reserved.some((line) => line.credited_line_id)) return false;
+  return Object.values(remainingCreditQuantityByLine(originalLines, reserved)).some((quantity) => quantity > 0);
+}
+
 export function buildCreditDraft(original: LegalDocument, originalLines: LegalDocumentLine[], quantities: Record<string, number>, reservedLines: LegalDocumentLine[] = []) {
   if (original.status !== 'issued' || !['invoice', 'invoice_delivery'].includes(original.document_kind) || !original.aade_mark || !original.environment) throw new Error('Το αρχικό τιμολόγιο χρειάζεται έγκυρη έκδοση και επιβεβαιωμένο περιβάλλον.');
   const id = crypto.randomUUID();

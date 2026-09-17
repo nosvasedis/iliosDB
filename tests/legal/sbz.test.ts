@@ -1,6 +1,6 @@
 import { describe,it,expect } from 'vitest';
 import { buildManualLegalDocument, createManualLegalDocumentLine, DEFAULT_LEGAL_SETTINGS, recalculateLegalDocument } from '../../utils/legalDocuments';
-import { buildSbzInvoiceXml, parseSbzResponse, buildCreditDraft, validateSbzDocument } from '../../features/legal/sbz';
+import { buildSbzInvoiceXml, parseSbzResponse, buildCreditDraft, canIssueCreditForInvoice, validateSbzDocument } from '../../features/legal/sbz';
 import type { LegalDocument, LegalDocumentLine } from '../../types';
 
 import { sbzFixture } from './sbzFixture';
@@ -40,6 +40,17 @@ describe('SBZ wholesale contract',()=>{
   });
   it('rejects malformed and entity-bearing responses',()=>{
     expect(()=>parseSbzResponse('<response>')).toThrow();expect(()=>parseSbzResponse('<!DOCTYPE test><response/>')).toThrow();
+  });
+  it('hides a further credit when remaining quantity is exhausted and allows one when quantity remains',()=>{
+    const {document,lines}=sbzFixture();
+    const original={...document,status:'issued' as const,aade_mark:'123'};
+    expect(canIssueCreditForInvoice(original,lines,[original],lines)).toBe(true);
+    const partial=buildCreditDraft(original,lines,{[lines[0].id]:1});
+    expect(canIssueCreditForInvoice(original,lines,[original,partial.document],[...lines,...partial.lines])).toBe(true);
+    const full=buildCreditDraft(original,lines,{[lines[0].id]:2});
+    expect(canIssueCreditForInvoice(original,lines,[original,full.document],[...lines,...full.lines])).toBe(false);
+    const cancelled={...full.document,status:'cancelled' as const};
+    expect(canIssueCreditForInvoice(original,lines,[original,cancelled],[...lines,...full.lines])).toBe(true);
   });
   it('creates partial correlated credits from original monetary values',()=>{
     const {document,lines}=sbzFixture(); const credit=buildCreditDraft({...document,status:'issued',aade_mark:'123'},lines,{[lines[0].id]:1});
