@@ -9,7 +9,9 @@ import {
   Archive,
   ArrowRight,
   Ban,
+  Building2,
   CheckCircle2,
+  Hash,
   ChevronDown,
   ChevronUp,
   ClipboardCheck,
@@ -429,6 +431,85 @@ const ActionButton = ({
     >
       {children}
     </button>
+  );
+};
+
+const SettingsCard = ({
+  icon: Icon,
+  tone = 'slate',
+  title,
+  subtitle,
+  action,
+  children,
+}: {
+  icon: LucideIcon;
+  tone?: 'slate' | 'emerald' | 'indigo' | 'sky' | 'amber';
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) => {
+  const tones = {
+    slate: 'bg-slate-100 text-slate-700',
+    emerald: 'bg-emerald-50 text-emerald-700',
+    indigo: 'bg-indigo-50 text-indigo-700',
+    sky: 'bg-sky-50 text-sky-700',
+    amber: 'bg-amber-50 text-amber-700',
+  };
+  return (
+    <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tones[tone]}`}>
+            <Icon size={18} />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-base font-black tracking-tight text-slate-900">{title}</h2>
+            {subtitle && <p className="mt-0.5 max-w-3xl text-sm font-medium leading-5 text-slate-500">{subtitle}</p>}
+          </div>
+        </div>
+        {action ? <div className="shrink-0">{action}</div> : null}
+      </div>
+      <div className="p-5">{children}</div>
+    </section>
+  );
+};
+
+const SettingsGroup = ({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) => (
+  <div className="space-y-3">
+    <div>
+      <h3 className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">{title}</h3>
+      {description && <p className="mt-1 text-xs font-medium leading-5 text-slate-500">{description}</p>}
+    </div>
+    {children}
+  </div>
+);
+
+const SettingsStatusBadge = ({
+  tone,
+  children,
+}: {
+  tone: 'emerald' | 'sky' | 'amber' | 'slate';
+  children: React.ReactNode;
+}) => {
+  const tones = {
+    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    sky: 'border-sky-200 bg-sky-50 text-sky-700',
+    amber: 'border-amber-200 bg-amber-50 text-amber-800',
+    slate: 'border-slate-200 bg-slate-50 text-slate-600',
+  };
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-black ${tones[tone]}`}>
+      {children}
+    </span>
   );
 };
 
@@ -3505,285 +3586,339 @@ export default function LegalDocumentsPage({
     </section>
   );
 
-  const renderSettingsTab = () => (
-    <div className="grid gap-5 xl:grid-cols-[1fr_420px]">
+  const renderSettingsTab = () => {
+    const environmentLabel = settingsDraft.environment === 'dev' ? 'Δοκιμές' : 'Παραγωγή';
+    const environmentSequences = sequences.filter((sequence) => (sequence.environment || 'prod') === settingsDraft.environment);
+    const registryStatusTone = registryConnectionStatus.verified
+      ? 'emerald'
+      : credentialStatus?.registry?.ready
+        ? 'sky'
+        : 'amber';
+    const registryStatusLabel = registryConnectionStatus.verified
+      ? 'Επαληθευμένο'
+      : credentialStatus?.registry?.ready
+        ? 'Αναμένει έλεγχο'
+        : 'Δεν έχει ρυθμιστεί';
+
+    return (
       <div className="space-y-5">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <SbzSettings environment={settingsDraft.environment} onEnvironmentChange={handleEnvironmentChange} />
+        <SbzSettings environment={settingsDraft.environment} onEnvironmentChange={handleEnvironmentChange} />
 
-          <div className="mt-5 rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="font-black text-indigo-950">Επίσημος έλεγχος Μητρώου ΑΦΜ</div>
-                <p className="mt-1 max-w-3xl text-xs font-medium leading-5 text-indigo-800">
-                  Είναι ξεχωριστή υπηρεσία από το myDATA. Επιστρέφει ενεργό ή ανενεργό ΑΦΜ, επωνυμία,
-                  διακριτικό τίτλο, ΔΟΥ, νομική μορφή, ημερομηνίες έναρξης/διακοπής, έδρα, καθεστώς ΦΠΑ
-                  και δραστηριότητες. Η αναζήτηση γίνεται μόνο όταν τη ζητήσει ο χρήστης.
-                </p>
-              </div>
-              <span className={`rounded-lg border px-2 py-1 text-xs font-black ${
-                registryConnectionStatus.verified
-                  ? 'border-emerald-200 bg-white text-emerald-700'
-                  : credentialStatus?.registry?.ready
-                    ? 'border-sky-200 bg-white text-sky-700'
-                    : 'border-amber-200 bg-white text-amber-800'
-              }`}>
-                {registryConnectionStatus.verified
-                  ? 'Επαληθευμένο'
-                  : credentialStatus?.registry?.ready
-                    ? 'Αναμένει έλεγχο σύνδεσης'
-                    : 'Δεν έχει ρυθμιστεί'}
-              </span>
+        <SettingsCard
+          icon={Search}
+          tone="indigo"
+          title="Επίσημος έλεγχος Μητρώου ΑΦΜ"
+          subtitle="Ξεχωριστή υπηρεσία από το myDATA. Ελέγχει ΑΦΜ, επωνυμία, ΔΟΥ και έδρα μόνο όταν το ζητήσετε."
+          action={<SettingsStatusBadge tone={registryStatusTone}>{registryStatusLabel}</SettingsStatusBadge>}
+        >
+          {missingRegistryCredentials.length > 0 && (
+            <div className="mb-4 flex flex-wrap gap-2">
+              {missingRegistryCredentials.map((name) => (
+                <span key={name} className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-bold text-amber-800">
+                  {credentialSecretLabel(name)}
+                </span>
+              ))}
             </div>
-            {missingRegistryCredentials.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {missingRegistryCredentials.map((name) => (
-                  <span key={name} className="rounded-lg border border-amber-200 bg-white px-2 py-1 text-xs font-bold text-amber-800">
-                    {credentialSecretLabel(name)}
-                  </span>
-                ))}
-              </div>
-            )}
-            <div className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_auto_auto] md:items-end">
-              <TextInput
-                label="Όνομα χρήστη ειδικών κωδικών"
-                value={registryCredentialDraft.username}
-                onChange={(value) => setRegistryCredentialDraft((current) => ({ ...current, username: value }))}
-                help="Ο ειδικός κωδικός της υπηρεσίας «Αναζήτηση Βασικών Στοιχείων Μητρώου Επιχειρήσεων»."
-              />
-              <TextInput
-                label="Κωδικός ειδικών κωδικών"
-                type="password"
-                value={registryCredentialDraft.password}
-                onChange={(value) => setRegistryCredentialDraft((current) => ({ ...current, password: value }))}
-                help="Δεν είναι ο κωδικός TAXISnet ούτε το Subscription Key του myDATA."
-              />
-              <ActionButton
-                onClick={handleSaveAadeRegistryCredentials}
-                disabled={saveAadeRegistryCredentials.isPending}
-              >
-                {saveAadeRegistryCredentials.isPending
-                  ? <Loader2 size={16} className="animate-spin" />
-                  : <Save size={16} />}
-                Αποθήκευση
-              </ActionButton>
-              <ActionButton
-                variant="secondary"
-                onClick={() => void handleTestAadeRegistryConnection()}
-                disabled={!credentialStatus?.registry?.ready}
-                title="Κάνει μία ρητή αναζήτηση του ΑΦΜ της επιχείρησης για να επαληθεύσει τους ειδικούς κωδικούς."
-              >
-                <ShieldCheck size={16} />
-                Έλεγχος σύνδεσης
-              </ActionButton>
-            </div>
-            {registryConnectionStatus.message && (
-              <div className={`mt-3 rounded-lg border px-3 py-2 text-xs font-bold ${
-                registryConnectionStatus.verified
-                  ? 'border-emerald-200 bg-white text-emerald-700'
-                  : 'border-amber-200 bg-white text-amber-800'
-              }`}>
-                {registryConnectionStatus.message}
-                {registryConnectionStatus.verifiedAt
-                  ? ` · Τελευταία επαλήθευση ${new Date(registryConnectionStatus.verifiedAt).toLocaleString('el-GR')}`
-                  : ''}
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center gap-2"><ShieldCheck size={18} className="text-emerald-600" /><h2 className="font-black text-slate-900">Εκδότης / ΑΑΔΕ</h2></div>
-          <div className="grid gap-4 md:grid-cols-4">
-            <SelectInput label="Περιβάλλον" value={settingsDraft.environment} onChange={handleEnvironmentChange} help="Το ενεργό περιβάλλον που θα χρησιμοποιείται για αποστολή και συγχρονισμό.">
-              <option value="dev">SBZ Δοκιμών</option>
-              <option value="prod">SBZ Παραγωγής</option>
-            </SelectInput>
-            <TextInput label="ΑΦΜ Εκδότη" value={settingsDraft.issuer.vat_number || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, vat_number: normalizeVatNumber(value) } }))} help="Πρέπει να είναι ο πραγματικός ΑΦΜ της εγγραφής API myDATA (ίδιος με το αναγνωριστικό χρήστη ΑΑΔΕ). Το περιβάλλον Δοκιμών δεν δέχεται πλασματικούς αριθμούς." />
-            <TextInput label="Επωνυμία" value={settingsDraft.issuer.business_name || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, business_name: value, name: value } }))} />
-            <TextInput label="Υποκατάστημα" type="number" value={settingsDraft.issuer.branch ?? 0} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, branch: Number(value) || 0 } }))} help="0 για έδρα. Άλλος αριθμός μόνο αν έχει δηλωθεί υποκατάστημα στην ΑΑΔΕ." />
-          </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-4">
-            <TextInput label="Οδός" value={settingsDraft.issuer.address?.street || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, address: { ...(current.issuer.address || {}), street: value } } }))} />
-            <TextInput label="Αριθμός" value={settingsDraft.issuer.address?.number || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, address: { ...(current.issuer.address || {}), number: value } } }))} />
-            <TextInput label="Τ.Κ." value={settingsDraft.issuer.address?.postal_code || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, address: { ...(current.issuer.address || {}), postal_code: value } } }))} />
-            <TextInput label="Πόλη" value={settingsDraft.issuer.address?.city || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, address: { ...(current.issuer.address || {}), city: value } } }))} />
-          </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-4">
-            <TextInput label="Διακριτικός τίτλος" value={settingsDraft.issuer.trade_name || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, trade_name: value } }))} />
-            <TextInput label="ΔΟΥ" value={settingsDraft.issuer.doy || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, doy: value } }))} help="Μπορεί να συμπληρωθεί από τον επίσημο έλεγχο Μητρώου." />
-            <TextInput label="Νομική μορφή" value={settingsDraft.issuer.legal_form || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, legal_form: value } }))} />
-            <TextInput label="Αριθμός ΓΕΜΗ" value={settingsDraft.issuer.gemi || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, gemi: value } }))} help="Συμπληρώνεται χειροκίνητα· δεν επιστρέφεται από το Μητρώο ΑΑΔΕ." />
-          </div>
-          <div className="mt-4">
-            <TextInput label="Κύρια δραστηριότητα" value={settingsDraft.issuer.activity || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, activity: value } }))} help="Προαιρετικό στοιχείο εκτύπωσης. Μπορεί να συμπληρωθεί από το Μητρώο ΑΑΔΕ." />
-          </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-4">
-            <TextInput label="Τηλέφωνο" value={settingsDraft.issuer.phone || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, phone: value } }))} />
-            <TextInput label="Email" value={settingsDraft.issuer.email || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, email: value } }))} />
-            <SelectInput label="Προεπιλογή πληρωμής" value={settingsDraft.default_payment_method} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_payment_method: Number(value) }))}>
-              {PAYMENT_METHOD_CODES.filter(code => ![7, 8].includes(code)).map((code) => <option key={code} value={code}>{PAYMENT_METHOD_LABELS[code]}</option>)}
-            </SelectInput>
-            <VatExemptionCategorySelect
-              label="Προεπιλογή αιτίας απαλλαγής ΦΠΑ"
-              value={settingsDraft.default_vat_exemption_category}
-              onChange={(value) => setSettingsDraft((current) => ({ ...current, default_vat_exemption_category: value }))}
+          )}
+          <div className="grid gap-4 md:grid-cols-2">
+            <TextInput
+              label="Όνομα χρήστη ειδικών κωδικών"
+              value={registryCredentialDraft.username}
+              onChange={(value) => setRegistryCredentialDraft((current) => ({ ...current, username: value }))}
+              help="Ο ειδικός κωδικός της υπηρεσίας «Αναζήτηση Βασικών Στοιχείων Μητρώου Επιχειρήσεων»."
+            />
+            <TextInput
+              label="Κωδικός ειδικών κωδικών"
+              type="password"
+              value={registryCredentialDraft.password}
+              onChange={(value) => setRegistryCredentialDraft((current) => ({ ...current, password: value }))}
+              help="Δεν είναι ο κωδικός TAXISnet ούτε το Subscription Key του myDATA."
             />
           </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-3">
-            <SelectInput label="Κατηγορία κανονικών ειδών" value={settingsDraft.default_income_classification_category} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_income_classification_category: value, inhouse_income_classification_category: value, imported_income_classification_category: value }))} help="Εφαρμόζεται σε όλες τις κανονικές γραμμές. Για τη συνήθη μεταπώληση επιλέξτε «Πώληση εμπορευμάτων». Ο ακριβής κωδικός 000 παραμένει πάντα παροχή υπηρεσίας.">
-              {incomeCategoryOptions.filter((option) => ['category1_1', 'category1_2'].includes(option.value)).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </SelectInput>
-            <SelectInput label="Προεπιλογή πώλησης" value={settingsDraft.default_income_classification_type} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_income_classification_type: value, inhouse_income_classification_type: value, imported_income_classification_type: value }))} help="Ο χαρακτηρισμός εσόδου που θα μπαίνει αυτόματα στις γραμμές.">
-              {!incomeTypeOptions.some((option) => option.value === settingsDraft.default_income_classification_type) && (
-                <option value={settingsDraft.default_income_classification_type}>{settingsDraft.default_income_classification_type}</option>
-              )}
-              {incomeTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </SelectInput>
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-950"><strong>Αυτόματος κανόνας:</strong> μόνο ο ακριβής κωδικός <span className="font-mono">000</span> χαρακτηρίζεται ως υπηρεσία. Κάθε γραμμή μπορεί να αλλάξει ρητά πριν από τη διαβίβαση.</div>
-            <SelectInput label="Σκοπός Διακίνησης" value={settingsDraft.default_move_purpose} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_move_purpose: Number(value) || 1 }))}>{Object.entries(SBZ_MOVE_PURPOSES).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</SelectInput>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <ActionButton
+              onClick={handleSaveAadeRegistryCredentials}
+              disabled={saveAadeRegistryCredentials.isPending}
+            >
+              {saveAadeRegistryCredentials.isPending
+                ? <Loader2 size={16} className="animate-spin" />
+                : <Save size={16} />}
+              Αποθήκευση
+            </ActionButton>
+            <ActionButton
+              variant="secondary"
+              onClick={() => void handleTestAadeRegistryConnection()}
+              disabled={!credentialStatus?.registry?.ready}
+              title="Κάνει μία ρητή αναζήτηση του ΑΦΜ της επιχείρησης για να επαληθεύσει τους ειδικούς κωδικούς."
+            >
+              <ShieldCheck size={16} />
+              Έλεγχος σύνδεσης
+            </ActionButton>
           </div>
-          <div className="mt-5">
+          {registryConnectionStatus.message && (
+            <div className={`mt-4 rounded-xl border px-3 py-2 text-xs font-bold ${
+              registryConnectionStatus.verified
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                : 'border-amber-200 bg-amber-50 text-amber-800'
+            }`}>
+              {registryConnectionStatus.message}
+              {registryConnectionStatus.verifiedAt
+                ? ` · Τελευταία επαλήθευση ${new Date(registryConnectionStatus.verifiedAt).toLocaleString('el-GR')}`
+                : ''}
+            </div>
+          )}
+        </SettingsCard>
+
+        <SettingsCard
+          icon={Building2}
+          tone="emerald"
+          title="Εκδότης / ΑΑΔΕ"
+          subtitle="Στοιχεία επιχείρησης που εκτυπώνονται και διαβιβάζονται στα παραστατικά."
+          action={<SettingsStatusBadge tone={settingsDraft.environment === 'prod' ? 'emerald' : 'amber'}>{environmentLabel}</SettingsStatusBadge>}
+        >
+          <div className="space-y-6">
+            <SettingsGroup title="Ταυτότητα επιχείρησης">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <TextInput label="ΑΦΜ Εκδότη" value={settingsDraft.issuer.vat_number || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, vat_number: normalizeVatNumber(value) } }))} help="Πρέπει να είναι ο πραγματικός ΑΦΜ της εγγραφής API myDATA (ίδιος με το αναγνωριστικό χρήστη ΑΑΔΕ). Το περιβάλλον Δοκιμών δεν δέχεται πλασματικούς αριθμούς." />
+                <TextInput label="Επωνυμία" value={settingsDraft.issuer.business_name || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, business_name: value, name: value } }))} />
+                <TextInput label="Διακριτικός τίτλος" value={settingsDraft.issuer.trade_name || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, trade_name: value } }))} />
+                <TextInput label="Υποκατάστημα" type="number" value={settingsDraft.issuer.branch ?? 0} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, branch: Number(value) || 0 } }))} help="0 για έδρα. Άλλος αριθμός μόνο αν έχει δηλωθεί υποκατάστημα στην ΑΑΔΕ." />
+              </div>
+            </SettingsGroup>
+
+            <div className="border-t border-slate-100 pt-6">
+              <SettingsGroup title="Έδρα">
+                <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_7rem_7rem_minmax(0,1.4fr)]">
+                  <TextInput label="Οδός" value={settingsDraft.issuer.address?.street || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, address: { ...(current.issuer.address || {}), street: value } } }))} />
+                  <TextInput label="Αριθμός" value={settingsDraft.issuer.address?.number || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, address: { ...(current.issuer.address || {}), number: value } } }))} />
+                  <TextInput label="Τ.Κ." value={settingsDraft.issuer.address?.postal_code || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, address: { ...(current.issuer.address || {}), postal_code: value } } }))} />
+                  <TextInput label="Πόλη" value={settingsDraft.issuer.address?.city || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, address: { ...(current.issuer.address || {}), city: value } } }))} />
+                </div>
+              </SettingsGroup>
+            </div>
+
+            <div className="border-t border-slate-100 pt-6">
+              <SettingsGroup title="Μητρώο" description="Η ΔΟΥ, η νομική μορφή και η δραστηριότητα μπορούν να συμπληρωθούν από τον έλεγχο Μητρώου.">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <TextInput label="ΔΟΥ" value={settingsDraft.issuer.doy || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, doy: value } }))} help="Μπορεί να συμπληρωθεί από τον επίσημο έλεγχο Μητρώου." />
+                  <TextInput label="Νομική μορφή" value={settingsDraft.issuer.legal_form || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, legal_form: value } }))} />
+                  <TextInput label="Αριθμός ΓΕΜΗ" value={settingsDraft.issuer.gemi || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, gemi: value } }))} help="Συμπληρώνεται χειροκίνητα· δεν επιστρέφεται από το Μητρώο ΑΑΔΕ." />
+                </div>
+                <TextInput label="Κύρια δραστηριότητα" value={settingsDraft.issuer.activity || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, activity: value } }))} help="Προαιρετικό στοιχείο εκτύπωσης. Μπορεί να συμπληρωθεί από το Μητρώο ΑΑΔΕ." />
+              </SettingsGroup>
+            </div>
+
+            <div className="border-t border-slate-100 pt-6">
+              <SettingsGroup title="Επικοινωνία">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <TextInput label="Τηλέφωνο" value={settingsDraft.issuer.phone || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, phone: value } }))} />
+                  <TextInput label="Email" value={settingsDraft.issuer.email || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, email: value } }))} />
+                </div>
+              </SettingsGroup>
+            </div>
+
+            <div className="border-t border-slate-100 pt-6">
+              <SettingsGroup title="Προεπιλογές νέων παραστατικών" description="Εφαρμόζονται αυτόματα στη δημιουργία. Μπορούν να αλλάξουν ανά παραστατικό πριν τη διαβίβαση.">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <SelectInput label="Προεπιλογή πληρωμής" value={settingsDraft.default_payment_method} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_payment_method: Number(value) }))}>
+                    {PAYMENT_METHOD_CODES.filter(code => ![7, 8].includes(code)).map((code) => <option key={code} value={code}>{PAYMENT_METHOD_LABELS[code]}</option>)}
+                  </SelectInput>
+                  <SelectInput label="Σκοπός διακίνησης" value={settingsDraft.default_move_purpose} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_move_purpose: Number(value) || 1 }))}>{Object.entries(SBZ_MOVE_PURPOSES).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</SelectInput>
+                  <SelectInput label="Κατηγορία κανονικών ειδών" value={settingsDraft.default_income_classification_category} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_income_classification_category: value, inhouse_income_classification_category: value, imported_income_classification_category: value }))} help="Εφαρμόζεται σε όλες τις κανονικές γραμμές. Για τη συνήθη μεταπώληση επιλέξτε «Πώληση εμπορευμάτων». Ο ακριβής κωδικός 000 παραμένει πάντα παροχή υπηρεσίας.">
+                    {incomeCategoryOptions.filter((option) => ['category1_1', 'category1_2'].includes(option.value)).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </SelectInput>
+                  <SelectInput label="Προεπιλογή πώλησης" value={settingsDraft.default_income_classification_type} onChange={(value) => setSettingsDraft((current) => ({ ...current, default_income_classification_type: value, inhouse_income_classification_type: value, imported_income_classification_type: value }))} help="Ο χαρακτηρισμός εσόδου που θα μπαίνει αυτόματα στις γραμμές.">
+                    {!incomeTypeOptions.some((option) => option.value === settingsDraft.default_income_classification_type) && (
+                      <option value={settingsDraft.default_income_classification_type}>{settingsDraft.default_income_classification_type}</option>
+                    )}
+                    {incomeTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </SelectInput>
+                </div>
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium leading-relaxed text-amber-950">
+                  <strong>Αυτόματος κανόνας:</strong> μόνο ο ακριβής κωδικός <span className="font-mono">000</span> χαρακτηρίζεται ως υπηρεσία. Κάθε γραμμή μπορεί να αλλάξει ρητά πριν από τη διαβίβαση.
+                </div>
+                <VatExemptionCategorySelect
+                  label="Προεπιλογή αιτίας απαλλαγής ΦΠΑ"
+                  value={settingsDraft.default_vat_exemption_category}
+                  onChange={(value) => setSettingsDraft((current) => ({ ...current, default_vat_exemption_category: value }))}
+                />
+              </SettingsGroup>
+            </div>
+          </div>
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+            <p className="text-xs font-medium text-slate-500">Οι αλλαγές εφαρμόζονται στα νέα παραστατικά και στην εκτύπωση.</p>
             <ActionButton onClick={handleSaveSettings} disabled={saveSettings.isPending}>
               {saveSettings.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Αποθήκευση ρυθμίσεων
             </ActionButton>
           </div>
-        </section>
+        </SettingsCard>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="font-black text-slate-900">Σειρές και αρίθμηση</h2>
-
-          </div>
-          <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-900">
-            Ο επόμενος αριθμός ελέγχεται αυτόματα κατά την έκδοση, για το επιλεγμένο περιβάλλον. Η παραγωγική αρίθμηση συνεχίζεται χωρίς μηδενισμό.
-          </div>
-          <div className="space-y-3">
-            {sequences.filter(sequence => (sequence.environment || 'prod') === settingsDraft.environment).map((sequence) => {
-              const draft = sequenceDrafts[sequence.id] || sequence;
-              const hasHistory = sequence.next_aa > 1 || visibleLegalDocuments.some((document) =>
-                document.document_kind === sequence.document_kind
-                && document.aade_document_type === sequence.aade_document_type
-                && normalizeLegalSeriesKey(document.series) === normalizeLegalSeriesKey(sequence.series)
-                && !!document.aa,
-              );
-              const changed = JSON.stringify(draft) !== JSON.stringify(sequence);
-              return (
-                <div key={sequence.id} className="grid gap-3 rounded-lg border border-slate-200 p-3 md:grid-cols-[1fr_120px_120px_120px_auto] md:items-end">
-                  <div>
-                    <div className="text-sm font-black text-slate-900">{getLegalDocumentKindLabel(sequence.document_kind, sequence.aade_document_type)}</div>
-                    <div className="flex items-center gap-1 text-xs font-medium text-slate-500">
-                      Τύπος ΑΑΔΕ {sequence.aade_document_type}
-                      <InfoTip text="Ο επίσημος τύπος παραστατικού myDATA για αυτή τη σειρά." />
-                    </div>
-                    {hasHistory && (
-                      <div className="mt-1 text-[11px] font-bold text-slate-500">
-                        Η ονομασία έχει κλειδωθεί επειδή η σειρά έχει χρησιμοποιηθεί.
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(20rem,1fr)] xl:items-start">
+          <SettingsCard
+            icon={Hash}
+            tone="sky"
+            title="Σειρές και αρίθμηση"
+            subtitle="Ο επόμενος αριθμός ελέγχεται αυτόματα κατά την έκδοση. Η παραγωγική αρίθμηση δεν μηδενίζεται."
+            action={<SettingsStatusBadge tone={settingsDraft.environment === 'prod' ? 'emerald' : 'amber'}>{environmentLabel}</SettingsStatusBadge>}
+          >
+            {environmentSequences.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm font-medium text-slate-500">
+                Δεν υπάρχουν σειρές για το περιβάλλον {environmentLabel}.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {environmentSequences.map((sequence) => {
+                  const draft = sequenceDrafts[sequence.id] || sequence;
+                  const hasHistory = sequence.next_aa > 1 || visibleLegalDocuments.some((document) =>
+                    document.document_kind === sequence.document_kind
+                    && document.aade_document_type === sequence.aade_document_type
+                    && normalizeLegalSeriesKey(document.series) === normalizeLegalSeriesKey(sequence.series)
+                    && !!document.aa,
+                  );
+                  const changed = JSON.stringify(draft) !== JSON.stringify(sequence);
+                  return (
+                    <div key={sequence.id} className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-black text-slate-900">{getLegalDocumentKindLabel(sequence.document_kind, sequence.aade_document_type)}</div>
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-slate-500">
+                              ΑΑΔΕ {sequence.aade_document_type}
+                              <InfoTip text="Ο επίσημος τύπος παραστατικού myDATA για αυτή τη σειρά." />
+                            </span>
+                            {hasHistory && (
+                              <span className="text-[11px] font-bold text-amber-700">Η ονομασία έχει κλειδωθεί</span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => updateSequenceDraft(sequence.id, { is_active: !draft.is_active })}
+                          className={`rounded-full border px-3 py-1 text-[11px] font-black transition ${
+                            draft.is_active
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                              : 'border-slate-200 bg-white text-slate-500'
+                          }`}
+                        >
+                          {draft.is_active ? 'Ενεργή' : 'Ανενεργή'}
+                        </button>
                       </div>
-                    )}
-                  </div>
-                  <TextInput
-                    label="Σειρά"
-                    value={draft.series}
-                    disabled={hasHistory}
-                    onChange={(value) => updateSequenceDraft(sequence.id, { series: value })}
-                    help={hasHistory ? 'Για νέο namespace δημιουργείται νέα σειρά.' : 'Το πρόθεμα που θα φαίνεται στο παραστατικό.'}
-                  />
-                  <TextInput
-                    label="Επόμενο"
-                    type="number"
-                    min={sequence.next_aa}
-                    value={draft.next_aa}
-                    onChange={(value) => updateSequenceDraft(sequence.id, {
-                      next_aa: Math.max(sequence.next_aa, Math.trunc(Number(value) || sequence.next_aa)),
-                    })}
-                    help={`Δεν μπορεί να γίνει μικρότερο από ${sequence.next_aa}.`}
-                  />
-                  <SelectInput
-                    label="Ενεργό"
-                    value={draft.is_active ? 'yes' : 'no'}
-                    onChange={(value) => updateSequenceDraft(sequence.id, { is_active: value === 'yes' })}
-                  >
-                    <option value="yes">Ναι</option>
-                    <option value="no">Όχι</option>
-                  </SelectInput>
-                  <ActionButton
-                    variant={changed ? 'primary' : 'secondary'}
-                    disabled={!changed || saveSequence.isPending}
-                    onClick={() => void handleSaveSequenceDraft(draft)}
-                    title="Η βάση απορρίπτει κάθε μείωση του επόμενου αριθμού."
-                  >
-                    {saveSequence.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                    Αποθήκευση
-                  </ActionButton>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      </div>
+                      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_8.5rem_auto] sm:items-end">
+                        <TextInput
+                          label="Σειρά"
+                          value={draft.series}
+                          disabled={hasHistory}
+                          onChange={(value) => updateSequenceDraft(sequence.id, { series: value })}
+                          help={hasHistory ? 'Για νέο namespace δημιουργείται νέα σειρά.' : 'Το πρόθεμα που θα φαίνεται στο παραστατικό.'}
+                        />
+                        <TextInput
+                          label="Επόμενος αριθμός"
+                          type="number"
+                          min={sequence.next_aa}
+                          value={draft.next_aa}
+                          onChange={(value) => updateSequenceDraft(sequence.id, {
+                            next_aa: Math.max(sequence.next_aa, Math.trunc(Number(value) || sequence.next_aa)),
+                          })}
+                          help={`Δεν μπορεί να γίνει μικρότερο από ${sequence.next_aa}.`}
+                        />
+                        <ActionButton
+                          variant={changed ? 'primary' : 'secondary'}
+                          disabled={!changed || saveSequence.isPending}
+                          onClick={() => void handleSaveSequenceDraft(draft)}
+                          title="Η βάση απορρίπτει κάθε μείωση του επόμενου αριθμού."
+                        >
+                          {saveSequence.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                          Αποθήκευση
+                        </ActionButton>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </SettingsCard>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="mb-4 font-black text-slate-900">Μεταφορείς</h2>
-        <div className="space-y-3">
-          <TextInput label="Όνομα" value={newCarrier.name} onChange={(value) => setNewCarrier((current) => ({ ...current, name: value }))} />
-          <TextInput label="ΑΦΜ" value={newCarrier.vat_number} onChange={(value) => setNewCarrier((current) => ({ ...current, vat_number: value }))} />
-          <TextInput label="Όχημα" value={newCarrier.vehicle_number} onChange={(value) => setNewCarrier((current) => ({ ...current, vehicle_number: value }))} />
-          <TextInput label="Τηλέφωνο" value={newCarrier.phone} onChange={(value) => setNewCarrier((current) => ({ ...current, phone: value }))} />
-          <ActionButton variant="secondary" onClick={handleAddCarrier} disabled={saveCarrier.isPending || !newCarrier.name.trim()}>
-            <Plus size={16} /> Προσθήκη
-          </ActionButton>
-        </div>
-        <div className="mt-5 divide-y divide-slate-100">
-          {carriers.map((carrier) => (
-            <div key={carrier.id} className="py-3">
-              <div className="font-black text-slate-900">{carrier.name}</div>
-              <div className="text-xs font-medium text-slate-500">ΑΦΜ {carrier.vat_number || '-'} | Όχημα {carrier.vehicle_number || '-'}</div>
+          <SettingsCard
+            icon={Truck}
+            tone="slate"
+            title="Μεταφορείς"
+            subtitle="Για δελτία διακίνησης. Αν χρησιμοποιείτε ίδια μέσα, δεν χρειάζεται εγγραφή."
+            action={<SettingsStatusBadge tone="slate">{carriers.length}</SettingsStatusBadge>}
+          >
+            <div className="grid gap-3 sm:grid-cols-2">
+              <TextInput label="Όνομα" value={newCarrier.name} onChange={(value) => setNewCarrier((current) => ({ ...current, name: value }))} />
+              <TextInput label="ΑΦΜ" value={newCarrier.vat_number} onChange={(value) => setNewCarrier((current) => ({ ...current, vat_number: value }))} />
+              <TextInput label="Όχημα" value={newCarrier.vehicle_number} onChange={(value) => setNewCarrier((current) => ({ ...current, vehicle_number: value }))} />
+              <TextInput label="Τηλέφωνο" value={newCarrier.phone} onChange={(value) => setNewCarrier((current) => ({ ...current, phone: value }))} />
             </div>
-          ))}
+            <div className="mt-4">
+              <ActionButton variant="secondary" onClick={handleAddCarrier} disabled={saveCarrier.isPending || !newCarrier.name.trim()}>
+                <Plus size={16} /> Προσθήκη μεταφορέα
+              </ActionButton>
+            </div>
+            <div className="mt-5 space-y-2">
+              {carriers.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm font-medium text-slate-500">
+                  Δεν έχουν καταχωρηθεί μεταφορείς.
+                </div>
+              ) : carriers.map((carrier) => (
+                <div key={carrier.id} className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500">
+                    <Truck size={16} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-black text-slate-900">{carrier.name}</div>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      <span className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-bold text-slate-500">ΑΦΜ {carrier.vat_number || '—'}</span>
+                      <span className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-bold text-slate-500">Όχημα {carrier.vehicle_number || '—'}</span>
+                      {carrier.phone && (
+                        <span className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-bold text-slate-500">{carrier.phone}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </SettingsCard>
         </div>
-      </section>
 
-      {showInspectionPinSection && !isInspectionModeActive() && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center gap-2">
-            <KeyRound size={18} className="text-slate-600" />
-            <h2 className="font-black text-slate-900">Κωδικός εξόδου λειτουργίας ελέγχου</h2>
-          </div>
-          <p className="mb-4 text-sm text-slate-500">
-            Χρησιμοποιείται για επιστροφή στην πλήρη λειτουργία ERP μετά από κλείδωμα σε λειτουργία παραστατικών μόνο.
-          </p>
-          <div className="mb-3 text-xs font-bold text-slate-500">
-            Κατάσταση: {inspectionPinConfigured ? 'Ορισμένος' : 'Μη ορισμένος'}
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <TextInput
-              label="Νέος κωδικός"
-              type="password"
-              value={inspectionPinDraft}
-              onChange={setInspectionPinDraft}
-              help="Τουλάχιστον 4 χαρακτήρες."
-            />
-            <TextInput
-              label="Επιβεβαίωση κωδικού"
-              type="password"
-              value={inspectionPinConfirm}
-              onChange={setInspectionPinConfirm}
-            />
-          </div>
-          <div className="mt-4">
-            <ActionButton
-              onClick={() => void handleSaveInspectionPin()}
-              disabled={setInspectionExitPin.isPending || !inspectionPinDraft.trim()}
-            >
-              {setInspectionExitPin.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-              Αποθήκευση κωδικού
-            </ActionButton>
-          </div>
-        </section>
-      )}
-    </div>
-  );
+        {showInspectionPinSection && !isInspectionModeActive() && (
+          <SettingsCard
+            icon={KeyRound}
+            tone="amber"
+            title="Κωδικός εξόδου λειτουργίας ελέγχου"
+            subtitle="Χρησιμοποιείται για επιστροφή στην πλήρη λειτουργία ERP μετά από κλείδωμα σε λειτουργία παραστατικών μόνο."
+            action={<SettingsStatusBadge tone={inspectionPinConfigured ? 'emerald' : 'amber'}>{inspectionPinConfigured ? 'Ορισμένος' : 'Μη ορισμένος'}</SettingsStatusBadge>}
+          >
+            <div className="grid gap-4 md:grid-cols-2">
+              <TextInput
+                label="Νέος κωδικός"
+                type="password"
+                value={inspectionPinDraft}
+                onChange={setInspectionPinDraft}
+                help="Τουλάχιστον 4 χαρακτήρες."
+              />
+              <TextInput
+                label="Επιβεβαίωση κωδικού"
+                type="password"
+                value={inspectionPinConfirm}
+                onChange={setInspectionPinConfirm}
+              />
+            </div>
+            <div className="mt-4">
+              <ActionButton
+                onClick={() => void handleSaveInspectionPin()}
+                disabled={setInspectionExitPin.isPending || !inspectionPinDraft.trim()}
+              >
+                {setInspectionExitPin.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                Αποθήκευση κωδικού
+              </ActionButton>
+            </div>
+          </SettingsCard>
+        )}
+      </div>
+    );
+  };
 
   const statsStrip = (
     <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
