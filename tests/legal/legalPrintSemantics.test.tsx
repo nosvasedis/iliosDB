@@ -7,6 +7,7 @@ import {
   getVatCategoryPrintRate,
   calculateLegalPrintPageCount,
   calculatePaginatedLegalPrintPageCount,
+  formatPrintTime,
   LEGAL_PRINT_CSS,
   LegalPrintCustomerBar,
   LegalPrintHeader,
@@ -107,6 +108,13 @@ const document: LegalDocument = {
 };
 
 describe('legal print semantics', () => {
+  it('prints every timestamp with a 24-hour clock', () => {
+    expect(formatPrintTime('2026-07-29T13:05:00')).toBe('13:05');
+    expect(formatPrintTime('2026-07-29T00:05:00')).toBe('00:05');
+    expect(formatPrintTime('18:40:00')).toBe('18:40');
+    expect(formatPrintTime('invalid')).toBe('-');
+  });
+
   it('keeps the shared PDF typography readable without the previous extra-small sizes', () => {
     const html = renderToStaticMarkup(
       <LegalDocumentPrintView document={document} lines={lines} />,

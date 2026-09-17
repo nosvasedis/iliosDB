@@ -133,7 +133,11 @@ export const formatPrintTime = (value?: string | null) => {
   if (/^\d{2}:\d{2}/.test(value)) return value.slice(0, 5);
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return '-';
-  return parsed.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' });
+  return parsed.toLocaleTimeString('el-GR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  });
 };
 
 export const getPartyName = (party: LegalParty | LegalIssuerSettings) =>
