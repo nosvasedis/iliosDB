@@ -5,10 +5,12 @@ import {
   Ban,
   Building2,
   CalendarDays,
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  Clock,
   Copy,
   Edit3,
   FileClock,
@@ -127,15 +129,16 @@ const externalSourceFilterLabel: Record<LegalArchiveFilterState['externalSource'
 const customerOptionLabel = (customer: Customer) =>
   `${customer.full_name} · ΑΦΜ ${customer.vat_number || '—'}`;
 
-const statusClass: Record<string, string> = {
-  draft: 'border-sky-200 bg-sky-50 text-sky-700',
-  submitted: 'border-blue-200 bg-blue-50 text-blue-700',
-  issued: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  failed: 'border-red-200 bg-red-50 text-red-700',
-  cancelled: 'border-slate-300 bg-slate-100 text-slate-600',
-  converted: 'border-violet-200 bg-violet-50 text-violet-700',
-  void: 'border-slate-300 bg-slate-100 text-slate-500',
-};
+const statusGlyph = {
+  draft: { label: 'Πρόχειρο', className: 'border-sky-200 bg-sky-50 text-sky-700', icon: FileClock },
+  submitted: { label: 'Ελέγχεται η έκδοση', className: 'border-blue-200 bg-blue-50 text-blue-700', icon: Clock },
+  sending: { label: 'Εκδίδεται', className: 'border-blue-200 bg-blue-50 text-blue-700', icon: Loader2 },
+  issued: { label: 'Εκδόθηκε', className: 'border-emerald-200 bg-emerald-50 text-emerald-700', icon: Check },
+  failed: { label: 'Χρειάζεται διόρθωση', className: 'border-red-200 bg-red-50 text-red-700', icon: X },
+  cancelled: { label: 'Ακυρώθηκε', className: 'border-slate-300 bg-slate-100 text-slate-600', icon: Ban },
+  converted: { label: 'Μετατράπηκε', className: 'border-violet-200 bg-violet-50 text-violet-700', icon: Copy },
+  void: { label: 'Ακυρωμένο', className: 'border-slate-300 bg-slate-100 text-slate-500', icon: Ban },
+} as const;
 
 const matchPresentation = {
   matched: {
@@ -704,25 +707,33 @@ interface LegalArchiveWorkspaceProps {
   onDeleteAlias: (alias: LegalExternalItemAlias) => void;
 }
 
+type ArchiveActionTone = 'print' | 'open' | 'submit' | 'retry' | 'credit' | 'check' | 'convert' | 'attach' | 'danger';
+
 function ArchiveActionButton({
   children,
   onClick,
   disabled,
-  tone = 'neutral',
+  tone = 'open',
   title,
   compact = false,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
-  tone?: 'neutral' | 'primary' | 'danger';
+  tone?: ArchiveActionTone;
   title?: string;
   compact?: boolean;
 }) {
-  const tones = {
-    neutral: 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
-    primary: 'border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700',
-    danger: 'border-red-200 bg-white text-red-600 hover:bg-red-50',
+  const tones: Record<ArchiveActionTone, string> = {
+    print: 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100',
+    open: 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100',
+    submit: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
+    retry: 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100',
+    credit: 'border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100',
+    check: 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100',
+    convert: 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100',
+    attach: 'border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100',
+    danger: 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100',
   };
   return (
     <button
@@ -742,11 +753,34 @@ function ArchiveActionButton({
   );
 }
 
+function ArchiveStatusGlyph({
+  title,
+  className,
+  spinning,
+  children,
+}: {
+  title: string;
+  className: string;
+  spinning?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <span
+      title={title}
+      aria-label={title}
+      className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${className}`}
+    >
+      <span className={spinning ? 'animate-spin' : undefined}>{children}</span>
+    </span>
+  );
+}
+
 export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps) {
   const [filters, setFilters] = useState<LegalArchiveFilterState>(createDefaultLegalArchiveFilters);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [editingAliases, setEditingAliases] = useState<Set<string>>(new Set());
+  const [linkTabs, setLinkTabs] = useState<Record<string, 'party' | 'order'>>({});
   const [page, setPage] = useState(1);
   const deferredFilters = useDeferredValue(filters);
 
@@ -903,12 +937,35 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
     );
   };
 
-  const legalStatusText = (document: LegalDocument) => (
+  const legalStatusKey = (document: LegalDocument) => (
     document.provider_state === 'unknown'
-      ? 'Ελέγχεται η έκδοση'
+      ? 'submitted'
       : document.provider_state === 'sending'
-        ? 'Εκδίδεται'
-        : legalStatusLabel[document.status]
+        ? 'sending'
+        : document.status
+  );
+
+  const renderStatusGlyph = (record: LegalArchiveRecord) => {
+    const key = record.source === 'legal'
+      ? legalStatusKey(record.document as LegalDocument)
+      : (record.document as ProformaDocument).status;
+    const glyph = statusGlyph[key as keyof typeof statusGlyph] || statusGlyph.draft;
+    const Icon = glyph.icon;
+    return (
+      <ArchiveStatusGlyph title={glyph.label} className={glyph.className} spinning={key === 'sending'}>
+        <Icon size={13} strokeWidth={2.4} />
+      </ArchiveStatusGlyph>
+    );
+  };
+
+  const renderCreditIssuedMark = () => (
+    <span
+      title="Έχει εκδοθεί πιστωτικό"
+      aria-label="Έχει εκδοθεί πιστωτικό"
+      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-violet-200 bg-violet-50 text-violet-700"
+    >
+      <Undo2 size={13} strokeWidth={2.4} />
+    </span>
   );
 
   const renderActions = (record: LegalArchiveRecord, compact = false) => {
@@ -918,19 +975,19 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
       const printTitle = isOfficialLegalDocumentPrint(document, record.lines as LegalDocumentLine[]) ? 'Νόμιμη εκτύπωση MARK/QR' : 'Πρόχειρη εκτύπωση';
       return (
         <div className={`flex justify-end ${compact ? 'flex-nowrap gap-1' : 'flex-wrap gap-1.5'}`} onClick={(event) => event.stopPropagation()}>
-          <ArchiveActionButton compact={compact} title={printTitle} onClick={() => props.onPrintLegal(document)} disabled={!canPrintLegalDocument(document, record.lines as LegalDocumentLine[])}>
+          <ArchiveActionButton compact={compact} tone="print" title={printTitle} onClick={() => props.onPrintLegal(document)} disabled={!canPrintLegalDocument(document, record.lines as LegalDocumentLine[])}>
             {icon(<Printer size={14} />, 'Εκτύπωση')}
           </ArchiveActionButton>
-          <ArchiveActionButton compact={compact} title="Άνοιγμα" onClick={() => props.onOpenLegal(document)}>
+          <ArchiveActionButton compact={compact} tone="open" title="Άνοιγμα" onClick={() => props.onOpenLegal(document)}>
             {icon(<Edit3 size={14} />, 'Άνοιγμα')}
           </ArchiveActionButton>
           {document.status === 'draft' && (
-            <ArchiveActionButton compact={compact} tone="primary" title="Υποβολή" onClick={() => props.onSubmitLegal(document)} disabled={props.mutating}>
+            <ArchiveActionButton compact={compact} tone="submit" title="Υποβολή" onClick={() => props.onSubmitLegal(document)} disabled={props.mutating}>
               {icon(<Send size={14} />, 'Υποβολή')}
             </ArchiveActionButton>
           )}
           {document.status === 'failed' && (
-            <ArchiveActionButton compact={compact} tone="primary" title="Επανάληψη" onClick={() => props.onSubmitLegal(document)} disabled={props.mutating}>
+            <ArchiveActionButton compact={compact} tone="retry" title="Επανάληψη" onClick={() => props.onSubmitLegal(document)} disabled={props.mutating}>
               {icon(<RefreshCw size={14} />, 'Επανάληψη')}
             </ArchiveActionButton>
           )}
@@ -940,19 +997,19 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
             </ArchiveActionButton>
           )}
           {document.status === 'issued' && ['invoice', 'invoice_delivery'].includes(document.document_kind) && (
-            <ArchiveActionButton compact={compact} title="Έκδοση πιστωτικού" onClick={() => props.onCreditLegal?.(document)} disabled={props.mutating}>
+            <ArchiveActionButton compact={compact} tone="credit" title="Έκδοση πιστωτικού" onClick={() => props.onCreditLegal?.(document)} disabled={props.mutating}>
               {icon(<FileText size={14} />, 'Πιστωτικό')}
             </ArchiveActionButton>
           )}
           {['sending', 'unknown'].includes(document.provider_state) && (
-            <ArchiveActionButton compact={compact} title="Έλεγχος έκδοσης" onClick={() => props.onReconcileLegal?.(document)} disabled={props.mutating}>
+            <ArchiveActionButton compact={compact} tone="check" title="Έλεγχος έκδοσης" onClick={() => props.onReconcileLegal?.(document)} disabled={props.mutating}>
               {icon(<RefreshCw size={14} />, 'Έλεγχος')}
             </ArchiveActionButton>
           )}
           {document.status === 'issued' && document.provider === 'sbz' && !['sending','unknown','accepted'].includes(document.provider_attachment_state) && (
             <label
               title="Επισύναψη PDF / JPG"
-              className={`inline-flex cursor-pointer items-center justify-center border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 ${
+              className={`inline-flex cursor-pointer items-center justify-center border border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100 ${
                 compact ? 'h-8 w-8 rounded-md' : 'min-h-8 gap-1.5 rounded-lg px-2.5 py-1 text-xs font-black'
               }`}
             >
@@ -973,13 +1030,13 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
     const document = record.document as ProformaDocument;
     return (
       <div className={`flex justify-end ${compact ? 'flex-nowrap gap-1' : 'flex-wrap gap-1.5'}`} onClick={(event) => event.stopPropagation()}>
-        <ArchiveActionButton compact={compact} title="Άνοιγμα" onClick={() => props.onEditProforma(document)} disabled={document.status === 'void'}>
+        <ArchiveActionButton compact={compact} tone="open" title="Άνοιγμα" onClick={() => props.onEditProforma(document)} disabled={document.status === 'void'}>
           {icon(<Edit3 size={14} />, 'Άνοιγμα')}
         </ArchiveActionButton>
-        <ArchiveActionButton compact={compact} title="Εκτύπωση" onClick={() => props.onPrintProforma(document)} disabled={!canPrintProforma(document)}>
+        <ArchiveActionButton compact={compact} tone="print" title="Εκτύπωση" onClick={() => props.onPrintProforma(document)} disabled={!canPrintProforma(document)}>
           {icon(<Printer size={14} />, 'Εκτύπωση')}
         </ArchiveActionButton>
-        <ArchiveActionButton compact={compact} title="Μετατροπή" onClick={() => props.onConvertProforma(document)} disabled={document.status !== 'draft' || props.mutating}>
+        <ArchiveActionButton compact={compact} tone="convert" title="Μετατροπή" onClick={() => props.onConvertProforma(document)} disabled={document.status !== 'draft' || props.mutating}>
           {icon(<Copy size={14} />, 'Μετατροπή')}
         </ArchiveActionButton>
         <ArchiveActionButton compact={compact} tone="danger" title="Ακύρωση" onClick={() => props.onVoidProforma(document)} disabled={document.status !== 'draft'}>
@@ -1002,180 +1059,209 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
       ? (record.document as LegalDocument).local_notes
       : (record.document as ProformaDocument).notes;
 
+    const partyLinked = isOperationalDeliveryNote ? !!record.sellerMatch.seller : !!record.customerMatch.customer;
+    const orderLinked = !!record.linkedOrder;
+    const activeLinkTab = linkTabs[record.key] || (partyLinked ? 'order' : 'party');
+    const partyTabLabel = isOperationalDeliveryNote ? 'Πλασιέ' : 'Πελάτης';
+    const orderTabLabel = isOperationalDeliveryNote ? 'Διακίνηση' : 'Παραγγελία';
+
     return (
       <div className="space-y-4 bg-slate-50/80 p-4">
-        <div className="grid gap-3 lg:grid-cols-2">
-          <section className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <Users size={17} className="text-emerald-600" />
-              <h3 className="font-black text-slate-900">
-                {isOperationalDeliveryNote ? 'Σύνδεση Πλασιέ' : 'Αντιστοίχιση πελάτη'}
-              </h3>
-            </div>
-            {isOperationalDeliveryNote ? (
-              <>
-                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                  <select
-                    value={record.sellerMatch.seller?.id || ''}
-                    onChange={(event) => props.onLinkSeller(record, event.target.value || null)}
-                    disabled={props.mutating}
-                    className="w-full rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-sky-500"
-                  >
-                    <option value="">Δεν έχει συνδεθεί με Πλασιέ</option>
-                    {props.sellers.map((seller) => (
-                      <option key={seller.id} value={seller.id}>{seller.full_name}</option>
-                    ))}
-                  </select>
-                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800">
-                    <UserCheck size={14} />
-                    {record.sellerMatch.method === 'manual'
-                      ? 'Επιβεβαιωμένη σύνδεση'
-                      : record.sellerMatch.method === 'name'
-                        ? 'Ακριβής συμφωνία ονόματος'
-                        : record.sellerMatch.state === 'suggested'
-                          ? 'Υπάρχει πρόταση'
-                          : 'Χωρίς Πλασιέ'}
-                  </span>
-                </div>
-                {!record.sellerMatch.seller && record.sellerMatch.candidates.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {record.sellerMatch.candidates.slice(0, 3).map((seller) => (
-                      <button
-                        key={seller.id}
-                        type="button"
-                        onClick={() => props.onLinkSeller(record, seller.id)}
-                        disabled={props.mutating}
-                        className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-left text-xs font-black text-sky-900 hover:bg-sky-100"
-                      >
-                        Σύνδεση με {seller.full_name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                  <select
-                    value={record.customerMatch.customer?.id || ''}
-                    onChange={(event) => props.onLinkCustomer(record, event.target.value || null)}
-                    disabled={props.mutating}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-emerald-500"
-                  >
-                    <option value="">Δεν έχει αντιστοιχιστεί</option>
-                    {props.customers.map((customer) => (
-                      <option key={customer.id} value={customer.id}>
-                        {customer.full_name} · ΑΦΜ {customer.vat_number || '—'}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="inline-flex items-center rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">
-                    {record.customerMatch.method === 'manual'
-                      ? 'Χειροκίνητη σύνδεση'
-                      : record.customerMatch.method === 'vat'
-                        ? 'Ακριβές ΑΦΜ'
-                        : record.customerMatch.method === 'vat_name'
-                          ? 'Ακριβές ΑΦΜ και επωνυμία'
-                          : record.customerMatch.state === 'ambiguous'
-                            ? 'Διπλή εγγραφή ίδιου ΑΦΜ'
-                            : 'Χωρίς αντιστοίχιση'}
-                  </span>
-                </div>
-                {record.customerMatch.state === 'ambiguous' && record.customerMatch.candidates.length > 0 && (
-                  <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
-                    <div className="mb-2 text-xs font-bold text-amber-900">
-                      {record.customerMatch.explanation}. Επιλέξτε τη σωστή εγγραφή:
-                    </div>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {record.customerMatch.candidates.slice(0, 4).map((customer) => (
-                        <button
-                          key={customer.id}
-                          type="button"
-                          onClick={() => props.onLinkCustomer(record, customer.id)}
-                          disabled={props.mutating}
-                          className={`rounded-lg border bg-white p-3 text-left transition hover:border-emerald-400 hover:bg-emerald-50 ${
-                            record.customerMatch.recommendedCustomer?.id === customer.id
-                              ? 'border-emerald-300 ring-1 ring-emerald-100'
-                              : 'border-slate-200'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="truncate text-xs font-black text-slate-900">{customer.full_name}</span>
-                            {record.customerMatch.recommendedCustomer?.id === customer.id && (
-                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black text-emerald-700">
-                                Προτεινόμενο
-                              </span>
-                            )}
-                          </div>
-                          <div className="mt-1 text-[11px] font-bold text-slate-500">ΑΦΜ {customer.vat_number || '—'}</div>
-                          <div className="mt-2 text-[11px] font-black text-emerald-700">Σύνδεση πελάτη</div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-            <div className="mt-2 text-xs text-slate-500">
-              Πηγή: {record.document.counterpart?.name || 'χωρίς επωνυμία'} · ΑΦΜ {record.document.counterpart?.vat_number || '—'}
-            </div>
-            <div className="mt-1 text-xs text-slate-500">
-              {[record.document.counterpart?.address?.street, record.document.counterpart?.address?.number]
-                .filter(Boolean).join(' ') || 'Χωρίς οδό'}
-              {' · '}
-              {[record.document.counterpart?.address?.postal_code, record.document.counterpart?.address?.city]
-                .filter(Boolean).join(' ') || 'χωρίς πόλη'}
-              {' · '}
-              {formatCountryDisplayName(record.document.counterpart?.country)} / υποκ. {record.document.counterpart?.branch ?? 0}
-            </div>
-            <VatRegistryCard
-              vatNumber={record.document.counterpart?.vat_number}
-              country={record.document.counterpart?.country}
-              ready={props.registryLookupReady}
-              customerLinked={!!record.customerMatch.customer}
-              autoLookup={!isOperationalDeliveryNote && !record.customerMatch.customer}
-              onLookup={props.onLookupVat}
-              onLookupOfficial={props.onLookupOfficialVat}
-              onApply={(result) => props.onApplyVat(record, result)}
-            />
-          </section>
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="flex border-b border-slate-200 bg-slate-50/90">
+            {([
+              { id: 'party' as const, label: partyTabLabel, icon: isOperationalDeliveryNote ? UserCheck : Users, done: partyLinked },
+              { id: 'order' as const, label: orderTabLabel, icon: isOperationalDeliveryNote ? Truck : Link2, done: isOperationalDeliveryNote ? true : orderLinked },
+            ]).map((tab) => {
+              const Icon = tab.icon;
+              const active = activeLinkTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setLinkTabs((current) => ({ ...current, [record.key]: tab.id }))}
+                  className={`flex min-h-11 flex-1 items-center justify-center gap-2 px-3 text-sm font-black transition ${
+                    active
+                      ? 'border-b-2 border-emerald-600 bg-white text-emerald-800'
+                      : 'text-slate-500 hover:bg-white/70 hover:text-slate-700'
+                  }`}
+                >
+                  <Icon size={15} />
+                  {tab.label}
+                  <span className={`inline-flex h-2 w-2 rounded-full ${tab.done ? 'bg-emerald-500' : 'bg-amber-400'}`} title={tab.done ? 'Συνδεδεμένο' : 'Εκκρεμεί'} />
+                </button>
+              );
+            })}
+          </div>
 
-          <section className={`rounded-xl border p-4 ${isOperationalDeliveryNote ? 'border-sky-200 bg-sky-50/60' : 'border-slate-200 bg-white'}`}>
-            <div className="mb-3 flex items-center gap-2">
-              {isOperationalDeliveryNote ? <Truck size={17} className="text-sky-600" /> : <Link2 size={17} className="text-sky-600" />}
-              <h3 className="font-black text-slate-900">
-                {isOperationalDeliveryNote ? 'Χειρισμός Δελτίου Αποστολής' : 'Σύνδεση παραγγελίας'}
-              </h3>
-            </div>
-            {isOperationalDeliveryNote ? (
-              <p className="text-sm font-medium leading-6 text-sky-900">
-                Πρόκειται για λειτουργικό παραστατικό διακίνησης. Ο αντισυμβαλλόμενος και οι συγκεντρωτικοί κωδικοί ειδών
-                εμφανίζονται για πληροφόρηση, χωρίς να απαιτείται σύνδεση με πελάτη, προϊόν ή παραγγελία και χωρίς να
-                επηρεάζεται η αξιολόγηση των εμπορικών παραστατικών.
-              </p>
-            ) : (
-              <>
-                <OrderLinkEditor
-                  record={record}
-                  orders={customerOrders}
-                  busy={props.mutating}
-                  onSave={(link) => props.onLinkOrder(record, link)}
-                />
-                <div className="mt-2 text-xs font-medium text-slate-500">
-                  {record.linkedOrder
-                    ? record.document.order_link_mode === 'partial'
-                      ? `${record.document.order_line_allocations?.length || 0} επιλεγμένες γραμμές συνδέονται με την παραγγελία.`
-                      : 'Ολόκληρη η παραγγελία είναι συνδεδεμένη.'
-                    : record.autoOrderCandidate
-                      ? 'Βρέθηκε μοναδική πλήρης συμφωνία πελάτη, αξίας, κωδικών προϊόντων και ποσοτήτων.'
-                      : record.suggestedOrders.length
-                        ? `${record.suggestedOrders.length} παραγγελίες έχουν ίδιο πελάτη και συνολική αξία· απαιτείται επιβεβαίωση.`
-                        : 'Δεν βρέθηκε ασφαλής πρόταση. Δεν γίνεται αυθαίρετη αυτόματη αντιστοίχιση.'}
+          <div className="p-4">
+            {activeLinkTab === 'party' ? (
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-xs font-bold text-slate-500">
+                    {isOperationalDeliveryNote ? 'Σύνδεση του Δελτίου Αποστολής με Πλασιέ.' : 'Συνδέστε τον αντισυμβαλλόμενο με πελάτη του ERP.'}
+                  </div>
+                  {renderMatchBadge(record)}
                 </div>
-              </>
+                {isOperationalDeliveryNote ? (
+                  <>
+                    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                      <select
+                        value={record.sellerMatch.seller?.id || ''}
+                        onChange={(event) => props.onLinkSeller(record, event.target.value || null)}
+                        disabled={props.mutating}
+                        className="w-full rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-sky-500"
+                      >
+                        <option value="">Δεν έχει συνδεθεί με Πλασιέ</option>
+                        {props.sellers.map((seller) => (
+                          <option key={seller.id} value={seller.id}>{seller.full_name}</option>
+                        ))}
+                      </select>
+                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800">
+                        <UserCheck size={14} />
+                        {record.sellerMatch.method === 'manual'
+                          ? 'Επιβεβαιωμένη σύνδεση'
+                          : record.sellerMatch.method === 'name'
+                            ? 'Ακριβής συμφωνία ονόματος'
+                            : record.sellerMatch.state === 'suggested'
+                              ? 'Υπάρχει πρόταση'
+                              : 'Χωρίς Πλασιέ'}
+                      </span>
+                    </div>
+                    {!record.sellerMatch.seller && record.sellerMatch.candidates.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {record.sellerMatch.candidates.slice(0, 3).map((seller) => (
+                          <button
+                            key={seller.id}
+                            type="button"
+                            onClick={() => props.onLinkSeller(record, seller.id)}
+                            disabled={props.mutating}
+                            className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-left text-xs font-black text-sky-900 hover:bg-sky-100"
+                          >
+                            Σύνδεση με {seller.full_name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                      <select
+                        value={record.customerMatch.customer?.id || ''}
+                        onChange={(event) => props.onLinkCustomer(record, event.target.value || null)}
+                        disabled={props.mutating}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-emerald-500"
+                      >
+                        <option value="">Δεν έχει αντιστοιχιστεί</option>
+                        {props.customers.map((customer) => (
+                          <option key={customer.id} value={customer.id}>
+                            {customer.full_name} · ΑΦΜ {customer.vat_number || '—'}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="inline-flex items-center rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">
+                        {record.customerMatch.method === 'manual'
+                          ? 'Χειροκίνητη σύνδεση'
+                          : record.customerMatch.method === 'vat'
+                            ? 'Ακριβές ΑΦΜ'
+                            : record.customerMatch.method === 'vat_name'
+                              ? 'Ακριβές ΑΦΜ και επωνυμία'
+                              : record.customerMatch.state === 'ambiguous'
+                                ? 'Διπλή εγγραφή ίδιου ΑΦΜ'
+                                : 'Χωρίς αντιστοίχιση'}
+                      </span>
+                    </div>
+                    {record.customerMatch.state === 'ambiguous' && record.customerMatch.candidates.length > 0 && (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                        <div className="mb-2 text-xs font-bold text-amber-900">
+                          {record.customerMatch.explanation}. Επιλέξτε τη σωστή εγγραφή:
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {record.customerMatch.candidates.slice(0, 4).map((customer) => (
+                            <button
+                              key={customer.id}
+                              type="button"
+                              onClick={() => props.onLinkCustomer(record, customer.id)}
+                              disabled={props.mutating}
+                              className={`rounded-lg border bg-white p-3 text-left transition hover:border-emerald-400 hover:bg-emerald-50 ${
+                                record.customerMatch.recommendedCustomer?.id === customer.id
+                                  ? 'border-emerald-300 ring-1 ring-emerald-100'
+                                  : 'border-slate-200'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="truncate text-xs font-black text-slate-900">{customer.full_name}</span>
+                                {record.customerMatch.recommendedCustomer?.id === customer.id && (
+                                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black text-emerald-700">
+                                    Προτεινόμενο
+                                  </span>
+                                )}
+                              </div>
+                              <div className="mt-1 text-[11px] font-bold text-slate-500">ΑΦΜ {customer.vat_number || '—'}</div>
+                              <div className="mt-2 text-[11px] font-black text-emerald-700">Σύνδεση πελάτη</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+                <div className="text-xs text-slate-500">
+                  Πηγή: {record.document.counterpart?.name || 'χωρίς επωνυμία'} · ΑΦΜ {record.document.counterpart?.vat_number || '—'}
+                  {' · '}
+                  {[record.document.counterpart?.address?.street, record.document.counterpart?.address?.number]
+                    .filter(Boolean).join(' ') || 'Χωρίς οδό'}
+                  {' · '}
+                  {[record.document.counterpart?.address?.postal_code, record.document.counterpart?.address?.city]
+                    .filter(Boolean).join(' ') || 'χωρίς πόλη'}
+                  {' · '}
+                  {formatCountryDisplayName(record.document.counterpart?.country)} / υποκ. {record.document.counterpart?.branch ?? 0}
+                </div>
+                <VatRegistryCard
+                  vatNumber={record.document.counterpart?.vat_number}
+                  country={record.document.counterpart?.country}
+                  ready={props.registryLookupReady}
+                  customerLinked={!!record.customerMatch.customer}
+                  autoLookup={!isOperationalDeliveryNote && !record.customerMatch.customer}
+                  onLookup={props.onLookupVat}
+                  onLookupOfficial={props.onLookupOfficialVat}
+                  onApply={(result) => props.onApplyVat(record, result)}
+                />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {isOperationalDeliveryNote ? (
+                  <p className="text-sm font-medium leading-6 text-sky-900">
+                    Πρόκειται για λειτουργικό παραστατικό διακίνησης. Ο αντισυμβαλλόμενος και οι συγκεντρωτικοί κωδικοί ειδών
+                    εμφανίζονται για πληροφόρηση, χωρίς να απαιτείται σύνδεση με πελάτη, προϊόν ή παραγγελία και χωρίς να
+                    επηρεάζεται η αξιολόγηση των εμπορικών παραστατικών.
+                  </p>
+                ) : (
+                  <>
+                    <OrderLinkEditor
+                      record={record}
+                      orders={customerOrders}
+                      busy={props.mutating}
+                      onSave={(link) => props.onLinkOrder(record, link)}
+                    />
+                    <div className="text-xs font-medium text-slate-500">
+                      {record.linkedOrder
+                        ? record.document.order_link_mode === 'partial'
+                          ? `${record.document.order_line_allocations?.length || 0} επιλεγμένες γραμμές συνδέονται με την παραγγελία.`
+                          : 'Ολόκληρη η παραγγελία είναι συνδεδεμένη.'
+                        : record.autoOrderCandidate
+                          ? 'Βρέθηκε μοναδική πλήρης συμφωνία πελάτη, αξίας, κωδικών προϊόντων και ποσοτήτων.'
+                          : record.suggestedOrders.length
+                            ? `${record.suggestedOrders.length} παραγγελίες έχουν ίδιο πελάτη και συνολική αξία· απαιτείται επιβεβαίωση.`
+                            : 'Δεν βρέθηκε ασφαλής πρόταση. Δεν γίνεται αυθαίρετη αυτόματη αντιστοίχιση.'}
+                    </div>
+                  </>
+                )}
+              </div>
             )}
-          </section>
-        </div>
+          </div>
+        </section>
 
         {record.deliveryNoteCandidate && !record.linkedDeliveryNote && (
           <section className="rounded-xl border border-amber-200 bg-amber-50/70 p-4">
@@ -1193,7 +1279,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                 </p>
               </div>
               <ArchiveActionButton
-                tone="primary"
+                tone="submit"
                 disabled={props.mutating}
                 onClick={() => props.onLinkDeliveryNote(record, record.deliveryNoteCandidate!.document.id)}
               >
@@ -1700,18 +1786,15 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
                               <span className="truncate font-bold text-slate-800">{record.customerMatch.customer?.full_name || document.counterpart?.name || 'Άγνωστος αντισυμβαλλόμενος'}</span>
                               <span className="whitespace-nowrap font-mono text-[11px] text-slate-500">ΑΦΜ {document.counterpart?.vat_number || '—'}</span>
-                              {renderMatchBadge(record, true)}
                             </div>
                           </td>
                           <td className="px-2 py-1.5">
-                            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-                              <span className={`inline-flex rounded-md border px-1.5 py-0.5 text-[10px] font-black ${statusClass[document.status]}`}>
-                                {record.source === 'legal' ? legalStatusText(document as LegalDocument) : proformaStatusLabel[(document as ProformaDocument).status]}
-                              </span>
-                              {hasCredit && <span className="text-[10px] font-bold text-violet-700">Πιστωτικό</span>}
+                            <div className="flex items-center gap-1.5">
+                              {renderStatusGlyph(record)}
+                              {hasCredit && renderCreditIssuedMark()}
                               {legalDocument?.aade_mark && (
-                                <span className="max-w-36 truncate font-mono text-[10px] text-slate-500" title={legalDocument.aade_mark}>
-                                  MARK {legalDocument.aade_mark}
+                                <span className="max-w-32 truncate font-mono text-[10px] text-slate-400" title={legalDocument.aade_mark}>
+                                  {legalDocument.aade_mark}
                                 </span>
                               )}
                             </div>
@@ -1737,6 +1820,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                 const presentation = getDocumentPresentation(record);
                 const DocumentIcon = presentation.icon;
                 const legalDocument = record.source === 'legal' ? document as LegalDocument : null;
+                const hasCredit = record.source === 'legal' && props.records.some(r => r.source === 'legal' && (r.document as LegalDocument).credited_document_id === document.id && r.document.status === 'issued');
                 return (
                   <article key={record.key} className={presentation.mobile}>
                     <div className="flex items-start gap-2 px-3 py-2">
@@ -1762,18 +1846,15 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                             <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
                               <span>{document.issue_date}</span>
                               <span className="font-mono">ΑΦΜ {document.counterpart?.vat_number || '—'}</span>
-                              {legalDocument?.aade_mark && <span className="max-w-28 truncate font-mono" title={legalDocument.aade_mark}>MARK {legalDocument.aade_mark}</span>}
                             </div>
                           </div>
-                          <div className="shrink-0 text-right">
-                            <div className="font-black leading-none text-slate-950">{money(document.totals.gross)}</div>
-                            <div className={`mt-1 inline-flex rounded-md border px-1.5 py-0.5 text-[10px] font-black ${statusClass[document.status]}`}>
-                              {record.source === 'legal' ? legalStatusText(document as LegalDocument) : proformaStatusLabel[(document as ProformaDocument).status]}
-                            </div>
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            {renderStatusGlyph(record)}
+                            {hasCredit && renderCreditIssuedMark()}
+                            <div className="text-right font-black leading-none text-slate-950">{money(document.totals.gross)}</div>
                           </div>
                         </div>
-                        <div className="mt-2 flex items-center justify-between gap-2">
-                          {renderMatchBadge(record, true)}
+                        <div className="mt-2 flex justify-end">
                           {renderActions(record, true)}
                         </div>
                       </div>
