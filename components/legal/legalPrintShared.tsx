@@ -23,10 +23,12 @@ export const LEGAL_PRINT_CSS = `
     opacity: 1 !important;
   }
   .legal-print-final-anchor {
-    position: absolute;
-    right: 8mm;
-    bottom: 6mm;
-    left: 8mm;
+    position: static;
+  }
+  .legal-print-final-spacer {
+    display: block;
+    flex: 0 0 auto;
+    height: var(--legal-print-final-spacer-height, 0px);
   }
   @media print {
     html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
@@ -66,12 +68,15 @@ export const LEGAL_PRINT_CSS = `
       page-break-inside: avoid !important;
     }
     .legal-print-final-anchor {
-      position: absolute !important;
-      right: 8mm !important;
-      bottom: 6mm !important;
-      left: 8mm !important;
+      position: static !important;
       break-inside: avoid-page !important;
       page-break-inside: avoid !important;
+    }
+    .legal-print-final-spacer {
+      display: block !important;
+      height: var(--legal-print-final-spacer-height, 0px) !important;
+      break-inside: auto !important;
+      page-break-inside: auto !important;
     }
   }
 `;
@@ -81,7 +86,7 @@ export const calculateLegalPrintPageCount = (contentHeight: number, pageHeight: 
   return Math.max(1, Math.ceil((contentHeight - 1) / pageHeight));
 };
 
-export const calculatePaginatedLegalPrintPageCount = (input: {
+export const calculatePaginatedLegalPrintLayout = (input: {
   pageHeight: number;
   firstPageContentHeight: number;
   tableHeaderHeight: number;
@@ -90,27 +95,41 @@ export const calculatePaginatedLegalPrintPageCount = (input: {
   finalSectionHeight: number;
   finalPageBottomPadding: number;
 }) => {
-  if (!Number.isFinite(input.pageHeight) || input.pageHeight <= 0) return 1;
+  if (!Number.isFinite(input.pageHeight) || input.pageHeight <= 0) {
+    return { pageCount: 1, finalSpacerHeight: 0 };
+  }
 
   const pageHeight = input.pageHeight;
   const tableStartHeight = Math.max(0, input.tableHeaderHeight) + Math.max(0, input.tableFrameHeight);
-  let pageCount = 1;
+  let tablePageCount = 1;
   let usedHeight = Math.max(0, input.firstPageContentHeight) + tableStartHeight;
 
   input.rowHeights.forEach((rowHeight) => {
     const safeRowHeight = Math.max(0, rowHeight);
     if (usedHeight + safeRowHeight > pageHeight + 1) {
-      pageCount += 1;
+      tablePageCount += 1;
       usedHeight = tableStartHeight + safeRowHeight;
     } else {
       usedHeight += safeRowHeight;
     }
   });
 
-  const finalHeight = Math.max(0, input.finalSectionHeight) + Math.max(0, input.finalPageBottomPadding);
-  if (usedHeight + finalHeight > pageHeight + 1) pageCount += 1;
-  return pageCount;
+  const finalSectionHeight = Math.max(0, input.finalSectionHeight);
+  const finalPageBottomPadding = Math.max(0, input.finalPageBottomPadding);
+  const finalPageLimit = Math.max(0, pageHeight - finalPageBottomPadding);
+  const fitsOnTablePage = usedHeight + finalSectionHeight <= finalPageLimit + 1;
+  const pageCount = tablePageCount + (fitsOnTablePage ? 0 : 1);
+  const physicalContentEnd = ((tablePageCount - 1) * pageHeight) + usedHeight;
+  const finalSectionTop = (pageCount * pageHeight) - finalPageBottomPadding - finalSectionHeight;
+
+  return {
+    pageCount,
+    finalSpacerHeight: Math.max(0, finalSectionTop - physicalContentEnd),
+  };
 };
+
+export const calculatePaginatedLegalPrintPageCount = (input: Parameters<typeof calculatePaginatedLegalPrintLayout>[0]) =>
+  calculatePaginatedLegalPrintLayout(input).pageCount;
 
 export const formatPrintMoney = (value: number | null | undefined, currency = 'EUR') => {
   const amount = Number(value || 0).toLocaleString('el-GR', {
@@ -260,8 +279,10 @@ export function LegalPrintPage({ children }: { children: React.ReactNode }) {
         });
 
         const linesSection = page.querySelector<HTMLElement>('.legal-print-lines-table');
+        const finalSpacer = page.querySelector<HTMLElement>('.legal-print-final-spacer');
         const finalSection = page.querySelector<HTMLElement>('.legal-print-final-anchor');
         let pageCount = calculateLegalPrintPageCount(contentHeight, pageHeight);
+        let finalSpacerHeight = 0;
 
         if (linesSection && finalSection) {
           const directChildren = Array.from(page.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
@@ -281,19 +302,23 @@ export function LegalPrintPage({ children }: { children: React.ReactNode }) {
           const tableHeight = table?.getBoundingClientRect().height || 0;
           const tableFrameHeight = Math.max(0, linesSection.getBoundingClientRect().height - tableHeight);
 
-          pageCount = calculatePaginatedLegalPrintPageCount({
-            pageHeight: Math.max(1, pageHeight - paddingTop - paddingBottom),
-            firstPageContentHeight,
+          const layout = calculatePaginatedLegalPrintLayout({
+            pageHeight,
+            firstPageContentHeight: paddingTop + firstPageContentHeight,
             tableHeaderHeight,
             tableFrameHeight,
             rowHeights,
             finalSectionHeight: finalSection.getBoundingClientRect().height,
-            finalPageBottomPadding: 0,
+            finalPageBottomPadding: paddingBottom,
           });
+          pageCount = layout.pageCount;
+          finalSpacerHeight = layout.finalSpacerHeight;
         }
 
         page.style.setProperty('--legal-print-page-count', String(pageCount));
+        page.style.setProperty('--legal-print-final-spacer-height', `${finalSpacerHeight}px`);
         page.dataset.legalPrintPageCount = String(pageCount);
+        if (finalSpacer) finalSpacer.dataset.legalPrintSpacerHeight = String(finalSpacerHeight);
     };
 
     const schedulePageCountMeasurement = () => {
@@ -307,7 +332,9 @@ export function LegalPrintPage({ children }: { children: React.ReactNode }) {
     const observer = typeof ResizeObserver === 'undefined'
       ? null
       : new ResizeObserver(schedulePageCountMeasurement);
-    Array.from(page.children).forEach((child) => observer?.observe(child));
+    Array.from(page.children)
+      .filter((child) => !child.classList.contains('legal-print-final-spacer'))
+      .forEach((child) => observer?.observe(child));
     void document.fonts?.ready.then(schedulePageCountMeasurement);
 
     return () => {
@@ -527,7 +554,7 @@ export function LegalPrintAadePanel(props: {
   }, [props.qrUrl]);
 
   return (
-    <section className="legal-print-break-inside mt-1.5 shrink-0 border-t border-slate-300 pt-1.5">
+    <section className="legal-print-break-inside mt-0.5 shrink-0 border-t border-slate-300 pt-1">
       <div className="grid grid-cols-[27mm_1fr_52mm] gap-3">
         <div className="flex h-[25mm] w-[25mm] items-center justify-center border border-slate-300 bg-white p-1">
           {qrDataUrl ? (
@@ -555,7 +582,7 @@ export function LegalPrintAadePanel(props: {
           <div className="mt-auto border-t border-slate-300 pt-1 text-center text-[8.5px]">Υπογραφή / Σφραγίδα</div>
         </div>
       </div>
-      <div className="legal-print-full-width-details mt-1 w-full rounded-md border border-slate-300 bg-slate-50 px-2 py-1.5 text-[9px] leading-[1.25] text-slate-700">
+      <div className="legal-print-full-width-details mt-0.5 w-full rounded-md border border-slate-300 bg-slate-50 px-2 py-1.5 text-[9px] leading-[1.25] text-slate-700">
         <p className="font-black uppercase tracking-[0.08em] text-slate-700">Όροι παράδοσης</p>
         <ol className="mt-0.5 space-y-0.5">
           {LEGAL_PRINT_DELIVERY_TERMS.map((term, index) => <li key={term}><span className="mr-1 font-black text-slate-500">{index + 1}.</span>{term}</li>)}

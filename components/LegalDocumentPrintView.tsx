@@ -75,7 +75,8 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
 
       <LegalPrintLinesTable lines={lines} currency={document.currency} />
 
-      <div className="legal-print-final-anchor shrink-0 pt-1">
+      <div className="legal-print-final-spacer" aria-hidden="true" />
+      <div className="legal-print-final-anchor shrink-0">
         <table className="legal-print-final-section w-full table-fixed border-collapse">
           <tbody>
             <tr>

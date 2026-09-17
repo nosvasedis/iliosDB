@@ -6,6 +6,7 @@ import {
   getMeasurementUnitLabel,
   getVatCategoryPrintRate,
   calculateLegalPrintPageCount,
+  calculatePaginatedLegalPrintLayout,
   calculatePaginatedLegalPrintPageCount,
   formatPrintTime,
   LEGAL_PRINT_CSS,
@@ -129,8 +130,9 @@ describe('legal print semantics', () => {
     expect(LEGAL_PRINT_CSS).not.toContain('break-after: avoid-page');
     expect(html).toContain('legal-print-lines-table shrink-0');
     expect(html).not.toContain('legal-print-lines-table min-h-[78mm] grow');
-    expect(LEGAL_PRINT_CSS).toContain('position: absolute;');
-    expect(LEGAL_PRINT_CSS).toContain('bottom: 6mm;');
+    expect(LEGAL_PRINT_CSS).not.toContain('position: absolute;');
+    expect(LEGAL_PRINT_CSS).toContain('height: var(--legal-print-final-spacer-height, 0px);');
+    expect(html).toContain('legal-print-final-spacer');
     expect(html).toContain('legal-print-final-anchor shrink-0');
     expect(html).not.toContain('legal-print-final-anchor mt-auto');
     expect(html).not.toContain('text-[6.25px]');
@@ -166,6 +168,28 @@ describe('legal print semantics', () => {
       finalSectionHeight: 35,
       finalPageBottomPadding: 5,
     })).toBe(3);
+  });
+
+  it('reserves normal-flow space so the footer reaches the bottom without covering SKU rows', () => {
+    expect(calculatePaginatedLegalPrintLayout({
+      pageHeight: 100,
+      firstPageContentHeight: 35,
+      tableHeaderHeight: 10,
+      tableFrameHeight: 2,
+      rowHeights: [15, 15],
+      finalSectionHeight: 20,
+      finalPageBottomPadding: 3,
+    })).toEqual({ pageCount: 1, finalSpacerHeight: 0 });
+
+    expect(calculatePaginatedLegalPrintLayout({
+      pageHeight: 100,
+      firstPageContentHeight: 35,
+      tableHeaderHeight: 10,
+      tableFrameHeight: 2,
+      rowHeights: [20, 20, 20, 20, 20],
+      finalSectionHeight: 35,
+      finalPageBottomPadding: 5,
+    })).toEqual({ pageCount: 3, finalSpacerHeight: 88 });
   });
 
   it('maps every myDATA 8.13 measurement-unit code to its official Greek label', () => {
