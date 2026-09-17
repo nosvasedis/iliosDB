@@ -23,10 +23,26 @@ const LegalOnlyPrintManager: React.FC = () => {
     const shouldPrint = legalDocumentToPrint || proformaToPrint;
     if (!shouldPrint) return;
 
-    const timer = setTimeout(() => {
+    let paginationAttempts = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const preparePrint = () => {
       const printContent = printContainerRef.current;
       const iframe = iframeRef.current;
       if (!printContent || !iframe) return;
+
+      const legalPagination = legalDocumentToPrint
+        ? printContent.querySelector<HTMLElement>('[data-legal-print-pagination-ready]')
+        : null;
+      if (legalDocumentToPrint && legalPagination?.dataset.legalPrintPaginationReady !== 'true') {
+        paginationAttempts += 1;
+        if (paginationAttempts <= 100) {
+          timer = setTimeout(preparePrint, 50);
+          return;
+        }
+        console.error('Η σελιδοποίηση του παραστατικού δεν ολοκληρώθηκε πριν από την εκτύπωση.');
+        setLegalDocumentToPrint(null);
+        return;
+      }
 
       const iframeDoc = iframe.contentWindow?.document;
       if (!iframeDoc) return;
@@ -78,7 +94,7 @@ const LegalOnlyPrintManager: React.FC = () => {
               body { background: white !important; margin: 0; padding: 0; }
               .print-view { display: block !important; }
               @media print {
-                @page { size: auto; margin-left: 0; margin-right: 0; margin-bottom: 0; }
+                @page { ${legalDocumentToPrint ? 'size: A4; margin: 0 !important;' : 'size: auto; margin-left: 0; margin-right: 0; margin-bottom: 0;'} }
                 html, body { height: 100%; margin: 0 !important; padding: 0 !important; }
               }
               * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -89,7 +105,9 @@ const LegalOnlyPrintManager: React.FC = () => {
               ${printContent.innerHTML}
             </div>
             <script>
-              ${buildPrintIframeOnloadScript(PRINT_IFRAME_PAGE_MARGIN_CSS)}
+              ${buildPrintIframeOnloadScript(
+                legalDocumentToPrint ? undefined : PRINT_IFRAME_PAGE_MARGIN_CSS,
+              )}
             </script>
           </body>
         </html>
@@ -102,14 +120,28 @@ const LegalOnlyPrintManager: React.FC = () => {
       };
       window.addEventListener('focus', handleAfterPrint, { once: true });
       setTimeout(cleanup, 30000);
-    }, 800);
+    };
+    timer = setTimeout(preparePrint, 800);
 
     return () => clearTimeout(timer);
   }, [legalDocumentToPrint, proformaToPrint, setLegalDocumentToPrint, setProformaToPrint]);
 
   return (
     <>
-      <div ref={printContainerRef} className="print-view">
+      <div
+        ref={printContainerRef}
+        className="print-view"
+        aria-hidden="true"
+        style={{
+          display: 'block',
+          position: 'fixed',
+          left: '-100000px',
+          top: 0,
+          width: '210mm',
+          visibility: 'hidden',
+          pointerEvents: 'none',
+        }}
+      >
         {legalDocumentToPrint && (
           <LegalDocumentPrintView
             document={legalDocumentToPrint.document}

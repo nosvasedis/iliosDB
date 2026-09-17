@@ -114,10 +114,26 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
     useEffect(() => {
         const shouldPrint = printItems.length > 0 || orderToPrint || remainingOrderToPrint || shipmentToPrint || (shipmentsToPrint && shipmentsToPrint.length > 0) || offerToPrint || aggregatedPrintData || preparationPrintData || technicianPrintData || assemblyPrintData || priceListPrintData || analyticsPrintData || skuSalesPrintData || orderAnalyticsData || supplierOrderToPrint || (photoCatalogPrintData && photoCatalogPrintData.length > 0) || stageBatchPrintData || legalDocumentToPrint || proformaToPrint;
         if (shouldPrint && settings && products && materials) {
-            const timer = setTimeout(() => {
+            let paginationAttempts = 0;
+            let timer: ReturnType<typeof setTimeout>;
+            const preparePrint = () => {
                 const printContent = printContainerRef.current;
                 const iframe = iframeRef.current;
                 if (!printContent || !iframe) return;
+
+                const legalPagination = legalDocumentToPrint
+                    ? printContent.querySelector<HTMLElement>('[data-legal-print-pagination-ready]')
+                    : null;
+                if (legalDocumentToPrint && legalPagination?.dataset.legalPrintPaginationReady !== 'true') {
+                    paginationAttempts += 1;
+                    if (paginationAttempts <= 100) {
+                        timer = setTimeout(preparePrint, 50);
+                        return;
+                    }
+                    console.error('Η σελιδοποίηση του παραστατικού δεν ολοκληρώθηκε πριν από την εκτύπωση.');
+                    setLegalDocumentToPrint(null);
+                    return;
+                }
 
                 const iframeDoc = iframe.contentWindow?.document;
                 if (!iframeDoc) return;
@@ -266,8 +282,11 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                         }
                         @media print {
                           @page {
-                            size: auto;
-                            ${printingLabels ? 'margin: 0 !important;' : 'margin-left: 0; margin-right: 0; margin-bottom: 0;'}
+                            ${printingLabels
+                                ? 'size: auto; margin: 0 !important;'
+                                : legalDocumentToPrint
+                                    ? 'size: A4; margin: 0 !important;'
+                                    : 'size: auto; margin-left: 0; margin-right: 0; margin-bottom: 0;'}
                           }
                           html, body { height: 100%; margin: 0 !important; padding: 0 !important; }
                           .label-container { display: flex !important; }
@@ -286,7 +305,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                       </div>
                       <script>
                         ${buildPrintIframeOnloadScript(
-                            printingLabels ? undefined : PRINT_IFRAME_PAGE_MARGIN_CSS,
+                            printingLabels || legalDocumentToPrint ? undefined : PRINT_IFRAME_PAGE_MARGIN_CSS,
                         )}
                       </script>
                     </body>
@@ -301,7 +320,8 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                 window.addEventListener('focus', handleAfterPrint, { once: true });
                 setTimeout(cleanup, 30000);
 
-            }, 800);
+            };
+            timer = setTimeout(preparePrint, 800);
 
             return () => clearTimeout(timer);
         }
@@ -311,7 +331,20 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
 
     return (
         <>
-            <div ref={printContainerRef} className="print-view" aria-hidden="true" style={{ display: 'none' }}>
+            <div
+                ref={printContainerRef}
+                className="print-view"
+                aria-hidden="true"
+                style={{
+                    display: 'block',
+                    position: 'fixed',
+                    left: '-100000px',
+                    top: 0,
+                    width: '210mm',
+                    visibility: 'hidden',
+                    pointerEvents: 'none',
+                }}
+            >
                 {orderToPrint && <OrderInvoiceView order={orderToPrint} revisionSuffix={(orderToPrint as any)._revisionSuffix} />}
                 {remainingOrderToPrint && <OrderInvoiceView order={remainingOrderToPrint} title="ΥΠΟΛΟΙΠΑ ΕΙΔΗ ΠΡΟΣΦΟΡΑΣ" />}
                 {shipmentsToPrint && shipmentsToPrint.length > 0 && (

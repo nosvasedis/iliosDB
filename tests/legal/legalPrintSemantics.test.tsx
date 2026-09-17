@@ -6,12 +6,12 @@ import {
   getMeasurementUnitLabel,
   getVatCategoryPrintRate,
   calculateLegalPrintPageCount,
-  calculatePaginatedLegalPrintLayout,
-  calculatePaginatedLegalPrintPageCount,
   formatPrintTime,
   LEGAL_PRINT_CSS,
   LegalPrintCustomerBar,
   LegalPrintHeader,
+  LegalPrintLinesTable,
+  paginateLegalPrintRows,
 } from '../../components/legal/legalPrintShared';
 import type { LegalDocument, LegalDocumentLine } from '../../types';
 
@@ -124,19 +124,66 @@ describe('legal print semantics', () => {
     expect(LEGAL_PRINT_CSS).toContain('font-size: 10px;');
     expect(LEGAL_PRINT_CSS).toContain('line-height: 1.3;');
     expect(LEGAL_PRINT_CSS).toContain('.legal-print-final-section');
-    expect(LEGAL_PRINT_CSS).toContain('min-height: calc(var(--legal-print-page-count, 1) * 297mm)');
+    expect(LEGAL_PRINT_CSS).toContain('.legal-print-physical-page');
+    expect(LEGAL_PRINT_CSS).toContain('height: 297mm;');
+    expect(LEGAL_PRINT_CSS).toContain('max-height: 297mm;');
     expect(LEGAL_PRINT_CSS).toContain('break-inside: avoid-page !important;');
     expect(LEGAL_PRINT_CSS).not.toContain('break-before: avoid-page');
     expect(LEGAL_PRINT_CSS).not.toContain('break-after: avoid-page');
     expect(html).toContain('legal-print-lines-table shrink-0');
     expect(html).not.toContain('legal-print-lines-table min-h-[78mm] grow');
     expect(LEGAL_PRINT_CSS).not.toContain('position: absolute;');
-    expect(LEGAL_PRINT_CSS).toContain('height: var(--legal-print-final-spacer-height, 0px);');
-    expect(html).toContain('legal-print-final-spacer');
-    expect(html).toContain('legal-print-final-anchor shrink-0');
-    expect(html).not.toContain('legal-print-final-anchor mt-auto');
+    expect(html).not.toContain('legal-print-final-spacer');
+    expect(html).toContain('legal-print-final-anchor mt-auto shrink-0');
+    expect(html).toContain('data-legal-print-last-page="true"');
     expect(html).not.toContain('text-[6.25px]');
     expect(html).not.toContain('text-[6.5px]');
+  });
+
+  it('splits rows into real A4 page slices and reserves the final footer before placing rows', () => {
+    expect(paginateLegalPrintRows({
+      rowHeights: Array.from({ length: 20 }, () => 20),
+      pageContentHeight: 1000,
+      firstPageFixedHeight: 300,
+      continuationPageFixedHeight: 50,
+      finalSectionHeight: 250,
+      safetyGap: 0,
+    })).toEqual([{ startIndex: 0, endIndex: 20 }]);
+
+    expect(paginateLegalPrintRows({
+      rowHeights: Array.from({ length: 40 }, () => 20),
+      pageContentHeight: 1000,
+      firstPageFixedHeight: 300,
+      continuationPageFixedHeight: 50,
+      finalSectionHeight: 250,
+      safetyGap: 0,
+    })).toEqual([
+      { startIndex: 0, endIndex: 35 },
+      { startIndex: 35, endIndex: 40 },
+    ]);
+
+    expect(paginateLegalPrintRows({
+      rowHeights: Array.from({ length: 90 }, () => 20),
+      pageContentHeight: 1000,
+      firstPageFixedHeight: 300,
+      continuationPageFixedHeight: 50,
+      finalSectionHeight: 250,
+      safetyGap: 0,
+    })).toEqual([
+      { startIndex: 0, endIndex: 35 },
+      { startIndex: 35, endIndex: 82 },
+      { startIndex: 82, endIndex: 90 },
+    ]);
+  });
+
+  it('keeps zebra striping continuous when a later physical page starts on an odd row', () => {
+    const html = renderToStaticMarkup(
+      <LegalPrintLinesTable lines={lines} startIndex={1} currency="EUR" />,
+    );
+
+    expect(html).toContain('data-legal-print-line-index="1"');
+    expect(html).toContain('bg-slate-100/80');
+    expect(html).not.toContain('odd:bg-white');
   });
 
   it('rounds the measured print content up to complete A4 pages', () => {
@@ -146,50 +193,6 @@ describe('legal print semantics', () => {
     expect(calculateLegalPrintPageCount(1002, 1000)).toBe(2);
     expect(calculateLegalPrintPageCount(2500, 1000)).toBe(3);
     expect(calculateLegalPrintPageCount(Number.NaN, 1000)).toBe(1);
-  });
-
-  it('accounts for repeated table headers and keeps the complete footer on the final page', () => {
-    expect(calculatePaginatedLegalPrintPageCount({
-      pageHeight: 100,
-      firstPageContentHeight: 35,
-      tableHeaderHeight: 10,
-      tableFrameHeight: 2,
-      rowHeights: [15, 15],
-      finalSectionHeight: 20,
-      finalPageBottomPadding: 3,
-    })).toBe(1);
-
-    expect(calculatePaginatedLegalPrintPageCount({
-      pageHeight: 100,
-      firstPageContentHeight: 35,
-      tableHeaderHeight: 10,
-      tableFrameHeight: 2,
-      rowHeights: [20, 20, 20, 20, 20],
-      finalSectionHeight: 35,
-      finalPageBottomPadding: 5,
-    })).toBe(3);
-  });
-
-  it('reserves normal-flow space so the footer reaches the bottom without covering SKU rows', () => {
-    expect(calculatePaginatedLegalPrintLayout({
-      pageHeight: 100,
-      firstPageContentHeight: 35,
-      tableHeaderHeight: 10,
-      tableFrameHeight: 2,
-      rowHeights: [15, 15],
-      finalSectionHeight: 20,
-      finalPageBottomPadding: 3,
-    })).toEqual({ pageCount: 1, finalSpacerHeight: 0 });
-
-    expect(calculatePaginatedLegalPrintLayout({
-      pageHeight: 100,
-      firstPageContentHeight: 35,
-      tableHeaderHeight: 10,
-      tableFrameHeight: 2,
-      rowHeights: [20, 20, 20, 20, 20],
-      finalSectionHeight: 35,
-      finalPageBottomPadding: 5,
-    })).toEqual({ pageCount: 3, finalSpacerHeight: 88 });
   });
 
   it('maps every myDATA 8.13 measurement-unit code to its official Greek label', () => {
@@ -358,8 +361,8 @@ describe('legal print semantics', () => {
     expect(html).toContain('Τεμάχια');
     expect(html).toContain('Τιμή μον.');
     expect(html).toContain('Έκπτ.%');
-    expect(html).toContain('odd:bg-white');
-    expect(html).toContain('even:bg-slate-100/80');
+    expect(html).toContain('data-legal-print-line-index="0"');
+    expect(html).toContain('bg-white');
     expect(html).toContain('py-[3px]');
     expect(html).toContain('125,00 €');
     expect(html).toContain('20%');

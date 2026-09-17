@@ -6,6 +6,39 @@ import { LegalDeliveryDetails, LegalDocumentLine, LegalParty, LegalIssuerSetting
 
 export const LEGAL_PRINT_CSS = `
   @page { size: A4; margin: 0; }
+  .legal-print-document {
+    background: transparent;
+  }
+  .legal-print-physical-page {
+    background: #fff !important;
+    color: #0f172a !important;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    width: 210mm;
+    height: 297mm;
+    min-height: 297mm;
+    max-height: 297mm;
+    overflow: hidden;
+    padding: 6mm 8mm;
+    margin: 0 auto 16px;
+    font-size: 10px;
+    line-height: 1.3;
+    break-after: page;
+    page-break-after: always;
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .legal-print-physical-page.legal-print-last-page {
+    break-after: auto;
+    page-break-after: auto;
+  }
+  .legal-print-first-page-content {
+    display: flow-root;
+    flex: 0 0 auto;
+  }
   .legal-print-page {
     background: #fff !important;
     color: #0f172a !important;
@@ -25,13 +58,28 @@ export const LEGAL_PRINT_CSS = `
   .legal-print-final-anchor {
     position: static;
   }
-  .legal-print-final-spacer {
-    display: block;
-    flex: 0 0 auto;
-    height: var(--legal-print-final-spacer-height, 0px);
-  }
   @media print {
     html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+    .legal-print-document {
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    .legal-print-physical-page {
+      width: 210mm !important;
+      height: 297mm !important;
+      min-height: 297mm !important;
+      max-height: 297mm !important;
+      margin: 0 !important;
+      box-shadow: none !important;
+      break-after: page !important;
+      page-break-after: always !important;
+      break-inside: avoid-page !important;
+      page-break-inside: avoid !important;
+    }
+    .legal-print-physical-page.legal-print-last-page {
+      break-after: auto !important;
+      page-break-after: auto !important;
+    }
     .legal-print-page {
       width: 210mm !important;
       min-height: calc(var(--legal-print-page-count, 1) * 297mm) !important;
@@ -72,12 +120,6 @@ export const LEGAL_PRINT_CSS = `
       break-inside: avoid-page !important;
       page-break-inside: avoid !important;
     }
-    .legal-print-final-spacer {
-      display: block !important;
-      height: var(--legal-print-final-spacer-height, 0px) !important;
-      break-inside: auto !important;
-      page-break-inside: auto !important;
-    }
   }
 `;
 
@@ -86,50 +128,106 @@ export const calculateLegalPrintPageCount = (contentHeight: number, pageHeight: 
   return Math.max(1, Math.ceil((contentHeight - 1) / pageHeight));
 };
 
-export const calculatePaginatedLegalPrintLayout = (input: {
-  pageHeight: number;
-  firstPageContentHeight: number;
-  tableHeaderHeight: number;
-  tableFrameHeight: number;
+export interface LegalPrintRowSlice {
+  startIndex: number;
+  endIndex: number;
+}
+
+/**
+ * Splits invoice rows into explicit A4 sheets. Unlike browser fragmentation,
+ * every sheet has a known capacity and the final sheet reserves the complete
+ * summary / QR block before any row is assigned to it.
+ */
+export const paginateLegalPrintRows = (input: {
   rowHeights: number[];
+  pageContentHeight: number;
+  firstPageFixedHeight: number;
+  continuationPageFixedHeight: number;
   finalSectionHeight: number;
-  finalPageBottomPadding: number;
-}) => {
-  if (!Number.isFinite(input.pageHeight) || input.pageHeight <= 0) {
-    return { pageCount: 1, finalSpacerHeight: 0 };
+  safetyGap?: number;
+}): LegalPrintRowSlice[] => {
+  const rowHeights = input.rowHeights.map((height) => (
+    Number.isFinite(height) ? Math.max(0, height) : 0
+  ));
+  const rowCount = rowHeights.length;
+  if (rowCount === 0) return [{ startIndex: 0, endIndex: 0 }];
+
+  const pageContentHeight = Number.isFinite(input.pageContentHeight)
+    ? Math.max(0, input.pageContentHeight)
+    : 0;
+  if (pageContentHeight <= 0) return [{ startIndex: 0, endIndex: rowCount }];
+
+  const firstFixed = Math.max(0, input.firstPageFixedHeight || 0);
+  const continuationFixed = Math.max(0, input.continuationPageFixedHeight || 0);
+  const finalSection = Math.max(0, input.finalSectionHeight || 0);
+  const safetyGap = Math.max(0, input.safetyGap ?? 3);
+  const prefixHeights = [0];
+  rowHeights.forEach((height) => prefixHeights.push(prefixHeights[prefixHeights.length - 1] + height));
+  const rangeHeight = (startIndex: number, endIndex: number) => prefixHeights[endIndex] - prefixHeights[startIndex];
+
+  const buildCapacities = (pageCount: number, reserveFinalSection: boolean) => (
+    Array.from({ length: pageCount }, (_, pageIndex) => {
+      const fixedHeight = pageIndex === 0 ? firstFixed : continuationFixed;
+      const footerHeight = reserveFinalSection && pageIndex === pageCount - 1 ? finalSection : 0;
+      return Math.max(0, pageContentHeight - fixedHeight - footerHeight - safetyGap);
+    })
+  );
+
+  const findSlices = (capacities: number[]): LegalPrintRowSlice[] | null => {
+    if (capacities.length > rowCount) return null;
+    const memo = new Map<string, LegalPrintRowSlice[] | null>();
+
+    const visit = (pageIndex: number, startIndex: number): LegalPrintRowSlice[] | null => {
+      const key = `${pageIndex}:${startIndex}`;
+      if (memo.has(key)) return memo.get(key) ?? null;
+
+      const remainingPages = capacities.length - pageIndex;
+      const remainingRows = rowCount - startIndex;
+      if (remainingRows < remainingPages) {
+        memo.set(key, null);
+        return null;
+      }
+
+      if (pageIndex === capacities.length - 1) {
+        const result = rangeHeight(startIndex, rowCount) <= capacities[pageIndex] + 0.5
+          ? [{ startIndex, endIndex: rowCount }]
+          : null;
+        memo.set(key, result);
+        return result;
+      }
+
+      const maxEndIndex = rowCount - (remainingPages - 1);
+      for (let endIndex = maxEndIndex; endIndex > startIndex; endIndex -= 1) {
+        if (rangeHeight(startIndex, endIndex) > capacities[pageIndex] + 0.5) continue;
+        const tail = visit(pageIndex + 1, endIndex);
+        if (tail) {
+          const result = [{ startIndex, endIndex }, ...tail];
+          memo.set(key, result);
+          return result;
+        }
+      }
+
+      memo.set(key, null);
+      return null;
+    };
+
+    return visit(0, 0);
+  };
+
+  for (let pageCount = 1; pageCount <= rowCount; pageCount += 1) {
+    const slices = findSlices(buildCapacities(pageCount, true));
+    if (slices) return slices;
   }
 
-  const pageHeight = input.pageHeight;
-  const tableStartHeight = Math.max(0, input.tableHeaderHeight) + Math.max(0, input.tableFrameHeight);
-  let tablePageCount = 1;
-  let usedHeight = Math.max(0, input.firstPageContentHeight) + tableStartHeight;
+  // Exceptional fallback for a single unusually tall row/footer combination:
+  // keep rows intact and give the final block its own bottom-anchored A4 sheet.
+  for (let rowPageCount = 1; rowPageCount <= rowCount; rowPageCount += 1) {
+    const rowSlices = findSlices(buildCapacities(rowPageCount, false));
+    if (rowSlices) return [...rowSlices, { startIndex: rowCount, endIndex: rowCount }];
+  }
 
-  input.rowHeights.forEach((rowHeight) => {
-    const safeRowHeight = Math.max(0, rowHeight);
-    if (usedHeight + safeRowHeight > pageHeight + 1) {
-      tablePageCount += 1;
-      usedHeight = tableStartHeight + safeRowHeight;
-    } else {
-      usedHeight += safeRowHeight;
-    }
-  });
-
-  const finalSectionHeight = Math.max(0, input.finalSectionHeight);
-  const finalPageBottomPadding = Math.max(0, input.finalPageBottomPadding);
-  const finalPageLimit = Math.max(0, pageHeight - finalPageBottomPadding);
-  const fitsOnTablePage = usedHeight + finalSectionHeight <= finalPageLimit + 1;
-  const pageCount = tablePageCount + (fitsOnTablePage ? 0 : 1);
-  const physicalContentEnd = ((tablePageCount - 1) * pageHeight) + usedHeight;
-  const finalSectionTop = (pageCount * pageHeight) - finalPageBottomPadding - finalSectionHeight;
-
-  return {
-    pageCount,
-    finalSpacerHeight: Math.max(0, finalSectionTop - physicalContentEnd),
-  };
+  return rowHeights.map((_, index) => ({ startIndex: index, endIndex: index + 1 }));
 };
-
-export const calculatePaginatedLegalPrintPageCount = (input: Parameters<typeof calculatePaginatedLegalPrintLayout>[0]) =>
-  calculatePaginatedLegalPrintLayout(input).pageCount;
 
 export const formatPrintMoney = (value: number | null | undefined, currency = 'EUR') => {
   const amount = Number(value || 0).toLocaleString('el-GR', {
@@ -269,47 +367,9 @@ export function LegalPrintPage({ children }: { children: React.ReactNode }) {
           contentHeight += child.getBoundingClientRect().height + marginTop + marginBottom;
         });
 
-        const linesSection = page.querySelector<HTMLElement>('.legal-print-lines-table');
-        const finalSpacer = page.querySelector<HTMLElement>('.legal-print-final-spacer');
-        const finalSection = page.querySelector<HTMLElement>('.legal-print-final-anchor');
-        let pageCount = calculateLegalPrintPageCount(contentHeight, pageHeight);
-        let finalSpacerHeight = 0;
-
-        if (linesSection && finalSection) {
-          const directChildren = Array.from(page.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
-          const linesIndex = directChildren.indexOf(linesSection);
-          let firstPageContentHeight = 0;
-          directChildren.slice(0, Math.max(0, linesIndex)).forEach((child) => {
-            const childStyle = window.getComputedStyle(child);
-            firstPageContentHeight += child.getBoundingClientRect().height
-              + (Number.parseFloat(childStyle.marginTop) || 0)
-              + (Number.parseFloat(childStyle.marginBottom) || 0);
-          });
-
-          const table = linesSection.querySelector('table');
-          const tableHeaderHeight = table?.querySelector('thead')?.getBoundingClientRect().height || 0;
-          const rowHeights = Array.from(table?.querySelectorAll('tbody tr') || [])
-            .map((row) => row.getBoundingClientRect().height);
-          const tableHeight = table?.getBoundingClientRect().height || 0;
-          const tableFrameHeight = Math.max(0, linesSection.getBoundingClientRect().height - tableHeight);
-
-          const layout = calculatePaginatedLegalPrintLayout({
-            pageHeight,
-            firstPageContentHeight: paddingTop + firstPageContentHeight,
-            tableHeaderHeight,
-            tableFrameHeight,
-            rowHeights,
-            finalSectionHeight: finalSection.getBoundingClientRect().height,
-            finalPageBottomPadding: paddingBottom,
-          });
-          pageCount = layout.pageCount;
-          finalSpacerHeight = layout.finalSpacerHeight;
-        }
-
+        const pageCount = calculateLegalPrintPageCount(contentHeight, pageHeight);
         page.style.setProperty('--legal-print-page-count', String(pageCount));
-        page.style.setProperty('--legal-print-final-spacer-height', `${finalSpacerHeight}px`);
         page.dataset.legalPrintPageCount = String(pageCount);
-        if (finalSpacer) finalSpacer.dataset.legalPrintSpacerHeight = String(finalSpacerHeight);
     };
 
     const schedulePageCountMeasurement = () => {
@@ -323,9 +383,7 @@ export function LegalPrintPage({ children }: { children: React.ReactNode }) {
     const observer = typeof ResizeObserver === 'undefined'
       ? null
       : new ResizeObserver(schedulePageCountMeasurement);
-    Array.from(page.children)
-      .filter((child) => !child.classList.contains('legal-print-final-spacer'))
-      .forEach((child) => observer?.observe(child));
+    Array.from(page.children).forEach((child) => observer?.observe(child));
     void document.fonts?.ready.then(schedulePageCountMeasurement);
 
     return () => {
@@ -343,6 +401,22 @@ export function LegalPrintPage({ children }: { children: React.ReactNode }) {
   );
 }
 
+export function LegalPrintPhysicalPage(props: {
+  children: React.ReactNode;
+  pageNumber: number;
+  isLastPage: boolean;
+}) {
+  return (
+    <div
+      className={`legal-print-physical-page relative font-sans text-slate-900 shadow-lg print:shadow-none${props.isLastPage ? ' legal-print-last-page' : ''}`}
+      data-legal-print-page={props.pageNumber}
+      data-legal-print-last-page={props.isLastPage ? 'true' : 'false'}
+    >
+      {props.children}
+    </div>
+  );
+}
+
 export function LegalPrintHeader(props: {
   title: string;
   documentNumber: string;
@@ -353,16 +427,20 @@ export function LegalPrintHeader(props: {
   issueTime?: string | null;
   documentTypeDetail?: React.ReactNode;
   statusBadge?: React.ReactNode;
+  pageNumber?: number;
+  totalPages?: number;
 }) {
   const { title, documentNumber, issuer, series, aa, issueDate, issueTime, documentTypeDetail, statusBadge } = props;
   const issuerName = getPartyName(issuer);
+  const pageNumber = Math.max(1, props.pageNumber || 1);
+  const totalPages = Math.max(pageNumber, props.totalPages || 1);
 
   const metadata = [
     { label: 'Είδος παραστατικού', value: title },
     { label: 'Σειρά', value: series || '0' },
     { label: 'Αριθμός', value: aa || documentNumber || '-' },
     { label: 'Ημερομηνία / Ώρα', value: `${formatPrintDate(issueDate)}${issueTime ? ` · ${formatPrintTime(issueTime)}` : ''}` },
-    { label: 'Σελίδα', value: '1' },
+    { label: 'Σελίδα', value: totalPages > 1 ? `${pageNumber} / ${totalPages}` : String(pageNumber) },
   ];
 
   return (
@@ -591,7 +669,15 @@ export function LegalPrintAadePanel(props: {
   );
 }
 
-export function LegalPrintLinesTable({ lines, currency }: { lines: LegalDocumentLine[]; currency?: string }) {
+export function LegalPrintLinesTable({
+  lines,
+  currency,
+  startIndex = 0,
+}: {
+  lines: LegalDocumentLine[];
+  currency?: string;
+  startIndex?: number;
+}) {
   return (
     <section className="legal-print-lines-table shrink-0 overflow-hidden rounded-md border border-slate-300">
       <table className="w-full table-fixed border-collapse text-[10px] leading-[1.2]">
@@ -608,11 +694,16 @@ export function LegalPrintLinesTable({ lines, currency }: { lines: LegalDocument
           </tr>
         </thead>
         <tbody>
-          {lines.map((line) => {
+          {lines.map((line, index) => {
             const originalUnitPrice = line.source_metadata?.original_unit_price ?? line.unit_price;
             const discountPercent = line.source_metadata?.discount_percent ?? 0;
+            const globalIndex = startIndex + index;
             return (
-              <tr key={line.id} className="border-b border-slate-200/80 align-top odd:bg-white even:bg-slate-100/80 last:border-b-0">
+              <tr
+                key={`${line.id}-${globalIndex}`}
+                data-legal-print-line-index={globalIndex}
+                className={`border-b border-slate-200/80 align-top last:border-b-0 ${globalIndex % 2 === 0 ? 'bg-white' : 'bg-slate-100/80'}`}
+              >
                 <td className="break-words px-1.5 py-[3px] font-mono text-[9px] font-bold text-slate-800">{line.item_code || `${line.sku}${line.variant_suffix || ''}`}</td>
                 <td className="px-1.5 py-[3px]">
                   <div className="font-semibold text-slate-800">{line.description}</div>
