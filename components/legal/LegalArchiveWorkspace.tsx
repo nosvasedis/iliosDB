@@ -1,4 +1,4 @@
-import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   BadgeCheck,
@@ -63,6 +63,7 @@ import {
   canPrintProforma,
   formatCountryDisplayName,
   getLegalDocumentDisplayNumber,
+  isLegalDocumentEditable,
   isOfficialLegalDocumentPrint,
 } from '../../utils/legalDocuments';
 import { formatOrderId } from '../../utils/orderUtils';
@@ -775,12 +776,60 @@ function ArchiveStatusGlyph({
   );
 }
 
+function CreditLinkGlyph({
+  kind,
+  documentId,
+  title,
+  active,
+  onHoverChange,
+}: {
+  kind: 'origin' | 'credit';
+  documentId: string;
+  title: string;
+  active?: boolean;
+  onHoverChange: (hovering: boolean) => void;
+}) {
+  const Icon = kind === 'origin' ? ReceiptText : Undo2;
+  return (
+    <span
+      data-credit-node={`${kind}:${documentId}`}
+      title={title}
+      aria-label={title}
+      tabIndex={0}
+      onMouseEnter={() => onHoverChange(true)}
+      onMouseLeave={() => onHoverChange(false)}
+      onFocus={() => onHoverChange(true)}
+      onBlur={() => onHoverChange(false)}
+      className={`inline-flex h-6 w-6 shrink-0 cursor-help items-center justify-center rounded-full border outline-none transition ${
+        kind === 'origin'
+          ? 'border-violet-200 bg-violet-50 text-violet-700'
+          : 'border-rose-200 bg-rose-50 text-rose-700'
+      } ${active ? 'scale-105 ring-2 ring-violet-300/70' : 'hover:ring-1 hover:ring-violet-200'}`}
+    >
+      <Icon size={13} strokeWidth={2.4} />
+    </span>
+  );
+}
+
+function creditThreadPath(x1: number, y1: number, x2: number, y2: number) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const dist = Math.hypot(dx, dy) || 1;
+  const bow = Math.min(38, dist * 0.22);
+  const mx = (x1 + x2) / 2 + (-dy / dist) * bow;
+  const my = (y1 + y2) / 2 + (dx / dist) * bow;
+  return `M ${x1.toFixed(1)} ${y1.toFixed(1)} Q ${mx.toFixed(1)} ${my.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+}
+
 export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps) {
   const [filters, setFilters] = useState<LegalArchiveFilterState>(createDefaultLegalArchiveFilters);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [editingAliases, setEditingAliases] = useState<Set<string>>(new Set());
   const [linkTabs, setLinkTabs] = useState<Record<string, 'party' | 'order'>>({});
+  const [creditThread, setCreditThread] = useState<{ originId: string; creditIds: string[] } | null>(null);
+  const [threadPaths, setThreadPaths] = useState<string[]>([]);
+  const listFrameRef = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(1);
   const deferredFilters = useDeferredValue(filters);
 
@@ -897,6 +946,70 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
     setAdvancedOpen(false);
   };
 
+  const issuedCreditsByOrigin = useMemo(() => {
+    const map = new Map<string, LegalDocument[]>();
+    for (const record of props.records) {
+      if (record.source !== 'legal') continue;
+      const document = record.document as LegalDocument;
+      if (document.document_kind !== 'credit' || !document.credited_document_id || document.status !== 'issued') continue;
+      const current = map.get(document.credited_document_id) || [];
+      current.push(document);
+      map.set(document.credited_document_id, current);
+    }
+    return map;
+  }, [props.records]);
+
+  const pageRecordKeys = pageRecords.map((record) => record.key).join('|');
+  useLayoutEffect(() => {
+    const frame = listFrameRef.current;
+    const clearPaths = () => setThreadPaths((current) => current.length ? [] : current);
+    if (!creditThread || !frame) {
+      clearPaths();
+      return undefined;
+    }
+
+    const visibleNode = (kind: 'origin' | 'credit', id: string) => {
+      const nodes = Array.from(frame.querySelectorAll<HTMLElement>(`[data-credit-node="${kind}:${id}"]`));
+      return nodes.find((node) => {
+        const box = node.getBoundingClientRect();
+        return box.width > 0 && box.height > 0;
+      }) || null;
+    };
+
+    const measure = () => {
+      const origin = visibleNode('origin', creditThread.originId);
+      if (!origin) {
+        clearPaths();
+        return;
+      }
+      const root = frame.getBoundingClientRect();
+      const originBox = origin.getBoundingClientRect();
+      const x1 = originBox.left + originBox.width / 2 - root.left;
+      const y1 = originBox.top + originBox.height / 2 - root.top;
+      const paths = creditThread.creditIds.flatMap((creditId) => {
+        const credit = visibleNode('credit', creditId);
+        if (!credit) return [];
+        const box = credit.getBoundingClientRect();
+        return [creditThreadPath(x1, y1, box.left + box.width / 2 - root.left, box.top + box.height / 2 - root.top)];
+      });
+      setThreadPaths((current) => (
+        current.length === paths.length && current.every((item, index) => item === paths[index])
+          ? current
+          : paths
+      ));
+    };
+
+    measure();
+    frame.addEventListener('scroll', measure, true);
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
+    return () => {
+      frame.removeEventListener('scroll', measure, true);
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', measure, true);
+    };
+  }, [creditThread, pageRecordKeys, expanded]);
+
   const matchDetailLabel = (record: LegalArchiveRecord) => {
     const unresolvedLines = record.lineMatches.filter((line) => line.method === 'none').length;
     const customerMissing = record.customerMatch.state === 'unmatched';
@@ -958,15 +1071,35 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
     );
   };
 
-  const renderCreditIssuedMark = () => (
-    <span
-      title="Έχει εκδοθεί πιστωτικό"
-      aria-label="Έχει εκδοθεί πιστωτικό"
-      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-violet-200 bg-violet-50 text-violet-700"
-    >
-      <Undo2 size={13} strokeWidth={2.4} />
-    </span>
-  );
+  const renderCreditPairGlyph = (record: LegalArchiveRecord) => {
+    if (record.source !== 'legal') return null;
+    const document = record.document as LegalDocument;
+    if (document.document_kind === 'credit' && document.credited_document_id && document.status === 'issued') {
+      const origin = props.records.find((item) => item.source === 'legal' && item.document.id === document.credited_document_id);
+      const originNumber = origin ? getLegalDocumentDisplayNumber(origin.document) : 'αρχικό τιμολόγιο';
+      return (
+        <CreditLinkGlyph
+          kind="credit"
+          documentId={document.id}
+          title={`Πιστωτικό του ${originNumber}`}
+          active={creditThread?.originId === document.credited_document_id && creditThread.creditIds.includes(document.id)}
+          onHoverChange={(hovering) => setCreditThread(hovering ? { originId: document.credited_document_id!, creditIds: [document.id] } : null)}
+        />
+      );
+    }
+    const credits = issuedCreditsByOrigin.get(document.id) || [];
+    if (!credits.length) return null;
+    const names = credits.map((item) => getLegalDocumentDisplayNumber(item)).join(', ');
+    return (
+      <CreditLinkGlyph
+        kind="origin"
+        documentId={document.id}
+        title={credits.length === 1 ? `Έχει εκδοθεί πιστωτικό · σύνδεση με ${names}` : `Έχουν εκδοθεί πιστωτικά · σύνδεση με ${names}`}
+        active={creditThread?.originId === document.id}
+        onHoverChange={(hovering) => setCreditThread(hovering ? { originId: document.id, creditIds: credits.map((item) => item.id) } : null)}
+      />
+    );
+  };
 
   const renderActions = (record: LegalArchiveRecord, compact = false) => {
     const icon = (node: React.ReactNode, label: string) => compact ? node : <>{node} {label}</>;
@@ -978,9 +1111,11 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
           <ArchiveActionButton compact={compact} tone="print" title={printTitle} onClick={() => props.onPrintLegal(document)} disabled={!canPrintLegalDocument(document, record.lines as LegalDocumentLine[])}>
             {icon(<Printer size={14} />, 'Εκτύπωση')}
           </ArchiveActionButton>
-          <ArchiveActionButton compact={compact} tone="open" title="Άνοιγμα" onClick={() => props.onOpenLegal(document)}>
-            {icon(<Edit3 size={14} />, 'Άνοιγμα')}
-          </ArchiveActionButton>
+          {isLegalDocumentEditable(document) && (
+            <ArchiveActionButton compact={compact} tone="open" title="Άνοιγμα" onClick={() => props.onOpenLegal(document)}>
+              {icon(<Edit3 size={14} />, 'Άνοιγμα')}
+            </ArchiveActionButton>
+          )}
           {document.status === 'draft' && (
             <ArchiveActionButton compact={compact} tone="submit" title="Υποβολή" onClick={() => props.onSubmitLegal(document)} disabled={props.mutating}>
               {icon(<Send size={14} />, 'Υποβολή')}
@@ -1736,6 +1871,15 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
           </div>
         ) : (
           <>
+            <div ref={listFrameRef} className="relative">
+              <svg className="pointer-events-none absolute inset-0 z-20 h-full w-full overflow-visible" aria-hidden="true">
+                {threadPaths.map((d, index) => (
+                  <g key={`${creditThread?.originId || 'thread'}-${index}`}>
+                    <path d={d} fill="none" stroke="rgb(139 92 246)" strokeWidth="7" strokeLinecap="round" opacity="0.08" />
+                    <path d={d} fill="none" stroke="rgb(124 58 237)" strokeWidth="1.15" strokeLinecap="round" opacity="0.42" />
+                  </g>
+                ))}
+              </svg>
             <div className="hidden overflow-x-auto lg:block">
               <table className="min-w-full text-sm">
                 <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-wide text-slate-500">
@@ -1755,7 +1899,6 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                     const presentation = getDocumentPresentation(record);
                     const DocumentIcon = presentation.icon;
                     const legalDocument = record.source === 'legal' ? document as LegalDocument : null;
-                    const hasCredit = record.source === 'legal' && props.records.some(r => r.source === 'legal' && (r.document as LegalDocument).credited_document_id === document.id && r.document.status === 'issued');
                     return (
                       <React.Fragment key={record.key}>
                         <tr className={`border-b border-slate-100 transition-colors ${open ? presentation.openRow : presentation.row}`}>
@@ -1791,7 +1934,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                           <td className="px-2 py-1.5">
                             <div className="flex items-center gap-1.5">
                               {renderStatusGlyph(record)}
-                              {hasCredit && renderCreditIssuedMark()}
+                              {renderCreditPairGlyph(record)}
                               {legalDocument?.aade_mark && (
                                 <span className="max-w-32 truncate font-mono text-[10px] text-slate-400" title={legalDocument.aade_mark}>
                                   {legalDocument.aade_mark}
@@ -1819,8 +1962,6 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                 const open = expanded.has(record.key);
                 const presentation = getDocumentPresentation(record);
                 const DocumentIcon = presentation.icon;
-                const legalDocument = record.source === 'legal' ? document as LegalDocument : null;
-                const hasCredit = record.source === 'legal' && props.records.some(r => r.source === 'legal' && (r.document as LegalDocument).credited_document_id === document.id && r.document.status === 'issued');
                 return (
                   <article key={record.key} className={presentation.mobile}>
                     <div className="flex items-start gap-2 px-3 py-2">
@@ -1850,7 +1991,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                           </div>
                           <div className="flex shrink-0 items-center gap-1.5">
                             {renderStatusGlyph(record)}
-                            {hasCredit && renderCreditIssuedMark()}
+                            {renderCreditPairGlyph(record)}
                             <div className="text-right font-black leading-none text-slate-950">{money(document.totals.gross)}</div>
                           </div>
                         </div>
@@ -1863,6 +2004,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                   </article>
                 );
               })}
+            </div>
             </div>
           </>
         )}

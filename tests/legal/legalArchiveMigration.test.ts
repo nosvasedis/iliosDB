@@ -130,6 +130,20 @@ describe('legal archive database contract', () => {
     });
   });
 
+  it('shows the archive open action only for editable legal documents', () => {
+    expect(archiveWorkspaceSource).toContain('isLegalDocumentEditable');
+    expect(archiveWorkspaceSource).toMatch(/isLegalDocumentEditable\(document\) && \([\s\S]*?title="Άνοιγμα"/);
+  });
+
+  it('pairs issued invoices with their credit notes via hover-only glyphs and a faded thread', () => {
+    expect(archiveWorkspaceSource).toContain('data-credit-node');
+    expect(archiveWorkspaceSource).toContain('creditThreadPath');
+    expect(archiveWorkspaceSource).toContain('Πιστωτικό του');
+    expect(archiveWorkspaceSource).toContain('pointer-events-none absolute inset-0');
+    expect(archiveWorkspaceSource).toMatch(/onMouseEnter=\{\(\) => onHoverChange\(true\)\}/);
+    expect(archiveWorkspaceSource).toMatch(/onMouseLeave=\{\(\) => onHoverChange\(false\)\}/);
+  });
+
   it('keeps credential-free VAT discovery independent from the official AADE registry', () => {
     expect(archiveWorkspaceSource).toContain('Εύρεση στοιχείων ΑΦΜ');
     expect(archiveWorkspaceSource).toContain('VIES Ευρωπαϊκής Επιτροπής');
