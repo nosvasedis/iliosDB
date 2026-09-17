@@ -1049,6 +1049,7 @@ export interface LegalDeliveryDetails {
   dispatch_time?: string | null;
   move_purpose?: number | null;
   move_purpose_title?: string | null;
+  dispatch_method?: string | null;
   vehicle_number?: string | null;
   loading_address?: LegalPartyAddress | null;
   delivery_address?: LegalPartyAddress | null;

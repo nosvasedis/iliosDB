@@ -14,10 +14,13 @@ import {
   getAllowedIncomeTypeOptions,
   applyAutomaticLegalItemClassification,
   applyCustomerVatProfileToLegalDocument,
+  applyIssuerSettingsToDocument,
   applyLegalDocumentDeliveryToggle,
   buildAadeInvoiceXml,
   buildAadeTransmittedDocsQuery,
   documentIncludesDeliveryNote,
+  formatCountryDisplayName,
+  formatSbzDispatchPlace,
   isEmptyTransmittedDocsResponse,
   toAadeQueryDate,
   buildLegalDocumentFromOrder,
@@ -283,7 +286,30 @@ describe('legal document helpers', () => {
 
     const backToInvoice = applyLegalDocumentDeliveryToggle(withDelivery, false, settings, customer);
     expect(backToInvoice.document_kind).toBe('invoice');
-    expect(backToInvoice.delivery).toBeNull();
+    expect(documentIncludesDeliveryNote(backToInvoice)).toBe(false);
+    expect(backToInvoice.delivery?.dispatch_method).toBe('Μεταφορική');
+    expect(backToInvoice.delivery?.dispatch_date).toBeFalsy();
+  });
+
+  it('shows localized country names while keeping ISO codes for transmission', () => {
+    expect(formatCountryDisplayName('GR')).toBe('Ελλάδα');
+    expect(formatCountryDisplayName('EL')).toBe('Ελλάδα');
+    expect(formatCountryDisplayName('DE')).toBe('Γερμανία');
+    expect(formatSbzDispatchPlace({ street: 'Unter den Linden', number: '1', postal_code: '10117', city: 'Berlin' }, 'DE')).toBe('Unter den Linden 1, 10117 Berlin, Γερμανία');
+    const document = buildManualLegalDocument({ settings, kind: 'invoice', customer });
+    const xml = buildAadeInvoiceXml({ ...document, series: 'TIM', aa: '1' }, document.lines);
+    expect(xml).toContain('<country>GR</country>');
+    expect(xml).not.toContain('<country>Ελλάδα</country>');
+  });
+
+  it('applies saved issuer identity to editable drafts only', () => {
+    const draft = buildManualLegalDocument({ settings, kind: 'invoice', customer });
+    const nextSettings = {
+      ...settings,
+      issuer: { ...settings.issuer, activity: 'ΚΑΤΑΣΚΕΥΗ & ΕΜΠΟΡΙΑ ΚΟΣΜΗΜΑΤΩΝ' },
+    };
+    expect(applyIssuerSettingsToDocument(draft, nextSettings).issuer.activity).toBe('ΚΑΤΑΣΚΕΥΗ & ΕΜΠΟΡΙΑ ΚΟΣΜΗΜΑΤΩΝ');
+    expect(applyIssuerSettingsToDocument({ ...draft, status: 'issued' }, nextSettings).issuer.activity).toBe(draft.issuer.activity);
   });
 
   it('marks combined invoice-delivery documents as delivery notes in XML', () => {

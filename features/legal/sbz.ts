@@ -1,6 +1,16 @@
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import type { LegalDocument, LegalDocumentLine, LegalParty } from '../../types';
-import { buildAadeInvoiceXml, computeLegalTotals, groupIncomeClassifications, LEGAL_DOCUMENT_KIND_LABELS, PAYMENT_METHOD_LABELS, validateLegalDocument } from '../../utils/legalDocuments';
+import {
+  buildAadeInvoiceXml,
+  computeLegalTotals,
+  formatSbzDispatchPlace,
+  groupIncomeClassifications,
+  LEGAL_DOCUMENT_KIND_LABELS,
+  PAYMENT_METHOD_LABELS,
+  resolveSbzDispatchMethod,
+  SBZ_DISPATCH_PLACE_FROM,
+  validateLegalDocument,
+} from '../../utils/legalDocuments';
 
 // SBZ reference table, reviewed 2026-09-11; retired purposes are excluded.
 export const SBZ_MOVE_PURPOSES: Record<number, string> = {1:'Πώληση',2:'Πώληση για λογαριασμό τρίτων',3:'Δειγματισμός',4:'Έκθεση',5:'Επιστροφή',7:'Επεξεργασία / συναρμολόγηση',8:'Μεταξύ εγκαταστάσεων',9:'Αγορά',10:'Εφοδιασμός πλοίων και αεροσκαφών',11:'Δωρεάν διάθεση',12:'Εγγύηση',13:'Χρησιδανεισμός',14:'Αποθήκευση σε τρίτους',19:'Λοιπές διακινήσεις',20:'Μεταφορές / ταχυμεταφορές'};
@@ -8,7 +18,8 @@ export const SBZ_BASE_URL = 'https://api.sbz.gr/sign/';
 export const SBZ_UNKNOWN_MESSAGE = 'Ελέγχεται η έκδοση από τον πάροχο. Μην εκδώσετε δεύτερο παραστατικό για την ίδια συναλλαγή.';
 export const money = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 const escape = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
-const tag = (name: string, value: unknown) => `<${name}>${escape(value)}</${name}>`;
+const asText = (value: unknown) => value == null ? '' : String(value).trim();
+const tag = (name: string, value: unknown) => `<${name}>${escape(asText(value))}</${name}>`;
 const amount = (n: number) => money(n).toFixed(2);
 const rates: Record<number, number> = { 1: 24, 2: 13, 3: 6, 4: 17, 5: 9, 6: 4, 7: 0, 8: 0, 9: 3, 10: 4 };
 const units: Record<number, string> = { 1: 'Τεμάχια', 2: 'Κιλά', 3: 'Λίτρα', 4: 'Μέτρα', 5: 'Τετραγωνικά μέτρα', 6: 'Κυβικά μέτρα', 7: 'Τεμάχια' };
@@ -60,18 +71,29 @@ export function buildSbzInvoiceXml(document: LegalDocument, lines: LegalDocument
       + tag('vatCategoryPercent', rates[l.vat_category]);
     return '<invoiceDetails>' + content.replace('</vatAmount>', '</vatAmount>' + extra) + '</invoiceDetails>';
   });
-  const party = (prefix: string, p: LegalParty, name: string) => (prefix === 'Counterpart' ? tag('CounterpartCode', p.customer_code) : '')
+  const party = (prefix: string, p: LegalParty, name: string) => (prefix === 'Counterpart' ? tag('CounterpartCode', asText(p.customer_code)) : '')
     + tag(`${prefix}Name`, name)
     + tag(`${prefix}Profession`, prefix === 'Issuer' ? document.issuer.activity : p.profession)
-    + tag(`${prefix}TaxOffice`, prefix === 'Issuer' ? document.issuer.doy : p.tax_office)
+    + tag(`${prefix}Taxoffice`, prefix === 'Issuer' ? document.issuer.doy : p.tax_office)
     + tag(`${prefix}AddressStreet`, p.address?.street) + tag(`${prefix}AddressNumber`, p.address?.number)
     + tag(`${prefix}AddressPostalCode`, p.address?.postal_code) + tag(`${prefix}AddressCity`, p.address?.city)
     + tag(`${prefix}AddressCountry`, p.country || 'GR') + tag(`${prefix}Phone`, p.phone) + tag(`${prefix}Email`, p.email);
   const time = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Athens', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(issuedAt));
+  const purposeCode = SBZ_MOVE_PURPOSES[document.delivery?.move_purpose || 0] ? Number(document.delivery?.move_purpose) : 1;
+  const purposeLabel = document.delivery?.move_purpose_title || SBZ_MOVE_PURPOSES[purposeCode];
+  const destination = formatSbzDispatchPlace(document.delivery?.delivery_address || document.counterpart.address, document.counterpart.country);
+  if (!xml.includes('<movePurposeLabel>')) {
+    xml = xml.includes('</movePurpose>')
+      ? xml.replace('</movePurpose>', `</movePurpose>${tag('movePurposeLabel', purposeLabel)}`)
+      : xml.replace('</invoiceHeader>', `${tag('movePurpose', purposeCode)}${tag('movePurposeLabel', purposeLabel)}</invoiceHeader>`);
+  }
   const extra = '<API_InvoiceDetails><API_Issuer>' + party('Issuer', document.issuer, document.issuer.business_name || document.issuer.name || '')
     + '</API_Issuer><API_Counterpart>' + party('Counterpart', document.counterpart, document.counterpart.name || '')
     + '</API_Counterpart><API_Additionals>' + tag('DocumentLabel', LEGAL_DOCUMENT_KIND_LABELS[document.document_kind])
     + tag('paymentMethodInvoiceLabel', PAYMENT_METHOD_LABELS[document.payment_method_code] || '')
+    + tag('DispatchPlaceFrom', SBZ_DISPATCH_PLACE_FROM)
+    + tag('DispatchPlaceTo', destination)
+    + tag('DispatchMethod', resolveSbzDispatchMethod(document.delivery))
     + tag('docTime', time) + '</API_Additionals></API_InvoiceDetails>';
   return xml.replace('<invoiceSummary>', extra + '<invoiceSummary>');
 }
@@ -129,7 +151,11 @@ export function buildCreditDraft(original: LegalDocument, originalLines: LegalDo
     credited_document_id: original.id, correlated_mark: original.aade_mark, issue_date: new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Athens', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
     series: null, aa: null, aade_mark: null, aade_uid: null, cancellation_mark: null, authentication_code: null, qr_url: null, provider_invoice_url: null, provider_mydata_url: null, provider_units: null,
     raw_xml: null, submitted_at: null, locked_at: null, cancelled_at: null, printed_at: null, last_error: null, external_source: 'ilios', synced_at: null, sync_run_id: null,
-    delivery: null, related_delivery_document_id: null, shipment_id: null, created_at: now, updated_at: now, totals: computeLegalTotals(lines), revenue_classification: groupIncomeClassifications(lines),
+    delivery: {
+      dispatch_method: resolveSbzDispatchMethod(original.delivery),
+      move_purpose: original.delivery?.move_purpose || 1,
+      delivery_address: original.delivery?.delivery_address || original.counterpart.address || null,
+    }, related_delivery_document_id: null, shipment_id: null, created_at: now, updated_at: now, totals: computeLegalTotals(lines), revenue_classification: groupIncomeClassifications(lines),
   };
   return { document, lines };
 }

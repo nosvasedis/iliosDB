@@ -17,6 +17,7 @@ import {
   Loader2,
   PackageCheck,
   PackageSearch,
+  Paperclip,
   Plus,
   Printer,
   ReceiptText,
@@ -58,6 +59,7 @@ import {
 import {
   canPrintLegalDocument,
   canPrintProforma,
+  formatCountryDisplayName,
   getLegalDocumentDisplayNumber,
   isOfficialLegalDocumentPrint,
 } from '../../utils/legalDocuments';
@@ -708,12 +710,14 @@ function ArchiveActionButton({
   disabled,
   tone = 'neutral',
   title,
+  compact = false,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
   tone?: 'neutral' | 'primary' | 'danger';
   title?: string;
+  compact?: boolean;
 }) {
   const tones = {
     neutral: 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
@@ -726,7 +730,12 @@ function ArchiveActionButton({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-45 ${tones[tone]}`}
+      aria-label={title}
+      className={`inline-flex items-center justify-center border font-black transition disabled:cursor-not-allowed disabled:opacity-45 ${
+        compact
+          ? 'h-8 w-8 rounded-md'
+          : 'min-h-8 gap-1.5 rounded-lg px-2.5 py-1 text-xs'
+      } ${tones[tone]}`}
     >
       {children}
     </button>
@@ -854,89 +863,130 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
     setAdvancedOpen(false);
   };
 
-  const renderMatchBadge = (record: LegalArchiveRecord) => {
-    const presentation = matchPresentation[record.matchState];
-    const Icon = presentation.icon;
+  const matchDetailLabel = (record: LegalArchiveRecord) => {
     const unresolvedLines = record.lineMatches.filter((line) => line.method === 'none').length;
     const customerMissing = record.customerMatch.state === 'unmatched';
-    const label = record.matchState === 'partial'
-      ? customerMissing && unresolvedLines
-        ? `Λείπουν πελάτης και ${unresolvedLines} ${unresolvedLines === 1 ? 'προϊόν' : 'προϊόντα'}`
-        : customerMissing
-          ? 'Δεν συνδέθηκε πελάτης'
-          : `${unresolvedLines} ${unresolvedLines === 1 ? 'προϊόν χωρίς αντιστοίχιση' : 'προϊόντα χωρίς αντιστοίχιση'}`
-      : record.matchState === 'ambiguous'
-        ? 'Πολλαπλές εγγραφές με ίδιο ΑΦΜ'
-        : presentation.label;
+    if (record.matchState === 'partial') {
+      if (customerMissing && unresolvedLines) return `Λείπουν πελάτης και ${unresolvedLines} ${unresolvedLines === 1 ? 'προϊόν' : 'προϊόντα'}`;
+      if (customerMissing) return 'Δεν συνδέθηκε πελάτης';
+      return `${unresolvedLines} ${unresolvedLines === 1 ? 'προϊόν χωρίς αντιστοίχιση' : 'προϊόντα χωρίς αντιστοίχιση'}`;
+    }
+    if (record.matchState === 'ambiguous') return 'Πολλαπλές εγγραφές με ίδιο ΑΦΜ';
+    if (record.matchState === 'operational') {
+      return 'Το Δελτίο Αποστολής είναι παραστατικό διακίνησης και δεν επηρεάζει την αξιολόγηση εμπορικών αντιστοιχίσεων.';
+    }
+    return matchPresentation[record.matchState].label;
+  };
+
+  const renderMatchBadge = (record: LegalArchiveRecord, compact = false) => {
+    const presentation = matchPresentation[record.matchState];
+    const Icon = presentation.icon;
+    const label = matchDetailLabel(record);
+    const compactText = record.matchState === 'matched'
+      ? 'Πλήρης'
+      : record.matchState === 'partial'
+        ? 'Μερική'
+        : record.matchState === 'ambiguous'
+          ? 'Διπλό ΑΦΜ'
+          : record.matchState === 'operational'
+            ? 'Διακίνηση'
+            : 'Χωρίς';
     return (
       <span
-        title={record.matchState === 'operational'
-          ? 'Το Δελτίο Αποστολής είναι παραστατικό διακίνησης και δεν επηρεάζει την αξιολόγηση εμπορικών αντιστοιχίσεων.'
-          : undefined}
-        className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-black ${presentation.className}`}
+        title={label}
+        className={`inline-flex max-w-full items-center gap-1 truncate rounded-full border font-black ${
+          compact ? 'px-1.5 py-0.5 text-[9px]' : 'px-2 py-1 text-[10px]'
+        } ${presentation.className}`}
       >
-        <Icon size={12} /> {label}
+        <Icon size={compact ? 10 : 12} /> {compact ? compactText : label}
       </span>
     );
   };
 
-  const renderActions = (record: LegalArchiveRecord) => {
+  const legalStatusText = (document: LegalDocument) => (
+    document.provider_state === 'unknown'
+      ? 'Ελέγχεται η έκδοση'
+      : document.provider_state === 'sending'
+        ? 'Εκδίδεται'
+        : legalStatusLabel[document.status]
+  );
+
+  const renderActions = (record: LegalArchiveRecord, compact = false) => {
+    const icon = (node: React.ReactNode, label: string) => compact ? node : <>{node} {label}</>;
     if (record.source === 'legal') {
       const document = record.document as LegalDocument;
+      const printTitle = isOfficialLegalDocumentPrint(document, record.lines as LegalDocumentLine[]) ? 'Νόμιμη εκτύπωση MARK/QR' : 'Πρόχειρη εκτύπωση';
       return (
-        <div className="flex flex-wrap justify-end gap-1.5">
-          <ArchiveActionButton
-            onClick={() => props.onPrintLegal(document)}
-            disabled={!canPrintLegalDocument(document, record.lines as LegalDocumentLine[])}
-            title={isOfficialLegalDocumentPrint(document, record.lines as LegalDocumentLine[]) ? 'Νόμιμη εκτύπωση MARK/QR' : 'Πρόχειρη εκτύπωση'}
-          >
-            <Printer size={14} /> Εκτύπωση
+        <div className={`flex justify-end ${compact ? 'flex-nowrap gap-1' : 'flex-wrap gap-1.5'}`} onClick={(event) => event.stopPropagation()}>
+          <ArchiveActionButton compact={compact} title={printTitle} onClick={() => props.onPrintLegal(document)} disabled={!canPrintLegalDocument(document, record.lines as LegalDocumentLine[])}>
+            {icon(<Printer size={14} />, 'Εκτύπωση')}
           </ArchiveActionButton>
-          <ArchiveActionButton onClick={() => props.onOpenLegal(document)}>
-            <Edit3 size={14} /> Άνοιγμα
+          <ArchiveActionButton compact={compact} title="Άνοιγμα" onClick={() => props.onOpenLegal(document)}>
+            {icon(<Edit3 size={14} />, 'Άνοιγμα')}
           </ArchiveActionButton>
           {document.status === 'draft' && (
-            <ArchiveActionButton tone="primary" onClick={() => props.onSubmitLegal(document)} disabled={props.mutating}>
-              <Send size={14} /> Υποβολή
+            <ArchiveActionButton compact={compact} tone="primary" title="Υποβολή" onClick={() => props.onSubmitLegal(document)} disabled={props.mutating}>
+              {icon(<Send size={14} />, 'Υποβολή')}
             </ArchiveActionButton>
           )}
           {document.status === 'failed' && (
-            <ArchiveActionButton tone="primary" onClick={() => props.onSubmitLegal(document)} disabled={props.mutating}>
-              <RefreshCw size={14} /> Επανάληψη
+            <ArchiveActionButton compact={compact} tone="primary" title="Επανάληψη" onClick={() => props.onSubmitLegal(document)} disabled={props.mutating}>
+              {icon(<RefreshCw size={14} />, 'Επανάληψη')}
             </ArchiveActionButton>
           )}
           {document.status === 'issued' && document.document_kind === 'delivery_note' && document.provider === 'sbz' && (
-            <ArchiveActionButton tone="danger" onClick={() => props.onCancelLegal(document)} disabled={props.mutating}>
-              <Ban size={14} /> Ακύρωση
+            <ArchiveActionButton compact={compact} tone="danger" title="Ακύρωση" onClick={() => props.onCancelLegal(document)} disabled={props.mutating}>
+              {icon(<Ban size={14} />, 'Ακύρωση')}
             </ArchiveActionButton>
           )}
-          {document.status === 'issued' && ['invoice', 'invoice_delivery'].includes(document.document_kind) && <ArchiveActionButton onClick={() => props.onCreditLegal?.(document)} disabled={props.mutating}><FileText size={14} /> Έκδοση πιστωτικού</ArchiveActionButton>}
-          {['sending', 'unknown'].includes(document.provider_state) && <ArchiveActionButton onClick={() => props.onReconcileLegal?.(document)} disabled={props.mutating}><RefreshCw size={14} /> Έλεγχος έκδοσης</ArchiveActionButton>}
-          {document.status === 'issued' && document.provider === 'sbz' && !['sending','unknown','accepted'].includes(document.provider_attachment_state) && <label className="cursor-pointer rounded-lg border px-3 py-2 text-xs font-bold">Επισύναψη PDF / JPG<input type="file" accept="application/pdf,image/jpeg" className="sr-only" onChange={e=>{const file=e.target.files?.[0];if(file)props.onAttachLegal?.(document,file);e.target.value='';}} /></label>}
-          {!document.aa && ['draft','failed'].includes(document.status) && <ArchiveActionButton tone="danger" onClick={() => props.onDeleteLegal(document)} disabled={props.mutating}>
-            <Trash2 size={14} /> Διαγραφή
-          </ArchiveActionButton>}
+          {document.status === 'issued' && ['invoice', 'invoice_delivery'].includes(document.document_kind) && (
+            <ArchiveActionButton compact={compact} title="Έκδοση πιστωτικού" onClick={() => props.onCreditLegal?.(document)} disabled={props.mutating}>
+              {icon(<FileText size={14} />, 'Πιστωτικό')}
+            </ArchiveActionButton>
+          )}
+          {['sending', 'unknown'].includes(document.provider_state) && (
+            <ArchiveActionButton compact={compact} title="Έλεγχος έκδοσης" onClick={() => props.onReconcileLegal?.(document)} disabled={props.mutating}>
+              {icon(<RefreshCw size={14} />, 'Έλεγχος')}
+            </ArchiveActionButton>
+          )}
+          {document.status === 'issued' && document.provider === 'sbz' && !['sending','unknown','accepted'].includes(document.provider_attachment_state) && (
+            <label
+              title="Επισύναψη PDF / JPG"
+              className={`inline-flex cursor-pointer items-center justify-center border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 ${
+                compact ? 'h-8 w-8 rounded-md' : 'min-h-8 gap-1.5 rounded-lg px-2.5 py-1 text-xs font-black'
+              }`}
+            >
+              <Paperclip size={14} />
+              {!compact && 'Επισύναψη'}
+              <input type="file" accept="application/pdf,image/jpeg" className="sr-only" onChange={e=>{const file=e.target.files?.[0];if(file)props.onAttachLegal?.(document,file);e.target.value='';}} />
+            </label>
+          )}
+          {!document.aa && ['draft','failed'].includes(document.status) && (
+            <ArchiveActionButton compact={compact} tone="danger" title="Διαγραφή" onClick={() => props.onDeleteLegal(document)} disabled={props.mutating}>
+              {icon(<Trash2 size={14} />, 'Διαγραφή')}
+            </ArchiveActionButton>
+          )}
         </div>
       );
     }
 
     const document = record.document as ProformaDocument;
     return (
-      <div className="flex flex-wrap justify-end gap-1.5">
-        <ArchiveActionButton onClick={() => props.onEditProforma(document)} disabled={document.status === 'void'}>
-          <Edit3 size={14} /> Άνοιγμα
+      <div className={`flex justify-end ${compact ? 'flex-nowrap gap-1' : 'flex-wrap gap-1.5'}`} onClick={(event) => event.stopPropagation()}>
+        <ArchiveActionButton compact={compact} title="Άνοιγμα" onClick={() => props.onEditProforma(document)} disabled={document.status === 'void'}>
+          {icon(<Edit3 size={14} />, 'Άνοιγμα')}
         </ArchiveActionButton>
-        <ArchiveActionButton onClick={() => props.onPrintProforma(document)} disabled={!canPrintProforma(document)}>
-          <Printer size={14} /> Εκτύπωση
+        <ArchiveActionButton compact={compact} title="Εκτύπωση" onClick={() => props.onPrintProforma(document)} disabled={!canPrintProforma(document)}>
+          {icon(<Printer size={14} />, 'Εκτύπωση')}
         </ArchiveActionButton>
-        <ArchiveActionButton onClick={() => props.onConvertProforma(document)} disabled={document.status !== 'draft' || props.mutating}>
-          <Copy size={14} /> Μετατροπή
+        <ArchiveActionButton compact={compact} title="Μετατροπή" onClick={() => props.onConvertProforma(document)} disabled={document.status !== 'draft' || props.mutating}>
+          {icon(<Copy size={14} />, 'Μετατροπή')}
         </ArchiveActionButton>
-        <ArchiveActionButton tone="danger" onClick={() => props.onVoidProforma(document)} disabled={document.status !== 'draft'}>
-          <Ban size={14} /> Ακύρωση
+        <ArchiveActionButton compact={compact} tone="danger" title="Ακύρωση" onClick={() => props.onVoidProforma(document)} disabled={document.status !== 'draft'}>
+          {icon(<Ban size={14} />, 'Ακύρωση')}
         </ArchiveActionButton>
-        <ArchiveActionButton tone="danger" onClick={() => props.onDeleteProforma(document)} disabled={props.mutating}>
-          <Trash2 size={14} /> Διαγραφή
+        <ArchiveActionButton compact={compact} tone="danger" title="Διαγραφή" onClick={() => props.onDeleteProforma(document)} disabled={props.mutating}>
+          {icon(<Trash2 size={14} />, 'Διαγραφή')}
         </ArchiveActionButton>
       </div>
     );
@@ -1076,7 +1126,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
               {[record.document.counterpart?.address?.postal_code, record.document.counterpart?.address?.city]
                 .filter(Boolean).join(' ') || 'χωρίς πόλη'}
               {' · '}
-              {record.document.counterpart?.country || 'GR'} / υποκ. {record.document.counterpart?.branch ?? 0}
+              {formatCountryDisplayName(record.document.counterpart?.country)} / υποκ. {record.document.counterpart?.branch ?? 0}
             </div>
             <VatRegistryCard
               vatNumber={record.document.counterpart?.vat_number}
@@ -1604,13 +1654,12 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
               <table className="min-w-full text-sm">
                 <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-wide text-slate-500">
                   <tr>
-                    <th className="w-10 px-3 py-3" />
-                    <th className="whitespace-nowrap px-3 py-3">Παραστατικό / Ημερομηνία</th>
-                    <th className="px-3 py-3">Αντισυμβαλλόμενος / πελάτης</th>
-                    <th className="px-3 py-3">Κατάσταση</th>
-                    <th className="px-3 py-3">Προϊόντα</th>
-                    <th className="px-3 py-3 text-right">Σύνολο</th>
-                    <th className="px-3 py-3 text-right">Ενέργειες</th>
+                    <th className="w-9 px-2 py-2" />
+                    <th className="whitespace-nowrap px-2 py-2">Παραστατικό</th>
+                    <th className="px-2 py-2">Αντισυμβαλλόμενος</th>
+                    <th className="px-2 py-2">Κατάσταση</th>
+                    <th className="px-2 py-2 text-right">Σύνολο</th>
+                    <th className="px-2 py-2 text-right">Ενέργειες</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1619,77 +1668,61 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                     const open = expanded.has(record.key);
                     const presentation = getDocumentPresentation(record);
                     const DocumentIcon = presentation.icon;
+                    const legalDocument = record.source === 'legal' ? document as LegalDocument : null;
+                    const hasCredit = record.source === 'legal' && props.records.some(r => r.source === 'legal' && (r.document as LegalDocument).credited_document_id === document.id && r.document.status === 'issued');
                     return (
                       <React.Fragment key={record.key}>
-                        <tr className={`border-b border-slate-100 align-top transition-colors ${open ? presentation.openRow : presentation.row}`}>
-                          <td className="px-3 py-3">
+                        <tr className={`border-b border-slate-100 transition-colors ${open ? presentation.openRow : presentation.row}`}>
+                          <td className="px-2 py-1.5">
                             <button
                               type="button"
                               onClick={() => toggleExpanded(record.key)}
                               aria-expanded={open}
                               aria-label={`${open ? 'Σύμπτυξη' : 'Ανάπτυξη'} ${getLegalDocumentDisplayNumber(document)}`}
-                              className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                              className="rounded-md p-1 text-slate-500 hover:bg-white/80"
                             >
-                              {open ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+                              {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                             </button>
                           </td>
-                          <td className="px-3 py-3">
-                            <div className={`whitespace-nowrap text-base font-black leading-tight ${presentation.number}`}>
-                              {getLegalDocumentDisplayNumber(document)}
-                            </div>
-                            <div className="mt-0.5 whitespace-nowrap text-[10px] font-bold tracking-wide text-slate-500">
-                              {document.issue_date}
-                            </div>
-                            <div className="mt-1.5 flex items-center gap-1 whitespace-nowrap">
+                          <td className="px-2 py-1.5">
+                            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                              <span className={`whitespace-nowrap text-sm font-black leading-none ${presentation.number}`}>
+                                {getLegalDocumentDisplayNumber(document)}
+                              </span>
+                              <span className="whitespace-nowrap text-[11px] font-bold text-slate-500">{document.issue_date}</span>
                               {record.source === 'proforma' && <span className="inline-flex rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-black leading-none text-violet-800">Προτιμολόγιο</span>}
                               <span className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[9px] font-bold leading-none ${presentation.badge}`}>
                                 <DocumentIcon size={9} /> {presentation.label}
                               </span>
                             </div>
                           </td>
-                          <td className="px-3 py-3">
-                            <div className="font-bold text-slate-800">{record.customerMatch.customer?.full_name || document.counterpart?.name || 'Άγνωστος αντισυμβαλλόμενος'}</div>
-                            <div className="mt-1 font-mono text-xs text-slate-500">ΑΦΜ {document.counterpart?.vat_number || '—'}</div>
-                            <div className="mt-2">{renderMatchBadge(record)}</div>
-                          </td>
-                          <td className="px-3 py-3">
-                            <span className={`inline-flex rounded-lg border px-2 py-1 text-xs font-black ${statusClass[document.status]}`}>
-                              {record.source === 'legal' ? ((document as LegalDocument).provider_state === 'unknown' ? 'Ελέγχεται η έκδοση' : (document as LegalDocument).provider_state === 'sending' ? 'Εκδίδεται' : legalStatusLabel[(document as LegalDocument).status]) : proformaStatusLabel[(document as ProformaDocument).status]}
-                            </span>
-                            {record.source === 'legal' && props.records.some(r => r.source === 'legal' && (r.document as LegalDocument).credited_document_id === document.id && r.document.status === 'issued') && <div className="mt-2 text-xs font-bold text-violet-700">Έχει εκδοθεί πιστωτικό</div>}
-                            {record.source === 'legal' && (document as LegalDocument).aade_mark && (
-                              <div className="mt-2 max-w-44 truncate font-mono text-[10px] text-slate-500" title={(document as LegalDocument).aade_mark || ''}>
-                                MARK {(document as LegalDocument).aade_mark}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-3 py-3">
-                            <div className="flex max-w-64 flex-wrap gap-1">
-                              {record.lineMatches.slice(0, 3).map((match) => (
-                                <span key={match.line.id} className={`rounded-lg border px-2 py-1 font-mono text-[10px] font-black ${match.method !== 'none' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
-                                  {match.method !== 'none' ? `${match.masterSku}${match.variantSuffix || ''}` : match.rawItemCode || 'χωρίς κωδικό'}
-                                </span>
-                              ))}
-                              {record.lineMatches.length > 3 && <span className="px-1 py-1 text-[10px] font-bold text-slate-400">+{record.lineMatches.length - 3}</span>}
+                          <td className="px-2 py-1.5">
+                            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                              <span className="truncate font-bold text-slate-800">{record.customerMatch.customer?.full_name || document.counterpart?.name || 'Άγνωστος αντισυμβαλλόμενος'}</span>
+                              <span className="whitespace-nowrap font-mono text-[11px] text-slate-500">ΑΦΜ {document.counterpart?.vat_number || '—'}</span>
+                              {renderMatchBadge(record, true)}
                             </div>
-                            {record.linkedDeliveryNote && (
-                              <div className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-black text-sky-800">
-                                <Truck size={11} /> {record.linkedDeliveryNote.uniqueItemCount} κωδικοί από ΔΑ
-                              </div>
-                            )}
-                            {record.deliveryNoteCandidate && !record.linkedDeliveryNote && (
-                              <div className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-800">
-                                <Sparkles size={11} /> Πρόταση ΔΑ {getLegalDocumentDisplayNumber(record.deliveryNoteCandidate.document)}
-                              </div>
-                            )}
                           </td>
-                          <td className="px-3 py-3 text-right">
-                            <div className="font-black text-slate-950">{money(document.totals.gross)}</div>
-                            <div className="mt-1 text-xs text-slate-500">Καθαρά {money(document.totals.net)}</div>
+                          <td className="px-2 py-1.5">
+                            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                              <span className={`inline-flex rounded-md border px-1.5 py-0.5 text-[10px] font-black ${statusClass[document.status]}`}>
+                                {record.source === 'legal' ? legalStatusText(document as LegalDocument) : proformaStatusLabel[(document as ProformaDocument).status]}
+                              </span>
+                              {hasCredit && <span className="text-[10px] font-bold text-violet-700">Πιστωτικό</span>}
+                              {legalDocument?.aade_mark && (
+                                <span className="max-w-36 truncate font-mono text-[10px] text-slate-500" title={legalDocument.aade_mark}>
+                                  MARK {legalDocument.aade_mark}
+                                </span>
+                              )}
+                            </div>
                           </td>
-                          <td className="px-3 py-3">{renderActions(record)}</td>
+                          <td className="whitespace-nowrap px-2 py-1.5 text-right">
+                            <div className="font-black leading-none text-slate-950">{money(document.totals.gross)}</div>
+                            <div className="mt-0.5 text-[10px] text-slate-500">καθ. {money(document.totals.net)}</div>
+                          </td>
+                          <td className="px-2 py-1.5">{renderActions(record, true)}</td>
                         </tr>
-                        {open && <tr><td colSpan={7} className="p-0">{renderDetails(record)}</td></tr>}
+                        {open && <tr><td colSpan={6} className="p-0">{renderDetails(record)}</td></tr>}
                       </React.Fragment>
                     );
                   })}
@@ -1703,38 +1736,48 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
                 const open = expanded.has(record.key);
                 const presentation = getDocumentPresentation(record);
                 const DocumentIcon = presentation.icon;
+                const legalDocument = record.source === 'legal' ? document as LegalDocument : null;
                 return (
                   <article key={record.key} className={presentation.mobile}>
-                    <button
-                      type="button"
-                      onClick={() => toggleExpanded(record.key)}
-                      aria-expanded={open}
-                      className="w-full p-4 text-left"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className={`font-black ${presentation.number}`}>{getLegalDocumentDisplayNumber(document)}</span>
-                            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black ${presentation.badge}`}>
-                              <DocumentIcon size={11} /> {presentation.label}
-                            </span>
+                    <div className="flex items-start gap-2 px-3 py-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleExpanded(record.key)}
+                        aria-expanded={open}
+                        aria-label={`${open ? 'Σύμπτυξη' : 'Ανάπτυξη'} ${getLegalDocumentDisplayNumber(document)}`}
+                        className="mt-0.5 rounded-md p-1 text-slate-500 hover:bg-white/70"
+                      >
+                        {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className={`font-black leading-none ${presentation.number}`}>{getLegalDocumentDisplayNumber(document)}</span>
+                              <span className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[9px] font-black ${presentation.badge}`}>
+                                <DocumentIcon size={10} /> {presentation.label}
+                              </span>
+                            </div>
+                            <div className="mt-1 truncate text-xs font-bold text-slate-800">{record.customerMatch.customer?.full_name || document.counterpart?.name || 'Άγνωστος αντισυμβαλλόμενος'}</div>
+                            <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                              <span>{document.issue_date}</span>
+                              <span className="font-mono">ΑΦΜ {document.counterpart?.vat_number || '—'}</span>
+                              {legalDocument?.aade_mark && <span className="max-w-28 truncate font-mono" title={legalDocument.aade_mark}>MARK {legalDocument.aade_mark}</span>}
+                            </div>
                           </div>
-                          <div className="mt-1 text-xs font-bold text-slate-500">{document.issue_date}</div>
+                          <div className="shrink-0 text-right">
+                            <div className="font-black leading-none text-slate-950">{money(document.totals.gross)}</div>
+                            <div className={`mt-1 inline-flex rounded-md border px-1.5 py-0.5 text-[10px] font-black ${statusClass[document.status]}`}>
+                              {record.source === 'legal' ? legalStatusText(document as LegalDocument) : proformaStatusLabel[(document as ProformaDocument).status]}
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <div className="text-right font-black text-slate-950">{money(document.totals.gross)}</div>
-                          {open ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          {renderMatchBadge(record, true)}
+                          {renderActions(record, true)}
                         </div>
                       </div>
-                      <div className="mt-3 font-bold text-slate-800">{record.customerMatch.customer?.full_name || document.counterpart?.name || 'Άγνωστος αντισυμβαλλόμενος'}</div>
-                      <div className="mt-1 font-mono text-xs text-slate-500">ΑΦΜ {document.counterpart?.vat_number || '—'}</div>
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <span className={`inline-flex rounded-lg border px-2 py-1 text-xs font-black ${statusClass[document.status]}`}>
-                          {record.source === 'legal' ? ((document as LegalDocument).provider_state === 'unknown' ? 'Ελέγχεται η έκδοση' : (document as LegalDocument).provider_state === 'sending' ? 'Εκδίδεται' : legalStatusLabel[(document as LegalDocument).status]) : proformaStatusLabel[(document as ProformaDocument).status]}
-                        </span>
-                        {renderMatchBadge(record)}
-                      </div>
-                    </button>
+                    </div>
                     {open && renderDetails(record)}
                   </article>
                 );

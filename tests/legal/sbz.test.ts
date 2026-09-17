@@ -9,7 +9,16 @@ describe('SBZ wholesale contract',()=>{
     const {document,lines}=sbzFixture(); const xml=buildSbzInvoiceXml(document,lines,document.created_at);
     expect(xml).toContain('xmlns:N1=');expect(xml).not.toContain('N2:');expect(xml).not.toContain('icls:');
     expect(xml).toContain('<API_InvoiceDetails>');expect(xml).toContain('<lineUnitPrice>100.00</lineUnitPrice>');
-    expect(xml).toContain('<CounterpartCode>0018</CounterpartCode>');expect(xml).toContain('<CounterpartProfession>Χονδρικό εμπόριο κοσμημάτων</CounterpartProfession>');expect(xml).toContain('<CounterpartTaxOffice>Αθηνών</CounterpartTaxOffice>');
+    expect(xml).toContain('<CounterpartCode>0018</CounterpartCode>');expect(xml).toContain('<CounterpartProfession>Χονδρικό εμπόριο κοσμημάτων</CounterpartProfession>');expect(xml).toContain('<CounterpartTaxoffice>Αθηνών</CounterpartTaxoffice>');
+    expect(xml).toContain('<IssuerTaxoffice>Αθηνών</IssuerTaxoffice>');
+    expect(xml).toContain('<DispatchPlaceFrom>Έδρα μας</DispatchPlaceFrom>');
+    expect(xml).toContain('<DispatchPlaceTo>Ερμού 1, 10563 Αθήνα, Ελλάδα</DispatchPlaceTo>');
+    expect(xml).toContain('<IssuerAddressCountry>GR</IssuerAddressCountry>');
+    expect(xml).toContain('<CounterpartAddressCountry>GR</CounterpartAddressCountry>');
+    expect(xml).toContain('<DispatchMethod>Μεταφορική</DispatchMethod>');
+    expect(xml).toContain('<movePurpose>1</movePurpose>');
+    expect(xml).toContain('<movePurposeLabel>Πώληση</movePurposeLabel>');
+    expect(xml).not.toContain('<isDeliveryNote>');
     expect(xml).toContain('<totalDiscountValue>20.00</totalDiscountValue>');expect(xml).toContain('<IssuerPhone>2101234567</IssuerPhone>');expect(xml).toContain('<CounterpartPhone>2101234567</CounterpartPhone>');expect(xml).toContain('Δαχτυλίδι &amp; κόσμημα');expect(xml).toContain('<docTime>11:00:00</docTime>');
   });
   it.each(['invoice_delivery', 'delivery_note'] as const)('serializes %s with dispatch details', kind => {
@@ -60,5 +69,17 @@ describe('SBZ wholesale contract',()=>{
     const {document,lines}=sbzFixture();
     const errors=validateSbzDocument({...document,counterpart:{...document.counterpart,customer_code:null,profession:null,tax_office:null}},lines);
     expect(errors.join(' ')).toContain('κωδικό ERP');expect(errors.join(' ')).toContain('επάγγελμα');expect(errors.join(' ')).toContain('ΔΟΥ');
+  });
+  it('keeps a leading-zero customer code as text and uses the selected dispatch method',()=>{
+    const {document,lines}=sbzFixture();
+    const xml=buildSbzInvoiceXml({
+      ...document,
+      counterpart:{...document.counterpart,customer_code:'0000'},
+      delivery:{dispatch_method:'Courier / ταχυμεταφορά',delivery_address:document.counterpart.address},
+    },lines,document.created_at);
+    expect(xml).toContain('<CounterpartCode>0000</CounterpartCode>');
+    expect(xml).not.toContain('<CounterpartCode>0</CounterpartCode>');
+    expect(xml).toContain('<DispatchMethod>Courier / ταχυμεταφορά</DispatchMethod>');
+    expect(xml).not.toContain('<isDeliveryNote>');
   });
 });

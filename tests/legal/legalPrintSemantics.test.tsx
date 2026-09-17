@@ -249,6 +249,14 @@ describe('legal print semantics', () => {
     expect(html).toContain('>2<');
   });
 
+  it('prints foreign counterpart countries with localized names instead of ISO codes', () => {
+    const html = renderToStaticMarkup(
+      <LegalPrintCustomerBar counterpart={{ ...counterpart, country: 'DE' }} />,
+    );
+    expect(html).toContain('Γερμανία');
+    expect(html).not.toContain(', DE');
+  });
+
   it('prints issuer VAT and tax office together without a useless zero branch', () => {
     const html = renderToStaticMarkup(
       <LegalPrintHeader
@@ -266,6 +274,8 @@ describe('legal print semantics', () => {
     expect(html).toContain('18120');
     expect(html).toContain('2100000000');
     expect(html).toContain('issuer@example.test');
+    expect(html).toContain('Κορυδαλλός');
+    expect(html).toContain('Ελλάδα');
     expect(html).toContain('Δραστηριότητα:');
     expect(html).toContain('Νομική μορφή:');
     expect(html).toContain('ΓΕΜΗ:');
@@ -362,6 +372,8 @@ describe('legal print semantics', () => {
     expect(html).toContain('Τόπος φόρτωσης');
     expect(html).toContain('Έδρα μας');
     expect(html).toContain('Τόπος προορισμού');
+    expect(html).toContain('Τρόπος αποστολής');
+    expect(html).toContain('Μεταφορική');
     expect(html).not.toContain('Ανάλυση υπολογισμού ΦΠΑ');
     expect(html).not.toContain('Όχημα');
   });

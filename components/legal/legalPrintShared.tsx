@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { APP_LOGO } from '../../constants';
-import { AADE_VAT_CATEGORY_OPTIONS, getAadeVatExemptionCategoryLabel } from '../../utils/legalDocuments';
+import { AADE_VAT_CATEGORY_OPTIONS, formatCountryDisplayName, getAadeVatExemptionCategoryLabel, resolveSbzDispatchMethod, SBZ_DISPATCH_PLACE_FROM } from '../../utils/legalDocuments';
 import { LegalDeliveryDetails, LegalDocumentLine, LegalParty, LegalIssuerSettings } from '../../types';
 
 export const LEGAL_PRINT_CSS = `
@@ -162,16 +162,7 @@ export const formatPrintTime = (value?: string | null) => {
 export const getPartyName = (party: LegalParty | LegalIssuerSettings) =>
   ('business_name' in party ? party.business_name : undefined) || party.name || '-';
 
-export const getCountryPrintName = (country?: string | null) => {
-  const countryCode = (country || 'GR').trim().toUpperCase() === 'EL'
-    ? 'GR'
-    : (country || 'GR').trim().toUpperCase();
-  try {
-    return new Intl.DisplayNames(['el'], { type: 'region' }).of(countryCode) || countryCode;
-  } catch {
-    return countryCode;
-  }
-};
+export const getCountryPrintName = (country?: string | null) => formatCountryDisplayName(country);
 
 export const formatPartyAddress = (
   party: LegalParty | LegalIssuerSettings,
@@ -385,7 +376,7 @@ export function LegalPrintHeader(props: {
           {issuer.trade_name && issuer.trade_name !== issuerName && <p className="font-bold text-slate-700">{issuer.trade_name}</p>}
           {issuer.activity && <p><span className="font-bold text-slate-700">Δραστηριότητα:</span> {issuer.activity}</p>}
           <p><span className="font-bold text-slate-700">ΑΦΜ:</span> <span className="font-mono">{issuer.vat_number || '-'}</span> · <span className="font-bold text-slate-700">ΔΟΥ:</span> {issuer.doy || '-'}{Number(issuer.branch || 0) > 0 && <> · <span className="font-bold text-slate-700">Υποκατάστημα:</span> {issuer.branch}</>}</p>
-          <p>{formatPartyAddress(issuer)}</p>
+          <p>{formatPartyAddress(issuer, true)}</p>
           {(issuer.phone || issuer.email) && <p>{[issuer.phone, issuer.email].filter(Boolean).join(' · ')}</p>}
           {(issuer.legal_form || issuer.gemi) && <p>{issuer.legal_form && <><span className="font-bold text-slate-700">Νομική μορφή:</span> {issuer.legal_form}</>} {issuer.legal_form && issuer.gemi ? ' · ' : ''}{issuer.gemi && <><span className="font-bold text-slate-700">ΓΕΜΗ:</span> {issuer.gemi}</>}</p>}
         </div>
@@ -448,16 +439,15 @@ export function LegalPrintTransactionPanel(props: {
   delivery?: LegalDeliveryDetails | null;
   paymentMethodLabel?: string | null;
   validUntil?: string | null;
+  includesDeliveryNote?: boolean;
 }) {
-  const hasDelivery = Boolean(props.delivery);
-  const movePurpose = hasDelivery
-    ? props.delivery?.move_purpose_title
-      || MOVE_PURPOSE_PRINT_LABELS[Number(props.delivery?.move_purpose || 1)]
-      || 'Πώληση'
-    : 'Πώληση';
-  const loadingLocation = hasDelivery && props.delivery?.loading_address
+  const includesDeliveryNote = Boolean(props.includesDeliveryNote);
+  const movePurpose = props.delivery?.move_purpose_title
+    || MOVE_PURPOSE_PRINT_LABELS[Number(props.delivery?.move_purpose || 1)]
+    || 'Πώληση';
+  const loadingLocation = includesDeliveryNote && props.delivery?.loading_address
     ? formatDeliveryAddress(props.delivery.loading_address)
-    : 'Έδρα μας';
+    : SBZ_DISPATCH_PLACE_FROM;
   const destination = props.delivery?.delivery_address
     ? formatDeliveryAddress(props.delivery.delivery_address, props.counterpart.country)
     : formatPartyAddress(props.counterpart, true);
@@ -471,8 +461,9 @@ export function LegalPrintTransactionPanel(props: {
       <InfoRow label="Τρόπος πληρωμής" value={props.paymentMethodLabel || '-'} />
       <InfoRow label="Τόπος φόρτωσης" value={loadingLocation} />
       <InfoRow label="Τόπος προορισμού" value={destination} />
-      {hasDelivery && <InfoRow label="Ημερ. διακίνησης" value={dispatchAt} />}
-      {hasDelivery && <InfoRow label="Μεταφορέας" value={props.delivery?.carrier_name || 'Ίδια μέσα'} />}
+      <InfoRow label="Τρόπος αποστολής" value={resolveSbzDispatchMethod(props.delivery)} />
+      {includesDeliveryNote && <InfoRow label="Ημερ. διακίνησης" value={dispatchAt} />}
+      {includesDeliveryNote && <InfoRow label="Μεταφορέας" value={props.delivery?.carrier_name || 'Ίδια μέσα'} />}
       {props.validUntil && <InfoRow label="Ισχύει έως" value={formatPrintDate(props.validUntil)} />}
     </section>
   );
@@ -485,6 +476,7 @@ export function LegalPrintInfoGrid(props: {
   paymentMethodLabel?: string | null;
   validUntil?: string | null;
   extraMeta?: React.ReactNode;
+  includesDeliveryNote?: boolean;
 }) {
   return (
     <section className="legal-print-break-inside mb-2 grid shrink-0 grid-cols-[1.08fr_0.92fr] gap-2">
@@ -506,6 +498,7 @@ export function LegalPrintInfoGrid(props: {
             delivery={props.delivery}
             paymentMethodLabel={props.paymentMethodLabel}
             validUntil={props.validUntil}
+            includesDeliveryNote={props.includesDeliveryNote}
           />
         </div>
       </div>
@@ -729,7 +722,7 @@ export function LegalPrintTotalsSection(props: {
 export function LegalPrintDeliverySection({ delivery }: { delivery: LegalDeliveryDetails }) {
   return (
     <section className="legal-print-break-inside mb-2 rounded-md border border-slate-300 p-2 text-[9.5px]">
-      <InfoRow label="Τρόπος αποστολής" value={delivery.carrier_name || 'Courier'} />
+      <InfoRow label="Τρόπος αποστολής" value={resolveSbzDispatchMethod(delivery)} />
       <InfoRow label="Παράδοση" value={formatDeliveryAddress(delivery.delivery_address)} />
       <InfoRow label="Ημερ. αποστολής" value={`${formatPrintDate(delivery.dispatch_date)}${delivery.dispatch_time ? ` · ${formatPrintTime(delivery.dispatch_time)}` : ''}`} />
     </section>

@@ -198,6 +198,76 @@ export const PAYMENT_METHOD_LABELS: Record<number, string> = {
 
 export const PAYMENT_METHOD_CODES = [5, 1, 2, 3, 4, 6, 7, 8];
 
+export const SBZ_DISPATCH_METHODS = ['Μεταφορική', 'Ίδια μέσα', 'Courier / ταχυμεταφορά'] as const;
+export const DEFAULT_SBZ_DISPATCH_METHOD = 'Μεταφορική';
+export const SBZ_DISPATCH_PLACE_FROM = 'Έδρα μας';
+
+export function resolveSbzDispatchMethod(delivery?: Pick<LegalDeliveryDetails, 'dispatch_method'> | null): string {
+  const value = String(delivery?.dispatch_method ?? '').trim();
+  return value || DEFAULT_SBZ_DISPATCH_METHOD;
+}
+
+const LEGAL_COUNTRY_CODES = [
+  'GR', 'CY', 'DE', 'IT', 'FR', 'ES', 'NL', 'BE', 'AT', 'BG', 'RO', 'PL', 'CZ', 'HU', 'PT',
+  'SE', 'DK', 'FI', 'IE', 'LU', 'MT', 'SI', 'SK', 'HR', 'LT', 'LV', 'EE', 'GB', 'US', 'CH',
+  'TR', 'AL', 'MK', 'RS', 'BA', 'ME', 'UA', 'CN', 'IN', 'AE', 'IL', 'EG', 'AU', 'CA', 'JP',
+] as const;
+
+export function normalizeLegalCountryCode(country?: string | null): string {
+  const value = String(country || 'GR').trim().toUpperCase();
+  if (!value || value === 'EL' || value === 'GRC') return 'GR';
+  return value;
+}
+
+export function formatCountryDisplayName(country?: string | null): string {
+  const code = normalizeLegalCountryCode(country);
+  try {
+    return new Intl.DisplayNames(['el'], { type: 'region' }).of(code) || (code === 'GR' ? 'Ελλάδα' : code);
+  } catch {
+    return code === 'GR' ? 'Ελλάδα' : code;
+  }
+}
+
+export function listLegalCountryOptions(current?: string | null): Array<{ value: string; label: string }> {
+  const extra = ['GR', 'CY'];
+  const currentCode = current ? normalizeLegalCountryCode(current) : '';
+  const codes = Array.from(new Set([...extra, ...LEGAL_COUNTRY_CODES, currentCode].filter(Boolean)));
+  const preferred = new Set(extra);
+  const options = codes.map((value) => ({ value, label: formatCountryDisplayName(value) }));
+  return [
+    ...extra.map((value) => options.find((option) => option.value === value)!),
+    ...options.filter((option) => !preferred.has(option.value)).sort((a, b) => a.label.localeCompare(b.label, 'el')),
+  ];
+}
+
+export function formatSbzDispatchPlace(address?: LegalPartyAddress | null, country?: string | null): string {
+  if (!address) return '';
+  const street = [address.street, address.number].filter((part) => String(part ?? '').trim()).join(' ').trim();
+  const city = [address.postal_code, address.city].filter((part) => String(part ?? '').trim()).join(' ').trim();
+  return [street, city, formatCountryDisplayName(country)].filter(Boolean).join(', ');
+}
+
+export function applyIssuerSettingsToDocument(document: LegalDocument, settings: LegalSettings): LegalDocument {
+  if (!isLegalDocumentEditable(document)) return document;
+  return { ...document, issuer: { ...settings.issuer } };
+}
+
+export function buildPdfDispatchDetails(
+  settings: LegalSettings,
+  customer?: Customer | null,
+  existing?: LegalDeliveryDetails | null,
+  counterpartAddress?: LegalPartyAddress | null,
+): LegalDeliveryDetails {
+  return {
+    dispatch_method: resolveSbzDispatchMethod(existing),
+    move_purpose: existing?.move_purpose || settings.default_move_purpose || 1,
+    delivery_address: existing?.delivery_address
+      || (customer?.address ? parseLegalPartyAddress(customer.address) : null)
+      || counterpartAddress
+      || null,
+  };
+}
+
 /** Official myDATA vatCategory codes — each code is distinct even when the rate matches (e.g. 6 vs 10). */
 export const AADE_VAT_CATEGORY_OPTIONS = [
   { value: 0.24, category: 1, label: '24%' },
@@ -442,14 +512,23 @@ export function applyLegalDocumentDeliveryToggle(
       ...document,
       document_kind: 'invoice',
       aade_document_type: '1.1',
-      delivery: null,
+      delivery: buildPdfDispatchDetails(settings, customer, document.delivery, document.counterpart.address),
     };
   }
+  const defaults = buildDefaultDeliveryDetails(settings, customer);
   return {
     ...document,
     document_kind: 'invoice_delivery',
     aade_document_type: '1.1',
-    delivery: document.delivery || buildDefaultDeliveryDetails(settings, customer),
+    delivery: {
+      ...defaults,
+      ...document.delivery,
+      dispatch_date: document.delivery?.dispatch_date || defaults.dispatch_date,
+      dispatch_time: document.delivery?.dispatch_time || defaults.dispatch_time,
+      loading_address: document.delivery?.loading_address || defaults.loading_address,
+      delivery_address: document.delivery?.delivery_address || defaults.delivery_address,
+      dispatch_method: resolveSbzDispatchMethod(document.delivery),
+    },
   };
 }
 
@@ -1173,7 +1252,9 @@ export function buildManualLegalDocument(params: {
     issue_date: toIsoDate(now),
     issuer: params.settings.issuer,
     counterpart: buildCounterpartFromCustomer(params.customer),
-    delivery: isDelivery ? buildDefaultDeliveryDetails(params.settings, params.customer) : null,
+    delivery: isDelivery
+      ? buildDefaultDeliveryDetails(params.settings, params.customer)
+      : buildPdfDispatchDetails(params.settings, params.customer),
     payment_method_code: params.settings.default_payment_method,
     currency: 'EUR',
     vat_rate: vatRate,
@@ -1438,7 +1519,9 @@ export function convertProformaToLegalDraft(params: {
     issue_date: toIsoDate(now),
     issuer: params.proforma.issuer,
     counterpart: params.proforma.counterpart,
-    delivery: null,
+    delivery: params.kind === 'delivery_note' || params.kind === 'invoice_delivery'
+      ? buildDefaultDeliveryDetails(params.settings)
+      : buildPdfDispatchDetails(params.settings, null, null, params.proforma.counterpart.address),
     payment_method_code: params.proforma.payment_method_code,
     currency: params.proforma.currency || 'EUR',
     vat_rate: params.proforma.vat_rate,
@@ -1503,7 +1586,9 @@ export function buildLegalDocumentFromOrder(params: {
     issue_date: toIsoDate(now),
     issuer: params.settings.issuer,
     counterpart: buildCounterpart(params.order, params.customer),
-    delivery: params.kind === 'delivery_note' || params.kind === 'invoice_delivery' ? params.delivery || buildDefaultDeliveryDetails(params.settings, params.customer) : null,
+    delivery: params.kind === 'delivery_note' || params.kind === 'invoice_delivery'
+      ? params.delivery || buildDefaultDeliveryDetails(params.settings, params.customer)
+      : buildPdfDispatchDetails(params.settings, params.customer, params.delivery),
     payment_method_code: params.settings.default_payment_method,
     currency: 'EUR',
     vat_rate: vatRate,
@@ -1558,7 +1643,7 @@ export function buildLegalDocumentFromShipment(params: {
     counterpart: buildCounterpart(params.order, params.customer),
     delivery: params.kind === 'delivery_note' || params.kind === 'invoice_delivery'
       ? params.delivery || buildDefaultDeliveryDetails(params.settings, params.customer, params.shipment)
-      : null,
+      : buildPdfDispatchDetails(params.settings, params.customer, params.delivery),
     payment_method_code: params.settings.default_payment_method,
     currency: 'EUR',
     vat_rate: vatRate,
@@ -1581,6 +1666,7 @@ export function buildDefaultDeliveryDetails(settings: LegalSettings, customer?: 
     dispatch_date: toXmlDateTimeDate(dispatchAt),
     dispatch_time: toXmlTime(dispatchAt),
     move_purpose: settings.default_move_purpose,
+    dispatch_method: DEFAULT_SBZ_DISPATCH_METHOD,
     vehicle_number: '',
     loading_address: settings.loading_address || settings.issuer.address || null,
     delivery_address: customer?.address ? parseLegalPartyAddress(customer.address) : null,

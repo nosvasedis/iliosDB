@@ -6,6 +6,7 @@ import {
   isOfficialLegalDocumentPrint,
   LEGAL_DOCUMENT_KIND_LABELS,
   PAYMENT_METHOD_LABELS,
+  documentIncludesDeliveryNote,
 } from '../utils/legalDocuments';
 import {
   LegalPrintAadePanel,
@@ -70,6 +71,7 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
       <LegalPrintInfoGrid
         counterpart={document.counterpart}
         delivery={document.delivery}
+        includesDeliveryNote={documentIncludesDeliveryNote(document)}
         paymentMethodLabel={PAYMENT_METHOD_LABELS[document.payment_method_code] || String(document.payment_method_code)}
       />
 

@@ -123,10 +123,13 @@ import {
   AADE_INCOME_TYPE_OPTIONS,
   AADE_VAT_EXEMPTION_CATEGORY_OPTIONS,
   AADE_VAT_CATEGORY_LINE_OPTIONS,
+  applyIssuerSettingsToDocument,
   DEFAULT_LEGAL_SETTINGS,
   getLegalDocumentDeletePrompt,
   getLegalDocumentDisplayNumber,
   getLegalDocumentKindLabel,
+  listLegalCountryOptions,
+  normalizeLegalCountryCode,
   getProformaDeletePrompt,
   isLegalDocumentEditable,
   LEGAL_DOCUMENT_KIND_LABELS,
@@ -139,6 +142,8 @@ import {
   PAYMENT_METHOD_LABELS,
   recalculateLegalDocument,
   recalculateProforma,
+  resolveSbzDispatchMethod,
+  SBZ_DISPATCH_METHODS,
   validateLegalDocument,
   vatRateToAadeCategory,
 } from '../utils/legalDocuments';
@@ -1704,8 +1709,9 @@ export default function LegalDocumentsPage({
     }
     if (!(await ensureAadeCredentialsReady())) return;
     try {
-      await saveDraft.mutateAsync(draftBundle);
-      await submitDocument.mutateAsync({ documentId: draftBundle.document.id, userName });
+      const document = applyIssuerSettingsToDocument(draftBundle.document, settingsDraft);
+      await saveDraft.mutateAsync({ ...draftBundle, document });
+      await submitDocument.mutateAsync({ documentId: document.id, userName });
       setArchiveSearch('');
       setDraftBundle(null);
       setActiveTab('archive');
@@ -1724,16 +1730,20 @@ export default function LegalDocumentsPage({
   const handleSubmitLegalDocument = async (document: LegalDocument) => {
     if (!(await ensureAadeCredentialsReady())) return;
     try {
-      const lines = await legalRepository.getDocumentLines(document.id);
-      const issues = validateLegalDocument(document, lines).filter((issue) => issue.severity === 'error');
+      const prepared = applyIssuerSettingsToDocument(document, settingsDraft);
+      const lines = await legalRepository.getDocumentLines(prepared.id);
+      const issues = validateLegalDocument(prepared, lines).filter((issue) => issue.severity === 'error');
       if (issues.length > 0) {
         showToast(issues[0].message, 'warning');
         if (document.status === 'draft') {
-          await handleOpenLegalDocument(document);
+          await handleOpenLegalDocument(prepared);
         }
         return;
       }
-      const issued = await submitDocument.mutateAsync({ documentId: document.id, userName });
+      if (isLegalDocumentEditable(prepared)) {
+        await saveDraft.mutateAsync({ document: prepared, lines });
+      }
+      const issued = await submitDocument.mutateAsync({ documentId: prepared.id, userName });
       const successMessage = document.status === 'failed'
         ? `Επιτυχής αποστολή με MARK ${issued.aade_mark}.`
         : `Αποδοχή myDATA με MARK ${issued.aade_mark}.`;
@@ -1791,7 +1801,11 @@ export default function LegalDocumentsPage({
     }
     try {
       const lines = await legalRepository.getDocumentLines(document.id);
-      setDraftBundle(recalculateLegalDocument(normalizeLegalDocumentAddresses({ ...document, lines }), lines, settingsDraft));
+      setDraftBundle(recalculateLegalDocument(normalizeLegalDocumentAddresses({
+        ...document,
+        issuer: isLegalDocumentEditable(document) ? { ...settingsDraft.issuer } : document.issuer,
+        lines,
+      }), lines, settingsDraft));
       setCreationDocumentType(document.document_kind);
       setProformaBundle(null);
       setSelectedOrderId(document.order_id || '');
@@ -1805,6 +1819,10 @@ export default function LegalDocumentsPage({
   const handleSaveSettings = async () => {
     try {
       await saveSettings.mutateAsync(settingsDraft);
+      setDraftBundle((current) => {
+        if (!current || !isLegalDocumentEditable(current.document)) return current;
+        return { ...current, document: applyIssuerSettingsToDocument(current.document, settingsDraft) };
+      });
       showToast('Οι ρυθμίσεις αποθηκεύτηκαν.', 'success');
     } catch (error: any) {
       showToast(error?.message || 'Δεν αποθηκεύτηκαν οι ρυθμίσεις.', 'error');
@@ -2024,6 +2042,9 @@ export default function LegalDocumentsPage({
             <SelectInput label="Πληρωμή" value={document.payment_method_code} onChange={(value) => updateDraftDocument((current) => ({ ...current, payment_method_code: Number(value) }))}>
               {PAYMENT_METHOD_CODES.filter(code => ![7, 8].includes(code)).map((code) => <option key={code} value={code}>{PAYMENT_METHOD_LABELS[code]}</option>)}
             </SelectInput>
+            <SelectInput label="Τρόπος αποστολής" value={resolveSbzDispatchMethod(document.delivery)} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || {}), dispatch_method: value } }))}>
+              {SBZ_DISPATCH_METHODS.map((method) => <option key={method} value={method}>{method}</option>)}
+            </SelectInput>
             <TextInput label="ΑΦΜ Πελάτη" value={document.counterpart.vat_number || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, vat_number: normalizeVatNumber(value) } }))} />
             <ActionButton variant="secondary" onClick={() => void handleDraftVatLookup('legal')} disabled={draftVatLookupTarget !== null} title="Επίσημος έλεγχος Μητρώου ΑΑΔΕ με fallback μόνο για βασικά στοιχεία.">
               {draftVatLookupTarget === 'legal' ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />} Επίσημος έλεγχος ΑΦΜ
@@ -2040,6 +2061,9 @@ export default function LegalDocumentsPage({
             <TextInput label="Αριθμός" value={document.counterpart.address?.number || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, address: { ...(current.counterpart.address || {}), number: value } } }))} />
             <TextInput label="Τ.Κ." value={document.counterpart.address?.postal_code || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, address: { ...(current.counterpart.address || {}), postal_code: value } } }))} />
             <TextInput label="Πόλη" value={document.counterpart.address?.city || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, address: { ...(current.counterpart.address || {}), city: value } } }))} />
+            <SelectInput label="Χώρα" value={normalizeLegalCountryCode(document.counterpart.country)} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, country: value } }))}>
+              {listLegalCountryOptions(document.counterpart.country).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </SelectInput>
             <VatExemptionCategorySelect
               value={document.vat_exemption_category}
               onChange={(value) => updateDraftDocument((current) => ({ ...current, vat_exemption_category: value }))}
@@ -2781,9 +2805,7 @@ export default function LegalDocumentsPage({
             trade_name: result.tradeName || settingsDraft.issuer.trade_name,
             doy: result.taxOfficeDescription || result.taxOfficeCode || settingsDraft.issuer.doy,
             legal_form: result.legalStatus || settingsDraft.issuer.legal_form,
-            activity: primaryActivity
-              ? `${primaryActivity.code} · ${primaryActivity.description}`
-              : settingsDraft.issuer.activity,
+            activity: primaryActivity?.description || settingsDraft.issuer.activity,
             address: {
               ...settingsDraft.issuer.address,
               street: result.address.street || settingsDraft.issuer.address?.street,
@@ -3688,11 +3710,14 @@ export default function LegalDocumentsPage({
 
             <div className="border-t border-slate-100 pt-6">
               <SettingsGroup title="Έδρα">
-                <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_7rem_7rem_minmax(0,1.4fr)]">
+                <div className="grid gap-3 md:grid-cols-[minmax(0,1.25fr)_5.5rem_5.5rem_minmax(0,1fr)_minmax(8.5rem,0.95fr)]">
                   <TextInput label="Οδός" value={settingsDraft.issuer.address?.street || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, address: { ...(current.issuer.address || {}), street: value } } }))} />
                   <TextInput label="Αριθμός" value={settingsDraft.issuer.address?.number || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, address: { ...(current.issuer.address || {}), number: value } } }))} />
                   <TextInput label="Τ.Κ." value={settingsDraft.issuer.address?.postal_code || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, address: { ...(current.issuer.address || {}), postal_code: value } } }))} />
                   <TextInput label="Πόλη" value={settingsDraft.issuer.address?.city || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, address: { ...(current.issuer.address || {}), city: value } } }))} />
+                  <SelectInput label="Χώρα" value={normalizeLegalCountryCode(settingsDraft.issuer.country)} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, country: value } }))} help="Εμφανίζεται ως όνομα χώρας στα παραστατικά. Στη διαβίβαση ΑΑΔΕ/SBZ παραμένει ο κωδικός ISO.">
+                    {listLegalCountryOptions(settingsDraft.issuer.country).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </SelectInput>
                 </div>
               </SettingsGroup>
             </div>
@@ -3704,7 +3729,7 @@ export default function LegalDocumentsPage({
                   <TextInput label="Νομική μορφή" value={settingsDraft.issuer.legal_form || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, legal_form: value } }))} />
                   <TextInput label="Αριθμός ΓΕΜΗ" value={settingsDraft.issuer.gemi || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, gemi: value } }))} help="Συμπληρώνεται χειροκίνητα· δεν επιστρέφεται από το Μητρώο ΑΑΔΕ." />
                 </div>
-                <TextInput label="Κύρια δραστηριότητα" value={settingsDraft.issuer.activity || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, activity: value } }))} help="Προαιρετικό στοιχείο εκτύπωσης. Μπορεί να συμπληρωθεί από το Μητρώο ΑΑΔΕ." />
+                <TextInput label="Κύρια δραστηριότητα" value={settingsDraft.issuer.activity || ''} onChange={(value) => setSettingsDraft((current) => ({ ...current, issuer: { ...current.issuer, activity: value } }))} help="Κείμενο εκτύπωσης και PDF παρόχου. Αποθηκεύστε τις ρυθμίσεις· εφαρμόζεται στα πρόχειρα και στην επόμενη έκδοση, όχι σε ήδη εκδοθέντα." />
               </SettingsGroup>
             </div>
 
@@ -3746,7 +3771,7 @@ export default function LegalDocumentsPage({
             </div>
           </div>
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
-            <p className="text-xs font-medium text-slate-500">Οι αλλαγές εφαρμόζονται στα νέα παραστατικά και στην εκτύπωση.</p>
+            <p className="text-xs font-medium text-slate-500">Οι αλλαγές εφαρμόζονται στα νέα και στα πρόχειρα παραστατικά μετά την αποθήκευση. Τα ήδη εκδοθέντα παραμένουν ως εκδόθηκαν.</p>
             <ActionButton onClick={handleSaveSettings} disabled={saveSettings.isPending}>
               {saveSettings.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Αποθήκευση ρυθμίσεων
             </ActionButton>
