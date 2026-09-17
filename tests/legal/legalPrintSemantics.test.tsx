@@ -323,7 +323,10 @@ describe('legal print semantics', () => {
     expect(html).toContain('Αριθμός Αδειοδότησης:');
     expect(html).toContain('2023_05_113SBZ IKE_001_EMDI_V1_18052023');
     expect(html.indexOf('SBZ IKE - www.sbz.gr')).toBeLessThan(html.indexOf('2023_05_113SBZ IKE_001_EMDI_V1_18052023'));
-    expect(html).toContain('Εθνική Τράπεζα');
+    expect(html).toContain('src="/nbg-logo-black.webp"');
+    expect(html).toContain('alt="Εθνική Τράπεζα"');
+    expect(html).toContain('h-[4.5mm] w-auto max-w-[32mm] object-contain object-left');
+    expect(html).not.toContain('>Εθνική Τράπεζα</p>');
     expect(html).toContain('Αρ. Λογαριασμού:');
     expect(html).toContain('088/003361-85');
     expect(html).toContain('IBAN:');

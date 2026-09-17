@@ -646,9 +646,15 @@ export function LegalPrintAadePanel(props: {
             </>
           )}
         </div>
-        <div className="flex flex-col rounded-md border border-slate-300 bg-slate-50 px-2.5 py-2 text-[9.5px] leading-[1.35] text-slate-600">
-          <p className="font-black uppercase tracking-[0.08em] text-slate-800">Εθνική Τράπεζα</p>
-          <p className="mt-1.5 whitespace-nowrap"><span className="font-bold">Αρ. Λογαριασμού:</span> <span className="font-mono text-slate-800">088/003361-85</span></p>
+        <div className="flex flex-col rounded-md border border-slate-300 bg-slate-50 px-2.5 py-1 text-[9.5px] leading-[1.35] text-slate-600">
+          <div className="flex h-[4.5mm] shrink-0 items-center">
+            <img
+              src="/nbg-logo-black.webp"
+              alt="Εθνική Τράπεζα"
+              className="h-[4.5mm] w-auto max-w-[32mm] object-contain object-left"
+            />
+          </div>
+          <p className="mt-1 whitespace-nowrap"><span className="font-bold">Αρ. Λογαριασμού:</span> <span className="font-mono text-slate-800">088/003361-85</span></p>
           <p className="mt-0.5 whitespace-nowrap"><span className="font-bold">IBAN:</span> <span className="font-mono text-slate-800">GR1401100880000008800336185</span></p>
           <div className="mt-auto border-t border-slate-300 pt-1 text-center text-[8.5px]">Υπογραφή / Σφραγίδα</div>
         </div>

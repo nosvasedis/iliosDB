@@ -5,6 +5,13 @@ import { describe, expect, it } from 'vitest';
 const readSource = (relativePath: string) => readFileSync(resolve(__dirname, '../..', relativePath), 'utf8');
 
 describe('legal print manager wiring', () => {
+  it('ships the National Bank logo as a valid WebP print asset', () => {
+    const logo = readFileSync(resolve(__dirname, '../../public/nbg-logo-black.webp'));
+
+    expect(logo.subarray(0, 4).toString('ascii')).toBe('RIFF');
+    expect(logo.subarray(8, 12).toString('ascii')).toBe('WEBP');
+  });
+
   it.each([
     'components/LegalOnlyPrintManager.tsx',
     'components/PrintManager.tsx',

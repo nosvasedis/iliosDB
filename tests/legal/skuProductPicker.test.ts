@@ -4,6 +4,7 @@ import {
   SKU_PICKER_DROPDOWN_Z_INDEX,
   allowsBareMasterSkuResolution,
   getCatalogSelectionPricing,
+  isSkuProductSelectionInCatalog,
   isLustreOnlyProduct,
   resolveTypedSkuColorParts,
   resolveTypedSkuSelection,
@@ -111,21 +112,46 @@ describe('sku product picker search', () => {
     expect(variant?.variant_suffix).toBe('DLE');
   });
 
-  it('blocks and does not suggest a bare master when more than one variant exists', () => {
-    expect(allowsBareMasterSkuResolution(products[2])).toBe(false);
-    expect(isLustreOnlyProduct(products[2])).toBe(false);
-    expect(resolveTypedSkuSelection('RNG020', products)).toBeNull();
-    const options = searchSkuProductOptions(products, 'RNG020', 12);
-    expect(options.some((option) => option.displaySku === 'RNG020' && option.variant_suffix === '')).toBe(false);
-    expect(options.some((option) => option.displaySku === 'RNG020PDLE')).toBe(true);
-    expect(searchSkuProductOptions([products[2]], '', 12).some((option) => option.displaySku === 'RNG020')).toBe(false);
+  it('blocks a bare master when multiple variants exist without an explicit lustre row', () => {
+    const ambiguous = [{
+      ...products[2],
+      sku: 'RN001',
+      variants: [
+        { suffix: 'P', description: 'Πατίνα', selling_price: 185, stock_qty: 2, stock_by_size: {}, location_stock: {} },
+        { suffix: 'H', description: 'Επιπλατινωμένο', selling_price: 195, stock_qty: 2, stock_by_size: {}, location_stock: {} },
+      ],
+    }];
+
+    expect(allowsBareMasterSkuResolution(ambiguous[0])).toBe(false);
+    expect(resolveTypedSkuSelection('RN001', ambiguous)).toBeNull();
+    const options = searchSkuProductOptions(ambiguous, 'RN001', 12);
+    expect(options.some((option) => option.displaySku === 'RN001')).toBe(false);
+    expect(options.map((option) => option.displaySku)).toEqual(['RN001H', 'RN001P']);
   });
 
-  it('blocks bare master even for lustre-only catalogs when choices are ambiguous', () => {
-    expect(allowsBareMasterSkuResolution(products[1])).toBe(false);
-    expect(isLustreOnlyProduct(products[1])).toBe(true);
-    expect(resolveTypedSkuSelection('RNG010', products)).toBeNull();
-    expect(searchSkuProductOptions(products, 'RNG010', 12).some((option) => option.displaySku === 'RNG010')).toBe(false);
+  it('shows and resolves explicit lustre variants alongside H and X variants', () => {
+    const st9845 = [{
+      ...products[0],
+      sku: 'ST9845',
+      variants: [
+        { suffix: '', description: 'Λουστρέ', selling_price: 120, stock_qty: 2, stock_by_size: {}, location_stock: {} },
+        { suffix: 'H', description: 'Επιπλατινωμένο', selling_price: 140, stock_qty: 2, stock_by_size: {}, location_stock: {} },
+        { suffix: 'X', description: 'Επίχρυσο', selling_price: 150, stock_qty: 2, stock_by_size: {}, location_stock: {} },
+      ],
+    }];
+
+    expect(allowsBareMasterSkuResolution(st9845[0])).toBe(true);
+    expect(resolveTypedSkuSelection('ST9845', st9845)).toMatchObject({
+      sku: 'ST9845',
+      variant_suffix: null,
+      displaySku: 'ST9845',
+    });
+    expect(searchSkuProductOptions(st9845, 'ST9845', 12).map((option) => option.displaySku))
+      .toEqual(['ST9845', 'ST9845H', 'ST9845X']);
+    expect(searchSkuProductOptions(st9845, 'ST9845', 12)[0]).toMatchObject({
+      hint: 'Λουστρέ',
+      price: 120,
+    });
   });
 
   it('resolves a bare master to its sole concrete variant and price', () => {
@@ -160,6 +186,8 @@ describe('sku product picker search', () => {
     }];
     expect(allowsBareMasterSkuResolution(lustreStonesOnly[0])).toBe(false);
     expect(resolveTypedSkuSelection('RNG030', lustreStonesOnly)).toBeNull();
+    expect(searchSkuProductOptions(lustreStonesOnly, 'RNG030', 12).map((option) => option.displaySku))
+      .toEqual(['RNG030AK', 'RNG030TG']);
   });
 
   it('resolves variant-specific cost and selling price together', () => {
@@ -177,6 +205,31 @@ describe('sku product picker search', () => {
       unitCost: 88.4,
       unitPrice: 145.5,
     });
+  });
+
+  it('does not fall back to a shorter master after an invalid suffix was typed', () => {
+    const xr122 = [{
+      ...products[0],
+      sku: 'XR122',
+      variants: [
+        { suffix: 'P', description: 'Πατίνα', selling_price: 145, stock_qty: 2, stock_by_size: {}, location_stock: {} },
+        { suffix: 'H', description: 'Επιπλατινωμένο', selling_price: 155, stock_qty: 2, stock_by_size: {}, location_stock: {} },
+      ],
+    }];
+
+    expect(searchSkuProductOptions(xr122, 'XR1220H', 12)).toEqual([]);
+    expect(resolveTypedSkuSelection('XR1220H', xr122)).toBeNull();
+    expect(resolveTypedSkuSelection('XR122H', xr122)).toMatchObject({
+      sku: 'XR122',
+      variant_suffix: 'H',
+      displaySku: 'XR122H',
+    });
+  });
+
+  it('validates both the master and the exact suffix before catalog commit', () => {
+    expect(isSkuProductSelectionInCatalog(products, { sku: 'RNG001', variant_suffix: 'DLE' })).toBe(true);
+    expect(isSkuProductSelectionInCatalog(products, { sku: 'RNG001', variant_suffix: '0H' })).toBe(false);
+    expect(isSkuProductSelectionInCatalog(products, { sku: 'XR1220H', variant_suffix: null })).toBe(false);
   });
 
   it('can search component SKUs only when the picker requests that catalog scope', () => {

@@ -2207,6 +2207,7 @@ export default function LegalDocumentsPage({
                         onInputFocus={() => setLegalSkuFocusLineId(line.id)}
                         inputClassName="px-1.5 py-1"
                         compact
+                        catalogOnly
                       />
                     </td>
                     <td className="px-2 py-1.5">
@@ -2695,6 +2696,7 @@ export default function LegalDocumentsPage({
                         onEnterCommit={() => appendProformaLineAfter(line.id)}
                         autoFocus={proformaSkuFocusLineId === line.id}
                         onInputFocus={() => setProformaSkuFocusLineId(line.id)}
+                        catalogOnly
                       />
                     </td>
                     <td className="px-3 py-2"><input value={line.item_code || ''} onChange={(event) => updateProformaBundle((current, lines) => recalculateProforma(current, lines.map((item) => item.id === line.id ? { ...applyAutomaticLegalItemClassification(item, event.target.value, settingsDraft, '1.1'), proforma_id: item.proforma_id } : item), settingsDraft))} className="w-28 rounded-lg border border-slate-200 px-2 py-1 font-mono text-xs outline-none" /></td>

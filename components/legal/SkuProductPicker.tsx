@@ -9,6 +9,7 @@ import {
   getBareMasterSkuResolutionError,
   getSkuCatalogProducts,
   getSkuAutocompleteValue,
+  isSkuProductSelectionInCatalog,
   resolveTypedSkuColorParts,
   resolveTypedSkuSelection,
   searchSkuProductOptions,
@@ -164,7 +165,7 @@ export default function SkuProductPicker({
   };
 
   const commitSelection = (selection: SkuProductSelection, advanceAfterCommit = false) => {
-    if (catalogOnly && !getSkuCatalogProducts(products, { scope }).some((product) => product.sku === selection.sku)) {
+    if (catalogOnly && !isSkuProductSelectionInCatalog(products, selection, { scope })) {
       showToast('Επιλέξτε έγκυρο SKU από τον κατάλογο.', 'warning');
       setInputValue(displayValue);
       setOpen(true);
@@ -230,7 +231,12 @@ export default function SkuProductPicker({
         return;
       }
       const resolved = resolveTypedSkuSelection(inputValue, products, { scope });
-      if (resolved) commitSelection(resolved, true);
+      if (resolved) {
+        commitSelection(resolved, true);
+      } else if (catalogOnly && inputValue.trim()) {
+        showToast(`Ο κωδικός ${inputValue.trim().toUpperCase()} δεν υπάρχει στον κατάλογο.`, 'warning');
+        setOpen(true);
+      }
       return;
     }
     if (event.key === 'Escape') {

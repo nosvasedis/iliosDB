@@ -19,20 +19,20 @@ export function isLustreOnlyProduct(product: Product): boolean {
   return variants.every((variant) => !variantHasMetalFinish(variant.suffix, product.gender));
 }
 
-/** Bare master SKU may be resolved only when it maps to one catalog choice. */
+/**
+ * A bare SKU is selectable when it is itself a real catalog variant (explicit
+ * empty suffix / λουστρέ), or when the product has only one possible choice.
+ */
 export function allowsBareMasterSkuResolution(product: Product): boolean {
   const variants = product.variants || [];
-  return variants.length <= 1;
+  return variants.length <= 1 || variants.some((variant) => variant.suffix === '');
 }
 
-function getUniqueMasterVariant(product: Product): ProductVariant | null {
+function getBareMasterVariant(product: Product): ProductVariant | null {
   const variants = product.variants || [];
+  const explicitLustreVariant = variants.find((variant) => variant.suffix === '');
+  if (explicitLustreVariant) return explicitLustreVariant;
   return variants.length === 1 ? variants[0] : null;
-}
-
-function isSelectableVariant(product: Product, variant: ProductVariant): boolean {
-  if ((product.variants || []).length <= 1) return true;
-  return Boolean(variant.suffix);
 }
 
 function isBareMasterTerm(term: string, product: Product): boolean {
@@ -143,6 +143,21 @@ export function getSkuCatalogProducts(
   return products.filter((product) => !product.is_component);
 }
 
+export function isSkuProductSelectionInCatalog(
+  products: Product[],
+  selection: Pick<SkuProductSelection, 'sku' | 'variant_suffix'>,
+  pickerOptions: SkuProductPickerOptions = {},
+): boolean {
+  const product = getSkuCatalogProducts(products, pickerOptions)
+    .find((entry) => entry.sku.toUpperCase() === selection.sku.trim().toUpperCase());
+  if (!product) return false;
+
+  const variants = product.variants || [];
+  const suffix = selection.variant_suffix || '';
+  if (!variants.length) return suffix === '';
+  return variants.some((variant) => (variant.suffix || '').toUpperCase() === suffix.toUpperCase());
+}
+
 export function getCatalogSelectionPricing(
   products: Product[],
   selection: Pick<SkuProductSelection, 'sku' | 'variant_suffix'>,
@@ -162,6 +177,9 @@ export function getCatalogSelectionPricing(
 function makeCatalogOption(product: Product, variant?: ProductVariant | null): SkuPickerOption {
   const suffix = variant?.suffix ?? null;
   const displaySku = product.sku + (suffix || '');
+  const isLustreVariant = Boolean(variant) && !variantHasMetalFinish(suffix || '', product.gender);
+  const variantHint = variant?.description
+    || (isLustreVariant ? 'Λουστρέ' : undefined);
   return {
     key: `${product.sku}::${suffix ?? ''}`,
     sku: product.sku,
@@ -169,7 +187,7 @@ function makeCatalogOption(product: Product, variant?: ProductVariant | null): S
     displaySku,
     product,
     variant: variant || undefined,
-    hint: variant?.description || product.description || product.category || undefined,
+    hint: variantHint || product.description || product.category || undefined,
     price: getCatalogUnitPrice(product, variant),
   };
 }
@@ -188,7 +206,7 @@ function productMatchesTerm(product: Product, term: string): boolean {
 
 function variantMatchesTerm(product: Product, variant: ProductVariant, term: string): boolean {
   const full = `${product.sku}${variant.suffix || ''}`.toUpperCase();
-  return full.startsWith(term) || term.startsWith(full) || full.includes(term);
+  return full.startsWith(term);
 }
 
 function rankOptions(term: string, options: SkuPickerOption[]): SkuPickerOption[] {
@@ -226,7 +244,7 @@ export function searchSkuProductOptions(
   if (!term) {
     for (const product of catalogProducts.slice(0, Math.max(limit, 1))) {
       if (product.variants?.length) {
-        for (const variant of product.variants.filter((item) => isSelectableVariant(product, item))) {
+        for (const variant of product.variants) {
           push(makeCatalogOption(product, variant));
         }
       } else {
@@ -240,27 +258,30 @@ export function searchSkuProductOptions(
   const exact = findProductByScannedCode(term, catalogProducts);
   if (exact?.product && catalogMatchIsAllowed(term, exact.product, exact.variant)) {
     const exactVariant = isBareMasterTerm(term, exact.product)
-      ? getUniqueMasterVariant(exact.product)
+      ? getBareMasterVariant(exact.product)
       : exact.variant;
     push(makeCatalogOption(exact.product, exactVariant));
   }
 
   for (const product of catalogProducts) {
     const variants = product.variants || [];
+    const master = product.sku.toUpperCase();
     const masterMatches = productMatchesTerm(product, term);
-    const matchingVariants = variants.filter(
-      (variant) => isSelectableVariant(product, variant) && variantMatchesTerm(product, variant, term),
-    );
+    const matchingVariants = variants.filter((variant) => variantMatchesTerm(product, variant, term));
 
     if (matchingVariants.length) {
       matchingVariants.forEach((variant) => push(makeCatalogOption(product, variant)));
       continue;
     }
 
+    // The user continued beyond this master, but the remainder is not a valid
+    // prefix of any of its suffixes. Do not fall back to a shorter, unrelated SKU.
+    if (term.startsWith(master) && term !== master) continue;
+
     if (!masterMatches) continue;
 
     if (variants.length) {
-      variants.filter((variant) => isSelectableVariant(product, variant)).forEach((variant) => {
+      variants.forEach((variant) => {
         const full = `${product.sku}${variant.suffix || ''}`.toUpperCase();
         if (!full.startsWith(term) && !term.startsWith(product.sku.toUpperCase())) return;
         if (!catalogMatchIsAllowed(full, product, variant) && isBareMasterTerm(term, product)) return;
@@ -291,7 +312,7 @@ export function getSkuAutocompleteValue(
   const exact = findProductByScannedCode(normalized, catalogProducts);
   if (exact?.product && catalogMatchIsAllowed(normalized, exact.product, exact.variant)) {
     const exactVariant = isBareMasterTerm(normalized, exact.product)
-      ? getUniqueMasterVariant(exact.product)
+      ? getBareMasterVariant(exact.product)
       : exact.variant;
     return exact.product.sku + (exactVariant?.suffix || '');
   }
@@ -325,7 +346,7 @@ export function resolveTypedSkuSelection(
   const exact = findProductByScannedCode(normalized, catalogProducts);
   if (exact?.product && catalogMatchIsAllowed(normalized, exact.product, exact.variant)) {
     const exactVariant = isBareMasterTerm(normalized, exact.product)
-      ? getUniqueMasterVariant(exact.product)
+      ? getBareMasterVariant(exact.product)
       : exact.variant;
     return {
       sku: exact.product.sku,
@@ -338,6 +359,12 @@ export function resolveTypedSkuSelection(
   if (bareMasterProduct && !allowsBareMasterSkuResolution(bareMasterProduct)) {
     return null;
   }
+
+  const incompatibleShorterMaster = catalogProducts.some((product) => {
+    const master = product.sku.toUpperCase();
+    return normalized.startsWith(master) && normalized !== master;
+  });
+  if (incompatibleShorterMaster) return null;
 
   return {
     sku: normalized,
