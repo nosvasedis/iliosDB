@@ -1,44 +1,26 @@
 
 import React, { useState } from 'react';
-import { 
-  LogOut, 
-  ChevronLeft,
-  ChevronRight,
-} from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from '../../constants';
 import { useAuth } from '../AuthContext';
 import { useDeliveryNavBadge } from '../../hooks/api/useOrderDeliveryPlans';
 import { employeeDesktopNavItems, employeeMobileNavItems, renderNavIcon } from '../../surfaces/navConfig';
 import type { EmployeePage } from '../../surfaces/pageIds';
+import {
+  SidebarCollapseButton,
+  SidebarNavButton,
+  SidebarOverlayScrim,
+  SidebarVersionMark,
+  sidebarAsideClass,
+  sidebarMainClass,
+} from '../layout/SidebarChrome';
+import { prefersCollapsedDesktopSidebar } from '../../features/layout/sidebarChrome';
 
 interface Props {
   children?: React.ReactNode;
   activePage: EmployeePage;
   onNavigate: (page: EmployeePage) => void;
 }
-
-const NavItem = ({ icon, label, isActive, onClick, isCollapsed, badge }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void, isCollapsed: boolean, badge?: number }) => (
-  <button
-    onClick={onClick}
-    title={isCollapsed ? label : ''}
-    className={`
-      w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-3 px-4 py-3.5 my-0.5 rounded-xl transition-all duration-200 group relative
-      ${isActive 
-        ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20' 
-        : 'text-slate-400 hover:bg-white/10 hover:text-white'}
-    `}
-  >
-    <div className={`${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white transition-colors duration-200'}`}>
-      {icon}
-    </div>
-    {!isCollapsed && <span className="font-medium tracking-wide text-sm">{label}</span>}
-    {!!badge && badge > 0 && (
-      <span className={`ml-auto min-w-[1.4rem] h-6 px-1.5 rounded-full text-[10px] font-black flex items-center justify-center ${isActive ? 'bg-white/20 text-white' : 'bg-amber-500 text-white'}`}>
-        {badge > 99 ? '99+' : badge}
-      </span>
-    )}
-  </button>
-);
 
 const MobileNavItem = ({ icon, label, isActive, onClick, badge }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void, badge?: number }) => (
   <button
@@ -60,7 +42,9 @@ const MobileNavItem = ({ icon, label, isActive, onClick, badge }: { icon: React.
 );
 
 export default function EmployeeLayout({ children, activePage, onNavigate }: Props) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(() =>
+    typeof window !== 'undefined' ? prefersCollapsedDesktopSidebar(window.innerWidth) : false
+  );
   const { signOut, profile } = useAuth();
   const { badgeCount } = useDeliveryNavBadge();
 
@@ -71,30 +55,30 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
 
   return (
     <div className="flex h-screen overflow-hidden text-[#060b00] bg-slate-50 font-sans">
-        
-        {/* DESKTOP SIDEBAR (Hidden on Mobile) */}
-        <aside className={`hidden md:flex flex-col fixed inset-y-0 left-0 z-40 bg-[#060b00] text-white transition-all duration-500 shadow-2xl ${isCollapsed ? 'w-20' : 'w-72'} border-r border-white/5`}>
-          <div className={`p-6 flex items-center justify-center h-24 relative bg-black/20`}>
-            {!isCollapsed ? <img src={APP_LOGO} alt="Ilios" className="h-16 w-auto object-contain drop-shadow-lg" /> : <img src={APP_ICON_ONLY} alt="Icon" className="w-10 h-10 object-contain" />}
+        <SidebarOverlayScrim visible={!isCollapsed} onDismiss={() => setIsCollapsed(true)} />
+        <aside className={`${sidebarAsideClass(isCollapsed)} hidden md:flex`}>
+          <div className={`relative flex items-center justify-center border-b border-white/[0.06] ${isCollapsed ? 'h-[3.75rem] px-2' : 'h-16 px-4'}`}>
+            {!isCollapsed ? <img src={APP_LOGO} alt="Ilios" className="h-10 w-auto object-contain drop-shadow-lg" /> : <img src={APP_ICON_ONLY} alt="Ilios" className="h-8 w-8 object-contain" />}
           </div>
+          <SidebarCollapseButton isCollapsed={isCollapsed} onToggle={() => setIsCollapsed((current) => !current)} />
           
-          <div className="px-4 py-4">
-              <div className={`bg-emerald-900/30 border border-emerald-500/30 rounded-xl p-3 flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+          <div className={`px-2 ${isCollapsed ? 'py-2' : 'px-3 py-2'}`}>
+              <div className={`flex items-center rounded-xl border border-emerald-500/25 bg-emerald-900/25 ${isCollapsed ? 'h-9 w-9 justify-center' : 'gap-3 px-3 py-2'}`} title="Λειτουργία καταστήματος">
+                  <div className="h-2 w-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
                   {!isCollapsed && (
-                      <div className="flex flex-col">
-                          <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Λειτουργία Καταστήματος</span>
-                          <span className="text-xs font-bold text-white truncate">{profile?.full_name || 'Πωλητής'}</span>
+                      <div className="min-w-0 flex flex-col">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Κατάστημα</span>
+                          <span className="truncate text-xs font-bold text-white">{profile?.full_name || 'Πωλητής'}</span>
                       </div>
                   )}
               </div>
           </div>
 
-          <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto scrollbar-hide">
+          <nav className="flex flex-1 flex-col space-y-0.5 overflow-y-auto px-2 py-2 scrollbar-hide">
             {employeeDesktopNavItems.slice(0, 5).map((item) => (
-              <NavItem
+              <SidebarNavButton
                 key={item.id}
-                icon={renderNavIcon(item.icon, 22)}
+                icon={renderNavIcon(item.icon, 18)}
                 label={item.label}
                 isActive={activePage === item.id}
                 isCollapsed={isCollapsed}
@@ -102,11 +86,11 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
                 badge={item.id === 'deliveries' ? badgeCount : undefined}
               />
             ))}
-            <div className="my-2 border-t border-white/10 mx-2"></div>
+            <div className="mx-2 my-1.5 border-t border-white/[0.07]"></div>
             {employeeDesktopNavItems.slice(5, 7).map((item) => (
-              <NavItem
+              <SidebarNavButton
                 key={item.id}
-                icon={renderNavIcon(item.icon, 22)}
+                icon={renderNavIcon(item.icon, 18)}
                 label={item.label}
                 isActive={activePage === item.id}
                 isCollapsed={isCollapsed}
@@ -114,11 +98,11 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
                 badge={item.id === 'deliveries' ? badgeCount : undefined}
               />
             ))}
-            <div className="my-2 border-t border-white/10 mx-2"></div>
+            <div className="mx-2 my-1.5 border-t border-white/[0.07]"></div>
             {employeeDesktopNavItems.slice(7).map((item) => (
-              <NavItem
+              <SidebarNavButton
                 key={item.id}
-                icon={renderNavIcon(item.icon, 22)}
+                icon={renderNavIcon(item.icon, 18)}
                 label={item.label}
                 isActive={activePage === item.id}
                 isCollapsed={isCollapsed}
@@ -126,17 +110,19 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
               />
             ))}
             
-            <div className="mt-auto pt-6 border-t border-white/10 mt-6">
-                <button onClick={handleLogout} className="w-full p-3 text-slate-400 hover:text-red-400 hover:bg-white/5 rounded-xl flex items-center gap-3 transition-colors">
-                    <LogOut size={20} /> {!isCollapsed && <span className="font-medium text-sm">Αποσύνδεση</span>}
+            <div className="mt-auto border-t border-white/[0.07] pt-3">
+                <button
+                  onClick={handleLogout}
+                  title="Αποσύνδεση"
+                  className={`flex w-full items-center rounded-xl text-slate-400 transition-colors hover:bg-white/[0.06] hover:text-rose-300 ${isCollapsed ? 'h-9 justify-center' : 'gap-3 px-3 py-2'}`}
+                >
+                    <LogOut size={16} /> {!isCollapsed && <span className="text-[13px] font-medium">Αποσύνδεση</span>}
                 </button>
             </div>
           </nav>
 
-          <div className="p-4 bg-black/20">
-            <button onClick={() => setIsCollapsed(!isCollapsed)} className="w-full flex items-center justify-center p-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors">
-                {isCollapsed ? <ChevronRight size={20} /> : <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider"><ChevronLeft size={16}/> <span>Σύμπτυξη</span></div>}
-            </button>
+          <div className={`border-t border-white/[0.06] ${isCollapsed ? 'px-1 py-2.5' : 'px-3 py-2.5'}`}>
+            <SidebarVersionMark compact={isCollapsed} />
           </div>
         </aside>
 
@@ -152,7 +138,7 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
         </header>
 
         {/* MAIN CONTENT */}
-        <main className={`flex-1 flex flex-col h-full overflow-hidden transition-all duration-500 md:ml-${isCollapsed ? '20' : '72'} pt-16 md:pt-0`}>
+        <main className={`${sidebarMainClass(isCollapsed)} pt-16 md:pt-0`}>
           <div className="flex-1 overflow-y-auto p-4 md:p-8 relative scroll-smooth bg-slate-50 pb-24 md:pb-8">
             <div className="max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
                 {children}

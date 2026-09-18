@@ -1,9 +1,6 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import {
   Archive,
-  ChevronLeft,
-  ChevronRight,
-  Cloud,
   FileCheck2,
   RefreshCw,
   Settings,
@@ -23,6 +20,16 @@ import {
 import type { LegalTab } from './LegalDocumentsPage';
 import LegalOnlyPrintManager from './LegalOnlyPrintManager';
 import IliosLoader from './ui/IliosLoader';
+import {
+  SidebarCollapseButton,
+  SidebarConnectionBadge,
+  SidebarNavButton,
+  SidebarOverlayScrim,
+  SidebarVersionMark,
+  sidebarAsideClass,
+  sidebarMainClass,
+} from './layout/SidebarChrome';
+import { prefersCollapsedDesktopSidebar } from '../features/layout/sidebarChrome';
 
 const LegalDocumentsPage = lazyWithChunkRecovery(
   () => import('./LegalDocumentsPage'),
@@ -45,43 +52,11 @@ const tabTitles: Record<LegalTab, string> = {
   settings: 'Τεχνικές ρυθμίσεις',
 };
 
-const InspectionNavItem = ({
-  icon: Icon,
-  label,
-  isActive,
-  isCollapsed,
-  onClick,
-}: {
-  icon: LucideIcon;
-  label: string;
-  isActive: boolean;
-  isCollapsed: boolean;
-  onClick: () => void;
-}) => (
-  <button
-    type="button"
-    onClick={onClick}
-    title={isCollapsed ? label : ''}
-    className={`
-      w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-3 px-4 py-3.5 my-0.5 rounded-xl transition-all duration-200 group relative
-      ${isActive
-        ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-900/20'
-        : 'text-slate-400 hover:bg-white/10 hover:text-white'}
-    `}
-  >
-    <Icon size={20} className={isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'} />
-    {!isCollapsed && <span className="font-medium truncate tracking-wide text-sm text-left">{label}</span>}
-    {isCollapsed && (
-      <div className="absolute left-full ml-3 px-3 py-1.5 bg-[#060b00] text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-white/10 transition-opacity duration-200">
-        {label}
-      </div>
-    )}
-  </button>
-);
-
 const InspectionModeShell: React.FC = () => {
   const [activeTab, setActiveTab] = useState<LegalTab>('new');
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(() =>
+    typeof window !== 'undefined' ? prefersCollapsedDesktopSidebar(window.innerWidth) : false
+  );
   const { data: products, isLoading: loadingProducts, isError: productsError } = useProducts();
   const { data: legalSettings } = useLegalSettings();
   const { setLegalDocumentToPrint, setProformaToPrint } = usePrint();
@@ -118,44 +93,35 @@ const InspectionModeShell: React.FC = () => {
     <>
       <LegalOnlyPrintManager />
       <div id="app-container" className="flex h-screen overflow-hidden text-[#060b00] bg-slate-50 font-sans">
-        <aside
-          className={`fixed inset-y-0 left-0 z-40 bg-[#060b00] text-white transition-all duration-500 shadow-2xl flex flex-col border-r border-white/5 ${isCollapsed ? 'w-20' : 'w-72'}`}
-        >
-          <div className="p-6 flex flex-col items-center justify-center min-h-[7.5rem] relative bg-black/20 border-b border-white/5">
+        <SidebarOverlayScrim visible={!isCollapsed} onDismiss={() => setIsCollapsed(true)} />
+        <aside className={sidebarAsideClass(isCollapsed)}>
+          <div className={`relative flex flex-col items-center justify-center border-b border-white/[0.06] ${isCollapsed ? 'h-[3.75rem] px-2' : 'min-h-16 px-4 py-3'}`}>
             {!isCollapsed ? (
               <>
-                <img src={APP_LOGO} alt="Ilios" className="h-14 w-auto object-contain drop-shadow-lg" />
-                <p className="mt-3 text-center text-[11px] font-black uppercase tracking-[0.2em] text-amber-400/90">
+                <img src={APP_LOGO} alt="Ilios" className="h-10 w-auto object-contain drop-shadow-lg" />
+                <p className="mt-1.5 text-center text-[10px] font-black uppercase tracking-[0.18em] text-amber-400/90">
                   Σύστημα Παραστατικών
                 </p>
                 {issuerName && (
-                  <p className="mt-1 text-center text-xs font-medium text-slate-400 truncate max-w-full px-2">
+                  <p className="mt-0.5 max-w-full truncate px-2 text-center text-[11px] font-medium text-slate-400">
                     {issuerName}
                   </p>
                 )}
               </>
             ) : (
-              <img src={APP_ICON_ONLY} alt="Ilios" className="w-10 h-10 object-contain" />
+              <img src={APP_ICON_ONLY} alt="Ilios" className="h-8 w-8 object-contain" />
             )}
-          </div>
-
-          <div className={`px-4 py-3 flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'}`}>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
-              <Cloud size={12} className="animate-pulse" />
-              {!isCollapsed && 'ΣΥΝΔΕΔΕΜΕΝΟ'}
+            <div className={`absolute ${isCollapsed ? 'bottom-1.5 right-1.5' : 'right-3 top-3'}`}>
+              <SidebarConnectionBadge isLocalMode={false} isOnline isSyncing={false} pendingCount={0} />
             </div>
           </div>
+          <SidebarCollapseButton isCollapsed={isCollapsed} onToggle={() => setIsCollapsed((current) => !current)} />
 
-          <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto scrollbar-hide">
-            {!isCollapsed && (
-              <p className="px-4 pb-2 text-[10px] font-black uppercase tracking-widest text-slate-500">
-                Λειτουργίες
-              </p>
-            )}
+          <nav className="flex flex-1 flex-col space-y-0.5 overflow-y-auto px-2 py-3 scrollbar-hide">
             {inspectionNavItems.map((item) => (
-              <InspectionNavItem
+              <SidebarNavButton
                 key={item.id}
-                icon={item.icon}
+                icon={<item.icon size={18} strokeWidth={2} />}
                 label={item.label}
                 isActive={activeTab === item.id}
                 isCollapsed={isCollapsed}
@@ -164,34 +130,18 @@ const InspectionModeShell: React.FC = () => {
             ))}
           </nav>
 
-          <div className="p-4 bg-black/20 border-t border-white/5">
-            <button
-              type="button"
-              onClick={() => setIsCollapsed((current) => !current)}
-              className="hidden md:flex w-full items-center justify-center p-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+          <div className={`border-t border-white/[0.06] ${isCollapsed ? 'px-1 py-2.5' : 'px-3 py-2.5'}`}>
+            <p
+              title={`Περιβάλλον ΑΑΔΕ: ${environment}`}
+              className="mb-1.5 text-center text-[9px] font-black uppercase tracking-[0.16em] text-amber-400/80"
             >
-              {isCollapsed ? (
-                <ChevronRight size={20} />
-              ) : (
-                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider">
-                  <ChevronLeft size={16} />
-                  <span>Σύμπτυξη</span>
-                </div>
-              )}
-            </button>
-            {!isCollapsed && (
-              <div className="mt-4 text-center text-[10px] text-slate-500 font-medium space-y-1">
-                <p>
-                  Περιβάλλον ΑΑΔΕ:{' '}
-                  <span className="text-amber-400 font-black">{environment}</span>
-                </p>
-                <p className="opacity-50">Ilios ERP · myDATA</p>
-              </div>
-            )}
+              {isCollapsed ? environment : `ΑΑΔΕ ${environment}`}
+            </p>
+            <SidebarVersionMark compact={isCollapsed} />
           </div>
         </aside>
 
-        <main className={`flex-1 flex flex-col h-full overflow-hidden transition-all duration-500 ${isCollapsed ? 'ml-20' : 'ml-72'}`}>
+        <main className={sidebarMainClass(isCollapsed)}>
           <header className="shrink-0 border-b border-slate-200 bg-white/80 backdrop-blur-md px-6 py-4 md:px-8">
             <div className="max-w-[1600px] mx-auto flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
               <div>

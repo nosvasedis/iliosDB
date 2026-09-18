@@ -2,12 +2,7 @@ import React, { Suspense, useState, useEffect } from 'react';
 import {
   Menu,
   X,
-  ChevronLeft,
-  ChevronRight,
   LogOut,
-  Cloud,
-  HardDrive,
-  RefreshCw,
   ShieldAlert,
 } from 'lucide-react';
 import { APP_LOGO, APP_ICON_ONLY } from './constants';
@@ -48,6 +43,16 @@ import { isInspectionModeActive } from './lib/inspectionMode';
 import InspectionModeShell from './components/InspectionModeShell';
 import { InspectionModeProvider } from './components/InspectionModeProvider';
 import IliosLoader from './components/ui/IliosLoader';
+import {
+  SidebarCollapseButton,
+  SidebarConnectionBadge,
+  SidebarNavButton,
+  SidebarOverlayScrim,
+  SidebarVersionMark,
+  sidebarAsideClass,
+  sidebarMainClass,
+} from './components/layout/SidebarChrome';
+import { prefersCollapsedDesktopSidebar } from './features/layout/sidebarChrome';
 
 const lazyPage = <T extends React.ComponentType<any>>(factory: () => Promise<{ default: T }>) =>
   lazyWithChunkRecovery(factory, import.meta.url);
@@ -143,33 +148,6 @@ function AuthGuard({ children }: { children?: React.ReactNode }) {
   return <>{children}</>;
 }
 
-const NavItem = ({ icon, label, isActive, onClick, isCollapsed, badge }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void, isCollapsed: boolean, badge?: number }) => (
-  <button
-    onClick={onClick}
-    title={isCollapsed ? label : ''}
-    className={`
-      w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-3 px-4 py-3.5 my-0.5 rounded-xl transition-all duration-200 group relative
-      ${isActive
-        ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-900/20'
-        : 'text-slate-400 hover:bg-white/10 hover:text-white'}
-    `}
-  >
-    <div className={`${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white transition-colors duration-200'}`}>
-      {icon}
-    </div>
-    {!isCollapsed && <span className="font-medium tracking-wide text-sm">{label}</span>}
-    {!!badge && badge > 0 && (
-      <span className={`ml-auto min-w-[1.4rem] h-6 px-1.5 rounded-full text-[10px] font-black flex items-center justify-center ${isActive ? 'bg-white/20 text-white' : 'bg-amber-500 text-white'}`}>
-        {badge > 99 ? '99+' : badge}
-      </span>
-    )}
-    {isCollapsed && (
-      <div className="absolute left-full ml-3 px-3 py-1.5 bg-[#060b00] text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-xl border border-white/10 transition-opacity duration-200">
-        {label}
-      </div>
-    )}
-  </button>
-);
 
 function AppContent() {
   const { profile } = useAuth();
@@ -186,7 +164,9 @@ function ErpAppContent() {
   const isMobile = useIsMobile();
   const [activePage, setActivePage] = useState<AdminPage>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(() =>
+    typeof window !== 'undefined' ? prefersCollapsedDesktopSidebar(window.innerWidth) : false
+  );
 
   const queryClient = useQueryClient();
   const { showToast } = useUI();
@@ -363,8 +343,9 @@ function ErpAppContent() {
   };
 
   const toggleCollapse = () => {
-    setIsCollapsed(!isCollapsed);
+    setIsCollapsed((current) => !current);
   };
+  const railMode = isCollapsed && !isSidebarOpen;
 
   const handlePrintAggregated = (batches: ProductionBatch[], orderDetails?: { orderId: string, customerName: string }) => {
     const aggregatedData = buildAggregatedPrintData(batches, products, materials, settings, {
@@ -509,30 +490,39 @@ function ErpAppContent() {
 
       <div id="app-container" className="flex h-screen overflow-hidden text-[#060b00] bg-slate-50 font-sans">
         {isSidebarOpen && <div className="fixed inset-0 bg-[#060b00]/60 backdrop-blur-sm z-40 md:hidden animate-in fade-in" onClick={() => setIsSidebarOpen(false)} />}
-        <aside className={`fixed inset-y-0 left-0 z-40 bg-[#060b00] text-white transition-all duration-500 shadow-2xl flex flex-col ${isSidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full md:translate-x-0'} ${isCollapsed ? 'md:w-20' : 'md:w-72'} border-r border-white/5`}>
-          <div className={`p-6 flex items-center justify-center h-24 relative bg-black/20`}>
-            {!isCollapsed ? <img src={APP_LOGO} alt="Ilios" className="h-16 w-auto object-contain drop-shadow-lg" /> : <img src={APP_ICON_ONLY} alt="Icon" className="w-10 h-10 object-contain" />}
-            <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-slate-400 hover:text-white absolute right-4 top-6"><X size={24} /></button>
-          </div>
-          <div className={`px-4 py-2 flex items-center gap-3 ${isCollapsed ? 'justify-center' : 'justify-start'}`}>
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${isLocalMode ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : isOnline ? (isSyncing || pendingCount > 0 ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20') : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
-              {isLocalMode ? <><HardDrive size={12} /> {!isCollapsed && 'ΤΟΠΙΚΗ ΒΑΣΗ'}</> : isSyncing ? <><RefreshCw size={12} className="animate-spin" /> {!isCollapsed && 'ΣΥΓΧΡΟΝΙΣΜΟΣ'}</> : pendingCount > 0 ? <><RefreshCw size={12} /> {!isCollapsed && `${pendingCount} ΕΚΚΡΕΜΕΙ`}</> : isOnline ? <><Cloud size={12} className="animate-pulse" /> {!isCollapsed && 'ΣΥΝΔΕΔΕΜΕΝΟ'}</> : <><HardDrive size={12} /> {!isCollapsed && 'ΕΚΤΟΣ ΣΥΝΔΕΣΗΣ'}</>}
+        <SidebarOverlayScrim visible={!isCollapsed} onDismiss={() => setIsCollapsed(true)} />
+        <aside className={sidebarAsideClass(railMode, isSidebarOpen)}>
+          <div className={`relative flex items-center justify-center border-b border-white/[0.06] ${railMode ? 'h-[3.75rem] px-2' : 'h-16 px-4'}`}>
+            {!railMode ? (
+              <img src={APP_LOGO} alt="Ilios" className="h-10 w-auto object-contain drop-shadow-lg" />
+            ) : (
+              <img src={APP_ICON_ONLY} alt="Ilios" className="h-8 w-8 object-contain" />
+            )}
+            <div className={`absolute ${railMode ? 'bottom-1.5 right-1.5' : 'right-12 top-1/2 -translate-y-1/2 md:right-3'}`}>
+              <SidebarConnectionBadge
+                isLocalMode={isLocalMode}
+                isOnline={isOnline}
+                isSyncing={isSyncing}
+                pendingCount={pendingCount}
+              />
             </div>
+            <button onClick={() => setIsSidebarOpen(false)} className="absolute right-3 top-4 text-slate-400 hover:text-white md:hidden"><X size={20} /></button>
           </div>
-          <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto scrollbar-hide">
+          <SidebarCollapseButton isCollapsed={isCollapsed} onToggle={toggleCollapse} />
+          <nav className="flex min-h-0 flex-1 flex-col space-y-0.5 overflow-y-auto px-2 py-3 scrollbar-hide">
             {adminNavSections.map((section, sectionIndex) => {
               const visibleItems = section.items.filter((item) => !isLocalMode || !hiddenInLocalMode.has(item.id));
               if (visibleItems.length === 0) return null;
               return (
                 <React.Fragment key={`admin-nav-section-${sectionIndex}`}>
-                  {sectionIndex > 0 && <div className="my-2 border-t border-white/10 mx-2"></div>}
+                  {sectionIndex > 0 && <div className="mx-2 my-1.5 border-t border-white/[0.07]"></div>}
                   {visibleItems.map((item) => (
-                    <NavItem
+                    <SidebarNavButton
                       key={item.id}
-                      icon={renderNavIcon(item.icon, 22)}
+                      icon={renderNavIcon(item.icon, 18)}
                       label={item.label}
                       isActive={activePage === item.id}
-                      isCollapsed={isCollapsed}
+                      isCollapsed={railMode}
                       onClick={() => handleNav(item.id)}
                       badge={item.id === 'deliveries' ? deliveryBadgeCount : undefined}
                     />
@@ -540,28 +530,32 @@ function ErpAppContent() {
                 </React.Fragment>
               );
             })}
-            <div className="mt-auto pt-6">
+            <div className="mt-auto pt-3">
               {adminFooterNavItems.map((item) => (
-                <NavItem
+                <SidebarNavButton
                   key={item.id}
-                  icon={renderNavIcon(item.icon, 22)}
+                  icon={renderNavIcon(item.icon, 18)}
                   label={item.label}
                   isActive={activePage === item.id}
-                  isCollapsed={isCollapsed}
+                  isCollapsed={railMode}
                   onClick={() => handleNav(item.id)}
                 />
               ))}
-              <div className={`mt-4 pt-4 border-t border-white/10 w-full ${isCollapsed ? 'flex flex-col items-center gap-4' : 'px-4 flex items-center justify-between'}`}>
-                <button onClick={handleLogout} className="flex-1 flex items-center gap-2 p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg min-w-0">
-                  <LogOut size={18} className="shrink-0" />
-                  {!isCollapsed && <span className="text-sm font-medium truncate">{profile?.full_name || 'User'}</span>}
+              <div className={`mt-3 border-t border-white/[0.07] pt-3 ${railMode ? 'flex flex-col items-center gap-2' : 'flex items-center gap-2 px-1'}`}>
+                <button
+                  onClick={handleLogout}
+                  title={profile?.full_name ? `Αποσύνδεση · ${profile.full_name}` : 'Αποσύνδεση'}
+                  className={`flex min-w-0 items-center rounded-xl text-slate-400 transition-colors hover:bg-white/[0.06] hover:text-white ${railMode ? 'h-9 w-9 justify-center' : 'flex-1 gap-2 px-2 py-2'}`}
+                >
+                  <LogOut size={16} className="shrink-0" />
+                  {!railMode && <span className="truncate text-[13px] font-medium">{profile?.full_name || 'User'}</span>}
                 </button>
                 {adminQuickActionNavItems.map((item) => (
                   <button
                     key={item.id}
                     onClick={() => handleNav(item.id)}
                     title={item.label}
-                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg shrink-0 ${activePage === item.id ? 'bg-emerald-50 text-white ring-2 ring-emerald-500/20' : 'bg-emerald-900/40 text-emerald-300 hover:bg-emerald-800 hover:text-white'}`}
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all duration-200 ${activePage === item.id ? 'bg-amber-400 text-[#060b00] shadow-[0_0_12px_rgba(251,191,36,0.35)]' : 'bg-white/[0.06] text-amber-300/80 hover:bg-amber-400/20 hover:text-amber-200'}`}
                   >
                     {renderNavIcon(item.icon, 14, activePage === item.id ? 2.5 : 2)}
                   </button>
@@ -569,12 +563,11 @@ function ErpAppContent() {
               </div>
             </div>
           </nav>
-          <div className="p-4 bg-black/20">
-            <button onClick={toggleCollapse} className="hidden md:flex w-full items-center justify-center p-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors">{isCollapsed ? <ChevronRight size={20} /> : <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider"><ChevronLeft size={16} /> <span>Σύμπτυξη</span></div>}</button>
-            {!isCollapsed && <div className="mt-4 text-[10px] text-slate-500 text-center font-medium"><p>Τιμή Ασημιού: <span className="text-amber-500">{settings.silver_price_gram.toFixed(3)}€</span></p><p className="opacity-50 mt-1">v1.2</p></div>}
+          <div className={`border-t border-white/[0.06] ${railMode ? 'px-1 py-2.5' : 'px-3 py-2.5'}`}>
+            <SidebarVersionMark compact={railMode} />
           </div>
         </aside>
-        <main className={`flex-1 flex flex-col h-full overflow-hidden transition-all duration-500 ${isCollapsed ? 'md:ml-20' : 'md:ml-72'}`}>
+        <main className={sidebarMainClass(isCollapsed)}>
           <header className="md:hidden bg-white/80 backdrop-blur-md p-4 shadow-sm flex items-center justify-between z-30 sticky top-0 border-b border-slate-200">
             <button onClick={() => setIsSidebarOpen(true)} className="text-slate-600 p-1 hover:bg-slate-100 rounded-lg"><Menu size={24} /></button>
             <div className="h-8"><img src={APP_LOGO} alt="Ilios" className="h-full w-auto object-contain" /></div>
