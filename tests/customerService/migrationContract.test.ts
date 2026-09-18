@@ -6,6 +6,7 @@ const core = readFileSync(resolve(process.cwd(), 'supabase/migrations/2026081109
 const workflows = [
   readFileSync(resolve(process.cwd(), 'supabase/migrations/20260811091500_customer_service_workflows.sql'), 'utf8'),
   readFileSync(resolve(process.cwd(), 'supabase/migrations/20260901093000_update_pending_consignment.sql'), 'utf8'),
+  readFileSync(resolve(process.cwd(), 'supabase/migrations/20260918123000_repair_production_lifecycle.sql'), 'utf8'),
 ].join('\n');
 
 const requiredTables = [
@@ -24,6 +25,11 @@ const requiredRpcs = [
   'create_consignment_legal_draft_v1', 'create_repair_legal_draft_v1',
   'get_consignment_inventory_reconciliation_v1',
   'update_pending_consignment_v1',
+  'archive_repair_item_v1',
+  'delete_repair_item_v1',
+  'complete_repair_production_v1',
+  'remove_repair_from_production_v1',
+  'return_repair_to_production_v1',
 ];
 
 describe('συμβόλαιο βάσης Παρακαταθηκών και Επισκευών', () => {
@@ -59,5 +65,24 @@ describe('συμβόλαιο βάσης Παρακαταθηκών και Επι
     expect(core).toContain('Το ιστορικό ενεργειών είναι αμετάβλητο');
     expect(workflows).toMatch(/create_consignment_legal_draft_v1[\s\S]+status[\s\S]+'draft'/i);
     expect(workflows).toMatch(/create_repair_legal_draft_v1[\s\S]+status[\s\S]+'draft'/i);
+  });
+
+  it('αρχειοθετεί Επισκευές και ολοκληρώνει την Παραγωγή χωρίς στάδιο Ready', () => {
+    expect(workflows).toMatch(/alter table public\.repair_items[\s\S]*is_archived boolean not null default false/i);
+    const completeStart = workflows.indexOf('complete_repair_production_v1');
+    expect(completeStart).toBeGreaterThan(-1);
+    const completeNext = workflows.indexOf('CREATE OR REPLACE FUNCTION', completeStart + 40);
+    const completeBody = workflows.slice(completeStart, completeNext > 0 ? completeNext : completeStart + 12000);
+    expect(completeBody).toContain('quality_check');
+    expect(completeBody).not.toMatch(/current_stage\s*=\s*'Ready'/);
+
+    const qualityVersions = workflows.split('CREATE OR REPLACE FUNCTION public.complete_repair_quality_check_v1');
+    const latestQuality = qualityVersions[qualityVersions.length - 1] || '';
+    expect(latestQuality).toContain('private.create_repair_linked_batch');
+    expect(workflows).toMatch(/CREATE OR REPLACE FUNCTION private\.create_repair_linked_batch[\s\S]*INSERT INTO public\.production_batches/);
+
+    const holdVersions = workflows.split('CREATE OR REPLACE FUNCTION public.set_repair_exception_state_v1');
+    const latestHold = holdVersions[holdVersions.length - 1] || '';
+    expect(latestHold).toMatch(/on_hold\s*=\s*true/);
   });
 });

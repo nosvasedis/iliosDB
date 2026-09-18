@@ -80,6 +80,11 @@ export const FULFILLMENT_MODE_LABELS = {
 export const REPAIR_EVENT_LABELS: Record<string, string> = {
   received: 'Παραλαβή',
   production_stage_changed: 'Αλλαγή σταδίου Παραγωγής',
+  production_completed: 'Ολοκλήρωση Παραγωγής',
+  removed_from_production: 'Αφαίρεση από Παραγωγή',
+  returned_to_production: 'Επιστροφή στην Παραγωγή',
+  archived: 'Αρχειοθέτηση',
+  unarchived: 'Ανάκτηση από αρχείο',
   quality_passed: 'Επιτυχής ποιοτικός έλεγχος',
   quality_failed_rework: 'Αποτυχία ελέγχου / επανεργασία',
   delivered: 'Παράδοση',

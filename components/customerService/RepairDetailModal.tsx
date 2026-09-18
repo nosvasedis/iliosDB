@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import type {
   Product,
+  ProductionBatch,
+  ProductionStage,
   RepairAttachment,
   RepairCharge,
   RepairCostLine,
@@ -24,7 +26,6 @@ import {
   REPAIR_EVENT_LABELS,
   REPAIR_ORIGIN_LABELS,
   REPAIR_QUALITY_STATUS_LABELS,
-  REPAIR_STATUS_LABELS,
   formatGreekDateTime,
   formatGreekMoney,
 } from '../../features/customerService';
@@ -32,7 +33,9 @@ import { customerServiceRepository } from '../../features/customerService/reposi
 import { formatOrderId } from '../../utils/orderUtils';
 import SkuColorizedText from '../SkuColorizedText';
 import RepairBadge from './RepairBadge';
+import RepairProductionPanel from './RepairProductionPanel';
 import RepairQrButton from './RepairQrButton';
+import RepairStageBadge from './RepairStageBadge';
 import { BTN_PRIMARY, BTN_SECONDARY } from '../ui/designTokens';
 import ViewportPortal from './ViewportPortal';
 
@@ -61,6 +64,14 @@ interface Props {
   onNewLinkedRepair: () => void;
   onLegalDraft: () => void;
   onUpload: (file: File) => void;
+  batch?: ProductionBatch | null;
+  isMoving?: boolean;
+  onMoveToStage?: (stage: ProductionStage, options?: { pendingDispatch?: boolean }) => void;
+  onHold?: () => void;
+  onRemove?: () => void;
+  onDelete?: () => void;
+  onArchive?: () => void;
+  onReturnToProduction?: () => void;
 }
 
 function RepairPhotoThumb({ attachment }: { attachment: RepairAttachment }) {
@@ -107,6 +118,14 @@ export default function RepairDetailModal({
   onNewLinkedRepair,
   onLegalDraft,
   onUpload,
+  batch,
+  isMoving,
+  onMoveToStage,
+  onHold,
+  onRemove,
+  onDelete,
+  onArchive,
+  onReturnToProduction,
 }: Props) {
   const closed = ['delivered', 'irreparable', 'cancelled'].includes(item.status);
   const internalCost = costs.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_cost || 0), 0);
@@ -120,7 +139,10 @@ export default function RepairDetailModal({
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-lg font-black text-slate-900">{item.code}</h2>
               <RepairBadge compact />
-              <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700">{REPAIR_STATUS_LABELS[item.status]}</span>
+              <RepairStageBadge item={item} batch={batch} />
+              {item.is_archived && (
+                <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-500">Αρχείο</span>
+              )}
               {item.current_cycle_number > 1 && (
                 <span className="rounded-full bg-rose-50 px-2 py-1 text-[10px] font-black text-rose-700">Κύκλος {item.current_cycle_number}</span>
               )}
@@ -177,6 +199,21 @@ export default function RepairDetailModal({
               {item.accessories && <p className="mt-1 text-[11px] text-slate-500">Παρελκόμενα: {item.accessories}</p>}
             </section>
 
+            {onMoveToStage && onHold && onRemove && onDelete && onArchive && onReturnToProduction && (
+              <RepairProductionPanel
+                item={item}
+                batch={batch}
+                isSeller={isSeller}
+                isMoving={isMoving}
+                onMoveToStage={onMoveToStage}
+                onHold={onHold}
+                onRemove={onRemove}
+                onDelete={onDelete}
+                onArchive={onArchive}
+                onReturnToProduction={onReturnToProduction}
+              />
+            )}
+
             <div className="flex flex-wrap gap-2">
               {!isSeller && item.status === 'quality_check' && (
                 <>
@@ -194,7 +231,6 @@ export default function RepairDetailModal({
                 <>
                   <button className={BTN_SECONDARY} onClick={() => onOperation({ kind: 'cost', item })}>Καταγραφή κόστους</button>
                   <button className={BTN_SECONDARY} onClick={() => onOperation({ kind: 'charge', item })}>Χρέωση</button>
-                  <button className={BTN_SECONDARY} onClick={() => onOperation({ kind: 'exception', item, status: 'on_hold' })}>Σε αναμονή</button>
                 </>
               )}
               {charge?.charge_type === 'chargeable' && Number(charge.amount) > 0 && !charge.legal_document_id && (

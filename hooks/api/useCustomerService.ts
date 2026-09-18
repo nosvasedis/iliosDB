@@ -96,6 +96,29 @@ export function useCustomerServiceActions() {
         customerServiceRepository.setRepairExceptionState(repairItemId, status, reason),
       onSuccess: () => refresh({ production: true }),
     }),
+    archiveRepairItem: useMutation({
+      mutationFn: ({ repairItemId, archive, reason }: { repairItemId: string; archive: boolean; reason?: string }) =>
+        customerServiceRepository.archiveRepairItem(repairItemId, archive, reason),
+      onSuccess: () => refresh({ production: true }),
+    }),
+    deleteRepairItem: useMutation({
+      mutationFn: ({ repairItemId, reason }: { repairItemId: string; reason: string }) =>
+        customerServiceRepository.deleteRepairItem(repairItemId, reason),
+      onSuccess: () => refresh({ production: true }),
+    }),
+    completeRepairProduction: useMutation({
+      mutationFn: (repairItemId: string) => customerServiceRepository.completeRepairProduction(repairItemId),
+      onSuccess: () => refresh({ production: true }),
+    }),
+    removeRepairFromProduction: useMutation({
+      mutationFn: ({ repairItemId, reason }: { repairItemId: string; reason: string }) =>
+        customerServiceRepository.removeRepairFromProduction(repairItemId, reason),
+      onSuccess: () => refresh({ production: true }),
+    }),
+    returnRepairToProduction: useMutation({
+      mutationFn: (repairItemId: string) => customerServiceRepository.returnRepairToProduction(repairItemId),
+      onSuccess: () => refresh({ production: true }),
+    }),
     recordRepairCost: useMutation({
       mutationFn: customerServiceRepository.recordRepairCost,
       onSuccess: () => refresh({ inventory: true }),

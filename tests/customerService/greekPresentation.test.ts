@@ -48,6 +48,8 @@ const guardedFiles = [
   'components/customerService/RepairBadge.tsx',
   'components/customerService/RepairIntakeWorkbench.tsx',
   'components/customerService/RepairDetailModal.tsx',
+  'components/customerService/RepairStageBadge.tsx',
+  'components/customerService/RepairProductionPanel.tsx',
   'components/customerService/CustomerSearchSelect.tsx',
   'components/customerService/ConsignmentEditModal.tsx',
   'components/customerService/ConsignmentSkuThumb.tsx',

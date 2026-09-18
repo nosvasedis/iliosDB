@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { ProductionBatch, ProductionStage } from '../types';
 import { isSpecialCreationSku } from '../utils/specialCreationSku';
-import { Clock, PauseCircle, StickyNote, Trash2, Printer, MoveRight, ImageIcon, AlertTriangle, PlayCircle, RefreshCcw, ChevronUp, ChevronDown, History, X, Check, Truck, Package, Hammer, Loader2 } from 'lucide-react';
+import { Clock, PauseCircle, StickyNote, Trash2, Printer, MoveRight, ImageIcon, AlertTriangle, PlayCircle, RefreshCcw, ChevronUp, ChevronDown, History, X, Check, Truck, Package, Hammer, Loader2, Archive } from 'lucide-react';
 import { getVariantComponents } from '../utils/pricingEngine';
 import { formatOrderId } from '../utils/orderUtils';
 import { formatGreekDurationFromMs, getProductionTimingStatusClasses, getProductionTimingStatusLabel } from '../utils/productionTiming';
@@ -90,6 +90,7 @@ interface BatchCardProps {
     onEditNote: (batch: ProductionBatch) => void;
     onToggleHold: (batch: ProductionBatch) => void;
     onDelete: (batch: ProductionBatch) => void;
+    onArchive?: (batch: ProductionBatch) => void;
     onClick: (batch: ProductionBatch) => void;
     onViewHistory?: (batch: ProductionBatch) => void;
     // Optional: Hide action footer if used in restrictive views
@@ -115,6 +116,7 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
     onEditNote,
     onToggleHold,
     onDelete,
+    onArchive,
     onClick,
     onViewHistory,
     hideActions = false,
@@ -381,10 +383,19 @@ export const ProductionBatchCard: React.FC<BatchCardProps> = ({
                             <History size={16} />
                         </button>
                     )}
+                    {onArchive && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onArchive(batch); }}
+                            className="p-1.5 text-slate-300 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                            title="Αρχειοθέτηση Επισκευής"
+                        >
+                            <Archive size={16} />
+                        </button>
+                    )}
                     <button
                         onClick={(e) => { e.stopPropagation(); onDelete(batch); }}
                         className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Διαγραφή Παρτίδας"
+                        title={batch.workflow_kind === 'repair' || batch.repair_item_id ? 'Διαγραφή Επισκευής' : 'Διαγραφή Παρτίδας'}
                     >
                         <Trash2 size={16} />
                     </button>
@@ -683,7 +694,8 @@ function batchCardPropsAreEqual(prev: BatchCardProps, next: BatchCardProps): boo
         prev.isSelected === next.isSelected &&
         prev.isMoving === next.isMoving &&
         !!prev.onDispatch === !!next.onDispatch &&
-        !!prev.onRecallDispatch === !!next.onRecallDispatch
+        !!prev.onRecallDispatch === !!next.onRecallDispatch &&
+        !!prev.onArchive === !!next.onArchive
     );
 }
 

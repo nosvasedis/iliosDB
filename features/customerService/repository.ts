@@ -285,6 +285,59 @@ export const customerServiceRepository = {
     return data;
   },
 
+  async archiveRepairItem(repairItemId: string, archive: boolean, reason?: string) {
+    assertOnline();
+    const { data, error } = await supabase.rpc('archive_repair_item_v1', {
+      p_repair_item_id: repairItemId,
+      p_archive: archive,
+      p_reason: reason || (archive ? 'Αρχειοθέτηση' : 'Ανάκτηση από αρχείο'),
+    });
+    if (error) throw new Error(customerServiceErrorMessage(error));
+    return data;
+  },
+
+  async deleteRepairItem(repairItemId: string, reason: string) {
+    assertOnline();
+    const { data, error } = await supabase.rpc('delete_repair_item_v1', {
+      p_repair_item_id: repairItemId,
+      p_reason: reason,
+      p_idempotency_key: operationKey(`repair-delete:${repairItemId}`),
+    });
+    if (error) throw new Error(customerServiceErrorMessage(error));
+    return data;
+  },
+
+  async completeRepairProduction(repairItemId: string) {
+    assertOnline();
+    const { data, error } = await supabase.rpc('complete_repair_production_v1', {
+      p_repair_item_id: repairItemId,
+      p_idempotency_key: operationKey(`repair-complete:${repairItemId}`),
+    });
+    if (error) throw new Error(customerServiceErrorMessage(error));
+    return data;
+  },
+
+  async removeRepairFromProduction(repairItemId: string, reason: string) {
+    assertOnline();
+    const { data, error } = await supabase.rpc('remove_repair_from_production_v1', {
+      p_repair_item_id: repairItemId,
+      p_reason: reason,
+      p_idempotency_key: operationKey(`repair-remove:${repairItemId}`),
+    });
+    if (error) throw new Error(customerServiceErrorMessage(error));
+    return data;
+  },
+
+  async returnRepairToProduction(repairItemId: string) {
+    assertOnline();
+    const { data, error } = await supabase.rpc('return_repair_to_production_v1', {
+      p_repair_item_id: repairItemId,
+      p_idempotency_key: operationKey(`repair-return:${repairItemId}`),
+    });
+    if (error) throw new Error(customerServiceErrorMessage(error));
+    return data;
+  },
+
   async recordRepairCost(input: {
     repairItemId: string;
     costType: 'labor' | 'material' | 'component' | 'external';

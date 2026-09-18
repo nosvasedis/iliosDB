@@ -727,6 +727,7 @@ export interface RepairItem {
   /** Presentation alias for the intake timestamp; persisted rows use created_at. */
   received_at?: string;
   delivered_at?: string | null;
+  is_archived?: boolean;
   created_at: string;
   updated_at: string;
 }

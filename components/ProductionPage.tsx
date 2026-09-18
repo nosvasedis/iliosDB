@@ -23,7 +23,7 @@ import { EnhancedProductionBatch } from '../types';
 import { requiresAssemblyStage } from '../constants';
 import { isSpecialCreationSku } from '../utils/specialCreationSku';
 import ProductionMoldRequirementsModal from './ProductionMoldRequirementsModal';
-import { invalidateOrdersAndBatches, invalidateProductionBatches, invalidateAndRefetchAfterShipmentChange } from '../lib/queryInvalidation';
+import { invalidateOrdersAndBatches, invalidateProductionBatches, invalidateAndRefetchAfterShipmentChange, invalidateCustomerService } from '../lib/queryInvalidation';
 import { PRODUCTION_STAGES, getProductionStageLabel, getProductionStageShortLabel, getPolishingSubStageLabel } from '../utils/productionStages';
 import RepairBadge from './customerService/RepairBadge';
 import { StageOnHoldMiniStrip } from './production/StageOnHoldMiniStrip';
@@ -47,6 +47,8 @@ import {
 import { useCollections } from '../hooks/api/useCollections';
 import { useCustomers, useProductionBoardOrders } from '../hooks/api/useOrders';
 import { useCustomerServiceWorkspace } from '../hooks/api/useCustomerService';
+import { customerServiceRepository } from '../features/customerService/repository';
+import { isRepairProductionBatch, REPAIR_READY_CONFIRM, repairReadyConfirmMessage } from '../features/customerService';
 import { ordersRepository } from '../features/orders';
 import { useProductionBoardBatches, useProductionBoardBatchStageHistoryEntries } from '../hooks/api/useProductionBatches';
 import { productionKeys, productionRepository } from '../features/production';
@@ -2396,6 +2398,9 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                 };
             }
             return batch;
+        }).filter(batch => {
+            if (!isRepairProductionBatch(batch) || !batch.repair_item_id) return true;
+            return repairById.get(batch.repair_item_id)?.is_archived !== true;
         });
     }, [batches, productsMap, materialsMap, ordersMap, repairById, customerNameById, consignmentLineById, consignmentById]);
     const enhancedBatches = useMemo(
@@ -2568,6 +2573,66 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         }
     }, [queryClient]);
 
+    const applyOptimisticRemoveBatches = useCallback((batchIds: string[]): ProductionBatchCacheSnapshot => {
+        const snapshot = {
+            batches: queryClient.getQueryData<ProductionBatch[]>(productionKeys.batches()),
+            boardBatches: queryClient.getQueryData<ProductionBatch[]>(productionKeys.boardBatches()),
+        };
+        const idSet = new Set(batchIds);
+        const drop = (list?: ProductionBatch[]) => list?.filter(batch => !idSet.has(batch.id));
+        if (snapshot.batches) {
+            queryClient.setQueryData<ProductionBatch[]>(productionKeys.batches(), drop(snapshot.batches));
+        }
+        if (snapshot.boardBatches) {
+            queryClient.setQueryData<ProductionBatch[]>(productionKeys.boardBatches(), drop(snapshot.boardBatches));
+        }
+        return snapshot;
+    }, [queryClient]);
+
+    const repairCodeFor = (batch: ProductionBatch) => {
+        const repair = batch.repair_item_id ? repairById.get(batch.repair_item_id) : undefined;
+        return repair?.code || batch.repair_code || batch.sku;
+    };
+
+    const completeRepairBatches = async (batchesToComplete: ProductionBatch[], options?: { skipConfirm?: boolean }) => {
+        const repairs = batchesToComplete.filter(isRepairProductionBatch);
+        if (repairs.length === 0) return true;
+        if (!options?.skipConfirm) {
+            const yes = await confirm({
+                title: REPAIR_READY_CONFIRM.title,
+                message: repairReadyConfirmMessage(repairs.map(repairCodeFor)),
+                confirmText: REPAIR_READY_CONFIRM.confirmText,
+            });
+            if (!yes) return false;
+        }
+        if (repairs.some(batch => !batch.repair_item_id)) {
+            showToast('Η Επισκευή δεν έχει συνδεδεμένη παρτίδα.', 'error');
+            return false;
+        }
+        const ids = repairs.map(batch => batch.id);
+        markMoving(ids, true);
+        await queryClient.cancelQueries({ queryKey: productionKeys.batches() });
+        await queryClient.cancelQueries({ queryKey: productionKeys.boardBatches() });
+        const snapshot = applyOptimisticRemoveBatches(ids);
+        try {
+            await Promise.all(repairs.map(batch => customerServiceRepository.completeRepairProduction(batch.repair_item_id!)));
+            await Promise.all([invalidateOrdersAndBatches(queryClient), invalidateCustomerService(queryClient)]);
+            showToast(
+                repairs.length === 1
+                    ? 'Η Επισκευή μεταφέρθηκε σε Ποιοτικό έλεγχο και αφαιρέθηκε από την Παραγωγή.'
+                    : `${repairs.length} επισκευές μεταφέρθηκαν σε Ποιοτικό έλεγχο και αφαιρέθηκαν από την Παραγωγή.`,
+                'success',
+            );
+            return true;
+        } catch (error: any) {
+            rollbackBatchesCache(snapshot);
+            showToast(`Σφάλμα: ${error.message}`, 'error');
+            return false;
+        } finally {
+            markMoving(ids, false);
+        }
+    };
+
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>, batchId: string) => {
         if (movingBatchIds.has(batchId)) {
             // Block drag-and-drop while the batch is already mid-move so the
@@ -2595,6 +2660,11 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         // Per-batch lock: ignore duplicate clicks while a move is already
         // in flight for this batch. Other batches remain freely movable.
         if (movingBatchIds.has(batch.id)) return;
+
+        if (isRepairProductionBatch(batch) && targetStage === ProductionStage.Ready) {
+            void completeRepairBatches([batch]);
+            return;
+        }
 
         // Handle intra-Polishing sub-stage changes (dispatch / recall)
         if (batch.current_stage === ProductionStage.Polishing && targetStage === ProductionStage.Polishing) {
@@ -2705,6 +2775,12 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         const { batch, isReceive } = splitModalState;
         const targetStage = finalTargetStage;
 
+        if (isRepairProductionBatch(batch) && targetStage === ProductionStage.Ready) {
+            setSplitModalState(null);
+            void completeRepairBatches([batch]);
+            return;
+        }
+
         const isWholeMove = quantityToMove >= batch.quantity;
 
         // Lock the source batch for the duration so the card shows the syncing
@@ -2774,6 +2850,24 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     };
 
     const handleDeleteBatch = async (batch: ProductionBatch) => {
+        if (isRepairProductionBatch(batch) && batch.repair_item_id) {
+            const yes = await confirm({
+                title: 'Διαγραφή Επισκευής',
+                message: `Είστε σίγουροι ότι θέλετε να διαγράψετε οριστικά την επισκευή ${repairCodeFor(batch)};`,
+                isDestructive: true,
+                confirmText: 'Διαγραφή'
+            });
+            if (!yes) return;
+            try {
+                await customerServiceRepository.deleteRepairItem(batch.repair_item_id, 'Διαγραφή από Παραγωγή');
+                await Promise.all([invalidateOrdersAndBatches(queryClient), invalidateCustomerService(queryClient)]);
+                showToast('Η Επισκευή διαγράφηκε.', 'success');
+            } catch (error: any) {
+                showToast(error?.message || 'Σφάλμα κατά τη διαγραφή.', 'error');
+            }
+            return;
+        }
+
         const yes = await confirm({
             title: 'Διαγραφή Παρτίδας',
             message: `Είστε σίγουροι ότι θέλετε να διαγράψετε την παρτίδα ${batch.sku}${batch.variant_suffix || ''} (${batch.quantity} τμχ);`,
@@ -2790,6 +2884,27 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
             } catch (e) {
                 showToast("Σφάλμα κατά τη διαγραφή.", "error");
             }
+        }
+    };
+
+    const handleArchiveRepair = async (batch: ProductionBatch) => {
+        if (!batch.repair_item_id) return;
+        const repair = repairById.get(batch.repair_item_id);
+        const archive = repair?.is_archived !== true;
+        const yes = await confirm({
+            title: archive ? 'Αρχειοθέτηση Επισκευής' : 'Ανάκτηση από Αρχείο',
+            message: archive
+                ? `Η επισκευή ${repairCodeFor(batch)} θα αρχειοθετηθεί και θα κρυφτεί από τις ενεργές λίστες.`
+                : `Η επισκευή ${repairCodeFor(batch)} θα επανέλθει στις ενεργές λίστες.`,
+            confirmText: archive ? 'Αρχειοθέτηση' : 'Ανάκτηση',
+        });
+        if (!yes) return;
+        try {
+            await customerServiceRepository.archiveRepairItem(batch.repair_item_id, archive);
+            await Promise.all([invalidateOrdersAndBatches(queryClient), invalidateCustomerService(queryClient)]);
+            showToast(archive ? 'Η Επισκευή αρχειοθετήθηκε.' : 'Η Επισκευή ανακτήθηκε από το αρχείο.', 'success');
+        } catch (error: any) {
+            showToast(error?.message || 'Σφάλμα αρχειοθέτησης.', 'error');
         }
     };
 
@@ -2830,6 +2945,21 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     };
 
     const handleToggleHold = async (batch: ProductionBatch) => {
+        if (isRepairProductionBatch(batch) && batch.repair_item_id) {
+            if (batch.on_hold) {
+                try {
+                    await customerServiceRepository.setRepairExceptionState(batch.repair_item_id, 'in_production', 'Συνέχεια παραγωγής');
+                    await Promise.all([invalidateProductionBatches(queryClient), invalidateCustomerService(queryClient)]);
+                    showToast('Η Επισκευή συνεχίζει την Παραγωγή.', 'success');
+                    dispatchLiveActivity({ type: 'batch_hold_off', userName: profile?.full_name || 'Κάποιος', sku: batch.sku });
+                } catch (error: any) {
+                    showToast(error?.message || 'Σφάλμα.', 'error');
+                }
+                return;
+            }
+            setHoldingBatch(batch);
+            return;
+        }
         if (batch.on_hold) {
             // Resume directly
             await productionRepository.toggleBatchHold(batch.id, false);
@@ -2846,8 +2976,13 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         if (!holdingBatch) return;
         setIsSavingNote(true);
         try {
-            await productionRepository.toggleBatchHold(holdingBatch.id, true, reason);
-            await invalidateProductionBatches(queryClient);
+            if (isRepairProductionBatch(holdingBatch) && holdingBatch.repair_item_id) {
+                await customerServiceRepository.setRepairExceptionState(holdingBatch.repair_item_id, 'on_hold', reason);
+                await Promise.all([invalidateProductionBatches(queryClient), invalidateCustomerService(queryClient)]);
+            } else {
+                await productionRepository.toggleBatchHold(holdingBatch.id, true, reason);
+                await invalidateProductionBatches(queryClient);
+            }
             showToast("Η παρτίδα τέθηκε σε αναμονή.", "warning");
             dispatchLiveActivity({ type: 'batch_hold_on', userName: profile?.full_name || 'Κάποιος', sku: holdingBatch.sku, reason });
             setHoldingBatch(null);
@@ -2948,6 +3083,8 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     );
     const handleDeleteBatchRef = useRef(handleDeleteBatch);
     handleDeleteBatchRef.current = handleDeleteBatch;
+    const handleArchiveRepairRef = useRef(handleArchiveRepair);
+    handleArchiveRepairRef.current = handleArchiveRepair;
     const handleViewHistoryRef = useRef<(batch: ProductionBatch) => void>(() => {});
     const handleDispatchBatchesRef = useRef(handleDispatchBatches);
     handleDispatchBatchesRef.current = handleDispatchBatches;
@@ -2961,6 +3098,9 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
     }, []);
     const handleCardDelete = useCallback((batch: ProductionBatch) => {
         void handleDeleteBatchRef.current(batch);
+    }, []);
+    const handleCardArchive = useCallback((batch: ProductionBatch) => {
+        void handleArchiveRepairRef.current(batch);
     }, []);
     const handleCardViewHistory = useCallback((batch: ProductionBatch) => {
         void handleViewHistoryRef.current(batch);
@@ -2984,7 +3124,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
 
     const handleBulkMove = async () => {
         if (!bulkMoveTarget || multiSelectIds.size === 0) return;
-        const batchesToMove = enhancedBatches.filter(b => {
+        let batchesToMove = enhancedBatches.filter(b => {
             if (!multiSelectIds.has(b.id) || b.on_hold) return false;
             // Skip any that are already mid-move to avoid duplicate requests.
             if (movingBatchIds.has(b.id)) return false;
@@ -2998,6 +3138,27 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         if (batchesToMove.length === 0) {
             showToast('Δεν υπάρχουν παρτίδες για μετακίνηση.', 'info');
             return;
+        }
+
+        if (bulkMoveTarget === ProductionStage.Ready) {
+            const repairOnes = batchesToMove.filter(isRepairProductionBatch);
+            batchesToMove = batchesToMove.filter(batch => !isRepairProductionBatch(batch));
+            if (repairOnes.length > 0) {
+                const yes = await confirm({
+                    title: REPAIR_READY_CONFIRM.title,
+                    message: repairReadyConfirmMessage(repairOnes.map(repairCodeFor)),
+                    confirmText: REPAIR_READY_CONFIRM.confirmText,
+                });
+                if (!yes) return;
+                const completed = await completeRepairBatches(repairOnes, { skipConfirm: true });
+                if (!completed) return;
+            }
+            if (batchesToMove.length === 0) {
+                setMultiSelectIds(new Set());
+                setBulkMoveTarget(null);
+                setBulkMovePendingDispatch(undefined);
+                return;
+            }
         }
 
         const allIds = batchesToMove.map(b => b.id);
@@ -3157,11 +3318,24 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
 
     const handleCompleteAllLabeling = async () => {
         // Skip any batches already mid-move to avoid conflicting transitions.
-        const targetBatches = labelingBatches.filter(b => !movingBatchIds.has(b.id));
-        if (targetBatches.length === 0) {
+        const eligible = labelingBatches.filter(b => !movingBatchIds.has(b.id));
+        if (eligible.length === 0) {
             showToast("Δεν υπάρχουν παρτίδες για ολοκλήρωση.", "info");
             return;
         }
+        const repairOnes = eligible.filter(isRepairProductionBatch);
+        const targetBatches = eligible.filter(b => !isRepairProductionBatch(b));
+        if (repairOnes.length > 0) {
+            const yes = await confirm({
+                title: REPAIR_READY_CONFIRM.title,
+                message: repairReadyConfirmMessage(repairOnes.map(repairCodeFor)),
+                confirmText: REPAIR_READY_CONFIRM.confirmText,
+            });
+            if (!yes) return;
+            const completed = await completeRepairBatches(repairOnes, { skipConfirm: true });
+            if (!completed) return;
+        }
+        if (targetBatches.length === 0) return;
         const allIds = targetBatches.map(b => b.id);
 
         // Lock all target batches, cancel in-flight refetches, apply optimistic
@@ -3403,6 +3577,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
                 onEditNote={handleCardEditNote}
                 onToggleHold={handleCardToggleHold}
                 onDelete={handleCardDelete}
+                onArchive={isRepairProductionBatch(batch) ? handleCardArchive : undefined}
                 onClick={handleCardViewBatch}
                 onViewHistory={handleCardViewHistory}
                 isSelected={multiSelectIds.has(batch.id)}
@@ -3419,6 +3594,7 @@ export default function ProductionPage({ products, materials, molds, onPrintAggr
         handleCardEditNote,
         handleCardToggleHold,
         handleCardDelete,
+        handleCardArchive,
         handleCardViewBatch,
         handleCardViewHistory,
         multiSelectIds,

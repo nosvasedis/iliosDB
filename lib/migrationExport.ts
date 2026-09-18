@@ -55,7 +55,7 @@ export const MIGRATION_SCHEMAS: Schema = {
     consignment_returns: ['id', 'consignment_line_id', 'quantity', 'status', 'destination_warehouse_id', 'production_batch_id', 'received_at', 'resolved_at', 'notes', 'created_at', 'updated_at'],
     consignment_events: ['id', 'consignment_id', 'consignment_line_id', 'event_type', 'payload', 'actor_user_id', 'created_at'],
     repair_intakes: ['id', 'code', 'customer_id', 'seller_id', 'notes', 'created_at', 'updated_at'],
-    repair_items: ['id', 'code', 'intake_id', 'customer_id', 'seller_id', 'origin_type', 'source_order_id', 'source_order_line_id', 'source_consignment_settlement_id', 'product_sku', 'variant_suffix', 'size_info', 'description', 'intake_condition', 'accessories', 'status', 'current_cycle_number', 'previous_repair_item_id', 'delivered_at', 'created_at', 'updated_at'],
+    repair_items: ['id', 'code', 'intake_id', 'customer_id', 'seller_id', 'origin_type', 'source_order_id', 'source_order_line_id', 'source_consignment_settlement_id', 'product_sku', 'variant_suffix', 'size_info', 'description', 'intake_condition', 'accessories', 'status', 'current_cycle_number', 'previous_repair_item_id', 'delivered_at', 'is_archived', 'created_at', 'updated_at'],
     repair_cycles: ['id', 'repair_item_id', 'cycle_number', 'production_batch_id', 'quality_status', 'quality_notes', 'started_at', 'completed_at', 'created_at'],
     repair_cost_lines: ['id', 'repair_item_id', 'repair_cycle_id', 'cost_type', 'description', 'quantity', 'unit_cost', 'product_sku', 'warehouse_id', 'inventory_event_id', 'created_at'],
     repair_charges: ['id', 'repair_item_id', 'charge_type', 'amount', 'paid_amount', 'payment_status', 'legal_document_id', 'notes', 'created_at', 'updated_at'],

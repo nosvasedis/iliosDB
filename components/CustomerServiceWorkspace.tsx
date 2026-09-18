@@ -23,11 +23,15 @@ import {
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { useUI } from './UIProvider';
+import { useQueryClient } from '@tanstack/react-query';
+import { invalidateCustomerService, invalidateProductionBatches } from '../lib/queryInvalidation';
 import { useCustomers, useOrdersWithItems } from '../hooks/api/useOrders';
 import { useProducts } from '../hooks/api/useProducts';
 import { useWarehouses } from '../hooks/api/useWarehouses';
 import { useSellers } from '../hooks/api/useSellers';
 import { useCustomerServiceActions, useCustomerServiceWorkspace } from '../hooks/api/useCustomerService';
+import { useProductionBatches } from '../hooks/api/useProductionBatches';
+import { productionRepository } from '../features/production';
 import type {
   Consignment,
   ConsignmentEvent,
@@ -35,6 +39,7 @@ import type {
   ConsignmentReturn,
   ConsignmentSettlement,
   Product,
+  ProductionBatch,
   RepairItem,
 } from '../types';
 import { ProductionStage } from '../types';
@@ -46,7 +51,10 @@ import {
   REPAIR_COST_TYPE_LABELS,
   REPAIR_EVENT_LABELS,
   REPAIR_ORIGIN_LABELS,
+  REPAIR_READY_CONFIRM,
   REPAIR_STATUS_LABELS,
+  countRepairsInProduction,
+  findLiveRepairBatch,
   formatGreekDateOnly,
   formatGreekDateTime,
   formatGreekMoney,
@@ -62,6 +70,7 @@ import ConsignmentSkuThumb from './customerService/ConsignmentSkuThumb';
 import RepairBadge from './customerService/RepairBadge';
 import RepairIntakeWorkbench from './customerService/RepairIntakeWorkbench';
 import RepairDetailModal from './customerService/RepairDetailModal';
+import RepairStageBadge from './customerService/RepairStageBadge';
 import ViewportPortal from './customerService/ViewportPortal';
 import SkuColorizedText from './SkuColorizedText';
 import SkuProductPicker from './legal/SkuProductPicker';
@@ -124,6 +133,7 @@ function ModalShell({ title, subtitle, onClose, children, wide = false }: { titl
 export default function CustomerServiceWorkspace({ mode }: { mode: CustomerServiceMode }) {
   const { profile } = useAuth();
   const { showToast, confirm } = useUI();
+  const queryClient = useQueryClient();
   const isConsignments = mode === 'consignments';
   const [consignmentView, setConsignmentView] = useState<ConsignmentListView>('all');
   const [repairView, setRepairView] = useState<RepairListView>('all');
@@ -138,6 +148,8 @@ export default function CustomerServiceWorkspace({ mode }: { mode: CustomerServi
   const [editingConsignmentId, setEditingConsignmentId] = useState<string | null>(null);
   const [selectedRepairId, setSelectedRepairId] = useState<string | null>(null);
   const { data, isLoading, error } = useCustomerServiceWorkspace();
+  const { data: productionBatches = [] } = useProductionBatches();
+  const [movingRepairId, setMovingRepairId] = useState<string | null>(null);
   const actions = useCustomerServiceActions();
   const canSeeCost = profile?.role !== 'seller';
   const openRepairCreator = (previous: RepairItem | null = null) => { setPreviousRepairItem(previous); setShowRepairCreator(true); };
@@ -182,7 +194,14 @@ export default function CustomerServiceWorkspace({ mode }: { mode: CustomerServi
   const repairs = useMemo(() => (data?.repairItems || []).filter((item) => {
     const customer = customerById.get(item.customer_id)?.full_name || '';
     const haystack = `${item.code} ${customer} ${item.product_sku || ''} ${item.description} ${item.source_order_id || ''}`.toLocaleLowerCase('el-GR');
-    const matchesStatus = statusFilter === 'all' || (statusFilter === 'active' ? !['delivered', 'irreparable', 'cancelled'].includes(item.status) : item.status === statusFilter);
+    const archived = item.is_archived === true;
+    const matchesStatus = statusFilter === 'archived'
+      ? archived
+      : statusFilter === 'all'
+        ? true
+        : statusFilter === 'active'
+          ? !archived && !['delivered', 'irreparable', 'cancelled'].includes(item.status)
+          : !archived && item.status === statusFilter;
     return (!search || haystack.includes(search.toLocaleLowerCase('el-GR'))) && (!customerFilter || item.customer_id === customerFilter) && matchesStatus;
   }), [data?.repairItems, customerById, search, customerFilter, statusFilter]);
 
@@ -207,19 +226,122 @@ export default function CustomerServiceWorkspace({ mode }: { mode: CustomerServi
       }).length,
     };
   }, [data]);
-  const repairStats = useMemo(() => ({
-    active: (data?.repairItems || []).filter((item) => !['delivered', 'irreparable', 'cancelled'].includes(item.status)).length,
-    production: (data?.repairItems || []).filter((item) => item.status === 'in_production').length,
-    quality: (data?.repairItems || []).filter((item) => item.status === 'quality_check').length,
-    ready: (data?.repairItems || []).filter((item) => item.status === 'ready_for_return').length,
-    rework: (data?.repairItems || []).filter((item) => item.current_cycle_number > 1).length,
-    cost: (data?.repairCostLines || []).reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_cost || 0), 0),
-    charges: (data?.repairCharges || []).reduce((sum, item) => sum + Number(item.amount || 0), 0),
-  }), [data]);
+  const repairStats = useMemo(() => {
+    const visible = (data?.repairItems || []).filter((item) => item.is_archived !== true);
+    return {
+      active: visible.filter((item) => !['delivered', 'irreparable', 'cancelled'].includes(item.status)).length,
+      production: countRepairsInProduction(visible, productionBatches),
+      quality: visible.filter((item) => item.status === 'quality_check').length,
+      ready: visible.filter((item) => item.status === 'ready_for_return').length,
+      rework: visible.filter((item) => item.current_cycle_number > 1).length,
+      cost: (data?.repairCostLines || []).reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_cost || 0), 0),
+      charges: (data?.repairCharges || []).reduce((sum, item) => sum + Number(item.amount || 0), 0),
+    };
+  }, [data, productionBatches]);
 
   const safeAction = async (action: () => Promise<unknown>, success: string): Promise<boolean> => {
     try { await action(); showToast(success, 'success'); setOperation(null); return true; }
     catch (actionError) { showToast(actionError instanceof Error ? actionError.message : 'Η ενέργεια δεν ολοκληρώθηκε.', 'error'); return false; }
+  };
+
+  const liveRepairBatch = (item: RepairItem) => findLiveRepairBatch(
+    item.id,
+    (data?.repairCycles || []).filter((cycle) => cycle.repair_item_id === item.id),
+    productionBatches,
+  );
+
+  const completeRepairReady = async (item: RepairItem) => {
+    const yes = await confirm({
+      title: REPAIR_READY_CONFIRM.title,
+      message: REPAIR_READY_CONFIRM.message(item.code),
+      confirmText: REPAIR_READY_CONFIRM.confirmText,
+    });
+    if (!yes) return false;
+    return safeAction(() => actions.completeRepairProduction.mutateAsync(item.id), 'Η Επισκευή μεταφέρθηκε σε Ποιοτικό έλεγχο και αφαιρέθηκε από την Παραγωγή.');
+  };
+
+  const handleRepairStageMove = async (item: RepairItem, stage: ProductionStage, options?: { pendingDispatch?: boolean }) => {
+    const batch = liveRepairBatch(item);
+    if (!batch) {
+      showToast('Η Επισκευή δεν έχει ενεργή παρτίδα Παραγωγής.', 'error');
+      return;
+    }
+    if (stage === ProductionStage.Ready) {
+      await completeRepairReady(item);
+      return;
+    }
+    setMovingRepairId(item.id);
+    try {
+      if (batch.current_stage === ProductionStage.Polishing && stage === ProductionStage.Polishing) {
+        if (options?.pendingDispatch === false) await productionRepository.markBatchesDispatched([batch.id], profile?.full_name);
+        else await productionRepository.markBatchesPendingDispatch([batch.id], profile?.full_name);
+      } else {
+        await productionRepository.updateBatchStage(batch.id, stage, profile?.full_name, options?.pendingDispatch);
+      }
+      await Promise.all([invalidateCustomerService(queryClient), invalidateProductionBatches(queryClient)]);
+      showToast('Η παρτίδα μετακινήθηκε.', 'success');
+    } catch (moveError) {
+      showToast(moveError instanceof Error ? moveError.message : 'Η μετακίνηση δεν ολοκληρώθηκε.', 'error');
+    } finally {
+      setMovingRepairId(null);
+    }
+  };
+
+  const handleRepairHold = (item: RepairItem) => {
+    const batch = liveRepairBatch(item);
+    const held = !!batch?.on_hold || item.status === 'on_hold';
+    if (held) {
+      void safeAction(
+        () => actions.setRepairExceptionState.mutateAsync({ repairItemId: item.id, status: 'in_production', reason: 'Συνέχεια παραγωγής' }),
+        'Η Επισκευή συνεχίζει την Παραγωγή.',
+      );
+      return;
+    }
+    setOperation({ kind: 'exception', item, status: 'on_hold' });
+  };
+
+  const handleRepairRemove = async (item: RepairItem) => {
+    const yes = await confirm({
+      title: 'Αφαίρεση από Παραγωγή',
+      message: `Η επισκευή ${item.code} θα αφαιρεθεί από την Παραγωγή και θα επιστρέψει σε κατάσταση παραλαβής.`,
+      confirmText: 'Αφαίρεση',
+    });
+    if (!yes) return;
+    await safeAction(
+      () => actions.removeRepairFromProduction.mutateAsync({ repairItemId: item.id, reason: 'Αφαίρεση από Παραγωγή' }),
+      'Η Επισκευή αφαιρέθηκε από την Παραγωγή.',
+    );
+  };
+
+  const handleRepairDelete = async (item: RepairItem) => {
+    const yes = await confirm({
+      title: 'Διαγραφή Επισκευής',
+      message: `Είστε σίγουροι ότι θέλετε να διαγράψετε οριστικά την επισκευή ${item.code};`,
+      isDestructive: true,
+      confirmText: 'Διαγραφή',
+    });
+    if (!yes) return;
+    const ok = await safeAction(
+      () => actions.deleteRepairItem.mutateAsync({ repairItemId: item.id, reason: 'Διαγραφή από χρήστη' }),
+      'Η Επισκευή διαγράφηκε.',
+    );
+    if (ok) setSelectedRepairId(null);
+  };
+
+  const handleRepairArchive = async (item: RepairItem) => {
+    const archive = item.is_archived !== true;
+    const yes = await confirm({
+      title: archive ? 'Αρχειοθέτηση Επισκευής' : 'Ανάκτηση από Αρχείο',
+      message: archive
+        ? `Η επισκευή ${item.code} θα αρχειοθετηθεί και θα κρυφτεί από τις ενεργές λίστες.`
+        : `Η επισκευή ${item.code} θα επανέλθει στις ενεργές λίστες.`,
+      confirmText: archive ? 'Αρχειοθέτηση' : 'Ανάκτηση',
+    });
+    if (!yes) return;
+    await safeAction(
+      () => actions.archiveRepairItem.mutateAsync({ repairItemId: item.id, archive }),
+      archive ? 'Η Επισκευή αρχειοθετήθηκε.' : 'Η Επισκευή ανακτήθηκε από το αρχείο.',
+    );
   };
 
   const selectedConsignment = consignments.find((entry) => entry.id === selectedConsignmentId)
@@ -291,6 +413,7 @@ export default function CustomerServiceWorkspace({ mode }: { mode: CustomerServi
     <RepairCard
       key={item.id}
       item={item}
+      batch={liveRepairBatch(item)}
       customerName={customerById.get(item.customer_id)?.full_name || 'Άγνωστος πελάτης'}
       sellerName={item.seller_id ? sellerById.get(item.seller_id)?.full_name : undefined}
       product={item.product_sku ? productBySku.get(item.product_sku) : undefined}
@@ -303,6 +426,9 @@ export default function CustomerServiceWorkspace({ mode }: { mode: CustomerServi
       onNewLinkedRepair={() => openRepairCreator(item)}
       onLegalDraft={() => safeAction(() => actions.createRepairLegalDraft.mutateAsync(item.id), 'Δημιουργήθηκε συνδεδεμένο πρόχειρο παραστατικό υπηρεσίας.')}
       onUpload={(file) => safeAction(() => actions.uploadRepairAttachment.mutateAsync({ repairItemId: item.id, file }), 'Η φωτογραφία αποθηκεύτηκε με ασφαλή πρόσβαση.')}
+      onHold={() => handleRepairHold(item)}
+      onDelete={() => void handleRepairDelete(item)}
+      onArchive={() => void handleRepairArchive(item)}
     />
   );
 
@@ -358,7 +484,7 @@ export default function CustomerServiceWorkspace({ mode }: { mode: CustomerServi
           <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_220px_200px]">
             <label className="relative"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input className={`${inputClass} pl-9`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={isConsignments ? 'Κωδικός, πελάτης, SKU ή παραγγελία…' : 'Κωδικός επισκευής, πελάτης, SKU ή σημείωση…'} /></label>
             <label className="relative"><Users size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><select className={`${inputClass} pl-9`} value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)}><option value="">Όλοι οι πελάτες</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.full_name}</option>)}</select></label>
-            <label className="relative"><Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><select className={`${inputClass} pl-9`} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="active">Μόνο ενεργές</option><option value="all">Όλες οι καταστάσεις</option>{isConsignments ? Object.entries(CONSIGNMENT_STATUS_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>) : Object.entries(REPAIR_STATUS_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+            <label className="relative"><Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><select className={`${inputClass} pl-9`} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="active">Μόνο ενεργές</option><option value="all">Όλες οι καταστάσεις</option>{!isConsignments && <option value="archived">Αρχείο</option>}{isConsignments ? Object.entries(CONSIGNMENT_STATUS_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>) : Object.entries(REPAIR_STATUS_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
           </div>
           {isConsignments && (
             <div className="mt-3 flex flex-wrap gap-1">
@@ -541,6 +667,14 @@ export default function CustomerServiceWorkspace({ mode }: { mode: CustomerServi
           onNewLinkedRepair={() => { setSelectedRepairId(null); openRepairCreator(selectedRepair); }}
           onLegalDraft={() => safeAction(() => actions.createRepairLegalDraft.mutateAsync(selectedRepair.id), 'Δημιουργήθηκε συνδεδεμένο πρόχειρο παραστατικό υπηρεσίας.')}
           onUpload={(file) => safeAction(() => actions.uploadRepairAttachment.mutateAsync({ repairItemId: selectedRepair.id, file }), 'Η φωτογραφία αποθηκεύτηκε με ασφαλή πρόσβαση.')}
+          batch={liveRepairBatch(selectedRepair)}
+          isMoving={movingRepairId === selectedRepair.id}
+          onMoveToStage={(stage, options) => void handleRepairStageMove(selectedRepair, stage, options)}
+          onHold={() => handleRepairHold(selectedRepair)}
+          onRemove={() => void handleRepairRemove(selectedRepair)}
+          onDelete={() => void handleRepairDelete(selectedRepair)}
+          onArchive={() => void handleRepairArchive(selectedRepair)}
+          onReturnToProduction={() => safeAction(() => actions.returnRepairToProduction.mutateAsync(selectedRepair.id), 'Η Επισκευή επέστρεψε στην Παραγωγή.')}
         />
       )}
       {operation && <OperationModal operation={operation} warehouses={warehouses} products={products} onClose={() => setOperation(null)} onSubmit={(payload) => {
@@ -575,7 +709,7 @@ function ConsignmentCard({ entry, lines, settlements, returns, customerName, sel
     </div></article>;
 }
 
-function RepairCard({ item, customerName, sellerName, product, cost, charge, isSeller, onOpen, onOperation, onDelivered, onNewLinkedRepair, onLegalDraft, onUpload }: { item: RepairItem; customerName: string; sellerName?: string; product?: Product; cost: number; charge?: any; isSeller: boolean; onOpen: () => void; onOperation: (operation: Operation) => void; onDelivered: () => void; onNewLinkedRepair: () => void; onLegalDraft: () => void; onUpload: (file: File) => void }) {
+function RepairCard({ item, batch, customerName, sellerName, product, cost, charge, isSeller, onOpen, onOperation, onDelivered, onNewLinkedRepair, onLegalDraft, onUpload, onHold, onDelete, onArchive }: { item: RepairItem; batch?: ProductionBatch | null; customerName: string; sellerName?: string; product?: Product; cost: number; charge?: any; isSeller: boolean; onOpen: () => void; onOperation: (operation: Operation) => void; onDelivered: () => void; onNewLinkedRepair: () => void; onLegalDraft: () => void; onUpload: (file: File) => void; onHold: () => void; onDelete: () => void; onArchive: () => void }) {
   return (
     <article className={`${CARD} overflow-hidden`}>
       <div className="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-start md:justify-between">
@@ -585,7 +719,8 @@ function RepairCard({ item, customerName, sellerName, product, cost, charge, isS
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-black text-slate-900">{item.code}</h3>
               <RepairBadge compact />
-              <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-600">{REPAIR_STATUS_LABELS[item.status]}</span>
+              <RepairStageBadge item={item} batch={batch} />
+              {item.is_archived && <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-500">Αρχείο</span>}
               {item.current_cycle_number > 1 && <span className="rounded-full bg-rose-50 px-2 py-1 text-[10px] font-black text-rose-700">Κύκλος {item.current_cycle_number}</span>}
             </div>
             <p className="mt-1 text-sm font-bold text-slate-700">{customerName}</p>
@@ -621,7 +756,13 @@ function RepairCard({ item, customerName, sellerName, product, cost, charge, isS
             <>
               <button className={secondaryButton} onClick={() => onOperation({ kind: 'cost', item })}>Καταγραφή κόστους</button>
               <button className={secondaryButton} onClick={() => onOperation({ kind: 'charge', item })}>Χρέωση</button>
-              <button className={secondaryButton} onClick={() => onOperation({ kind: 'exception', item, status: 'on_hold' })}>Σε αναμονή</button>
+              {batch && <button className={secondaryButton} onClick={onHold}>{batch.on_hold || item.status === 'on_hold' ? 'Συνέχεια' : 'Σε αναμονή'}</button>}
+            </>
+          )}
+          {!isSeller && (
+            <>
+              <button className={secondaryButton} onClick={onArchive}>{item.is_archived ? 'Ανάκτηση' : 'Αρχείο'}</button>
+              <button className={secondaryButton} onClick={onDelete}>Διαγραφή</button>
             </>
           )}
           {charge?.charge_type === 'chargeable' && Number(charge.amount) > 0 && !charge.legal_document_id && <button className={secondaryButton} onClick={onLegalDraft}><FilePlus2 size={14} /> Πρόχειρο παραστατικό</button>}

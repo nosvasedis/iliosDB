@@ -53,9 +53,10 @@ import TransferRemainingItemsModal from './TransferRemainingItemsModal';
 import CustomerAnalyticsPanel from './customers/CustomerAnalyticsPanel';
 import { resolveCustomerAnalyticsCategory } from '../features/customers/customerAnalytics';
 import { useCustomerServiceWorkspace } from '../hooks/api/useCustomerService';
-import { CONSIGNMENT_STATUS_LABELS, REPAIR_ORIGIN_LABELS, REPAIR_STATUS_LABELS, formatGreekDateOnly, formatGreekMoney } from '../features/customerService';
+import { CONSIGNMENT_STATUS_LABELS, REPAIR_ORIGIN_LABELS, findLiveRepairBatch, formatGreekDateOnly, formatGreekMoney } from '../features/customerService';
 import ConsignmentBadge from './customerService/ConsignmentBadge';
 import RepairBadge from './customerService/RepairBadge';
+import RepairStageBadge from './customerService/RepairStageBadge';
 import SkuColorizedText from './SkuColorizedText';
 import CustomerVatExemptionFields from './CustomerVatExemptionFields';
 
@@ -1222,7 +1223,10 @@ export default function CustomerDetailsModal({
                                     <div className="flex items-center gap-3"><div className="rounded-xl bg-blue-100 p-2 text-blue-700"><Wrench size={18} /></div><div><h3 className="font-black text-slate-800">Επισκευές</h3><p className="text-xs text-slate-500">Τρέχοντα τεμάχια και αλυσίδες επανεπισκευών</p></div></div><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-blue-700 shadow-sm">{customerRepairs.length}</span>
                                 </div>
                                 <div className="divide-y divide-slate-100">
-                                    {customerRepairs.length === 0 ? <div className="p-8 text-center text-sm text-slate-400">Δεν υπάρχουν Επισκευές για αυτόν τον πελάτη.</div> : customerRepairs.map(item => <div key={item.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex flex-wrap items-center gap-2"><span className="font-mono text-sm font-black text-slate-800">{item.code}</span><RepairBadge compact /><span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-black text-blue-700">{REPAIR_STATUS_LABELS[item.status]}</span>{item.current_cycle_number > 1 && <span className="rounded-full bg-rose-50 px-2 py-1 text-[10px] font-black text-rose-700">Κύκλος {item.current_cycle_number}</span>}</div><p className="mt-1 text-sm text-slate-600">{item.description}</p><p className="mt-1 text-[10px] font-bold text-slate-400">{REPAIR_ORIGIN_LABELS[item.origin_type]}</p></div><div className="text-right text-xs text-slate-500"><div className="font-black text-slate-700">{item.product_sku ? <SkuColorizedText sku={item.product_sku} suffix={item.variant_suffix || ''} /> : 'Χωρίς SKU'}</div><div>{formatGreekDateOnly(item.created_at)}</div></div></div>)}
+                                    {customerRepairs.length === 0 ? <div className="p-8 text-center text-sm text-slate-400">Δεν υπάρχουν Επισκευές για αυτόν τον πελάτη.</div> : customerRepairs.map(item => {
+                                        const liveBatch = findLiveRepairBatch(item.id, customerServiceData?.repairCycles || [], batches || []);
+                                        return <div key={item.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex flex-wrap items-center gap-2"><span className="font-mono text-sm font-black text-slate-800">{item.code}</span><RepairBadge compact /><RepairStageBadge item={item} batch={liveBatch} />{item.is_archived && <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-500">Αρχείο</span>}{item.current_cycle_number > 1 && <span className="rounded-full bg-rose-50 px-2 py-1 text-[10px] font-black text-rose-700">Κύκλος {item.current_cycle_number}</span>}</div><p className="mt-1 text-sm text-slate-600">{item.description}</p><p className="mt-1 text-[10px] font-bold text-slate-400">{REPAIR_ORIGIN_LABELS[item.origin_type]}</p></div><div className="text-right text-xs text-slate-500"><div className="font-black text-slate-700">{item.product_sku ? <SkuColorizedText sku={item.product_sku} suffix={item.variant_suffix || ''} /> : 'Χωρίς SKU'}</div><div>{formatGreekDateOnly(item.created_at)}</div></div></div>;
+                                    })}
                                 </div>
                             </section>
                         </div>
