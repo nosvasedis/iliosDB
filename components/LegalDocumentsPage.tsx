@@ -39,6 +39,7 @@ import {
 import { AadeVatRegistryResult, Customer, Product, LegalArchiveLineMatch, LegalArchiveRecord, LegalCarrier, LegalDocument, LegalDocumentKind, LegalDocumentLine, LegalEnvironment, LegalExternalItemAlias, LegalNumberingAlignmentPreview, LegalNumberingSequence, LegalOrderLineAllocation, LegalOrderLinkMode, LegalRegistryConnectionStatus, LegalSettings, ProformaDocument, ProformaDocumentLine } from '../types';
 import DesktopPageHeader from './DesktopPageHeader';
 import SkuProductPicker, { SkuProductSelection } from './legal/SkuProductPicker';
+import LineIncomeClassificationGear from './legal/LineIncomeClassificationGear';
 import ProformaConvertModal from './legal/ProformaConvertModal';
 import IncomeClassificationTypeSelect from './legal/IncomeClassificationTypeSelect';
 import LegalArchiveWorkspace from './legal/LegalArchiveWorkspace';
@@ -132,7 +133,7 @@ import {
   normalizeLegalCountryCode,
   getProformaDeletePrompt,
   isLegalDocumentEditable,
-  LEGAL_DOCUMENT_KIND_LABELS,
+  resolveLegalMovePurpose,
   normalizeLegalDocumentAddresses,
   normalizeLegalSeriesKey,
   normalizeProformaDocumentAddresses,
@@ -159,7 +160,12 @@ import { describeCustomerVatLookup, lookupCustomerVat } from '../features/custom
 
 export type LegalTab = 'new' | 'archive' | 'sync' | 'delivery' | 'settings';
 type DocumentCreationSource = 'order' | 'manual';
-type CreationDocumentType = LegalDocumentKind | 'proforma';
+type CreationDocumentType = LegalDocumentKind | 'proforma' | 'service_invoice';
+
+function creationTypeToLegalKind(type: CreationDocumentType): LegalDocumentKind {
+  if (type === 'service_invoice' || type === 'proforma') return 'invoice';
+  return type;
+}
 
 interface LegalDocumentsPageProps {
   products: Product[];
@@ -181,6 +187,11 @@ const creationTypeItems: Array<{ id: CreationDocumentType; label: string; help: 
     id: 'invoice',
     label: 'Τιμολόγιο',
     help: 'Τιμολόγιο 1.1 χωρίς δελτίο διακίνησης — το συνηθισμένο για B2B πωλήσεις.',
+  },
+  {
+    id: 'service_invoice',
+    label: 'Τιμολόγιο παροχής υπηρεσιών',
+    help: 'Τιμολόγιο Παροχής Υπηρεσιών 2.1 (ΤΠΥ). Δεν συνδυάζεται με δελτίο αποστολής.',
   },
   {
     id: 'delivery_note',
@@ -547,7 +558,7 @@ const NumberingAlignmentModal = ({
     ? new Date(preview.generated_at).toLocaleString('el-GR')
     : null;
   const describe = (entry: LegalNumberingAlignmentPreview['changes'][number]) =>
-    `${LEGAL_DOCUMENT_KIND_LABELS[entry.document_kind]} · σειρά «${entry.series}» · τύπος ${entry.aade_document_type}`;
+    `${getLegalDocumentKindLabel(entry.document_kind, entry.aade_document_type)} · σειρά «${entry.series}» · τύπος ${entry.aade_document_type}`;
 
   return (
     <div
@@ -691,7 +702,7 @@ const NumberingAlignmentModal = ({
                     {preview.historical_series.length ? preview.historical_series.map((entry) => (
                       <div key={`${entry.active_sequence_id}-${entry.series_key}`} className="rounded-lg bg-white p-2">
                         <div className="font-bold">
-                          {LEGAL_DOCUMENT_KIND_LABELS[entry.document_kind]} · σειρά «{entry.series}»
+                          {getLegalDocumentKindLabel(entry.document_kind, entry.aade_document_type)} · σειρά «{entry.series}»
                         </div>
                         <div className="mt-1 opacity-75">
                           {entry.document_count} εγγραφές · μέγιστος Α/Α {entry.max_aa ?? '—'} · δεν επηρεάζει τη σειρά «{entry.active_series}»
@@ -1337,13 +1348,15 @@ export default function LegalDocumentsPage({
       return;
     }
     const settings = settingsDraft;
-    const documentKind = creationDocumentType;
+    const documentKind = creationTypeToLegalKind(creationDocumentType);
+    const aadeDocumentType = creationDocumentType === 'service_invoice' ? '2.1' : undefined;
     if (creationSource === 'manual') {
       const document = buildManualLegalDocument({
         settings,
         kind: documentKind,
         userName,
         customer: selectedCustomer,
+        aadeDocumentType,
       });
       setProformaBundle(null);
       setDraftBundle({ document, lines: document.lines || [] });
@@ -1372,6 +1385,7 @@ export default function LegalDocumentsPage({
         settings,
         kind: documentKind,
         userName,
+        aadeDocumentType,
       });
       setProformaBundle(null);
       setDraftBundle({ document, lines: document.lines || [] });
@@ -1389,6 +1403,7 @@ export default function LegalDocumentsPage({
         settings,
         kind: documentKind,
         userName,
+        aadeDocumentType,
       });
       setProformaBundle(null);
       setDraftBundle({ document, lines: document.lines || [] });
@@ -1402,6 +1417,7 @@ export default function LegalDocumentsPage({
       settings,
       kind: documentKind,
       userName,
+      aadeDocumentType,
     });
     setProformaBundle(null);
     setDraftBundle({ document, lines: document.lines || [] });
@@ -1809,7 +1825,7 @@ export default function LegalDocumentsPage({
         issuer: isLegalDocumentEditable(document) ? { ...settingsDraft.issuer } : document.issuer,
         lines,
       }), lines, settingsDraft));
-      setCreationDocumentType(document.document_kind);
+      setCreationDocumentType(document.aade_document_type === '2.1' ? 'service_invoice' : document.document_kind);
       setProformaBundle(null);
       setSelectedOrderId(document.order_id || '');
       setSelectedShipmentId(document.shipment_id || '');
@@ -1990,7 +2006,8 @@ export default function LegalDocumentsPage({
     const editable = isLegalDocumentEditable(document);
     const includesDelivery = documentIncludesDeliveryNote(document);
     const isStandaloneDeliveryNote = document.document_kind === 'delivery_note';
-    const canToggleDelivery = document.document_kind === 'invoice' || document.document_kind === 'invoice_delivery';
+    const canToggleDelivery = (document.document_kind === 'invoice' || document.document_kind === 'invoice_delivery')
+      && document.aade_document_type !== '2.1';
     const lineDiscounts = draftBundle.lines.map((line) => Number(line.source_metadata?.discount_percent || 0));
     const commonDiscount = lineDiscounts.length && lineDiscounts.every((value) => value === lineDiscounts[0])
       ? lineDiscounts[0]
@@ -1998,16 +2015,13 @@ export default function LegalDocumentsPage({
     const originalNet = draftBundle.lines.reduce((sum, line) => sum
       + Number(line.source_metadata?.original_unit_price ?? line.unit_price) * Number(line.quantity || 0), 0);
     const documentDiscountAmount = Math.max(0, originalNet - document.totals.net);
-    const allowedLineIncomeCategories = incomeCategoryOptions.filter((option) =>
-      getAllowedIncomeTypeOptions(document.aade_document_type, option.value).length > 0
-    );
 
     return (
       <div className="min-w-0 space-y-4">
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-black text-slate-900">{LEGAL_DOCUMENT_KIND_LABELS[document.document_kind]}</h2>
+              <h2 className="text-lg font-black text-slate-900">{getLegalDocumentKindLabel(document.document_kind, document.aade_document_type)}</h2>
               <div className="text-sm font-medium text-slate-500">
                 {document.counterpart.name || 'Πελάτης'} | {money(document.totals.gross)}
               </div>
@@ -2048,6 +2062,21 @@ export default function LegalDocumentsPage({
             <SelectInput label="Τρόπος αποστολής" value={resolveSbzDispatchMethod(document.delivery)} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || {}), dispatch_method: value } }))}>
               {SBZ_DISPATCH_METHODS.map((method) => <option key={method} value={method}>{method}</option>)}
             </SelectInput>
+            {(document.document_kind === 'invoice' || document.document_kind === 'invoice_delivery' || document.document_kind === 'delivery_note') && (
+              <SelectInput
+                label="Σκοπός διακίνησης"
+                value={document.delivery?.move_purpose || resolveLegalMovePurpose(null, settingsDraft, document.aade_document_type)}
+                onChange={(value) => updateDraftDocument((current) => ({
+                  ...current,
+                  delivery: {
+                    ...(current.delivery || {}),
+                    move_purpose: Number(value) || 1,
+                  },
+                }))}
+              >
+                {Object.entries(SBZ_MOVE_PURPOSES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </SelectInput>
+            )}
             <TextInput label="ΑΦΜ Πελάτη" value={document.counterpart.vat_number || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, counterpart: { ...current.counterpart, vat_number: normalizeVatNumber(value) } }))} />
             <ActionButton variant="secondary" onClick={() => void handleDraftVatLookup('legal')} disabled={draftVatLookupTarget !== null} title="Επίσημος έλεγχος Μητρώου ΑΑΔΕ με fallback μόνο για βασικά στοιχεία.">
               {draftVatLookupTarget === 'legal' ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />} Επίσημος έλεγχος ΑΦΜ
@@ -2132,7 +2161,6 @@ export default function LegalDocumentsPage({
                     </SelectInput>
                     <TextInput label="Φόρτωση" value={document.delivery?.loading_address?.street || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), loading_address: { ...(current.delivery?.loading_address || {}), street: value } } }))} />
                     <TextInput label="Παράδοση" value={document.delivery?.delivery_address?.street || ''} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), delivery_address: { ...(current.delivery?.delivery_address || {}), street: value } } }))} />
-                    <SelectInput label="Σκοπός" value={document.delivery?.move_purpose || settingsDraft.default_move_purpose} onChange={(value) => updateDraftDocument((current) => ({ ...current, delivery: { ...(current.delivery || buildDefaultDeliveryDetails(settingsDraft)), move_purpose: Number(value) || 1 } }))}>{Object.entries(SBZ_MOVE_PURPOSES).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</SelectInput>
                   </div>
                 </div>
               ) : null}
@@ -2182,8 +2210,8 @@ export default function LegalDocumentsPage({
               <thead className="bg-slate-50 text-left text-[10px] uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="w-[3%] px-1.5 py-2">#</th>
-                  <th className="w-[15%] px-1.5 py-2">SKU</th>
-                  <th className="px-2 py-2">Περιγραφή & χαρακτηρισμός myDATA</th>
+                  <th className="w-[18%] px-1.5 py-2">SKU</th>
+                  <th className="px-2 py-2">Περιγραφή</th>
                   <th className="w-[6%] px-1 py-2 text-right">Ποσ.</th>
                   <th className="w-[8%] px-1 py-2 text-right">Τιμή</th>
                   <th className="w-[7%] px-1 py-2 text-right">Έκπτ.%</th>
@@ -2197,44 +2225,34 @@ export default function LegalDocumentsPage({
                   <tr key={line.id} className="align-middle">
                     <td className="whitespace-nowrap px-1.5 py-1.5 font-bold">{line.line_number}</td>
                     <td className="px-1.5 py-1.5">
-                      <SkuProductPicker
-                        sku={line.sku}
-                        variantSuffix={line.variant_suffix}
-                        products={legalCatalogProducts}
-                        onSelect={(selection) => applyCatalogToLegalLine(line.id, selection)}
-                        onEnterCommit={() => appendLegalLineAfter(line.id)}
-                        autoFocus={legalSkuFocusLineId === line.id}
-                        onInputFocus={() => setLegalSkuFocusLineId(line.id)}
-                        inputClassName="px-1.5 py-1"
-                        compact
-                        catalogOnly
-                      />
+                      <div className="flex min-w-0 items-center gap-0.5">
+                        <div className="min-w-0 flex-1">
+                          <SkuProductPicker
+                            sku={line.sku}
+                            variantSuffix={line.variant_suffix}
+                            products={legalCatalogProducts}
+                            onSelect={(selection) => applyCatalogToLegalLine(line.id, selection)}
+                            onEnterCommit={() => appendLegalLineAfter(line.id)}
+                            autoFocus={legalSkuFocusLineId === line.id}
+                            onInputFocus={() => setLegalSkuFocusLineId(line.id)}
+                            inputClassName="px-1.5 py-1"
+                            compact
+                            catalogOnly
+                          />
+                        </div>
+                        <LineIncomeClassificationGear
+                          documentType={document.aade_document_type}
+                          category={line.income_classification.classification_category}
+                          type={line.income_classification.classification_type || ''}
+                          disabled={!editable}
+                          onCategoryChange={(value) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? withManualIncomeCategory(item, value, current.aade_document_type) : item), settingsDraft))}
+                          onTypeChange={(classificationType) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? withManualIncomeType(item, classificationType) : item), settingsDraft))}
+                        />
+                      </div>
                     </td>
                     <td className="px-2 py-1.5">
                       <input value={line.description} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, description: event.target.value } : item), settingsDraft))} className="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs outline-none" />
                       <input value={line.item_code || ''} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? applyAutomaticLegalItemClassification(item, event.target.value, settingsDraft, current.aade_document_type) : item), settingsDraft))} className="mt-1 w-full rounded border border-slate-100 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 outline-none" placeholder="Κωδικός είδους" title="Κωδικός είδους AADE (itemCode)" />
-                      {document.aade_document_type !== '9.3' && (
-                        <div className="mt-1 grid min-w-0 gap-1 rounded border border-amber-100 bg-amber-50/50 p-1 xl:grid-cols-2" title="Ο κωδικός 000 χαρακτηρίζεται αυτόματα ως υπηρεσία. Οι υπόλοιπες γραμμές ως εμπορεύματα, εκτός αν επιλέξετε ρητά άλλη κατηγορία.">
-                          <select
-                            value={line.income_classification.classification_category}
-                            onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? withManualIncomeCategory(item, event.target.value, current.aade_document_type) : item), settingsDraft))}
-                            className="min-w-0 rounded border border-amber-200 bg-white px-1 py-1 text-[9px] font-semibold text-slate-700 outline-none"
-                            aria-label={`Κατηγορία εσόδου γραμμής ${line.line_number}`}
-                          >
-                            {allowedLineIncomeCategories.map((option) => (
-                              <option key={option.value} value={option.value}>{option.label}</option>
-                            ))}
-                          </select>
-                          <IncomeClassificationTypeSelect
-                            documentType={document.aade_document_type}
-                            category={line.income_classification.classification_category}
-                            value={line.income_classification.classification_type || ''}
-                            onChange={(classificationType) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? withManualIncomeType(item, classificationType) : item), settingsDraft))}
-                            showCategoryHint={false}
-                            selectClassName="min-w-0 border-amber-200 bg-white text-[9px]"
-                          />
-                        </div>
-                      )}
                     </td>
                     <td className="px-1 py-1.5 text-right">
                       <input type="number" min="0.001" step="0.001" value={line.quantity} onChange={(event) => updateDraftBundle((current, lines) => recalculateLegalDocument(current, lines.map((item) => item.id === line.id ? { ...item, quantity: Number(event.target.value) || 0 } : item), settingsDraft))} className="w-full rounded-lg border border-slate-200 px-1 py-1 text-right outline-none" />
@@ -3300,7 +3318,7 @@ export default function LegalDocumentsPage({
     <tr key={document.id} className="border-b border-slate-100 bg-white align-top">
       <td className="px-4 py-3">
         <div className="font-black text-slate-900">{getLegalDocumentDisplayNumber(document)}</div>
-        <div className="text-xs font-medium text-slate-500">{LEGAL_DOCUMENT_KIND_LABELS[document.document_kind]} | Τύπος ΑΑΔΕ {document.aade_document_type}</div>
+        <div className="text-xs font-medium text-slate-500">{getLegalDocumentKindLabel(document.document_kind, document.aade_document_type)} | Τύπος ΑΑΔΕ {document.aade_document_type}</div>
       </td>
       <td className="px-4 py-3">
         <div className="font-bold text-slate-800">{document.counterpart.name || '-'}</div>
@@ -3496,6 +3514,7 @@ export default function LegalDocumentsPage({
               <SelectInput label="Τύπος παραστατικού" value={syncDraft.invType} onChange={(value) => setSyncDraft((current) => ({ ...current, invType: value }))} help="Επιλέξτε ένα είδος ή αναζητήστε όλο το αρχείο χονδρικής.">
                 <option value="">Όλοι οι τύποι χονδρικής</option>
                 <option value="1.1">Τιμολόγιο Πώλησης</option>
+                <option value="2.1">Τιμολόγιο Παροχής Υπηρεσιών</option>
                 <option value="5.1">Πιστωτικό Συσχετιζόμενο</option>
                 <option value="5.2">Πιστωτικό Μη Συσχετιζόμενο</option>
                 <option value="9.3">Δελτίο Αποστολής</option>

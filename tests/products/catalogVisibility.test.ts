@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { isVisibleProductCatalogRow } from '../../features/products/catalogVisibility';
 
 describe('product catalog visibility', () => {
-  it('hides every legal-only or reserved 000 row from the product registry', () => {
+  it('hides reserved legal-only 000 and 001 rows from the product registry', () => {
     expect(isVisibleProductCatalogRow({
       sku: '000',
       prefix: '000',
@@ -16,6 +16,16 @@ describe('product catalog visibility', () => {
     expect(isVisibleProductCatalogRow({
       sku: 'RNG001',
       prefix: '000',
+      legal_only: false,
+    })).toBe(false);
+    expect(isVisibleProductCatalogRow({
+      sku: '001',
+      prefix: '001',
+      legal_only: true,
+    })).toBe(false);
+    expect(isVisibleProductCatalogRow({
+      sku: '001',
+      prefix: '001',
       legal_only: false,
     })).toBe(false);
   });

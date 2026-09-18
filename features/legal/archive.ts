@@ -17,7 +17,11 @@ import {
 } from '../../types';
 import { normalizeGreekForSearch } from '../../utils/greekSearch';
 import {
+  isLegalRepairItemCode,
+  isLegalReservedItemCode,
   isLegalShippingItemCode,
+  LEGAL_REPAIR_ITEM_CODE,
+  LEGAL_REPAIR_ITEM_DESCRIPTION,
   LEGAL_SHIPPING_ITEM_CODE,
   LEGAL_SHIPPING_ITEM_DESCRIPTION,
   isWholesaleAadeDocumentType,
@@ -384,6 +388,16 @@ function resolveLineMatches(params: {
         virtualLabel: LEGAL_SHIPPING_ITEM_DESCRIPTION,
       };
     }
+    if (isLegalRepairItemCode(normalizedCode)) {
+      return {
+        line,
+        masterSku: LEGAL_REPAIR_ITEM_CODE,
+        variantSuffix: '',
+        method: 'legal_service' as const,
+        rawItemCode,
+        virtualLabel: LEGAL_REPAIR_ITEM_DESCRIPTION,
+      };
+    }
     const alias = normalizedCode ? params.aliasesByKey.get(`${externalSource}::${normalizedCode}`) : undefined;
     if (alias) {
       const product = params.productsMap.get(alias.product_sku);
@@ -510,7 +524,7 @@ function needsDeliveryProductContext(record: LegalArchiveRecord): boolean {
   if (document.document_kind !== 'invoice' && document.document_kind !== 'credit') return false;
   return !record.lineMatches.some((match) =>
     !!normalizeExternalItemCode(match.rawItemCode)
-    && !isLegalShippingItemCode(match.rawItemCode),
+    && !isLegalReservedItemCode(match.rawItemCode),
   );
 }
 

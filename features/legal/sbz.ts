@@ -1,11 +1,12 @@
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import type { LegalDocument, LegalDocumentLine, LegalParty } from '../../types';
+import { AADE_ISSUABLE_DOCUMENT_TYPES } from '../../types';
 import {
   buildAadeInvoiceXml,
   computeLegalTotals,
   formatSbzDispatchPlace,
+  getLegalDocumentKindLabel,
   groupIncomeClassifications,
-  LEGAL_DOCUMENT_KIND_LABELS,
   PAYMENT_METHOD_LABELS,
   resolveSbzDispatchMethod,
   SBZ_DISPATCH_PLACE_FROM,
@@ -26,7 +27,7 @@ const units: Record<number, string> = { 1: 'Τεμάχια', 2: 'Κιλά', 3: '
 
 export function validateSbzDocument(document: LegalDocument, lines: LegalDocumentLine[]) {
   const errors = validateLegalDocument(document, lines).filter(x => x.severity === 'error').map(x => x.message);
-  if (!['1.1', '9.3', '5.1', '5.2'].includes(document.aade_document_type)) errors.push('Αυτό το είδος παραστατικού δεν υποστηρίζεται για έκδοση.');
+  if (!(AADE_ISSUABLE_DOCUMENT_TYPES as readonly string[]).includes(document.aade_document_type)) errors.push('Αυτό το είδος παραστατικού δεν υποστηρίζεται για έκδοση.');
   if (!document.issuer.business_name && !document.issuer.name) errors.push('Συμπληρώστε την επωνυμία της επιχείρησης.');
   if (!document.issuer.activity || !document.issuer.doy) errors.push('Συμπληρώστε δραστηριότητα και ΔΟΥ της επιχείρησης.');
   if (!document.counterpart.customer_code) errors.push('Ο πελάτης δεν έχει κωδικό ERP. Αποθηκεύστε ή επιλέξτε πελάτη πριν την έκδοση.');
@@ -89,7 +90,7 @@ export function buildSbzInvoiceXml(document: LegalDocument, lines: LegalDocument
   }
   const extra = '<API_InvoiceDetails><API_Issuer>' + party('Issuer', document.issuer, document.issuer.business_name || document.issuer.name || '')
     + '</API_Issuer><API_Counterpart>' + party('Counterpart', document.counterpart, document.counterpart.name || '')
-    + '</API_Counterpart><API_Additionals>' + tag('DocumentLabel', LEGAL_DOCUMENT_KIND_LABELS[document.document_kind])
+    + '</API_Counterpart><API_Additionals>' + tag('DocumentLabel', getLegalDocumentKindLabel(document.document_kind, document.aade_document_type))
     + tag('paymentMethodInvoiceLabel', PAYMENT_METHOD_LABELS[document.payment_method_code] || '')
     + tag('DispatchPlaceFrom', SBZ_DISPATCH_PLACE_FROM)
     + tag('DispatchPlaceTo', destination)

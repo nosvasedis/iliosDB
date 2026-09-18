@@ -65,7 +65,7 @@ import {
 } from './inspectionMode';
 import { addReceivedSizeQuantity, resolveSupplierOrderProductReceiptTarget, supplierOrderInventoryReceiptQuantity } from '../features/suppliers/receiptHelpers';
 import { getGreekOperationalErrorMessage } from '../features/inventory/greek';
-import { AADE_WHOLESALE_ARCHIVE_DOCUMENT_TYPES, buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, formatGreekRetryDuration, getAadeProxyErrorMessage, getAadeRateLimitRetrySeconds, getHighestAadeMark, groupIncomeClassifications, isEmptyTransmittedDocsResponse, isLegalShippingItemCode, isWholesaleAadeDocumentType, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, normalizeVatNumber, parseAadeResponseXml, parseTransmittedDocumentsXml, resolveLegalIncomeClassification, resolveWholesaleAadeSyncDocumentTypes, roundMoney, serializeLegalDocumentForDb, serializeLegalDocumentLineForDb, serializeProformaDocumentForDb, validateLegalDocument } from '../utils/legalDocuments';
+import { AADE_WHOLESALE_ARCHIVE_DOCUMENT_TYPES, buildAadeInvoiceXml, buildAadeTransmittedDocsQuery, DEFAULT_LEGAL_SETTINGS, formatGreekRetryDuration, getAadeProxyErrorMessage, getAadeRateLimitRetrySeconds, getHighestAadeMark, groupIncomeClassifications, isEmptyTransmittedDocsResponse, isLegalReservedItemCode, isWholesaleAadeDocumentType, LEGAL_SETTINGS_ID, getDocumentKindFromAadeType, normalizeVatNumber, parseAadeResponseXml, parseTransmittedDocumentsXml, resolveLegalIncomeClassification, resolveWholesaleAadeSyncDocumentTypes, roundMoney, serializeLegalDocumentForDb, serializeLegalDocumentLineForDb, serializeProformaDocumentForDb, validateLegalDocument } from '../utils/legalDocuments';
 import {
     buildArchivedDocumentEnrichment,
     buildLegalCounterpartKnowledge,
@@ -2216,15 +2216,15 @@ export const api = {
 
     saveProduct: async (productData: any) => {
         const sanitized = sanitizeProductData(productData);
-        if (isLegalShippingItemCode(sanitized.sku) || isLegalShippingItemCode(sanitized.prefix)) {
-            throw new Error('Ο κωδικός 000 είναι δεσμευμένος αποκλειστικά για τα Μεταφορικά στα Παραστατικά και δεν μπορεί να αποθηκευτεί ως προϊόν.');
+        if (isLegalReservedItemCode(sanitized.sku) || isLegalReservedItemCode(sanitized.prefix)) {
+            throw new Error('Οι κωδικοί 000 και 001 είναι δεσμευμένοι αποκλειστικά για υπηρεσίες στα Παραστατικά και δεν μπορούν να αποθηκευτούν ως προϊόντα.');
         }
         return safeMutate('products', 'UPSERT', sanitized, { onConflict: 'sku' });
     },
 
     renameProduct: async (oldSku: string, newSku: string): Promise<void> => {
-        if (isLegalShippingItemCode(oldSku) || isLegalShippingItemCode(newSku)) {
-            throw new Error('Ο κωδικός 000 είναι δεσμευμένος αποκλειστικά για τα Μεταφορικά στα Παραστατικά και δεν μπορεί να χρησιμοποιηθεί στο Μητρώο Κωδικών.');
+        if (isLegalReservedItemCode(oldSku) || isLegalReservedItemCode(newSku)) {
+            throw new Error('Οι κωδικοί 000 και 001 είναι δεσμευμένοι αποκλειστικά για υπηρεσίες στα Παραστατικά και δεν μπορούν να χρησιμοποιηθούν στο Μητρώο Κωδικών.');
         }
         if (isLocalMode) {
             // ... (Same as before)

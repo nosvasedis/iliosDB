@@ -76,6 +76,32 @@ describe('SBZ wholesale contract',()=>{
     expect(validateSbzDocument(zeroDocument,[zeroLine])).toContain('Η γραμμή 1 έχει μηδενική αξία. Συμπληρώστε τιμή πριν την έκδοση.');
     expect(()=>buildSbzInvoiceXml(zeroDocument,[zeroLine],document.created_at)).toThrow('Η γραμμή 1 έχει μηδενική αξία');
   });
+  it('serializes a 2.1 service invoice and keeps movePurpose without a delivery note',()=>{
+    const {document,lines}=sbzFixture();
+    const serviceLines=lines.map(l=>({...l,income_classification:{...l.income_classification,classification_category:'category1_3'}}));
+    const service={
+      ...document,
+      aade_document_type:'2.1' as const,
+      delivery:{move_purpose:7,delivery_address:document.counterpart.address},
+      revenue_classification:serviceLines.map(l=>l.income_classification),
+    };
+    const xml=buildSbzInvoiceXml(service,serviceLines,document.created_at);
+    expect(xml).toContain('<invoiceType>2.1</invoiceType>');
+    expect(xml).toContain('<movePurpose>7</movePurpose>');
+    expect(xml).toContain('<movePurposeLabel>Επεξεργασία / συναρμολόγηση</movePurposeLabel>');
+    expect(xml).toContain('<DocumentLabel>Τιμολόγιο Παροχής Υπηρεσιών</DocumentLabel>');
+    expect(xml).not.toContain('<isDeliveryNote>');
+    expect(validateSbzDocument({...service,aade_document_type:'17.1' as any},serviceLines).join(' ')).toContain('δεν υποστηρίζεται');
+  });
+  it('keeps a selected move purpose on a plain 1.1 invoice without combining a delivery note',()=>{
+    const {document,lines}=sbzFixture();
+    const xml=buildSbzInvoiceXml({
+      ...document,
+      delivery:{move_purpose:7,delivery_address:document.counterpart.address},
+    },lines,document.created_at);
+    expect(xml).toContain('<movePurpose>7</movePurpose>');
+    expect(xml).not.toContain('<isDeliveryNote>');
+  });
   it('blocks provider issuance when customer fiscal identity is incomplete',()=>{
     const {document,lines}=sbzFixture();
     const errors=validateSbzDocument({...document,counterpart:{...document.counterpart,customer_code:null,profession:null,tax_office:null}},lines);

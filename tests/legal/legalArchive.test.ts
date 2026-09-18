@@ -256,6 +256,24 @@ describe('legal archive intelligence', () => {
     expect(record.matchState).toBe('matched');
   });
 
+  it('recognizes Prisma code 001 as a virtual legal repair service without a catalog product', () => {
+    const [record] = buildRecords({
+      lines: [legalLine({
+        sku: '001',
+        item_code: '001',
+        description: 'ΕΠΙΣΚΕΥΗ',
+      })],
+      products: [product()],
+    });
+    expect(record.lineMatches[0]).toMatchObject({
+      method: 'legal_service',
+      masterSku: '001',
+      virtualLabel: 'Επισκευή Κοσμημάτων',
+    });
+    expect(record.lineMatches[0].product).toBeUndefined();
+    expect(record.matchState).toBe('matched');
+  });
+
   it('marks duplicate VAT matches as ambiguous instead of guessing', () => {
     const [record] = buildRecords({
       customers: [

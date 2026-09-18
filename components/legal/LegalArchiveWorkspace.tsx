@@ -214,6 +214,15 @@ const documentPresentation = {
     mobile: 'border-l-4 border-l-teal-500 bg-teal-50/35',
     number: 'text-teal-900',
   },
+  service_invoice: {
+    label: 'Τιμολόγιο Παροχής Υπηρεσιών',
+    icon: Sparkles,
+    badge: 'border-indigo-200 bg-indigo-100 text-indigo-900',
+    row: 'border-l-4 border-l-indigo-500 bg-indigo-50/35 hover:bg-indigo-50/75',
+    openRow: 'border-l-4 border-l-indigo-600 bg-indigo-50/80',
+    mobile: 'border-l-4 border-l-indigo-500 bg-indigo-50/35',
+    number: 'text-indigo-900',
+  },
   proforma: {
     label: 'Προτιμολόγιο',
     icon: FileClock,
@@ -226,9 +235,10 @@ const documentPresentation = {
 } as const;
 
 function getDocumentPresentation(record: LegalArchiveRecord) {
-  return record.source === 'proforma'
-    ? documentPresentation.proforma
-    : documentPresentation[(record.document as LegalDocument).document_kind];
+  if (record.source === 'proforma') return documentPresentation.proforma;
+  const document = record.document as LegalDocument;
+  if (document.aade_document_type === '2.1') return documentPresentation.service_invoice;
+  return documentPresentation[document.document_kind];
 }
 
 interface AliasEditorProps {
@@ -855,6 +865,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
     ? [documentPresentation.proforma]
     : [
         documentPresentation.invoice,
+        documentPresentation.service_invoice,
         documentPresentation.invoice_delivery,
         documentPresentation.credit,
         documentPresentation.delivery_note,

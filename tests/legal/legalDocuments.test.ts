@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Customer, Order, Product, ProductionType } from '../../types';
+import { AADE_ISSUABLE_DOCUMENT_TYPES, Customer, Order, Product, ProductionType } from '../../types';
 import {
   AADE_REVENUE_CLASSIFICATION_COMBINATIONS,
   AADE_VAT_CATEGORY_LINE_OPTIONS,
@@ -26,6 +26,7 @@ import {
   buildLegalDocumentFromOrder,
   buildCounterpartFromCustomer,
   buildManualLegalDocument,
+  getAadeDocumentTypeForKind,
   buildManualProforma,
   buildProformaFromOrder,
   buildPublicVatLookupResult,
@@ -57,6 +58,7 @@ import {
   getLegalCatalogLineDetails,
   getLegalProductLineDescription,
   getHighestAadeMark,
+  LEGAL_VIRTUAL_REPAIR_PRODUCT,
   LEGAL_VIRTUAL_SHIPPING_PRODUCT,
   normalizeLegalSeriesKey,
   parseLegalDocumentAa,
@@ -143,6 +145,7 @@ describe('legal document helpers', () => {
     expect(getLegalDocumentKindLabel('credit', '5.1')).toBe('Πιστωτικό Τιμολόγιο / Συσχετιζόμενο');
     expect(getLegalDocumentKindLabel('credit', '5.2')).toBe('Πιστωτικό Τιμολόγιο / Μη Συσχετιζόμενο');
     expect(getLegalDocumentKindLabel('invoice', '1.1')).toBe('Τιμολόγιο Πώλησης');
+    expect(getLegalDocumentKindLabel('invoice', '2.1')).toBe('Τιμολόγιο Παροχής Υπηρεσιών');
   });
 
   it('maps Greek VAT rates to AADE VAT categories', () => {
@@ -169,6 +172,10 @@ describe('legal document helpers', () => {
     expect(isAadeVatExemptionCategory(0)).toBe(false);
     expect(isAadeVatExemptionCategory(-1)).toBe(false);
     expect(AADE_REVENUE_CLASSIFICATION_COMBINATIONS['1.1']).toContainEqual(['category1_2', 'E3_561_001']);
+    expect(AADE_REVENUE_CLASSIFICATION_COMBINATIONS['2.1']).toContainEqual(['category1_3', 'E3_561_001']);
+    expect(AADE_REVENUE_CLASSIFICATION_COMBINATIONS['2.1']).toContainEqual(['category1_3', 'E3_561_002']);
+    expect(AADE_REVENUE_CLASSIFICATION_COMBINATIONS['2.1']).toContainEqual(['category1_3', 'E3_561_007']);
+    expect(AADE_REVENUE_CLASSIFICATION_COMBINATIONS['2.1']).toContainEqual(['category1_3', 'E3_563']);
     expect(AADE_REVENUE_CLASSIFICATION_COMBINATIONS['9.3']).toEqual([['category3', '']]);
     expect(formatAadeIncomeTypeLabel('E3_561_001')).toBe('Χονδρικές πωλήσεις σε επαγγελματίες (E3_561_001)');
     expect(formatAadeIncomeCategoryLabel('category1_2')).toBe('Πώληση προϊόντων (category1_2)');
@@ -193,15 +200,20 @@ describe('legal document helpers', () => {
     expect(document.lines[0]?.description).toBe('Δαχτυλίδι · Ασήμι 925°');
   });
 
-  it('uses Μεταφορικά and 6 euros as the catalog defaults for code 000', () => {
-    const details = getLegalCatalogLineDetails(LEGAL_VIRTUAL_SHIPPING_PRODUCT, settings, null, '1.1');
+  it('uses Επισκευή Κοσμημάτων and 0 euros as the catalog defaults for code 001', () => {
+    const details = getLegalCatalogLineDetails(LEGAL_VIRTUAL_REPAIR_PRODUCT, settings, null, '2.1');
 
     expect(details).toMatchObject({
-      sku: '000',
-      item_code: '000',
-      description: 'Μεταφορικά',
-      unit_price: 6,
+      sku: '001',
+      item_code: '001',
+      description: 'Επισκευή Κοσμημάτων',
+      unit_price: 0,
     });
+    expect(details.income_classification).toMatchObject({
+      classification_category: 'category1_3',
+      classification_type: 'E3_561_001',
+    });
+    expect(getLegalProductLineDescription(LEGAL_VIRTUAL_REPAIR_PRODUCT)).toBe('Επισκευή Κοσμημάτων');
   });
 
   it('builds an invoice draft with totals and revenue classification', () => {
@@ -289,6 +301,11 @@ describe('legal document helpers', () => {
     expect(documentIncludesDeliveryNote(backToInvoice)).toBe(false);
     expect(backToInvoice.delivery?.dispatch_method).toBe('Μεταφορική');
     expect(backToInvoice.delivery?.dispatch_date).toBeFalsy();
+
+    const serviceInvoice = buildManualLegalDocument({ settings, kind: 'invoice', customer, aadeDocumentType: '2.1' });
+    expect(applyLegalDocumentDeliveryToggle(serviceInvoice, true, settings, customer)).toBe(serviceInvoice);
+    expect(serviceInvoice.aade_document_type).toBe('2.1');
+    expect(documentIncludesDeliveryNote(serviceInvoice)).toBe(false);
   });
 
   it('shows localized country names while keeping ISO codes for transmission', () => {
@@ -371,10 +388,13 @@ describe('legal document helpers', () => {
     const legalCatalog = getLegalDocumentCatalogProducts([
       product,
       { ...product, sku: '000', prefix: '000', description: 'legacy database row' },
+      { ...product, sku: '001', prefix: '001', description: 'legacy repair row' },
     ]);
 
     expect(legalCatalog.filter((item) => item.sku === '000')).toHaveLength(1);
+    expect(legalCatalog.filter((item) => item.sku === '001')).toHaveLength(1);
     expect(legalCatalog[0]).toBe(LEGAL_VIRTUAL_SHIPPING_PRODUCT);
+    expect(legalCatalog[1]).toBe(LEGAL_VIRTUAL_REPAIR_PRODUCT);
     expect(legalCatalog[0]).toMatchObject({
       sku: '000',
       category: 'Μεταφορικά',
@@ -644,6 +664,11 @@ describe('legal document helpers', () => {
       severity: 'error',
       message: `Η γραμμή ${zeroLine.line_number} έχει μηδενική αξία. Συμπληρώστε τιμή πριν την έκδοση.`,
     }));
+    expect(issues).toContainEqual(expect.objectContaining({
+      field: 'lines.net_value',
+      severity: 'warning',
+      message: 'Υπάρχουν γραμμές με 0 €. Συμπληρώστε κόστος πριν την έκδοση — η ΑΑΔΕ απορρίπτει τιμολόγια με μηδενική γραμμή.',
+    }));
   });
 
   it('blocks a sticky automatic service classification on a non-shipping code', () => {
@@ -668,7 +693,7 @@ describe('legal document helpers', () => {
     };
 
     expect(validateLegalDocument(document, [stickyLine]).some((issue) =>
-      issue.message.includes('δεν αντιστοιχεί στον κωδικό 000')
+      issue.message.includes('συστημικό κωδικό υπηρεσίας')
     )).toBe(true);
   });
 
@@ -1227,5 +1252,45 @@ describe('legal document helpers', () => {
       postal_code: '74100',
       city: 'ΡΕΘΥΜΝΟ',
     });
+  });
+
+  it('issues 2.1 as Τιμολόγιο Παροχής Υπηρεσιών with service classification and ΤΠΥ numbering type', () => {
+    expect(AADE_ISSUABLE_DOCUMENT_TYPES).toEqual(['1.1', '2.1', '9.3', '5.1', '5.2']);
+    expect(getAadeDocumentTypeForKind('invoice', '2.1')).toBe('2.1');
+    expect(getAllowedIncomeTypeOptions('2.1', 'category1_3').map((option) => option.value)).toEqual([
+      'E3_561_001',
+      'E3_561_002',
+      'E3_561_007',
+      'E3_563',
+    ]);
+
+    const document = buildManualLegalDocument({
+      settings,
+      kind: 'invoice',
+      customer,
+      aadeDocumentType: '2.1',
+    });
+    expect(document.aade_document_type).toBe('2.1');
+    expect(document.document_kind).toBe('invoice');
+    expect(document.delivery?.move_purpose).toBe(7);
+    expect(document.lines[0]).toMatchObject({
+      sku: '001',
+      item_code: '001',
+      description: 'Επισκευή Κοσμημάτων',
+      unit_price: 0,
+      income_classification: expect.objectContaining({
+        classification_category: 'category1_3',
+        classification_type: 'E3_561_001',
+      }),
+    });
+
+    const priced = recalculateLegalDocument(document, [{
+      ...document.lines[0],
+      unit_price: 40,
+    }], settings);
+    const xml = buildAadeInvoiceXml({ ...priced.document, series: 'ΤΠΥ', aa: '1' }, priced.lines);
+    expect(xml).toContain('<invoiceType>2.1</invoiceType>');
+    expect(xml).toContain('<icls:classificationCategory>category1_3</icls:classificationCategory>');
+    expect(xml).not.toContain('<isDeliveryNote>');
   });
 });

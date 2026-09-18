@@ -896,7 +896,7 @@ export const AADE_DOCUMENT_TYPES = [
 ] as const;
 export type AadeDocumentType = typeof AADE_DOCUMENT_TYPES[number];
 
-export const AADE_ISSUABLE_DOCUMENT_TYPES = ['1.1', '9.3', '5.1', '5.2'] as const;
+export const AADE_ISSUABLE_DOCUMENT_TYPES = ['1.1', '2.1', '9.3', '5.1', '5.2'] as const;
 export type AadeIssuableDocumentType = typeof AADE_ISSUABLE_DOCUMENT_TYPES[number];
 export type LegalDocumentStatus = 'draft' | 'submitted' | 'issued' | 'failed' | 'cancelled';
 export type LegalEnvironment = 'dev' | 'prod';

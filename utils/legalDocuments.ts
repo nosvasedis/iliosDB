@@ -31,13 +31,23 @@ import {
   ProformaDocumentLine,
 } from '../types';
 import {
+  isLegalRepairItemCode,
+  isLegalReservedItemCode,
   isLegalShippingItemCode,
+  LEGAL_REPAIR_ITEM_CODE,
+  LEGAL_REPAIR_ITEM_DESCRIPTION,
+  LEGAL_REPAIR_ITEM_NAME,
   LEGAL_SHIPPING_ITEM_CODE,
   LEGAL_SHIPPING_ITEM_DESCRIPTION,
 } from './legalItemCodes';
 
 export {
+  isLegalRepairItemCode,
+  isLegalReservedItemCode,
   isLegalShippingItemCode,
+  LEGAL_REPAIR_ITEM_CODE,
+  LEGAL_REPAIR_ITEM_DESCRIPTION,
+  LEGAL_REPAIR_ITEM_NAME,
   LEGAL_SHIPPING_ITEM_CODE,
   LEGAL_SHIPPING_ITEM_DESCRIPTION,
 } from './legalItemCodes';
@@ -124,11 +134,43 @@ export const LEGAL_VIRTUAL_SHIPPING_PRODUCT: Product = {
   collections: [],
 };
 
+export const LEGAL_VIRTUAL_REPAIR_PRODUCT: Product = {
+  sku: LEGAL_REPAIR_ITEM_CODE,
+  prefix: LEGAL_REPAIR_ITEM_CODE,
+  category: LEGAL_REPAIR_ITEM_NAME,
+  description: LEGAL_REPAIR_ITEM_DESCRIPTION,
+  gender: Gender.Unisex,
+  image_url: null,
+  weight_g: 0,
+  plating_type: PlatingType.None,
+  production_type: ProductionType.Imported,
+  active_price: 0,
+  draft_price: 0,
+  selling_price: 0,
+  stock_qty: 0,
+  sample_qty: 0,
+  molds: [],
+  is_component: false,
+  variants: [],
+  recipe: [],
+  labor: {
+    casting_cost: 0,
+    setter_cost: 0,
+    technician_cost: 0,
+    stone_setting_cost: 0,
+    plating_cost_x: 0,
+    plating_cost_d: 0,
+    subcontract_cost: 0,
+  },
+  collections: [],
+};
+
 export function getLegalDocumentCatalogProducts(products: Product[]): Product[] {
   return [
     LEGAL_VIRTUAL_SHIPPING_PRODUCT,
+    LEGAL_VIRTUAL_REPAIR_PRODUCT,
     ...products.filter((product) =>
-      !isLegalShippingItemCode(product.sku) && !isLegalShippingItemCode(product.prefix)
+      !isLegalReservedItemCode(product.sku) && !isLegalReservedItemCode(product.prefix)
     ),
   ];
 }
@@ -180,6 +222,7 @@ export const LEGAL_DOCUMENT_KIND_LABELS: Record<LegalDocumentKind, string> = {
 };
 
 export function getLegalDocumentKindLabel(kind: LegalDocumentKind, aadeDocumentType?: string | null): string {
+  if (aadeDocumentType === '2.1') return 'Τιμολόγιο Παροχής Υπηρεσιών';
   if (aadeDocumentType === '5.1') return 'Πιστωτικό Τιμολόγιο / Συσχετιζόμενο';
   if (aadeDocumentType === '5.2') return 'Πιστωτικό Τιμολόγιο / Μη Συσχετιζόμενο';
   return LEGAL_DOCUMENT_KIND_LABELS[kind];
@@ -247,6 +290,18 @@ export function formatSbzDispatchPlace(address?: LegalPartyAddress | null, count
   return [street, city, formatCountryDisplayName(country)].filter(Boolean).join(', ');
 }
 
+export const SERVICE_INVOICE_DEFAULT_MOVE_PURPOSE = 7;
+
+export function resolveLegalMovePurpose(
+  existing?: number | null,
+  settings?: Pick<LegalSettings, 'default_move_purpose'> | null,
+  aadeDocumentType?: string | null,
+): number {
+  if (Number(existing)) return Number(existing);
+  if (aadeDocumentType === '2.1') return SERVICE_INVOICE_DEFAULT_MOVE_PURPOSE;
+  return settings?.default_move_purpose || 1;
+}
+
 export function applyIssuerSettingsToDocument(document: LegalDocument, settings: LegalSettings): LegalDocument {
   if (!isLegalDocumentEditable(document)) return document;
   return { ...document, issuer: { ...settings.issuer } };
@@ -257,10 +312,11 @@ export function buildPdfDispatchDetails(
   customer?: Customer | null,
   existing?: LegalDeliveryDetails | null,
   counterpartAddress?: LegalPartyAddress | null,
+  aadeDocumentType?: string | null,
 ): LegalDeliveryDetails {
   return {
     dispatch_method: resolveSbzDispatchMethod(existing),
-    move_purpose: existing?.move_purpose || settings.default_move_purpose || 1,
+    move_purpose: resolveLegalMovePurpose(existing?.move_purpose, settings, aadeDocumentType),
     delivery_address: existing?.delivery_address
       || (customer?.address ? parseLegalPartyAddress(customer.address) : null)
       || counterpartAddress
@@ -365,6 +421,22 @@ export const AADE_REVENUE_CLASSIFICATION_COMBINATIONS: Partial<Record<AadeDocume
     ['category1_7', 'E3_881_004'],
     ['category1_95', 'E3_596'],
     ['category1_95', 'E3_597'],
+  ],
+  '2.1': [
+    ['category1_3', 'E3_561_001'],
+    ['category1_3', 'E3_561_002'],
+    ['category1_3', 'E3_561_007'],
+    ['category1_3', 'E3_563'],
+    ['category1_5', 'E3_561_007'],
+    ['category1_5', 'E3_562'],
+    ['category1_5', 'E3_563'],
+    ['category1_5', 'E3_564'],
+    ['category1_5', 'E3_565'],
+    ['category1_5', 'E3_566'],
+    ['category1_5', 'E3_567'],
+    ['category1_5', 'E3_568'],
+    ['category1_5', 'E3_570'],
+    ['category1_95', ''],
   ],
   '5.2': [
     ['category1_1', 'E3_561_001'],
@@ -487,9 +559,23 @@ export function getAllowedIncomeTypeOptions(
   return AADE_INCOME_TYPE_OPTIONS.filter((option) => allowedTypes.has(option.value));
 }
 
-export function getAadeDocumentTypeForKind(kind: LegalDocumentKind): AadeIssuableDocumentType {
+export function getAllowedIncomeCategoryOptions(
+  documentType: AadeDocumentType,
+): Array<{ value: string; label: string }> {
+  const combinations = AADE_REVENUE_CLASSIFICATION_COMBINATIONS[documentType === '5.1' ? '5.2' : documentType];
+  if (!combinations) return AADE_INCOME_CATEGORY_OPTIONS;
+  const allowedCategories = new Set(combinations.map(([category]) => category));
+  return AADE_INCOME_CATEGORY_OPTIONS.filter((option) => allowedCategories.has(option.value));
+}
+
+export function getAadeDocumentTypeForKind(
+  kind: LegalDocumentKind,
+  aadeDocumentType?: string | null,
+): AadeIssuableDocumentType {
   if (kind === 'delivery_note') return '9.3';
-  if (kind === 'credit') return '5.2';
+  if (kind === 'credit') return aadeDocumentType === '5.1' ? '5.1' : '5.2';
+  if (kind === 'invoice_delivery') return '1.1';
+  if (kind === 'invoice' && aadeDocumentType === '2.1') return '2.1';
   return '1.1';
 }
 
@@ -504,7 +590,11 @@ export function applyLegalDocumentDeliveryToggle(
   settings: LegalSettings,
   customer?: Customer | null,
 ): LegalDocument {
-  if (document.document_kind === 'delivery_note' || document.document_kind === 'credit') {
+  if (
+    document.document_kind === 'delivery_note'
+    || document.document_kind === 'credit'
+    || document.aade_document_type === '2.1'
+  ) {
     return document;
   }
   if (!includeDeliveryNote) {
@@ -512,10 +602,10 @@ export function applyLegalDocumentDeliveryToggle(
       ...document,
       document_kind: 'invoice',
       aade_document_type: '1.1',
-      delivery: buildPdfDispatchDetails(settings, customer, document.delivery, document.counterpart.address),
+      delivery: buildPdfDispatchDetails(settings, customer, document.delivery, document.counterpart.address, '1.1'),
     };
   }
-  const defaults = buildDefaultDeliveryDetails(settings, customer);
+  const defaults = buildDefaultDeliveryDetails(settings, customer, undefined, '1.1');
   return {
     ...document,
     document_kind: 'invoice_delivery',
@@ -773,6 +863,7 @@ export function getLegalProductLineDescription(
   fallbackSku?: string,
 ): string {
   if (isLegalShippingItemCode(product?.sku || fallbackSku)) return LEGAL_SHIPPING_ITEM_DESCRIPTION;
+  if (isLegalRepairItemCode(product?.sku || fallbackSku)) return LEGAL_REPAIR_ITEM_DESCRIPTION;
 
   const baseDescription = String(product?.category || fallbackSku || product?.sku || '').trim();
   if (!baseDescription) return '—';
@@ -814,6 +905,10 @@ export const LEGAL_ITEM_CLASSIFICATION_OVERRIDES: Readonly<Record<string, {
     classification_category: 'category1_3',
     classification_type: 'E3_561_001',
   },
+  '001': {
+    classification_category: 'category1_3',
+    classification_type: 'E3_561_001',
+  },
 });
 
 export function normalizeLegalItemCode(value?: string | null): string {
@@ -841,9 +936,20 @@ export function resolveLegalIncomeClassification(params: {
   const override = LEGAL_ITEM_CLASSIFICATION_OVERRIDES[normalizedItemCode];
   if (override) return { ...override, amount };
 
+  if (params.documentType === '2.1') {
+    if (params.existing && isAllowedIncomeClassification('2.1', { ...params.existing, amount })) {
+      return { ...params.existing, amount };
+    }
+    return {
+      classification_category: 'category1_3',
+      classification_type: 'E3_561_001',
+      amount,
+    };
+  }
+
   // Production type describes the operational source of an item, not its
   // myDATA revenue category. The configured normal-item category is applied
-  // to every catalog item; the exact virtual code 000 remains a service.
+  // to every catalog item; reserved legal codes remain services.
   if (params.product) {
     return {
       classification_category: params.settings.default_income_classification_category || 'category1_1',
@@ -985,6 +1091,13 @@ function defaultIncomeClassification(settings: LegalSettings, amount: number): L
 }
 
 function defaultIncomeClassificationForDocumentType(settings: LegalSettings, amount: number, documentType?: AadeDocumentType): LegalIncomeClassification {
+  if (documentType === '2.1') {
+    return {
+      classification_category: 'category1_3',
+      classification_type: 'E3_561_001',
+      amount: roundMoney(amount),
+    };
+  }
   return normalizeIncomeClassificationForDocumentType(documentType, defaultIncomeClassification(settings, amount));
 }
 
@@ -1060,7 +1173,7 @@ export function recalculateLegalLine(
   };
 }
 
-/** Reclassifies a line after its SKU/itemCode changes. Code 000 is the only automatic service override. */
+/** Reclassifies a line after its SKU/itemCode changes. Reserved 000/001 are automatic service overrides. */
 export function applyAutomaticLegalItemClassification(
   line: LegalDocumentLine,
   itemCode: string,
@@ -1225,17 +1338,23 @@ export function buildManualLegalDocument(params: {
   kind: LegalDocumentKind;
   userName?: string | null;
   customer?: Customer | null;
+  aadeDocumentType?: AadeIssuableDocumentType | string | null;
 }): LegalDocument {
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
   const vatRate = params.customer?.vat_rate ?? 0.24;
-  const aadeDocumentType = getAadeDocumentTypeForKind(params.kind);
+  const aadeDocumentType = getAadeDocumentTypeForKind(params.kind, params.aadeDocumentType);
+  const isServiceInvoice = aadeDocumentType === '2.1';
   const line = createManualLegalDocumentLine({
     documentId: id,
     lineNumber: 1,
     settings: params.settings,
     vatRate,
     aadeDocumentType,
+    sku: isServiceInvoice ? LEGAL_REPAIR_ITEM_CODE : undefined,
+    description: isServiceInvoice ? LEGAL_REPAIR_ITEM_DESCRIPTION : undefined,
+    unitPrice: isServiceInvoice ? 0 : undefined,
+    itemCode: isServiceInvoice ? LEGAL_REPAIR_ITEM_CODE : undefined,
   });
   const lines = [line];
   const totals = computeLegalTotals(lines);
@@ -1253,8 +1372,8 @@ export function buildManualLegalDocument(params: {
     issuer: params.settings.issuer,
     counterpart: buildCounterpartFromCustomer(params.customer),
     delivery: isDelivery
-      ? buildDefaultDeliveryDetails(params.settings, params.customer)
-      : buildPdfDispatchDetails(params.settings, params.customer),
+      ? buildDefaultDeliveryDetails(params.settings, params.customer, undefined, aadeDocumentType)
+      : buildPdfDispatchDetails(params.settings, params.customer, null, null, aadeDocumentType),
     payment_method_code: params.settings.default_payment_method,
     currency: 'EUR',
     vat_rate: vatRate,
@@ -1492,9 +1611,11 @@ export function convertProformaToLegalDraft(params: {
   settings: LegalSettings;
   kind: LegalDocumentKind;
   userName?: string | null;
+  aadeDocumentType?: AadeIssuableDocumentType | string | null;
 }): { document: LegalDocument; lines: LegalDocumentLine[] } {
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
+  const aadeDocumentType = getAadeDocumentTypeForKind(params.kind, params.aadeDocumentType);
   const lines = params.lines.map((line, index) => {
     const { proforma_id: _proformaId, ...legalLine } = line;
     return recalculateLegalLine({
@@ -1503,7 +1624,7 @@ export function convertProformaToLegalDraft(params: {
       document_id: id,
       line_number: index + 1,
       source_order_line_key: line.source_order_line_key || null,
-    }, params.settings, undefined, getAadeDocumentTypeForKind(params.kind));
+    }, params.settings, undefined, aadeDocumentType);
   });
   const totals = computeLegalTotals(lines);
   const document: LegalDocument = {
@@ -1512,7 +1633,7 @@ export function convertProformaToLegalDraft(params: {
     shipment_id: params.proforma.shipment_id ?? null,
     source_kind: 'proforma',
     document_kind: params.kind,
-    aade_document_type: getAadeDocumentTypeForKind(params.kind),
+    aade_document_type: aadeDocumentType,
     status: 'draft',
     series: null,
     aa: null,
@@ -1520,8 +1641,8 @@ export function convertProformaToLegalDraft(params: {
     issuer: params.proforma.issuer,
     counterpart: params.proforma.counterpart,
     delivery: params.kind === 'delivery_note' || params.kind === 'invoice_delivery'
-      ? buildDefaultDeliveryDetails(params.settings)
-      : buildPdfDispatchDetails(params.settings, null, null, params.proforma.counterpart.address),
+      ? buildDefaultDeliveryDetails(params.settings, undefined, undefined, aadeDocumentType)
+      : buildPdfDispatchDetails(params.settings, null, null, params.proforma.counterpart.address, aadeDocumentType),
     payment_method_code: params.proforma.payment_method_code,
     currency: params.proforma.currency || 'EUR',
     vat_rate: params.proforma.vat_rate,
@@ -1560,10 +1681,12 @@ export function buildLegalDocumentFromOrder(params: {
   kind: LegalDocumentKind;
   userName?: string | null;
   delivery?: LegalDeliveryDetails | null;
+  aadeDocumentType?: AadeIssuableDocumentType | string | null;
 }): LegalDocument {
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
   const vatRate = params.customer?.vat_rate ?? params.order.vat_rate ?? 0.24;
+  const aadeDocumentType = getAadeDocumentTypeForKind(params.kind, params.aadeDocumentType);
   const lines = buildLinesFromOrderItems({
     documentId: id,
     items: params.order.items || [],
@@ -1571,7 +1694,7 @@ export function buildLegalDocumentFromOrder(params: {
     settings: params.settings,
     vatRate,
     discountPercent: params.order.discount_percent || 0,
-    aadeDocumentType: getAadeDocumentTypeForKind(params.kind),
+    aadeDocumentType,
   });
   const totals = computeLegalTotals(lines);
   return {
@@ -1581,14 +1704,14 @@ export function buildLegalDocumentFromOrder(params: {
     source_kind: 'order',
     counterpart_customer_id: params.customer?.id || null,
     document_kind: params.kind,
-    aade_document_type: getAadeDocumentTypeForKind(params.kind),
+    aade_document_type: aadeDocumentType,
     status: 'draft',
     issue_date: toIsoDate(now),
     issuer: params.settings.issuer,
     counterpart: buildCounterpart(params.order, params.customer),
     delivery: params.kind === 'delivery_note' || params.kind === 'invoice_delivery'
-      ? params.delivery || buildDefaultDeliveryDetails(params.settings, params.customer)
-      : buildPdfDispatchDetails(params.settings, params.customer, params.delivery),
+      ? params.delivery || buildDefaultDeliveryDetails(params.settings, params.customer, undefined, aadeDocumentType)
+      : buildPdfDispatchDetails(params.settings, params.customer, params.delivery, undefined, aadeDocumentType),
     payment_method_code: params.settings.default_payment_method,
     currency: 'EUR',
     vat_rate: vatRate,
@@ -1615,10 +1738,12 @@ export function buildLegalDocumentFromShipment(params: {
   kind: LegalDocumentKind;
   userName?: string | null;
   delivery?: LegalDeliveryDetails | null;
+  aadeDocumentType?: AadeIssuableDocumentType | string | null;
 }): LegalDocument {
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
   const vatRate = params.customer?.vat_rate ?? params.order.vat_rate ?? 0.24;
+  const aadeDocumentType = getAadeDocumentTypeForKind(params.kind, params.aadeDocumentType);
   const lines = buildLinesFromOrderItems({
     documentId: id,
     items: params.shipmentItems || [],
@@ -1626,7 +1751,7 @@ export function buildLegalDocumentFromShipment(params: {
     settings: params.settings,
     vatRate,
     discountPercent: params.order.discount_percent || 0,
-    aadeDocumentType: getAadeDocumentTypeForKind(params.kind),
+    aadeDocumentType,
   });
   const totals = computeLegalTotals(lines);
   return {
@@ -1636,14 +1761,14 @@ export function buildLegalDocumentFromShipment(params: {
     source_kind: 'shipment',
     counterpart_customer_id: params.customer?.id || null,
     document_kind: params.kind,
-    aade_document_type: getAadeDocumentTypeForKind(params.kind),
+    aade_document_type: aadeDocumentType,
     status: 'draft',
     issue_date: toIsoDate(now),
     issuer: params.settings.issuer,
     counterpart: buildCounterpart(params.order, params.customer),
     delivery: params.kind === 'delivery_note' || params.kind === 'invoice_delivery'
-      ? params.delivery || buildDefaultDeliveryDetails(params.settings, params.customer, params.shipment)
-      : buildPdfDispatchDetails(params.settings, params.customer, params.delivery),
+      ? params.delivery || buildDefaultDeliveryDetails(params.settings, params.customer, params.shipment, aadeDocumentType)
+      : buildPdfDispatchDetails(params.settings, params.customer, params.delivery, undefined, aadeDocumentType),
     payment_method_code: params.settings.default_payment_method,
     currency: 'EUR',
     vat_rate: vatRate,
@@ -1660,12 +1785,17 @@ export function buildLegalDocumentFromShipment(params: {
   };
 }
 
-export function buildDefaultDeliveryDetails(settings: LegalSettings, customer?: Customer | null, shipment?: OrderShipment): LegalDeliveryDetails {
+export function buildDefaultDeliveryDetails(
+  settings: LegalSettings,
+  customer?: Customer | null,
+  shipment?: OrderShipment,
+  aadeDocumentType?: string | null,
+): LegalDeliveryDetails {
   const dispatchAt = shipment?.shipped_at || new Date().toISOString();
   return {
     dispatch_date: toXmlDateTimeDate(dispatchAt),
     dispatch_time: toXmlTime(dispatchAt),
-    move_purpose: settings.default_move_purpose,
+    move_purpose: resolveLegalMovePurpose(undefined, settings, aadeDocumentType),
     dispatch_method: DEFAULT_SBZ_DISPATCH_METHOD,
     vehicle_number: '',
     loading_address: settings.loading_address || settings.issuer.address || null,
@@ -1751,20 +1881,32 @@ export function validateLegalDocument(document: LegalDocument, lines: LegalDocum
     if (!line.income_classification?.classification_category) {
       issues.push({ field: `line.${line.line_number}.classification`, severity: 'error', message: `Η γραμμή ${line.line_number} δεν έχει χαρακτηρισμό εσόδου.` });
     }
-    if (document.aade_document_type !== '9.3' && normalizedItemCode === LEGAL_SHIPPING_ITEM_CODE && line.income_classification?.classification_category !== 'category1_3') {
-      issues.push({ field: `line.${line.line_number}.classification`, severity: 'error', message: `Ο κωδικός 000 της γραμμής ${line.line_number} πρέπει να χαρακτηριστεί ως Παροχή υπηρεσιών.` });
+    if (document.aade_document_type !== '9.3' && isLegalReservedItemCode(normalizedItemCode) && line.income_classification?.classification_category !== 'category1_3') {
+      issues.push({ field: `line.${line.line_number}.classification`, severity: 'error', message: `Ο κωδικός ${normalizedItemCode} της γραμμής ${line.line_number} πρέπει να χαρακτηριστεί ως Παροχή υπηρεσιών.` });
     }
     if (
       document.aade_document_type !== '9.3'
-      && normalizedItemCode !== LEGAL_SHIPPING_ITEM_CODE
+      && document.aade_document_type !== '2.1'
+      && !isLegalReservedItemCode(normalizedItemCode)
       && line.income_classification?.classification_category === 'category1_3'
       && line.source_metadata?.income_classification_source !== 'manual'
     ) {
-      issues.push({ field: `line.${line.line_number}.classification`, severity: 'error', message: `Η γραμμή ${line.line_number} έχει χαρακτηρισμό υπηρεσίας που δεν αντιστοιχεί στον κωδικό 000. Επιλέξτε ρητά τον σωστό χαρακτηρισμό πριν από τη διαβίβαση.` });
+      issues.push({ field: `line.${line.line_number}.classification`, severity: 'error', message: `Η γραμμή ${line.line_number} έχει χαρακτηρισμό υπηρεσίας που δεν αντιστοιχεί σε συστημικό κωδικό υπηρεσίας. Επιλέξτε ρητά τον σωστό χαρακτηρισμό πριν από τη διαβίβαση.` });
     }
     if (line.income_classification?.classification_category && !isAllowedIncomeClassification(document.aade_document_type, line.income_classification)) {
       issues.push({ field: `line.${line.line_number}.classification`, severity: 'error', message: `Ο χαρακτηρισμός της γραμμής ${line.line_number} δεν επιτρέπεται για τύπο ΑΑΔΕ ${document.aade_document_type} σύμφωνα με τους επίσημους συνδυασμούς χαρακτηρισμών.` });
     }
+  }
+
+  if (
+    (document.aade_document_type === '1.1' || document.aade_document_type === '2.1')
+    && lines.some((line) => line.quantity > 0 && line.net_value === 0)
+  ) {
+    issues.push({
+      field: 'lines.net_value',
+      severity: 'warning',
+      message: 'Υπάρχουν γραμμές με 0 €. Συμπληρώστε κόστος πριν την έκδοση — η ΑΑΔΕ απορρίπτει τιμολόγια με μηδενική γραμμή.',
+    });
   }
 
   const expectedTotals = computeLegalTotals(lines);

@@ -1,4 +1,4 @@
-import { isLegalShippingItemCode } from '../../utils/legalItemCodes';
+import { isLegalReservedItemCode } from '../../utils/legalItemCodes';
 
 export interface ProductCatalogVisibilityRow {
   sku?: string | null;
@@ -9,6 +9,6 @@ export interface ProductCatalogVisibilityRow {
 export function isVisibleProductCatalogRow(row?: ProductCatalogVisibilityRow | null): boolean {
   return !!row
     && row.legal_only !== true
-    && !isLegalShippingItemCode(row.sku)
-    && !isLegalShippingItemCode(row.prefix);
+    && !isLegalReservedItemCode(row.sku)
+    && !isLegalReservedItemCode(row.prefix);
 }

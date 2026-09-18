@@ -4,8 +4,8 @@ import { LegalDocument, LegalDocumentLine } from '../types';
 import {
   formatAadeIncomeCategoryLabel,
   formatAadeIncomeTypeLabel,
+  getLegalDocumentKindLabel,
   isOfficialLegalDocumentPrint,
-  LEGAL_DOCUMENT_KIND_LABELS,
   PAYMENT_METHOD_LABELS,
   documentIncludesDeliveryNote,
 } from '../utils/legalDocuments';
@@ -56,7 +56,7 @@ const LegalDocumentPrintView: React.FC<LegalDocumentPrintViewProps> = ({ documen
   const renderedSlices = slicesCoverEveryLine(pageSlices, lines.length)
     ? pageSlices
     : [{ startIndex: 0, endIndex: lines.length }];
-  const kindLabel = LEGAL_DOCUMENT_KIND_LABELS[document.document_kind];
+  const kindLabel = getLegalDocumentKindLabel(document.document_kind, document.aade_document_type);
   const revenueClassificationText = document.revenue_classification
     .map((item) => `${formatAadeIncomeCategoryLabel(item.classification_category)} · ${formatAadeIncomeTypeLabel(item.classification_type)} ${formatPrintMoney(item.amount, document.currency)}`)
     .join(', ');

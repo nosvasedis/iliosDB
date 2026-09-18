@@ -32,6 +32,10 @@ const deliveryNoteLinkMigration = readFileSync(
   new URL('../../supabase/migrations/20260806094743_link_legal_invoice_delivery_note.sql', import.meta.url),
   'utf8',
 );
+const serviceInvoiceMigration = readFileSync(
+  new URL('../../supabase/migrations/20260918082151_service_invoice_2_1_and_repair_sku.sql', import.meta.url),
+  'utf8',
+);
 
 describe('legal archive database contract', () => {
   it('adds archive links, parse metadata, and the learned alias table additively', () => {
@@ -57,6 +61,15 @@ describe('legal archive database contract', () => {
     expect(INSPECTION_ALLOWED_QUERY_ROOTS.has('legal_external_item_aliases')).toBe(true);
     expect(INSPECTION_REALTIME_TABLES).toContain('legal_external_item_aliases');
     expect(getRealtimeInvalidationDomainsForTable('legal_external_item_aliases')).toContain('legal');
+  });
+
+  it('adds 2.1 ΤΠΥ numbering and reserves legal SKU 001 without rewriting the historical 000 contract', () => {
+    expect(serviceInvoiceMigration).toMatch(/aade_document_type in \('1.1', '2.1', '9.3', '5.1', '5.2'\)/i);
+    expect(serviceInvoiceMigration).toMatch(/'invoice', '2.1', 'ΤΠΥ'/);
+    expect(serviceInvoiceMigration).toMatch(/unnest\(ARRAY\['dev', 'prod'\]/);
+    expect(serviceInvoiceMigration).toMatch(/upper\(btrim\(coalesce\(sku, ''\)\)\) in \('000', '001'\)/i);
+    expect(serviceInvoiceMigration).toMatch(/values \(\s*'001'/i);
+    expect(serviceInvoiceMigration).toMatch(/legal_only\s*= true/);
   });
 
   it('accepts all official archive types while reserving 000 outside the product registry', () => {
