@@ -27,6 +27,10 @@ import {
     type ProductionSendQuantityMap,
 } from '../features/production/productionSendPlanner';
 import { planNonDuplicateProductionSendItems } from '../features/production/orderBatchReconcile';
+import {
+    planRemoveProductionBatchFromOrder,
+    REMOVE_BATCH_FROM_ORDER_ERROR_MESSAGES,
+} from '../features/production/removeBatchFromOrder';
 import { buildOrderItemIdentityKey } from '../features/orders/printHelpers';
 import { getSpecialCreationProductStub, isSpecialCreationSku } from '../utils/specialCreationSku';
 import { useOrderShipmentsForOrder } from '../hooks/api/useOrders';
@@ -657,15 +661,65 @@ export default function ProductionSendModal({ order: orderProp, products, materi
 
     const handleDeleteBatch = useCallback(async (batch: ProductionBatch) => {
         if (movingBatchIds.has(batch.id)) return;
-        if (!await confirm({ title: 'Διαγραφή', message: `Διαγραφή παρτίδας (${batch.quantity} τεμ);`, isDestructive: true })) return;
+        if (isLoadingShipments) {
+            showToast('Οι αποστολές της παραγγελίας φορτώνονται ακόμα. Δοκιμάστε ξανά σε λίγο.', 'info');
+            return;
+        }
+
+        const shippedByLineId: Record<string, number> = {};
+        for (const item of order.items || []) {
+            if (!item.line_id) continue;
+            const key = itemKey(item.sku, item.variant_suffix, item.size_info, item.cord_color, item.enamel_color, item.line_id);
+            shippedByLineId[item.line_id] = shippedQuantities.get(key) || 0;
+        }
+
+        const plan = planRemoveProductionBatchFromOrder(order, batch, shippedByLineId);
+        if (plan.ok === false) {
+            showToast(REMOVE_BATCH_FROM_ORDER_ERROR_MESSAGES[plan.reason], 'error');
+            return;
+        }
+
+        const skuLabel = `${batch.sku}${batch.variant_suffix || ''}`;
+        const lineText = plan.removedLine
+            ? 'Η γραμμή θα αφαιρεθεί πλήρως από την παραγγελία.'
+            : `Ποσότητα γραμμής: ${plan.previousQty} → ${plan.nextQty} τεμ.`;
+        if (!await confirm({
+            title: 'Διαγραφή από Παραγγελία',
+            message: `Η παρτίδα ${skuLabel} (${batch.quantity} τεμ.) θα διαγραφεί από την παραγωγή και από την παραγγελία του πελάτη. ${lineText} Σύνολο παραγγελίας: ${formatCurrency(order.total_price)} → ${formatCurrency(plan.total_price)}. Η Επαναφορά αφήνει το είδος στην παραγγελία.`,
+            isDestructive: true,
+            confirmText: 'Διαγραφή από Παραγγελία',
+        })) return;
+
         markMoving([batch.id], true);
         try {
-            await productionRepository.deleteProductionBatch(batch.id);
+            const savedOrder = await productionRepository.deleteProductionBatchFromOrder(batch.id, {
+                ...order,
+                items: plan.items,
+                total_price: plan.total_price,
+            });
+            setOrder(savedOrder);
+            onOrderUpdated?.(savedOrder);
+            clearBatchSelection([batch.id]);
+            setToSendQuantities({});
             await Promise.all([invalidateOrdersAndBatches(queryClient), queryClient.invalidateQueries({ queryKey: ['products'] })]);
-            showToast("Η παρτίδα διαγράφηκε.", "info");
-        } catch (e) { showToast("Σφάλμα διαγραφής.", "error"); }
-        finally { markMoving([batch.id], false); }
-    }, [movingBatchIds, markMoving, queryClient, showToast, confirm]);
+            showToast('Το είδος διαγράφηκε από την παραγωγή και την παραγγελία.', 'info');
+        } catch (e) {
+            showToast(e instanceof Error ? e.message : 'Σφάλμα διαγραφής.', 'error');
+        } finally {
+            markMoving([batch.id], false);
+        }
+    }, [
+        movingBatchIds,
+        isLoadingShipments,
+        order,
+        shippedQuantities,
+        markMoving,
+        clearBatchSelection,
+        onOrderUpdated,
+        queryClient,
+        showToast,
+        confirm,
+    ]);
 
     const handleRevertBatch = useCallback(async (batch: ProductionBatch) => {
         if (movingBatchIds.has(batch.id)) return;

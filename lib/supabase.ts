@@ -985,6 +985,32 @@ async function deleteProductionBatchWithInventory(batchId: string): Promise<stri
     return data ? String(data) : null;
 }
 
+async function deleteProductionBatchFromOrderWithInventory(batchId: string, plannedOrder: Order): Promise<Order> {
+    if (isLocalMode || typeof navigator === 'undefined' || !navigator.onLine) {
+        throw new Error('Η διαγραφή από την παραγγελία δεν καταχωρίστηκε. Απαιτείται ενεργή σύνδεση και δεν πραγματοποιήθηκε καμία μεταβολή. Συνδεθείτε και δοκιμάστε ξανά.');
+    }
+
+    const { normalizeOrderInventoryIdentities } = await import('../features/inventory/repository');
+    const payload = normalizeOrderInventoryIdentities({
+        ...plannedOrder,
+        items: assignMissingOrderLineIds(plannedOrder.items),
+    });
+    const { data, error } = await supabase.rpc('delete_production_batch_from_order_v1', {
+        p_batch_id: batchId,
+        p_order: payload,
+        p_idempotency_key: `production-batch-order-delete:${batchId}:${crypto.randomUUID()}`,
+    });
+    if (error) {
+        const { toInventoryOperationError } = await import('../features/inventory');
+        throw toInventoryOperationError('save-order', error);
+    }
+
+    const savedOrder = (data && typeof data === 'object' && 'order' in data)
+        ? (data as { order?: Order }).order
+        : undefined;
+    return savedOrder && Array.isArray(savedOrder.items) ? savedOrder : payload;
+}
+
 async function syncOrderStatusAfterBatchChange(orderId?: string): Promise<void> {
     if (!orderId) return;
 
@@ -2922,6 +2948,12 @@ export const api = {
 
         await deleteProductionBatchWithInventory(id);
         await syncOrderStatusAfterBatchChange(batch.order_id);
+    },
+
+    deleteProductionBatchFromOrder: async (batchId: string, plannedOrder: Order): Promise<Order> => {
+        const savedOrder = await deleteProductionBatchFromOrderWithInventory(batchId, plannedOrder);
+        await syncOrderStatusAfterBatchChange(plannedOrder.id);
+        return savedOrder;
     },
 
     // Batch History

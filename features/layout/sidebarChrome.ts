@@ -23,6 +23,10 @@ export const SIDEBAR_OVERLAY_MAX_WIDTH_PX = 1536;
 
 export const APP_VERSION_LABEL = 'IliosERP v1.0';
 
+/** Hide native browser bars while still allowing overflow when items cannot fit. */
+export const SIDEBAR_HIDDEN_SCROLL_CLASS =
+  'min-h-0 overflow-x-hidden overflow-y-auto ilios-no-scrollbar';
+
 export function prefersCollapsedDesktopSidebar(viewportWidth: number): boolean {
   return viewportWidth < SIDEBAR_OVERLAY_MAX_WIDTH_PX;
 }

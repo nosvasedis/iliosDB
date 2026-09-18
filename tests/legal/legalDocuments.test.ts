@@ -200,14 +200,14 @@ describe('legal document helpers', () => {
     expect(document.lines[0]?.description).toBe('Δαχτυλίδι · Ασήμι 925°');
   });
 
-  it('uses Επισκευή Κοσμημάτων and 0 euros as the catalog defaults for code 001', () => {
+  it('uses Επισκευή Κοσμημάτων and 1 euro as the catalog defaults for code 001', () => {
     const details = getLegalCatalogLineDetails(LEGAL_VIRTUAL_REPAIR_PRODUCT, settings, null, '2.1');
 
     expect(details).toMatchObject({
       sku: '001',
       item_code: '001',
       description: 'Επισκευή Κοσμημάτων',
-      unit_price: 0,
+      unit_price: 1,
     });
     expect(details.income_classification).toMatchObject({
       classification_category: 'category1_3',
@@ -1277,7 +1277,7 @@ describe('legal document helpers', () => {
       sku: '001',
       item_code: '001',
       description: 'Επισκευή Κοσμημάτων',
-      unit_price: 0,
+      unit_price: 1,
       income_classification: expect.objectContaining({
         classification_category: 'category1_3',
         classification_type: 'E3_561_001',

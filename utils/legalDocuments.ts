@@ -144,9 +144,9 @@ export const LEGAL_VIRTUAL_REPAIR_PRODUCT: Product = {
   weight_g: 0,
   plating_type: PlatingType.None,
   production_type: ProductionType.Imported,
-  active_price: 0,
-  draft_price: 0,
-  selling_price: 0,
+  active_price: 1,
+  draft_price: 1,
+  selling_price: 1,
   stock_qty: 0,
   sample_qty: 0,
   molds: [],
@@ -1353,7 +1353,7 @@ export function buildManualLegalDocument(params: {
     aadeDocumentType,
     sku: isServiceInvoice ? LEGAL_REPAIR_ITEM_CODE : undefined,
     description: isServiceInvoice ? LEGAL_REPAIR_ITEM_DESCRIPTION : undefined,
-    unitPrice: isServiceInvoice ? 0 : undefined,
+    unitPrice: isServiceInvoice ? LEGAL_VIRTUAL_REPAIR_PRODUCT.selling_price : undefined,
     itemCode: isServiceInvoice ? LEGAL_REPAIR_ITEM_CODE : undefined,
   });
   const lines = [line];

@@ -14,6 +14,8 @@ export const productionRepository = {
   bulkUpdateBatchStages: (batchIds: string[], stage: ProductionStage, userName?: string, pendingDispatch?: boolean) =>
     api.bulkUpdateBatchStages(batchIds, stage, userName, pendingDispatch),
   deleteProductionBatch: (batchId: string) => api.deleteProductionBatch(batchId),
+  deleteProductionBatchFromOrder: (batchId: string, plannedOrder: Order) =>
+    api.deleteProductionBatchFromOrder(batchId, plannedOrder),
   getBatchHistory: (batchId: string): Promise<BatchStageHistoryEntry[]> => api.getBatchHistory(batchId),
   logBatchHistory: (batchId: string, fromStage: ProductionStage | null, toStage: ProductionStage, userName: string, notes?: string) =>
     api.logBatchHistory(batchId, fromStage, toStage, userName, notes),

@@ -37,7 +37,7 @@ import { useDeliveryNavBadge } from './hooks/api/useOrderDeliveryPlans';
 import { buildPartialOrderFromBatches } from './features/orders';
 import { useConnectivityStatus } from './app-shell/useConnectivityStatus';
 import { buildAggregatedPrintData } from './features/printing';
-import { adminFooterNavItems, adminNavSections, adminQuickActionNavItems, renderNavIcon } from './surfaces/navConfig';
+import { adminFooterNavItems, adminNavSections, renderNavIcon } from './surfaces/navConfig';
 import type { AdminPage } from './surfaces/pageIds';
 import { isInspectionModeActive } from './lib/inspectionMode';
 import InspectionModeShell from './components/InspectionModeShell';
@@ -46,9 +46,12 @@ import IliosLoader from './components/ui/IliosLoader';
 import {
   SidebarCollapseButton,
   SidebarConnectionBadge,
+  SidebarHoverTooltip,
   SidebarNavButton,
   SidebarOverlayScrim,
+  SidebarSectionLabel,
   SidebarVersionMark,
+  SIDEBAR_HIDDEN_SCROLL_CLASS,
   sidebarAsideClass,
   sidebarMainClass,
 } from './components/layout/SidebarChrome';
@@ -492,30 +495,29 @@ function ErpAppContent() {
         {isSidebarOpen && <div className="fixed inset-0 bg-[#060b00]/60 backdrop-blur-sm z-40 md:hidden animate-in fade-in" onClick={() => setIsSidebarOpen(false)} />}
         <SidebarOverlayScrim visible={!isCollapsed} onDismiss={() => setIsCollapsed(true)} />
         <aside className={sidebarAsideClass(railMode, isSidebarOpen)}>
-          <div className={`relative flex items-center justify-center border-b border-white/[0.06] ${railMode ? 'h-[3.75rem] px-2' : 'h-16 px-4'}`}>
+          <div className={`flex shrink-0 items-center border-b border-white/[0.06] ${railMode ? 'h-14 flex-col justify-center gap-0.5 px-1.5 py-2' : 'h-14 justify-between px-3'}`}>
             {!railMode ? (
-              <img src={APP_LOGO} alt="Ilios" className="h-10 w-auto object-contain drop-shadow-lg" />
+              <img src={APP_LOGO} alt="Ilios" className="h-9 w-auto object-contain drop-shadow-lg" />
             ) : (
               <img src={APP_ICON_ONLY} alt="Ilios" className="h-8 w-8 object-contain" />
             )}
-            <div className={`absolute ${railMode ? 'bottom-1.5 right-1.5' : 'right-12 top-1/2 -translate-y-1/2 md:right-3'}`}>
+            <div className={`flex items-center ${railMode ? '' : 'gap-0.5'}`}>
               <SidebarConnectionBadge
                 isLocalMode={isLocalMode}
                 isOnline={isOnline}
                 isSyncing={isSyncing}
                 pendingCount={pendingCount}
               />
+              <button onClick={() => setIsSidebarOpen(false)} className="text-slate-400 hover:text-white md:hidden"><X size={18} /></button>
             </div>
-            <button onClick={() => setIsSidebarOpen(false)} className="absolute right-3 top-4 text-slate-400 hover:text-white md:hidden"><X size={20} /></button>
           </div>
-          <SidebarCollapseButton isCollapsed={isCollapsed} onToggle={toggleCollapse} />
-          <nav className="flex min-h-0 flex-1 flex-col space-y-0.5 overflow-y-auto px-2 py-3 scrollbar-hide">
+          <nav className={`flex flex-1 flex-col px-1.5 py-1 ${SIDEBAR_HIDDEN_SCROLL_CLASS}`}>
             {adminNavSections.map((section, sectionIndex) => {
               const visibleItems = section.items.filter((item) => !isLocalMode || !hiddenInLocalMode.has(item.id));
               if (visibleItems.length === 0) return null;
               return (
-                <React.Fragment key={`admin-nav-section-${sectionIndex}`}>
-                  {sectionIndex > 0 && <div className="mx-2 my-1.5 border-t border-white/[0.07]"></div>}
+                <div key={section.title}>
+                  <SidebarSectionLabel title={section.title} collapsed={railMode} first={sectionIndex === 0} />
                   {visibleItems.map((item) => (
                     <SidebarNavButton
                       key={item.id}
@@ -527,44 +529,34 @@ function ErpAppContent() {
                       badge={item.id === 'deliveries' ? deliveryBadgeCount : undefined}
                     />
                   ))}
-                </React.Fragment>
+                </div>
               );
             })}
-            <div className="mt-auto pt-3">
-              {adminFooterNavItems.map((item) => (
-                <SidebarNavButton
-                  key={item.id}
-                  icon={renderNavIcon(item.icon, 18)}
-                  label={item.label}
-                  isActive={activePage === item.id}
-                  isCollapsed={railMode}
-                  onClick={() => handleNav(item.id)}
-                />
-              ))}
-              <div className={`mt-3 border-t border-white/[0.07] pt-3 ${railMode ? 'flex flex-col items-center gap-2' : 'flex items-center gap-2 px-1'}`}>
-                <button
-                  onClick={handleLogout}
-                  title={profile?.full_name ? `Αποσύνδεση · ${profile.full_name}` : 'Αποσύνδεση'}
-                  className={`flex min-w-0 items-center rounded-xl text-slate-400 transition-colors hover:bg-white/[0.06] hover:text-white ${railMode ? 'h-9 w-9 justify-center' : 'flex-1 gap-2 px-2 py-2'}`}
-                >
-                  <LogOut size={16} className="shrink-0" />
-                  {!railMode && <span className="truncate text-[13px] font-medium">{profile?.full_name || 'User'}</span>}
-                </button>
-                {adminQuickActionNavItems.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => handleNav(item.id)}
-                    title={item.label}
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all duration-200 ${activePage === item.id ? 'bg-amber-400 text-[#060b00] shadow-[0_0_12px_rgba(251,191,36,0.35)]' : 'bg-white/[0.06] text-amber-300/80 hover:bg-amber-400/20 hover:text-amber-200'}`}
-                  >
-                    {renderNavIcon(item.icon, 14, activePage === item.id ? 2.5 : 2)}
-                  </button>
-                ))}
-              </div>
-            </div>
           </nav>
-          <div className={`border-t border-white/[0.06] ${railMode ? 'px-1 py-2.5' : 'px-3 py-2.5'}`}>
-            <SidebarVersionMark compact={railMode} />
+          <div className="shrink-0 border-t border-white/[0.06] px-1.5 py-2">
+            <SidebarCollapseButton isCollapsed={isCollapsed} onToggle={toggleCollapse} />
+            {adminFooterNavItems.map((item) => (
+              <SidebarNavButton
+                key={item.id}
+                icon={renderNavIcon(item.icon, 18)}
+                label={item.label}
+                isActive={activePage === item.id}
+                isCollapsed={railMode}
+                onClick={() => handleNav(item.id)}
+              />
+            ))}
+            <SidebarHoverTooltip label={profile?.full_name ? `Αποσύνδεση · ${profile.full_name}` : 'Αποσύνδεση'}>
+              <button
+                onClick={handleLogout}
+                className={`mt-0.5 flex w-full items-center rounded-lg text-slate-400 transition-colors hover:bg-white/[0.05] hover:text-white ${railMode ? 'h-9 justify-center' : 'h-9 gap-2.5 px-2.5'}`}
+              >
+                <LogOut size={16} className="shrink-0" />
+                {!railMode && <span className="truncate text-[13px] font-medium">{profile?.full_name || 'User'}</span>}
+              </button>
+            </SidebarHoverTooltip>
+            <div className="mt-2">
+              <SidebarVersionMark compact={railMode} />
+            </div>
           </div>
         </aside>
         <main className={sidebarMainClass(isCollapsed)}>

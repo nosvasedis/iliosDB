@@ -102,6 +102,14 @@ const legacyShipmentLineIdsSql = readFileSync(
   'utf8',
 );
 
+const deleteProductionBatchFromOrderSql = readFileSync(
+  new URL(
+    '../../supabase/migrations/20260918120000_delete_production_batch_from_order_v1.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
+
 describe('transactional inventory migration contract', () => {
   it.each([
     'inventory_balances',
@@ -439,6 +447,25 @@ describe('transactional inventory migration contract', () => {
     expect(legacyShipmentLineIdsSql).toContain('pg_advisory_xact_lock');
     expect(legacyShipmentLineIdsSql).toContain(
       'REVOKE ALL ON FUNCTION public.create_partial_shipment_v2(text, text, jsonb, uuid, text, jsonb, jsonb, text) FROM PUBLIC, anon',
+    );
+  });
+
+  it('deletes a production batch and saves the reduced order in one inventory transaction', () => {
+    expect(deleteProductionBatchFromOrderSql).toContain('FUNCTION public.delete_production_batch_from_order_v1(text, jsonb, text)');
+    expect(deleteProductionBatchFromOrderSql).toMatch(
+      /FUNCTION public\.delete_production_batch_from_order_v1[\s\S]*?SECURITY DEFINER/,
+    );
+    expect(deleteProductionBatchFromOrderSql).toContain('private.restore_legacy_inventory_batch_core');
+    expect(deleteProductionBatchFromOrderSql).toContain('DELETE FROM public.production_batches WHERE id = p_batch_id');
+    expect(deleteProductionBatchFromOrderSql).toContain('private.save_order_with_inventory_core');
+    expect(deleteProductionBatchFromOrderSql).toContain('private.resolve_order_line_id_v1');
+    expect(deleteProductionBatchFromOrderSql).toContain('order_shipment_items');
+    expect(deleteProductionBatchFromOrderSql).toContain("operation_type <> 'production_batch_order_delete'");
+    expect(deleteProductionBatchFromOrderSql).toContain(
+      'REVOKE ALL ON FUNCTION public.delete_production_batch_from_order_v1(text, jsonb, text) FROM PUBLIC, anon;',
+    );
+    expect(deleteProductionBatchFromOrderSql).toContain(
+      'GRANT EXECUTE ON FUNCTION public.delete_production_batch_from_order_v1(text, jsonb, text) TO authenticated, service_role;',
     );
   });
 });

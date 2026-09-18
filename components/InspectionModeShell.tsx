@@ -26,6 +26,7 @@ import {
   SidebarNavButton,
   SidebarOverlayScrim,
   SidebarVersionMark,
+  SIDEBAR_HIDDEN_SCROLL_CLASS,
   sidebarAsideClass,
   sidebarMainClass,
 } from './layout/SidebarChrome';
@@ -95,10 +96,10 @@ const InspectionModeShell: React.FC = () => {
       <div id="app-container" className="flex h-screen overflow-hidden text-[#060b00] bg-slate-50 font-sans">
         <SidebarOverlayScrim visible={!isCollapsed} onDismiss={() => setIsCollapsed(true)} />
         <aside className={sidebarAsideClass(isCollapsed)}>
-          <div className={`relative flex flex-col items-center justify-center border-b border-white/[0.06] ${isCollapsed ? 'h-[3.75rem] px-2' : 'min-h-16 px-4 py-3'}`}>
+          <div className={`relative flex shrink-0 flex-col items-center justify-center border-b border-white/[0.06] ${isCollapsed ? 'h-14 px-1.5' : 'px-3 py-3'}`}>
             {!isCollapsed ? (
               <>
-                <img src={APP_LOGO} alt="Ilios" className="h-10 w-auto object-contain drop-shadow-lg" />
+                <img src={APP_LOGO} alt="Ilios" className="h-9 w-auto object-contain drop-shadow-lg" />
                 <p className="mt-1.5 text-center text-[10px] font-black uppercase tracking-[0.18em] text-amber-400/90">
                   Σύστημα Παραστατικών
                 </p>
@@ -111,13 +112,12 @@ const InspectionModeShell: React.FC = () => {
             ) : (
               <img src={APP_ICON_ONLY} alt="Ilios" className="h-8 w-8 object-contain" />
             )}
-            <div className={`absolute ${isCollapsed ? 'bottom-1.5 right-1.5' : 'right-3 top-3'}`}>
+            <div className={isCollapsed ? 'mt-0.5' : 'absolute right-2 top-2'}>
               <SidebarConnectionBadge isLocalMode={false} isOnline isSyncing={false} pendingCount={0} />
             </div>
           </div>
-          <SidebarCollapseButton isCollapsed={isCollapsed} onToggle={() => setIsCollapsed((current) => !current)} />
 
-          <nav className="flex flex-1 flex-col space-y-0.5 overflow-y-auto px-2 py-3 scrollbar-hide">
+          <nav className={`flex flex-1 flex-col px-1.5 py-2 ${SIDEBAR_HIDDEN_SCROLL_CLASS}`}>
             {inspectionNavItems.map((item) => (
               <SidebarNavButton
                 key={item.id}
@@ -130,10 +130,10 @@ const InspectionModeShell: React.FC = () => {
             ))}
           </nav>
 
-          <div className={`border-t border-white/[0.06] ${isCollapsed ? 'px-1 py-2.5' : 'px-3 py-2.5'}`}>
+          <div className="shrink-0 border-t border-white/[0.06] px-1.5 py-2">
+            <SidebarCollapseButton isCollapsed={isCollapsed} onToggle={() => setIsCollapsed((current) => !current)} />
             <p
-              title={`Περιβάλλον ΑΑΔΕ: ${environment}`}
-              className="mb-1.5 text-center text-[9px] font-black uppercase tracking-[0.16em] text-amber-400/80"
+              className="mb-1.5 mt-1 text-center text-[9px] font-black uppercase tracking-[0.16em] text-amber-400/80"
             >
               {isCollapsed ? environment : `ΑΑΔΕ ${environment}`}
             </p>

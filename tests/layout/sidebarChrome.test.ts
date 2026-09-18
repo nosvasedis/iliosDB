@@ -60,3 +60,30 @@ describe('sidebar chrome', () => {
     expect(APP_VERSION_LABEL).toBe('IliosERP v1.0');
   });
 });
+
+describe('admin sidebar grouping', () => {
+  it('orders destinations into sales, workshop, catalog, and pricing', async () => {
+    const { adminNavSections, adminFooterNavItems } = await import('../../surfaces/navConfig');
+    expect(adminNavSections.map((section) => section.title)).toEqual([
+      'Επισκόπηση',
+      'Πωλήσεις',
+      'Εργαστήριο',
+      'Κατάλογος',
+      'Τιμές',
+    ]);
+    expect(adminNavSections.find((section) => section.title === 'Πωλήσεις')?.items.map((item) => item.id)).toEqual([
+      'orders',
+      'offers',
+      'legal',
+      'deliveries',
+      'customers',
+      'sellers',
+    ]);
+    expect(adminNavSections.find((section) => section.title === 'Εργαστήριο')?.items.map((item) => item.id)).toEqual([
+      'production',
+      'consignments',
+      'repairs',
+    ]);
+    expect(adminFooterNavItems.map((item) => item.id)).toEqual(['ai-studio', 'settings']);
+  });
+});
