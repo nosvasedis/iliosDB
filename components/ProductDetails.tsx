@@ -1593,7 +1593,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                         <div className={`col-span-2 rounded-xl border p-4 ${invoiceTotalWeightResult.source === 'missing' ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50/60'}`}>
                                                             <div className="flex flex-wrap items-start justify-between gap-3">
                                                                 <div>
-                                                                    <label className="text-[11px] font-bold uppercase tracking-wide text-slate-600">Συνολικό βάρος παραστατικού (g)</label>
+                                                                    <label className="text-[11px] font-bold uppercase tracking-wide text-slate-600">Συνολικό Βάρος (g)</label>
                                                                     <p className="mt-1 text-[10px] text-slate-500">Ανεξάρτητο από τους υπολογισμούς κόστους και παραγωγής.</p>
                                                                 </div>
                                                                 <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${invoiceTotalWeightResult.source === 'manual' ? 'bg-blue-100 text-blue-700' : invoiceTotalWeightResult.source === 'automatic' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
@@ -1975,7 +1975,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                     </div>
                                                     <div className={`mt-4 rounded-xl border p-4 ${invoiceTotalWeightResult.source === 'missing' ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50/60'}`}>
                                                         <div className="flex flex-wrap items-center justify-between gap-2">
-                                                            <label className="text-[11px] font-bold uppercase tracking-wide text-slate-600">Συνολικό βάρος παραστατικού (g)</label>
+                                                            <label className="text-[11px] font-bold uppercase tracking-wide text-slate-600">Συνολικό Βάρος (g)</label>
                                                             <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${invoiceTotalWeightResult.source === 'manual' ? 'bg-blue-100 text-blue-700' : invoiceTotalWeightResult.source === 'automatic' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                                                                 {invoiceTotalWeightResult.source === 'manual' ? 'Χειροκίνητο' : invoiceTotalWeightResult.source === 'automatic' ? 'Αυτόματο' : 'Ελλιπές'}
                                                             </span>

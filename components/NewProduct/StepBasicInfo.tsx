@@ -156,7 +156,7 @@ export const StepBasicInfo: React.FC<Props> = ({ formState, suppliers }) => {
                         <div className={`rounded-xl border p-4 ${state.invoiceTotalWeightResult.source === 'missing' ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50/60'}`}>
                             <div className="flex flex-wrap items-start justify-between gap-3">
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-700">Συνολικό βάρος παραστατικού (g)</label>
+                                    <label className="block text-sm font-bold text-slate-700">Συνολικό Βάρος (g)</label>
                                     <p className="mt-1 text-[10px] text-slate-500">Δεν επηρεάζει κόστος, ασήμι ή παραγωγή.</p>
                                 </div>
                                 <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${state.invoiceTotalWeightResult.source === 'manual' ? 'bg-blue-100 text-blue-700' : state.invoiceTotalWeightResult.source === 'automatic' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>

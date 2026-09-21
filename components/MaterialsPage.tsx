@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Material, MaterialType, GlobalSettings } from '../types';
-import { Trash2, Plus, Save, Gem, MapPin, Box, Activity, Puzzle, Palette, Scroll, Search, X, Globe, Package, MoreHorizontal, User, CircleDollarSign, Check, XCircle, LayoutGrid, List as ListIcon, Calculator } from 'lucide-react';
+import { Trash2, Plus, Save, Gem, MapPin, Box, Activity, Puzzle, Palette, Scroll, Search, X, Globe, Package, MoreHorizontal, User, CircleDollarSign, Check, XCircle, LayoutGrid, List as ListIcon, Calculator, Weight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { api } from '../lib/supabase';
@@ -248,14 +248,17 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                         </div>
                     )}
 
-                    <div className="col-span-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                        <div className="text-[9px] font-bold text-slate-400 uppercase mb-1">Βάρος μονάδας (g)</div>
+                    <div className="col-span-2 flex min-w-0 items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50 px-2 py-1.5" title="Βάρος ανά μονάδα για τον υπολογισμό του Συνολικού Βάρους">
+                        <div className="flex min-w-0 items-center gap-1.5 text-[9px] font-bold uppercase text-slate-400">
+                            <Weight size={11} className="shrink-0" />
+                            <span className="truncate">Βάρος / μον.</span>
+                        </div>
                         {isEditing ? (
                             <input
                                 type="number"
                                 min="0"
                                 step="0.001"
-                                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-sm font-mono font-bold outline-none"
+                                className="w-24 shrink-0 rounded border border-slate-300 bg-white px-2 py-1 text-right text-sm font-mono font-bold outline-none"
                                 value={editForm.unit_weight_g ?? ''}
                                 onChange={e => setEditForm({
                                     ...editForm,
@@ -264,13 +267,12 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                                 placeholder="Άγνωστο"
                             />
                         ) : (
-                            <span className="text-sm font-mono font-bold text-slate-700">
+                            <span className="shrink-0 text-sm font-mono font-bold tabular-nums text-slate-700">
                                 {material.unit_weight_g === null || material.unit_weight_g === undefined
-                                    ? 'Άγνωστο'
+                                    ? '—'
                                     : `${material.unit_weight_g.toLocaleString('el-GR', { maximumFractionDigits: 3 })} g`}
                             </span>
                         )}
-                        <div className="mt-1 text-[9px] text-slate-400">Χρησιμοποιείται μόνο για το συνολικό βάρος παραστατικού.</div>
                     </div>
                     
                     <div className="col-span-2">

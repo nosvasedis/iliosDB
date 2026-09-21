@@ -1941,7 +1941,7 @@ export function validateLegalDocument(document: LegalDocument, lines: LegalDocum
       issues.push({
         field: `line.${line.line_number}.invoice_total_weight`,
         severity: 'warning',
-        message: `Η γραμμή ${line.line_number} (${line.item_code || line.sku}) δεν έχει συνολικό βάρος παραστατικού${missingItems.length ? `: ${missingItems.join(', ')}` : '.'}`,
+        message: `Η γραμμή ${line.line_number} (${line.item_code || line.sku}) δεν έχει Συνολικό Βάρος${missingItems.length ? `: ${missingItems.join(', ')}` : '.'}`,
       });
     }
   }

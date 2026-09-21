@@ -95,6 +95,11 @@ const getPaginationRange = (current: number, total: number) => {
     return range.filter((item, pos, self) => item !== '...' || self[pos - 1] !== '...');
 };
 
+const formatWeight = (value: number) => value.toLocaleString('el-GR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+});
+
 // ==========================================
 // GRID VIEW PRODUCT CARD - MEMOIZED
 // ==========================================
@@ -172,7 +177,8 @@ const ProductCard: React.FC<{
     };
 
     // --- WEIGHT CALCULATIONS (In-House vs STX) ---
-    const inHouseWeight = product.weight_g + (product.secondary_weight_g || 0);
+    const secondaryWeight = product.secondary_weight_g || 0;
+    const inHouseWeight = product.weight_g + secondaryWeight;
 
     const stxWeight = useMemo(() => {
         if (!product.recipe) return 0;
@@ -189,6 +195,7 @@ const ProductCard: React.FC<{
     }, [product.recipe, allProducts, productsMap]);
 
     const totalWeight = inHouseWeight + stxWeight;
+    const hasWeightBreakdown = secondaryWeight > 0 || stxWeight > 0;
     const invoiceTotalWeight = useMemo(
         () => resolveInvoiceTotalWeight(product, allProducts, materials),
         [product, allProducts, materials],
@@ -254,27 +261,44 @@ const ProductCard: React.FC<{
                     )}
                 </div>
 
-                <div className="flex gap-2 mb-4 items-start">
-                    <div className={`bg-slate-50 px-2 py-1 rounded text-[10px] font-bold text-slate-500 border border-slate-100 ${stxWeight > 0 ? 'flex flex-col gap-0.5 items-start' : 'flex items-center gap-1'}`}>
-                        <div className="flex items-center gap-1" title="In-House Metal Weight">
-                            <Weight size={10} /> <span>{inHouseWeight.toFixed(2)}g</span>
+                <div className="mb-4 rounded-xl border border-slate-100 bg-slate-50/70 px-2.5 py-2 text-[10px]">
+                    <div className="flex min-w-0 items-center gap-2" title="Βασικό + δευτερεύον + βάρος STX">
+                        <div className="flex shrink-0 items-center gap-1 font-bold uppercase tracking-wide text-slate-400">
+                            <Weight size={10} />
+                            <span>Βάρος</span>
                         </div>
-                        {stxWeight > 0 && (
-                            <>
-                                <div className="flex items-center gap-1 text-blue-500" title="Component (STX) Weight">
-                                    <Puzzle size={10} /> <span>+{stxWeight.toFixed(2)}g</span>
-                                </div>
-                                <div className="border-t border-slate-200 pt-0.5 mt-0.5 font-black text-slate-700 w-full" title="Total Metal Weight">
-                                    = {totalWeight.toFixed(2)}g
-                                </div>
-                            </>
-                        )}
+                        <div className="ml-auto flex min-w-0 flex-wrap items-baseline justify-end gap-x-1 font-mono font-bold tabular-nums text-slate-600">
+                            {hasWeightBreakdown ? (
+                                <>
+                                    <span title="Βασικό βάρος">{formatWeight(product.weight_g)}</span>
+                                    {secondaryWeight > 0 ? (
+                                        <><span className="text-slate-300">+</span><span title="Δευτερεύον βάρος">{formatWeight(secondaryWeight)}</span></>
+                                    ) : null}
+                                    {stxWeight > 0 ? (
+                                        <><span className="text-slate-300">+</span><span className="text-blue-500" title="Βάρος STX">{formatWeight(stxWeight)}</span></>
+                                    ) : null}
+                                    <span className="text-slate-300">=</span>
+                                    <span className="text-slate-800">{formatWeight(totalWeight)}g</span>
+                                </>
+                            ) : (
+                                <span className="text-slate-800">{formatWeight(product.weight_g)}g</span>
+                            )}
+                        </div>
                     </div>
-                    <div className="bg-slate-50 px-2 py-1 rounded text-[10px] font-bold text-slate-500 flex items-center gap-1 border border-slate-100 h-fit">
-                        <BookOpen size={10} /> {product.recipe.length + 1} υλικά
-                    </div>
-                    <div className={`px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 border h-fit ${invoiceTotalWeight.source === 'missing' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-emerald-100 bg-emerald-50 text-emerald-700'}`} title="Συνολικό βάρος παραστατικού">
-                        <Tag size={10} /> {invoiceTotalWeight.value === null ? 'Παραστ. —' : `Παραστ. ${invoiceTotalWeight.value.toFixed(2)}g`}
+                    <div className="mt-1.5 flex min-w-0 items-center justify-between gap-2 border-t border-slate-200/70 pt-1.5">
+                        <div className="flex shrink-0 items-center gap-1 font-medium text-slate-400">
+                            <BookOpen size={10} />
+                            <span>{product.recipe.length + 1} υλικά</span>
+                        </div>
+                        <div
+                            className={`min-w-0 truncate text-[9px] font-semibold ${invoiceTotalWeight.source === 'missing' ? 'text-amber-600' : 'text-slate-500'}`}
+                            title="Συνολικό Βάρος"
+                        >
+                            <span className="text-slate-400">Συνολικό Βάρος</span>{' '}
+                            <span className="font-mono font-bold tabular-nums text-slate-700">
+                                {invoiceTotalWeight.value === null ? '—' : `${formatWeight(invoiceTotalWeight.value)}g`}
+                            </span>
+                        </div>
                     </div>
                 </div>
 
@@ -793,15 +817,15 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                                 </div>
                                             </div>
                                             <div className="hidden md:flex items-center gap-8 px-4 flex-1 justify-center">
-                                                <div className="text-center w-16">
+                                                <div className="text-center w-24">
                                                     {isFirstInTeam && (
                                                         <>
                                                             <div className="text-[10px] uppercase font-bold text-slate-400">Βάρος</div>
-                                                            <div className="text-sm font-bold text-slate-700">
-                                                                {item.weight.toFixed(2)}g
+                                                            <div className="text-sm font-bold tabular-nums text-slate-700">
+                                                                {formatWeight(item.weight)}g
                                                             </div>
-                                                            <div className={`mt-0.5 text-[9px] font-bold ${invoiceTotalWeight.source === 'missing' ? 'text-amber-600' : 'text-emerald-600'}`} title="Συνολικό βάρος παραστατικού">
-                                                                Παραστ. {invoiceTotalWeight.value === null ? '—' : `${invoiceTotalWeight.value.toFixed(2)}g`}
+                                                            <div className={`mt-0.5 truncate text-[9px] font-semibold ${invoiceTotalWeight.source === 'missing' ? 'text-amber-600' : 'text-slate-400'}`} title="Συνολικό Βάρος">
+                                                                Σ&nbsp;{invoiceTotalWeight.value === null ? '—' : `${formatWeight(invoiceTotalWeight.value)}g`}
                                                             </div>
                                                         </>
                                                     )}
