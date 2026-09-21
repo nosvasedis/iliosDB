@@ -5,6 +5,7 @@ import {
   getIliosSuggestedPriceForProduct,
   getVariantComponents,
 } from '../../utils/pricingEngine';
+import { resolveInvoiceTotalWeight, type InvoiceTotalWeightResult } from '../../utils/invoiceTotalWeight';
 
 export interface RegistrySearchableProduct {
   product: Product;
@@ -59,6 +60,7 @@ export interface ProductRegistryTableVariant {
   costBreakdown: any;
   suggestedPrice: number;
   weight: number;
+  invoiceWeight: InvoiceTotalWeightResult;
 }
 
 export function buildSearchableProducts(
@@ -257,6 +259,7 @@ export function buildRegistryTableVariants(
   materialsMap?: Map<string, Material>,
 ): ProductRegistryTableVariant[] {
   return rows.map((row) => {
+    const invoiceWeight = resolveInvoiceTotalWeight(row.product, products, materials);
     if (row.variant) {
       const estCost = estimateVariantCost(row.product, row.variant.suffix, settings, materials, products, undefined, productsMap, materialsMap);
       const suggestedPrice = getIliosSuggestedPriceForProduct(row.product, row.variant.suffix, settings, materials, products, productsMap, materialsMap);
@@ -269,6 +272,7 @@ export function buildRegistryTableVariants(
         costBreakdown: estCost.breakdown,
         suggestedPrice,
         weight,
+        invoiceWeight,
       };
     }
 
@@ -283,6 +287,7 @@ export function buildRegistryTableVariants(
       costBreakdown: costCalc.breakdown,
       suggestedPrice,
       weight,
+      invoiceWeight,
     };
   });
 }

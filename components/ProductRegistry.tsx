@@ -21,6 +21,7 @@ import { productsRepository } from '../features/products';
 import { PrintLabelItem } from '../features/printing';
 import { resolveSellingPriceManualOverride } from '../utils/bulkPricingPreview';
 import DesktopPageHeader from './DesktopPageHeader';
+import { resolveInvoiceTotalWeight, type InvoiceTotalWeightResult } from '../utils/invoiceTotalWeight';
 import {
     buildPrintableSkuMap,
     buildRegistryTableVariants,
@@ -48,6 +49,7 @@ interface TableVariant {
     costBreakdown: any;
     suggestedPrice: number;
     weight: number;
+    invoiceWeight: InvoiceTotalWeightResult;
     image: string | null;
 }
 
@@ -187,6 +189,10 @@ const ProductCard: React.FC<{
     }, [product.recipe, allProducts, productsMap]);
 
     const totalWeight = inHouseWeight + stxWeight;
+    const invoiceTotalWeight = useMemo(
+        () => resolveInvoiceTotalWeight(product, allProducts, materials),
+        [product, allProducts, materials],
+    );
 
     return (
         <div
@@ -266,6 +272,9 @@ const ProductCard: React.FC<{
                     </div>
                     <div className="bg-slate-50 px-2 py-1 rounded text-[10px] font-bold text-slate-500 flex items-center gap-1 border border-slate-100 h-fit">
                         <BookOpen size={10} /> {product.recipe.length + 1} υλικά
+                    </div>
+                    <div className={`px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 border h-fit ${invoiceTotalWeight.source === 'missing' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-emerald-100 bg-emerald-50 text-emerald-700'}`} title="Συνολικό βάρος παραστατικού">
+                        <Tag size={10} /> {invoiceTotalWeight.value === null ? 'Παραστ. —' : `Παραστ. ${invoiceTotalWeight.value.toFixed(2)}g`}
                     </div>
                 </div>
 
@@ -749,6 +758,7 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                 const isSelected = selectedSkus.has(item.variantSku);
                                 const profit = item.price - item.cost;
                                 const margin = item.price > 0 ? (profit / item.price) * 100 : 0;
+                                const invoiceTotalWeight = item.invoiceWeight;
 
                                 const prevItem = virtualRow.index > 0 ? tableVariants[virtualRow.index - 1] : null;
                                 const isFirstInTeam = !prevItem || prevItem.masterSku !== item.masterSku;
@@ -789,6 +799,9 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                                             <div className="text-[10px] uppercase font-bold text-slate-400">Βάρος</div>
                                                             <div className="text-sm font-bold text-slate-700">
                                                                 {item.weight.toFixed(2)}g
+                                                            </div>
+                                                            <div className={`mt-0.5 text-[9px] font-bold ${invoiceTotalWeight.source === 'missing' ? 'text-amber-600' : 'text-emerald-600'}`} title="Συνολικό βάρος παραστατικού">
+                                                                Παραστ. {invoiceTotalWeight.value === null ? '—' : `${invoiceTotalWeight.value.toFixed(2)}g`}
                                                             </div>
                                                         </>
                                                     )}

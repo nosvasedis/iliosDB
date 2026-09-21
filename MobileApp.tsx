@@ -240,7 +240,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
     pricelist: <MobilePriceList onPrint={setPriceListPrintData} />,
     offers: <MobileOffers onPrintOffer={setOfferToPrint} />,
     analytics: <MobileAnalytics products={products} onPrint={(data) => setAnalyticsPrintData({ ...data, title: 'Οικονομική Ανάλυση' })} />,
-    legal: <LegalDocumentsPage products={products} onPrintLegalDocument={setLegalDocumentToPrint} onPrintProforma={setProformaToPrint} />,
+    legal: <LegalDocumentsPage products={products} materials={materials} onPrintLegalDocument={setLegalDocumentToPrint} onPrintProforma={setProformaToPrint} />,
     sellers: <MobileSellers />,
   };
 

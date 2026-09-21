@@ -19,6 +19,7 @@ describe('product mappers', () => {
           gender: Gender.Women,
           image_url: 'uploads/foo.jpg',
           weight_g: 2,
+          invoice_total_weight_g: '5.50',
           plating_type: PlatingType.None,
           production_type: ProductionType.InHouse,
           active_price: 10,
@@ -75,6 +76,7 @@ describe('product mappers', () => {
     expect(products[0].variants?.[0].location_stock.central).toBe(3);
     expect(products[0].labor.casting_cost_manual_override).toBe(true);
     expect(products[0].labor.casting_cost).toBe(1);
+    expect(products[0].invoice_total_weight_g).toBe(5.5);
     expect(products[0].created_at).toBe(new Date(0).toISOString());
   });
 
@@ -89,6 +91,7 @@ describe('product mappers', () => {
           image_url: null,
           weight_g: 1,
           secondary_weight_g: null,
+          invoice_total_weight_g: null,
           plating_type: PlatingType.None,
           production_type: ProductionType.Imported,
           stock_qty: 2,
@@ -117,5 +120,6 @@ describe('product mappers', () => {
     expect(products[0].recipe).toEqual([]);
     expect(products[0].created_at).toBe('2024-01-01T00:00:00.000Z');
     expect(products[0].production_type).toBe(ProductionType.Imported);
+    expect(products[0].invoice_total_weight_g).toBeNull();
   });
 });

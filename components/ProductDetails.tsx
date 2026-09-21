@@ -50,6 +50,7 @@ import ConvertToInhouseModal from './ConvertToInhouseModal';
 import BarcodeGallery from './ProductRegistry/BarcodeGallery';
 import { PrintLabelItem } from '../features/printing';
 import { dispatchLiveActivity } from '../hooks/useLiveActivity';
+import { resolveInvoiceTotalWeight } from '../utils/invoiceTotalWeight';
 
 interface Props {
     product: Product;
@@ -907,6 +908,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     image_url: finalEditedProduct.image_url,
                     weight_g: finalEditedProduct.weight_g,
                     secondary_weight_g: finalEditedProduct.secondary_weight_g || null,
+                    invoice_total_weight_g: finalEditedProduct.invoice_total_weight_g && finalEditedProduct.invoice_total_weight_g > 0
+                        ? finalEditedProduct.invoice_total_weight_g
+                        : null,
                     selling_price: isComponent ? 0 : finalEditedProduct.selling_price,
                     selling_price_manual_override: isComponent ? false : !!finalEditedProduct.selling_price_manual_override,
                     plating_type: finalEditedProduct.plating_type,
@@ -1149,6 +1153,10 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     }, [editedProduct.gender, editedProduct.category]);
 
     const totalWeightForSilver = editedProduct.weight_g + (editedProduct.secondary_weight_g || 0);
+    const invoiceTotalWeightResult = useMemo(
+        () => resolveInvoiceTotalWeight(editedProduct, allProducts, allMaterials),
+        [editedProduct, allProducts, allMaterials],
+    );
 
     const analyticalCostingItems = useMemo(() => {
         return getAnalyticalCostingItems(hasVariants, sortedVariantsList, product.sku, editedProduct, settings, allMaterials, allProducts, currentCostCalc);
@@ -1582,6 +1590,44 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                             </label>
                                                             <input type="number" step="0.01" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold font-mono text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all" value={editedProduct.secondary_weight_g} onChange={e => setEditedProduct({ ...editedProduct, secondary_weight_g: parseFloat(e.target.value) || 0 })} />
                                                         </div>
+                                                        <div className={`col-span-2 rounded-xl border p-4 ${invoiceTotalWeightResult.source === 'missing' ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50/60'}`}>
+                                                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                                                <div>
+                                                                    <label className="text-[11px] font-bold uppercase tracking-wide text-slate-600">Συνολικό βάρος παραστατικού (g)</label>
+                                                                    <p className="mt-1 text-[10px] text-slate-500">Ανεξάρτητο από τους υπολογισμούς κόστους και παραγωγής.</p>
+                                                                </div>
+                                                                <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${invoiceTotalWeightResult.source === 'manual' ? 'bg-blue-100 text-blue-700' : invoiceTotalWeightResult.source === 'automatic' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                                    {invoiceTotalWeightResult.source === 'manual' ? 'Χειροκίνητο' : invoiceTotalWeightResult.source === 'automatic' ? 'Αυτόματο' : 'Ελλιπές'}
+                                                                </span>
+                                                            </div>
+                                                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                                                                <input
+                                                                    type="number"
+                                                                    min="0.01"
+                                                                    step="0.01"
+                                                                    className="w-full max-w-xs rounded-xl border border-slate-200 bg-white p-2.5 font-mono font-bold text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10"
+                                                                    value={editedProduct.invoice_total_weight_g ?? ''}
+                                                                    onChange={e => setEditedProduct({ ...editedProduct, invoice_total_weight_g: e.target.value === '' ? null : Number(e.target.value) })}
+                                                                    placeholder={invoiceTotalWeightResult.value === null ? 'Χειροκίνητη τιμή' : invoiceTotalWeightResult.value.toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                />
+                                                                {editedProduct.invoice_total_weight_g !== null && editedProduct.invoice_total_weight_g !== undefined && (
+                                                                    <button type="button" onClick={() => setEditedProduct({ ...editedProduct, invoice_total_weight_g: null })} className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50">
+                                                                        <RefreshCw size={13} /> Επιστροφή σε αυτόματο
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                            {invoiceTotalWeightResult.value !== null && (
+                                                                <p className="mt-2 text-xs font-bold text-slate-700">Τιμή παραστατικού: {invoiceTotalWeightResult.value.toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}gr</p>
+                                                            )}
+                                                            {invoiceTotalWeightResult.missingItems.length > 0 && (
+                                                                <div className="mt-3 flex gap-2 text-xs text-amber-800">
+                                                                    <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                                                                    <ul className="list-disc space-y-1 pl-4">
+                                                                        {invoiceTotalWeightResult.missingItems.map(item => <li key={item}>{item}</li>)}
+                                                                    </ul>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                         <div>
                                                             <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
                                                                 <Users size={11} className="text-slate-400" /> Φύλο
@@ -1926,6 +1972,37 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                             </label>
                                                             <input className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-medium text-slate-700 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/10 transition-all" value={editedProduct.category} onChange={e => setEditedProduct({ ...editedProduct, category: e.target.value })} />
                                                         </div>
+                                                    </div>
+                                                    <div className={`mt-4 rounded-xl border p-4 ${invoiceTotalWeightResult.source === 'missing' ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50/60'}`}>
+                                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                                            <label className="text-[11px] font-bold uppercase tracking-wide text-slate-600">Συνολικό βάρος παραστατικού (g)</label>
+                                                            <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${invoiceTotalWeightResult.source === 'manual' ? 'bg-blue-100 text-blue-700' : invoiceTotalWeightResult.source === 'automatic' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                                {invoiceTotalWeightResult.source === 'manual' ? 'Χειροκίνητο' : invoiceTotalWeightResult.source === 'automatic' ? 'Αυτόματο' : 'Ελλιπές'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                                                            <input
+                                                                type="number"
+                                                                min="0.01"
+                                                                step="0.01"
+                                                                className="w-full max-w-xs rounded-xl border border-slate-200 bg-white p-2.5 font-mono font-bold text-slate-700 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/10"
+                                                                value={editedProduct.invoice_total_weight_g ?? ''}
+                                                                onChange={e => setEditedProduct({ ...editedProduct, invoice_total_weight_g: e.target.value === '' ? null : Number(e.target.value) })}
+                                                                placeholder={invoiceTotalWeightResult.value === null ? 'Χειροκίνητη τιμή' : invoiceTotalWeightResult.value.toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                            />
+                                                            {editedProduct.invoice_total_weight_g !== null && editedProduct.invoice_total_weight_g !== undefined && (
+                                                                <button type="button" onClick={() => setEditedProduct({ ...editedProduct, invoice_total_weight_g: null })} className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50">
+                                                                    <RefreshCw size={13} /> Επιστροφή σε αυτόματο
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                        {invoiceTotalWeightResult.value !== null && <p className="mt-2 text-xs font-bold text-slate-700">Τιμή παραστατικού: {invoiceTotalWeightResult.value.toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}gr</p>}
+                                                        {invoiceTotalWeightResult.missingItems.length > 0 && (
+                                                            <div className="mt-3 flex gap-2 text-xs text-amber-800">
+                                                                <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                                                                <ul className="list-disc space-y-1 pl-4">{invoiceTotalWeightResult.missingItems.map(item => <li key={item}>{item}</li>)}</ul>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
 

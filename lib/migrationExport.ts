@@ -24,7 +24,7 @@ type Schema = Record<string, readonly string[]>;
 export const MIGRATION_SCHEMAS: Schema = {
     customers: ['id', 'full_name', 'phone', 'email', 'address', 'vat_number', 'vat_rate', 'notes', 'created_at'],
     suppliers: ['id', 'name', 'contact_person', 'phone', 'email', 'address', 'notes'],
-    products: ['sku', 'prefix', 'category', 'description', 'gender', 'weight_g', 'secondary_weight_g', 'production_type', 'supplier_id', 'supplier_sku', 'supplier_cost', 'active_price', 'selling_price', 'stock_qty', 'sample_qty', 'is_component', 'created_at'],
+    products: ['sku', 'prefix', 'category', 'description', 'gender', 'weight_g', 'secondary_weight_g', 'invoice_total_weight_g', 'production_type', 'supplier_id', 'supplier_sku', 'supplier_cost', 'active_price', 'selling_price', 'stock_qty', 'sample_qty', 'is_component', 'created_at'],
     product_variants: ['product_sku', 'suffix', 'description', 'stock_qty', 'active_price', 'selling_price'],
     warehouses: ['id', 'name', 'type', 'category', 'address', 'is_system', 'updated_at', 'updated_by'],
     product_stock: ['product_sku', 'warehouse_id', 'variant_suffix', 'size_info', 'quantity'],
@@ -36,7 +36,7 @@ export const MIGRATION_SCHEMAS: Schema = {
     inventory_cutover_balance_snapshot: ['snapshot_id', 'captured_at', 'product_sku', 'variant_suffix', 'size_info', 'warehouse_id', 'on_hand', 'reserved'],
     inventory_shipment_allocations: ['id', 'shipment_id', 'shipment_item_id', 'reservation_id', 'product_sku', 'variant_suffix', 'size_info', 'warehouse_id', 'quantity', 'issue_event_id', 'created_at'],
     inventory_reconciliation_issues: ['id', 'issue_type', 'severity', 'product_sku', 'variant_suffix', 'size_info', 'warehouse_id', 'expected_quantity', 'actual_quantity', 'details', 'resolved_at', 'resolved_by', 'resolution_note', 'created_at'],
-    materials: ['id', 'name', 'description', 'type', 'cost_per_unit', 'unit', 'supplier_id', 'stock_qty', 'stones_per_strand'],
+    materials: ['id', 'name', 'description', 'type', 'cost_per_unit', 'unit', 'unit_weight_g', 'supplier_id', 'stock_qty', 'stones_per_strand'],
     bom_lines: ['product_sku', 'line_number', 'item_type', 'material_id', 'component_sku', 'quantity'],
     molds: ['code', 'location', 'description', 'weight_g'],
     product_molds: ['product_sku', 'mold_code', 'quantity'],

@@ -19,7 +19,7 @@ const TABLE_DOMAIN_MAP: Record<string, RealtimeInvalidationDomain[]> = {
     inventory_reorder_policies: ['inventory'],
     inventory_reconciliation_issues: ['inventory'],
     collections: ['collections', 'products'],
-    materials: ['resources'],
+    materials: ['resources', 'products', 'legal'],
     molds: ['resources'],
     warehouses: ['resources', 'inventory'],
     global_settings: ['settings'],

@@ -162,6 +162,7 @@ async function persistFullCatalogMirror(products: Product[]): Promise<void> {
       'product_collections',
       'inventory_balances',
       'suppliers',
+      'materials',
     ] as const) {
       const rows = await offlineDb.getTable(tableName);
       if (rows) tables[tableName] = rows;

@@ -64,6 +64,19 @@ describe('canonical migration export', () => {
         expect(csv).toContain('b@example.test');
     });
 
+    it('exports invoice total and material unit weight in the canonical schema', () => {
+        const migration = buildCanonicalMigration({
+            products: [{ sku: 'A1', invoice_total_weight_g: 5.5 }],
+            materials: [{ id: 'm1', name: 'Κορδόνι', unit_weight_g: 0.25 }],
+        });
+        const files = buildMigrationCsvFiles(migration);
+
+        expect(files['products.csv'].split('\r\n')[0]).toContain('invoice_total_weight_g');
+        expect(files['products.csv']).toContain('5.5');
+        expect(files['materials.csv'].split('\r\n')[0]).toContain('unit_weight_g');
+        expect(files['materials.csv']).toContain('0.25');
+    });
+
     it('quotes Greek text, delimiters, quotes, and newlines correctly', () => {
         const migration = buildCanonicalMigration({
             customers: [{

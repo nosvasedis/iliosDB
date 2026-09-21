@@ -162,6 +162,19 @@ export const StepReview: React.FC<Props> = ({ formState, settings, materials, pr
                                     <span className="text-[10px] text-slate-400 font-bold block">ΣΥΝΟΛΟ ΕΡΓΑΤΙΚΩΝ</span>
                                     <span className="font-mono text-slate-800 font-bold text-sm">{formatCurrency(state.costBreakdown?.labor)}</span>
                                 </div>
+                                <div className="col-span-2 rounded-xl border border-slate-100 bg-slate-50 p-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="text-[10px] text-slate-400 font-bold">ΒΑΡΟΣ ΠΑΡΑΣΤΑΤΙΚΟΥ</span>
+                                        <span className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${state.invoiceTotalWeightResult.source === 'manual' ? 'bg-blue-100 text-blue-700' : state.invoiceTotalWeightResult.source === 'automatic' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                            {state.invoiceTotalWeightResult.source === 'manual' ? 'Χειροκίνητο' : state.invoiceTotalWeightResult.source === 'automatic' ? 'Αυτόματο' : 'Ελλιπές'}
+                                        </span>
+                                    </div>
+                                    <span className="mt-1 block font-mono text-sm font-bold text-slate-800">
+                                        {state.invoiceTotalWeightResult.value === null
+                                            ? '—'
+                                            : `${state.invoiceTotalWeightResult.value.toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}gr`}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </div>

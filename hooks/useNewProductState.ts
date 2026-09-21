@@ -28,6 +28,7 @@ import {
 import { findDuplicateSkuIdentity } from '../features/products/skuDuplicateValidation';
 import { useAuth } from '../components/AuthContext';
 import { dispatchLiveActivity } from './useLiveActivity';
+import { resolveInvoiceTotalWeight } from '../utils/invoiceTotalWeight';
 
 export interface UseNewProductStateProps {
     products: Product[];
@@ -56,6 +57,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
 
     const [weight, setWeight] = useState(0);
     const [secondaryWeight, setSecondaryWeight] = useState(0);
+    const [invoiceTotalWeight, setInvoiceTotalWeight] = useState<number | null>(null);
     const [plating, setPlating] = useState<PlatingType>(PlatingType.None);
     const [selectedFinishes, setSelectedFinishes] = useState<string[]>(['']);
     const [finishPrices, setFinishPrices] = useState<Record<string, number>>({});
@@ -116,6 +118,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             setIsGenderManuallySet(true);
             setWeight(duplicateTemplate.weight_g);
             setSecondaryWeight(duplicateTemplate.secondary_weight_g || 0);
+            setInvoiceTotalWeight(duplicateTemplate.invoice_total_weight_g ?? null);
             setPlating(duplicateTemplate.plating_type);
             setSupplierId(duplicateTemplate.supplier_id || '');
             setSupplierSku(duplicateTemplate.supplier_sku || '');
@@ -271,7 +274,13 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
         labor,
     }),
         variants,
-    }), [sku, detectedMasterSku, category, gender, imagePreview, weight, secondaryWeight, plating, productionType, supplierId, supplierSku, supplierCost, sellingPrice, selectedMolds, isSTX, stxDescription, recipe, labor, variants]);
+        invoice_total_weight_g: invoiceTotalWeight,
+    }), [sku, detectedMasterSku, category, gender, imagePreview, weight, secondaryWeight, invoiceTotalWeight, plating, productionType, supplierId, supplierSku, supplierCost, sellingPrice, selectedMolds, isSTX, stxDescription, recipe, labor, variants]);
+
+    const invoiceTotalWeightResult = useMemo(
+        () => resolveInvoiceTotalWeight(currentTempProduct, products, materials),
+        [currentTempProduct, products, materials],
+    );
 
     useEffect(() => {
         if (!settings) return;
@@ -577,7 +586,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             if (selectedImage) {
                 try { const compressedBlob = await compressImage(selectedImage); finalImageUrl = await uploadProductImageForSku(compressedBlob, finalMasterSku); } catch (imgErr) { console.warn("Image upload skipped (offline?)"); showToast("Η εικόνα δεν ανέβηκε λόγω σύνδεσης.", "info"); }
             }
-            const productData = { sku: finalMasterSku, prefix: finalMasterSku.substring(0, 2), category, description: isSTX ? stxDescription : null, gender, image_url: finalImageUrl, weight_g: Number(weight) || 0, secondary_weight_g: Number(secondaryWeight) || null, plating_type: plating, active_price: masterEstimatedCost, draft_price: masterEstimatedCost, selling_price: finalSellingPrice, selling_price_manual_override: !isSTX && !useIliosFormula, stock_qty: existingStockQty, sample_qty: existingSampleQty, is_component: isSTX, labor_casting: Number(labor.casting_cost), labor_setter: Number(labor.setter_cost), labor_technician: Number(labor.technician_cost), labor_plating_x: Number(labor.plating_cost_x || 0), labor_plating_d: Number(labor.plating_cost_d || 0), labor_subcontract: Number(labor.subcontract_cost || 0), labor_casting_manual_override: labor.casting_cost_manual_override, labor_technician_manual_override: labor.technician_cost_manual_override, labor_plating_x_manual_override: labor.plating_cost_x_manual_override, labor_plating_d_manual_override: labor.plating_cost_d_manual_override, production_type: productionType, supplier_id: (productionType === ProductionType.Imported && supplierId) ? supplierId : null, supplier_sku: productionType === ProductionType.Imported ? supplierSku : null, supplier_cost: productionType === ProductionType.Imported ? supplierCost : null, labor_stone_setting: productionType === ProductionType.Imported ? labor.stone_setting_cost : null };
+            const productData = { sku: finalMasterSku, prefix: finalMasterSku.substring(0, 2), category, description: isSTX ? stxDescription : null, gender, image_url: finalImageUrl, weight_g: Number(weight) || 0, secondary_weight_g: Number(secondaryWeight) || null, invoice_total_weight_g: invoiceTotalWeight && invoiceTotalWeight > 0 ? invoiceTotalWeight : null, plating_type: plating, active_price: masterEstimatedCost, draft_price: masterEstimatedCost, selling_price: finalSellingPrice, selling_price_manual_override: !isSTX && !useIliosFormula, stock_qty: existingStockQty, sample_qty: existingSampleQty, is_component: isSTX, labor_casting: Number(labor.casting_cost), labor_setter: Number(labor.setter_cost), labor_technician: Number(labor.technician_cost), labor_plating_x: Number(labor.plating_cost_x || 0), labor_plating_d: Number(labor.plating_cost_d || 0), labor_subcontract: Number(labor.subcontract_cost || 0), labor_casting_manual_override: labor.casting_cost_manual_override, labor_technician_manual_override: labor.technician_cost_manual_override, labor_plating_x_manual_override: labor.plating_cost_x_manual_override, labor_plating_d_manual_override: labor.plating_cost_d_manual_override, production_type: productionType, supplier_id: (productionType === ProductionType.Imported && supplierId) ? supplierId : null, supplier_sku: productionType === ProductionType.Imported ? supplierSku : null, supplier_cost: productionType === ProductionType.Imported ? supplierCost : null, labor_stone_setting: productionType === ProductionType.Imported ? labor.stone_setting_cost : null };
             const { anyPartQueued } = await saveProductGraph({
                 finalMasterSku,
                 productData,
@@ -603,7 +612,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             setVariants(finalVariants);
             setSellingPrice(finalSellingPrice);
             if (onCancel) onCancel();
-            else { setSku(''); setWeight(0); setRecipe([]); setSellingPrice(0); setSelectedMolds([]); setSelectedImage(null); setImagePreview(''); setVariants([]); setCurrentStep(1); setSecondaryWeight(0); setSupplierCost(0); setSupplierId(''); setSupplierSku(''); setStxDescription(''); setSelectedFinishes(['']); setBridge(''); setFinishPrices({}); setIsAssembly(false); setUseIliosFormula(true); setIsSTXManuallySet(false); }
+            else { setSku(''); setWeight(0); setRecipe([]); setSellingPrice(0); setSelectedMolds([]); setSelectedImage(null); setImagePreview(''); setVariants([]); setCurrentStep(1); setSecondaryWeight(0); setInvoiceTotalWeight(null); setSupplierCost(0); setSupplierId(''); setSupplierSku(''); setStxDescription(''); setSelectedFinishes(['']); setBridge(''); setFinishPrices({}); setIsAssembly(false); setUseIliosFormula(true); setIsSTXManuallySet(false); }
         } catch (error: any) { console.error("Save error:", error); showToast(`Σφάλμα: ${error?.message || error}`, "error"); } finally { setIsUploading(false); }
     };
 
@@ -698,7 +707,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             category, gender, genderLabel,
             imagePreview, selectedImage, isUploading,
             supplierId, supplierSku, supplierCost,
-            weight, secondaryWeight, secondaryWeightLabel,
+            weight, secondaryWeight, secondaryWeightLabel, invoiceTotalWeight, invoiceTotalWeightResult,
             plating, platingMasterLabel, selectedFinishes, finishPrices,
             sellingPrice, masterEstimatedCost, masterMargin,
             useIliosFormula,
@@ -716,7 +725,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             setSku, setCategory, setGender, setIsCategoryManuallySet, setIsGenderManuallySet,
             setImagePreview, setSelectedImage,
             setSupplierId, setSupplierSku, setSupplierCost,
-            setWeight, setSecondaryWeight, setPlating, setFinishPrices,
+            setWeight, setSecondaryWeight, setInvoiceTotalWeight, setPlating, setFinishPrices,
             setSellingPrice, setLabor, setStxDescription, setIsSTX, setIsSTXManuallySet,
             setUseIliosFormula,
             setNewVariantSuffix, setNewVariantDesc, setNewVariantPrice, setSmartAddStoneSuffix,

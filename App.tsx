@@ -438,7 +438,7 @@ function ErpAppContent() {
     analytics: <AnalyticsView products={products} onBack={() => handleNav('dashboard')} onPrint={(data) => setAnalyticsPrintData({ ...data, title: 'Οικονομική Ανάλυση' })} />,
     offers: <OffersPage products={products} materials={materials} settings={settings} collections={collections} onPrintOffer={setOfferToPrint} />,
     deliveries: <DeliveriesPage pendingOrderId={pendingDeliveryOrderId} onConsumePendingOrderId={() => setPendingDeliveryOrderId(null)} onOpenOrder={() => handleNav('orders')} />,
-    legal: <LegalDocumentsPage products={products} onPrintLegalDocument={setLegalDocumentToPrint} onPrintProforma={setProformaToPrint} />,
+    legal: <LegalDocumentsPage products={products} materials={materials} onPrintLegalDocument={setLegalDocumentToPrint} onPrintProforma={setProformaToPrint} />,
   };
 
   return (

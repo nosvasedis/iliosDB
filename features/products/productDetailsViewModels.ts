@@ -13,6 +13,7 @@ export function buildEditableProduct(product: Product): Product {
     molds: product.molds || [],
     collections: product.collections || [],
     secondary_weight_g: product.secondary_weight_g || 0,
+    invoice_total_weight_g: product.invoice_total_weight_g ?? null,
     production_type: product.production_type || ProductionType.InHouse,
     supplier_id: product.supplier_id,
     supplier_sku: product.supplier_sku,

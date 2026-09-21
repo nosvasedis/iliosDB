@@ -19,6 +19,7 @@ import {
   LegalSyncParams,
   LegalTotals,
   LegalValidationIssue,
+  Material,
   Order,
   OrderItem,
   OrderShipment,
@@ -30,6 +31,8 @@ import {
   ProformaDocument,
   ProformaDocumentLine,
 } from '../types';
+import { resolveInvoiceTotalWeight } from './invoiceTotalWeight';
+import { formatDecimal } from './pricingEngine';
 import {
   isLegalRepairItemCode,
   isLegalReservedItemCode,
@@ -859,20 +862,46 @@ const LEGAL_SILVER_DESCRIPTION_SUFFIX = 'Ασήμι 925°';
 
 /** Invoice/proforma line description: product category from Μητρώο plus the common material. */
 export function getLegalProductLineDescription(
-  product?: Pick<Product, 'category' | 'sku'> | null,
+  product?: Product | null,
   fallbackSku?: string,
+  products: readonly Product[] = [],
+  materials: readonly Material[] = [],
 ): string {
   if (isLegalShippingItemCode(product?.sku || fallbackSku)) return LEGAL_SHIPPING_ITEM_DESCRIPTION;
   if (isLegalRepairItemCode(product?.sku || fallbackSku)) return LEGAL_REPAIR_ITEM_DESCRIPTION;
 
   const baseDescription = String(product?.category || fallbackSku || product?.sku || '').trim();
   if (!baseDescription) return '—';
-  if (!product || baseDescription.endsWith(LEGAL_SILVER_DESCRIPTION_SUFFIX)) return baseDescription;
-  return `${baseDescription} · ${LEGAL_SILVER_DESCRIPTION_SUFFIX}`;
+  if (!product) return baseDescription;
+  const silverDescription = baseDescription.endsWith(LEGAL_SILVER_DESCRIPTION_SUFFIX)
+    ? baseDescription
+    : `${baseDescription} · ${LEGAL_SILVER_DESCRIPTION_SUFFIX}`;
+  const totalWeight = resolveInvoiceTotalWeight(product, products, materials);
+  if (totalWeight.value === null) return silverDescription;
+  return `${silverDescription} · ${formatDecimal(totalWeight.value, 2)}gr`;
 }
 
-function getItemDescription(item: OrderItem | OrderShipmentItem, product?: Product): string {
-  return getLegalProductLineDescription(product, item.sku);
+function getItemDescription(
+  item: OrderItem | OrderShipmentItem,
+  product: Product | undefined,
+  products: readonly Product[],
+  materials: readonly Material[],
+): string {
+  return getLegalProductLineDescription(product, item.sku, products, materials);
+}
+
+function getInvoiceWeightSourceMetadata(
+  product: Product,
+  products: readonly Product[],
+  materials: readonly Material[],
+): NonNullable<LegalDocumentLine['source_metadata']> {
+  if (isLegalReservedItemCode(product.sku)) return {};
+  const result = resolveInvoiceTotalWeight(product, products, materials);
+  return {
+    invoice_total_weight_g: result.value,
+    invoice_total_weight_source: result.source,
+    invoice_total_weight_missing_items: result.missingItems,
+  };
 }
 
 function normalizeIncomeClassificationForDocumentType(
@@ -973,6 +1002,8 @@ export function getLegalCatalogLineDetails(
   settings: LegalSettings,
   variant_suffix?: string | null,
   aadeDocumentType?: AadeDocumentType,
+  products: readonly Product[] = [product],
+  materials: readonly Material[] = [],
 ) {
   const variant = variant_suffix
     ? product.variants?.find((item) => item.suffix === variant_suffix)
@@ -983,7 +1014,7 @@ export function getLegalCatalogLineDetails(
     sku: product.sku,
     variant_suffix: suffix,
     item_code: product.sku + (suffix || ''),
-    description: getLegalProductLineDescription(product),
+    description: getLegalProductLineDescription(product, product.sku, products, materials),
     unit_price: unitPrice,
     income_classification: resolveLegalIncomeClassification({
       product,
@@ -992,6 +1023,7 @@ export function getLegalCatalogLineDetails(
       documentType: aadeDocumentType,
       itemCode: product.sku,
     }),
+    source_metadata: getInvoiceWeightSourceMetadata(product, products, materials),
   };
 }
 
@@ -1035,6 +1067,7 @@ function buildLinesFromOrderItems(params: {
   documentId: string;
   items: Array<OrderItem | OrderShipmentItem>;
   products: Product[];
+  materials?: Material[];
   settings: LegalSettings;
   vatRate: number;
   discountPercent?: number;
@@ -1061,7 +1094,7 @@ function buildLinesFromOrderItems(params: {
       line_number: index + 1,
       sku: item.sku,
       variant_suffix: item.variant_suffix || null,
-      description: getItemDescription(item, product),
+      description: getItemDescription(item, product, params.products, params.materials || []),
       quantity: item.quantity,
       unit_price: roundMoney(unitPrice * discountFactor),
       net_value: netValue,
@@ -1076,6 +1109,7 @@ function buildLinesFromOrderItems(params: {
       source_metadata: {
         original_unit_price: roundMoney(unitPrice),
         discount_percent: params.discountPercent || 0,
+        ...(product ? getInvoiceWeightSourceMetadata(product, params.products, params.materials || []) : {}),
       },
       created_at: new Date().toISOString(),
     };
@@ -1440,6 +1474,7 @@ export function buildProformaFromOrder(params: {
   order: Order;
   customer?: Customer | null;
   products: Product[];
+  materials?: Material[];
   settings: LegalSettings;
   userName?: string | null;
 }): ProformaDocument {
@@ -1447,6 +1482,7 @@ export function buildProformaFromOrder(params: {
     order: params.order,
     customer: params.customer,
     products: params.products,
+    materials: params.materials,
     settings: params.settings,
     kind: 'invoice',
     userName: params.userName,
@@ -1677,6 +1713,7 @@ export function buildLegalDocumentFromOrder(params: {
   order: Order;
   customer?: Customer | null;
   products: Product[];
+  materials?: Material[];
   settings: LegalSettings;
   kind: LegalDocumentKind;
   userName?: string | null;
@@ -1691,6 +1728,7 @@ export function buildLegalDocumentFromOrder(params: {
     documentId: id,
     items: params.order.items || [],
     products: params.products,
+    materials: params.materials,
     settings: params.settings,
     vatRate,
     discountPercent: params.order.discount_percent || 0,
@@ -1734,6 +1772,7 @@ export function buildLegalDocumentFromShipment(params: {
   shipmentItems: OrderShipmentItem[];
   customer?: Customer | null;
   products: Product[];
+  materials?: Material[];
   settings: LegalSettings;
   kind: LegalDocumentKind;
   userName?: string | null;
@@ -1748,6 +1787,7 @@ export function buildLegalDocumentFromShipment(params: {
     documentId: id,
     items: params.shipmentItems || [],
     products: params.products,
+    materials: params.materials,
     settings: params.settings,
     vatRate,
     discountPercent: params.order.discount_percent || 0,
@@ -1895,6 +1935,14 @@ export function validateLegalDocument(document: LegalDocument, lines: LegalDocum
     }
     if (line.income_classification?.classification_category && !isAllowedIncomeClassification(document.aade_document_type, line.income_classification)) {
       issues.push({ field: `line.${line.line_number}.classification`, severity: 'error', message: `Ο χαρακτηρισμός της γραμμής ${line.line_number} δεν επιτρέπεται για τύπο ΑΑΔΕ ${document.aade_document_type} σύμφωνα με τους επίσημους συνδυασμούς χαρακτηρισμών.` });
+    }
+    if (line.source_metadata?.invoice_total_weight_source === 'missing') {
+      const missingItems = line.source_metadata.invoice_total_weight_missing_items || [];
+      issues.push({
+        field: `line.${line.line_number}.invoice_total_weight`,
+        severity: 'warning',
+        message: `Η γραμμή ${line.line_number} (${line.item_code || line.sku}) δεν έχει συνολικό βάρος παραστατικού${missingItems.length ? `: ${missingItems.join(', ')}` : '.'}`,
+      });
     }
   }
 

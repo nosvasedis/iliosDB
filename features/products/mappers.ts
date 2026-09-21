@@ -58,6 +58,7 @@ type RawProductRow = {
   image_url?: string | null;
   weight_g: number | string;
   secondary_weight_g?: number | string | null;
+  invoice_total_weight_g?: number | string | null;
   plating_type: PlatingType;
   production_type?: ProductionType | string | null;
   supplier_id?: string | null;
@@ -266,6 +267,7 @@ function mapProductRow(
     image_url: resolveProductImageUrl(row.image_url, context.publicImageBaseUrl),
     weight_g: Number(row.weight_g),
     secondary_weight_g: row.secondary_weight_g != null ? Number(row.secondary_weight_g) : undefined,
+    invoice_total_weight_g: row.invoice_total_weight_g != null ? Number(row.invoice_total_weight_g) : null,
     plating_type: row.plating_type,
     production_type: (row.production_type as ProductionType) || ProductionType.InHouse,
     supplier_id: row.supplier_id || null,

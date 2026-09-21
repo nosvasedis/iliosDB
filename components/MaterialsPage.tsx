@@ -247,6 +247,31 @@ const MaterialCard: React.FC<MaterialCardProps> = ({
                             </div>
                         </div>
                     )}
+
+                    <div className="col-span-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                        <div className="text-[9px] font-bold text-slate-400 uppercase mb-1">Βάρος μονάδας (g)</div>
+                        {isEditing ? (
+                            <input
+                                type="number"
+                                min="0"
+                                step="0.001"
+                                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-sm font-mono font-bold outline-none"
+                                value={editForm.unit_weight_g ?? ''}
+                                onChange={e => setEditForm({
+                                    ...editForm,
+                                    unit_weight_g: e.target.value === '' ? null : Math.max(0, Number(e.target.value)),
+                                })}
+                                placeholder="Άγνωστο"
+                            />
+                        ) : (
+                            <span className="text-sm font-mono font-bold text-slate-700">
+                                {material.unit_weight_g === null || material.unit_weight_g === undefined
+                                    ? 'Άγνωστο'
+                                    : `${material.unit_weight_g.toLocaleString('el-GR', { maximumFractionDigits: 3 })} g`}
+                            </span>
+                        )}
+                        <div className="mt-1 text-[9px] text-slate-400">Χρησιμοποιείται μόνο για το συνολικό βάρος παραστατικού.</div>
+                    </div>
                     
                     <div className="col-span-2">
                         {isEditing ? (
@@ -380,6 +405,7 @@ export default function MaterialsPage({ settings, resourceTab = 'materials', onR
           unit: 'Τεμ',
           variant_prices: {},
           stock_qty: 0,
+          unit_weight_g: null,
           // CRITICAL: Set stones_per_strand to 1 (not 0) if Strand mode, null otherwise. 
           // This ensures database sees a value and not NULL/Falsy issues.
           stones_per_strand: isStrand ? 1 : null 

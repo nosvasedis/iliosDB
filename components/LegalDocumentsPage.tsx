@@ -36,7 +36,7 @@ import {
   XCircle,
   type LucideIcon,
 } from 'lucide-react';
-import { AadeVatRegistryResult, Customer, Product, LegalArchiveLineMatch, LegalArchiveRecord, LegalCarrier, LegalDocument, LegalDocumentKind, LegalDocumentLine, LegalEnvironment, LegalExternalItemAlias, LegalNumberingAlignmentPreview, LegalNumberingSequence, LegalOrderLineAllocation, LegalOrderLinkMode, LegalRegistryConnectionStatus, LegalSettings, ProformaDocument, ProformaDocumentLine } from '../types';
+import { AadeVatRegistryResult, Customer, Material, Product, LegalArchiveLineMatch, LegalArchiveRecord, LegalCarrier, LegalDocument, LegalDocumentKind, LegalDocumentLine, LegalEnvironment, LegalExternalItemAlias, LegalNumberingAlignmentPreview, LegalNumberingSequence, LegalOrderLineAllocation, LegalOrderLinkMode, LegalRegistryConnectionStatus, LegalSettings, ProformaDocument, ProformaDocumentLine } from '../types';
 import DesktopPageHeader from './DesktopPageHeader';
 import SkuProductPicker, { SkuProductSelection } from './legal/SkuProductPicker';
 import LineIncomeClassificationGear from './legal/LineIncomeClassificationGear';
@@ -169,6 +169,7 @@ function creationTypeToLegalKind(type: CreationDocumentType): LegalDocumentKind 
 
 interface LegalDocumentsPageProps {
   products: Product[];
+  materials: Material[];
   onPrintLegalDocument: (payload: { document: LegalDocument; lines: LegalDocumentLine[] } | null) => void;
   onPrintProforma?: (payload: { document: ProformaDocument; lines: ProformaDocumentLine[] } | null) => void;
   presentation?: 'default' | 'inspection';
@@ -737,6 +738,7 @@ const NumberingAlignmentModal = ({
 
 export default function LegalDocumentsPage({
   products,
+  materials,
   onPrintLegalDocument,
   onPrintProforma,
   presentation = 'default',
@@ -1227,11 +1229,13 @@ export default function LegalDocumentsPage({
           variant_suffix: null,
         }, selection.displaySku, settingsDraft, current.aade_document_type);
       }
+      const catalogDetails = getLegalCatalogLineDetails(product, settingsDraft, selection.variant_suffix, current.aade_document_type, products, materials);
       return {
         ...line,
-        ...getLegalCatalogLineDetails(product, settingsDraft, selection.variant_suffix, current.aade_document_type),
+        ...catalogDetails,
         source_metadata: {
           ...(line.source_metadata || {}),
+          ...(catalogDetails.source_metadata || {}),
           income_classification_source: 'automatic',
         },
       };
@@ -1252,11 +1256,13 @@ export default function LegalDocumentsPage({
           proforma_id: line.proforma_id,
         };
       }
+      const catalogDetails = getLegalCatalogLineDetails(product, settingsDraft, selection.variant_suffix, '1.1', products, materials);
       return {
         ...line,
-        ...getLegalCatalogLineDetails(product, settingsDraft, selection.variant_suffix, '1.1'),
+        ...catalogDetails,
         source_metadata: {
           ...(line.source_metadata || {}),
+          ...(catalogDetails.source_metadata || {}),
           income_classification_source: 'automatic',
         },
       };
@@ -1382,6 +1388,7 @@ export default function LegalDocumentsPage({
         order: remainingOrder,
         customer: selectedCustomer,
         products,
+        materials,
         settings,
         kind: documentKind,
         userName,
@@ -1400,6 +1407,7 @@ export default function LegalDocumentsPage({
         shipmentItems: selectedItems,
         customer: selectedCustomer,
         products,
+        materials,
         settings,
         kind: documentKind,
         userName,
@@ -1414,6 +1422,7 @@ export default function LegalDocumentsPage({
       order: selectedOrder,
       customer: selectedCustomer,
       products,
+      materials,
       settings,
       kind: documentKind,
       userName,
@@ -1448,6 +1457,7 @@ export default function LegalDocumentsPage({
       order: selectedOrder,
       customer: selectedCustomer,
       products,
+      materials,
       settings,
       userName,
     });
@@ -2683,6 +2693,30 @@ export default function LegalDocumentsPage({
               </ActionButton>
             </div>
           </div>
+
+          {proformaBundle.lines.some((line) => line.source_metadata?.invoice_total_weight_source === 'missing') && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <div className="flex items-start gap-2">
+                <AlertTriangle size={17} className="mt-0.5 shrink-0" />
+                <div>
+                  <div className="font-black">Λείπει συνολικό βάρος σε ορισμένες γραμμές</div>
+                  <p className="mt-1 text-xs">Το προτιμολόγιο μπορεί να αποθηκευτεί και να εκτυπωθεί. Οι επηρεαζόμενες περιγραφές παραμένουν χωρίς βάρος.</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
+                    {proformaBundle.lines
+                      .filter((line) => line.source_metadata?.invoice_total_weight_source === 'missing')
+                      .map((line) => (
+                        <li key={line.id}>
+                          {line.sku || `Γραμμή ${line.line_number}`}
+                          {line.source_metadata?.invoice_total_weight_missing_items?.length
+                            ? `: ${line.source_metadata.invoice_total_weight_missing_items.join(', ')}`
+                            : ''}
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">

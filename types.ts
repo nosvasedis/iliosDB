@@ -54,6 +54,8 @@ export interface Material {
   supplier_id?: string; // Link to Supplier
   stock_qty?: number;   // Track raw material stock
   stones_per_strand?: number; // If sold as strand, how many stones per strand
+  /** Physical weight for one recipe unit. Null/undefined means unknown; zero is a known weightless unit. */
+  unit_weight_g?: number | null;
 }
 
 export interface Mold {
@@ -119,6 +121,8 @@ export interface Product {
   image_url: string | null;
   weight_g: number;
   secondary_weight_g?: number;
+  /** Manual total weight used only on legal documents. Null/undefined keeps automatic calculation enabled. */
+  invoice_total_weight_g?: number | null;
   plating_type: PlatingType;
 
   // Production Strategy
@@ -1188,6 +1192,9 @@ export interface LegalDocumentLine {
     income_classification_source?: 'automatic' | 'manual';
     income_classifications?: LegalIncomeClassification[];
     parser_version?: number;
+    invoice_total_weight_g?: number | null;
+    invoice_total_weight_source?: 'automatic' | 'manual' | 'missing';
+    invoice_total_weight_missing_items?: string[];
   } | null;
   created_at?: string;
 }

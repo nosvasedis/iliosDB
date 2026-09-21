@@ -1,5 +1,5 @@
 import React from 'react';
-import { Hammer, Globe, Tag, ImageIcon, Lightbulb, Info, Scale } from 'lucide-react';
+import { Hammer, Globe, Tag, ImageIcon, Lightbulb, Info, Scale, AlertTriangle, RotateCcw } from 'lucide-react';
 import { ProductionType, Gender, PlatingType } from '../../types';
 import { useNewProductState } from '../../hooks/useNewProductState';
 import { MoldsSection } from './MoldsSection';
@@ -151,6 +151,45 @@ export const StepBasicInfo: React.FC<Props> = ({ formState, suppliers }) => {
                                 <label className="block text-sm font-bold text-slate-700 mb-1.5">{state.secondaryWeightLabel}</label>
                                 <input type="number" step="0.01" value={state.secondaryWeight} onChange={e => setters.setSecondaryWeight(parseFloat(e.target.value) || 0)} className="w-full p-3 border border-slate-200 rounded-xl font-bold bg-white focus:ring-4 focus:ring-slate-500/20 outline-none" />
                             </div>
+                        </div>
+
+                        <div className={`rounded-xl border p-4 ${state.invoiceTotalWeightResult.source === 'missing' ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50/60'}`}>
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700">Συνολικό βάρος παραστατικού (g)</label>
+                                    <p className="mt-1 text-[10px] text-slate-500">Δεν επηρεάζει κόστος, ασήμι ή παραγωγή.</p>
+                                </div>
+                                <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${state.invoiceTotalWeightResult.source === 'manual' ? 'bg-blue-100 text-blue-700' : state.invoiceTotalWeightResult.source === 'automatic' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                    {state.invoiceTotalWeightResult.source === 'manual' ? 'Χειροκίνητο' : state.invoiceTotalWeightResult.source === 'automatic' ? 'Αυτόματο' : 'Ελλιπές'}
+                                </span>
+                            </div>
+                            <div className="mt-3 flex items-center gap-2">
+                                <input
+                                    type="number"
+                                    min="0.01"
+                                    step="0.01"
+                                    value={state.invoiceTotalWeight ?? ''}
+                                    onChange={e => setters.setInvoiceTotalWeight(e.target.value === '' ? null : Number(e.target.value))}
+                                    className="w-full max-w-xs rounded-xl border border-slate-200 bg-white p-3 font-mono font-bold outline-none focus:ring-4 focus:ring-blue-500/10"
+                                    placeholder={state.invoiceTotalWeightResult.value === null ? 'Χειροκίνητη τιμή' : state.invoiceTotalWeightResult.value.toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                />
+                                {state.invoiceTotalWeight !== null && (
+                                    <button type="button" onClick={() => setters.setInvoiceTotalWeight(null)} className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50">
+                                        <RotateCcw size={13} /> Επιστροφή σε αυτόματο
+                                    </button>
+                                )}
+                            </div>
+                            {state.invoiceTotalWeightResult.value !== null && (
+                                <p className="mt-2 text-xs font-bold text-slate-700">Τιμή παραστατικού: {state.invoiceTotalWeightResult.value.toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}gr</p>
+                            )}
+                            {state.invoiceTotalWeightResult.missingItems.length > 0 && (
+                                <div className="mt-3 flex gap-2 text-xs text-amber-800">
+                                    <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                                    <ul className="list-disc space-y-1 pl-4">
+                                        {state.invoiceTotalWeightResult.missingItems.map(item => <li key={item}>{item}</li>)}
+                                    </ul>
+                                </div>
+                            )}
                         </div>
 
                         <div>

@@ -161,7 +161,7 @@ export const resolveImageUrl = (url: string | null | undefined): string | null =
 const sanitizeProductData = (data: any) => {
     const validColumns = [
         'sku', 'prefix', 'category', 'description', 'gender', 'image_url',
-        'weight_g', 'secondary_weight_g', 'plating_type', 'production_type',
+        'weight_g', 'secondary_weight_g', 'invoice_total_weight_g', 'plating_type', 'production_type',
         'active_price', 'draft_price', 'selling_price', 'stock_qty', 'sample_qty',
         'is_component', 'supplier_id', 'supplier_sku', 'supplier_cost',
         'labor_casting', 'labor_setter', 'labor_technician', 'labor_plating_x',
@@ -187,6 +187,18 @@ const sanitizeProductData = (data: any) => {
         if (data.labor.stone_setting_cost !== undefined) sanitized.labor_stone_setting = data.labor.stone_setting_cost;
     }
 
+    return sanitized;
+};
+
+const sanitizeMaterialData = (data: any) => {
+    const validColumns = [
+        'id', 'name', 'description', 'type', 'cost_per_unit', 'unit',
+        'variant_prices', 'supplier_id', 'stock_qty', 'stones_per_strand', 'unit_weight_g'
+    ];
+    const sanitized: any = {};
+    validColumns.forEach(col => {
+        if (data?.[col] !== undefined) sanitized[col] = data[col];
+    });
     return sanitized;
 };
 
@@ -274,6 +286,7 @@ const sanitizeMutationData = (tableName: string, rawData: any, options?: { prese
     if (!rawData) return rawData;
     const sanitizeOne = (row: any) => {
         if (tableName === 'products') return sanitizeProductData(row);
+        if (tableName === 'materials') return sanitizeMaterialData(row);
         if (tableName === 'orders') return sanitizeOrderData(row, options);
         if (tableName === 'production_batches') return sanitizeBatchData(row);
         if (tableName === 'order_delivery_plans') return sanitizeDeliveryPlanData(row);
@@ -2008,7 +2021,8 @@ export const api = {
             variant_prices: m.variant_prices || {},
             supplier_id: m.supplier_id || null,
             stock_qty: Number(m.stock_qty || 0),
-            stones_per_strand: m.stones_per_strand ? Number(m.stones_per_strand) : undefined
+            stones_per_strand: m.stones_per_strand ? Number(m.stones_per_strand) : undefined,
+            unit_weight_g: m.unit_weight_g !== null && m.unit_weight_g !== undefined ? Number(m.unit_weight_g) : null
         }));
     },
 

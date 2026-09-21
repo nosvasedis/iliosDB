@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AADE_ISSUABLE_DOCUMENT_TYPES, Customer, Order, Product, ProductionType } from '../../types';
+import { AADE_ISSUABLE_DOCUMENT_TYPES, Customer, MaterialType, Order, Product, ProductionType } from '../../types';
 import {
   AADE_REVENUE_CLASSIFICATION_COMBINATIONS,
   AADE_VAT_CATEGORY_LINE_OPTIONS,
@@ -24,6 +24,7 @@ import {
   isEmptyTransmittedDocsResponse,
   toAadeQueryDate,
   buildLegalDocumentFromOrder,
+  buildLegalDocumentFromShipment,
   buildCounterpartFromCustomer,
   buildManualLegalDocument,
   getAadeDocumentTypeForKind,
@@ -186,9 +187,9 @@ describe('legal document helpers', () => {
     ]);
   });
 
-  it('keeps the product category and appends the common silver material', () => {
+  it('appends the automatic total weight after the common silver material', () => {
     const details = getLegalProductLineDescription(product);
-    expect(details).toBe('Δαχτυλίδι · Ασήμι 925°');
+    expect(details).toBe('Δαχτυλίδι · Ασήμι 925° · 2,00gr');
 
     const document = buildLegalDocumentFromOrder({
       order: baseOrder,
@@ -197,7 +198,108 @@ describe('legal document helpers', () => {
       settings,
       kind: 'invoice',
     });
+    expect(document.lines[0]?.description).toBe('Δαχτυλίδι · Ασήμι 925° · 2,00gr');
+    expect(document.lines[0]?.source_metadata).toMatchObject({
+      invoice_total_weight_g: 2,
+      invoice_total_weight_source: 'automatic',
+    });
+  });
+
+  it('formats a manual total weight with two decimals and stores its source', () => {
+    const manualProduct = { ...product, invoice_total_weight_g: 5.5 };
+    const document = buildLegalDocumentFromOrder({
+      order: baseOrder,
+      customer,
+      products: [manualProduct],
+      settings,
+      kind: 'invoice',
+    });
+
+    expect(document.lines[0]?.description).toBe('Δαχτυλίδι · Ασήμι 925° · 5,50gr');
+    expect(document.lines[0]?.source_metadata).toMatchObject({
+      invoice_total_weight_g: 5.5,
+      invoice_total_weight_source: 'manual',
+    });
+  });
+
+  it('uses the same master weight for catalog selection and shipment drafts', () => {
+    const weightedProduct = { ...product, invoice_total_weight_g: 5.5 };
+    const catalogDetails = getLegalCatalogLineDetails(weightedProduct, settings, 'X', '1.1', [weightedProduct], []);
+    expect(catalogDetails.description).toBe('Δαχτυλίδι · Ασήμι 925° · 5,50gr');
+    expect(catalogDetails.source_metadata.invoice_total_weight_source).toBe('manual');
+
+    const document = buildLegalDocumentFromShipment({
+      order: baseOrder,
+      shipment: {
+        id: 'shipment-1',
+        order_id: baseOrder.id,
+        shipment_number: 1,
+        shipped_at: '2026-06-11T09:00:00.000Z',
+        shipped_by: 'Tester',
+        created_at: '2026-06-11T09:00:00.000Z',
+      },
+      shipmentItems: [{
+        id: 'shipment-item-1',
+        shipment_id: 'shipment-1',
+        sku: weightedProduct.sku,
+        variant_suffix: 'X',
+        quantity: 1,
+        price_at_order: 100,
+        line_id: 'line-1',
+      }],
+      customer,
+      products: [weightedProduct],
+      materials: [],
+      settings,
+      kind: 'delivery_note',
+    });
+    expect(document.lines[0]?.description).toBe('Δαχτυλίδι · Ασήμι 925° · 5,50gr');
+    expect(document.lines[0]?.source_metadata?.invoice_total_weight_source).toBe('manual');
+  });
+
+  it('keeps the old description and emits only a warning when recipe weight is unknown', () => {
+    const incompleteProduct: Product = {
+      ...product,
+      recipe: [{ type: 'raw', id: 'material-1', quantity: 2 }],
+    };
+    const document = buildLegalDocumentFromOrder({
+      order: baseOrder,
+      customer,
+      products: [incompleteProduct],
+      materials: [{
+        id: 'material-1',
+        name: 'Κορδόνι',
+        type: MaterialType.Cord,
+        cost_per_unit: 1,
+        unit: 'τεμ',
+        unit_weight_g: null,
+      }],
+      settings,
+      kind: 'invoice',
+    });
+
     expect(document.lines[0]?.description).toBe('Δαχτυλίδι · Ασήμι 925°');
+    expect(document.lines[0]?.source_metadata?.invoice_total_weight_source).toBe('missing');
+    const issues = validateLegalDocument(document, document.lines);
+    expect(issues.some((issue) => issue.field.endsWith('invoice_total_weight') && issue.severity === 'warning')).toBe(true);
+    expect(issues.some((issue) => issue.field.endsWith('invoice_total_weight') && issue.severity === 'error')).toBe(false);
+
+    const proforma = buildProformaFromOrder({
+      order: baseOrder,
+      customer,
+      products: [incompleteProduct],
+      materials: [{
+        id: 'material-1',
+        name: 'Κορδόνι',
+        type: MaterialType.Cord,
+        cost_per_unit: 1,
+        unit: 'τεμ',
+        unit_weight_g: null,
+      }],
+      settings,
+    });
+    expect(proforma.lines[0]?.description).toBe('Δαχτυλίδι · Ασήμι 925°');
+    expect(proforma.lines[0]?.source_metadata?.invoice_total_weight_source).toBe('missing');
   });
 
   it('uses Επισκευή Κοσμημάτων and 1 euro as the catalog defaults for code 001', () => {
@@ -342,7 +444,7 @@ describe('legal document helpers', () => {
     expect(xml).toContain('<invoiceType>1.1</invoiceType>');
     expect(xml).toContain('<isDeliveryNote>true</isDeliveryNote>');
     expect(xml).toContain('<dispatchDate>');
-    expect(xml).toContain('<itemDescr>Δαχτυλίδι · Ασήμι 925°</itemDescr>');
+    expect(xml).toContain('<itemDescr>Δαχτυλίδι · Ασήμι 925° · 2,00gr</itemDescr>');
     expect(xml).toContain('<itemCode>RNG001</itemCode>');
     expect(xml.indexOf('<itemCode>')).toBeLessThan(xml.indexOf('<itemDescr>'));
     expect(xml.indexOf('<itemDescr>')).toBeLessThan(xml.indexOf('<quantity>'));
@@ -380,6 +482,8 @@ describe('legal document helpers', () => {
       classification_type: 'E3_561_001',
       amount: 5,
     });
+    expect(document.lines![0].source_metadata?.invoice_total_weight_source).toBeUndefined();
+    expect(validateLegalDocument(document, document.lines).some((issue) => issue.field.endsWith('invoice_total_weight'))).toBe(false);
     expect(buildAadeInvoiceXml({ ...document, series: 'TIM', aa: '1' }, document.lines))
       .toContain('<icls:classificationCategory>category1_3</icls:classificationCategory>');
   });
