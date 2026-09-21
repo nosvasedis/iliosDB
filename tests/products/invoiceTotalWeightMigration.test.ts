@@ -4,7 +4,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { describe, expect, it } from 'vitest';
 
 const migrationPath = fileURLToPath(new URL(
-  '../../supabase/migrations/20260921075050_add_invoice_total_weight.sql',
+  '../../supabase/migrations/20260921083736_add_invoice_total_weight.sql',
   import.meta.url,
 ));
 
