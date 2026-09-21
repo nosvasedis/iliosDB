@@ -31,8 +31,9 @@ import {
   ProformaDocument,
   ProformaDocumentLine,
 } from '../types';
+import { STONE_CODES_MEN, STONE_CODES_WOMEN } from '../constants';
 import { resolveInvoiceTotalWeight } from './invoiceTotalWeight';
-import { formatDecimal } from './pricingEngine';
+import { formatDecimal, getVariantComponents } from './pricingEngine';
 import {
   isLegalRepairItemCode,
   isLegalReservedItemCode,
@@ -859,6 +860,15 @@ function buildCounterpart(order: Order, customer?: Customer | null): LegalParty 
 }
 
 const LEGAL_SILVER_DESCRIPTION_SUFFIX = 'Ασήμι 925°';
+const LEGAL_SYNTHETIC_STONE_PHRASE = 'με συνθ. πέτρα';
+const LEGAL_KNOWN_STONE_CODES = { ...STONE_CODES_MEN, ...STONE_CODES_WOMEN };
+
+function hasLegalStoneSuffix(suffix?: string | null): boolean {
+  const clean = String(suffix || '').trim();
+  if (!clean) return false;
+  const { stone } = getVariantComponents(clean, Gender.Unisex);
+  return Boolean(stone.code && LEGAL_KNOWN_STONE_CODES[stone.code]);
+}
 
 /** Invoice/proforma line description: product category from Μητρώο plus the common material. */
 export function getLegalProductLineDescription(
@@ -866,6 +876,7 @@ export function getLegalProductLineDescription(
   fallbackSku?: string,
   products: readonly Product[] = [],
   materials: readonly Material[] = [],
+  variantSuffix?: string | null,
 ): string {
   if (isLegalShippingItemCode(product?.sku || fallbackSku)) return LEGAL_SHIPPING_ITEM_DESCRIPTION;
   if (isLegalRepairItemCode(product?.sku || fallbackSku)) return LEGAL_REPAIR_ITEM_DESCRIPTION;
@@ -873,9 +884,12 @@ export function getLegalProductLineDescription(
   const baseDescription = String(product?.category || fallbackSku || product?.sku || '').trim();
   if (!baseDescription) return '—';
   if (!product) return baseDescription;
-  const silverDescription = baseDescription.endsWith(LEGAL_SILVER_DESCRIPTION_SUFFIX)
-    ? baseDescription
-    : `${baseDescription} · ${LEGAL_SILVER_DESCRIPTION_SUFFIX}`;
+  const kindDescription = hasLegalStoneSuffix(variantSuffix)
+    ? `${baseDescription} ${LEGAL_SYNTHETIC_STONE_PHRASE}`
+    : baseDescription;
+  const silverDescription = kindDescription.endsWith(LEGAL_SILVER_DESCRIPTION_SUFFIX)
+    ? kindDescription
+    : `${kindDescription} · ${LEGAL_SILVER_DESCRIPTION_SUFFIX}`;
   const totalWeight = resolveInvoiceTotalWeight(product, products, materials);
   if (totalWeight.value === null) return silverDescription;
   return `${silverDescription} · ${formatDecimal(totalWeight.value, 2)}gr`;
@@ -887,7 +901,7 @@ function getItemDescription(
   products: readonly Product[],
   materials: readonly Material[],
 ): string {
-  return getLegalProductLineDescription(product, item.sku, products, materials);
+  return getLegalProductLineDescription(product, item.sku, products, materials, item.variant_suffix);
 }
 
 function getInvoiceWeightSourceMetadata(
@@ -1014,7 +1028,7 @@ export function getLegalCatalogLineDetails(
     sku: product.sku,
     variant_suffix: suffix,
     item_code: product.sku + (suffix || ''),
-    description: getLegalProductLineDescription(product, product.sku, products, materials),
+    description: getLegalProductLineDescription(product, product.sku, products, materials, suffix),
     unit_price: unitPrice,
     income_classification: resolveLegalIncomeClassification({
       product,
