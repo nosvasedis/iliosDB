@@ -187,6 +187,64 @@ describe('legal document helpers', () => {
     ]);
   });
 
+  it('adds με συνθ. πέτρα after the product kind only when the variant has a stone suffix', () => {
+    expect(getLegalProductLineDescription(product, product.sku, [product], [], 'LE')).toBe(
+      'Δαχτυλίδι με συνθ. πέτρα · Ασήμι 925° · 2,00gr',
+    );
+    expect(getLegalProductLineDescription(product, product.sku, [product], [], 'XLE')).toBe(
+      'Δαχτυλίδι με συνθ. πέτρα · Ασήμι 925° · 2,00gr',
+    );
+    expect(getLegalProductLineDescription(product, product.sku, [product], [], 'AK')).toBe(
+      'Δαχτυλίδι με συνθ. πέτρα · Ασήμι 925° · 2,00gr',
+    );
+    expect(getLegalProductLineDescription(product, product.sku, [product], [], 'PAX')).toBe(
+      'Δαχτυλίδι με συνθ. πέτρα · Ασήμι 925° · 2,00gr',
+    );
+    expect(getLegalProductLineDescription(product, product.sku, [product], [], 'AI')).toBe(
+      'Δαχτυλίδι με συνθ. πέτρα · Ασήμι 925° · 2,00gr',
+    );
+    expect(getLegalProductLineDescription(product, product.sku, [product], [], 'SB')).toBe(
+      'Δαχτυλίδι με συνθ. πέτρα · Ασήμι 925° · 2,00gr',
+    );
+    expect(getLegalProductLineDescription(product, product.sku, [product], [], 'AX')).toBe(
+      'Δαχτυλίδι με συνθ. πέτρα · Ασήμι 925° · 2,00gr',
+    );
+    expect(getLegalProductLineDescription(product, product.sku, [product], [], 'TG')).toBe(
+      'Δαχτυλίδι με συνθ. πέτρα · Ασήμι 925° · 2,00gr',
+    );
+    expect(getLegalProductLineDescription(product, product.sku, [product], [], 'X')).toBe(
+      'Δαχτυλίδι · Ασήμι 925° · 2,00gr',
+    );
+    expect(getLegalProductLineDescription(product, product.sku, [product], [], 'P')).toBe(
+      'Δαχτυλίδι · Ασήμι 925° · 2,00gr',
+    );
+    expect(getLegalProductLineDescription(product)).toBe('Δαχτυλίδι · Ασήμι 925° · 2,00gr');
+  });
+
+  it('uses the stone phrase in invoice and catalog lines with a stone suffix', () => {
+    const pendant: Product = { ...product, sku: 'PN001', prefix: 'PN', category: 'Μενταγιόν' };
+    const document = buildLegalDocumentFromOrder({
+      order: {
+        ...baseOrder,
+        items: [{
+          sku: pendant.sku,
+          variant_suffix: 'PAK',
+          quantity: 1,
+          price_at_order: 100,
+          line_id: 'line-1',
+        }],
+      },
+      customer,
+      products: [pendant],
+      settings,
+      kind: 'invoice',
+    });
+    expect(document.lines[0]?.description).toBe('Μενταγιόν με συνθ. πέτρα · Ασήμι 925° · 2,00gr');
+
+    const catalogDetails = getLegalCatalogLineDetails(pendant, settings, 'HAI', '1.1', [pendant], []);
+    expect(catalogDetails.description).toBe('Μενταγιόν με συνθ. πέτρα · Ασήμι 925° · 2,00gr');
+  });
+
   it('appends the automatic total weight after the common silver material', () => {
     const details = getLegalProductLineDescription(product);
     expect(details).toBe('Δαχτυλίδι · Ασήμι 925° · 2,00gr');
