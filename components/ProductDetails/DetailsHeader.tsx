@@ -13,16 +13,25 @@ import {
     X,
 } from 'lucide-react';
 import { Gender, ProductVariant, ProductionType } from '../../types';
+import { FINISH_CODES } from '../../constants';
 import { PRODUCTION_TYPE_LABELS, SKIP_CASTING_LABEL, canConvertToImported } from '../../features/products/productCardPresentation';
+import { getVariantComponents } from '../../utils/pricingEngine';
 import SkuColorizedText from '../SkuColorizedText';
 import { DetailsActionButton } from './detailsUi';
+
+const FINISH_DOTS: Record<string, string> = {
+    '': 'bg-gradient-to-br from-slate-300 to-slate-500',
+    P: 'bg-gradient-to-br from-stone-400 to-stone-600',
+    X: 'bg-gradient-to-br from-amber-400 to-yellow-600',
+    D: 'bg-gradient-to-br from-orange-400 to-rose-500',
+    H: 'bg-gradient-to-br from-cyan-300 to-sky-500',
+};
 
 export default function DetailsHeader({
     displayedSku,
     displayedLabel,
     gender,
     category,
-    displayPlating,
     productionType,
     isComponent,
     skipCasting,
@@ -55,7 +64,6 @@ export default function DetailsHeader({
     displayedLabel: string;
     gender: Gender;
     category: string;
-    displayPlating: string;
     productionType: ProductionType;
     isComponent: boolean;
     skipCasting: boolean;
@@ -87,12 +95,17 @@ export default function DetailsHeader({
     const isImported = productionType === ProductionType.Imported;
     const showConvertToImported = canConvertToImported({ production_type: productionType, is_component: isComponent });
     const OriginIcon = isImported ? Globe : Factory;
+    const canStep = maxViews > 1;
+    const currentVariant = sortedVariants[normalizedViewIndex];
+    const finishCode = currentVariant ? getVariantComponents(currentVariant.suffix, gender).finish.code : '';
+    const finishDot = FINISH_DOTS[finishCode] || FINISH_DOTS[''];
+    const finishName = FINISH_CODES[finishCode] || FINISH_CODES[''];
 
     return (
-        <div className="z-10 shrink-0 border-b border-slate-100 bg-white px-6 py-5">
+        <div className="z-10 shrink-0 border-b border-slate-100 bg-white px-6 py-4">
             <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2.5">
+                    <div className="flex flex-wrap items-center gap-2">
                         {isEditingSku ? (
                             <div className="flex items-center gap-2">
                                 <input
@@ -110,7 +123,7 @@ export default function DetailsHeader({
                                 </button>
                             </div>
                         ) : (
-                            <h2 className="group flex items-center gap-3 text-2xl font-black tracking-tight">
+                            <h2 className="group flex items-center gap-2 text-2xl font-black tracking-tight">
                                 <SkuColorizedText
                                     sku={displayedSku}
                                     gender={gender}
@@ -129,34 +142,69 @@ export default function DetailsHeader({
                             </h2>
                         )}
 
-                        {showPager && (
-                            <div className="flex items-center gap-1.5">
-                                <div ref={variantPickerRef} className="relative z-[120]">
-                                    <button
-                                        type="button"
-                                        onClick={onToggleVariantPicker}
-                                        title="Επιλογή παραλλαγής"
-                                        className="flex max-w-[13rem] items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-left transition-colors hover:border-slate-300"
-                                    >
-                                        <div className="min-w-0">
-                                            <div className="truncate text-[11px] font-bold text-slate-700">{displayedLabel}</div>
-                                        </div>
-                                        <ChevronDown size={14} className={`shrink-0 text-slate-400 transition-transform ${isVariantPickerOpen ? 'rotate-180' : ''}`} />
-                                    </button>
+                        <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${isImported ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            <OriginIcon size={10} />
+                            {PRODUCTION_TYPE_LABELS[productionType]}
+                        </span>
+                    </div>
 
-                                    {isVariantPickerOpen && (
-                                        <div className="absolute left-0 top-full z-[140] mt-2 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-                                            <div className="max-h-80 overflow-y-auto p-2">
-                                                {sortedVariants.map((variant, index) => {
-                                                    const variantSku = `${masterSku}${variant.suffix}`;
-                                                    const isActive = index === normalizedViewIndex;
-                                                    return (
-                                                        <button
-                                                            key={variant.suffix || `variant-${index}`}
-                                                            type="button"
-                                                            onClick={() => onSelectVariant(index)}
-                                                            className={`flex w-full items-start justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${isActive ? 'bg-emerald-50 text-emerald-900' : 'hover:bg-slate-50'}`}
-                                                        >
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm font-medium text-slate-500">
+                        <span>{category}</span>
+                        {isComponent && (
+                            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase text-blue-700">Εξάρτημα</span>
+                        )}
+                        {skipCasting && (
+                            <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-bold uppercase text-purple-700">{SKIP_CASTING_LABEL}</span>
+                        )}
+                    </div>
+
+                    {showPager && (
+                        <div className="mt-2.5 inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 p-0.5 shadow-sm">
+                            {canStep && (
+                                <button
+                                    type="button"
+                                    onClick={onPrevView}
+                                    className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-white hover:text-slate-700"
+                                    title="Προηγούμενη παραλλαγή"
+                                >
+                                    <ChevronLeft size={16} />
+                                </button>
+                            )}
+
+                            <div ref={variantPickerRef} className="relative z-[120]">
+                                <button
+                                    type="button"
+                                    onClick={onToggleVariantPicker}
+                                    title={finishName}
+                                    className="flex max-w-[16rem] items-center gap-2 rounded-lg bg-white px-2.5 py-1.5 text-left transition-colors hover:bg-slate-50"
+                                >
+                                    <span className={`h-2 w-2 shrink-0 rounded-full ${finishDot}`} />
+                                    <span className="min-w-0 truncate text-[12px] font-bold text-slate-700">{displayedLabel}</span>
+                                    {canStep && (
+                                        <span className="shrink-0 font-mono text-[10px] text-slate-400">
+                                            {normalizedViewIndex + 1}/{maxViews}
+                                        </span>
+                                    )}
+                                    <ChevronDown size={14} className={`shrink-0 text-slate-400 transition-transform ${isVariantPickerOpen ? 'rotate-180' : ''}`} />
+                                </button>
+
+                                {isVariantPickerOpen && (
+                                    <div className="absolute left-0 top-full z-[140] mt-2 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                                        <div className="max-h-80 overflow-y-auto p-2">
+                                            {sortedVariants.map((variant, index) => {
+                                                const variantSku = `${masterSku}${variant.suffix}`;
+                                                const isActive = index === normalizedViewIndex;
+                                                const variantFinish = getVariantComponents(variant.suffix, gender).finish.code;
+                                                const variantDot = FINISH_DOTS[variantFinish] || FINISH_DOTS[''];
+                                                return (
+                                                    <button
+                                                        key={variant.suffix || `variant-${index}`}
+                                                        type="button"
+                                                        onClick={() => onSelectVariant(index)}
+                                                        className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${isActive ? 'bg-emerald-50 text-emerald-900' : 'hover:bg-slate-50'}`}
+                                                    >
+                                                        <div className="flex min-w-0 items-start gap-2">
+                                                            <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${variantDot}`} />
                                                             <div className="min-w-0">
                                                                 <SkuColorizedText
                                                                     sku={variantSku}
@@ -168,83 +216,42 @@ export default function DetailsHeader({
                                                                     {variant.description || variant.suffix || 'Βασικό'}
                                                                 </div>
                                                             </div>
-                                                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                                                                {index + 1}
-                                                            </span>
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
+                                                        </div>
+                                                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                                                            {index + 1}
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
-                                    )}
-                                </div>
-                                <div className="flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
-                                    <button type="button" onClick={onPrevView} className="rounded-md p-1 text-slate-400 transition-colors hover:bg-white hover:text-slate-700">
-                                        <ChevronLeft size={16} />
-                                    </button>
-                                    <span className="w-9 text-center font-mono text-[11px] text-slate-500">
-                                        {normalizedViewIndex + 1}/{maxViews}
-                                    </span>
-                                    <button type="button" onClick={onNextView} className="rounded-md p-1 text-slate-400 transition-colors hover:bg-white hover:text-slate-700">
-                                        <ChevronRight size={16} />
-                                    </button>
-                                </div>
+                                    </div>
+                                )}
                             </div>
-                        )}
-                    </div>
 
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-sm font-medium text-slate-500">
-                        <span>{category}</span>
-                        {displayPlating ? (
-                            <>
-                                <span>•</span>
-                                <span className="font-bold text-slate-600">{displayPlating}</span>
-                            </>
-                        ) : null}
-                        {displayedLabel && displayedLabel !== displayPlating ? (
-                            <>
-                                <span>•</span>
-                                <span className="font-bold text-slate-600">{displayedLabel}</span>
-                            </>
-                        ) : null}
-                    </div>
-
-                    <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold ${isImported ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                            <OriginIcon size={12} />
-                            {PRODUCTION_TYPE_LABELS[productionType]}
-                        </span>
-                        {isComponent && (
-                            <span className="rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-bold uppercase text-blue-700">Εξάρτημα</span>
-                        )}
-                        {skipCasting && (
-                            <span className="rounded-full bg-purple-100 px-2.5 py-1 text-[11px] font-bold uppercase text-purple-700">{SKIP_CASTING_LABEL}</span>
-                        )}
-                    </div>
+                            {canStep && (
+                                <button
+                                    type="button"
+                                    onClick={onNextView}
+                                    className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-white hover:text-slate-700"
+                                    title="Επόμενη παραλλαγή"
+                                >
+                                    <ChevronRight size={16} />
+                                </button>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">
                     {showConvertToImported && (
-                        <button
-                            type="button"
-                            onClick={onConvert}
-                            title="Σε εισαγωγή"
-                            className="inline-flex items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 transition-colors hover:bg-violet-100"
-                        >
-                            <Globe size={14} />
-                            Σε εισαγωγή
-                        </button>
+                        <DetailsActionButton title="Σε εισαγωγή" onClick={onConvert} tone="violet">
+                            <Globe size={20} />
+                        </DetailsActionButton>
                     )}
                     {isImported && (
-                        <button
-                            type="button"
-                            onClick={onConvert}
-                            title="Σε ιδιοπαραγωγή"
-                            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-100"
-                        >
-                            <Factory size={14} />
-                            Σε ιδιοπαραγωγή
-                        </button>
+                        <DetailsActionButton title="Σε ιδιοπαραγωγή" onClick={onConvert} tone="success">
+                            <Factory size={20} />
+                        </DetailsActionButton>
                     )}
                     {onDuplicate && (
                         <DetailsActionButton title="Κλωνοποίηση" onClick={onDuplicate} tone="info">

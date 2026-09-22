@@ -20,7 +20,7 @@ import {
 import { LaborCostFormulaRow } from './ProductRegistry/LaborCostFormulaRow';
 import { TechnicianLaborFormulaRow } from './ProductRegistry/TechnicianLaborFormulaRow';
 import { FINISH_CODES } from '../constants';
-import { X, Save, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag, Edit, Check, ArrowDownRight, RefreshCcw, Scale } from 'lucide-react';
+import { X, Save, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag, Edit, Check, ArrowDownRight, RefreshCcw, Scale, Factory } from 'lucide-react';
 import { uploadProductImage, R2_PUBLIC_URL, AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL } from '../lib/supabase';
 import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient } from '@tanstack/react-query';
@@ -34,7 +34,7 @@ import DetailsSidebar from './ProductDetails/DetailsSidebar';
 import DetailsTabBar, { type DetailsTab } from './ProductDetails/DetailsTabBar';
 import DetailsFooter from './ProductDetails/DetailsFooter';
 import InvoiceTotalWeightField from './ProductDetails/InvoiceTotalWeightField';
-import { DetailsField, DetailsSection, detailsInputClass, detailsMonoInputClass } from './ProductDetails/detailsUi';
+import { DetailsField, DetailsSection, DetailsSubTabs, detailsInputClass, detailsMonoInputClass } from './ProductDetails/detailsUi';
 import { useSuppliers } from '../hooks/api/useSuppliers';
 import {
     applySkipCasting,
@@ -43,7 +43,6 @@ import {
     getAnalyticalCostingItems,
     getAvailableMolds,
     getMaterialTypeLabel,
-    getProductDisplaySummary,
     getRecipeMaterialSubtitle,
     getSortedFinishCodes,
     getSortedProductVariants,
@@ -519,7 +518,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     const { profile } = useAuth();
     const { data: suppliers } = useSuppliers();
 
-    const [activeTab, setActiveTab] = useState<'overview' | 'recipe' | 'labor' | 'variants' | 'barcodes'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'production' | 'variants' | 'barcodes'>('overview');
+    const [productionSection, setProductionSection] = useState<'molds' | 'recipe' | 'labor'>('molds');
     const [isDeleting, setIsDeleting] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [viewIndex, setViewIndex] = useState(() => getVariantIndexBySuffix(
@@ -562,8 +562,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             { id: 'overview', label: 'Στοιχεία', icon: Info },
         ];
         if (editedProduct.production_type === ProductionType.InHouse) {
-            baseTabs.push({ id: 'recipe', label: 'Συνταγή', icon: Box });
-            baseTabs.push({ id: 'labor', label: 'Εργατικά', icon: Hammer });
+            baseTabs.push({ id: 'production', label: 'Παραγωγή', icon: Factory });
         }
         baseTabs.push({ id: 'variants', label: 'Παραλλαγές', icon: Layers, count: editedProduct.variants?.length || 0 });
         baseTabs.push({ id: 'barcodes', label: 'Barcodes', icon: ScanBarcode });
@@ -714,7 +713,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     }, [variants, editedProduct.gender]);
 
     const maxViews = hasVariants ? sortedVariantsList.length : (product.production_type === ProductionType.InHouse ? 1 : 0);
-    const showPager = hasVariants && variants.length > 1;
+    const showPager = hasVariants;
     useEffect(() => {
         setIsVariantPickerOpen(false);
     }, [product.sku, viewIndex]);
@@ -754,10 +753,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
     const displayedProfit = displayedPrice - displayedCost;
     const displayedMargin = displayedPrice > 0 ? (displayedProfit / displayedPrice) * 100 : 0;
-
-    const { displayPlating, displayStones } = React.useMemo(() => {
-        return getProductDisplaySummary(editedProduct, editedProduct.variants || []);
-    }, [editedProduct.variants, editedProduct.plating_type, editedProduct.gender]);
 
     // Group variants by finish code for the pricing section
     const finishGroups = useMemo(() => {
@@ -1346,7 +1341,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     displayedLabel={displayedLabel}
                     gender={editedProduct.gender}
                     category={editedProduct.category}
-                    displayPlating={displayPlating}
                     productionType={editedProduct.production_type}
                     isComponent={!!editedProduct.is_component}
                     skipCasting={!!editedProduct.skip_casting}
@@ -1437,35 +1431,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                 <input className={detailsInputClass} value={editedProduct.description || ''} onChange={e => setEditedProduct({ ...editedProduct, description: e.target.value })} placeholder="π.χ. Μικρή Πεταλούδα" />
                                                             </DetailsField>
                                                         )}
-                                                        {hasVariants ? (
-                                                            <DetailsField label="Διαθέσιμες Επιμεταλλώσεις" icon={Palette}>
-                                                                <div className="flex w-full flex-wrap gap-1.5 rounded-xl border border-slate-200 bg-white p-2.5">
-                                                                    {sortedFinishCodes.map(code => {
-                                                                        const label = FINISH_CODES[code] || (code === '' ? 'Λουστρέ' : code);
-                                                                        const chipColors: Record<string, string> = {
-                                                                            '':  'bg-slate-100 text-slate-700 border-slate-200',
-                                                                            'P': 'bg-stone-100 text-stone-700 border-stone-200',
-                                                                            'X': 'bg-amber-100 text-amber-800 border-amber-200',
-                                                                            'D': 'bg-orange-100 text-orange-800 border-orange-200',
-                                                                            'H': 'bg-cyan-100 text-cyan-800 border-cyan-200',
-                                                                        };
-                                                                        const dotColors: Record<string, string> = {
-                                                                            '':  'bg-gradient-to-br from-slate-300 to-slate-500',
-                                                                            'P': 'bg-gradient-to-br from-stone-400 to-stone-600',
-                                                                            'X': 'bg-gradient-to-br from-amber-400 to-yellow-600',
-                                                                            'D': 'bg-gradient-to-br from-orange-400 to-rose-500',
-                                                                            'H': 'bg-gradient-to-br from-cyan-300 to-sky-500',
-                                                                        };
-                                                                        return (
-                                                                            <span key={code} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border ${chipColors[code] || chipColors['']}`}>
-                                                                                <span className={`w-2 h-2 rounded-full ${dotColors[code] || dotColors['']}`} />
-                                                                                {label}
-                                                                            </span>
-                                                                        );
-                                                                    })}
-                                                                </div>
-                                                            </DetailsField>
-                                                        ) : (
+                                                        {!hasVariants && (
                                                             <DetailsField label="Βασική Επιμετάλλωση" icon={Palette}>
                                                                 <select className={detailsInputClass} value={editedProduct.plating_type} onChange={e => setEditedProduct({ ...editedProduct, plating_type: e.target.value as PlatingType })}>
                                                                     <option value={PlatingType.None}>Λουστρέ</option>
@@ -1652,113 +1618,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                     </DetailsSection>
                                                 )}
 
-                                                <DetailsSection
-                                                    tone="molds"
-                                                    icon={MapPin}
-                                                    title="Λάστιχα"
-                                                    actions={(
-                                                        <button onClick={() => setIsAddingMold(prev => !prev)} className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${isAddingMold ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'}`}>
-                                                            {isAddingMold ? 'Ακύρωση' : '+ Προσθήκη'}
-                                                        </button>
-                                                    )}
-                                                >
-                                                    <div className="flex flex-wrap gap-2 min-h-[36px]">
-                                                        {editedProduct.molds.map(m => {
-                                                            const moldDetails = allMolds.find(mold => mold.code === m.code);
-                                                            const tooltipText = moldDetails ? `${moldDetails.description}${moldDetails.location ? ` (${moldDetails.location})` : ''}` : '';
-                                                            return (
-                                                                <div key={m.code} title={tooltipText} className="bg-amber-50 border border-amber-200 text-amber-800 pl-3 pr-1.5 py-1.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-shadow">
-                                                                    <MapPin size={12} className="text-amber-400 shrink-0" />
-                                                                    <span>{m.code}</span>
-                                                                    <div className="flex items-center bg-amber-100/60 rounded-lg border border-amber-200/80">
-                                                                        <button type="button" onClick={() => updateMoldQuantity(m.code, -1)} className={`p-1 hover:bg-amber-200/60 text-amber-600 rounded-l-lg transition-colors ${m.quantity <= 1 ? 'opacity-30' : ''}`} disabled={m.quantity <= 1}>
-                                                                            <Minus size={12} />
-                                                                        </button>
-                                                                        <input
-                                                                            type="number"
-                                                                            min="1"
-                                                                            value={m.quantity}
-                                                                            onChange={(e) => {
-                                                                                const val = parseInt(e.target.value) || 1;
-                                                                                setEditedProduct(prev => ({
-                                                                                    ...prev,
-                                                                                    molds: prev.molds.map(pm => pm.code === m.code ? { ...pm, quantity: val } : pm)
-                                                                                }));
-                                                                            }}
-                                                                            className="w-8 text-center bg-transparent outline-none text-xs font-bold text-amber-900"
-                                                                        />
-                                                                        <button type="button" onClick={() => updateMoldQuantity(m.code, 1)} className="p-1 hover:bg-amber-200/60 text-amber-600 rounded-r-lg transition-colors">
-                                                                            <Plus size={12} />
-                                                                        </button>
-                                                                    </div>
-                                                                    <button onClick={() => removeMold(m.code)} className="p-1 text-amber-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><X size={14} /></button>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                        {editedProduct.molds.length === 0 && <span className="text-slate-400 text-sm italic py-1.5">Κανένα λάστιχο.</span>}
-                                                    </div>
-                                                    {isAddingMold && (
-                                                        <div className="border border-slate-200 rounded-xl p-3 bg-white/80 space-y-2 animate-in fade-in mt-3">
-                                                            <div className="relative">
-                                                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                                                                <input
-                                                                    type="text"
-                                                                    placeholder="Αναζήτηση λάστιχου..."
-                                                                    value={moldSearch}
-                                                                    onChange={e => setMoldSearch(e.target.value)}
-                                                                    className="w-full pl-9 p-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-500/10 transition-all"
-                                                                    autoFocus
-                                                                />
-                                                            </div>
-                                                            <div className="max-h-40 overflow-y-auto space-y-0.5">
-                                                                {availableMolds.map(m => (
-                                                                    <button key={m.code} onClick={() => addMold(m.code)} className="w-full text-left p-2.5 hover:bg-amber-50 rounded-xl flex justify-between items-center group text-sm transition-colors">
-                                                                        <span className="font-bold text-slate-700 group-hover:text-amber-800">{m.code}</span>
-                                                                        <span className="text-xs text-slate-400 group-hover:text-amber-600 transition-colors">{m.description}</span>
-                                                                    </button>
-                                                                ))}
-                                                                {availableMolds.length === 0 && <div className="text-center text-xs text-slate-400 p-3">Δεν βρέθηκαν διαθέσιμα λάστιχα.</div>}
-                                                            </div>
-
-                                                            <div className="pt-3 mt-2 border-t border-slate-200/70">
-                                                                <div className="text-[10px] font-black text-amber-700 uppercase tracking-wider mb-2 flex items-center gap-2">
-                                                                    <Plus size={12} /> Νέο Λάστιχο
-                                                                </div>
-                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                                                    <input
-                                                                        type="text"
-                                                                        placeholder="Κωδικός *"
-                                                                        value={newMoldCode}
-                                                                        onChange={(e) => setNewMoldCode(e.target.value.toUpperCase())}
-                                                                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm font-mono font-bold outline-none focus:ring-2 focus:ring-amber-500/15 focus:border-amber-400 transition-all uppercase placeholder-slate-400"
-                                                                    />
-                                                                    <input
-                                                                        type="text"
-                                                                        placeholder="Τοποθεσία"
-                                                                        value={newMoldLoc}
-                                                                        onChange={(e) => setNewMoldLoc(e.target.value)}
-                                                                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500/15 focus:border-amber-400 transition-all placeholder-slate-400"
-                                                                    />
-                                                                </div>
-                                                                <input
-                                                                    type="text"
-                                                                    placeholder="Περιγραφή"
-                                                                    value={newMoldDesc}
-                                                                    onChange={(e) => setNewMoldDesc(e.target.value)}
-                                                                    className="mt-2 w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500/15 focus:border-amber-400 transition-all placeholder-slate-400"
-                                                                />
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={handleQuickCreateMold}
-                                                                    disabled={isCreatingMold}
-                                                                    className="mt-2.5 w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 rounded-xl transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-                                                                >
-                                                                    {isCreatingMold ? <Loader2 size={16} className="animate-spin" /> : <><Check size={16} /> Δημιουργία & Επιλογή</>}
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </DetailsSection>
                                             </>
                                         ) : (
                                             <div className="space-y-5">
@@ -1898,7 +1757,127 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                     </div>
                                 )}
 
-                                {activeTab === 'recipe' && (
+                                {activeTab === 'production' && (
+                                    <div className="space-y-5 animate-in fade-in">
+                                        <DetailsSubTabs<'molds' | 'recipe' | 'labor'>
+                                            tabs={[
+                                                { id: 'molds', label: 'Λάστιχα', icon: MapPin },
+                                                { id: 'recipe', label: 'Συνταγή', icon: Box },
+                                                { id: 'labor', label: 'Εργατικά', icon: Hammer },
+                                            ]}
+                                            active={productionSection}
+                                            onChange={setProductionSection}
+                                        />
+                                        {productionSection === 'molds' && (
+                                            <DetailsSection
+                                                    tone="molds"
+                                                    icon={MapPin}
+                                                    title="Λάστιχα"
+                                                    actions={(
+                                                        <button onClick={() => setIsAddingMold(prev => !prev)} className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${isAddingMold ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'}`}>
+                                                            {isAddingMold ? 'Ακύρωση' : '+ Προσθήκη'}
+                                                        </button>
+                                                    )}
+                                                >
+                                                    <div className="flex flex-wrap gap-2 min-h-[36px]">
+                                                        {editedProduct.molds.map(m => {
+                                                            const moldDetails = allMolds.find(mold => mold.code === m.code);
+                                                            const tooltipText = moldDetails ? `${moldDetails.description}${moldDetails.location ? ` (${moldDetails.location})` : ''}` : '';
+                                                            return (
+                                                                <div key={m.code} title={tooltipText} className="bg-amber-50 border border-amber-200 text-amber-800 pl-3 pr-1.5 py-1.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-shadow">
+                                                                    <MapPin size={12} className="text-amber-400 shrink-0" />
+                                                                    <span>{m.code}</span>
+                                                                    <div className="flex items-center bg-amber-100/60 rounded-lg border border-amber-200/80">
+                                                                        <button type="button" onClick={() => updateMoldQuantity(m.code, -1)} className={`p-1 hover:bg-amber-200/60 text-amber-600 rounded-l-lg transition-colors ${m.quantity <= 1 ? 'opacity-30' : ''}`} disabled={m.quantity <= 1}>
+                                                                            <Minus size={12} />
+                                                                        </button>
+                                                                        <input
+                                                                            type="number"
+                                                                            min="1"
+                                                                            value={m.quantity}
+                                                                            onChange={(e) => {
+                                                                                const val = parseInt(e.target.value) || 1;
+                                                                                setEditedProduct(prev => ({
+                                                                                    ...prev,
+                                                                                    molds: prev.molds.map(pm => pm.code === m.code ? { ...pm, quantity: val } : pm)
+                                                                                }));
+                                                                            }}
+                                                                            className="w-8 text-center bg-transparent outline-none text-xs font-bold text-amber-900"
+                                                                        />
+                                                                        <button type="button" onClick={() => updateMoldQuantity(m.code, 1)} className="p-1 hover:bg-amber-200/60 text-amber-600 rounded-r-lg transition-colors">
+                                                                            <Plus size={12} />
+                                                                        </button>
+                                                                    </div>
+                                                                    <button onClick={() => removeMold(m.code)} className="p-1 text-amber-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><X size={14} /></button>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                        {editedProduct.molds.length === 0 && <span className="text-slate-400 text-sm italic py-1.5">Κανένα λάστιχο.</span>}
+                                                    </div>
+                                                    {isAddingMold && (
+                                                        <div className="border border-slate-200 rounded-xl p-3 bg-white/80 space-y-2 animate-in fade-in mt-3">
+                                                            <div className="relative">
+                                                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Αναζήτηση λάστιχου..."
+                                                                    value={moldSearch}
+                                                                    onChange={e => setMoldSearch(e.target.value)}
+                                                                    className="w-full pl-9 p-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-500/10 transition-all"
+                                                                    autoFocus
+                                                                />
+                                                            </div>
+                                                            <div className="max-h-40 overflow-y-auto space-y-0.5">
+                                                                {availableMolds.map(m => (
+                                                                    <button key={m.code} onClick={() => addMold(m.code)} className="w-full text-left p-2.5 hover:bg-amber-50 rounded-xl flex justify-between items-center group text-sm transition-colors">
+                                                                        <span className="font-bold text-slate-700 group-hover:text-amber-800">{m.code}</span>
+                                                                        <span className="text-xs text-slate-400 group-hover:text-amber-600 transition-colors">{m.description}</span>
+                                                                    </button>
+                                                                ))}
+                                                                {availableMolds.length === 0 && <div className="text-center text-xs text-slate-400 p-3">Δεν βρέθηκαν διαθέσιμα λάστιχα.</div>}
+                                                            </div>
+
+                                                            <div className="pt-3 mt-2 border-t border-slate-200/70">
+                                                                <div className="text-[10px] font-black text-amber-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                                                    <Plus size={12} /> Νέο Λάστιχο
+                                                                </div>
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="Κωδικός *"
+                                                                        value={newMoldCode}
+                                                                        onChange={(e) => setNewMoldCode(e.target.value.toUpperCase())}
+                                                                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm font-mono font-bold outline-none focus:ring-2 focus:ring-amber-500/15 focus:border-amber-400 transition-all uppercase placeholder-slate-400"
+                                                                    />
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="Τοποθεσία"
+                                                                        value={newMoldLoc}
+                                                                        onChange={(e) => setNewMoldLoc(e.target.value)}
+                                                                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500/15 focus:border-amber-400 transition-all placeholder-slate-400"
+                                                                    />
+                                                                </div>
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Περιγραφή"
+                                                                    value={newMoldDesc}
+                                                                    onChange={(e) => setNewMoldDesc(e.target.value)}
+                                                                    className="mt-2 w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500/15 focus:border-amber-400 transition-all placeholder-slate-400"
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={handleQuickCreateMold}
+                                                                    disabled={isCreatingMold}
+                                                                    className="mt-2.5 w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 rounded-xl transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                                                                >
+                                                                    {isCreatingMold ? <Loader2 size={16} className="animate-spin" /> : <><Check size={16} /> Δημιουργία & Επιλογή</>}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </DetailsSection>
+                                        )}
+                                        {productionSection === 'recipe' && (
                                     <div className="space-y-4 animate-in fade-in">
                                         <DetailsSection tone="recipe" icon={Box} title="Συνταγή">
 
@@ -2019,7 +1998,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                     </div>
                                 )}
 
-                                {activeTab === 'labor' && (
+                                {productionSection === 'labor' && (
                                     <div className="space-y-6 animate-in fade-in">
                                         <DetailsSection tone="labor" icon={Hammer} title="Εισαγωγή κόστους">
                                             <div className="space-y-2">
@@ -2121,6 +2100,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                         </DetailsSection>
                                     </div>
                                 )}
+                                    </div>
+                                )}
 
                                 {activeTab === 'variants' && (
                                     <div className="space-y-5 animate-in fade-in">
@@ -2189,7 +2170,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                 {activeTab === 'barcodes' && (
                                     <div className="h-full animate-in fade-in">
                                         <DetailsSection tone="barcodes" icon={ScanBarcode} title="Barcodes">
-                                            <BarcodeGallery product={editedProduct} variants={sortedVariantsList} onPrint={setPrintItems} settings={settings} />
+                                            <BarcodeGallery product={editedProduct} variants={sortedVariantsList} activeSuffix={currentViewVariant?.suffix ?? null} onPrint={setPrintItems} settings={settings} />
                                         </DetailsSection>
                                     </div>
                                 )}

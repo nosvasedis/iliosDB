@@ -9,10 +9,7 @@ export default function DetailsFooter({
     onSave: () => void;
 }) {
     return (
-        <div className="flex shrink-0 items-center justify-between gap-4 border-t border-slate-100 bg-white/90 p-4 backdrop-blur-sm">
-            <p className="text-xs font-medium text-slate-400">
-                Οι αλλαγές αποθηκεύονται με το κουμπί.
-            </p>
+        <div className="flex shrink-0 items-center justify-end gap-4 border-t border-slate-100 bg-white/90 p-4 backdrop-blur-sm">
             <button
                 type="button"
                 onClick={onSave}

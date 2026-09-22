@@ -10,7 +10,7 @@ interface LabelPrintSettingsPanelProps {
   onFormatChange: (format: LabelPrintFormat) => void;
   onShowPriceChange: (showPrice: boolean) => void;
   onPriceTierChange: (priceTier: LabelPriceTier) => void;
-  layout?: 'stack' | 'inline';
+  layout?: 'stack' | 'inline' | 'toolbar';
 }
 
 const segmented = 'flex gap-2 bg-slate-50 p-1 rounded-xl';
@@ -89,6 +89,40 @@ const LabelPrintSettingsPanel: React.FC<LabelPrintSettingsPanelProps> = ({
       </div>
     </div>
   );
+
+  if (layout === 'toolbar') {
+    const bar = 'flex gap-0.5 rounded-lg bg-slate-100 p-0.5';
+    const item = (active: boolean, activeClass = 'bg-white text-slate-900 shadow-sm') =>
+      `flex items-center justify-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bold transition-all ${active ? activeClass : 'text-slate-500 hover:text-slate-700'}`;
+    return (
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+        <div className={bar}>
+          <button type="button" onClick={() => onFormatChange('standard')} className={item(format === 'standard')}>
+            <Tag size={12} /> Χονδρική
+          </button>
+          <button type="button" onClick={() => onFormatChange('retail')} className={item(format === 'retail', 'bg-white text-emerald-700 shadow-sm')}>
+            <ShoppingBag size={12} /> Λιανική
+          </button>
+        </div>
+        <div className={bar}>
+          <button type="button" onClick={() => onShowPriceChange(true)} className={item(showPrice)}>
+            Με τιμή
+          </button>
+          <button type="button" onClick={() => onShowPriceChange(false)} className={item(!showPrice)}>
+            Χωρίς
+          </button>
+        </div>
+        <div className={`${bar} ${showPrice ? '' : 'pointer-events-none opacity-40'}`}>
+          <button type="button" onClick={() => onPriceTierChange('wholesale')} className={item(priceTier === 'wholesale')}>
+            <Tag size={12} /> Χονδρική
+          </button>
+          <button type="button" onClick={() => onPriceTierChange('retail')} className={item(priceTier === 'retail', 'bg-white text-emerald-700 shadow-sm')}>
+            <ShoppingBag size={12} /> Λιανική ×3
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (layout === 'inline') {
     return (

@@ -2,7 +2,7 @@ import React from 'react';
 import { LucideIcon } from 'lucide-react';
 
 export interface DetailsTab {
-    id: 'overview' | 'recipe' | 'labor' | 'variants' | 'barcodes';
+    id: 'overview' | 'production' | 'variants' | 'barcodes';
     label: string;
     icon: LucideIcon;
     count?: number;

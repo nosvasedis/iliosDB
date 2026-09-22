@@ -15,79 +15,19 @@ export type DetailsSectionTone =
     | 'barcodes'
     | 'policy';
 
-const SECTION_TONES: Record<DetailsSectionTone, { wrap: string; iconWrap: string; icon: string; accent: string }> = {
-    identity: {
-        wrap: 'from-slate-50/90 to-blue-50/50 border-blue-200/70',
-        iconWrap: 'bg-blue-100',
-        icon: 'text-blue-600',
-        accent: 'border-blue-200/60',
-    },
-    weight: {
-        wrap: 'from-teal-50/80 to-cyan-50/40 border-teal-200/70',
-        iconWrap: 'bg-teal-100',
-        icon: 'text-teal-700',
-        accent: 'border-teal-200/60',
-    },
-    commerce: {
-        wrap: 'from-emerald-50/50 to-amber-50/30 border-emerald-200/70',
-        iconWrap: 'bg-emerald-100',
-        icon: 'text-emerald-600',
-        accent: 'border-emerald-200/60',
-    },
-    molds: {
-        wrap: 'from-amber-50/80 to-orange-50/30 border-amber-200/70',
-        iconWrap: 'bg-amber-100',
-        icon: 'text-amber-700',
-        accent: 'border-amber-200/60',
-    },
-    supplier: {
-        wrap: 'from-violet-50/80 to-purple-50/40 border-violet-200/70',
-        iconWrap: 'bg-violet-100',
-        icon: 'text-violet-600',
-        accent: 'border-violet-200/60',
-    },
-    costing: {
-        wrap: 'from-indigo-50/70 to-slate-50/40 border-indigo-200/70',
-        iconWrap: 'bg-indigo-100',
-        icon: 'text-indigo-600',
-        accent: 'border-indigo-200/60',
-    },
-    analysis: {
-        wrap: 'from-emerald-50/70 to-slate-50/40 border-emerald-200/70',
-        iconWrap: 'bg-emerald-100',
-        icon: 'text-emerald-600',
-        accent: 'border-emerald-200/60',
-    },
-    labor: {
-        wrap: 'from-orange-50/70 to-slate-50/40 border-orange-200/70',
-        iconWrap: 'bg-orange-100',
-        icon: 'text-orange-600',
-        accent: 'border-orange-200/60',
-    },
-    recipe: {
-        wrap: 'from-sky-50/70 to-slate-50/40 border-sky-200/70',
-        iconWrap: 'bg-sky-100',
-        icon: 'text-sky-600',
-        accent: 'border-sky-200/60',
-    },
-    variants: {
-        wrap: 'from-violet-50/70 to-slate-50/40 border-violet-200/70',
-        iconWrap: 'bg-violet-100',
-        icon: 'text-violet-600',
-        accent: 'border-violet-200/60',
-    },
-    barcodes: {
-        wrap: 'from-slate-50/90 to-slate-50/40 border-slate-200/80',
-        iconWrap: 'bg-slate-100',
-        icon: 'text-slate-600',
-        accent: 'border-slate-200/60',
-    },
-    policy: {
-        wrap: 'from-amber-50/70 to-slate-50/40 border-amber-200/70',
-        iconWrap: 'bg-amber-100',
-        icon: 'text-amber-600',
-        accent: 'border-amber-200/60',
-    },
+const SECTION_TONES: Record<DetailsSectionTone, { bar: string; iconWrap: string; icon: string }> = {
+    identity: { bar: 'border-l-blue-400', iconWrap: 'bg-blue-50', icon: 'text-blue-600' },
+    weight: { bar: 'border-l-teal-400', iconWrap: 'bg-teal-50', icon: 'text-teal-700' },
+    commerce: { bar: 'border-l-emerald-400', iconWrap: 'bg-emerald-50', icon: 'text-emerald-600' },
+    molds: { bar: 'border-l-amber-400', iconWrap: 'bg-amber-50', icon: 'text-amber-700' },
+    supplier: { bar: 'border-l-violet-400', iconWrap: 'bg-violet-50', icon: 'text-violet-600' },
+    costing: { bar: 'border-l-indigo-400', iconWrap: 'bg-indigo-50', icon: 'text-indigo-600' },
+    analysis: { bar: 'border-l-emerald-400', iconWrap: 'bg-emerald-50', icon: 'text-emerald-600' },
+    labor: { bar: 'border-l-orange-400', iconWrap: 'bg-orange-50', icon: 'text-orange-600' },
+    recipe: { bar: 'border-l-sky-400', iconWrap: 'bg-sky-50', icon: 'text-sky-600' },
+    variants: { bar: 'border-l-violet-400', iconWrap: 'bg-violet-50', icon: 'text-violet-600' },
+    barcodes: { bar: 'border-l-slate-400', iconWrap: 'bg-slate-100', icon: 'text-slate-600' },
+    policy: { bar: 'border-l-amber-400', iconWrap: 'bg-amber-50', icon: 'text-amber-600' },
 };
 
 export const detailsInputClass =
@@ -111,8 +51,8 @@ export function DetailsSection({
 }) {
     const t = SECTION_TONES[tone];
     return (
-        <section className={`bg-gradient-to-br ${t.wrap} p-5 rounded-2xl border shadow-sm`}>
-            <div className={`flex items-center justify-between gap-3 border-b ${t.accent} pb-3 mb-4`}>
+        <section className={`rounded-2xl border border-slate-200/80 border-l-4 ${t.bar} bg-white p-5 shadow-sm`}>
+            <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider">
                     <span className={`p-1.5 rounded-lg ${t.iconWrap}`}>
                         <Icon size={13} className={t.icon} />
@@ -163,13 +103,15 @@ export function DetailsActionButton({
     title: string;
     onClick: () => void;
     disabled?: boolean;
-    tone?: 'neutral' | 'danger' | 'info';
+    tone?: 'neutral' | 'danger' | 'info' | 'violet' | 'success';
     children: React.ReactNode;
 }) {
     const tones = {
         neutral: 'bg-slate-100 text-slate-600 hover:bg-slate-200',
         danger: 'bg-red-50 text-red-600 hover:bg-red-100',
         info: 'bg-blue-50 text-blue-600 hover:bg-blue-100',
+        violet: 'bg-violet-50 text-violet-600 hover:bg-violet-100',
+        success: 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100',
     };
     return (
         <button
@@ -184,5 +126,37 @@ export function DetailsActionButton({
                 {title}
             </span>
         </button>
+    );
+}
+
+export function DetailsSubTabs<T extends string>({
+    tabs,
+    active,
+    onChange,
+}: {
+    tabs: { id: T; label: string; icon?: LucideIcon }[];
+    active: T;
+    onChange: (id: T) => void;
+}) {
+    return (
+        <div className="flex w-full gap-1 rounded-xl bg-slate-100 p-1">
+            {tabs.map((tab) => {
+                const isActive = active === tab.id;
+                const Icon = tab.icon;
+                return (
+                    <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => onChange(tab.id)}
+                        className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-all ${
+                            isActive ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                    >
+                        {Icon ? <Icon size={14} className={isActive ? 'text-amber-500' : ''} /> : null}
+                        <span className="truncate">{tab.label}</span>
+                    </button>
+                );
+            })}
+        </div>
     );
 }
