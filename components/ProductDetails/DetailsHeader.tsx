@@ -186,7 +186,7 @@ export default function DetailsHeader({
 
     return (
         <div className="z-10 shrink-0 border-b border-slate-100 bg-white px-6 py-3">
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-3">
                 <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                         {isEditingSku ? (
@@ -216,7 +216,7 @@ export default function DetailsHeader({
                                     <button
                                         type="button"
                                         onClick={onStartRename}
-                                        className="rounded p-1 text-slate-300 opacity-0 transition-opacity hover:bg-emerald-50 hover:text-emerald-600 group-hover:opacity-100"
+                                        className="rounded p-1 text-slate-300 opacity-0 transition-opacity hover:bg-emerald-50 hover:text-emerald-600 group-hover:opacity-100 focus-visible:opacity-100"
                                         title="Μετονομασία SKU"
                                     >
                                         <Edit size={16} />

@@ -94,7 +94,7 @@ const BarcodeGallery = React.memo(({ product, variants, onPrint, settings, activ
 
   return (
     <div className="flex h-full flex-col gap-3">
-      <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-nowrap items-center gap-3 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 custom-scrollbar">
         <LabelPrintSettingsPanel
           layout="toolbar"
           format={format}
@@ -107,13 +107,14 @@ const BarcodeGallery = React.memo(({ product, variants, onPrint, settings, activ
         <button
           type="button"
           onClick={() => handlePrint()}
-          className="flex shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm transition-all hover:bg-slate-50"
+          title="Εκτύπωση όλων των ετικετών με τις επιλεγμένες ρυθμίσεις"
+          className="flex shrink-0 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-slate-800"
         >
           <Printer size={14} /> Εκτύπωση όλων
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 pb-2 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 pb-2 sm:grid-cols-2 xl:grid-cols-3">
         {items.map(({ variant, key }) => {
           const edited = hasLabelTextOverrides(labelOverrideDrafts[key]);
 

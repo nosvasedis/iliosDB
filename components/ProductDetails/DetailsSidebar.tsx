@@ -27,22 +27,22 @@ export default function DetailsSidebar({
     onDeleteImage: () => void;
 }) {
     return (
-        <div className="space-y-6">
-            <div className="group relative rounded-3xl border border-slate-100 bg-white p-4 shadow-sm">
-                <div className="relative aspect-square overflow-hidden rounded-2xl bg-slate-100">
+        <div className="space-y-4 lg:sticky lg:top-0">
+            <div className="group relative rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                <div className="relative aspect-square overflow-hidden rounded-xl bg-slate-50">
                     {imageUrl ? (
-                        <img src={imageUrl} className="h-full w-full object-cover" alt={sku} />
+                        <img src={imageUrl} className="h-full w-full object-contain" alt={sku} />
                     ) : (
                         <div className="flex h-full w-full items-center justify-center text-slate-300">
                             <ImageIcon size={48} />
                         </div>
                     )}
 
-                    <label className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                    <label className="sku-image-action absolute inset-0 flex cursor-pointer items-center justify-center bg-slate-900/25 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                         <div className="flex items-center gap-2 rounded-xl border border-white/30 bg-white/20 px-4 py-2 font-bold text-white backdrop-blur-md">
                             <Camera size={18} /> {isUploadingImage ? 'Μεταφόρτωση...' : 'Αλλαγή'}
                         </div>
-                        <input type="file" className="hidden" accept={ACCEPTED_IMAGE_INPUT_TYPES} onChange={onImageUpdate} disabled={isUploadingImage} />
+                        <input type="file" aria-label="Αλλαγή φωτογραφίας SKU" className="sr-only" accept={ACCEPTED_IMAGE_INPUT_TYPES} onChange={onImageUpdate} disabled={isUploadingImage} />
                     </label>
 
                     {imageUrl && (
@@ -51,7 +51,7 @@ export default function DetailsSidebar({
                             onClick={onDeleteImage}
                             disabled={isDeletingImage}
                             className="absolute left-2 top-2 z-[1] rounded-full bg-red-500 p-1.5 text-white shadow-md transition-colors hover:bg-red-600"
-                            title="Διαγραφή Φωτογραφίας"
+                            title="Διαγραφή Φωτογραφίας" aria-label="Διαγραφή φωτογραφίας"
                         >
                             {isDeletingImage ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                         </button>
@@ -59,14 +59,14 @@ export default function DetailsSidebar({
                 </div>
             </div>
 
-            <div className="space-y-4 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+            <div className="space-y-4 rounded-2xl border border-emerald-200/70 bg-gradient-to-b from-emerald-50/70 to-white p-5 shadow-sm">
                 <h3 className="flex items-center gap-2 border-b border-slate-100 pb-2 font-bold text-slate-700">
                     <TrendingUp size={18} className="text-emerald-500" /> Σύνοψη
                 </h3>
 
                 <div className="flex items-center justify-between text-sm">
                     <span className="text-slate-500">Κόστος</span>
-                    <span className="font-mono font-bold text-slate-800">{formatCurrency(displayedCost)}</span>
+                    <span className="tabular-nums font-semibold text-slate-800">{formatCurrency(displayedCost)}</span>
                 </div>
 
                 {!isComponent && (
@@ -77,8 +77,8 @@ export default function DetailsSidebar({
                         </div>
                         <div className="h-px w-full bg-slate-100" />
                         <div className="flex items-center justify-between text-xs">
-                            <span className="font-bold uppercase text-slate-400">Περιθώριο</span>
-                            <span className={`font-black ${displayedMargin < 30 ? 'text-red-500' : 'text-emerald-600'}`}>
+                            <span className="font-medium text-slate-600">Περιθώριο</span>
+                            <span className={`rounded-lg bg-white px-2.5 py-1 text-lg tabular-nums font-semibold ${displayedMargin < 30 ? 'text-red-500' : 'text-emerald-600'}`}>
                                 {displayedMargin.toFixed(0)}%
                             </span>
                         </div>

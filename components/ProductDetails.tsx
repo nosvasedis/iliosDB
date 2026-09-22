@@ -1,4 +1,5 @@
 
+import './ProductDetails/productDetails.css';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier, MaterialType } from '../types';
@@ -519,7 +520,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     const { data: suppliers } = useSuppliers();
 
     const [activeTab, setActiveTab] = useState<'overview' | 'production' | 'variants' | 'barcodes'>('overview');
-    const [productionSection, setProductionSection] = useState<'molds' | 'recipe' | 'labor'>('molds');
+    const [productionSection, setProductionSection] = useState<'recipe' | 'labor'>('recipe');
     const [isDeleting, setIsDeleting] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [viewIndex, setViewIndex] = useState(() => getVariantIndexBySuffix(
@@ -1334,7 +1335,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             )}
             {showAnalysisHelp && <AnalysisExplainerModal onClose={() => setShowAnalysisHelp(false)} />}
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
-            <div className="bg-white w-full max-w-6xl h-[90vh] rounded-3xl shadow-2xl relative flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100">
+            <div className="sku-details bg-white w-full max-w-7xl h-[92vh] rounded-3xl shadow-2xl relative flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100">
 
                 <DetailsHeader
                     displayedSku={displayedSku}
@@ -1373,9 +1374,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     isDeleting={isDeleting}
                 />
 
-                <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50">
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                        <div className="lg:col-span-4">
+                <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50/80">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                        <div className="lg:col-span-3 min-w-0">
                             <DetailsSidebar
                                 sku={editedProduct.sku}
                                 imageUrl={editedProduct.image_url}
@@ -1390,11 +1391,11 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                             />
                         </div>
 
-                        <div className="lg:col-span-8 space-y-6">
+                        <div className="lg:col-span-9 min-w-0 space-y-5">
 
                             <DetailsTabBar tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
 
-                            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm min-h-[400px]">
+                            <div className="min-h-[400px]">
                                 {activeTab === 'overview' && (
                                     <div className="space-y-5 animate-in fade-in">
                                         {editedProduct.production_type === ProductionType.InHouse ? (
@@ -1759,16 +1760,16 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
                                 {activeTab === 'production' && (
                                     <div className="space-y-5 animate-in fade-in">
-                                        <DetailsSubTabs<'molds' | 'recipe' | 'labor'>
+                                        <DetailsSubTabs<'recipe' | 'labor'>
                                             tabs={[
-                                                { id: 'molds', label: 'Λάστιχα', icon: MapPin },
                                                 { id: 'recipe', label: 'Συνταγή', icon: Box },
                                                 { id: 'labor', label: 'Εργατικά', icon: Hammer },
                                             ]}
                                             active={productionSection}
                                             onChange={setProductionSection}
                                         />
-                                        {productionSection === 'molds' && (
+                                        {productionSection === 'recipe' && (
+                                            <div className="space-y-5">
                                             <DetailsSection
                                                     tone="molds"
                                                     icon={MapPin}
@@ -1876,8 +1877,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                         </div>
                                                     )}
                                                 </DetailsSection>
-                                        )}
-                                        {productionSection === 'recipe' && (
+
                                     <div className="space-y-4 animate-in fade-in">
                                         <DetailsSection tone="recipe" icon={Box} title="Συνταγή">
 
@@ -1996,6 +1996,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                             </div>
                                         </DetailsSection>
                                     </div>
+                                </div>
                                 )}
 
                                 {productionSection === 'labor' && (

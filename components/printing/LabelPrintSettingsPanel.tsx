@@ -91,35 +91,24 @@ const LabelPrintSettingsPanel: React.FC<LabelPrintSettingsPanelProps> = ({
   );
 
   if (layout === 'toolbar') {
-    const bar = 'flex gap-0.5 rounded-lg bg-slate-100 p-0.5';
-    const item = (active: boolean, activeClass = 'bg-white text-slate-900 shadow-sm') =>
-      `flex items-center justify-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bold transition-all ${active ? activeClass : 'text-slate-500 hover:text-slate-700'}`;
+    const selectClass = 'rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:opacity-40';
     return (
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-        <div className={bar}>
-          <button type="button" onClick={() => onFormatChange('standard')} className={item(format === 'standard')}>
-            <Tag size={12} /> Χονδρική
-          </button>
-          <button type="button" onClick={() => onFormatChange('retail')} className={item(format === 'retail', 'bg-white text-emerald-700 shadow-sm')}>
-            <ShoppingBag size={12} /> Λιανική
-          </button>
-        </div>
-        <div className={bar}>
-          <button type="button" onClick={() => onShowPriceChange(true)} className={item(showPrice)}>
-            Με τιμή
-          </button>
-          <button type="button" onClick={() => onShowPriceChange(false)} className={item(!showPrice)}>
-            Χωρίς
-          </button>
-        </div>
-        <div className={`${bar} ${showPrice ? '' : 'pointer-events-none opacity-40'}`}>
-          <button type="button" onClick={() => onPriceTierChange('wholesale')} className={item(priceTier === 'wholesale')}>
-            <Tag size={12} /> Χονδρική
-          </button>
-          <button type="button" onClick={() => onPriceTierChange('retail')} className={item(priceTier === 'retail', 'bg-white text-emerald-700 shadow-sm')}>
-            <ShoppingBag size={12} /> Λιανική ×3
-          </button>
-        </div>
+      <div className="flex flex-1 flex-nowrap items-center gap-3 whitespace-nowrap">
+        <label className="flex shrink-0 items-center gap-2 text-xs font-medium text-slate-500" title="Διαστάσεις και διάταξη της ετικέτας">
+          <Tag size={14} /> Μορφή
+          <select aria-label="Μορφή ετικέτας" value={format} onChange={e => onFormatChange(e.target.value as LabelPrintFormat)} className={selectClass}>
+            <option value="standard">Χονδρική</option>
+            <option value="retail">Λιανική</option>
+          </select>
+        </label>
+        <label className="flex shrink-0 cursor-pointer items-center gap-2 border-l border-slate-200 pl-3 text-xs font-medium text-slate-600" title="Εμφάνιση τιμής στην εκτυπωμένη ετικέτα">
+          <input type="checkbox" checked={showPrice} onChange={e => onShowPriceChange(e.target.checked)} className="h-4 w-4 rounded accent-sky-600" />
+          Με τιμή
+        </label>
+        <select aria-label="Τιμή ετικέτας" title="Τιμή ετικέτας: χονδρική ή λιανική ×3" disabled={!showPrice} value={priceTier} onChange={e => onPriceTierChange(e.target.value as LabelPriceTier)} className={selectClass}>
+          <option value="wholesale">Χονδρική</option>
+          <option value="retail">Λιανική ×3</option>
+        </select>
       </div>
     );
   }

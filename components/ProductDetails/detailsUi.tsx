@@ -51,11 +51,11 @@ export function DetailsSection({
 }) {
     const t = SECTION_TONES[tone];
     return (
-        <section className="rounded-xl border border-slate-200/70 bg-white p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between gap-3 border-b border-slate-100 pb-2.5">
-                <h4 className="flex items-center gap-2 text-[13px] font-semibold text-slate-800">
-                    <span className={`rounded-md p-1 ${t.iconWrap}`}>
-                        <Icon size={13} className={t.icon} />
+        <section data-tone={tone} className="sku-section rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
+            <div className="sku-section-heading mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <h4 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                    <span className={`rounded-xl p-2 ${t.iconWrap}`}>
+                        <Icon size={16} className={t.icon} />
                     </span>
                     {title}
                 </h4>
@@ -81,7 +81,7 @@ export function DetailsField({
 }) {
     return (
         <div className={className}>
-            <label className="mb-1 flex items-center justify-between gap-2 text-[11px] font-medium text-slate-500">
+            <label className="mb-1 flex items-center justify-between gap-2 text-xs font-medium text-slate-600">
                 <span className="flex items-center gap-1.5">
                     {Icon ? <Icon size={11} className="text-slate-400" /> : null}
                     {label}
@@ -117,12 +117,13 @@ export function DetailsActionButton({
         <button
             type="button"
             title={title}
+            aria-label={title}
             onClick={onClick}
             disabled={disabled}
             className={`relative group p-2.5 rounded-xl transition-colors disabled:opacity-50 ${tones[tone]}`}
         >
             {children}
-            <span className="pointer-events-none absolute -bottom-8 right-0 z-20 w-max rounded bg-slate-800 px-2 py-1 text-[10px] font-bold text-white opacity-0 transition-opacity group-hover:opacity-100">
+            <span className="pointer-events-none absolute -bottom-8 right-0 z-20 w-max rounded bg-slate-800 px-2 py-1 text-[10px] font-bold text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
                 {title}
             </span>
         </button>
@@ -139,7 +140,7 @@ export function DetailsSubTabs<T extends string>({
     onChange: (id: T) => void;
 }) {
     return (
-        <div className="flex w-full gap-1 rounded-xl bg-slate-100 p-1">
+        <div className="flex w-full gap-1 rounded-xl border border-slate-200 bg-slate-100/80 p-1">
             {tabs.map((tab) => {
                 const isActive = active === tab.id;
                 const Icon = tab.icon;
@@ -148,11 +149,12 @@ export function DetailsSubTabs<T extends string>({
                         key={tab.id}
                         type="button"
                         onClick={() => onChange(tab.id)}
+                        aria-pressed={isActive}
                         className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-all ${
-                            isActive ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                            isActive ? 'bg-white text-sky-800 shadow-sm ring-1 ring-slate-200/60' : 'text-slate-500 hover:text-slate-700'
                         }`}
                     >
-                        {Icon ? <Icon size={14} className={isActive ? 'text-amber-500' : ''} /> : null}
+                        {Icon ? <Icon size={14} className={isActive ? 'text-sky-600' : ''} /> : null}
                         <span className="truncate">{tab.label}</span>
                     </button>
                 );
