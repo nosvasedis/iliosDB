@@ -31,6 +31,7 @@ import { useAuth } from './AuthContext';
 import SkuColorizedText from './SkuColorizedText';
 import SmartVariantAddPanel from './ProductDetails/SmartVariantAddPanel';
 import DetailsHeader from './ProductDetails/DetailsHeader';
+import ProductionTypeBadge from './ProductDetails/ProductionTypeBadge';
 import DetailsSidebar from './ProductDetails/DetailsSidebar';
 import DetailsTabBar, { type DetailsTab } from './ProductDetails/DetailsTabBar';
 import DetailsFooter from './ProductDetails/DetailsFooter';
@@ -1341,7 +1342,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     displayedSku={displayedSku}
                     displayedLabel={displayedLabel}
                     gender={editedProduct.gender}
-                    category={editedProduct.category}
                     productionType={editedProduct.production_type}
                     isComponent={!!editedProduct.is_component}
                     skipCasting={!!editedProduct.skip_casting}
@@ -1419,6 +1419,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                     <div className="grid grid-cols-2 gap-x-5 gap-y-4">
                                                         <DetailsField label="Κατηγορία" icon={Tag}>
                                                             <input className={detailsInputClass} value={editedProduct.category} onChange={e => setEditedProduct({ ...editedProduct, category: e.target.value })} />
+                                                        </DetailsField>
+                                                        <DetailsField label="Προέλευση">
+                                                            <ProductionTypeBadge productionType={editedProduct.production_type} />
                                                         </DetailsField>
                                                         <DetailsField label="Φύλο" icon={Users}>
                                                             <select className={detailsInputClass} value={editedProduct.gender} onChange={e => setEditedProduct({ ...editedProduct, gender: e.target.value as Gender })}>
@@ -1622,6 +1625,17 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                             </>
                                         ) : (
                                             <div className="space-y-5">
+                                                <DetailsSection tone="identity" icon={Info} title="Ταυτότητα">
+                                                    <div className="grid grid-cols-2 gap-x-5 gap-y-4">
+                                                        <DetailsField label="Κατηγορία" icon={Tag}>
+                                                            <input className={detailsInputClass} value={editedProduct.category} onChange={e => setEditedProduct({ ...editedProduct, category: e.target.value })} />
+                                                        </DetailsField>
+                                                        <DetailsField label="Προέλευση">
+                                                            <ProductionTypeBadge productionType={editedProduct.production_type} />
+                                                        </DetailsField>
+                                                    </div>
+                                                </DetailsSection>
+
                                                 <DetailsSection tone="supplier" icon={Globe} title="Προμηθευτής">
                                                     <div className="grid grid-cols-2 gap-x-5 gap-y-4">
                                                         <DetailsField label="Προμηθευτής" icon={ShoppingBag}>
@@ -1636,9 +1650,6 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                         </DetailsField>
                                                         <DetailsField label="Κωδικός Προμηθευτή" icon={Tag}>
                                                             <input type="text" className={detailsMonoInputClass} value={editedProduct.supplier_sku || ''} onChange={e => setEditedProduct({ ...editedProduct, supplier_sku: e.target.value })} placeholder="π.χ. ITEM-123" />
-                                                        </DetailsField>
-                                                        <DetailsField label="Κατηγορία" icon={Tag}>
-                                                            <input className={detailsInputClass} value={editedProduct.category} onChange={e => setEditedProduct({ ...editedProduct, category: e.target.value })} />
                                                         </DetailsField>
                                                     </div>
                                                 </DetailsSection>

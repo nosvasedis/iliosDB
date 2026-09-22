@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { Gender, ProductVariant, ProductionType } from '../../types';
 import { FINISH_CODES } from '../../constants';
-import { PRODUCTION_TYPE_LABELS, SKIP_CASTING_LABEL, canConvertToImported } from '../../features/products/productCardPresentation';
+import { SKIP_CASTING_LABEL, canConvertToImported } from '../../features/products/productCardPresentation';
 import { getVariantComponents } from '../../utils/pricingEngine';
 import SkuColorizedText from '../SkuColorizedText';
 import { DetailsActionButton } from './detailsUi';
@@ -31,7 +31,6 @@ export default function DetailsHeader({
     displayedSku,
     displayedLabel,
     gender,
-    category,
     productionType,
     isComponent,
     skipCasting,
@@ -63,7 +62,6 @@ export default function DetailsHeader({
     displayedSku: string;
     displayedLabel: string;
     gender: Gender;
-    category: string;
     productionType: ProductionType;
     isComponent: boolean;
     skipCasting: boolean;
@@ -94,7 +92,6 @@ export default function DetailsHeader({
 }) {
     const isImported = productionType === ProductionType.Imported;
     const showConvertToImported = canConvertToImported({ production_type: productionType, is_component: isComponent });
-    const OriginIcon = isImported ? Globe : Factory;
     const canStep = maxViews > 1;
     const currentVariant = sortedVariants[normalizedViewIndex];
     const finishCode = currentVariant ? getVariantComponents(currentVariant.suffix, gender).finish.code : '';
@@ -225,14 +222,6 @@ export default function DetailsHeader({
                             </h2>
                         )}
 
-                        <span
-                            title={PRODUCTION_TYPE_LABELS[productionType]}
-                            className={`inline-flex h-6 w-6 items-center justify-center rounded-full ${isImported ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'}`}
-                        >
-                            <OriginIcon size={12} />
-                        </span>
-
-                        <span className="text-sm font-medium text-slate-500">{category}</span>
                         {isComponent && (
                             <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase text-blue-700">Εξάρτημα</span>
                         )}
