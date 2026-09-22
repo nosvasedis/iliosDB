@@ -202,13 +202,13 @@ export default function SmartVariantAddPanel({
         : 'Όλες';
 
   return (
-    <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden">
-      <div className="absolute top-0 right-0 p-10 opacity-[0.03] pointer-events-none">
-        <Wand2 size={120} />
+    <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+      <div className="pointer-events-none absolute right-0 top-0 p-8 opacity-[0.03]">
+        <Wand2 size={100} />
       </div>
 
-      <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-3 mb-4 relative z-10">
-        <div className="p-1.5 bg-amber-100 rounded-lg">
+      <h4 className="relative z-10 mb-3 flex items-center gap-2 border-b border-slate-200 pb-2.5 text-[13px] font-semibold text-slate-800">
+        <div className="rounded-md bg-amber-100 p-1">
           <Wand2 size={13} className="text-amber-600" />
         </div>
         Έξυπνη Προσθήκη

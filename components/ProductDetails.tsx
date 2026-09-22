@@ -476,9 +476,9 @@ const AnalysisExplainerModal = React.memo(({ onClose }: { onClose: () => void })
 ));
 
 const LaborCostInput = React.memo(({ label, value, onChange, override, onToggleOverride, readOnly = false, icon = <Hammer size={14} /> }: { label: string, value: number, onChange: (v: number) => void, override?: boolean, onToggleOverride?: () => void, readOnly?: boolean, icon?: React.ReactNode }) => (
-    <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-100 hover:border-slate-200 hover:shadow-sm transition-all group">
-        <span className="text-sm text-slate-600 font-medium flex items-center gap-2.5">
-            <span className="text-slate-400 group-hover:text-slate-500 transition-colors">{icon}</span>
+    <div className="group flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50/40 px-3 py-2 transition-colors hover:border-slate-200 hover:bg-slate-50">
+        <span className="flex items-center gap-2 text-sm text-slate-600">
+            <span className="text-slate-400 transition-colors group-hover:text-slate-500">{icon}</span>
             {label}
         </span>
         <div className="flex items-center gap-2">
@@ -487,14 +487,14 @@ const LaborCostInput = React.memo(({ label, value, onChange, override, onToggleO
                 value={value}
                 onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
                 readOnly={readOnly || (onToggleOverride && !override)}
-                className={`w-20 text-right bg-slate-50 border border-slate-200 rounded-lg p-1.5 font-mono text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-500/10 transition-all ${readOnly || (onToggleOverride && !override) ? 'text-slate-400' : 'text-slate-800 font-bold'}`}
+                className={`w-20 rounded-md border border-slate-200 bg-white p-1.5 text-right font-mono text-sm outline-none transition-all focus:border-amber-400 focus:ring-2 focus:ring-amber-500/10 ${readOnly || (onToggleOverride && !override) ? 'text-slate-400' : 'font-bold text-slate-800'}`}
             />
             {onToggleOverride && (
-                <button onClick={onToggleOverride} className={`p-1 rounded-md transition-all ${override ? 'text-amber-500 bg-amber-50 hover:bg-amber-100' : 'text-slate-300 hover:text-amber-500 hover:bg-amber-50'}`}>
+                <button onClick={onToggleOverride} className={`rounded-md p-1 transition-all ${override ? 'bg-amber-50 text-amber-500 hover:bg-amber-100' : 'text-slate-300 hover:bg-amber-50 hover:text-amber-500'}`}>
                     {override ? <Unlock size={14} /> : <Lock size={14} />}
                 </button>
             )}
-            <span className="text-xs text-slate-400 font-medium">€</span>
+            <span className="text-xs font-medium text-slate-400">€</span>
         </div>
     </div>
 ));
@@ -1396,7 +1396,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
                             <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm min-h-[400px]">
                                 {activeTab === 'overview' && (
-                                    <div className="space-y-6 animate-in fade-in">
+                                    <div className="space-y-5 animate-in fade-in">
                                         {editedProduct.production_type === ProductionType.InHouse ? (
                                             <>
                                                 <DetailsSection
@@ -1881,13 +1881,13 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                     <div className="space-y-4 animate-in fade-in">
                                         <DetailsSection tone="recipe" icon={Box} title="Συνταγή">
 
-                                            <div className="flex items-center gap-3 p-3.5 bg-gradient-to-r from-slate-100 to-slate-50 rounded-xl border border-slate-200 shadow-sm">
-                                                <div className="p-2.5 bg-white rounded-xl border border-slate-100 text-slate-500 shadow-sm">
+                                            <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+                                                <div className="rounded-md border border-slate-100 bg-white p-2 text-slate-500">
                                                     <Coins size={16} />
                                                 </div>
                                                 <div className="flex-1">
-                                                    <div className="font-bold text-slate-800 text-sm">Ασήμι 925 (Βάση)</div>
-                                                    <div className="text-xs text-slate-400 font-mono">
+                                                    <div className="text-sm font-bold text-slate-800">Ασήμι 925 (Βάση)</div>
+                                                    <div className="font-mono text-xs text-slate-400">
                                                         {totalWeightForSilver > editedProduct.weight_g
                                                             ? `${formatDecimal(totalWeightForSilver)}g (${formatDecimal(editedProduct.weight_g)}g + ${formatDecimal(editedProduct.secondary_weight_g || 0)}g)`
                                                             : `${formatDecimal(totalWeightForSilver)}g`
@@ -1895,7 +1895,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                     </div>
                                                 </div>
                                                 <div className="text-right">
-                                                    <div className="font-mono font-bold text-slate-800 text-lg">
+                                                    <div className="font-mono text-lg font-bold text-slate-800">
                                                         {formatCurrency(currentCostCalc.breakdown.silver)}
                                                     </div>
                                                 </div>
@@ -1935,7 +1935,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                     const stxDescription = !isRaw ? (details as Product | undefined)?.description : null;
 
                                                     return (
-                                                        <div key={idx} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100 hover:border-slate-200 hover:shadow-sm transition-all group">
+                                                        <div key={idx} className="group flex items-center gap-3 rounded-lg border border-slate-100 bg-slate-50/40 p-2.5 transition-colors hover:border-slate-200 hover:bg-slate-50">
                                                             <div className="w-10 h-10 shrink-0 bg-slate-50 rounded-xl border border-slate-100 overflow-hidden flex items-center justify-center">
                                                                 {isRaw ? (
                                                                     <Gem size={16} className="text-emerald-500" />
@@ -1990,16 +1990,16 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                             </div>
 
                                             {/* ── Add Buttons ── */}
-                                            <div className="flex gap-2 pt-4 border-t border-slate-100 mt-4">
-                                                <button onClick={() => setIsRecipeModalOpen('raw')} className="flex-1 py-2.5 bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 rounded-xl text-xs font-bold text-slate-600 hover:text-emerald-700 transition-all flex items-center justify-center gap-2 shadow-sm"><Plus size={14} /> Υλικό</button>
-                                                <button onClick={() => setIsRecipeModalOpen('component')} className="flex-1 py-2.5 bg-white hover:bg-blue-50 border border-slate-200 hover:border-blue-200 rounded-xl text-xs font-bold text-slate-600 hover:text-blue-700 transition-all flex items-center justify-center gap-2 shadow-sm"><Plus size={14} /> Εξάρτημα</button>
+                                            <div className="mt-3 flex gap-2 border-t border-slate-100 pt-3">
+                                                <button onClick={() => setIsRecipeModalOpen('raw')} className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white py-2 text-xs font-bold text-slate-600 transition-all hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"><Plus size={14} /> Υλικό</button>
+                                                <button onClick={() => setIsRecipeModalOpen('component')} className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white py-2 text-xs font-bold text-slate-600 transition-all hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"><Plus size={14} /> Εξάρτημα</button>
                                             </div>
                                         </DetailsSection>
                                     </div>
                                 )}
 
                                 {productionSection === 'labor' && (
-                                    <div className="space-y-6 animate-in fade-in">
+                                    <div className="space-y-5 animate-in fade-in">
                                         <DetailsSection tone="labor" icon={Hammer} title="Εισαγωγή κόστους">
                                             <div className="space-y-2">
                                                 <LaborCostFormulaRow
@@ -2130,14 +2130,14 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                         >
                                             <div className="space-y-2">
                                                 {sortedVariantsList.map((v, index) => (
-                                                    <div key={v.suffix} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100 group hover:border-blue-200 hover:shadow-sm transition-all">
-                                                        <div className="bg-slate-50 rounded-xl px-3 py-1.5 border border-slate-100 shrink-0">
+                                                    <div key={v.suffix} className="group flex items-center gap-3 rounded-lg border border-slate-100 bg-slate-50/40 p-2.5 transition-colors hover:border-slate-200 hover:bg-slate-50">
+                                                        <div className="shrink-0 rounded-md border border-slate-100 bg-white px-2.5 py-1">
                                                             <SkuColorizedText sku={editedProduct.sku} suffix={v.suffix} gender={editedProduct.gender} className="text-sm" />
                                                         </div>
-                                                        <input value={v.description} onChange={e => updateVariant(index, 'description', e.target.value)} className="flex-1 bg-transparent text-sm font-medium outline-none text-slate-700 placeholder-slate-300" />
+                                                        <input value={v.description} onChange={e => updateVariant(index, 'description', e.target.value)} className="flex-1 bg-transparent text-sm font-medium text-slate-700 outline-none placeholder-slate-300" />
                                                         <div className="text-right">
-                                                            <div className="text-[10px] text-slate-400 font-bold uppercase">Κόστος</div>
-                                                            <div className="text-xs font-mono font-bold text-slate-600">{formatCurrency(v.active_price)}</div>
+                                                            <div className="text-[10px] font-bold uppercase text-slate-400">Κόστος</div>
+                                                            <div className="font-mono text-xs font-bold text-slate-600">{formatCurrency(v.active_price)}</div>
                                                         </div>
                                                         {!editedProduct.is_component && (
                                                             <div className="flex items-center gap-1">

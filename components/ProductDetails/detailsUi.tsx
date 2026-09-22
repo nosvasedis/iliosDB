@@ -15,26 +15,26 @@ export type DetailsSectionTone =
     | 'barcodes'
     | 'policy';
 
-const SECTION_TONES: Record<DetailsSectionTone, { bar: string; iconWrap: string; icon: string }> = {
-    identity: { bar: 'border-l-blue-400', iconWrap: 'bg-blue-50', icon: 'text-blue-600' },
-    weight: { bar: 'border-l-teal-400', iconWrap: 'bg-teal-50', icon: 'text-teal-700' },
-    commerce: { bar: 'border-l-emerald-400', iconWrap: 'bg-emerald-50', icon: 'text-emerald-600' },
-    molds: { bar: 'border-l-amber-400', iconWrap: 'bg-amber-50', icon: 'text-amber-700' },
-    supplier: { bar: 'border-l-violet-400', iconWrap: 'bg-violet-50', icon: 'text-violet-600' },
-    costing: { bar: 'border-l-indigo-400', iconWrap: 'bg-indigo-50', icon: 'text-indigo-600' },
-    analysis: { bar: 'border-l-emerald-400', iconWrap: 'bg-emerald-50', icon: 'text-emerald-600' },
-    labor: { bar: 'border-l-orange-400', iconWrap: 'bg-orange-50', icon: 'text-orange-600' },
-    recipe: { bar: 'border-l-sky-400', iconWrap: 'bg-sky-50', icon: 'text-sky-600' },
-    variants: { bar: 'border-l-violet-400', iconWrap: 'bg-violet-50', icon: 'text-violet-600' },
-    barcodes: { bar: 'border-l-slate-400', iconWrap: 'bg-slate-100', icon: 'text-slate-600' },
-    policy: { bar: 'border-l-amber-400', iconWrap: 'bg-amber-50', icon: 'text-amber-600' },
+const SECTION_TONES: Record<DetailsSectionTone, { iconWrap: string; icon: string }> = {
+    identity: { iconWrap: 'bg-blue-50', icon: 'text-blue-600' },
+    weight: { iconWrap: 'bg-teal-50', icon: 'text-teal-700' },
+    commerce: { iconWrap: 'bg-emerald-50', icon: 'text-emerald-600' },
+    molds: { iconWrap: 'bg-amber-50', icon: 'text-amber-700' },
+    supplier: { iconWrap: 'bg-violet-50', icon: 'text-violet-600' },
+    costing: { iconWrap: 'bg-indigo-50', icon: 'text-indigo-600' },
+    analysis: { iconWrap: 'bg-emerald-50', icon: 'text-emerald-600' },
+    labor: { iconWrap: 'bg-orange-50', icon: 'text-orange-600' },
+    recipe: { iconWrap: 'bg-sky-50', icon: 'text-sky-600' },
+    variants: { iconWrap: 'bg-violet-50', icon: 'text-violet-600' },
+    barcodes: { iconWrap: 'bg-slate-100', icon: 'text-slate-600' },
+    policy: { iconWrap: 'bg-amber-50', icon: 'text-amber-600' },
 };
 
 export const detailsInputClass =
-    'w-full p-2.5 bg-white border border-slate-200 rounded-xl font-medium text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all';
+    'w-full rounded-lg border border-slate-200 bg-slate-50/60 p-2 text-sm font-medium text-slate-700 outline-none transition-all focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-500/10';
 
 export const detailsMonoInputClass =
-    'w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold font-mono text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all';
+    'w-full rounded-lg border border-slate-200 bg-slate-50/60 p-2 font-mono text-sm font-bold text-slate-700 outline-none transition-all focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-500/10';
 
 export function DetailsSection({
     tone,
@@ -51,10 +51,10 @@ export function DetailsSection({
 }) {
     const t = SECTION_TONES[tone];
     return (
-        <section className={`rounded-2xl border border-slate-200/80 border-l-4 ${t.bar} bg-white p-5 shadow-sm`}>
-            <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider">
-                    <span className={`p-1.5 rounded-lg ${t.iconWrap}`}>
+        <section className="rounded-xl border border-slate-200/70 bg-white p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between gap-3 border-b border-slate-100 pb-2.5">
+                <h4 className="flex items-center gap-2 text-[13px] font-semibold text-slate-800">
+                    <span className={`rounded-md p-1 ${t.iconWrap}`}>
                         <Icon size={13} className={t.icon} />
                     </span>
                     {title}
@@ -81,7 +81,7 @@ export function DetailsField({
 }) {
     return (
         <div className={className}>
-            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center justify-between gap-2 mb-1.5">
+            <label className="mb-1 flex items-center justify-between gap-2 text-[11px] font-medium text-slate-500">
                 <span className="flex items-center gap-1.5">
                     {Icon ? <Icon size={11} className="text-slate-400" /> : null}
                     {label}

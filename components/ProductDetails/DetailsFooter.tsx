@@ -17,7 +17,7 @@ export default function DetailsFooter({
                 className="flex items-center gap-2 rounded-xl bg-emerald-600 px-8 py-3 font-bold text-white shadow-lg shadow-emerald-100 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
                 {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                {isSaving ? 'Αποθήκευση...' : 'Αποθήκευση αλλαγών'}
+                {isSaving ? 'Αποθήκευση...' : 'Αποθήκευση'}
             </button>
         </div>
     );

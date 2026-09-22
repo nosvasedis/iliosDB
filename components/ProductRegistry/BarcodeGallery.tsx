@@ -116,10 +116,9 @@ const BarcodeGallery = React.memo(({ product, variants, onPrint, settings, activ
       <div className="grid grid-cols-1 gap-3 pb-2 sm:grid-cols-2 lg:grid-cols-3">
         {items.map(({ variant, key }) => {
           const edited = hasLabelTextOverrides(labelOverrideDrafts[key]);
-          const isCurrent = activeSuffix != null && (variant?.suffix ?? '') === activeSuffix;
 
           return (
-            <div key={key} className={`flex flex-col gap-2.5 rounded-xl border bg-white p-3 shadow-sm transition-all ${isCurrent ? 'border-amber-300 ring-2 ring-amber-300/80' : 'border-slate-200 hover:border-slate-300'}`}>
+            <div key={key} className="flex flex-col gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-all hover:border-slate-300">
               <div className="custom-scrollbar relative flex min-h-[96px] w-full items-center justify-center overflow-x-auto rounded-lg border border-slate-100 bg-slate-50/40 p-2">
                 <div className={`${format === 'retail' ? 'origin-center scale-110' : ''} transition-transform`}>
                   <BarcodeView
