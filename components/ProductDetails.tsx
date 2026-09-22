@@ -31,6 +31,7 @@ import SkuColorizedText from './SkuColorizedText';
 import SmartVariantAddPanel from './ProductDetails/SmartVariantAddPanel';
 import { useSuppliers } from '../hooks/api/useSuppliers';
 import {
+    applySkipCasting,
     buildEditableProduct,
     buildVariantFinishGroups,
     getAnalyticalCostingItems,
@@ -47,6 +48,7 @@ import {
 import { getSecondaryWeightLabel } from '../features/products/productDetailsViewModels';
 import { createMoldEntry } from '../features/products/repository';
 import ConvertToInhouseModal from './ConvertToInhouseModal';
+import ConvertToImportedModal from './ConvertToImportedModal';
 import BarcodeGallery from './ProductRegistry/BarcodeGallery';
 import { PrintLabelItem } from '../features/printing';
 import { dispatchLiveActivity } from '../hooks/useLiveActivity';
@@ -927,6 +929,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     active_price: currentCost,
                     draft_price: currentCost,
                     is_component: isComponent,
+                    skip_casting: !!finalEditedProduct.skip_casting,
                     production_type: finalEditedProduct.production_type,
                     supplier_id: (finalEditedProduct.production_type === ProductionType.Imported && finalEditedProduct.supplier_id) ? finalEditedProduct.supplier_id : undefined,
                     supplier_sku: finalEditedProduct.production_type === ProductionType.Imported ? finalEditedProduct.supplier_sku : null,
@@ -1439,6 +1442,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                 </div>
                             )}
                             {editedProduct.is_component && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold uppercase">Εξάρτημα</span>}
+                            {editedProduct.skip_casting && <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-md text-xs font-bold uppercase">Χωρίς χύτευση</span>}
                             {editedProduct.production_type === ProductionType.Imported && <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-md text-xs font-bold uppercase flex items-center gap-1"><Globe size={12} /> Εισαγόμενο</span>}
                         </div>
                         <div className="flex gap-3 text-sm text-slate-500 font-medium mt-1">
@@ -1545,9 +1549,20 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                             <>
                                                 {/* ── Section: Βασικά Στοιχεία ── */}
                                                 <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/80 shadow-sm">
-                                                    <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-3 mb-4">
+                                                    <h4 className="font-bold text-slate-700 flex items-center justify-between gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-3 mb-4">
+                                                        <span className="flex items-center gap-2">
                                                         <div className="p-1.5 bg-blue-100 rounded-lg"><Info size={13} className="text-blue-600" /></div>
                                                         Βασικά Στοιχεία Προϊόντος
+                                                        </span>
+                                                        <label className="flex items-center gap-2 normal-case tracking-normal cursor-pointer">
+                                                            <span className="text-[10px] font-bold text-purple-600 uppercase">Χωρίς χύτευση</span>
+                                                            <input
+                                                                type="checkbox"
+                                                                className="h-4 w-4 accent-purple-600"
+                                                                checked={!!editedProduct.skip_casting}
+                                                                onChange={e => setEditedProduct(prev => applySkipCasting(prev, e.target.checked))}
+                                                            />
+                                                        </label>
                                                     </h4>
                                                     <div className="grid grid-cols-2 gap-x-5 gap-y-4">
                                                         <div>
@@ -1558,8 +1573,8 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                         </div>
                                                         <div>
                                                             <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center justify-between mb-1.5">
-                                                                <span className="flex items-center gap-1.5"><Weight size={11} className="text-slate-400" /> Βάρος (g)</span>
-                                                                {editedProduct.molds.length > 0 && (
+                                                                <span className="flex items-center gap-1.5"><Weight size={11} className="text-slate-400" /> Βάρος (g){editedProduct.skip_casting ? ' — 0' : ''}</span>
+                                                                {editedProduct.molds.length > 0 && !editedProduct.skip_casting && (
                                                                     <button
                                                                         onClick={() => {
                                                                             const total = editedProduct.molds.reduce((sum, pm) => {
@@ -1582,13 +1597,13 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                     </button>
                                                                 )}
                                                             </label>
-                                                            <input type="number" step="0.01" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold font-mono text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all" value={editedProduct.weight_g} onChange={e => setEditedProduct({ ...editedProduct, weight_g: parseFloat(e.target.value) || 0 })} />
+                                                            <input type="number" step="0.01" disabled={!!editedProduct.skip_casting} className={`w-full p-2.5 border border-slate-200 rounded-xl font-bold font-mono text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all ${editedProduct.skip_casting ? 'bg-slate-100 text-slate-400' : 'bg-white'}`} value={editedProduct.weight_g} onChange={e => setEditedProduct({ ...editedProduct, weight_g: parseFloat(e.target.value) || 0 })} />
                                                         </div>
                                                         <div>
                                                             <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
                                                                 <Scale size={11} className="text-slate-400" /> {secondaryWeightLabel}
                                                             </label>
-                                                            <input type="number" step="0.01" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold font-mono text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all" value={editedProduct.secondary_weight_g} onChange={e => setEditedProduct({ ...editedProduct, secondary_weight_g: parseFloat(e.target.value) || 0 })} />
+                                                            <input type="number" step="0.01" disabled={!!editedProduct.skip_casting} className={`w-full p-2.5 border border-slate-200 rounded-xl font-bold font-mono text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all ${editedProduct.skip_casting ? 'bg-slate-100 text-slate-400' : 'bg-white'}`} value={editedProduct.secondary_weight_g} onChange={e => setEditedProduct({ ...editedProduct, secondary_weight_g: parseFloat(e.target.value) || 0 })} />
                                                         </div>
                                                         <div className={`col-span-2 rounded-xl border p-4 ${invoiceTotalWeightResult.source === 'missing' ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50/60'}`}>
                                                             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1936,9 +1951,20 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                             <div className="space-y-5">
                                                 {/* ── Section: Προμηθευτής & Στοιχεία ── */}
                                                 <div className="bg-gradient-to-br from-purple-50/50 to-slate-50/40 p-5 rounded-2xl border border-purple-200/60 shadow-sm">
-                                                    <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-purple-200/50 pb-3 mb-4">
+                                                    <h4 className="font-bold text-slate-700 flex items-center justify-between gap-2 uppercase text-xs tracking-wider border-b border-purple-200/50 pb-3 mb-4">
+                                                        <span className="flex items-center gap-2">
                                                         <div className="p-1.5 bg-purple-100 rounded-lg"><Globe size={13} className="text-purple-600" /></div>
                                                         Προμηθευτής & Στοιχεία Εισαγωγής
+                                                        </span>
+                                                        <label className="flex items-center gap-2 normal-case tracking-normal cursor-pointer">
+                                                            <span className="text-[10px] font-bold text-purple-600 uppercase">Χωρίς χύτευση</span>
+                                                            <input
+                                                                type="checkbox"
+                                                                className="h-4 w-4 accent-purple-600"
+                                                                checked={!!editedProduct.skip_casting}
+                                                                onChange={e => setEditedProduct(prev => applySkipCasting(prev, e.target.checked))}
+                                                            />
+                                                        </label>
                                                     </h4>
                                                     <div className="grid grid-cols-2 gap-x-5 gap-y-4">
                                                         <div>
@@ -1962,9 +1988,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                         </div>
                                                         <div>
                                                             <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
-                                                                <Weight size={11} className="text-slate-400" /> Βάρος (g)
+                                                                <Weight size={11} className="text-slate-400" /> Βάρος (g){editedProduct.skip_casting ? ' — 0' : ''}
                                                             </label>
-                                                            <input type="number" step="0.01" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold font-mono text-slate-700 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/10 transition-all" value={editedProduct.weight_g} onChange={e => setEditedProduct({ ...editedProduct, weight_g: parseFloat(e.target.value) || 0 })} />
+                                                            <input type="number" step="0.01" disabled={!!editedProduct.skip_casting} className={`w-full p-2.5 border border-slate-200 rounded-xl font-bold font-mono text-slate-700 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/10 transition-all ${editedProduct.skip_casting ? 'bg-slate-100 text-slate-400' : 'bg-white'}`} value={editedProduct.weight_g} onChange={e => setEditedProduct({ ...editedProduct, weight_g: parseFloat(e.target.value) || 0 })} />
                                                         </div>
                                                         <div>
                                                             <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
@@ -2095,6 +2121,27 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                             </div>
                                                         </div>
                                                     )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {editedProduct.production_type === ProductionType.InHouse && !editedProduct.is_component && (
+                                            <div className="bg-gradient-to-br from-violet-50/60 to-slate-50/40 p-5 rounded-2xl border border-violet-200/60 shadow-sm">
+                                                <div className="flex items-start justify-between gap-4">
+                                                    <div className="flex-1">
+                                                        <h4 className="font-bold text-violet-800 flex items-center gap-2 text-sm">
+                                                            <Globe size={15} className="text-violet-600" />
+                                                            Μετατροπή σε Εισαγωγή
+                                                        </h4>
+                                                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">Μετατρέψτε αυτό τον κωδικό από Ιδιοπαραγωγή σε Εισαγόμενο. Συνταγή και λάστιχα αδειάζουν. Δείτε αναλυτικά τα βήματα πριν επιβεβαιώσετε.</p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => setShowConvertModal(true)}
+                                                        className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 text-white rounded-xl font-bold text-sm hover:bg-violet-700 active:bg-violet-800 transition-all shadow-sm whitespace-nowrap flex-shrink-0"
+                                                    >
+                                                        <Globe size={14} />
+                                                        Μετατροπή
+                                                    </button>
                                                 </div>
                                             </div>
                                         )}
@@ -2462,6 +2509,21 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                         setEditedProduct(newProduct);
                         setShowConvertModal(false);
                         showToast('Μετατράπηκε σε Ιδιοπαραγωγή. Αποθηκεύστε για να ολοκληρωθεί η αλλαγή.', 'info');
+                    }}
+                    onClose={() => setShowConvertModal(false)}
+                />
+            )}
+            {showConvertModal && editedProduct.production_type === ProductionType.InHouse && !editedProduct.is_component && (
+                <ConvertToImportedModal
+                    product={editedProduct}
+                    settings={settings}
+                    allMaterials={allMaterials}
+                    allProducts={allProducts}
+                    suppliers={suppliers || []}
+                    onConfirm={(newProduct) => {
+                        setEditedProduct(newProduct);
+                        setShowConvertModal(false);
+                        showToast('Μετατράπηκε σε Εισαγωγή. Αποθηκεύστε για να ολοκληρωθεί η αλλαγή.', 'info');
                     }}
                     onClose={() => setShowConvertModal(false)}
                 />

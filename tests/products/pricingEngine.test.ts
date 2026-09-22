@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Gender, PlatingType, ProductionType } from '../../types';
 import { analyzeSuffix, calculateProductCost, estimateVariantCost, getVariantComponents, shouldUseSplitTechnicianCost, hasMixedTechnicianVariants } from '../../utils/pricingEngine';
-import { DEFAULT_CASTING_RATE, resolveCastingCost } from '../../utils/laborFormula';
+import { DEFAULT_CASTING_RATE, computeAutoLaborCosts, resolveCastingCost } from '../../utils/laborFormula';
 
 const baseSettings = { silver_price_gram: 2.5 } as any;
 
@@ -63,6 +63,16 @@ describe('casting cost at 0.15 €/g default', () => {
   it('STX component has zero casting', () => {
     const product = makeInHouseProduct({ is_component: true, sku: 'STX-1' });
     expect(resolveCastingCost(product.labor, product)).toBe(0);
+  });
+
+  it('skip_casting products have zero casting even with weight', () => {
+    const product = makeInHouseProduct({ skip_casting: true, weight_g: 4.2, secondary_weight_g: 1 });
+    expect(resolveCastingCost(product.labor, product)).toBe(0);
+  });
+
+  it('skip_casting zeros auto casting cost even with remaining weight', () => {
+    const product = makeInHouseProduct({ skip_casting: true, weight_g: 4.2 });
+    expect(computeAutoLaborCosts(product, []).casting_cost).toBe(0);
   });
 });
 

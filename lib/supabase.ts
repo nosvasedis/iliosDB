@@ -163,7 +163,7 @@ const sanitizeProductData = (data: any) => {
         'sku', 'prefix', 'category', 'description', 'gender', 'image_url',
         'weight_g', 'secondary_weight_g', 'invoice_total_weight_g', 'plating_type', 'production_type',
         'active_price', 'draft_price', 'selling_price', 'stock_qty', 'sample_qty',
-        'is_component', 'supplier_id', 'supplier_sku', 'supplier_cost',
+        'is_component', 'skip_casting', 'supplier_id', 'supplier_sku', 'supplier_cost',
         'labor_casting', 'labor_setter', 'labor_technician', 'labor_plating_x',
         'labor_plating_d', 'labor_subcontract', 'labor_stone_setting',
         'labor_casting_manual_override', 'labor_technician_manual_override',

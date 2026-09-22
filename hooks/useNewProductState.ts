@@ -128,6 +128,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             setSelectedMolds(duplicateTemplate.molds || []);
             setStxDescription(duplicateTemplate.description || '');
             setIsSTX(duplicateTemplate.is_component || false);
+            setIsAssembly(!!duplicateTemplate.skip_casting);
             setUseIliosFormula(false);
         }
     }, [duplicateTemplate]);
@@ -202,7 +203,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
                 ...buildCurrentTempProduct({
                 sku, detectedMasterSku, category, gender, imagePreview, weight, secondaryWeight,
                 plating, productionType, supplierId, supplierSku, supplierCost, sellingPrice,
-                selectedMolds, isSTX, stxDescription, recipe, labor,
+                selectedMolds, isSTX, skipCasting: isAssembly, stxDescription, recipe, labor,
             }),
                 variants,
             };
@@ -231,7 +232,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
                     const tempProduct = buildCurrentTempProduct({
                         sku, detectedMasterSku, category, gender, imagePreview, weight, secondaryWeight,
                         plating, productionType, supplierId, supplierSku, supplierCost, sellingPrice,
-                        selectedMolds, isSTX, stxDescription, recipe, labor: prev,
+                        selectedMolds, isSTX, skipCasting: isAssembly, stxDescription, recipe, labor: prev,
                     });
                     const dWeight = getPlatingDWeightBasis(tempProduct, products);
                     const costD = parseFloat((dWeight * DEFAULT_PLATING_RATE).toFixed(2));
@@ -243,7 +244,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
                 return changed ? next : prev;
             });
         }
-    }, [weight, secondaryWeight, recipe, products, productionType, isSTX, plating, gender, variants, labor.casting_cost_manual_override, labor.technician_cost_manual_override, labor.plating_cost_x_manual_override, labor.plating_cost_d_manual_override]);
+    }, [weight, secondaryWeight, recipe, products, productionType, isSTX, isAssembly, plating, gender, variants, labor.casting_cost_manual_override, labor.technician_cost_manual_override, labor.plating_cost_x_manual_override, labor.plating_cost_d_manual_override]);
 
     useEffect(() => {
         if (newVariantSuffix) {
@@ -269,13 +270,14 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
         sellingPrice,
         selectedMolds,
         isSTX,
+        skipCasting: isAssembly,
         stxDescription,
         recipe,
         labor,
     }),
         variants,
         invoice_total_weight_g: invoiceTotalWeight,
-    }), [sku, detectedMasterSku, category, gender, imagePreview, weight, secondaryWeight, invoiceTotalWeight, plating, productionType, supplierId, supplierSku, supplierCost, sellingPrice, selectedMolds, isSTX, stxDescription, recipe, labor, variants]);
+    }), [sku, detectedMasterSku, category, gender, imagePreview, weight, secondaryWeight, invoiceTotalWeight, plating, productionType, supplierId, supplierSku, supplierCost, sellingPrice, selectedMolds, isSTX, isAssembly, stxDescription, recipe, labor, variants]);
 
     const invoiceTotalWeightResult = useMemo(
         () => resolveInvoiceTotalWeight(currentTempProduct, products, materials),
@@ -586,7 +588,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             if (selectedImage) {
                 try { const compressedBlob = await compressImage(selectedImage); finalImageUrl = await uploadProductImageForSku(compressedBlob, finalMasterSku); } catch (imgErr) { console.warn("Image upload skipped (offline?)"); showToast("Η εικόνα δεν ανέβηκε λόγω σύνδεσης.", "info"); }
             }
-            const productData = { sku: finalMasterSku, prefix: finalMasterSku.substring(0, 2), category, description: isSTX ? stxDescription : null, gender, image_url: finalImageUrl, weight_g: Number(weight) || 0, secondary_weight_g: Number(secondaryWeight) || null, invoice_total_weight_g: invoiceTotalWeight && invoiceTotalWeight > 0 ? invoiceTotalWeight : null, plating_type: plating, active_price: masterEstimatedCost, draft_price: masterEstimatedCost, selling_price: finalSellingPrice, selling_price_manual_override: !isSTX && !useIliosFormula, stock_qty: existingStockQty, sample_qty: existingSampleQty, is_component: isSTX, labor_casting: Number(labor.casting_cost), labor_setter: Number(labor.setter_cost), labor_technician: Number(labor.technician_cost), labor_plating_x: Number(labor.plating_cost_x || 0), labor_plating_d: Number(labor.plating_cost_d || 0), labor_subcontract: Number(labor.subcontract_cost || 0), labor_casting_manual_override: labor.casting_cost_manual_override, labor_technician_manual_override: labor.technician_cost_manual_override, labor_plating_x_manual_override: labor.plating_cost_x_manual_override, labor_plating_d_manual_override: labor.plating_cost_d_manual_override, production_type: productionType, supplier_id: (productionType === ProductionType.Imported && supplierId) ? supplierId : null, supplier_sku: productionType === ProductionType.Imported ? supplierSku : null, supplier_cost: productionType === ProductionType.Imported ? supplierCost : null, labor_stone_setting: productionType === ProductionType.Imported ? labor.stone_setting_cost : null };
+            const productData = { sku: finalMasterSku, prefix: finalMasterSku.substring(0, 2), category, description: isSTX ? stxDescription : null, gender, image_url: finalImageUrl, weight_g: Number(weight) || 0, secondary_weight_g: Number(secondaryWeight) || null, invoice_total_weight_g: invoiceTotalWeight && invoiceTotalWeight > 0 ? invoiceTotalWeight : null, plating_type: plating, active_price: masterEstimatedCost, draft_price: masterEstimatedCost, selling_price: finalSellingPrice, selling_price_manual_override: !isSTX && !useIliosFormula, stock_qty: existingStockQty, sample_qty: existingSampleQty, is_component: isSTX, skip_casting: isAssembly, labor_casting: Number(labor.casting_cost), labor_setter: Number(labor.setter_cost), labor_technician: Number(labor.technician_cost), labor_plating_x: Number(labor.plating_cost_x || 0), labor_plating_d: Number(labor.plating_cost_d || 0), labor_subcontract: Number(labor.subcontract_cost || 0), labor_casting_manual_override: labor.casting_cost_manual_override, labor_technician_manual_override: labor.technician_cost_manual_override, labor_plating_x_manual_override: labor.plating_cost_x_manual_override, labor_plating_d_manual_override: labor.plating_cost_d_manual_override, production_type: productionType, supplier_id: (productionType === ProductionType.Imported && supplierId) ? supplierId : null, supplier_sku: productionType === ProductionType.Imported ? supplierSku : null, supplier_cost: productionType === ProductionType.Imported ? supplierCost : null, labor_stone_setting: productionType === ProductionType.Imported ? labor.stone_setting_cost : null };
             const { anyPartQueued } = await saveProductGraph({
                 finalMasterSku,
                 productData,

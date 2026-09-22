@@ -127,9 +127,9 @@ export interface Product {
 
   // Production Strategy
   production_type: ProductionType;
-  supplier_id?: string; // Link to Supplier
-  supplier_sku?: string; // New: Supplier's Product Code
-  supplier_cost?: number;
+  supplier_id?: string | null; // Link to Supplier
+  supplier_sku?: string | null; // New: Supplier's Product Code
+  supplier_cost?: number | null;
   supplier_details?: Supplier; // Joined Data
 
   // Pricing
@@ -155,6 +155,8 @@ export interface Product {
   // Manufacturing
   molds: ProductMold[];
   is_component: boolean;
+  /** True when created with «Χωρίς χύτευση»: no casting weight, recipe supplies physical weight. */
+  skip_casting?: boolean;
   variants?: ProductVariant[];
   recipe: RecipeItem[];
   labor: LaborCost;

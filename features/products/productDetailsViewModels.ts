@@ -4,6 +4,18 @@ import { isLstxMold, shouldShowLstxInPicker } from '../../utils/moldCategories';
 import { FINISH_CODES } from '../../constants';
 import { createDefaultLaborCost, getSecondaryWeightLabel as getSharedSecondaryWeightLabel } from './newProductHelpers';
 
+export function applySkipCasting(product: Product, skipCasting: boolean): Product {
+  if (!skipCasting) {
+    return { ...product, skip_casting: false };
+  }
+  return {
+    ...product,
+    skip_casting: true,
+    weight_g: 0,
+    secondary_weight_g: 0,
+  };
+}
+
 export function buildEditableProduct(product: Product): Product {
   const initialLabor: Partial<LaborCost> = product.labor || {};
   return {
@@ -15,6 +27,7 @@ export function buildEditableProduct(product: Product): Product {
     secondary_weight_g: product.secondary_weight_g || 0,
     invoice_total_weight_g: product.invoice_total_weight_g ?? null,
     production_type: product.production_type || ProductionType.InHouse,
+    skip_casting: !!product.skip_casting,
     supplier_id: product.supplier_id,
     supplier_sku: product.supplier_sku,
     supplier_cost: product.supplier_cost || 0,
