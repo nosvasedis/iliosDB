@@ -179,12 +179,12 @@ function ErpAppContent() {
   useRealtimeInvalidation(profile?.role === 'seller' ? 'seller' : 'erp');
 
   const {
-    setPrintItems, setOrderToPrint, setRemainingOrderToPrint, setShipmentToPrint, setShipmentsToPrint, setOfferToPrint,
+    setPrintItems, setOrderToPrint, setOrdersToPrint, setRemainingOrderToPrint, setShipmentToPrint, setShipmentsToPrint, setOfferToPrint,
     setAggregatedPrintData, setPreparationPrintData,
     setTechnicianPrintData, setAssemblyPrintData, setPriceListPrintData, setAnalyticsPrintData,
     setSkuSalesPrintData,
     setOrderAnalyticsData, setSupplierOrderToPrint, setStageBatchPrintData, setLegalDocumentToPrint, setProformaToPrint,
-    printItems, orderToPrint, remainingOrderToPrint, shipmentToPrint, shipmentsToPrint, offerToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData, skuSalesPrintData, orderAnalyticsData, supplierOrderToPrint, stageBatchPrintData, legalDocumentToPrint, proformaToPrint
+    printItems, orderToPrint, ordersToPrint, remainingOrderToPrint, shipmentToPrint, shipmentsToPrint, offerToPrint, aggregatedPrintData, preparationPrintData, technicianPrintData, assemblyPrintData, priceListPrintData, analyticsPrintData, skuSalesPrintData, orderAnalyticsData, supplierOrderToPrint, stageBatchPrintData, legalDocumentToPrint, proformaToPrint
   } = usePrint() || {}; // Handled gracefully if error
 
   const {
@@ -267,6 +267,7 @@ function ErpAppContent() {
             molds={molds}
             printItems={printItems}
             orderToPrint={orderToPrint}
+            ordersToPrint={ordersToPrint}
             remainingOrderToPrint={remainingOrderToPrint}
             shipmentToPrint={shipmentToPrint}
             shipmentsToPrint={shipmentsToPrint}
@@ -286,6 +287,7 @@ function ErpAppContent() {
             proformaToPrint={proformaToPrint}
             setPrintItems={setPrintItems}
             setOrderToPrint={setOrderToPrint}
+            setOrdersToPrint={setOrdersToPrint}
             setRemainingOrderToPrint={setRemainingOrderToPrint}
             setShipmentToPrint={setShipmentToPrint}
             setShipmentsToPrint={setShipmentsToPrint}
@@ -421,7 +423,7 @@ function ErpAppContent() {
     ),
     collections: <CollectionsPage products={products} onPrint={(data) => setPriceListPrintData(data)} />,
     'batch-print': <BatchPrintPage allProducts={products} allCollections={collections} setPrintItems={setPrintItems} skusText={batchPrintSkus} setSkusText={setBatchPrintSkus} onPrintPhotoCatalog={setPhotoCatalogPrintData} />,
-    orders: <OrdersPage products={products} onPrintOrder={setOrderToPrint} onPrintRemainingOrder={setRemainingOrderToPrint} onPrintShipment={setShipmentToPrint} materials={materials} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} onPrintAnalytics={handlePrintOrderAnalytics} onOpenDeliveries={(order) => {
+    orders: <OrdersPage products={products} onPrintOrder={setOrderToPrint} onPrintOrders={setOrdersToPrint} onPrintRemainingOrder={setRemainingOrderToPrint} onPrintShipment={setShipmentToPrint} materials={materials} onPrintAggregated={handlePrintAggregated} onPrintPreparation={handlePrintPreparation} onPrintTechnician={handlePrintTechnician} onPrintLabels={setPrintItems} onPrintAnalytics={handlePrintOrderAnalytics} onOpenDeliveries={(order) => {
       setPendingDeliveryOrderId(order.id);
       handleNav('deliveries');
     }} onPrintPartialOrder={(order, batches) => {
@@ -453,6 +455,7 @@ function ErpAppContent() {
         molds={molds}
         printItems={printItems}
         orderToPrint={orderToPrint}
+        ordersToPrint={ordersToPrint}
         remainingOrderToPrint={remainingOrderToPrint}
         shipmentToPrint={shipmentToPrint}
         shipmentsToPrint={shipmentsToPrint}
@@ -472,6 +475,7 @@ function ErpAppContent() {
         proformaToPrint={proformaToPrint}
         setPrintItems={setPrintItems}
         setOrderToPrint={setOrderToPrint}
+        setOrdersToPrint={setOrdersToPrint}
         setRemainingOrderToPrint={setRemainingOrderToPrint}
         setShipmentToPrint={setShipmentToPrint}
         setShipmentsToPrint={setShipmentsToPrint}

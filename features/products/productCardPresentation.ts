@@ -1,4 +1,5 @@
 import { Product, ProductionType } from '../../types';
+import type { InvoiceTotalWeightResult } from '../../utils/invoiceTotalWeight';
 
 export const SKIP_CASTING_LABEL = 'Χωρίς χύτευση';
 
@@ -12,6 +13,23 @@ export function formatRegistryWeight(value: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+export function roundRegistryWeight(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+export function formatRecipeItemCountLabel(count: number): string {
+  return count === 1 ? '1 υλικό' : `${count} υλικά`;
+}
+
+export function shouldShowCardInvoiceTotal(
+  recipeItemCount: number,
+  metalTotal: number,
+  invoice: InvoiceTotalWeightResult,
+): boolean {
+  if (invoice.value === null) return recipeItemCount > 1;
+  return roundRegistryWeight(invoice.value) !== roundRegistryWeight(metalTotal);
 }
 
 export function canConvertToImported(product: Pick<Product, 'production_type' | 'is_component'>): boolean {
@@ -45,6 +63,7 @@ export interface ProductCardWeightPresentation {
   inHouseWeight: number;
   totalWeight: number;
   recipeItemCount: number;
+  recipeItemCountLabel: string;
 }
 
 export function buildProductCardWeightPresentation(
@@ -62,6 +81,7 @@ export function buildProductCardWeightPresentation(
     : hasWeightBreakdown
       ? 'breakdown'
       : 'simple';
+  const recipeItemCount = (product.recipe || []).length + 1;
 
   return {
     skipCasting,
@@ -74,6 +94,7 @@ export function buildProductCardWeightPresentation(
     stxWeight,
     inHouseWeight,
     totalWeight,
-    recipeItemCount: (product.recipe || []).length + 1,
+    recipeItemCount,
+    recipeItemCountLabel: formatRecipeItemCountLabel(recipeItemCount),
   };
 }

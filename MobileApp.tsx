@@ -106,6 +106,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
 
   const [priceListPrintData, setPriceListPrintData] = useState<PriceListPrintData | null>(null);
   const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
+  const [ordersToPrint, setOrdersToPrint] = useState<Order[] | null>(null);
   const [remainingOrderToPrint, setRemainingOrderToPrint] = useState<Order | null>(null);
   const [shipmentToPrint, setShipmentToPrint] = useState<{ order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] } | null>(null);
   const [shipmentsToPrint, setShipmentsToPrint] = useState<Array<{ order: Order; shipment: OrderShipment; shipmentItems: OrderShipmentItem[] }> | null>(null);
@@ -193,6 +194,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         onCreate={handleCreateOrder}
         onEdit={handleEditOrder}
         onPrint={setOrderToPrint}
+        onPrintOrders={setOrdersToPrint}
         onPrintRemainingOrder={setRemainingOrderToPrint}
         onPrintShipment={setShipmentToPrint}
         onPrintShipments={setShipmentsToPrint}
@@ -253,6 +255,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         molds={molds}
         printItems={printItems}
         orderToPrint={orderToPrint}
+        ordersToPrint={ordersToPrint}
         remainingOrderToPrint={remainingOrderToPrint}
         shipmentToPrint={shipmentToPrint}
         shipmentsToPrint={shipmentsToPrint}
@@ -272,6 +275,7 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
         proformaToPrint={proformaToPrint}
         setPrintItems={setPrintItems as (items: []) => void}
         setOrderToPrint={setOrderToPrint}
+        setOrdersToPrint={setOrdersToPrint}
         setRemainingOrderToPrint={setRemainingOrderToPrint}
         setShipmentToPrint={setShipmentToPrint}
         setShipmentsToPrint={setShipmentsToPrint}

@@ -22,13 +22,19 @@ import { TechnicianLaborFormulaRow } from './ProductRegistry/TechnicianLaborForm
 import { FINISH_CODES } from '../constants';
 import { X, Save, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag, Edit, Check, ArrowDownRight, RefreshCcw, Scale } from 'lucide-react';
 import { uploadProductImage, R2_PUBLIC_URL, AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL } from '../lib/supabase';
-import { ACCEPTED_IMAGE_INPUT_TYPES, compressImage } from '../utils/imageHelpers';
+import { compressImage } from '../utils/imageHelpers';
 import { useQueryClient } from '@tanstack/react-query';
 import { refreshErpProducts, removeProductsFromCache } from '../features/erpCatalog';
 import { useUI } from './UIProvider';
 import { useAuth } from './AuthContext';
 import SkuColorizedText from './SkuColorizedText';
 import SmartVariantAddPanel from './ProductDetails/SmartVariantAddPanel';
+import DetailsHeader from './ProductDetails/DetailsHeader';
+import DetailsSidebar from './ProductDetails/DetailsSidebar';
+import DetailsTabBar, { type DetailsTab } from './ProductDetails/DetailsTabBar';
+import DetailsFooter from './ProductDetails/DetailsFooter';
+import InvoiceTotalWeightField from './ProductDetails/InvoiceTotalWeightField';
+import { DetailsField, DetailsSection, detailsInputClass, detailsMonoInputClass } from './ProductDetails/detailsUi';
 import { useSuppliers } from '../hooks/api/useSuppliers';
 import {
     applySkipCasting,
@@ -551,18 +557,24 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     const [isDeletingImage, setIsDeletingImage] = useState(false);
     const [showConvertModal, setShowConvertModal] = useState(false);
 
-    const TABS = useMemo(() => {
-        const baseTabs = [
+    const TABS = useMemo((): DetailsTab[] => {
+        const baseTabs: DetailsTab[] = [
             { id: 'overview', label: 'Στοιχεία', icon: Info },
         ];
         if (editedProduct.production_type === ProductionType.InHouse) {
             baseTabs.push({ id: 'recipe', label: 'Συνταγή', icon: Box });
             baseTabs.push({ id: 'labor', label: 'Εργατικά', icon: Hammer });
         }
-        baseTabs.push({ id: 'variants', label: `Παραλλαγές (${editedProduct.variants?.length || 0})`, icon: Layers });
+        baseTabs.push({ id: 'variants', label: 'Παραλλαγές', icon: Layers, count: editedProduct.variants?.length || 0 });
         baseTabs.push({ id: 'barcodes', label: 'Barcodes', icon: ScanBarcode });
         return baseTabs;
     }, [editedProduct.production_type, editedProduct.variants?.length]);
+
+    useEffect(() => {
+        if (!TABS.some((tab) => tab.id === activeTab)) {
+            setActiveTab('overview');
+        }
+    }, [TABS, activeTab]);
 
     useEffect(() => {
         setEditedProduct(buildEditableProduct(product));
@@ -1329,233 +1341,77 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
             <div className="bg-white w-full max-w-6xl h-[90vh] rounded-3xl shadow-2xl relative flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100">
 
-                <div className="relative p-6 pr-40 border-b border-slate-100 bg-white z-10 shrink-0">
-                    {/* ... (Existing header code) ... */}
-                    <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-3">
-                            {isEditingSku ? (
-                                <div className="flex items-center gap-2">
-                                    <input
-                                        value={tempSku}
-                                        onChange={e => setTempSku(e.target.value.toUpperCase())}
-                                        className="text-2xl font-black text-slate-900 tracking-tight border-b-2 border-emerald-500 outline-none w-48 uppercase"
-                                        autoFocus
-                                        onKeyDown={e => e.key === 'Enter' && handleRenameSku()}
-                                    />
-                                    <button onClick={handleRenameSku} disabled={isRenaming} className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200">
-                                        {isRenaming ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
-                                    </button>
-                                    <button onClick={() => { setIsEditingSku(false); setTempSku(product.sku); }} className="p-1.5 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200">
-                                        <X size={18} />
-                                    </button>
-                                </div>
-                            ) : (
-                                <h2 className="text-2xl font-black tracking-tight flex items-center gap-3 group">
-                                    <SkuColorizedText
-                                        sku={displayedSku}
-                                        gender={editedProduct.gender}
-                                        masterClassName="text-slate-900"
-                                    />
-                                    {viewMode === 'registry' && (
-                                        <button
-                                            onClick={() => setIsEditingSku(true)}
-                                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 rounded"
-                                            title="Μετονομασία SKU"
-                                        >
-                                            <Edit size={16} />
-                                        </button>
-                                    )}
-                                </h2>
-                            )}
-
-                            {showPager && (
-                                <div className="flex max-w-full flex-wrap items-center gap-2">
-                                    <div ref={variantPickerRef} className="relative z-[120]">
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsVariantPickerOpen(prev => !prev)}
-                                            className="flex min-w-[15rem] max-w-[20rem] items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left shadow-sm transition-colors hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                                        >
-                                            <div className="min-w-0">
-                                                <SkuColorizedText
-                                                    sku={displayedSku}
-                                                    gender={editedProduct.gender}
-                                                    className="block truncate text-[13px]"
-                                                    masterClassName="text-slate-900"
-                                                />
-                                                <div className="truncate text-[11px] font-semibold text-slate-500">
-                                                    {displayedLabel}
-                                                </div>
-                                            </div>
-                                            <ChevronDown size={16} className={`shrink-0 text-slate-400 transition-transform ${isVariantPickerOpen ? 'rotate-180' : ''}`} />
-                                        </button>
-
-                                        {isVariantPickerOpen && (
-                                            <div className="absolute left-0 top-full z-[140] mt-2 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-                                                <div className="max-h-80 overflow-y-auto p-2">
-                                                    {sortedVariantsList.map((variant, index) => {
-                                                        const variantSku = `${editedProduct.sku}${variant.suffix}`;
-                                                        const isActive = index === normalizedViewIndex;
-
-                                                        return (
-                                                            <button
-                                                                key={variant.suffix || `variant-${index}`}
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    setViewIndex(index);
-                                                                    setIsVariantPickerOpen(false);
-                                                                }}
-                                                                className={`flex w-full items-start justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${isActive ? 'bg-emerald-50 text-emerald-900' : 'hover:bg-slate-50'}`}
-                                                            >
-                                                                <div className="min-w-0">
-                                                                    <SkuColorizedText
-                                                                        sku={variantSku}
-                                                                        gender={editedProduct.gender}
-                                                                        className="block truncate text-[13px]"
-                                                                        masterClassName={isActive ? 'text-emerald-900' : 'text-slate-900'}
-                                                                    />
-                                                                    <div className={`truncate text-[11px] font-semibold ${isActive ? 'text-emerald-700' : 'text-slate-500'}`}>
-                                                                        {variant.description || variant.suffix || 'Βασικό'}
-                                                                    </div>
-                                                                </div>
-                                                                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                                                                    {index + 1}
-                                                                </span>
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
-                                        <button onClick={prevView} className="p-1.5 rounded-md hover:bg-white text-slate-400 hover:text-slate-700 transition-colors">
-                                            <ChevronLeft size={18} />
-                                        </button>
-                                        <span className="text-xs font-mono text-slate-500 w-10 text-center">
-                                            {normalizedViewIndex + 1}/{maxViews}
-                                        </span>
-                                        <button onClick={nextView} className="p-1.5 rounded-md hover:bg-white text-slate-400 hover:text-slate-700 transition-colors">
-                                            <ChevronRight size={18} />
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                            {editedProduct.is_component && <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold uppercase">Εξάρτημα</span>}
-                            {editedProduct.skip_casting && <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-md text-xs font-bold uppercase">Χωρίς χύτευση</span>}
-                            {editedProduct.production_type === ProductionType.Imported && <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-md text-xs font-bold uppercase flex items-center gap-1"><Globe size={12} /> Εισαγόμενο</span>}
-                        </div>
-                        <div className="flex gap-3 text-sm text-slate-500 font-medium mt-1">
-                            <span>{editedProduct.category}</span>
-                            <span>•</span>
-                            <span className="font-bold text-slate-600">{displayedLabel}</span>
-                        </div>
-                    </div>
-                    <div className="absolute top-6 right-6 z-10 flex items-center gap-2">
-                        {onDuplicate && (
-                            <button onClick={() => onDuplicate(product)} className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors relative group">
-                                <Copy size={20} />
-                                <span className="absolute -bottom-8 right-0 w-max text-[10px] bg-slate-800 text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">Κλωνοποίηση</span>
-                            </button>
-                        )}
-                        {viewMode === 'registry' && (
-                            <button onClick={requestDelete} disabled={isDeleting} className="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors">
-                                <Trash2 size={20} />
-                            </button>
-                        )}
-                        <button onClick={onClose} className="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-colors">
-                            <X size={20} />
-                        </button>
-                    </div>
-                </div>
+                <DetailsHeader
+                    displayedSku={displayedSku}
+                    displayedLabel={displayedLabel}
+                    gender={editedProduct.gender}
+                    category={editedProduct.category}
+                    displayPlating={displayPlating}
+                    productionType={editedProduct.production_type}
+                    isComponent={!!editedProduct.is_component}
+                    skipCasting={!!editedProduct.skip_casting}
+                    viewMode={viewMode}
+                    isEditingSku={isEditingSku}
+                    tempSku={tempSku}
+                    isRenaming={isRenaming}
+                    showPager={showPager}
+                    variantPickerRef={variantPickerRef}
+                    isVariantPickerOpen={isVariantPickerOpen}
+                    sortedVariants={sortedVariantsList}
+                    masterSku={editedProduct.sku}
+                    normalizedViewIndex={normalizedViewIndex}
+                    maxViews={maxViews}
+                    onTempSkuChange={setTempSku}
+                    onRenameSku={handleRenameSku}
+                    onCancelRename={() => { setIsEditingSku(false); setTempSku(product.sku); }}
+                    onStartRename={() => setIsEditingSku(true)}
+                    onToggleVariantPicker={() => setIsVariantPickerOpen(prev => !prev)}
+                    onSelectVariant={(index) => {
+                        setViewIndex(index);
+                        setIsVariantPickerOpen(false);
+                    }}
+                    onPrevView={prevView}
+                    onNextView={nextView}
+                    onConvert={() => setShowConvertModal(true)}
+                    onDuplicate={onDuplicate ? () => onDuplicate(product) : undefined}
+                    onDelete={requestDelete}
+                    onClose={onClose}
+                    isDeleting={isDeleting}
+                />
 
                 <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50">
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                        <div className="lg:col-span-4 space-y-6">
-                            {/* ... (Existing left column code) ... */}
-                            <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm relative group">
-                                <div className="aspect-square bg-slate-100 rounded-2xl overflow-hidden relative">
-                                    {editedProduct.image_url ? (
-                                        <img src={editedProduct.image_url} className="w-full h-full object-cover" alt={editedProduct.sku} />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={48} /></div>
-                                    )}
-
-                                    <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
-                                        <div className="bg-white/20 backdrop-blur-md text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 border border-white/30">
-                                            <Camera size={18} /> {isUploadingImage ? 'Μεταφόρτωση...' : 'Αλλαγή'}
-                                        </div>
-                                        <input type="file" className="hidden" accept={ACCEPTED_IMAGE_INPUT_TYPES} onChange={handleImageUpdate} disabled={isUploadingImage} />
-                                    </label>
-                                    
-                                    {editedProduct.image_url && (
-                                        <button 
-                                            onClick={handleDeleteImage}
-                                            disabled={isDeletingImage}
-                                            className="absolute top-2 left-2 bg-red-500 text-white p-1.5 rounded-full shadow-md hover:bg-red-600 transition-colors z-[1]"
-                                            title="Διαγραφή Φωτογραφίας"
-                                        >
-                                            {isDeletingImage ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-                                <h3 className="font-bold text-slate-700 flex items-center gap-2 border-b border-slate-100 pb-2">
-                                    <TrendingUp size={18} className="text-emerald-500" /> Οικονομικά
-                                </h3>
-
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-slate-500">Κόστος</span>
-                                    <span className="font-mono font-bold text-slate-800">{formatCurrency(displayedCost)}</span>
-                                </div>
-
-                                {!editedProduct.is_component && (
-                                    <>
-                                        <div className="flex justify-between items-center text-sm">
-                                            <span className="text-slate-500">Τιμή Πώλησης</span>
-                                            <span className="font-mono font-bold text-emerald-600">{formatCurrency(displayedPrice)}</span>
-                                        </div>
-                                        <div className="w-full h-px bg-slate-100"></div>
-                                        <div className="flex justify-between items-center text-xs">
-                                            <span className="font-bold text-slate-400 uppercase">Περιθωριο</span>
-                                            <span className={`font-black ${displayedMargin < 30 ? 'text-red-500' : 'text-emerald-600'}`}>{displayedMargin.toFixed(0)}%</span>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
+                        <div className="lg:col-span-4">
+                            <DetailsSidebar
+                                sku={editedProduct.sku}
+                                imageUrl={editedProduct.image_url}
+                                isUploadingImage={isUploadingImage}
+                                isDeletingImage={isDeletingImage}
+                                isComponent={!!editedProduct.is_component}
+                                displayedCost={displayedCost}
+                                displayedPrice={displayedPrice}
+                                displayedMargin={displayedMargin}
+                                onImageUpdate={handleImageUpdate}
+                                onDeleteImage={handleDeleteImage}
+                            />
                         </div>
 
                         <div className="lg:col-span-8 space-y-6">
 
-                            <div className="flex gap-2 bg-slate-200/50 p-1.5 rounded-2xl w-fit">
-                                {TABS.map(tab => (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveTab(tab.id as any)}
-                                        className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${activeTab === tab.id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                    >
-                                        <tab.icon size={16} className={activeTab === tab.id ? 'text-amber-500' : ''} /> {tab.label}
-                                    </button>
-                                ))}
-                            </div>
+                            <DetailsTabBar tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
 
                             <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm min-h-[400px]">
                                 {activeTab === 'overview' && (
                                     <div className="space-y-6 animate-in fade-in">
-                                        {/* ... (Existing Overview code) ... */}
                                         {editedProduct.production_type === ProductionType.InHouse ? (
                                             <>
-                                                {/* ── Section: Βασικά Στοιχεία ── */}
-                                                <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/80 shadow-sm">
-                                                    <h4 className="font-bold text-slate-700 flex items-center justify-between gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-3 mb-4">
-                                                        <span className="flex items-center gap-2">
-                                                        <div className="p-1.5 bg-blue-100 rounded-lg"><Info size={13} className="text-blue-600" /></div>
-                                                        Βασικά Στοιχεία Προϊόντος
-                                                        </span>
-                                                        <label className="flex items-center gap-2 normal-case tracking-normal cursor-pointer">
-                                                            <span className="text-[10px] font-bold text-purple-600 uppercase">Χωρίς χύτευση</span>
+                                                <DetailsSection
+                                                    tone="identity"
+                                                    icon={Info}
+                                                    title="Ταυτότητα"
+                                                    actions={(
+                                                        <label className="flex cursor-pointer items-center gap-2 normal-case tracking-normal">
+                                                            <span className="text-[10px] font-bold uppercase text-purple-600">Χωρίς χύτευση</span>
                                                             <input
                                                                 type="checkbox"
                                                                 className="h-4 w-4 accent-purple-600"
@@ -1563,110 +1419,27 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                 onChange={e => setEditedProduct(prev => applySkipCasting(prev, e.target.checked))}
                                                             />
                                                         </label>
-                                                    </h4>
+                                                    )}
+                                                >
                                                     <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-                                                        <div>
-                                                            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
-                                                                <Tag size={11} className="text-slate-400" /> Κατηγορία
-                                                            </label>
-                                                            <input className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-medium text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all" value={editedProduct.category} onChange={e => setEditedProduct({ ...editedProduct, category: e.target.value })} />
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center justify-between mb-1.5">
-                                                                <span className="flex items-center gap-1.5"><Weight size={11} className="text-slate-400" /> Βάρος (g){editedProduct.skip_casting ? ' — 0' : ''}</span>
-                                                                {editedProduct.molds.length > 0 && !editedProduct.skip_casting && (
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            const total = editedProduct.molds.reduce((sum, pm) => {
-                                                                                const mold = allMolds.find(m => m.code === pm.code);
-                                                                                return sum + ((mold?.weight_g || 0) * pm.quantity);
-                                                                            }, 0);
-                                                                            if (total > 0) {
-                                                                                const rounded = parseFloat(total.toFixed(1));
-                                                                                setEditedProduct(prev => ({ ...prev, weight_g: rounded }));
-                                                                                showToast(`Βάρος ενημερώθηκε: ${rounded}g`, 'success');
-                                                                            } else {
-                                                                                showToast('Δεν βρέθηκαν βάρη στα επιλεγμένα λάστιχα.', 'info');
-                                                                            }
-                                                                        }}
-                                                                        className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded-md border border-amber-200 hover:bg-amber-100 flex items-center gap-1 transition-colors font-bold"
-                                                                        title="Υπολογισμός από Λάστιχα"
-                                                                        type="button"
-                                                                    >
-                                                                        <Scale size={10} /> Auto
-                                                                    </button>
-                                                                )}
-                                                            </label>
-                                                            <input type="number" step="0.01" disabled={!!editedProduct.skip_casting} className={`w-full p-2.5 border border-slate-200 rounded-xl font-bold font-mono text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all ${editedProduct.skip_casting ? 'bg-slate-100 text-slate-400' : 'bg-white'}`} value={editedProduct.weight_g} onChange={e => setEditedProduct({ ...editedProduct, weight_g: parseFloat(e.target.value) || 0 })} />
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
-                                                                <Scale size={11} className="text-slate-400" /> {secondaryWeightLabel}
-                                                            </label>
-                                                            <input type="number" step="0.01" disabled={!!editedProduct.skip_casting} className={`w-full p-2.5 border border-slate-200 rounded-xl font-bold font-mono text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all ${editedProduct.skip_casting ? 'bg-slate-100 text-slate-400' : 'bg-white'}`} value={editedProduct.secondary_weight_g} onChange={e => setEditedProduct({ ...editedProduct, secondary_weight_g: parseFloat(e.target.value) || 0 })} />
-                                                        </div>
-                                                        <div className={`col-span-2 rounded-xl border p-4 ${invoiceTotalWeightResult.source === 'missing' ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50/60'}`}>
-                                                            <div className="flex flex-wrap items-start justify-between gap-3">
-                                                                <div>
-                                                                    <label className="text-[11px] font-bold uppercase tracking-wide text-slate-600">Συνολικό Βάρος (g)</label>
-                                                                    <p className="mt-1 text-[10px] text-slate-500">Ανεξάρτητο από τους υπολογισμούς κόστους και παραγωγής.</p>
-                                                                </div>
-                                                                <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${invoiceTotalWeightResult.source === 'manual' ? 'bg-blue-100 text-blue-700' : invoiceTotalWeightResult.source === 'automatic' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                                                                    {invoiceTotalWeightResult.source === 'manual' ? 'Χειροκίνητο' : invoiceTotalWeightResult.source === 'automatic' ? 'Αυτόματο' : 'Ελλιπές'}
-                                                                </span>
-                                                            </div>
-                                                            <div className="mt-3 flex flex-wrap items-center gap-2">
-                                                                <input
-                                                                    type="number"
-                                                                    min="0.01"
-                                                                    step="0.01"
-                                                                    className="w-full max-w-xs rounded-xl border border-slate-200 bg-white p-2.5 font-mono font-bold text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10"
-                                                                    value={editedProduct.invoice_total_weight_g ?? ''}
-                                                                    onChange={e => setEditedProduct({ ...editedProduct, invoice_total_weight_g: e.target.value === '' ? null : Number(e.target.value) })}
-                                                                    placeholder={invoiceTotalWeightResult.value === null ? 'Χειροκίνητη τιμή' : invoiceTotalWeightResult.value.toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                                />
-                                                                {editedProduct.invoice_total_weight_g !== null && editedProduct.invoice_total_weight_g !== undefined && (
-                                                                    <button type="button" onClick={() => setEditedProduct({ ...editedProduct, invoice_total_weight_g: null })} className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50">
-                                                                        <RefreshCw size={13} /> Επιστροφή σε αυτόματο
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                            {invoiceTotalWeightResult.value !== null && (
-                                                                <p className="mt-2 text-xs font-bold text-slate-700">Τιμή παραστατικού: {invoiceTotalWeightResult.value.toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}gr</p>
-                                                            )}
-                                                            {invoiceTotalWeightResult.missingItems.length > 0 && (
-                                                                <div className="mt-3 flex gap-2 text-xs text-amber-800">
-                                                                    <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-                                                                    <ul className="list-disc space-y-1 pl-4">
-                                                                        {invoiceTotalWeightResult.missingItems.map(item => <li key={item}>{item}</li>)}
-                                                                    </ul>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
-                                                                <Users size={11} className="text-slate-400" /> Φύλο
-                                                            </label>
-                                                            <select className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-medium text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all" value={editedProduct.gender} onChange={e => setEditedProduct({ ...editedProduct, gender: e.target.value as Gender })}>
+                                                        <DetailsField label="Κατηγορία" icon={Tag}>
+                                                            <input className={detailsInputClass} value={editedProduct.category} onChange={e => setEditedProduct({ ...editedProduct, category: e.target.value })} />
+                                                        </DetailsField>
+                                                        <DetailsField label="Φύλο" icon={Users}>
+                                                            <select className={detailsInputClass} value={editedProduct.gender} onChange={e => setEditedProduct({ ...editedProduct, gender: e.target.value as Gender })}>
                                                                 <option value={Gender.Women}>Γυναικείο</option>
                                                                 <option value={Gender.Men}>Ανδρικό</option>
                                                                 <option value={Gender.Unisex}>Ουδέτερο</option>
                                                             </select>
-                                                        </div>
+                                                        </DetailsField>
                                                         {editedProduct.is_component && (
-                                                            <div>
-                                                                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
-                                                                    <Edit3 size={11} className="text-slate-400" /> Περιγραφή STX
-                                                                </label>
-                                                                <input className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-medium text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all" value={editedProduct.description || ''} onChange={e => setEditedProduct({ ...editedProduct, description: e.target.value })} placeholder="π.χ. Μικρή Πεταλούδα" />
-                                                            </div>
+                                                            <DetailsField label="Περιγραφή STX" icon={Edit3}>
+                                                                <input className={detailsInputClass} value={editedProduct.description || ''} onChange={e => setEditedProduct({ ...editedProduct, description: e.target.value })} placeholder="π.χ. Μικρή Πεταλούδα" />
+                                                            </DetailsField>
                                                         )}
                                                         {hasVariants ? (
-                                                            <div>
-                                                                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
-                                                                    <Palette size={11} className="text-slate-400" /> Διαθέσιμες Επιμεταλλώσεις
-                                                                </label>
-                                                                <div className="w-full p-2.5 bg-white border border-slate-200 rounded-xl flex flex-wrap gap-1.5">
+                                                            <DetailsField label="Διαθέσιμες Επιμεταλλώσεις" icon={Palette}>
+                                                                <div className="flex w-full flex-wrap gap-1.5 rounded-xl border border-slate-200 bg-white p-2.5">
                                                                     {sortedFinishCodes.map(code => {
                                                                         const label = FINISH_CODES[code] || (code === '' ? 'Λουστρέ' : code);
                                                                         const chipColors: Record<string, string> = {
@@ -1691,35 +1464,76 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                         );
                                                                     })}
                                                                 </div>
-                                                            </div>
+                                                            </DetailsField>
                                                         ) : (
-                                                            <div>
-                                                                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
-                                                                    <Palette size={11} className="text-slate-400" /> Βασική Επιμετάλλωση
-                                                                </label>
-                                                                <select className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-medium text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all" value={editedProduct.plating_type} onChange={e => setEditedProduct({ ...editedProduct, plating_type: e.target.value as PlatingType })}>
+                                                            <DetailsField label="Βασική Επιμετάλλωση" icon={Palette}>
+                                                                <select className={detailsInputClass} value={editedProduct.plating_type} onChange={e => setEditedProduct({ ...editedProduct, plating_type: e.target.value as PlatingType })}>
                                                                     <option value={PlatingType.None}>Λουστρέ</option>
                                                                     <option value={PlatingType.GoldPlated}>Επίχρυσο</option>
                                                                     <option value={PlatingType.TwoTone}>Δίχρωμο</option>
                                                                     <option value={PlatingType.Platinum}>Πλατίνα</option>
                                                                 </select>
-                                                            </div>
+                                                            </DetailsField>
                                                         )}
                                                     </div>
-                                                </div>
+                                                </DetailsSection>
+
+                                                <DetailsSection tone="weight" icon={Weight} title="Βάρη">
+                                                    <div className="grid grid-cols-2 gap-x-5 gap-y-4">
+                                                        <DetailsField
+                                                            label={`Βάρος (g)${editedProduct.skip_casting ? ' — 0' : ''}`}
+                                                            icon={Weight}
+                                                            action={editedProduct.molds.length > 0 && !editedProduct.skip_casting ? (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const total = editedProduct.molds.reduce((sum, pm) => {
+                                                                            const mold = allMolds.find(m => m.code === pm.code);
+                                                                            return sum + ((mold?.weight_g || 0) * pm.quantity);
+                                                                        }, 0);
+                                                                        if (total > 0) {
+                                                                            const rounded = parseFloat(total.toFixed(1));
+                                                                            setEditedProduct(prev => ({ ...prev, weight_g: rounded }));
+                                                                            showToast(`Βάρος ενημερώθηκε: ${rounded}g`, 'success');
+                                                                        } else {
+                                                                            showToast('Δεν βρέθηκαν βάρη στα επιλεγμένα λάστιχα.', 'info');
+                                                                        }
+                                                                    }}
+                                                                    className="flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-600 transition-colors hover:bg-amber-100"
+                                                                    title="Υπολογισμός από Λάστιχα"
+                                                                    type="button"
+                                                                >
+                                                                    <Scale size={10} /> Auto
+                                                                </button>
+                                                            ) : undefined}
+                                                        >
+                                                            <input type="number" step="0.01" disabled={!!editedProduct.skip_casting} className={`${detailsMonoInputClass} ${editedProduct.skip_casting ? 'bg-slate-100 text-slate-400' : ''}`} value={editedProduct.weight_g} onChange={e => setEditedProduct({ ...editedProduct, weight_g: parseFloat(e.target.value) || 0 })} />
+                                                        </DetailsField>
+                                                        <DetailsField label={secondaryWeightLabel} icon={Scale}>
+                                                            <input type="number" step="0.01" disabled={!!editedProduct.skip_casting} className={`${detailsMonoInputClass} ${editedProduct.skip_casting ? 'bg-slate-100 text-slate-400' : ''}`} value={editedProduct.secondary_weight_g} onChange={e => setEditedProduct({ ...editedProduct, secondary_weight_g: parseFloat(e.target.value) || 0 })} />
+                                                        </DetailsField>
+                                                        <div className="col-span-2">
+                                                            <InvoiceTotalWeightField
+                                                                value={editedProduct.invoice_total_weight_g}
+                                                                result={invoiceTotalWeightResult}
+                                                                onChange={(next) => setEditedProduct({ ...editedProduct, invoice_total_weight_g: next })}
+                                                                onClear={() => setEditedProduct({ ...editedProduct, invoice_total_weight_g: null })}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </DetailsSection>
 
                                                 {/* ── Section: Τιμές Πώλησης ανά Φινίρισμα (Color-Coded) ── */}
                                                 {!editedProduct.is_component && (
-                                                    <div className="bg-gradient-to-br from-emerald-50/40 to-slate-50/60 p-5 rounded-2xl border border-emerald-200/60 shadow-sm">
-                                                        <div className="flex justify-between items-center border-b border-emerald-200/50 pb-3 mb-4">
-                                                            <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider">
-                                                                <div className="p-1.5 bg-emerald-100 rounded-lg"><Coins size={13} className="text-emerald-600" /></div>
-                                                                Τιμές Πώλησης ανά Φινίρισμα
-                                                            </h4>
-                                                            <button onClick={() => setShowRepriceTool(!showRepriceTool)} className={`p-2 rounded-xl transition-all ${showRepriceTool ? 'bg-emerald-100 text-emerald-600 shadow-sm ring-1 ring-emerald-200' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}`}>
+                                                    <DetailsSection
+                                                        tone="commerce"
+                                                        icon={Coins}
+                                                        title="Εμπορικά"
+                                                        actions={(
+                                                            <button onClick={() => setShowRepriceTool(!showRepriceTool)} className={`p-2 rounded-xl transition-all ${showRepriceTool ? 'bg-emerald-100 text-emerald-600 shadow-sm ring-1 ring-emerald-200' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}`} title="Εργαλείο ανατιμολόγησης">
                                                                 <Calculator size={16} />
                                                             </button>
-                                                        </div>
+                                                        )}
+                                                    >
 
                                                         <div className="grid grid-cols-2 gap-3">
                                                             {/* CASE 1: NO VARIANTS (Simple Product) */}
@@ -1835,20 +1649,19 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                 <p className="text-[9px] text-slate-400 mt-2 text-center">Υπολογίζει ξεχωριστά για κάθε παραλλαγή βάσει υλικών & βάρους.</p>
                                                             </div>
                                                         )}
-                                                    </div>
+                                                    </DetailsSection>
                                                 )}
 
-                                                {/* ── Section: Λάστιχα ── */}
-                                                <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/80 shadow-sm">
-                                                    <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
-                                                        <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider">
-                                                            <div className="p-1.5 bg-amber-100 rounded-lg"><MapPin size={13} className="text-amber-600" /></div>
-                                                            Λάστιχα
-                                                        </h4>
+                                                <DetailsSection
+                                                    tone="molds"
+                                                    icon={MapPin}
+                                                    title="Λάστιχα"
+                                                    actions={(
                                                         <button onClick={() => setIsAddingMold(prev => !prev)} className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${isAddingMold ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100' : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'}`}>
                                                             {isAddingMold ? 'Ακύρωση' : '+ Προσθήκη'}
                                                         </button>
-                                                    </div>
+                                                    )}
+                                                >
                                                     <div className="flex flex-wrap gap-2 min-h-[36px]">
                                                         {editedProduct.molds.map(m => {
                                                             const moldDetails = allMolds.find(mold => mold.code === m.code);
@@ -1945,19 +1758,38 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                             </div>
                                                         </div>
                                                     )}
-                                                </div>
+                                                </DetailsSection>
                                             </>
                                         ) : (
                                             <div className="space-y-5">
-                                                {/* ── Section: Προμηθευτής & Στοιχεία ── */}
-                                                <div className="bg-gradient-to-br from-purple-50/50 to-slate-50/40 p-5 rounded-2xl border border-purple-200/60 shadow-sm">
-                                                    <h4 className="font-bold text-slate-700 flex items-center justify-between gap-2 uppercase text-xs tracking-wider border-b border-purple-200/50 pb-3 mb-4">
-                                                        <span className="flex items-center gap-2">
-                                                        <div className="p-1.5 bg-purple-100 rounded-lg"><Globe size={13} className="text-purple-600" /></div>
-                                                        Προμηθευτής & Στοιχεία Εισαγωγής
-                                                        </span>
-                                                        <label className="flex items-center gap-2 normal-case tracking-normal cursor-pointer">
-                                                            <span className="text-[10px] font-bold text-purple-600 uppercase">Χωρίς χύτευση</span>
+                                                <DetailsSection tone="supplier" icon={Globe} title="Προμηθευτής">
+                                                    <div className="grid grid-cols-2 gap-x-5 gap-y-4">
+                                                        <DetailsField label="Προμηθευτής" icon={ShoppingBag}>
+                                                            <select
+                                                                value={editedProduct.supplier_id || ''}
+                                                                onChange={(e) => setEditedProduct({ ...editedProduct, supplier_id: e.target.value || undefined })}
+                                                                className={detailsInputClass}
+                                                            >
+                                                                <option value="">Επιλογή...</option>
+                                                                {suppliers?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                            </select>
+                                                        </DetailsField>
+                                                        <DetailsField label="Κωδικός Προμηθευτή" icon={Tag}>
+                                                            <input type="text" className={detailsMonoInputClass} value={editedProduct.supplier_sku || ''} onChange={e => setEditedProduct({ ...editedProduct, supplier_sku: e.target.value })} placeholder="π.χ. ITEM-123" />
+                                                        </DetailsField>
+                                                        <DetailsField label="Κατηγορία" icon={Tag}>
+                                                            <input className={detailsInputClass} value={editedProduct.category} onChange={e => setEditedProduct({ ...editedProduct, category: e.target.value })} />
+                                                        </DetailsField>
+                                                    </div>
+                                                </DetailsSection>
+
+                                                <DetailsSection
+                                                    tone="weight"
+                                                    icon={Weight}
+                                                    title="Βάρη"
+                                                    actions={(
+                                                        <label className="flex cursor-pointer items-center gap-2 normal-case tracking-normal">
+                                                            <span className="text-[10px] font-bold uppercase text-purple-600">Χωρίς χύτευση</span>
                                                             <input
                                                                 type="checkbox"
                                                                 className="h-4 w-4 accent-purple-600"
@@ -1965,134 +1797,73 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                                 onChange={e => setEditedProduct(prev => applySkipCasting(prev, e.target.checked))}
                                                             />
                                                         </label>
-                                                    </h4>
+                                                    )}
+                                                >
                                                     <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-                                                        <div>
-                                                            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
-                                                                <ShoppingBag size={11} className="text-slate-400" /> Προμηθευτής
-                                                            </label>
-                                                            <select
-                                                                value={editedProduct.supplier_id || ''}
-                                                                onChange={(e) => setEditedProduct({ ...editedProduct, supplier_id: e.target.value || undefined })}
-                                                                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-medium text-slate-700 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/10 transition-all"
-                                                            >
-                                                                <option value="">Επιλογή...</option>
-                                                                {suppliers?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                                            </select>
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
-                                                                <Tag size={11} className="text-slate-400" /> Κωδικός Προμηθευτή
-                                                            </label>
-                                                            <input type="text" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold font-mono text-slate-700 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/10 transition-all" value={editedProduct.supplier_sku || ''} onChange={e => setEditedProduct({ ...editedProduct, supplier_sku: e.target.value })} placeholder="π.χ. ITEM-123" />
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
-                                                                <Weight size={11} className="text-slate-400" /> Βάρος (g){editedProduct.skip_casting ? ' — 0' : ''}
-                                                            </label>
-                                                            <input type="number" step="0.01" disabled={!!editedProduct.skip_casting} className={`w-full p-2.5 border border-slate-200 rounded-xl font-bold font-mono text-slate-700 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/10 transition-all ${editedProduct.skip_casting ? 'bg-slate-100 text-slate-400' : 'bg-white'}`} value={editedProduct.weight_g} onChange={e => setEditedProduct({ ...editedProduct, weight_g: parseFloat(e.target.value) || 0 })} />
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
-                                                                <Tag size={11} className="text-slate-400" /> Κατηγορία
-                                                            </label>
-                                                            <input className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-medium text-slate-700 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/10 transition-all" value={editedProduct.category} onChange={e => setEditedProduct({ ...editedProduct, category: e.target.value })} />
-                                                        </div>
-                                                    </div>
-                                                    <div className={`mt-4 rounded-xl border p-4 ${invoiceTotalWeightResult.source === 'missing' ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50/60'}`}>
-                                                        <div className="flex flex-wrap items-center justify-between gap-2">
-                                                            <label className="text-[11px] font-bold uppercase tracking-wide text-slate-600">Συνολικό Βάρος (g)</label>
-                                                            <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${invoiceTotalWeightResult.source === 'manual' ? 'bg-blue-100 text-blue-700' : invoiceTotalWeightResult.source === 'automatic' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                                                                {invoiceTotalWeightResult.source === 'manual' ? 'Χειροκίνητο' : invoiceTotalWeightResult.source === 'automatic' ? 'Αυτόματο' : 'Ελλιπές'}
-                                                            </span>
-                                                        </div>
-                                                        <div className="mt-3 flex flex-wrap items-center gap-2">
-                                                            <input
-                                                                type="number"
-                                                                min="0.01"
-                                                                step="0.01"
-                                                                className="w-full max-w-xs rounded-xl border border-slate-200 bg-white p-2.5 font-mono font-bold text-slate-700 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-500/10"
-                                                                value={editedProduct.invoice_total_weight_g ?? ''}
-                                                                onChange={e => setEditedProduct({ ...editedProduct, invoice_total_weight_g: e.target.value === '' ? null : Number(e.target.value) })}
-                                                                placeholder={invoiceTotalWeightResult.value === null ? 'Χειροκίνητη τιμή' : invoiceTotalWeightResult.value.toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                        <DetailsField label={`Βάρος (g)${editedProduct.skip_casting ? ' — 0' : ''}`} icon={Weight}>
+                                                            <input type="number" step="0.01" disabled={!!editedProduct.skip_casting} className={`${detailsMonoInputClass} ${editedProduct.skip_casting ? 'bg-slate-100 text-slate-400' : ''}`} value={editedProduct.weight_g} onChange={e => setEditedProduct({ ...editedProduct, weight_g: parseFloat(e.target.value) || 0 })} />
+                                                        </DetailsField>
+                                                        <div className="col-span-2">
+                                                            <InvoiceTotalWeightField
+                                                                value={editedProduct.invoice_total_weight_g}
+                                                                result={invoiceTotalWeightResult}
+                                                                onChange={(next) => setEditedProduct({ ...editedProduct, invoice_total_weight_g: next })}
+                                                                onClear={() => setEditedProduct({ ...editedProduct, invoice_total_weight_g: null })}
+                                                                focusClass="focus:border-purple-400 focus:ring-purple-500/10"
                                                             />
-                                                            {editedProduct.invoice_total_weight_g !== null && editedProduct.invoice_total_weight_g !== undefined && (
-                                                                <button type="button" onClick={() => setEditedProduct({ ...editedProduct, invoice_total_weight_g: null })} className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50">
-                                                                    <RefreshCw size={13} /> Επιστροφή σε αυτόματο
-                                                                </button>
-                                                            )}
                                                         </div>
-                                                        {invoiceTotalWeightResult.value !== null && <p className="mt-2 text-xs font-bold text-slate-700">Τιμή παραστατικού: {invoiceTotalWeightResult.value.toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}gr</p>}
-                                                        {invoiceTotalWeightResult.missingItems.length > 0 && (
-                                                            <div className="mt-3 flex gap-2 text-xs text-amber-800">
-                                                                <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-                                                                <ul className="list-disc space-y-1 pl-4">{invoiceTotalWeightResult.missingItems.map(item => <li key={item}>{item}</li>)}</ul>
-                                                            </div>
-                                                        )}
                                                     </div>
-                                                </div>
+                                                </DetailsSection>
 
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                                    {/* ── Section: Κοστολόγηση ── */}
-                                                    <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/80 shadow-sm">
-                                                        <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-3 mb-4">
-                                                            <div className="p-1.5 bg-indigo-100 rounded-lg"><Calculator size={13} className="text-indigo-600" /></div>
-                                                            Κοστολόγηση Εισαγωγής
-                                                        </h4>
+                                                    <DetailsSection tone="costing" icon={Calculator} title="Κοστολόγηση εισαγωγής">
                                                         <div className="space-y-2">
                                                             <LaborCostInput icon={<Hammer size={14} />} label="Εργατικά (€/g)" value={editedProduct.labor.technician_cost} onChange={val => setEditedProduct(p => ({ ...p, labor: { ...p.labor, technician_cost: val } }))} />
                                                             <LaborCostInput icon={<Coins size={14} />} label="Επιμετάλλωση (€/g)" value={editedProduct.labor.plating_cost_x} onChange={val => setEditedProduct(p => ({ ...p, labor: { ...p.labor, plating_cost_x: val } }))} />
                                                             <LaborCostInput icon={<Gem size={14} />} label="Καρφωτικά (€)" value={editedProduct.labor.stone_setting_cost} onChange={val => setEditedProduct(p => ({ ...p, labor: { ...p.labor, stone_setting_cost: val } }))} />
                                                         </div>
-                                                    </div>
+                                                    </DetailsSection>
 
-                                                    {/* ── Section: Ανάλυση Κόστους ── */}
-                                                    <div className="bg-gradient-to-br from-emerald-50/60 to-slate-50/40 p-5 rounded-2xl border border-emerald-200/60 shadow-sm flex flex-col">
-                                                        <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-emerald-200/50 pb-3 mb-4">
-                                                            <div className="p-1.5 bg-emerald-100 rounded-lg"><Activity size={13} className="text-emerald-600" /></div>
-                                                            Ανάλυση Κόστους
-                                                        </h4>
-                                                        <div className="space-y-1.5 flex-1">
-                                                            <SummaryRow label="Ασήμι" value={formatCurrency(currentCostCalc.breakdown?.silver)} sub={`${editedProduct.weight_g}g`} color="bg-slate-400" />
-                                                            <SummaryRow label="Εργατικά" value={formatCurrency(currentCostCalc.breakdown?.details?.technician_cost)} sub={`/ ${editedProduct.weight_g}g`} color="bg-blue-400" />
-                                                            <SummaryRow label="Επιμετάλλωση" value={formatCurrency(currentCostCalc.breakdown?.details?.plating_cost_x)} sub={`/ ${editedProduct.weight_g}g`} color="bg-amber-400" />
-                                                            <SummaryRow label="Καρφωτικά" value={formatCurrency(currentCostCalc.breakdown?.details?.stone_setting_cost)} sub="Σταθερό" color="bg-purple-400" />
+                                                    <DetailsSection tone="analysis" icon={Activity} title="Ανάλυση κόστους">
+                                                        <div className="flex flex-col">
+                                                            <div className="space-y-1.5 flex-1">
+                                                                <SummaryRow label="Ασήμι" value={formatCurrency(currentCostCalc.breakdown?.silver)} sub={`${editedProduct.weight_g}g`} color="bg-slate-400" />
+                                                                <SummaryRow label="Εργατικά" value={formatCurrency(currentCostCalc.breakdown?.details?.technician_cost)} sub={`/ ${editedProduct.weight_g}g`} color="bg-blue-400" />
+                                                                <SummaryRow label="Επιμετάλλωση" value={formatCurrency(currentCostCalc.breakdown?.details?.plating_cost_x)} sub={`/ ${editedProduct.weight_g}g`} color="bg-amber-400" />
+                                                                <SummaryRow label="Καρφωτικά" value={formatCurrency(currentCostCalc.breakdown?.details?.stone_setting_cost)} sub="Σταθερό" color="bg-purple-400" />
+                                                            </div>
+                                                            <div className="pt-3 mt-3 border-t border-emerald-200/60 flex justify-between items-center">
+                                                                <span className="font-bold text-emerald-700 text-sm uppercase">Τελικό Κόστος</span>
+                                                                <span className="font-black text-2xl text-emerald-800">{formatCurrency(masterCost)}</span>
+                                                            </div>
                                                         </div>
-                                                        <div className="pt-3 mt-3 border-t border-emerald-200/60 flex justify-between items-center">
-                                                            <span className="font-bold text-emerald-700 text-sm uppercase">Τελικό Κόστος</span>
-                                                            <span className="font-black text-2xl text-emerald-800">{formatCurrency(masterCost)}</span>
-                                                        </div>
-                                                    </div>
+                                                    </DetailsSection>
                                                 </div>
 
-                                                {/* ── Section: Εμπορική Πολιτική ── */}
-                                                <div className="bg-gradient-to-br from-amber-50/50 to-slate-50/40 p-5 rounded-2xl border border-amber-200/60 shadow-sm">
-                                                    <div className="flex justify-between items-center border-b border-amber-200/50 pb-3 mb-4">
-                                                        <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider">
-                                                            <div className="p-1.5 bg-amber-100 rounded-lg"><DollarSign size={13} className="text-amber-600" /></div>
-                                                            Εμπορική Πολιτική
-                                                        </h4>
-                                                        <button onClick={() => setShowRepriceTool(!showRepriceTool)} className={`p-2 rounded-xl transition-all ${showRepriceTool ? 'bg-amber-100 text-amber-600 shadow-sm ring-1 ring-amber-200' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'}`}>
+                                                <DetailsSection
+                                                    tone="policy"
+                                                    icon={DollarSign}
+                                                    title="Εμπορική πολιτική"
+                                                    actions={(
+                                                        <button onClick={() => setShowRepriceTool(!showRepriceTool)} className={`p-2 rounded-xl transition-all ${showRepriceTool ? 'bg-amber-100 text-amber-600 shadow-sm ring-1 ring-amber-200' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'}`} title="Εργαλείο ανατιμολόγησης">
                                                             <Calculator size={16} />
                                                         </button>
-                                                    </div>
+                                                    )}
+                                                >
                                                     <div className="grid grid-cols-2 gap-5 items-end">
-                                                        <div>
-                                                            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
-                                                                <Coins size={11} className="text-slate-400" /> Τιμή Πώλησης (€)
-                                                            </label>
+                                                        <DetailsField label="Τιμή Πώλησης (€)" icon={Coins}>
                                                             <div className="relative">
                                                                 <input type="number" step="0.01" className="w-full p-2.5 bg-white border border-amber-200 text-amber-900 rounded-xl font-bold font-mono outline-none focus:ring-2 focus:ring-amber-400/20 focus:border-amber-300 transition-all shadow-sm" value={editedProduct.selling_price} onChange={e => setEditedProduct({ ...editedProduct, selling_price: parseFloat(e.target.value) || 0, selling_price_manual_override: true })} />
                                                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-400 font-semibold">€</span>
                                                             </div>
-                                                        </div>
+                                                        </DetailsField>
                                                         {masterCost > 0 && editedProduct.selling_price > 0 && (
                                                             <div className="flex items-center gap-3">
                                                                 <div className="p-2.5 bg-white rounded-xl border border-slate-100 shadow-sm">
                                                                     <Percent size={14} className="text-slate-400" />
                                                                 </div>
                                                                 <div>
-                                                                    <div className="text-[10px] font-bold text-slate-400 uppercase">Margin</div>
+                                                                    <div className="text-[10px] font-bold text-slate-400 uppercase">Περιθώριο</div>
                                                                     <div className={`font-mono font-black text-lg ${((editedProduct.selling_price - masterCost) / editedProduct.selling_price * 100) >= 40 ? 'text-emerald-600' : ((editedProduct.selling_price - masterCost) / editedProduct.selling_price * 100) >= 20 ? 'text-amber-600' : 'text-red-500'}`}>
                                                                         {((editedProduct.selling_price - masterCost) / editedProduct.selling_price * 100).toFixed(1)}%
                                                                     </div>
@@ -2105,7 +1876,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                             <h4 className="font-bold text-amber-800 text-sm mb-3 flex items-center gap-2"><TrendingUp size={16} /> Εργαλείο Ανατιμολόγησης</h4>
                                                             <div className="flex items-end gap-4">
                                                                 <div>
-                                                                    <label className="text-[10px] font-bold text-amber-700 uppercase">Στόχος Margin (%)</label>
+                                                                    <label className="text-[10px] font-bold text-amber-700 uppercase">Στόχος Περιθωρίου (%)</label>
                                                                     <input type="number" value={targetMargin} onChange={e => { setTargetMargin(parseFloat(e.target.value)); updateCalculatedPrice(parseFloat(e.target.value)); }} className="w-24 p-2 rounded-lg border border-amber-300 font-bold text-center bg-white" />
                                                                 </div>
                                                                 <div className="flex items-center gap-2">
@@ -2121,49 +1892,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                             </div>
                                                         </div>
                                                     )}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {editedProduct.production_type === ProductionType.InHouse && !editedProduct.is_component && (
-                                            <div className="bg-gradient-to-br from-violet-50/60 to-slate-50/40 p-5 rounded-2xl border border-violet-200/60 shadow-sm">
-                                                <div className="flex items-start justify-between gap-4">
-                                                    <div className="flex-1">
-                                                        <h4 className="font-bold text-violet-800 flex items-center gap-2 text-sm">
-                                                            <Globe size={15} className="text-violet-600" />
-                                                            Μετατροπή σε Εισαγωγή
-                                                        </h4>
-                                                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">Μετατρέψτε αυτό τον κωδικό από Ιδιοπαραγωγή σε Εισαγόμενο. Συνταγή και λάστιχα αδειάζουν. Δείτε αναλυτικά τα βήματα πριν επιβεβαιώσετε.</p>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => setShowConvertModal(true)}
-                                                        className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 text-white rounded-xl font-bold text-sm hover:bg-violet-700 active:bg-violet-800 transition-all shadow-sm whitespace-nowrap flex-shrink-0"
-                                                    >
-                                                        <Globe size={14} />
-                                                        Μετατροπή
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {editedProduct.production_type === ProductionType.Imported && (
-                                            <div className="bg-gradient-to-br from-orange-50/60 to-amber-50/40 p-5 rounded-2xl border border-orange-200/60 shadow-sm">
-                                                <div className="flex items-start justify-between gap-4">
-                                                    <div className="flex-1">
-                                                        <h4 className="font-bold text-orange-800 flex items-center gap-2 text-sm">
-                                                            <Flame size={15} className="text-orange-600" />
-                                                            Μετατροπή σε Ιδιοπαραγωγή
-                                                        </h4>
-                                                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">Μετατρέψτε αυτό τον κωδικό από Εισαγόμενο σε Ιδιοπαραγωγής. Τα εργατικά υπολογίζονται αυτόματα βάσει βάρους. Δείτε αναλυτική προεπισκόπηση όλων των αλλαγών πριν επιβεβαιώσετε.</p>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => setShowConvertModal(true)}
-                                                        className="flex items-center gap-2 px-4 py-2.5 bg-orange-600 text-white rounded-xl font-bold text-sm hover:bg-orange-700 active:bg-orange-800 transition-all shadow-sm whitespace-nowrap flex-shrink-0"
-                                                    >
-                                                        <Flame size={14} />
-                                                        Μετατροπή
-                                                    </button>
-                                                </div>
+                                                </DetailsSection>
                                             </div>
                                         )}
                                     </div>
@@ -2171,12 +1900,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
                                 {activeTab === 'recipe' && (
                                     <div className="space-y-4 animate-in fade-in">
-                                        {/* ── Silver Base Row ── */}
-                                        <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/80 shadow-sm">
-                                            <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-3 mb-4">
-                                                <div className="p-1.5 bg-blue-100 rounded-lg"><Box size={13} className="text-blue-600" /></div>
-                                                Συνταγή Προϊόντος
-                                            </h4>
+                                        <DetailsSection tone="recipe" icon={Box} title="Συνταγή">
 
                                             <div className="flex items-center gap-3 p-3.5 bg-gradient-to-r from-slate-100 to-slate-50 rounded-xl border border-slate-200 shadow-sm">
                                                 <div className="p-2.5 bg-white rounded-xl border border-slate-100 text-slate-500 shadow-sm">
@@ -2291,18 +2015,13 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                 <button onClick={() => setIsRecipeModalOpen('raw')} className="flex-1 py-2.5 bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 rounded-xl text-xs font-bold text-slate-600 hover:text-emerald-700 transition-all flex items-center justify-center gap-2 shadow-sm"><Plus size={14} /> Υλικό</button>
                                                 <button onClick={() => setIsRecipeModalOpen('component')} className="flex-1 py-2.5 bg-white hover:bg-blue-50 border border-slate-200 hover:border-blue-200 rounded-xl text-xs font-bold text-slate-600 hover:text-blue-700 transition-all flex items-center justify-center gap-2 shadow-sm"><Plus size={14} /> Εξάρτημα</button>
                                             </div>
-                                        </div>
+                                        </DetailsSection>
                                     </div>
                                 )}
 
                                 {activeTab === 'labor' && (
                                     <div className="space-y-6 animate-in fade-in">
-                                        {/* ── Section: Εισαγωγή Κόστους Εργατικών ── */}
-                                        <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/80 shadow-sm">
-                                            <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-3 mb-4">
-                                                <div className="p-1.5 bg-orange-100 rounded-lg"><Hammer size={13} className="text-orange-600" /></div>
-                                                Εισαγωγή Κόστους Εργατικών
-                                            </h4>
+                                        <DetailsSection tone="labor" icon={Hammer} title="Εισαγωγή κόστους">
                                             <div className="space-y-2">
                                                 <LaborCostFormulaRow
                                                     icon={<Flame size={14} />}
@@ -2359,14 +2078,9 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                 />
                                                 <LaborCostInput label="Φασόν/Έξτρα (€)" value={editedProduct.labor.subcontract_cost} onChange={v => setEditedProduct({ ...editedProduct, labor: { ...editedProduct.labor, subcontract_cost: v } })} icon={<Users size={14} />} />
                                             </div>
-                                        </div>
+                                        </DetailsSection>
 
-                                        {/* ── Section: Αναλυτική Κοστολόγηση Παραλλαγών ── */}
-                                        <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/80 shadow-sm">
-                                            <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider border-b border-slate-200 pb-3 mb-4">
-                                                <div className="p-1.5 bg-emerald-100 rounded-lg"><Activity size={13} className="text-emerald-600" /></div>
-                                                Αναλυτική Κοστολόγηση Παραλλαγών
-                                            </h4>
+                                        <DetailsSection tone="analysis" icon={Activity} title="Ανάλυση παραλλαγών">
                                             <div className="space-y-3">
                                                 {analyticalCostingItems.map(item => {
                                                     const { key, suffix: itemSuffix, description: itemDesc, costResult } = item;
@@ -2404,7 +2118,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                     );
                                                 })}
                                             </div>
-                                        </div>
+                                        </DetailsSection>
                                     </div>
                                 )}
 
@@ -2420,20 +2134,19 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                             showToast={showToast}
                                         />
 
-                                        {/* ── Section: Υπάρχουσες Παραλλαγές ── */}
-                                        <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/80 shadow-sm">
-                                            <div className="flex justify-between items-center border-b border-slate-200 pb-3 mb-4">
-                                                <h4 className="font-bold text-slate-700 flex items-center gap-2 uppercase text-xs tracking-wider">
-                                                    <div className="p-1.5 bg-violet-100 rounded-lg"><Layers size={13} className="text-violet-600" /></div>
-                                                    Υπάρχουσες Παραλλαγές <span className="text-slate-400 ml-1">({sortedVariantsList.length})</span>
-                                                </h4>
+                                        <DetailsSection
+                                            tone="variants"
+                                            icon={Layers}
+                                            title={<>Παραλλαγές <span className="ml-1 text-slate-400">({sortedVariantsList.length})</span></>}
+                                            actions={(
                                                 <button
                                                     onClick={() => handleApplyAllSuggestions('formula')}
-                                                    className="text-[10px] font-bold bg-emerald-50 text-emerald-600 px-2.5 py-1.5 rounded-lg border border-emerald-100 flex items-center gap-1.5 hover:bg-emerald-100 transition-colors shadow-sm"
+                                                    className="flex items-center gap-1.5 rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-1.5 text-[10px] font-bold text-emerald-600 shadow-sm transition-colors hover:bg-emerald-100"
                                                 >
-                                                    <Calculator size={10} /> Αυτόματη Τιμολόγηση
+                                                    <Calculator size={10} /> Αυτόματη τιμολόγηση
                                                 </button>
-                                            </div>
+                                            )}
+                                        >
                                             <div className="space-y-2">
                                                 {sortedVariantsList.map((v, index) => (
                                                     <div key={v.suffix} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100 group hover:border-blue-200 hover:shadow-sm transition-all">
@@ -2469,13 +2182,15 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                     <div className="text-center py-6 text-slate-400 text-sm italic">Δεν υπάρχουν παραλλαγές. Χρησιμοποιήστε τα εργαλεία παραπάνω για να προσθέσετε.</div>
                                                 )}
                                             </div>
-                                        </div>
+                                        </DetailsSection>
                                     </div>
                                 )}
 
                                 {activeTab === 'barcodes' && (
-                                    <div className="animate-in fade-in h-full">
-                                        <BarcodeGallery product={editedProduct} variants={sortedVariantsList} onPrint={setPrintItems} settings={settings} />
+                                    <div className="h-full animate-in fade-in">
+                                        <DetailsSection tone="barcodes" icon={ScanBarcode} title="Barcodes">
+                                            <BarcodeGallery product={editedProduct} variants={sortedVariantsList} onPrint={setPrintItems} settings={settings} />
+                                        </DetailsSection>
                                     </div>
                                 )}
                             </div>
@@ -2483,14 +2198,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                     </div>
                 </div>
 
-                <div className="flex justify-between items-center p-4 border-t border-slate-100 bg-white/80 backdrop-blur-sm shrink-0">
-                    <div className="flex gap-2">
-                    </div>
-                    <button onClick={handleSave} disabled={isSaving} className="bg-emerald-600 text-white font-bold px-8 py-3 rounded-xl flex items-center gap-2 hover:bg-emerald-700 shadow-lg shadow-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed">
-                        {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                        {isSaving ? 'Αποθήκευση...' : 'Αποθήκευση'}
-                    </button>
-                </div>
+                <DetailsFooter isSaving={isSaving} onSave={handleSave} />
             </div>
         </div>,
         document.body

@@ -1,16 +1,14 @@
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender, PlatingType, ProductionType } from '../types';
+import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender, PlatingType } from '../types';
 import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Tag, Puzzle, Gem, Palette, X, Camera, LayoutGrid, List, CheckSquare, Printer, Factory, ShoppingBag, FolderOpen, Lock, ChevronLeft, ChevronRight } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import NewProduct from './NewProduct';
 import BarcodeScanner from './BarcodeScanner';
 import SkuColorizedText from './SkuColorizedText';
 import ProductCard from './ProductRegistry/ProductCard';
-import ConvertToImportedModal from './ConvertToImportedModal';
 import { useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { refreshErpProducts } from '../features/erpCatalog';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
 import { calculateProductCost, getPrevalentVariant, formatCurrency, findProductByScannedCode, estimateVariantCost } from '../utils/pricingEngine';
 import { useUI } from './UIProvider';
@@ -20,8 +18,7 @@ import { useMaterials } from '../hooks/api/useMaterials';
 import { useMolds } from '../hooks/api/useMolds';
 import { useProducts } from '../hooks/api/useProducts';
 import { useSettings } from '../hooks/api/useSettings';
-import { useSuppliers } from '../hooks/api/useSuppliers';
-import { productsRepository, saveProductGraph } from '../features/products';
+import { productsRepository } from '../features/products';
 import { PrintLabelItem } from '../features/printing';
 import { resolveSellingPriceManualOverride } from '../utils/bulkPricingPreview';
 import DesktopPageHeader from './DesktopPageHeader';
@@ -37,7 +34,6 @@ import {
     RegistrySortSelect,
     SKIP_CASTING_LABEL,
     formatRegistryWeight,
-    toImportedSavePayload,
     type RegistrySortMode,
 } from '../features/products';
 
@@ -128,7 +124,6 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     const { data: molds, isLoading: loadingMolds } = useMolds();
     const { data: settings, isLoading: loadingSettings } = useSettings();
     const { data: collections, isLoading: loadingCollections } = useCollections();
-    const { data: suppliers } = useSuppliers();
 
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -147,8 +142,6 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     const [showFiltersSidebar, setShowFiltersSidebar] = useState(false);
     const [showPrintModal, setShowPrintModal] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-    const [convertProduct, setConvertProduct] = useState<Product | null>(null);
-    const [isConverting, setIsConverting] = useState(false);
     const [selectedVariantSuffix, setSelectedVariantSuffix] = useState<string | undefined>(undefined);
     const [isCreating, setIsCreating] = useState(false);
     const [productToDuplicate, setProductToDuplicate] = useState<Product | null>(null);
@@ -198,35 +191,6 @@ export default function ProductRegistry({ setPrintItems }: Props) {
         }
         return map;
     }, [materials]);
-
-    const handleImportedConversion = useCallback(async (newProduct: Product) => {
-        if (!settings || !materials || !products) return;
-        setIsConverting(true);
-        try {
-            const cost = calculateProductCost(newProduct, settings, materials, products, 0, new Set(), undefined, productsMap, materialsMap).total;
-            const { anyPartQueued } = await saveProductGraph({
-                finalMasterSku: newProduct.sku,
-                productData: toImportedSavePayload(newProduct, cost),
-                finalVariants: newProduct.variants || [],
-                productionType: ProductionType.Imported,
-                recipe: [],
-                selectedMolds: [],
-                isSTX: false,
-            });
-            await refreshErpProducts(queryClient, [newProduct.sku]);
-            await invalidateProductsAndCatalog(queryClient);
-            setConvertProduct(null);
-            showToast(
-                anyPartQueued ? 'Η μετατροπή μπήκε στην ουρά συγχρονισμού.' : `Ο κωδικός ${newProduct.sku} μετατράπηκε σε εισαγωγή.`,
-                anyPartQueued ? 'info' : 'success',
-            );
-        } catch (error) {
-            console.error(error);
-            showToast('Η μετατροπή σε εισαγωγή απέτυχε.', 'error');
-        } finally {
-            setIsConverting(false);
-        }
-    }, [materials, materialsMap, products, productsMap, queryClient, settings, showToast]);
 
     const baseProducts = useMemo(() => {
         if (!products) return [];
@@ -568,7 +532,6 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                         productsMap={productsMap}
                                         materialsMap={materialsMap}
                                         onSelectProduct={handleProductSelect}
-                                        onConvertToImported={setConvertProduct}
                                         isSelected={selectedSkus.has(product.sku)}
                                     />
                                 </div>
@@ -866,19 +829,6 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                         setSelectedVariantSuffix(undefined);
                         setIsCreating(true);
                     }}
-                />
-            )}
-
-            {convertProduct && settings && materials && products && (
-                <ConvertToImportedModal
-                    product={convertProduct}
-                    settings={settings}
-                    allMaterials={materials}
-                    allProducts={products}
-                    suppliers={suppliers || []}
-                    persistOnConfirm
-                    onConfirm={handleImportedConversion}
-                    onClose={() => { if (!isConverting) setConvertProduct(null); }}
                 />
             )}
 

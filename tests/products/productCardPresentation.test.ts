@@ -4,8 +4,20 @@ import {
   SKIP_CASTING_LABEL,
   buildProductCardWeightPresentation,
   canConvertToImported,
+  formatRecipeItemCountLabel,
   formatRegistryWeight,
+  shouldShowCardInvoiceTotal,
 } from '../../features/products/productCardPresentation';
+import type { InvoiceTotalWeightResult } from '../../utils/invoiceTotalWeight';
+
+const invoice = (
+  overrides: Partial<InvoiceTotalWeightResult> = {},
+): InvoiceTotalWeightResult => ({
+  value: 2.4,
+  source: 'automatic',
+  missingItems: [],
+  ...overrides,
+});
 
 const makeProduct = (overrides: Partial<Product> = {}): Product => ({
   sku: 'PN1',
@@ -71,6 +83,8 @@ describe('product card presentation', () => {
     expect(view.totalWeight).toBe(3);
     expect(view.hasWeightBreakdown).toBe(true);
     expect(view.showCastingWeight).toBe(false);
+    expect(view.recipeItemCount).toBe(2);
+    expect(view.recipeItemCountLabel).toBe('2 υλικά');
   });
 
   it('keeps a simple casting-weight display for ordinary in-house products', () => {
@@ -79,11 +93,41 @@ describe('product card presentation', () => {
     expect(view.primaryMode).toBe('simple');
     expect(view.showCastingWeight).toBe(true);
     expect(view.totalWeight).toBe(2.4);
+    expect(view.recipeItemCount).toBe(1);
+    expect(view.recipeItemCountLabel).toBe('1 υλικό');
   });
 
   it('allows converting in-house finished goods but not STX or imported products', () => {
     expect(canConvertToImported(makeProduct())).toBe(true);
     expect(canConvertToImported(makeProduct({ is_component: true }))).toBe(false);
     expect(canConvertToImported(makeProduct({ production_type: ProductionType.Imported }))).toBe(false);
+  });
+
+  it('uses singular Greek for one recipe material and plural otherwise', () => {
+    expect(formatRecipeItemCountLabel(1)).toBe('1 υλικό');
+    expect(formatRecipeItemCountLabel(2)).toBe('2 υλικά');
+    expect(buildProductCardWeightPresentation(makeProduct(), new Map()).recipeItemCountLabel).toBe('1 υλικό');
+  });
+
+  it('hides the invoice total when it matches the metal weight on a single-material SKU', () => {
+    expect(shouldShowCardInvoiceTotal(1, 2.4, invoice({ value: 2.4 }))).toBe(false);
+    expect(shouldShowCardInvoiceTotal(1, 2.4, invoice({ value: 2.401 }))).toBe(false);
+    expect(shouldShowCardInvoiceTotal(1, 2.4, invoice({ value: null, source: 'missing' }))).toBe(false);
+  });
+
+  it('shows the invoice total when extra materials change the physical weight', () => {
+    expect(shouldShowCardInvoiceTotal(3, 3.7, invoice({ value: 4.15 }))).toBe(true);
+  });
+
+  it('hides a matching STX-only invoice total even with more than one recipe item', () => {
+    expect(shouldShowCardInvoiceTotal(2, 3, invoice({ value: 3 }))).toBe(false);
+  });
+
+  it('shows a missing invoice total only when the recipe has extra items', () => {
+    expect(shouldShowCardInvoiceTotal(2, 2.4, invoice({ value: null, source: 'missing' }))).toBe(true);
+  });
+
+  it('shows a manual invoice override that differs from the metal weight', () => {
+    expect(shouldShowCardInvoiceTotal(1, 2.4, invoice({ value: 5.5, source: 'manual' }))).toBe(true);
   });
 });

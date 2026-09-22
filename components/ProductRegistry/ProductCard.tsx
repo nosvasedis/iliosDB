@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { BookOpen, ChevronLeft, ChevronRight, Factory, Globe, ImageIcon, Layers, ShoppingBag, Tag, TrendingUp, Weight } from 'lucide-react';
+import { BookOpen, ChevronLeft, ChevronRight, Factory, Globe, ImageIcon, Layers, Tag, TrendingUp, Weight } from 'lucide-react';
 import { GlobalSettings, Material, Product, ProductVariant, ProductionType } from '../../types';
 import { calculateProductCost, estimateVariantCost, formatCurrency } from '../../utils/pricingEngine';
 import { resolveInvoiceTotalWeight } from '../../utils/invoiceTotalWeight';
@@ -8,8 +8,9 @@ import {
     PRODUCTION_TYPE_LABELS,
     SKIP_CASTING_LABEL,
     buildProductCardWeightPresentation,
-    canConvertToImported,
     formatRegistryWeight,
+    shouldShowCardInvoiceTotal,
+    type ProductCardWeightPresentation,
 } from '../../features/products/productCardPresentation';
 
 interface Props {
@@ -20,9 +21,57 @@ interface Props {
     productsMap?: Map<string, Product>;
     materialsMap?: Map<string, Material>;
     onSelectProduct: (product: Product) => void;
-    onConvertToImported?: (product: Product) => void;
     isSelected: boolean;
 }
+
+const imageBadgeClass = 'inline-flex h-7 min-w-7 items-center justify-center gap-1 rounded-full border border-white/15 bg-[#060b00]/80 px-2 text-[10px] font-bold text-white shadow-sm backdrop-blur-md';
+
+const MetalWeightFigures: React.FC<{
+    weightView: ProductCardWeightPresentation;
+    muted?: boolean;
+}> = ({ weightView, muted }) => {
+    const figuresClass = `flex min-w-0 flex-wrap items-baseline justify-end gap-x-1 font-mono font-bold tabular-nums ${muted ? 'text-slate-500' : 'text-slate-600'}`;
+    const totalClass = muted ? 'text-slate-600' : 'text-slate-800';
+
+    if (weightView.primaryMode === 'skip_casting') {
+        return (
+            <div className={figuresClass} title={SKIP_CASTING_LABEL}>
+                <span className="font-sans text-[10px] font-black uppercase tracking-wide text-purple-700">{SKIP_CASTING_LABEL}</span>
+                {weightView.hasWeightBreakdown && (
+                    <>
+                        <span className="text-slate-300">·</span>
+                        {weightView.stxWeight > 0 && (
+                            <span className="text-blue-500" title="Βάρος STX">{formatRegistryWeight(weightView.stxWeight)}g</span>
+                        )}
+                        <span className={totalClass}>{formatRegistryWeight(weightView.totalWeight)}g</span>
+                    </>
+                )}
+            </div>
+        );
+    }
+
+    if (weightView.primaryMode === 'breakdown') {
+        return (
+            <div className={figuresClass} title="Βασικό + δευτερεύον + βάρος STX">
+                <span title="Βασικό βάρος">{formatRegistryWeight(weightView.baseWeight)}</span>
+                {weightView.secondaryWeight > 0 ? (
+                    <><span className="text-slate-300">+</span><span title="Δευτερεύον βάρος">{formatRegistryWeight(weightView.secondaryWeight)}</span></>
+                ) : null}
+                {weightView.stxWeight > 0 ? (
+                    <><span className="text-slate-300">+</span><span className="text-blue-500" title="Βάρος STX">{formatRegistryWeight(weightView.stxWeight)}</span></>
+                ) : null}
+                <span className="text-slate-300">=</span>
+                <span className={totalClass}>{formatRegistryWeight(weightView.totalWeight)}g</span>
+            </div>
+        );
+    }
+
+    return (
+        <div className={figuresClass} title="Βάρος">
+            <span className={totalClass}>{formatRegistryWeight(weightView.baseWeight)}g</span>
+        </div>
+    );
+};
 
 const ProductCard: React.FC<Props> = React.memo(({
     product,
@@ -32,7 +81,6 @@ const ProductCard: React.FC<Props> = React.memo(({
     productsMap,
     materialsMap,
     onSelectProduct,
-    onConvertToImported,
     isSelected,
 }) => {
     const [viewIndex, setViewIndex] = useState(0);
@@ -97,10 +145,16 @@ const ProductCard: React.FC<Props> = React.memo(({
         () => resolveInvoiceTotalWeight(product, allProducts, materials),
         [product, allProducts, materials],
     );
+    const showInvoiceTotal = shouldShowCardInvoiceTotal(
+        weightView.recipeItemCount,
+        weightView.totalWeight,
+        invoiceTotalWeight,
+    );
+    const compactSingleRow = !showInvoiceTotal && !weightView.hasWeightBreakdown;
+    const invoiceMissing = invoiceTotalWeight.source === 'missing';
 
-    const showConvert = canConvertToImported(product) && !!onConvertToImported;
-    const isImported = product.production_type === ProductionType.Imported;
-    const supplierName = product.supplier_details?.name || null;
+    const originLabel = PRODUCTION_TYPE_LABELS[product.production_type];
+    const OriginIcon = product.production_type === ProductionType.Imported ? Globe : Factory;
 
     const nextView = (event: React.MouseEvent) => {
         event.stopPropagation();
@@ -132,28 +186,22 @@ const ProductCard: React.FC<Props> = React.memo(({
                     </div>
                 )}
 
-                <div className="absolute left-3 right-3 top-3 z-10 flex flex-wrap items-start gap-1.5">
-                    {hasVariants && (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-[#060b00]/90 px-2.5 py-1 text-[10px] font-bold text-white shadow-sm backdrop-blur-md">
-                            <Layers size={10} className="text-amber-400" />
-                            {variantCount}
-                        </span>
-                    )}
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold shadow-sm backdrop-blur-md ${isImported ? 'bg-violet-600/90 text-white' : 'bg-emerald-700/90 text-white'}`}>
-                        {isImported ? <Globe size={10} /> : <Factory size={10} />}
-                        {PRODUCTION_TYPE_LABELS[product.production_type]}
+                {hasVariants && (
+                    <span
+                        title={variantCount === 1 ? '1 παραλλαγή' : `${variantCount} παραλλαγές`}
+                        className={`absolute left-3 top-3 z-10 ${imageBadgeClass}`}
+                    >
+                        <Layers size={11} className="text-amber-300" />
+                        <span>{variantCount}</span>
                     </span>
-                    {product.is_component && (
-                        <span className="inline-flex items-center rounded-full bg-blue-600/90 px-2.5 py-1 text-[10px] font-bold text-white shadow-sm backdrop-blur-md">
-                            Εξάρτημα
-                        </span>
-                    )}
-                    {weightView.skipCasting && (
-                        <span className="inline-flex items-center rounded-full bg-purple-600/90 px-2.5 py-1 text-[10px] font-bold text-white shadow-sm backdrop-blur-md">
-                            {SKIP_CASTING_LABEL}
-                        </span>
-                    )}
-                </div>
+                )}
+
+                <span
+                    title={originLabel}
+                    className={`absolute right-3 top-3 z-10 ${imageBadgeClass}`}
+                >
+                    <OriginIcon size={12} />
+                </span>
 
                 <div className="absolute bottom-3 left-3 z-10 max-w-[calc(100%-1.5rem)] truncate rounded-lg border border-slate-100 bg-white/90 px-2 py-1 text-[10px] font-bold text-slate-600 shadow-sm backdrop-blur-md">
                     {product.category}
@@ -189,62 +237,40 @@ const ProductCard: React.FC<Props> = React.memo(({
                 </div>
 
                 <div className="mb-4 rounded-xl border border-slate-100 bg-slate-50/70 px-2.5 py-2 text-[10px]">
-                    <div className="flex min-w-0 items-center gap-2" title={weightView.skipCasting ? SKIP_CASTING_LABEL : 'Βασικό + δευτερεύον + βάρος STX'}>
-                        <div className="flex shrink-0 items-center gap-1 font-bold uppercase tracking-wide text-slate-400">
-                            <Weight size={10} />
-                            <span>Βάρος</span>
+                    <div className="flex min-w-0 items-center gap-2">
+                        <div className="flex shrink-0 items-center gap-1 font-medium text-slate-400">
+                            <BookOpen size={10} />
+                            <span>{weightView.recipeItemCountLabel}</span>
                         </div>
-                        <div className="ml-auto flex min-w-0 flex-wrap items-baseline justify-end gap-x-1 font-mono font-bold tabular-nums text-slate-600">
-                            {weightView.primaryMode === 'skip_casting' ? (
-                                <>
-                                    <span className="font-sans text-[10px] font-black uppercase tracking-wide text-purple-700">{SKIP_CASTING_LABEL}</span>
-                                    {weightView.hasWeightBreakdown && (
-                                        <>
-                                            <span className="text-slate-300">·</span>
-                                            {weightView.stxWeight > 0 && <span className="text-blue-500" title="Βάρος STX">{formatRegistryWeight(weightView.stxWeight)}g</span>}
-                                            <span className="text-slate-800">{formatRegistryWeight(weightView.totalWeight)}g</span>
-                                        </>
-                                    )}
-                                </>
-                            ) : weightView.primaryMode === 'breakdown' ? (
-                                <>
-                                    <span title="Βασικό βάρος">{formatRegistryWeight(weightView.baseWeight)}</span>
-                                    {weightView.secondaryWeight > 0 ? (
-                                        <><span className="text-slate-300">+</span><span title="Δευτερεύον βάρος">{formatRegistryWeight(weightView.secondaryWeight)}</span></>
-                                    ) : null}
-                                    {weightView.stxWeight > 0 ? (
-                                        <><span className="text-slate-300">+</span><span className="text-blue-500" title="Βάρος STX">{formatRegistryWeight(weightView.stxWeight)}</span></>
-                                    ) : null}
-                                    <span className="text-slate-300">=</span>
-                                    <span className="text-slate-800">{formatRegistryWeight(weightView.totalWeight)}g</span>
-                                </>
-                            ) : (
-                                <span className="text-slate-800">{formatRegistryWeight(weightView.baseWeight)}g</span>
+                        {showInvoiceTotal ? (
+                            <div
+                                className={`ml-auto min-w-0 truncate text-[10px] font-semibold ${invoiceMissing ? 'text-amber-600' : 'text-slate-500'}`}
+                                title="Συνολικό βάρος"
+                            >
+                                <span className={invoiceMissing ? 'text-amber-600' : 'text-slate-400'}>Σύνολο</span>{' '}
+                                <span className={`font-mono font-bold tabular-nums ${invoiceMissing ? 'text-amber-600' : 'text-slate-800'}`}>
+                                    {invoiceTotalWeight.value === null ? '—' : `${formatRegistryWeight(invoiceTotalWeight.value)}g`}
+                                </span>
+                            </div>
+                        ) : compactSingleRow ? (
+                            <div className="ml-auto min-w-0">
+                                <MetalWeightFigures weightView={weightView} />
+                            </div>
+                        ) : null}
+                    </div>
+                    {!compactSingleRow && (
+                        <div className={`flex min-w-0 items-center gap-2 ${showInvoiceTotal ? 'mt-1.5 border-t border-slate-200/70 pt-1.5' : 'mt-1'}`}>
+                            {showInvoiceTotal && (
+                                <div className="flex shrink-0 items-center gap-1 font-bold uppercase tracking-wide text-slate-400">
+                                    <Weight size={10} />
+                                    <span>Βάρος</span>
+                                </div>
                             )}
-                        </div>
-                    </div>
-                    <div className="mt-1.5 flex min-w-0 items-center justify-between gap-2 border-t border-slate-200/70 pt-1.5">
-                        {isImported ? (
-                            <div className="flex min-w-0 shrink items-center gap-1 font-medium text-slate-400">
-                                <ShoppingBag size={10} />
-                                <span className="truncate">{supplierName || 'Χωρίς προμηθευτή'}</span>
+                            <div className="ml-auto min-w-0">
+                                <MetalWeightFigures weightView={weightView} muted={showInvoiceTotal} />
                             </div>
-                        ) : (
-                            <div className="flex shrink-0 items-center gap-1 font-medium text-slate-400">
-                                <BookOpen size={10} />
-                                <span>{weightView.recipeItemCount} υλικά</span>
-                            </div>
-                        )}
-                        <div
-                            className={`min-w-0 truncate text-[9px] font-semibold ${invoiceTotalWeight.source === 'missing' ? 'text-amber-600' : 'text-slate-500'}`}
-                            title="Συνολικό Βάρος"
-                        >
-                            <span className="text-slate-400">Συνολικό βάρος</span>{' '}
-                            <span className="font-mono font-bold tabular-nums text-slate-700">
-                                {invoiceTotalWeight.value === null ? '—' : `${formatRegistryWeight(invoiceTotalWeight.value)}g`}
-                            </span>
                         </div>
-                    </div>
+                    )}
                 </div>
 
                 <div className="mt-auto grid shrink-0 grid-cols-2 items-end gap-4 border-t border-slate-100 pt-3">
@@ -266,22 +292,6 @@ const ProductCard: React.FC<Props> = React.memo(({
                         </div>
                     </div>
                 </div>
-
-                {showConvert && (
-                    <div className="mt-3 border-t border-slate-100 pt-3">
-                        <button
-                            type="button"
-                            onClick={(event) => {
-                                event.stopPropagation();
-                                onConvertToImported?.(product);
-                            }}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-500 transition-colors hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700"
-                        >
-                            <Globe size={12} />
-                            Σε εισαγωγή
-                        </button>
-                    </div>
-                )}
             </div>
         </div>
     );

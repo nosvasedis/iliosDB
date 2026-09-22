@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { productionKeys, productionRepository } from '../../features/production';
 import { api, RETAIL_CUSTOMER_ID, RETAIL_CUSTOMER_NAME } from '../../lib/supabase';
@@ -32,6 +32,12 @@ import { withResolvedOrderSeller } from '../../utils/orderSeller';
 import { PRODUCTION_STAGE_COLORS, getProductionStageLabel } from '../../utils/deliveryLabels';
 import { buildOrderLabelPrintItems, buildSyntheticAggregatedBatches, buildOrderRevisions, getShipmentPrintDecision, orderMatchesSearch, canOfferRemainingTransfer } from '../../features/orders';
 import DebouncedSearchInput from '../orders/DebouncedSearchInput';
+import { CircularSelectButton, ORDER_BULK_SELECTED_ROW_CLASS } from '../orders/CircularSelectButton';
+import { OrderBulkActionBar } from '../orders/OrderBulkActionBar';
+import { OrderBulkTagModal } from '../orders/OrderBulkTagModal';
+import { OrderBulkSellerModal } from '../orders/OrderBulkSellerModal';
+import { getSelectAllState, pruneSelectedIds, selectedOrdersFromIds, selectVisibleIds, toggleSelectedId } from '../../features/orders/bulkSelection';
+import { useOrderBulkActions } from '../../hooks/useOrderBulkActions';
 import { isSpecialCreationSku } from '../../utils/specialCreationSku';
 import { StickyNote, UserCheck } from 'lucide-react';
 import { SellerPicker } from '../OrderBuilder/SellerPicker';
@@ -914,7 +920,9 @@ const OrderCard: React.FC<{
     onPrintLabels?: (items: { product: Product; variant?: ProductVariant; quantity: number, format?: 'standard' | 'simple' | 'retail' }[]) => void;
     tagColorOverrides?: Record<string, number>;
     shippedQty?: number;
-}> = ({ order, products, batches, onEdit, onDelete, onCancel, onManage, isReady, onComplete, onPrint, onPrintLabels, tagColorOverrides = {}, shippedQty }) => {
+    isSelected?: boolean;
+    onToggleSelect?: () => void;
+}> = ({ order, products, batches, onEdit, onDelete, onCancel, onManage, isReady, onComplete, onPrint, onPrintLabels, tagColorOverrides = {}, shippedQty, isSelected, onToggleSelect }) => {
     const isRetailOrder = order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME;
     const { retailClientLabel } = extractRetailClientFromNotes(order.notes);
     const [expanded, setExpanded] = useState(false);
@@ -956,7 +964,9 @@ const OrderCard: React.FC<{
     const netValue = order.total_price / (1 + activeVat);
 
     return (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden transition-[transform,box-shadow] duration-200 active:scale-[0.99]">
+        <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-[transform,box-shadow] duration-200 active:scale-[0.99] ${
+            isSelected ? ORDER_BULK_SELECTED_ROW_CLASS : 'border-slate-100'
+        }`}>
             <div
                 className="p-4 flex flex-col gap-3"
                 onClick={() => setExpanded(!expanded)}
@@ -964,6 +974,12 @@ const OrderCard: React.FC<{
                 <div className="flex justify-between items-start">
                     <div className="min-w-0 pr-2">
                         <div className="flex items-center gap-2 mb-1">
+                            {onToggleSelect && (
+                                <CircularSelectButton
+                                    selected={!!isSelected}
+                                    onToggle={onToggleSelect}
+                                />
+                            )}
                             <span className="text-[10px] font-mono font-bold text-slate-400">#{order.id.slice(-6)}</span>
                             <span className="text-[10px] text-slate-400">• {new Date(order.created_at).toLocaleDateString('el-GR')}</span>
                         </div>
@@ -1195,6 +1211,7 @@ interface MobileOrdersProps {
     onPrintPartialOrder?: (order: Order, selectedBatches: ProductionBatch[]) => void;
     products?: Product[];
     onOpenDeliveries?: (order: Order) => void;
+    onPrintOrders?: (orders: Order[]) => void;
 }
 
 export default function MobileOrders({
@@ -1211,7 +1228,8 @@ export default function MobileOrders({
     onPrintAnalytics,
     onPrintPartialOrder,
     products = [],
-    onOpenDeliveries
+    onOpenDeliveries,
+    onPrintOrders,
 }: MobileOrdersProps) {
     const queryClient = useQueryClient();
     const { showToast, confirm } = useUI();
@@ -1248,6 +1266,7 @@ export default function MobileOrders({
     }, [shipmentItemsByOrderId]);
 
     const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
+    const [multiSelectIds, setMultiSelectIds] = useState<Set<string>>(new Set());
     const [filters, setFilters] = useState<OrderFilters>(DEFAULT_FILTERS);
     const [searchFilter, setSearchFilter] = useState('');
     const handleSearchFilterChange = useCallback((value: string) => setSearchFilter(value), []);
@@ -1354,6 +1373,31 @@ export default function MobileOrders({
             return orderMatchesSearch(o, normalizedSearch);
         });
     }, [orders, batchesByOrderId, activeTab, searchFilter, filters]);
+
+    const selectedOrders = useMemo(
+        () => selectedOrdersFromIds(multiSelectIds, orders || []),
+        [multiSelectIds, orders],
+    );
+    const selectAllState = useMemo(
+        () => getSelectAllState(multiSelectIds, filteredOrders),
+        [multiSelectIds, filteredOrders],
+    );
+    const bulkActions = useOrderBulkActions({
+        selectedIds: multiSelectIds,
+        setSelectedIds: setMultiSelectIds,
+        selectedOrders,
+        archive: activeTab === 'active',
+        onPrintOrders,
+    });
+
+    useEffect(() => {
+        if (!orders) return;
+        setMultiSelectIds((prev) => {
+            const next = pruneSelectedIds(prev, orders);
+            if (next.size === prev.size && [...next].every((id) => prev.has(id))) return prev;
+            return next;
+        });
+    }, [orders]);
 
     const handleDeleteOrder = async (order: Order) => {
         const yes = await confirm({
@@ -1471,8 +1515,8 @@ export default function MobileOrders({
                 />
                 <div className="flex justify-between items-center">
                     <div className="flex bg-slate-200 p-1 rounded-xl">
-                        <button onClick={() => setActiveTab('active')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'active' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Ενεργές</button>
-                        <button onClick={() => setActiveTab('archived')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'archived' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Αρχείο</button>
+                        <button onClick={() => { setActiveTab('active'); setMultiSelectIds(new Set()); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'active' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Ενεργές</button>
+                        <button onClick={() => { setActiveTab('archived'); setMultiSelectIds(new Set()); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'archived' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>Αρχείο</button>
                     </div>
                     <div className="flex items-center gap-2">
                         <button
@@ -1561,7 +1605,22 @@ export default function MobileOrders({
             </div>
 
             {/* List */}
-            <div className="px-4 py-3 space-y-3">
+            <div className={`px-4 py-3 space-y-3 ${multiSelectIds.size > 0 ? 'pb-28' : ''}`}>
+                {filteredOrders.length > 0 && (
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <CircularSelectButton
+                                selected={selectAllState === 'all'}
+                                someSelected={selectAllState === 'some'}
+                                onToggle={() => setMultiSelectIds((prev) => selectVisibleIds(prev, filteredOrders))}
+                                title={selectAllState === 'all' ? 'Αποεπιλογή όλων' : 'Επιλογή όλων'}
+                            />
+                            <span className="text-[11px] font-bold text-slate-500">
+                                {filteredOrders.length} {filteredOrders.length === 1 ? 'παραγγελία' : 'παραγγελίες'}
+                            </span>
+                        </div>
+                    </div>
+                )}
                 {filteredOrders.map(order => (
                     <OrderCard
                         key={order.id}
@@ -1578,6 +1637,8 @@ export default function MobileOrders({
                         onPrintLabels={onPrintLabels}
                         tagColorOverrides={tagColorOverrides}
                         shippedQty={shippedQtyByOrderId.get(order.id)}
+                        isSelected={multiSelectIds.has(order.id)}
+                        onToggleSelect={() => setMultiSelectIds((prev) => toggleSelectedId(prev, order.id))}
                     />
                 ))}
                 {filteredOrders.length === 0 && (
@@ -1812,6 +1873,38 @@ export default function MobileOrders({
                     shipments={allShipments || []}
                     shipmentItems={allShipmentItems || []}
                     mobile={true}
+                />
+            )}
+
+            {(multiSelectIds.size > 0 || bulkActions.isProcessing) && (
+                <OrderBulkActionBar
+                    count={multiSelectIds.size}
+                    isProcessing={bulkActions.isProcessing}
+                    progressPercent={bulkActions.progressPercent}
+                    archiveMode={activeTab === 'archived' ? 'restore' : 'archive'}
+                    canCancel={bulkActions.canCancel}
+                    onArchive={() => void bulkActions.handleArchive()}
+                    onPrint={bulkActions.handlePrint}
+                    onTag={() => bulkActions.setTagModalOpen(true)}
+                    onSeller={() => bulkActions.setSellerModalOpen(true)}
+                    onCancel={() => void bulkActions.handleCancel()}
+                    onClear={bulkActions.handleClear}
+                />
+            )}
+            {bulkActions.tagModalOpen && (
+                <OrderBulkTagModal
+                    count={selectedOrders.length}
+                    isProcessing={bulkActions.isProcessing}
+                    onClose={() => bulkActions.setTagModalOpen(false)}
+                    onSave={(tag) => void bulkActions.handleAddTag(tag)}
+                />
+            )}
+            {bulkActions.sellerModalOpen && (
+                <OrderBulkSellerModal
+                    count={selectedOrders.length}
+                    isProcessing={bulkActions.isProcessing}
+                    onClose={() => bulkActions.setSellerModalOpen(false)}
+                    onSave={(seller) => void bulkActions.handleAssignSeller(seller)}
                 />
             )}
         </div>
