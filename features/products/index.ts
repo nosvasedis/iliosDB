@@ -13,6 +13,7 @@ export {
   buildEditableProduct,
   buildVariantFinishGroups,
   getAnalyticalCostingItems,
+  getImportedCostAnalysisDisplay,
   getAvailableMolds,
   getMaterialTypeLabel,
   getProductDisplaySummary,

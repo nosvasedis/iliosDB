@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { Gender, MaterialType, PlatingType, Product, ProductionType } from '../../types';
+import { calculateProductCost } from '../../utils/pricingEngine';
 import {
   applySkipCasting,
   buildEditableProduct,
   getAvailableMolds,
+  getImportedCostAnalysisDisplay,
   getRecipeMaterialSubtitle,
   getProductDisplaySummary,
   getSecondaryWeightLabel,
@@ -157,5 +159,29 @@ describe('product details view models', () => {
         type: MaterialType.Cord,
       } as any),
     ).toBe('Κορδόνι');
+  });
+
+  it('shows imported plating from the cost engine so the analysis card adds up', () => {
+    const product = makeProduct({
+      sku: 'RN221',
+      production_type: ProductionType.Imported,
+      weight_g: 2.6,
+      labor: {
+        ...makeProduct().labor,
+        technician_cost: 1.2,
+        plating_cost_x: 0.6,
+      },
+    });
+    const costCalc = calculateProductCost(product, { silver_price_gram: 2.5 } as any, [], []);
+    const display = getImportedCostAnalysisDisplay(costCalc);
+
+    expect(costCalc.total).toBe(11.2);
+    expect(display.silver).toBeCloseTo(6.5, 4);
+    expect(display.technician).toBeCloseTo(3.12, 4);
+    expect(display.plating).toBeCloseTo(1.56, 4);
+    expect(display.stoneSetting).toBe(0);
+    expect(display.weightG).toBeCloseTo(2.6, 4);
+    expect(display.silver + display.technician + display.plating + display.stoneSetting)
+      .toBeCloseTo(costCalc.rawTotal, 4);
   });
 });

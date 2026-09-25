@@ -243,6 +243,30 @@ export function getAnalyticalCostingItems(
   }];
 }
 
+export function getImportedCostAnalysisDisplay(costCalc: {
+  total: number;
+  rawTotal?: number;
+  breakdown?: {
+    silver?: number;
+    details?: {
+      technician_cost?: number;
+      plating_cost?: number;
+      stone_setting_cost?: number;
+      total_weight?: number;
+    };
+  };
+}) {
+  const details = costCalc.breakdown?.details || {};
+  return {
+    silver: Number(costCalc.breakdown?.silver || 0),
+    technician: Number(details.technician_cost || 0),
+    plating: Number(details.plating_cost || 0),
+    stoneSetting: Number(details.stone_setting_cost || 0),
+    weightG: Number(details.total_weight || 0),
+    total: costCalc.total,
+  };
+}
+
 export const PLATING_LABELS: Record<string, string> = {
   [PlatingType.None]: 'Λουστρέ',
   [PlatingType.GoldPlated]: 'Επίχρυσο',

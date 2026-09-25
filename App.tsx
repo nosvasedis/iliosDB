@@ -499,13 +499,13 @@ function ErpAppContent() {
         {isSidebarOpen && <div className="fixed inset-0 bg-[#060b00]/60 backdrop-blur-sm z-40 md:hidden animate-in fade-in" onClick={() => setIsSidebarOpen(false)} />}
         <SidebarOverlayScrim visible={!isCollapsed} onDismiss={() => setIsCollapsed(true)} />
         <aside className={sidebarAsideClass(railMode, isSidebarOpen)}>
-          <div className={`flex shrink-0 items-center border-b border-white/[0.06] ${railMode ? 'h-14 flex-col justify-center gap-0.5 px-1.5 py-2' : 'h-14 justify-between px-3'}`}>
+          <div className={`relative flex shrink-0 items-center border-b border-white/[0.06] ${railMode ? 'h-14 flex-col justify-center gap-0.5 px-1.5 py-2' : 'h-16 justify-center px-3'}`}>
             {!railMode ? (
-              <img src={APP_LOGO} alt="Ilios" className="h-9 w-auto object-contain drop-shadow-lg" />
+              <img src={APP_LOGO} alt="Ilios" className="h-11 w-auto object-contain drop-shadow-lg" />
             ) : (
               <img src={APP_ICON_ONLY} alt="Ilios" className="h-8 w-8 object-contain" />
             )}
-            <div className={`flex items-center ${railMode ? '' : 'gap-0.5'}`}>
+            <div className={`flex items-center ${railMode ? '' : 'absolute right-2 top-1/2 -translate-y-1/2 gap-0.5'}`}>
               <SidebarConnectionBadge
                 isLocalMode={isLocalMode}
                 isOnline={isOnline}

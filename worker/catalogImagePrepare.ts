@@ -8,6 +8,11 @@ export const MAX_OPAQUE_FRACTION = 0.92;
 export const CATALOG_SQUARE_SIZE = 900;
 export const BBOX_PADDING = 0.10;
 export const JPEG_QUALITY = 74;
+export const SHADOW_OFFSET_X = 2;
+export const SHADOW_OFFSET_Y = 9;
+export const SHADOW_BLUR_RADIUS = 10;
+export const SHADOW_OPACITY = 0.15;
+export const SHADOW_FIT_INSET = 22;
 
 export type RgbaImage = {
   data: Uint8Array;
@@ -163,11 +168,39 @@ function sampleRgba(
   ];
 }
 
+function blurShadow(src: Float32Array, width: number, height: number, radius: number): Float32Array {
+  if (radius <= 0) return src;
+  const horizontal = new Float32Array(src.length);
+  const span = radius * 2 + 1;
+  for (let y = 0; y < height; y += 1) {
+    const row = y * width;
+    for (let x = 0; x < width; x += 1) {
+      let sum = 0;
+      for (let k = -radius; k <= radius; k += 1) {
+        sum += src[row + Math.min(width - 1, Math.max(0, x + k))];
+      }
+      horizontal[row + x] = sum / span;
+    }
+  }
+  const out = new Float32Array(src.length);
+  for (let x = 0; x < width; x += 1) {
+    for (let y = 0; y < height; y += 1) {
+      let sum = 0;
+      for (let k = -radius; k <= radius; k += 1) {
+        sum += horizontal[Math.min(height - 1, Math.max(0, y + k)) * width + x];
+      }
+      out[y * width + x] = sum / span;
+    }
+  }
+  return out;
+}
+
 export function composeCatalogSquare(image: RgbaImage, box: BoundingBox): { data: Uint8Array; mask: Uint8Array } {
   const size = CATALOG_SQUARE_SIZE;
   const out = new Uint8Array(size * size * 4);
   const mask = new Uint8Array(size * size);
-  out.fill(255);
+  const layer = new Uint8Array(size * size * 4);
+  const shadow = new Float32Array(size * size);
 
   const pad = Math.round(Math.max(box.width, box.height) * BBOX_PADDING);
   const x0 = Math.max(0, box.x - pad);
@@ -176,47 +209,61 @@ export function composeCatalogSquare(image: RgbaImage, box: BoundingBox): { data
   const y1 = Math.min(image.height, box.y + box.height + pad);
   const cropW = Math.max(1, x1 - x0);
   const cropH = Math.max(1, y1 - y0);
-  const scale = Math.min(size / cropW, size / cropH);
+  const fit = Math.max(1, size - SHADOW_FIT_INSET);
+  const scale = Math.min(fit / cropW, fit / cropH);
   const destW = Math.max(1, Math.round(cropW * scale));
   const destH = Math.max(1, Math.round(cropH * scale));
   const ox = Math.floor((size - destW) / 2);
-  const oy = Math.floor((size - destH) / 2);
+  const oy = Math.floor((size - destH - SHADOW_OFFSET_Y) / 2);
 
   for (let dy = 0; dy < destH; dy += 1) {
     for (let dx = 0; dx < destW; dx += 1) {
       const sx = x0 + ((dx + 0.5) * cropW) / destW - 0.5;
       const sy = y0 + ((dy + 0.5) * cropH) / destH - 0.5;
       const [r, g, b, a] = sampleRgba(image.data, image.width, image.height, sx, sy);
+      const destX = ox + dx;
+      const destY = oy + dy;
+      const outIndex = (destY * size + destX) * 4;
+      layer[outIndex] = r;
+      layer[outIndex + 1] = g;
+      layer[outIndex + 2] = b;
+      layer[outIndex + 3] = a;
+      if (a >= ALPHA_FLOOR) mask[destY * size + destX] = 1;
+
+      const shadowX = destX + SHADOW_OFFSET_X;
+      const shadowY = destY + SHADOW_OFFSET_Y;
+      if (shadowX < 0 || shadowY < 0 || shadowX >= size || shadowY >= size) continue;
+      const shadowIndex = shadowY * size + shadowX;
       const alpha = a / 255;
-      const outIndex = ((oy + dy) * size + (ox + dx)) * 4;
-      out[outIndex] = Math.round(r * alpha + 255 * (1 - alpha));
-      out[outIndex + 1] = Math.round(g * alpha + 255 * (1 - alpha));
-      out[outIndex + 2] = Math.round(b * alpha + 255 * (1 - alpha));
-      out[outIndex + 3] = 255;
-      if (a >= ALPHA_FLOOR) mask[(oy + dy) * size + (ox + dx)] = 1;
+      if (alpha > shadow[shadowIndex]) shadow[shadowIndex] = alpha;
     }
+  }
+
+  const blurred = blurShadow(shadow, size, size, SHADOW_BLUR_RADIUS);
+  for (let i = 0; i < size * size; i += 1) {
+    const shadowA = Math.min(1, blurred[i] * SHADOW_OPACITY);
+    const background = Math.round(255 * (1 - shadowA));
+    const li = i * 4;
+    const jewelryA = layer[li + 3] / 255;
+    out[li] = Math.round(layer[li] * jewelryA + background * (1 - jewelryA));
+    out[li + 1] = Math.round(layer[li + 1] * jewelryA + background * (1 - jewelryA));
+    out[li + 2] = Math.round(layer[li + 2] * jewelryA + background * (1 - jewelryA));
+    out[li + 3] = 255;
   }
 
   return { data: out, mask };
 }
 
-export function prepareCatalogJpegFromPng(pngBytes: Uint8Array): Uint8Array | null {
-  let decoded: { data: Buffer; width: number; height: number };
-  try {
-    decoded = PNG.sync.read(Buffer.from(pngBytes));
-  } catch {
-    return null;
-  }
+export function prepareCatalogJpegFromRgba(data: Uint8Array, width: number, height: number): Uint8Array | null {
+  const pixels = data.slice();
+  applyAlphaFloor(pixels);
+  if (!isMaskSane(opaqueFraction(pixels))) return null;
 
-  const data = new Uint8Array(decoded.data);
-  applyAlphaFloor(data);
-  if (!isMaskSane(opaqueFraction(data))) return null;
-
-  const box = boundingBox(data, decoded.width, decoded.height);
+  const box = boundingBox(pixels, width, height);
   if (!box) return null;
 
   const composed = composeCatalogSquare(
-    { data, width: decoded.width, height: decoded.height },
+    { data: pixels, width, height },
     box,
   );
   applyJewelryVibrance(composed.data, composed.mask);
@@ -228,24 +275,132 @@ export function prepareCatalogJpegFromPng(pngBytes: Uint8Array): Uint8Array | nu
   return new Uint8Array(encoded.data);
 }
 
-export async function isolateCatalogPng(env: { IMAGES?: any }, originalBytes: Uint8Array): Promise<Uint8Array | null> {
-  if (!env?.IMAGES) return null;
+export function prepareCatalogJpegFromPng(pngBytes: Uint8Array): Uint8Array | null {
+  let decoded: { data: Buffer; width: number; height: number };
   try {
-    const input = env.IMAGES.input(new Response(originalBytes).body);
-    const result = await input.transform({ segment: 'foreground' }).output({ format: 'image/png' });
-    const response = typeof result.response === 'function' ? result.response() : result;
-    if (!response || !response.ok) return null;
-    return new Uint8Array(await response.arrayBuffer());
+    decoded = PNG.sync.read(Buffer.from(pngBytes));
   } catch {
     return null;
   }
+
+  return prepareCatalogJpegFromRgba(new Uint8Array(decoded.data), decoded.width, decoded.height);
+}
+
+export type CatalogPrepareDiagnosis = {
+  stage: 'ok' | 'binding' | 'input' | 'images' | 'throw' | 'png-decode' | 'mask' | 'bbox';
+  error?: string;
+  status?: number;
+  code?: number;
+  pngBytes?: number;
+  jpegBytes?: number;
+  fraction?: number;
+  width?: number;
+  height?: number;
+};
+
+async function imagesResponse(result: any): Promise<Response | null> {
+  if (!result) return null;
+  const maybe = typeof result.response === 'function' ? result.response() : result;
+  return await Promise.resolve(maybe);
+}
+
+export async function isolateCatalogRgba(
+  env: { IMAGES?: any },
+  originalBytes: Uint8Array,
+): Promise<{ data: Uint8Array; width: number; height: number } | null> {
+  if (!env?.IMAGES) return null;
+  try {
+    const info = await env.IMAGES.info(new Response(originalBytes).body);
+    const width = Number(info?.width);
+    const height = Number(info?.height);
+    if (!width || !height) return null;
+
+    const stream = new Response(originalBytes).body;
+    if (!stream) return null;
+    const result = await env.IMAGES.input(stream).transform({ segment: 'foreground' }).output({ format: 'rgba' });
+    const response = await imagesResponse(result);
+    if (!response || !response.ok) return null;
+    const data = new Uint8Array(await response.arrayBuffer());
+    if (data.length !== width * height * 4) return null;
+    return { data, width, height };
+  } catch {
+    return null;
+  }
+}
+
+export async function diagnoseCatalogPrepare(
+  env: { IMAGES?: any },
+  originalBytes: Uint8Array,
+): Promise<CatalogPrepareDiagnosis> {
+  if (!env?.IMAGES) return { stage: 'binding', error: 'IMAGES binding missing' };
+  let width = 0;
+  let height = 0;
+  let data: Uint8Array | null = null;
+  try {
+    const info = await env.IMAGES.info(new Response(originalBytes).body);
+    width = Number(info?.width);
+    height = Number(info?.height);
+    if (!width || !height) return { stage: 'input', error: 'IMAGES.info missing dimensions' };
+
+    const stream = new Response(originalBytes).body;
+    if (!stream) return { stage: 'input', error: 'empty body stream' };
+    const result = await env.IMAGES.input(stream).transform({ segment: 'foreground' }).output({ format: 'rgba' });
+    const response = await imagesResponse(result);
+    if (!response) return { stage: 'images', error: 'no Images response' };
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      return { stage: 'images', status: response.status, error: text.slice(0, 500) };
+    }
+    data = new Uint8Array(await response.arrayBuffer());
+  } catch (err: any) {
+    return {
+      stage: 'throw',
+      error: String(err?.message || err),
+      code: typeof err?.code === 'number' ? err.code : undefined,
+    };
+  }
+
+  if (data.length !== width * height * 4) {
+    return {
+      stage: 'png-decode',
+      error: `rgba length ${data.length} != ${width}x${height}x4`,
+      pngBytes: data.length,
+      width,
+      height,
+    };
+  }
+
+  const pixels = data.slice();
+  applyAlphaFloor(pixels);
+  const fraction = opaqueFraction(pixels);
+  if (!isMaskSane(fraction)) {
+    return { stage: 'mask', fraction, pngBytes: data.length, width, height };
+  }
+
+  const box = boundingBox(pixels, width, height);
+  if (!box) {
+    return { stage: 'bbox', fraction, pngBytes: data.length, width, height };
+  }
+
+  const jpeg = prepareCatalogJpegFromRgba(data, width, height);
+  if (!jpeg) {
+    return { stage: 'mask', fraction, pngBytes: data.length, width, height };
+  }
+  return {
+    stage: 'ok',
+    pngBytes: data.length,
+    jpegBytes: jpeg.length,
+    fraction,
+    width,
+    height,
+  };
 }
 
 export async function prepareCatalogImageBytes(
   env: { IMAGES?: any },
   originalBytes: Uint8Array,
 ): Promise<Uint8Array | null> {
-  const pngBytes = await isolateCatalogPng(env, originalBytes);
-  if (!pngBytes) return null;
-  return prepareCatalogJpegFromPng(pngBytes);
+  const isolated = await isolateCatalogRgba(env, originalBytes);
+  if (!isolated) return null;
+  return prepareCatalogJpegFromRgba(isolated.data, isolated.width, isolated.height);
 }

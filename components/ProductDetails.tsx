@@ -43,6 +43,7 @@ import {
     buildEditableProduct,
     buildVariantFinishGroups,
     getAnalyticalCostingItems,
+    getImportedCostAnalysisDisplay,
     getAvailableMolds,
     getMaterialTypeLabel,
     getRecipeMaterialSubtitle,
@@ -677,6 +678,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
 
     const currentCostCalc = calculateProductCost(editedProduct, settings, allMaterials, allProducts);
     const masterCost = currentCostCalc.total;
+    const importedCostAnalysis = getImportedCostAnalysisDisplay(currentCostCalc);
 
     const updateCalculatedPrice = (margin: number) => {
         const marginDecimal = margin / 100;
@@ -1698,14 +1700,14 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                     <DetailsSection tone="analysis" icon={Activity} title="Ανάλυση κόστους">
                                                         <div className="flex flex-col">
                                                             <div className="space-y-1.5 flex-1">
-                                                                <SummaryRow label="Ασήμι" value={formatCurrency(currentCostCalc.breakdown?.silver)} sub={`${editedProduct.weight_g}g`} color="bg-slate-400" />
-                                                                <SummaryRow label="Εργατικά" value={formatCurrency(currentCostCalc.breakdown?.details?.technician_cost)} sub={`/ ${editedProduct.weight_g}g`} color="bg-blue-400" />
-                                                                <SummaryRow label="Επιμετάλλωση" value={formatCurrency(currentCostCalc.breakdown?.details?.plating_cost_x)} sub={`/ ${editedProduct.weight_g}g`} color="bg-amber-400" />
-                                                                <SummaryRow label="Καρφωτικά" value={formatCurrency(currentCostCalc.breakdown?.details?.stone_setting_cost)} sub="Σταθερό" color="bg-purple-400" />
+                                                                <SummaryRow label="Ασήμι" value={formatCurrency(importedCostAnalysis.silver)} sub={`${importedCostAnalysis.weightG}g`} color="bg-slate-400" />
+                                                                <SummaryRow label="Εργατικά" value={formatCurrency(importedCostAnalysis.technician)} sub={`/ ${importedCostAnalysis.weightG}g`} color="bg-blue-400" />
+                                                                <SummaryRow label="Επιμετάλλωση" value={formatCurrency(importedCostAnalysis.plating)} sub={`/ ${importedCostAnalysis.weightG}g`} color="bg-amber-400" />
+                                                                <SummaryRow label="Καρφωτικά" value={formatCurrency(importedCostAnalysis.stoneSetting)} sub="Σταθερό" color="bg-purple-400" />
                                                             </div>
                                                             <div className="pt-3 mt-3 border-t border-emerald-200/60 flex justify-between items-center">
                                                                 <span className="font-bold text-emerald-700 text-sm uppercase">Τελικό Κόστος</span>
-                                                                <span className="font-black text-2xl text-emerald-800">{formatCurrency(masterCost)}</span>
+                                                                <span className="font-black text-2xl text-emerald-800">{formatCurrency(importedCostAnalysis.total)}</span>
                                                             </div>
                                                         </div>
                                                     </DetailsSection>

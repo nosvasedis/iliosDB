@@ -60,9 +60,9 @@ export default function EmployeeLayout({ children, activePage, onNavigate }: Pro
     <div className="flex h-screen overflow-hidden text-[#060b00] bg-slate-50 font-sans">
         <SidebarOverlayScrim visible={!isCollapsed} onDismiss={() => setIsCollapsed(true)} />
         <aside className={`${sidebarAsideClass(isCollapsed)} hidden md:flex`}>
-          <div className={`flex shrink-0 items-center border-b border-white/[0.06] ${isCollapsed ? 'h-14 flex-col justify-center px-1.5 py-2' : 'h-14 justify-between px-3'}`}>
-            {!isCollapsed ? <img src={APP_LOGO} alt="Ilios" className="h-9 w-auto object-contain drop-shadow-lg" /> : <img src={APP_ICON_ONLY} alt="Ilios" className="h-8 w-8 object-contain" />}
-            <div className={`flex min-w-0 items-center ${isCollapsed ? '' : 'gap-1.5'}`}>
+          <div className={`relative flex shrink-0 items-center border-b border-white/[0.06] ${isCollapsed ? 'h-14 flex-col justify-center px-1.5 py-2' : 'h-16 justify-center px-3'}`}>
+            {!isCollapsed ? <img src={APP_LOGO} alt="Ilios" className="h-11 w-auto object-contain drop-shadow-lg" /> : <img src={APP_ICON_ONLY} alt="Ilios" className="h-8 w-8 object-contain" />}
+            <div className={`flex min-w-0 items-center ${isCollapsed ? '' : 'absolute right-2 top-1/2 max-w-[42%] -translate-y-1/2 justify-end gap-1.5'}`}>
               {!isCollapsed && (
                 <span className="truncate text-xs font-medium text-slate-300">{profile?.full_name || 'Κατάστημα'}</span>
               )}

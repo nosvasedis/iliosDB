@@ -1689,6 +1689,8 @@ export default {
           if (prepared) {
             storedBytes = prepared;
             contentType = 'image/jpeg';
+          } else {
+            console.warn('catalog-prepare skipped; storing original', key, originalBytes.length);
           }
         }
         await env.R2_BUCKET.put(key, storedBytes, {

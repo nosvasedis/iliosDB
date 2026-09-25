@@ -101,7 +101,7 @@ const InspectionModeShell: React.FC = () => {
           <div className={`relative flex shrink-0 flex-col items-center justify-center border-b border-white/[0.06] ${isCollapsed ? 'h-14 px-1.5' : 'px-3 py-3'}`}>
             {!isCollapsed ? (
               <>
-                <img src={APP_LOGO} alt="Ilios" className="h-9 w-auto object-contain drop-shadow-lg" />
+                <img src={APP_LOGO} alt="Ilios" className="h-11 w-auto object-contain drop-shadow-lg" />
                 <p className="mt-1.5 text-center text-[10px] font-black uppercase tracking-[0.18em] text-amber-400/90">
                   Σύστημα Παραστατικών
                 </p>
