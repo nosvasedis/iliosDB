@@ -1,6 +1,20 @@
 
 export const ACCEPTED_IMAGE_INPUT_TYPES = 'image/*,.heic,.heif,image/heic,image/heif';
 export const CATALOG_IMAGE_PREPARE_HEADER = 'X-Ilios-Catalog-Prepare';
+export const CATALOG_PREPARE_FAILED_STATUS = 422;
+
+export class CatalogPrepareFailedError extends Error {
+  readonly status: number;
+
+  constructor(status = CATALOG_PREPARE_FAILED_STATUS) {
+    super('catalog-prepare-failed');
+    this.name = 'CatalogPrepareFailedError';
+    this.status = status;
+  }
+}
+
+export const isCatalogPrepareFailureStatus = (status: number): boolean =>
+  status === CATALOG_PREPARE_FAILED_STATUS || status === 1102 || status >= 500;
 
 const MAX_IMAGE_SIZE = 900;
 const MAX_CATALOG_UPLOAD_EDGE = 2048;

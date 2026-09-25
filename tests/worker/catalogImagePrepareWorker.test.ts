@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import worker from '../../worker/worker.js';
-import { CATALOG_PREPARE_HEADER } from '../../worker/catalogImagePrepare';
+import { CATALOG_PREPARE_FAILED_STATUS, CATALOG_PREPARE_HEADER } from '../../worker/catalogImagePrepare';
 
 const AUTH = 'secret';
 
@@ -44,16 +44,18 @@ const jewelryRgba = () => {
   return { data, width, height };
 };
 
-const mockImages = (response: Response, info = { format: 'image/jpeg', fileSize: 12, width: 40, height: 40 }) => ({
-  info: async () => info,
-  input: () => ({
-    transform: () => ({
-      output: async () => ({
-        response: () => response,
-      }),
+const mockImages = (response: Response, info = { format: 'image/jpeg', fileSize: 12, width: 40, height: 40 }) => {
+  const handle = {
+    transform: () => handle,
+    output: async () => ({
+      response: () => response,
     }),
-  }),
-});
+  };
+  return {
+    info: async () => info,
+    input: () => handle,
+  };
+};
 
 const post = (env: any, body: Uint8Array, headers: Record<string, string> = {}) =>
   worker.fetch(
@@ -85,7 +87,7 @@ describe('catalog image Worker prepare path', () => {
     expect(Array.from(r2.objects.get('SKU_1.jpg')!.bytes)).toEqual([1, 2, 3, 4]);
   });
 
-  it('stores the original photo when Images returns 9422', async () => {
+  it('does not store the original when Images returns 9422', async () => {
     const r2 = memoryR2();
     const original = new Uint8Array([9, 8, 7, 6]);
     const response = await post(
@@ -93,11 +95,11 @@ describe('catalog image Worker prepare path', () => {
       original,
       { [CATALOG_PREPARE_HEADER]: '1' },
     );
-    expect(response.status).toBe(200);
-    expect(Array.from(r2.objects.get('SKU_1.jpg')!.bytes)).toEqual([9, 8, 7, 6]);
+    expect(response.status).toBe(CATALOG_PREPARE_FAILED_STATUS);
+    expect(r2.objects.has('SKU_1.jpg')).toBe(false);
   });
 
-  it('stores the original photo when Images throws', async () => {
+  it('does not store the original when Images throws', async () => {
     const r2 = memoryR2();
     const original = new Uint8Array([3, 3, 3]);
     const response = await post(
@@ -113,11 +115,11 @@ describe('catalog image Worker prepare path', () => {
       original,
       { [CATALOG_PREPARE_HEADER]: '1' },
     );
-    expect(response.status).toBe(200);
-    expect(Array.from(r2.objects.get('SKU_1.jpg')!.bytes)).toEqual([3, 3, 3]);
+    expect(response.status).toBe(CATALOG_PREPARE_FAILED_STATUS);
+    expect(r2.objects.has('SKU_1.jpg')).toBe(false);
   });
 
-  it('stores the original photo when the mask is empty', async () => {
+  it('does not store the original when the mask is empty', async () => {
     const r2 = memoryR2();
     const original = new Uint8Array([4, 4, 4, 4]);
     const empty = new Uint8Array(16 * 16 * 4);
@@ -126,8 +128,8 @@ describe('catalog image Worker prepare path', () => {
       original,
       { [CATALOG_PREPARE_HEADER]: '1' },
     );
-    expect(response.status).toBe(200);
-    expect(Array.from(r2.objects.get('SKU_1.jpg')!.bytes)).toEqual([4, 4, 4, 4]);
+    expect(response.status).toBe(CATALOG_PREPARE_FAILED_STATUS);
+    expect(r2.objects.has('SKU_1.jpg')).toBe(false);
   });
 
   it('stores a catalog JPEG when isolation succeeds', async () => {

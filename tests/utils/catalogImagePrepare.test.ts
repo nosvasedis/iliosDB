@@ -12,6 +12,8 @@ import {
   opaqueFraction,
   prepareCatalogJpegFromPng,
   prepareCatalogJpegFromRgba,
+  scaledIsolateSize,
+  ISOLATE_MAX_EDGE,
 } from '../../worker/catalogImagePrepare';
 
 const makeRgba = (width: number, height: number, fill: [number, number, number, number] = [0, 0, 0, 0]) => {
@@ -207,5 +209,13 @@ describe('PNG to catalog JPEG', () => {
     const decoded = jpeg.decode(Buffer.from(jpegBytes!), { useTArray: true });
     expect(decoded.width).toBe(CATALOG_SQUARE_SIZE);
     expect(decoded.height).toBe(CATALOG_SQUARE_SIZE);
+  });
+});
+
+describe('isolate scale-down', () => {
+  it('keeps small sources and fits a 2048px phone photo onto a 960 edge', () => {
+    expect(scaledIsolateSize(40, 40)).toEqual({ width: 40, height: 40 });
+    expect(ISOLATE_MAX_EDGE).toBe(960);
+    expect(scaledIsolateSize(1536, 2048)).toEqual({ width: 720, height: 960 });
   });
 });

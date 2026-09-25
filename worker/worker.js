@@ -5,7 +5,12 @@
  */
 
 import { handleSbzRoute } from './sbz.ts';
-import { CATALOG_PREPARE_HEADER, prepareCatalogImageBytes } from './catalogImagePrepare.ts';
+import {
+  CATALOG_PREPARE_FAILED_ERROR,
+  CATALOG_PREPARE_FAILED_STATUS,
+  CATALOG_PREPARE_HEADER,
+  prepareCatalogImageBytes,
+} from './catalogImagePrepare.ts';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -1685,12 +1690,18 @@ export default {
         let storedBytes = originalBytes;
         let contentType = request.headers.get('Content-Type') || 'image/jpeg';
         if (request.headers.get(CATALOG_PREPARE_HEADER) === '1') {
-          const prepared = await prepareCatalogImageBytes(env, originalBytes);
-          if (prepared) {
-            storedBytes = prepared;
-            contentType = 'image/jpeg';
-          } else {
-            console.warn('catalog-prepare skipped; storing original', key, originalBytes.length);
+          try {
+            const prepared = await prepareCatalogImageBytes(env, originalBytes);
+            if (prepared) {
+              storedBytes = prepared;
+              contentType = 'image/jpeg';
+            } else {
+              console.warn('catalog-prepare skipped; nothing stored', key, originalBytes.length);
+              return jsonResponse({ error: CATALOG_PREPARE_FAILED_ERROR }, CATALOG_PREPARE_FAILED_STATUS, CORS_HEADERS);
+            }
+          } catch (err) {
+            console.warn('catalog-prepare threw; nothing stored', key, err?.message || err);
+            return jsonResponse({ error: CATALOG_PREPARE_FAILED_ERROR }, CATALOG_PREPARE_FAILED_STATUS, CORS_HEADERS);
           }
         }
         await env.R2_BUCKET.put(key, storedBytes, {

@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, OrderItem, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, BatchStageHistoryEntry, SyncOfflineResult, LegalSettings, LegalNumberingSequence, LegalNumberingAlignmentPreview, LegalNumberingAlignmentResult, LegalCarrier, LegalDocument, LegalDocumentLine, LegalTransmission, LegalDeliveryEvent, AadeProxyResult, AadeCredentialStatus, AadeCredentialSavePayload, AadeRegistryCredentialSavePayload, AadeVatRegistryResult, PublicVatLookupResult, LegalRegistryConnectionStatus, ProformaDocument, ProformaDocumentLine, LegalSyncParams, LegalSyncRun, AadeDocumentType, LegalExternalItemAlias, LegalOrderLinkMode, LegalOrderLineAllocation } from '../types';
 import { INITIAL_SETTINGS, MOCK_MATERIALS, requiresAssemblyStage, requiresSettingStage } from '../constants';
 import { getVariantComponents } from '../utils/pricingEngine';
-import { CATALOG_IMAGE_PREPARE_HEADER, compressImage } from '../utils/imageHelpers';
+import { CATALOG_IMAGE_PREPARE_HEADER, CatalogPrepareFailedError, compressImage, isCatalogPrepareFailureStatus } from '../utils/imageHelpers';
 import { offlineDb } from './offlineDb';
 import {
     BACKUP_TABLE_REGISTRY,
@@ -1106,7 +1106,7 @@ const getRetailCustomerPayload = (): Partial<Customer> => ({
     created_at: new Date(0).toISOString()
 });
 
-export const uploadProductImage = async (file: Blob, sku: string): Promise<string | null> => {
+export const uploadProductImage = async (file: Blob, sku: string, options: { prepare?: boolean } = {}): Promise<string | null> => {
     // Feature 3C: Local Image Storage Support
     let useLocal = isLocalMode || !navigator.onLine;
     if (!useLocal) {
@@ -1135,16 +1135,30 @@ export const uploadProductImage = async (file: Blob, sku: string): Promise<strin
     }
 
     if (!navigator.onLine || isLocalMode) throw new Error("Image upload requires internet.");
+    const prepare = options.prepare !== false;
     const safeSku = sku.replace(/[^a-zA-Z0-9-\u0370-\u03FF]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
     const fileName = `${safeSku.toUpperCase()}_${Date.now()}.jpg`;
     const uploadUrl = `${CLOUDFLARE_WORKER_URL}/${encodeURIComponent(fileName)}`;
-    const response = await fetch(uploadUrl, {
-        method: 'POST',
-        mode: 'cors',
-        headers: { 'Content-Type': 'image/jpeg', 'Authorization': AUTH_KEY_SECRET, [CATALOG_IMAGE_PREPARE_HEADER]: '1' },
-        body: file,
-    });
-    if (!response.ok) throw new Error(`Status ${response.status}`);
+    const headers: Record<string, string> = { 'Content-Type': 'image/jpeg', 'Authorization': AUTH_KEY_SECRET };
+    if (prepare) headers[CATALOG_IMAGE_PREPARE_HEADER] = '1';
+    let response: Response;
+    try {
+        response = await fetch(uploadUrl, {
+            method: 'POST',
+            mode: 'cors',
+            headers,
+            body: file,
+        });
+    } catch (err) {
+        if (prepare) throw new CatalogPrepareFailedError(0);
+        throw err;
+    }
+    if (!response.ok) {
+        if (prepare && isCatalogPrepareFailureStatus(response.status)) {
+            throw new CatalogPrepareFailedError(response.status);
+        }
+        throw new Error(`Status ${response.status}`);
+    }
     return `${R2_PUBLIC_URL}/${encodeURIComponent(fileName)}`;
 };
 

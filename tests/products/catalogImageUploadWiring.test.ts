@@ -8,7 +8,7 @@ describe('catalog photo upload wiring', () => {
   it('sends the prepare header only on catalog image uploads', () => {
     const supabase = source('lib/supabase.ts');
     expect(supabase).toContain('CATALOG_IMAGE_PREPARE_HEADER');
-    expect(supabase).toContain("headers: { 'Content-Type': 'image/jpeg', 'Authorization': AUTH_KEY_SECRET, [CATALOG_IMAGE_PREPARE_HEADER]: '1' }");
+    expect(supabase).toContain("if (prepare) headers[CATALOG_IMAGE_PREPARE_HEADER] = '1'");
 
     const settings = source('components/SettingsPage.tsx');
     expect(settings).toContain('compressImage');
@@ -27,6 +27,20 @@ describe('catalog photo upload wiring', () => {
     expect(details).toContain('prepareUploadSource');
     expect(mobile).toContain('prepareUploadSource');
     expect(wizard).toContain('prepareUploadSource');
+    expect(details).toContain('uploadCatalogPhotoWithChoice');
+    expect(mobile).toContain('uploadCatalogPhotoWithChoice');
+    expect(wizard).toContain('uploadCatalogPhotoWithChoice');
+  });
+
+  it('asks before saving the original when catalog prepare fails', () => {
+    const helper = source('utils/catalogPhotoUpload.ts');
+    const worker = source('worker/worker.js');
+    expect(helper).toContain('Κρατήστε την αρχική');
+    expect(helper).toContain('Δοκιμή ξανά');
+    expect(helper).toContain("cancelText: 'Όχι'");
+    expect(helper).toContain("choice === 'keep-original'");
+    expect(worker).toContain('nothing stored');
+    expect(worker).toContain('CATALOG_PREPARE_FAILED_STATUS');
   });
 
   it('keeps the SKU photo contained and the mobile hero from cropping the square', () => {

@@ -22,8 +22,9 @@ import { LaborCostFormulaRow } from './ProductRegistry/LaborCostFormulaRow';
 import { TechnicianLaborFormulaRow } from './ProductRegistry/TechnicianLaborFormulaRow';
 import { FINISH_CODES } from '../constants';
 import { X, Save, Box, Gem, Hammer, MapPin, Copy, Trash2, Plus, Info, Wand2, TrendingUp, Camera, Loader2, Upload, History, AlertTriangle, FolderKanban, CheckCircle, RefreshCw, Tag, ImageIcon, Coins, Lock, Unlock, Calculator, Percent, ChevronLeft, ChevronRight, Layers, ScanBarcode, ChevronDown, Edit3, Search, Link, Activity, Puzzle, Minus, Palette, Globe, DollarSign, ThumbsUp, HelpCircle, BookOpen, Scroll, Users, Weight, Flame, Sparkles, ArrowRight, ArrowUpRight, ShoppingBag, Edit, Check, ArrowDownRight, RefreshCcw, Scale, Factory } from 'lucide-react';
-import { uploadProductImage, R2_PUBLIC_URL, AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL } from '../lib/supabase';
+import { R2_PUBLIC_URL, AUTH_KEY_SECRET, CLOUDFLARE_WORKER_URL } from '../lib/supabase';
 import { prepareUploadSource } from '../utils/imageHelpers';
+import { uploadCatalogPhotoWithChoice } from '../utils/catalogPhotoUpload';
 import { useQueryClient } from '@tanstack/react-query';
 import { refreshErpProducts, removeProductsFromCache } from '../features/erpCatalog';
 import { useUI } from './UIProvider';
@@ -1007,7 +1008,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             setIsUploadingImage(true);
             try {
                 const compressedBlob = await prepareUploadSource(file);
-                const publicUrl = await uploadProductImage(compressedBlob, editedProduct.sku);
+                const publicUrl = await uploadCatalogPhotoWithChoice(compressedBlob, editedProduct.sku, confirm);
                 if (publicUrl) {
                     setEditedProduct(prev => ({ ...prev, image_url: publicUrl }));
                     await productsRepository.saveProduct({ ...editedProduct, image_url: publicUrl });
@@ -1019,6 +1020,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                 showToast("Σφάλμα κατά την ενημέρωση.", "error");
             } finally {
                 setIsUploadingImage(false);
+                e.target.value = '';
             }
         }
     };

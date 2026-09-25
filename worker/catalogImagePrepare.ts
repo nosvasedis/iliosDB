@@ -2,6 +2,8 @@ import { PNG } from 'pngjs';
 import jpeg from 'jpeg-js';
 
 export const CATALOG_PREPARE_HEADER = 'X-Ilios-Catalog-Prepare';
+export const CATALOG_PREPARE_FAILED_STATUS = 422;
+export const CATALOG_PREPARE_FAILED_ERROR = 'catalog-prepare-failed';
 export const ALPHA_FLOOR = 12;
 export const MIN_OPAQUE_FRACTION = 0.015;
 export const MAX_OPAQUE_FRACTION = 0.92;
@@ -10,9 +12,20 @@ export const BBOX_PADDING = 0.10;
 export const JPEG_QUALITY = 74;
 export const SHADOW_OFFSET_X = 2;
 export const SHADOW_OFFSET_Y = 9;
-export const SHADOW_BLUR_RADIUS = 10;
+export const SHADOW_BLUR_RADIUS = 6;
 export const SHADOW_OPACITY = 0.15;
 export const SHADOW_FIT_INSET = 22;
+export const ISOLATE_MAX_EDGE = 960;
+
+export function scaledIsolateSize(width: number, height: number, maxEdge = ISOLATE_MAX_EDGE): { width: number; height: number } {
+  const longEdge = Math.max(width, height);
+  if (longEdge <= maxEdge) return { width, height };
+  const scale = maxEdge / longEdge;
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  };
+}
 
 export type RgbaImage = {
   data: Uint8Array;
@@ -254,17 +267,40 @@ export function composeCatalogSquare(image: RgbaImage, box: BoundingBox): { data
   return { data: out, mask };
 }
 
+function inspectMask(data: Uint8Array, width: number, height: number): { fraction: number; box: BoundingBox | null } {
+  let opaque = 0;
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+  const pixels = width * height;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const alphaIndex = (y * width + x) * 4 + 3;
+      const alpha = data[alphaIndex];
+      if (alpha < ALPHA_FLOOR) continue;
+      data[alphaIndex] = Math.min(255, Math.round(alpha + (255 - alpha) * 0.35));
+      opaque += 1;
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    }
+  }
+  return {
+    fraction: pixels ? opaque / pixels : 0,
+    box: maxX < 0 ? null : { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 },
+  };
+}
+
 export function prepareCatalogJpegFromRgba(data: Uint8Array, width: number, height: number): Uint8Array | null {
   const pixels = data.slice();
-  applyAlphaFloor(pixels);
-  if (!isMaskSane(opaqueFraction(pixels))) return null;
-
-  const box = boundingBox(pixels, width, height);
-  if (!box) return null;
+  const inspected = inspectMask(pixels, width, height);
+  if (!isMaskSane(inspected.fraction) || !inspected.box) return null;
 
   const composed = composeCatalogSquare(
     { data: pixels, width, height },
-    box,
+    inspected.box,
   );
   applyJewelryVibrance(composed.data, composed.mask);
 
@@ -314,15 +350,19 @@ export async function isolateCatalogRgba(
     const width = Number(info?.width);
     const height = Number(info?.height);
     if (!width || !height) return null;
+    const sized = scaledIsolateSize(width, height);
 
     const stream = new Response(originalBytes).body;
     if (!stream) return null;
-    const result = await env.IMAGES.input(stream).transform({ segment: 'foreground' }).output({ format: 'rgba' });
+    const result = await env.IMAGES.input(stream)
+      .transform({ segment: 'foreground' })
+      .transform({ width: sized.width, height: sized.height, fit: 'scale-down' })
+      .output({ format: 'rgba' });
     const response = await imagesResponse(result);
     if (!response || !response.ok) return null;
     const data = new Uint8Array(await response.arrayBuffer());
-    if (data.length !== width * height * 4) return null;
-    return { data, width, height };
+    if (data.length !== sized.width * sized.height * 4) return null;
+    return { data, width: sized.width, height: sized.height };
   } catch {
     return null;
   }
@@ -342,9 +382,13 @@ export async function diagnoseCatalogPrepare(
     height = Number(info?.height);
     if (!width || !height) return { stage: 'input', error: 'IMAGES.info missing dimensions' };
 
+    const sized = scaledIsolateSize(width, height);
     const stream = new Response(originalBytes).body;
     if (!stream) return { stage: 'input', error: 'empty body stream' };
-    const result = await env.IMAGES.input(stream).transform({ segment: 'foreground' }).output({ format: 'rgba' });
+    const result = await env.IMAGES.input(stream)
+      .transform({ segment: 'foreground' })
+      .transform({ width: sized.width, height: sized.height, fit: 'scale-down' })
+      .output({ format: 'rgba' });
     const response = await imagesResponse(result);
     if (!response) return { stage: 'images', error: 'no Images response' };
     if (!response.ok) {
@@ -352,6 +396,8 @@ export async function diagnoseCatalogPrepare(
       return { stage: 'images', status: response.status, error: text.slice(0, 500) };
     }
     data = new Uint8Array(await response.arrayBuffer());
+    width = sized.width;
+    height = sized.height;
   } catch (err: any) {
     return {
       stage: 'throw',
@@ -400,7 +446,11 @@ export async function prepareCatalogImageBytes(
   env: { IMAGES?: any },
   originalBytes: Uint8Array,
 ): Promise<Uint8Array | null> {
-  const isolated = await isolateCatalogRgba(env, originalBytes);
-  if (!isolated) return null;
-  return prepareCatalogJpegFromRgba(isolated.data, isolated.width, isolated.height);
+  try {
+    const isolated = await isolateCatalogRgba(env, originalBytes);
+    if (!isolated) return null;
+    return prepareCatalogJpegFromRgba(isolated.data, isolated.width, isolated.height);
+  } catch {
+    return null;
+  }
 }

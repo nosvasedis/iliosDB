@@ -2,7 +2,8 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Product, ProductVariant, Warehouse, Gender, PlatingType, MaterialType, RecipeItem } from '../../types';
 import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy, ArrowRightLeft, PlusCircle, Settings2, ArrowRight, Save, Hammer, Box, Flame, Gem, Coins, ChevronDown, ChevronUp, Palette, Info, Package, Download, Loader2, Sparkles, Layers, Ruler, Camera } from 'lucide-react';
 import { formatCurrency, getVariantComponents, transliterateForBarcode } from '../../utils/pricingEngine';
-import { SYSTEM_IDS, CLOUDFLARE_WORKER_URL, supabase, api, R2_PUBLIC_URL, AUTH_KEY_SECRET, uploadProductImage } from '../../lib/supabase';
+import { SYSTEM_IDS, CLOUDFLARE_WORKER_URL, supabase, api, R2_PUBLIC_URL, AUTH_KEY_SECRET } from '../../lib/supabase';
+import { uploadCatalogPhotoWithChoice } from '../../utils/catalogPhotoUpload';
 import { ACCEPTED_IMAGE_INPUT_TYPES, prepareUploadSource } from '../../utils/imageHelpers';
 import { productsRepository } from '../../features/products/repository';
 import BarcodeView from '../BarcodeView';
@@ -73,7 +74,7 @@ const toBase64 = async (url: string): Promise<string | null> => {
 };
 
 export default function MobileProductDetails({ product, onClose, warehouses, setPrintItems, initialVariantSuffix }: Props) {
-  const { showToast } = useUI();
+  const { showToast, confirm } = useUI();
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
   const canTransfer = isAdmin || profile?.role === 'user';
@@ -218,7 +219,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
           setIsUploadingImage(true);
           try {
               const compressedBlob = await prepareUploadSource(file);
-              const publicUrl = await uploadProductImage(compressedBlob, product.sku);
+              const publicUrl = await uploadCatalogPhotoWithChoice(compressedBlob, product.sku, confirm);
               if (publicUrl) {
                   setLocalImageUrl(publicUrl);
                   await productsRepository.saveProduct({ ...product, image_url: publicUrl });

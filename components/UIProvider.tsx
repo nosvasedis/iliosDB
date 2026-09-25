@@ -9,7 +9,7 @@ interface Toast {
   type: ToastType;
 }
 
-interface ConfirmOptions {
+export interface ConfirmOptions {
   title?: string;
   message: string;
   confirmText?: string;
@@ -122,17 +122,21 @@ export const UIProvider = ({ children }: { children?: ReactNode }) => {
               {confirmState.options.message}
             </p>
             
-            <div className="flex justify-end gap-3 flex-wrap">
+            <div className={confirmState.options.thirdOptionText
+              ? 'flex flex-col gap-2'
+              : 'flex justify-end gap-3 flex-wrap'}>
               <button
                 onClick={() => handleConfirm(null)}
-                className="px-5 py-2.5 rounded-xl text-slate-600 hover:bg-slate-50 font-medium transition-colors"
+                className={confirmState.options.thirdOptionText
+                  ? 'w-full min-h-[44px] px-5 py-3 rounded-xl text-slate-600 hover:bg-slate-50 font-medium transition-colors'
+                  : 'px-5 py-2.5 rounded-xl text-slate-600 hover:bg-slate-50 font-medium transition-colors'}
               >
                 {confirmState.options.cancelText || 'Ακύρωση'}
               </button>
               {confirmState.options.thirdOptionText && (
                 <button
                   onClick={() => handleConfirm(false)}
-                  className="px-5 py-2.5 rounded-xl text-slate-700 bg-slate-100 hover:bg-slate-200 font-medium transition-colors"
+                  className="w-full min-h-[44px] px-5 py-3 rounded-xl text-slate-700 bg-slate-100 hover:bg-slate-200 font-medium transition-colors"
                 >
                   {confirmState.options.thirdOptionText}
                 </button>
@@ -141,6 +145,7 @@ export const UIProvider = ({ children }: { children?: ReactNode }) => {
                 onClick={() => handleConfirm(true)}
                 disabled={confirmState.options.confirmDisabled}
                 className={`
+                  ${confirmState.options.thirdOptionText ? 'w-full min-h-[44px] py-3 justify-center' : ''}
                   px-5 py-2.5 rounded-xl text-white font-medium shadow-lg transition-transform active:scale-95 flex items-center gap-2
                   ${confirmState.options.confirmDisabled
                     ? 'bg-slate-300 text-slate-500 shadow-none cursor-not-allowed active:scale-100'
