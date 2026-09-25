@@ -132,8 +132,40 @@ describe('catalog bounding box and square compose', () => {
       }
     }
     expect(shadowPixels).toBeGreaterThan(40);
-    expect(darkest).toBeGreaterThan(210);
-    expect(darkest).toBeLessThan(252);
+    expect(darkest).toBeGreaterThan(195);
+    expect(darkest).toBeLessThan(248);
+  });
+
+  it('autozooms a square piece to fill the studio without clipping the shadow', () => {
+    const data = makeRgba(40, 40);
+    for (let y = 14; y < 26; y += 1) {
+      for (let x = 14; x < 26; x += 1) {
+        setPixel(data, 40, x, y, [160, 110, 50, 255]);
+      }
+    }
+    const box = boundingBox(data, 40, 40);
+    const composed = composeCatalogSquare({ data, width: 40, height: 40 }, box!);
+
+    let minX = CATALOG_SQUARE_SIZE;
+    let minY = CATALOG_SQUARE_SIZE;
+    let maxX = -1;
+    let maxY = -1;
+    for (let y = 0; y < CATALOG_SQUARE_SIZE; y += 1) {
+      for (let x = 0; x < CATALOG_SQUARE_SIZE; x += 1) {
+        if (!composed.mask[y * CATALOG_SQUARE_SIZE + x]) continue;
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+    }
+
+    expect(minX).toBeGreaterThan(0);
+    expect(minY).toBeGreaterThan(0);
+    expect(maxX).toBeLessThan(CATALOG_SQUARE_SIZE - 1);
+    expect(maxY).toBeLessThan(CATALOG_SQUARE_SIZE - 1);
+    expect(maxX - minX + 1).toBeGreaterThan(800);
+    expect(maxY - minY + 1).toBeGreaterThan(800);
   });
 });
 

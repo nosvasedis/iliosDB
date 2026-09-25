@@ -8,13 +8,13 @@ export const ALPHA_FLOOR = 12;
 export const MIN_OPAQUE_FRACTION = 0.015;
 export const MAX_OPAQUE_FRACTION = 0.92;
 export const CATALOG_SQUARE_SIZE = 900;
-export const BBOX_PADDING = 0.10;
+export const BBOX_PADDING = 0.035;
 export const JPEG_QUALITY = 74;
-export const SHADOW_OFFSET_X = 2;
-export const SHADOW_OFFSET_Y = 9;
-export const SHADOW_BLUR_RADIUS = 6;
-export const SHADOW_OPACITY = 0.15;
-export const SHADOW_FIT_INSET = 22;
+export const SHADOW_OFFSET_X = 3;
+export const SHADOW_OFFSET_Y = 11;
+export const SHADOW_BLUR_RADIUS = 7;
+export const SHADOW_OPACITY = 0.20;
+export const CATALOG_EDGE_MARGIN = 12;
 export const ISOLATE_MAX_EDGE = 960;
 
 export function scaledIsolateSize(width: number, height: number, maxEdge = ISOLATE_MAX_EDGE): { width: number; height: number } {
@@ -222,12 +222,25 @@ export function composeCatalogSquare(image: RgbaImage, box: BoundingBox): { data
   const y1 = Math.min(image.height, box.y + box.height + pad);
   const cropW = Math.max(1, x1 - x0);
   const cropH = Math.max(1, y1 - y0);
-  const fit = Math.max(1, size - SHADOW_FIT_INSET);
-  const scale = Math.min(fit / cropW, fit / cropH);
+  const availableW = Math.max(1, size - CATALOG_EDGE_MARGIN * 2 - SHADOW_OFFSET_X - SHADOW_BLUR_RADIUS);
+  const availableH = Math.max(1, size - CATALOG_EDGE_MARGIN * 2 - SHADOW_OFFSET_Y - SHADOW_BLUR_RADIUS);
+  const scale = Math.min(availableW / cropW, availableH / cropH);
   const destW = Math.max(1, Math.round(cropW * scale));
   const destH = Math.max(1, Math.round(cropH * scale));
-  const ox = Math.floor((size - destW) / 2);
-  const oy = Math.floor((size - destH - SHADOW_OFFSET_Y) / 2);
+  const ox = Math.max(
+    CATALOG_EDGE_MARGIN,
+    Math.min(
+      Math.floor((size - destW - SHADOW_OFFSET_X) / 2),
+      size - destW - CATALOG_EDGE_MARGIN - SHADOW_OFFSET_X,
+    ),
+  );
+  const oy = Math.max(
+    CATALOG_EDGE_MARGIN,
+    Math.min(
+      Math.floor((size - destH - SHADOW_OFFSET_Y) / 2),
+      size - destH - CATALOG_EDGE_MARGIN - SHADOW_OFFSET_Y,
+    ),
+  );
 
   for (let dy = 0; dy < destH; dy += 1) {
     for (let dx = 0; dx < destW; dx += 1) {
