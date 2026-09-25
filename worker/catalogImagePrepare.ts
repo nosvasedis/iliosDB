@@ -9,13 +9,13 @@ export const MIN_OPAQUE_FRACTION = 0.015;
 export const MAX_OPAQUE_FRACTION = 0.92;
 export const CATALOG_SQUARE_SIZE = 900;
 export const BBOX_PADDING = 0.035;
-export const JPEG_QUALITY = 74;
-export const SHADOW_OFFSET_X = 3;
-export const SHADOW_OFFSET_Y = 11;
-export const SHADOW_BLUR_RADIUS = 7;
-export const SHADOW_OPACITY = 0.20;
+export const JPEG_QUALITY = 82;
+export const SHADOW_OFFSET_X = 0;
+export const SHADOW_OFFSET_Y = 4;
+export const SHADOW_BLUR_RADIUS = 3;
+export const SHADOW_OPACITY = 0.26;
 export const CATALOG_EDGE_MARGIN = 12;
-export const ISOLATE_MAX_EDGE = 960;
+export const ISOLATE_MAX_EDGE = 800;
 
 export function scaledIsolateSize(width: number, height: number, maxEdge = ISOLATE_MAX_EDGE): { width: number; height: number } {
   const longEdge = Math.max(width, height);
@@ -148,60 +148,63 @@ export function applyJewelryVibrance(data: Uint8Array, mask?: Uint8Array): void 
   }
 }
 
-function sampleRgba(
+function sampleChannel(c00: number, c10: number, c01: number, c11: number, fx: number, fy: number): number {
+  const top = c00 + (c10 - c00) * fx;
+  return top + ((c01 + (c11 - c01) * fx) - top) * fy;
+}
+
+function sampleRgbaInto(
   data: Uint8Array,
   width: number,
   height: number,
   x: number,
   y: number,
-): [number, number, number, number] {
+  out: Float64Array,
+): void {
   const x0 = Math.max(0, Math.min(width - 1, Math.floor(x)));
   const y0 = Math.max(0, Math.min(height - 1, Math.floor(y)));
   const x1 = Math.min(width - 1, x0 + 1);
   const y1 = Math.min(height - 1, y0 + 1);
   const fx = Math.min(1, Math.max(0, x - x0));
   const fy = Math.min(1, Math.max(0, y - y0));
-
-  const pixel = (px: number, py: number) => {
-    const index = (py * width + px) * 4;
-    return [data[index], data[index + 1], data[index + 2], data[index + 3]];
-  };
-
-  const c00 = pixel(x0, y0);
-  const c10 = pixel(x1, y0);
-  const c01 = pixel(x0, y1);
-  const c11 = pixel(x1, y1);
-  const mix = (a: number, b: number, t: number) => a + (b - a) * t;
-
-  return [
-    mix(mix(c00[0], c10[0], fx), mix(c01[0], c11[0], fx), fy),
-    mix(mix(c00[1], c10[1], fx), mix(c01[1], c11[1], fx), fy),
-    mix(mix(c00[2], c10[2], fx), mix(c01[2], c11[2], fx), fy),
-    mix(mix(c00[3], c10[3], fx), mix(c01[3], c11[3], fx), fy),
-  ];
+  const i00 = (y0 * width + x0) * 4;
+  const i10 = (y0 * width + x1) * 4;
+  const i01 = (y1 * width + x0) * 4;
+  const i11 = (y1 * width + x1) * 4;
+  out[0] = sampleChannel(data[i00], data[i10], data[i01], data[i11], fx, fy);
+  out[1] = sampleChannel(data[i00 + 1], data[i10 + 1], data[i01 + 1], data[i11 + 1], fx, fy);
+  out[2] = sampleChannel(data[i00 + 2], data[i10 + 2], data[i01 + 2], data[i11 + 2], fx, fy);
+  out[3] = sampleChannel(data[i00 + 3], data[i10 + 3], data[i01 + 3], data[i11 + 3], fx, fy);
 }
 
 function blurShadow(src: Float32Array, width: number, height: number, radius: number): Float32Array {
   if (radius <= 0) return src;
-  const horizontal = new Float32Array(src.length);
   const span = radius * 2 + 1;
+  const lastX = width - 1;
+  const lastY = height - 1;
+  const horizontal = new Float32Array(src.length);
   for (let y = 0; y < height; y += 1) {
     const row = y * width;
-    for (let x = 0; x < width; x += 1) {
-      let sum = 0;
-      for (let k = -radius; k <= radius; k += 1) {
-        sum += src[row + Math.min(width - 1, Math.max(0, x + k))];
-      }
+    let sum = 0;
+    for (let k = -radius; k <= radius; k += 1) {
+      sum += src[row + Math.min(lastX, Math.max(0, k))];
+    }
+    horizontal[row] = sum / span;
+    for (let x = 1; x < width; x += 1) {
+      sum += src[row + Math.min(lastX, x + radius)] - src[row + Math.min(lastX, Math.max(0, x - radius - 1))];
       horizontal[row + x] = sum / span;
     }
   }
+
   const out = new Float32Array(src.length);
   for (let x = 0; x < width; x += 1) {
-    for (let y = 0; y < height; y += 1) {
-      let sum = 0;
-      for (let k = -radius; k <= radius; k += 1) {
-        sum += horizontal[Math.min(height - 1, Math.max(0, y + k)) * width + x];
-      }
+    let sum = 0;
+    for (let k = -radius; k <= radius; k += 1) {
+      sum += horizontal[Math.min(lastY, Math.max(0, k)) * width + x];
+    }
+    out[x] = sum / span;
+    for (let y = 1; y < height; y += 1) {
+      sum += horizontal[Math.min(lastY, y + radius) * width + x] - horizontal[Math.min(lastY, Math.max(0, y - radius - 1)) * width + x];
       out[y * width + x] = sum / span;
     }
   }
@@ -212,8 +215,8 @@ export function composeCatalogSquare(image: RgbaImage, box: BoundingBox): { data
   const size = CATALOG_SQUARE_SIZE;
   const out = new Uint8Array(size * size * 4);
   const mask = new Uint8Array(size * size);
-  const layer = new Uint8Array(size * size * 4);
   const shadow = new Float32Array(size * size);
+  const sample = new Float64Array(4);
 
   const pad = Math.round(Math.max(box.width, box.height) * BBOX_PADDING);
   const x0 = Math.max(0, box.x - pad);
@@ -244,23 +247,28 @@ export function composeCatalogSquare(image: RgbaImage, box: BoundingBox): { data
 
   for (let dy = 0; dy < destH; dy += 1) {
     for (let dx = 0; dx < destW; dx += 1) {
-      const sx = x0 + ((dx + 0.5) * cropW) / destW - 0.5;
-      const sy = y0 + ((dy + 0.5) * cropH) / destH - 0.5;
-      const [r, g, b, a] = sampleRgba(image.data, image.width, image.height, sx, sy);
+      sampleRgbaInto(
+        image.data,
+        image.width,
+        image.height,
+        x0 + ((dx + 0.5) * cropW) / destW - 0.5,
+        y0 + ((dy + 0.5) * cropH) / destH - 0.5,
+        sample,
+      );
       const destX = ox + dx;
       const destY = oy + dy;
       const outIndex = (destY * size + destX) * 4;
-      layer[outIndex] = r;
-      layer[outIndex + 1] = g;
-      layer[outIndex + 2] = b;
-      layer[outIndex + 3] = a;
-      if (a >= ALPHA_FLOOR) mask[destY * size + destX] = 1;
+      out[outIndex] = Math.round(sample[0]);
+      out[outIndex + 1] = Math.round(sample[1]);
+      out[outIndex + 2] = Math.round(sample[2]);
+      out[outIndex + 3] = Math.round(sample[3]);
+      if (sample[3] >= ALPHA_FLOOR) mask[destY * size + destX] = 1;
 
       const shadowX = destX + SHADOW_OFFSET_X;
       const shadowY = destY + SHADOW_OFFSET_Y;
       if (shadowX < 0 || shadowY < 0 || shadowX >= size || shadowY >= size) continue;
       const shadowIndex = shadowY * size + shadowX;
-      const alpha = a / 255;
+      const alpha = sample[3] / 255;
       if (alpha > shadow[shadowIndex]) shadow[shadowIndex] = alpha;
     }
   }
@@ -268,12 +276,13 @@ export function composeCatalogSquare(image: RgbaImage, box: BoundingBox): { data
   const blurred = blurShadow(shadow, size, size, SHADOW_BLUR_RADIUS);
   for (let i = 0; i < size * size; i += 1) {
     const shadowA = Math.min(1, blurred[i] * SHADOW_OPACITY);
-    const background = Math.round(255 * (1 - shadowA));
+    const background = 255 * (1 - shadowA);
     const li = i * 4;
-    const jewelryA = layer[li + 3] / 255;
-    out[li] = Math.round(layer[li] * jewelryA + background * (1 - jewelryA));
-    out[li + 1] = Math.round(layer[li + 1] * jewelryA + background * (1 - jewelryA));
-    out[li + 2] = Math.round(layer[li + 2] * jewelryA + background * (1 - jewelryA));
+    const jewelryA = out[li + 3] / 255;
+    const keep = 1 - jewelryA;
+    out[li] = Math.round(out[li] * jewelryA + background * keep);
+    out[li + 1] = Math.round(out[li + 1] * jewelryA + background * keep);
+    out[li + 2] = Math.round(out[li + 2] * jewelryA + background * keep);
     out[li + 3] = 255;
   }
 
@@ -306,22 +315,165 @@ function inspectMask(data: Uint8Array, width: number, height: number): { fractio
   };
 }
 
-export function prepareCatalogJpegFromRgba(data: Uint8Array, width: number, height: number): Uint8Array | null {
-  const pixels = data.slice();
-  const inspected = inspectMask(pixels, width, height);
+export function prepareCatalogRgba(data: Uint8Array, width: number, height: number): { data: Uint8Array; mask: Uint8Array } | null {
+  const inspected = inspectMask(data, width, height);
   if (!isMaskSane(inspected.fraction) || !inspected.box) return null;
-
   const composed = composeCatalogSquare(
-    { data: pixels, width, height },
+    { data, width, height },
     inspected.box,
   );
   applyJewelryVibrance(composed.data, composed.mask);
+  return composed;
+}
 
-  const encoded = jpeg.encode(
-    { data: Buffer.from(composed.data), width: CATALOG_SQUARE_SIZE, height: CATALOG_SQUARE_SIZE },
-    JPEG_QUALITY,
-  );
-  return new Uint8Array(encoded.data);
+export function encodeCatalogJpegJs(rgba: Uint8Array, width = CATALOG_SQUARE_SIZE, height = CATALOG_SQUARE_SIZE): Uint8Array | null {
+  try {
+    const encoded = jpeg.encode({ data: rgba, width, height }, JPEG_QUALITY);
+    return encoded?.data ? new Uint8Array(encoded.data) : null;
+  } catch {
+    return null;
+  }
+}
+
+const CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n += 1) {
+    let c = n;
+    for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    table[n] = c >>> 0;
+  }
+  return table;
+})();
+
+function crc32(bytes: Uint8Array): number {
+  let crc = 0xffffffff;
+  for (let i = 0; i < bytes.length; i += 1) {
+    crc = CRC_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function adler32(bytes: Uint8Array): number {
+  let a = 1;
+  let b = 0;
+  for (let i = 0; i < bytes.length; i += 1) {
+    a += bytes[i];
+    if (a >= 65521) a -= 65521;
+    b += a;
+    if (b >= 65521) b %= 65521;
+  }
+  return ((b << 16) | a) >>> 0;
+}
+
+function pngChunk(type: string, data: Uint8Array): Uint8Array {
+  const chunk = new Uint8Array(12 + data.length);
+  const view = new DataView(chunk.buffer);
+  view.setUint32(0, data.length);
+  chunk[4] = type.charCodeAt(0);
+  chunk[5] = type.charCodeAt(1);
+  chunk[6] = type.charCodeAt(2);
+  chunk[7] = type.charCodeAt(3);
+  chunk.set(data, 8);
+  const crcInput = chunk.subarray(4, 8 + data.length);
+  view.setUint32(8 + data.length, crc32(crcInput));
+  return chunk;
+}
+
+function zlibStore(raw: Uint8Array): Uint8Array {
+  const max = 65535;
+  const blockCount = Math.max(1, Math.ceil(raw.length / max));
+  const out = new Uint8Array(2 + blockCount * 5 + raw.length + 4);
+  out[0] = 0x78;
+  out[1] = 0x01;
+  let offset = 2;
+  let read = 0;
+  while (read < raw.length || read === 0) {
+    const n = Math.min(max, raw.length - read);
+    const last = read + n >= raw.length;
+    out[offset] = last ? 0x01 : 0x00;
+    out[offset + 1] = n & 0xff;
+    out[offset + 2] = (n >> 8) & 0xff;
+    const nlen = (~n) & 0xffff;
+    out[offset + 3] = nlen & 0xff;
+    out[offset + 4] = (nlen >> 8) & 0xff;
+    offset += 5;
+    if (n) {
+      out.set(raw.subarray(read, read + n), offset);
+      offset += n;
+    }
+    read += n;
+    if (raw.length === 0) break;
+  }
+  const view = new DataView(out.buffer);
+  view.setUint32(offset, adler32(raw));
+  return out.subarray(0, offset + 4);
+}
+
+export function rgbaToPngBytes(data: Uint8Array, width: number, height: number): Uint8Array {
+  const raw = new Uint8Array(height * (1 + width * 4));
+  let src = 0;
+  let dst = 0;
+  const rowBytes = width * 4;
+  for (let y = 0; y < height; y += 1) {
+    raw[dst] = 0;
+    dst += 1;
+    raw.set(data.subarray(src, src + rowBytes), dst);
+    src += rowBytes;
+    dst += rowBytes;
+  }
+
+  const ihdr = new Uint8Array(13);
+  const ihdrView = new DataView(ihdr.buffer);
+  ihdrView.setUint32(0, width);
+  ihdrView.setUint32(4, height);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  const idat = pngChunk('IDAT', zlibStore(raw));
+  const signature = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+  const ihdrChunk = pngChunk('IHDR', ihdr);
+  const iend = pngChunk('IEND', new Uint8Array(0));
+  const png = new Uint8Array(signature.length + ihdrChunk.length + idat.length + iend.length);
+  png.set(signature, 0);
+  png.set(ihdrChunk, signature.length);
+  png.set(idat, signature.length + ihdrChunk.length);
+  png.set(iend, signature.length + ihdrChunk.length + idat.length);
+  return png;
+}
+
+function isJpegBytes(bytes: Uint8Array): boolean {
+  return bytes.length > 2 && bytes[0] === 0xff && bytes[1] === 0xd8;
+}
+
+export async function encodeCatalogJpeg(
+  env: { IMAGES?: any } | null | undefined,
+  rgba: Uint8Array,
+  width = CATALOG_SQUARE_SIZE,
+  height = CATALOG_SQUARE_SIZE,
+): Promise<Uint8Array | null> {
+  if (env?.IMAGES) {
+    try {
+      const png = rgbaToPngBytes(rgba, width, height);
+      const formats = ['jpeg', 'image/jpeg'];
+      for (const format of formats) {
+        const stream = new Response(png).body;
+        if (!stream) continue;
+        const result = await env.IMAGES.input(stream).output({ format, quality: JPEG_QUALITY });
+        const response = await imagesResponse(result);
+        if (!response?.ok) continue;
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        if (isJpegBytes(bytes)) return bytes;
+      }
+    } catch {
+      // Fall through to jpeg-js for tests/mocks; production Images encode should succeed.
+    }
+  }
+  return encodeCatalogJpegJs(rgba, width, height);
+}
+
+export function prepareCatalogJpegFromRgba(data: Uint8Array, width: number, height: number): Uint8Array | null {
+  const composed = prepareCatalogRgba(data, width, height);
+  if (!composed) return null;
+  return encodeCatalogJpegJs(composed.data);
 }
 
 export function prepareCatalogJpegFromPng(pngBytes: Uint8Array): Uint8Array | null {
@@ -462,7 +614,9 @@ export async function prepareCatalogImageBytes(
   try {
     const isolated = await isolateCatalogRgba(env, originalBytes);
     if (!isolated) return null;
-    return prepareCatalogJpegFromRgba(isolated.data, isolated.width, isolated.height);
+    const composed = prepareCatalogRgba(isolated.data, isolated.width, isolated.height);
+    if (!composed) return null;
+    return encodeCatalogJpeg(env, composed.data);
   } catch {
     return null;
   }

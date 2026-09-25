@@ -12,8 +12,10 @@ import {
   opaqueFraction,
   prepareCatalogJpegFromPng,
   prepareCatalogJpegFromRgba,
+  rgbaToPngBytes,
   scaledIsolateSize,
   ISOLATE_MAX_EDGE,
+  JPEG_QUALITY,
 } from '../../worker/catalogImagePrepare';
 
 const makeRgba = (width: number, height: number, fill: [number, number, number, number] = [0, 0, 0, 0]) => {
@@ -84,7 +86,7 @@ describe('catalog bounding box and square compose', () => {
     expect(composed.mask[450 * CATALOG_SQUARE_SIZE + 450]).toBe(1);
   });
 
-  it('drops a subtle studio shadow behind the piece without tinting jewelry or the corners', () => {
+  it('drops a contact shadow under the piece without tinting jewelry or the corners', () => {
     const data = makeRgba(40, 40);
     for (let y = 14; y < 26; y += 1) {
       for (let x = 14; x < 26; x += 1) {
@@ -119,8 +121,8 @@ describe('catalog bounding box and square compose', () => {
     let shadowPixels = 0;
     let darkest = 255;
     const midX = Math.floor((minMaskX + maxMaskX) / 2);
-    for (let y = maxMaskY + 4; y < Math.min(CATALOG_SQUARE_SIZE, maxMaskY + 36); y += 1) {
-      for (let x = midX - 20; x <= midX + 20; x += 1) {
+    for (let y = maxMaskY + 1; y < Math.min(CATALOG_SQUARE_SIZE, maxMaskY + 18); y += 1) {
+      for (let x = midX - 24; x <= midX + 24; x += 1) {
         if (composed.mask[y * CATALOG_SQUARE_SIZE + x]) continue;
         const i = (y * CATALOG_SQUARE_SIZE + x) * 4;
         const value = composed.data[i];
@@ -131,9 +133,9 @@ describe('catalog bounding box and square compose', () => {
         if (value < darkest) darkest = value;
       }
     }
-    expect(shadowPixels).toBeGreaterThan(40);
-    expect(darkest).toBeGreaterThan(195);
-    expect(darkest).toBeLessThan(248);
+    expect(shadowPixels).toBeGreaterThan(20);
+    expect(darkest).toBeGreaterThan(170);
+    expect(darkest).toBeLessThan(250);
   });
 
   it('autozooms a square piece to fill the studio without clipping the shadow', () => {
@@ -245,9 +247,28 @@ describe('PNG to catalog JPEG', () => {
 });
 
 describe('isolate scale-down', () => {
-  it('keeps small sources and fits a 2048px phone photo onto a 960 edge', () => {
+  it('keeps small sources and fits a 2048px phone photo onto an 800 edge', () => {
     expect(scaledIsolateSize(40, 40)).toEqual({ width: 40, height: 40 });
-    expect(ISOLATE_MAX_EDGE).toBe(960);
-    expect(scaledIsolateSize(1536, 2048)).toEqual({ width: 720, height: 960 });
+    expect(ISOLATE_MAX_EDGE).toBe(800);
+    expect(scaledIsolateSize(1536, 2048)).toEqual({ width: 600, height: 800 });
+  });
+});
+
+describe('catalog jpeg encode helpers', () => {
+  it('writes JPEG quality 82 and a PNG Images can consume', () => {
+    expect(JPEG_QUALITY).toBe(82);
+    const width = 8;
+    const height = 8;
+    const data = makeRgba(width, height, [240, 240, 240, 255]);
+    setPixel(data, width, 3, 3, [20, 30, 40, 255]);
+    const png = rgbaToPngBytes(data, width, height);
+    const decoded = PNG.sync.read(Buffer.from(png));
+    expect(decoded.width).toBe(width);
+    expect(decoded.height).toBe(height);
+    expect(decoded.data[0]).toBe(240);
+    const pixel = ((3 * width + 3) * 4);
+    expect(decoded.data[pixel]).toBe(20);
+    expect(decoded.data[pixel + 1]).toBe(30);
+    expect(decoded.data[pixel + 2]).toBe(40);
   });
 });
