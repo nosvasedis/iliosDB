@@ -3,7 +3,11 @@
   "name": "ilios-image-handler",
   "main": "worker/worker.js",
   "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
+  "images": {
+    "binding": "IMAGES"
+  },
   "r2_buckets": [
     {
       "binding": "R2_BUCKET",

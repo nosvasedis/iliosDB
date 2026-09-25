@@ -5,11 +5,12 @@
  */
 
 import { handleSbzRoute } from './sbz.ts';
+import { CATALOG_PREPARE_HEADER, prepareCatalogImageBytes } from './catalogImagePrepare.ts';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': `Content-Type, Authorization, ${CATALOG_PREPARE_HEADER}`,
   'Access-Control-Max-Age': '86400',
 };
 
@@ -1680,9 +1681,19 @@ export default {
       }
 
       if (request.method === 'POST') {
-        await env.R2_BUCKET.put(key, request.body, {
+        const originalBytes = new Uint8Array(await request.arrayBuffer());
+        let storedBytes = originalBytes;
+        let contentType = request.headers.get('Content-Type') || 'image/jpeg';
+        if (request.headers.get(CATALOG_PREPARE_HEADER) === '1') {
+          const prepared = await prepareCatalogImageBytes(env, originalBytes);
+          if (prepared) {
+            storedBytes = prepared;
+            contentType = 'image/jpeg';
+          }
+        }
+        await env.R2_BUCKET.put(key, storedBytes, {
           httpMetadata: {
-            contentType: request.headers.get('Content-Type') || 'image/jpeg',
+            contentType,
             cacheControl: 'public, max-age=31536000',
           },
         });

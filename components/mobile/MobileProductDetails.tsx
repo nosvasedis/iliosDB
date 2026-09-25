@@ -3,7 +3,7 @@ import { Product, ProductVariant, Warehouse, Gender, PlatingType, MaterialType, 
 import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy, ArrowRightLeft, PlusCircle, Settings2, ArrowRight, Save, Hammer, Box, Flame, Gem, Coins, ChevronDown, ChevronUp, Palette, Info, Package, Download, Loader2, Sparkles, Layers, Ruler, Camera } from 'lucide-react';
 import { formatCurrency, getVariantComponents, transliterateForBarcode } from '../../utils/pricingEngine';
 import { SYSTEM_IDS, CLOUDFLARE_WORKER_URL, supabase, api, R2_PUBLIC_URL, AUTH_KEY_SECRET, uploadProductImage } from '../../lib/supabase';
-import { ACCEPTED_IMAGE_INPUT_TYPES, compressImage } from '../../utils/imageHelpers';
+import { ACCEPTED_IMAGE_INPUT_TYPES, prepareUploadSource } from '../../utils/imageHelpers';
 import { productsRepository } from '../../features/products/repository';
 import BarcodeView from '../BarcodeView';
 import { useUI } from '../UIProvider';
@@ -217,7 +217,7 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
           const file = e.target.files[0];
           setIsUploadingImage(true);
           try {
-              const compressedBlob = await compressImage(file);
+              const compressedBlob = await prepareUploadSource(file);
               const publicUrl = await uploadProductImage(compressedBlob, product.sku);
               if (publicUrl) {
                   setLocalImageUrl(publicUrl);
@@ -407,11 +407,11 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
 
   return (
     <div className="fixed inset-0 z-[100] bg-slate-50 flex flex-col animate-in slide-in-from-bottom-full duration-300 overflow-hidden">
-      <div className="relative h-72 bg-slate-200 shrink-0 group">
+      <div className="relative h-72 bg-white shrink-0 group">
         {localImageUrl ? (
-            <img src={localImageUrl} className="w-full h-full object-cover cursor-pointer" alt={product.sku} onClick={() => setShowFullImage(true)}/>
+            <img src={localImageUrl} className="w-full h-full object-contain cursor-pointer" alt={product.sku} onClick={() => setShowFullImage(true)}/>
         ) : (
-            <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold bg-slate-100"><ImageIcon size={48} className="opacity-20"/></div>
+            <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold bg-slate-50"><ImageIcon size={48} className="opacity-20"/></div>
         )}
         <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start bg-gradient-to-b from-black/40 to-transparent">
             <button onClick={onClose} className="p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/30 transition-colors shadow-lg active:scale-95"><X size={20}/></button>

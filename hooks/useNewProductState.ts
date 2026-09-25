@@ -3,7 +3,7 @@ import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, ProductV
 import { parseSku, calculateProductCost, analyzeSku, estimateVariantCost } from '../utils/pricingEngine';
 import { DEFAULT_PLATING_RATE, computeAutoLaborCosts, getPlatingDWeightBasis } from '../utils/laborFormula';
 import { shouldUseSplitTechnicianCost } from '../utils/pricingEngine';
-import { compressImage, createImagePreviewUrl } from '../utils/imageHelpers';
+import { prepareUploadSource } from '../utils/imageHelpers';
 import { getSteps } from '../components/ProductRegistry/constants';
 import { useQueryClient } from '@tanstack/react-query';
 import { refreshErpProducts } from '../features/erpCatalog';
@@ -323,9 +323,11 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
     const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
-            setSelectedImage(file);
             try {
-                const previewUrl = await createImagePreviewUrl(file);
+                const prepared = await prepareUploadSource(file);
+                const jpegFile = new File([prepared], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' });
+                setSelectedImage(jpegFile);
+                const previewUrl = URL.createObjectURL(jpegFile);
                 setImagePreview(prev => {
                     if (prev.startsWith('blob:')) URL.revokeObjectURL(prev);
                     return previewUrl;
@@ -586,7 +588,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
                 }
             } catch (e) { console.warn("Could not check existing stock, assuming 0/0"); }
             if (selectedImage) {
-                try { const compressedBlob = await compressImage(selectedImage); finalImageUrl = await uploadProductImageForSku(compressedBlob, finalMasterSku); } catch (imgErr) { console.warn("Image upload skipped (offline?)"); showToast("Η εικόνα δεν ανέβηκε λόγω σύνδεσης.", "info"); }
+                try { const compressedBlob = selectedImage; finalImageUrl = await uploadProductImageForSku(compressedBlob, finalMasterSku); } catch (imgErr) { console.warn("Image upload skipped (offline?)"); showToast("Η εικόνα δεν ανέβηκε λόγω σύνδεσης.", "info"); }
             }
             const productData = { sku: finalMasterSku, prefix: finalMasterSku.substring(0, 2), category, description: isSTX ? stxDescription : null, gender, image_url: finalImageUrl, weight_g: Number(weight) || 0, secondary_weight_g: Number(secondaryWeight) || null, invoice_total_weight_g: invoiceTotalWeight && invoiceTotalWeight > 0 ? invoiceTotalWeight : null, plating_type: plating, active_price: masterEstimatedCost, draft_price: masterEstimatedCost, selling_price: finalSellingPrice, selling_price_manual_override: !isSTX && !useIliosFormula, stock_qty: existingStockQty, sample_qty: existingSampleQty, is_component: isSTX, skip_casting: isAssembly, labor_casting: Number(labor.casting_cost), labor_setter: Number(labor.setter_cost), labor_technician: Number(labor.technician_cost), labor_plating_x: Number(labor.plating_cost_x || 0), labor_plating_d: Number(labor.plating_cost_d || 0), labor_subcontract: Number(labor.subcontract_cost || 0), labor_casting_manual_override: labor.casting_cost_manual_override, labor_technician_manual_override: labor.technician_cost_manual_override, labor_plating_x_manual_override: labor.plating_cost_x_manual_override, labor_plating_d_manual_override: labor.plating_cost_d_manual_override, production_type: productionType, supplier_id: (productionType === ProductionType.Imported && supplierId) ? supplierId : null, supplier_sku: productionType === ProductionType.Imported ? supplierSku : null, supplier_cost: productionType === ProductionType.Imported ? supplierCost : null, labor_stone_setting: productionType === ProductionType.Imported ? labor.stone_setting_cost : null };
             const { anyPartQueued } = await saveProductGraph({

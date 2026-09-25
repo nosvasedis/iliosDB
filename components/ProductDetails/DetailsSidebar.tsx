@@ -28,7 +28,7 @@ export default function DetailsSidebar({
 }) {
     return (
         <div className="space-y-4 lg:sticky lg:top-0">
-            <div className="group relative rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="group relative rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
                 <div className="relative aspect-square overflow-hidden rounded-xl bg-slate-50">
                     {imageUrl ? (
                         <img src={imageUrl} className="h-full w-full object-contain" alt={sku} />

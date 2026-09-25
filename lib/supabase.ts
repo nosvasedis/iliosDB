@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, OrderItem, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, BatchStageHistoryEntry, SyncOfflineResult, LegalSettings, LegalNumberingSequence, LegalNumberingAlignmentPreview, LegalNumberingAlignmentResult, LegalCarrier, LegalDocument, LegalDocumentLine, LegalTransmission, LegalDeliveryEvent, AadeProxyResult, AadeCredentialStatus, AadeCredentialSavePayload, AadeRegistryCredentialSavePayload, AadeVatRegistryResult, PublicVatLookupResult, LegalRegistryConnectionStatus, ProformaDocument, ProformaDocumentLine, LegalSyncParams, LegalSyncRun, AadeDocumentType, LegalExternalItemAlias, LegalOrderLinkMode, LegalOrderLineAllocation } from '../types';
 import { INITIAL_SETTINGS, MOCK_MATERIALS, requiresAssemblyStage, requiresSettingStage } from '../constants';
 import { getVariantComponents } from '../utils/pricingEngine';
+import { CATALOG_IMAGE_PREPARE_HEADER, compressImage } from '../utils/imageHelpers';
 import { offlineDb } from './offlineDb';
 import {
     BACKUP_TABLE_REGISTRY,
@@ -1118,6 +1119,7 @@ export const uploadProductImage = async (file: Blob, sku: string): Promise<strin
     }
 
     if (useLocal) {
+        const compact = await compressImage(file);
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onloadend = () => {
@@ -1128,7 +1130,7 @@ export const uploadProductImage = async (file: Blob, sku: string): Promise<strin
                 }
             };
             reader.onerror = reject;
-            reader.readAsDataURL(file);
+            reader.readAsDataURL(compact);
         });
     }
 
@@ -1139,7 +1141,7 @@ export const uploadProductImage = async (file: Blob, sku: string): Promise<strin
     const response = await fetch(uploadUrl, {
         method: 'POST',
         mode: 'cors',
-        headers: { 'Content-Type': 'image/jpeg', 'Authorization': AUTH_KEY_SECRET },
+        headers: { 'Content-Type': 'image/jpeg', 'Authorization': AUTH_KEY_SECRET, [CATALOG_IMAGE_PREPARE_HEADER]: '1' },
         body: file,
     });
     if (!response.ok) throw new Error(`Status ${response.status}`);
