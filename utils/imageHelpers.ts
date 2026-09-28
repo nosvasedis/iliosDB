@@ -13,9 +13,6 @@ export class CatalogPrepareFailedError extends Error {
   }
 }
 
-export const isCatalogPrepareFailureStatus = (status: number): boolean =>
-  status === CATALOG_PREPARE_FAILED_STATUS || status === 1102 || status >= 500;
-
 const MAX_IMAGE_SIZE = 900;
 const MAX_CATALOG_UPLOAD_EDGE = 2048;
 const JPEG_QUALITY = 0.74;

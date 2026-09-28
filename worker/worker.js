@@ -9,8 +9,8 @@ import {
   CATALOG_PREPARE_FAILED_ERROR,
   CATALOG_PREPARE_FAILED_STATUS,
   CATALOG_PREPARE_HEADER,
-  prepareCatalogImageBytes,
-} from './catalogImagePrepare.ts';
+  segmentCatalogImage,
+} from './catalogSegment.ts';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -1686,27 +1686,21 @@ export default {
       }
 
       if (request.method === 'POST') {
-        const originalBytes = new Uint8Array(await request.arrayBuffer());
-        let storedBytes = originalBytes;
-        let contentType = request.headers.get('Content-Type') || 'image/jpeg';
         if (request.headers.get(CATALOG_PREPARE_HEADER) === '1') {
-          try {
-            const prepared = await prepareCatalogImageBytes(env, originalBytes);
-            if (prepared) {
-              storedBytes = prepared;
-              contentType = 'image/jpeg';
-            } else {
-              console.warn('catalog-prepare skipped; nothing stored', key, originalBytes.length);
-              return jsonResponse({ error: CATALOG_PREPARE_FAILED_ERROR }, CATALOG_PREPARE_FAILED_STATUS, CORS_HEADERS);
-            }
-          } catch (err) {
-            console.warn('catalog-prepare threw; nothing stored', key, err?.message || err);
+          const segmented = await segmentCatalogImage(env, request.body);
+          if (!segmented) {
+            console.warn('catalog-segment failed; nothing stored', key);
             return jsonResponse({ error: CATALOG_PREPARE_FAILED_ERROR }, CATALOG_PREPARE_FAILED_STATUS, CORS_HEADERS);
           }
+          return new Response(segmented.body, {
+            status: 200,
+            headers: { ...CORS_HEADERS, 'Content-Type': 'image/png' },
+          });
         }
-        await env.R2_BUCKET.put(key, storedBytes, {
+        const originalBytes = new Uint8Array(await request.arrayBuffer());
+        await env.R2_BUCKET.put(key, originalBytes, {
           httpMetadata: {
-            contentType,
+            contentType: request.headers.get('Content-Type') || 'image/jpeg',
             cacheControl: 'public, max-age=31536000',
           },
         });

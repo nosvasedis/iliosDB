@@ -1,4 +1,4 @@
-import { CatalogPrepareFailedError } from './imageHelpers';
+import { CATALOG_PREPARE_FAILED_STATUS, CatalogPrepareFailedError } from './imageHelpers';
 
 export type CatalogPrepareChoice = 'keep-original' | 'retry' | 'discard';
 
@@ -40,9 +40,15 @@ export async function uploadCatalogPhotoWithChoice(
   sku: string,
   confirm: ConfirmFn,
 ): Promise<string | null> {
-  const { uploadProductImage } = await import('../lib/supabase');
-  return runCatalogPhotoUpload(
-    (prepare) => uploadProductImage(file, sku, { prepare }),
-    confirm,
-  );
+  const { segmentProductImage, shouldStoreImageLocally, uploadProductImage } = await import('../lib/supabase');
+  const { composeCatalogJpegFromPng } = await import('./catalogComposeBrowser');
+  return runCatalogPhotoUpload(async (prepare) => {
+    if (!prepare || await shouldStoreImageLocally()) {
+      return uploadProductImage(file, sku);
+    }
+    const isolatedPng = await segmentProductImage(file, sku);
+    const composed = await composeCatalogJpegFromPng(isolatedPng);
+    if (!composed) throw new CatalogPrepareFailedError(CATALOG_PREPARE_FAILED_STATUS);
+    return uploadProductImage(composed, sku);
+  }, confirm);
 }

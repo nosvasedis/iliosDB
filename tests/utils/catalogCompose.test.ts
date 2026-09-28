@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PNG } from 'pngjs';
-import jpeg from 'jpeg-js';
 import {
-  ALPHA_FLOOR,
   CATALOG_SQUARE_SIZE,
   applyAlphaFloor,
   applyJewelryVibrance,
@@ -10,13 +7,8 @@ import {
   composeCatalogSquare,
   isMaskSane,
   opaqueFraction,
-  prepareCatalogJpegFromPng,
-  prepareCatalogJpegFromRgba,
-  rgbaToPngBytes,
-  scaledIsolateSize,
-  ISOLATE_MAX_EDGE,
-  JPEG_QUALITY,
-} from '../../worker/catalogImagePrepare';
+  prepareCatalogRgba,
+} from '../../utils/catalogCompose';
 
 const makeRgba = (width: number, height: number, fill: [number, number, number, number] = [0, 0, 0, 0]) => {
   const data = new Uint8Array(width * height * 4);
@@ -171,6 +163,26 @@ describe('catalog bounding box and square compose', () => {
   });
 });
 
+describe('catalog prepare pipeline', () => {
+  it('returns null for an empty mask', () => {
+    const data = makeRgba(24, 24);
+    expect(prepareCatalogRgba(data, 24, 24)).toBeNull();
+  });
+
+  it('returns a composed 900px square when the jewelry mask is sane', () => {
+    const data = makeRgba(48, 48);
+    for (let y = 16; y < 32; y += 1) {
+      for (let x = 16; x < 32; x += 1) {
+        setPixel(data, 48, x, y, [150, 120, 70, 255]);
+      }
+    }
+    const composed = prepareCatalogRgba(data, 48, 48);
+    expect(composed).toBeTruthy();
+    expect(composed!.data.length).toBe(CATALOG_SQUARE_SIZE * CATALOG_SQUARE_SIZE * 4);
+    expect(composed!.data[3]).toBe(255);
+  });
+});
+
 describe('jewelry vibrance', () => {
   it('leaves already-rich colors and specular highlights alone', () => {
     const rich = new Uint8Array([255, 0, 0, 255]);
@@ -192,83 +204,5 @@ describe('jewelry vibrance', () => {
     applyJewelryVibrance(muted, new Uint8Array([1, 0]));
     expect(chroma(muted[0], muted[1], muted[2])).toBeGreaterThan(before);
     expect(Array.from(muted.slice(4, 7))).toEqual([255, 255, 255]);
-  });
-});
-
-describe('PNG to catalog JPEG', () => {
-  const encodePng = (width: number, height: number, paint: (data: Uint8Array) => void) => {
-    const png = new PNG({ width, height });
-    paint(png.data);
-    return Uint8Array.from(PNG.sync.write(png));
-  };
-
-  it('returns null for an empty mask', () => {
-    const png = encodePng(24, 24, (data) => data.fill(0));
-    expect(prepareCatalogJpegFromPng(png)).toBeNull();
-  });
-
-  it('returns a 900px JPEG when the jewelry mask is sane', () => {
-    const png = encodePng(48, 48, (data) => {
-      data.fill(0);
-      for (let y = 16; y < 32; y += 1) {
-        for (let x = 16; x < 32; x += 1) {
-          const i = (y * 48 + x) * 4;
-          data[i] = 150;
-          data[i + 1] = 120;
-          data[i + 2] = 70;
-          data[i + 3] = 255;
-        }
-      }
-    });
-    const jpegBytes = prepareCatalogJpegFromPng(png);
-    expect(jpegBytes).toBeTruthy();
-    expect(jpegBytes![0]).toBe(0xff);
-    expect(jpegBytes![1]).toBe(0xd8);
-    const decoded = jpeg.decode(Buffer.from(jpegBytes!), { useTArray: true });
-    expect(decoded.width).toBe(CATALOG_SQUARE_SIZE);
-    expect(decoded.height).toBe(CATALOG_SQUARE_SIZE);
-  });
-
-  it('builds the catalog JPEG from raw RGBA so Workers do not need pngjs inflate', () => {
-    const width = 48;
-    const height = 48;
-    const data = makeRgba(width, height);
-    for (let y = 16; y < 32; y += 1) {
-      for (let x = 16; x < 32; x += 1) {
-        setPixel(data, width, x, y, [150, 120, 70, 255]);
-      }
-    }
-    const jpegBytes = prepareCatalogJpegFromRgba(data, width, height);
-    expect(jpegBytes).toBeTruthy();
-    const decoded = jpeg.decode(Buffer.from(jpegBytes!), { useTArray: true });
-    expect(decoded.width).toBe(CATALOG_SQUARE_SIZE);
-    expect(decoded.height).toBe(CATALOG_SQUARE_SIZE);
-  });
-});
-
-describe('isolate scale-down', () => {
-  it('keeps small sources and fits a 2048px phone photo onto an 800 edge', () => {
-    expect(scaledIsolateSize(40, 40)).toEqual({ width: 40, height: 40 });
-    expect(ISOLATE_MAX_EDGE).toBe(800);
-    expect(scaledIsolateSize(1536, 2048)).toEqual({ width: 600, height: 800 });
-  });
-});
-
-describe('catalog jpeg encode helpers', () => {
-  it('writes JPEG quality 82 and a PNG Images can consume', () => {
-    expect(JPEG_QUALITY).toBe(82);
-    const width = 8;
-    const height = 8;
-    const data = makeRgba(width, height, [240, 240, 240, 255]);
-    setPixel(data, width, 3, 3, [20, 30, 40, 255]);
-    const png = rgbaToPngBytes(data, width, height);
-    const decoded = PNG.sync.read(Buffer.from(png));
-    expect(decoded.width).toBe(width);
-    expect(decoded.height).toBe(height);
-    expect(decoded.data[0]).toBe(240);
-    const pixel = ((3 * width + 3) * 4);
-    expect(decoded.data[pixel]).toBe(20);
-    expect(decoded.data[pixel + 1]).toBe(30);
-    expect(decoded.data[pixel + 2]).toBe(40);
   });
 });

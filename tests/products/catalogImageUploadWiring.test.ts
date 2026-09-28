@@ -8,7 +8,8 @@ describe('catalog photo upload wiring', () => {
   it('sends the prepare header only on catalog image uploads', () => {
     const supabase = source('lib/supabase.ts');
     expect(supabase).toContain('CATALOG_IMAGE_PREPARE_HEADER');
-    expect(supabase).toContain("if (prepare) headers[CATALOG_IMAGE_PREPARE_HEADER] = '1'");
+    expect(supabase).toContain("[CATALOG_IMAGE_PREPARE_HEADER]: '1'");
+    expect(supabase).toContain('segmentProductImage');
 
     const settings = source('components/SettingsPage.tsx');
     expect(settings).toContain('compressImage');
@@ -41,6 +42,17 @@ describe('catalog photo upload wiring', () => {
     expect(helper).toContain("choice === 'keep-original'");
     expect(worker).toContain('nothing stored');
     expect(worker).toContain('CATALOG_PREPARE_FAILED_STATUS');
+  });
+
+  it('keeps the pixel compose on the client and the Worker as a segment-only proxy', () => {
+    const helper = source('utils/catalogPhotoUpload.ts');
+    const segment = source('worker/catalogSegment.ts');
+    const compose = source('utils/catalogCompose.ts');
+    expect(segment).toContain("segment: 'foreground'");
+    expect(segment).not.toContain('pngjs');
+    expect(compose).toContain('prepareCatalogRgba');
+    expect(helper).toContain('segmentProductImage');
+    expect(helper).toContain('composeCatalogJpegFromPng');
   });
 
   it('keeps the SKU photo contained and the mobile hero from cropping the square', () => {
