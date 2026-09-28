@@ -36,12 +36,13 @@ describe('catalog photo upload wiring', () => {
   it('asks before saving the original when catalog prepare fails', () => {
     const helper = source('utils/catalogPhotoUpload.ts');
     const worker = source('worker/worker.js');
+    const segment = source('worker/catalogSegment.ts');
     expect(helper).toContain('Κρατήστε την αρχική');
     expect(helper).toContain('Δοκιμή ξανά');
     expect(helper).toContain("cancelText: 'Όχι'");
     expect(helper).toContain("choice === 'keep-original'");
-    expect(worker).toContain('nothing stored');
     expect(worker).toContain('CATALOG_PREPARE_FAILED_STATUS');
+    expect(segment).toContain('catalog-segment failed');
   });
 
   it('keeps the pixel compose on the client and the Worker as a segment-only proxy', () => {

@@ -73,6 +73,9 @@ output/
 design-qa.md
 SBZ_MIGRATION.md
 
+# Command Code taste preferences (local, auto-managed)
+.commandcode/taste/
+
 # Local git worktrees
 .worktrees/
 

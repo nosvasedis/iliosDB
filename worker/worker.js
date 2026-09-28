@@ -1687,9 +1687,9 @@ export default {
 
       if (request.method === 'POST') {
         if (request.headers.get(CATALOG_PREPARE_HEADER) === '1') {
-          const segmented = await segmentCatalogImage(env, request.body);
+          const originalBytes = new Uint8Array(await request.arrayBuffer());
+          const segmented = await segmentCatalogImage(env, originalBytes);
           if (!segmented) {
-            console.warn('catalog-segment failed; nothing stored', key);
             return jsonResponse({ error: CATALOG_PREPARE_FAILED_ERROR }, CATALOG_PREPARE_FAILED_STATUS, CORS_HEADERS);
           }
           return new Response(segmented.body, {
