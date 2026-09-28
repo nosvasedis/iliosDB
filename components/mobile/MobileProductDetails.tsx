@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Product, ProductVariant, Warehouse, Gender, PlatingType, MaterialType, RecipeItem } from '../../types';
-import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy, ArrowRightLeft, PlusCircle, Settings2, ArrowRight, Save, Hammer, Box, Flame, Gem, Coins, ChevronDown, ChevronUp, Palette, Info, Package, Download, Loader2, Sparkles, Layers, Ruler, Camera } from 'lucide-react';
+import { X, MapPin, Weight, DollarSign, Globe, QrCode, Share2, Scan, ChevronLeft, ChevronRight, Maximize2, Tag, Image as ImageIcon, Copy, ArrowRightLeft, PlusCircle, Settings2, ArrowRight, Save, Hammer, Box, Flame, Gem, Coins, ChevronDown, ChevronUp, Palette, Info, Package, Download, Loader2, Sparkles, Layers, Ruler, Camera, Trash2 } from 'lucide-react';
 import { formatCurrency, getVariantComponents, transliterateForBarcode } from '../../utils/pricingEngine';
 import { SYSTEM_IDS, CLOUDFLARE_WORKER_URL, supabase, api, R2_PUBLIC_URL, AUTH_KEY_SECRET } from '../../lib/supabase';
 import { uploadCatalogPhotoWithChoice } from '../../utils/catalogPhotoUpload';
@@ -94,8 +94,11 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
   const [stockMutationPending, setStockMutationPending] = useState(false);
   
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isDeletingImage, setIsDeletingImage] = useState(false);
+  const [showImageMenu, setShowImageMenu] = useState(false);
   const [localImageUrl, setLocalImageUrl] = useState<string | null>(product.image_url);
 
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
@@ -234,6 +237,42 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
               // Reset the input so the same file can be re-selected if needed
               e.target.value = '';
           }
+      }
+  };
+
+  const handleDeleteImage = async () => {
+      if (!localImageUrl) return;
+
+      const confirmed = await confirm({
+          title: 'Διαγραφή Φωτογραφίας',
+          message: 'Είστε σίγουροι ότι θέλετε να διαγράψετε τη φωτογραφία; Η εικόνα θα διαγραφεί και από τον αποθηκευτικό χώρο.',
+          confirmText: 'Διαγραφή',
+          isDestructive: true
+      });
+      if (!confirmed) return;
+
+      setIsDeletingImage(true);
+      try {
+          const urlParts = localImageUrl.split('/');
+          const fileName = urlParts[urlParts.length - 1];
+          const response = await fetch(`${CLOUDFLARE_WORKER_URL}/${fileName}`, {
+              method: 'DELETE',
+              headers: { 'Authorization': AUTH_KEY_SECRET }
+          });
+          if (!response.ok) {
+              throw new Error(`Failed to delete image: ${response.status}`);
+          }
+
+          setLocalImageUrl(null);
+          await productsRepository.saveProduct({ ...product, image_url: null });
+          await refreshErpProducts(queryClient, [product.sku]);
+          showToast("Η φωτογραφία διαγράφηκε επιτυχώς.", "success");
+          setShowImageMenu(false);
+      } catch (error) {
+          console.error('Error deleting image:', error);
+          showToast("Σφάλμα κατά τη διαγραφή της φωτογραφίας.", "error");
+      } finally {
+          setIsDeletingImage(false);
       }
   };
 
@@ -421,13 +460,22 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
             </div>
         </div>
         {/* Camera / Upload button — always visible on mobile (no hover) */}
-        <label className={`absolute bottom-4 right-4 z-10 flex items-center gap-2 px-3 py-2 rounded-xl shadow-lg cursor-pointer active:scale-95 transition-transform select-none ${isUploadingImage ? 'bg-white/60 text-slate-400' : 'bg-white/90 backdrop-blur-md text-slate-800'}`}>
+        <button
+            type="button"
+            onClick={() => {
+                if (isUploadingImage) return;
+                if (localImageUrl) setShowImageMenu(true);
+                else imageInputRef.current?.click();
+            }}
+            disabled={isUploadingImage}
+            className={`absolute bottom-4 right-4 z-10 flex items-center gap-2 px-3 py-2 rounded-xl shadow-lg active:scale-95 transition-transform select-none ${isUploadingImage ? 'bg-white/60 text-slate-400' : 'bg-white/90 backdrop-blur-md text-slate-800'}`}
+        >
             {isUploadingImage
                 ? <><Loader2 size={16} className="animate-spin"/> <span className="text-xs font-bold">Μεταφόρτωση...</span></>
                 : <><Camera size={16}/> <span className="text-xs font-bold">{localImageUrl ? 'Αλλαγή' : 'Προσθήκη'} Φωτο</span></>
             }
-            <input type="file" accept={ACCEPTED_IMAGE_INPUT_TYPES} className="hidden" onChange={handleImageUpdate} disabled={isUploadingImage} />
-        </label>
+        </button>
+        <input ref={imageInputRef} type="file" accept={ACCEPTED_IMAGE_INPUT_TYPES} className="hidden" onChange={handleImageUpdate} disabled={isUploadingImage} />
         <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-slate-900/90 via-slate-900/50 to-transparent pt-12">
             <div className="flex justify-between items-end">
                 <div>
@@ -642,6 +690,39 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
           <div className="fixed inset-0 z-[120] bg-black flex items-center justify-center p-0 animate-in fade-in duration-200" onClick={() => setShowFullImage(false)}>
               <img src={product.image_url} className="max-w-full max-h-full object-contain" alt="Full" />
               <button className="absolute top-4 right-4 text-white p-2 bg-white/20 rounded-full"><X size={24}/></button>
+          </div>
+      )}
+
+      {showImageMenu && localImageUrl && (
+          <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-sm flex items-end justify-center animate-in fade-in duration-200" onClick={() => { if (!isDeletingImage) setShowImageMenu(false); }}>
+              <div className="bg-white w-full max-w-sm rounded-t-3xl p-5 pb-7 shadow-2xl space-y-2 animate-in slide-in-from-bottom duration-200" onClick={(e) => e.stopPropagation()}>
+                  <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-3" />
+                  <h3 className="font-black text-base text-slate-800 px-1 pb-1">Φωτογραφία προϊόντος</h3>
+                  <button
+                      type="button"
+                      onClick={() => { setShowImageMenu(false); imageInputRef.current?.click(); }}
+                      disabled={isDeletingImage}
+                      className="w-full flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 font-bold text-slate-700 active:scale-[0.98] transition-transform disabled:opacity-50"
+                  >
+                      <Camera size={20} className="text-slate-500"/> Αλλαγή / Νέα φωτογραφία
+                  </button>
+                  <button
+                      type="button"
+                      onClick={handleDeleteImage}
+                      disabled={isDeletingImage}
+                      className="w-full flex items-center gap-3 p-3 rounded-xl bg-rose-50 border border-rose-100 font-bold text-rose-700 active:scale-[0.98] transition-transform disabled:opacity-50"
+                  >
+                      {isDeletingImage ? <Loader2 size={20} className="animate-spin"/> : <Trash2 size={20}/>} Διαγραφή φωτογραφίας
+                  </button>
+                  <button
+                      type="button"
+                      onClick={() => setShowImageMenu(false)}
+                      disabled={isDeletingImage}
+                      className="w-full p-3 rounded-xl font-bold text-slate-500 active:scale-[0.98] transition-transform disabled:opacity-50"
+                  >
+                      Άκυρο
+                  </button>
+              </div>
           </div>
       )}
 
