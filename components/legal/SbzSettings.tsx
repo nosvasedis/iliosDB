@@ -9,6 +9,19 @@ export const sbzStatusKey = ['legal_sbz_status'];
 export function useSbzStatus() { return useQuery({queryKey:sbzStatusKey,queryFn:()=>api.callSbz('/sbz/status'),retry:false}); }
 
 const environmentLabel = (environment: LegalEnvironment) => environment === 'dev' ? 'Δοκιμές' : 'Παραγωγή';
+type ActivationCheckKey = 'sbz_approved' | 'numbering_reviewed' | 'backup_completed' | 'delivery_confirmed';
+const activationChecklist: { key: ActivationCheckKey; label: string }[] = [
+  { key: 'sbz_approved', label: 'Η SBZ έχει εγκρίνει τη χρήση του περιβάλλοντος παραγωγής.' },
+  { key: 'numbering_reviewed', label: 'Έχω ελέγξει τις σειρές και την επόμενη αρίθμηση των πραγματικών παραστατικών.' },
+  { key: 'backup_completed', label: 'Έχει ληφθεί πρόσφατο αντίγραφο ασφαλείας.' },
+  { key: 'delivery_confirmed', label: 'Έχω επιβεβαιώσει τη ροή παραστατικών και δελτίων αποστολής.' },
+];
+const emptyActivationChecks = (): Record<ActivationCheckKey, boolean> => ({
+  sbz_approved: false,
+  numbering_reviewed: false,
+  backup_completed: false,
+  delivery_confirmed: false,
+});
 
 export default function SbzSettings({ environment, onEnvironmentChange }: {
   environment: LegalEnvironment;
@@ -19,6 +32,8 @@ export default function SbzSettings({ environment, onEnvironmentChange }: {
   const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [activationChecks, setActivationChecks] = useState(emptyActivationChecks);
+  const activationConfirmed = activationChecklist.every((item) => activationChecks[item.key]);
   useEffect(() => { setKey(''); setMessage(''); }, [environment]);
   const run = async (fn: () => Promise<unknown>, success: string) => {
     setBusy(true);
@@ -118,6 +133,47 @@ export default function SbzSettings({ environment, onEnvironmentChange }: {
             Έλεγχος σύνδεσης
           </button>
         </div>
+
+        {status?.prod?.configured && !status?.productionEnabled && (
+          <details className="rounded-xl border border-slate-200 bg-slate-50/70">
+            <summary className="cursor-pointer list-none px-4 py-3 text-sm font-black text-slate-700 marker:hidden">
+              Εφάπαξ ενεργοποίηση πραγματικών παραστατικών
+            </summary>
+            <div className="space-y-4 border-t border-slate-200 px-4 py-4">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-medium leading-5 text-amber-950">
+                Αυτή η ενότητα εμφανίζεται μόνο μέχρι να ενεργοποιηθεί η παραγωγή. Πριν συνεχίσετε, πρέπει να έχει ολοκληρωθεί τουλάχιστον μία επιτυχής έκδοση στο δοκιμαστικό περιβάλλον και να μην υπάρχουν παλιά παραστατικά με άγνωστο περιβάλλον.
+              </div>
+
+              <div className="space-y-2">
+                {activationChecklist.map((item) => (
+                  <label key={item.key} className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 text-sm font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={activationChecks[item.key]}
+                      disabled={busy}
+                      onChange={(event) => setActivationChecks((current) => ({ ...current, [item.key]: event.target.checked }))}
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <span>{item.label}</span>
+                  </label>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                disabled={busy || !activationConfirmed}
+                onClick={() => void run(async () => {
+                  await api.callSbz('/sbz/activate', { enabled: true, checks: activationChecks });
+                  setActivationChecks(emptyActivationChecks());
+                }, 'Η παραγωγή SBZ ενεργοποιήθηκε. Τα πραγματικά παραστατικά είναι πλέον διαθέσιμα για έκδοση.')}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm font-black text-white transition hover:bg-rose-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                {busy ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
+                Ενεργοποίηση πραγματικών παραστατικών
+              </button>
+            </div>
+          </details>
+        )}
 
         {status?.unresolved?.length > 0 && (
           <details className="rounded-xl border border-amber-200 bg-amber-50 p-4">
