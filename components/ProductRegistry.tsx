@@ -234,9 +234,6 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     const [tablePage, setTablePage] = useState(0);
     const TABLE_PAGE_SIZE = 50;
 
-    // Reset page when filters change
-    useEffect(() => { setTablePage(0); }, [filteredProducts, viewMode]);
-
     const allTableVariants = useMemo(() => {
         if (viewMode !== 'table') return [];
         return filteredProducts.flatMap((product) => {
@@ -268,8 +265,13 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     const [gridPage, setGridPage] = useState(0);
     const GRID_PAGE_SIZE = 60;
 
-    // Reset pages when filters change
-    useEffect(() => { setTablePage(0); setGridPage(0); }, [filteredProducts, viewMode]);
+    // Reset pages only when the actual filter/sort/view inputs change. Keying this on
+    // `filteredProducts` would also reset on every realtime cache rebuild of the products
+    // array (which happens even for a photo-only update), bouncing the user to page 1.
+    useEffect(() => {
+        setTablePage(0);
+        setGridPage(0);
+    }, [deferredSearchTerm, filterCategory, filterGender, subFilters, sortBy, showStxOnly, viewMode]);
 
     const pagedProducts = useMemo(() => {
         const start = gridPage * GRID_PAGE_SIZE;
@@ -278,6 +280,11 @@ export default function ProductRegistry({ setPrintItems }: Props) {
 
     const totalGridPages = Math.ceil(filteredProducts.length / GRID_PAGE_SIZE);
 
+    // Keep the current page valid when the list shrinks (e.g. a realtime deletion).
+    useEffect(() => {
+        setGridPage((page) => Math.min(page, Math.max(0, totalGridPages - 1)));
+    }, [totalGridPages]);
+
     // Only the current page slice is fed to the virtualizer
     const tableVariantRows = useMemo(() => {
         const start = tablePage * TABLE_PAGE_SIZE;
@@ -285,6 +292,11 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     }, [allTableVariants, tablePage]);
 
     const totalTablePages = Math.ceil(allTableVariants.length / TABLE_PAGE_SIZE);
+
+    // Keep the current page valid when the list shrinks (e.g. a realtime deletion).
+    useEffect(() => {
+        setTablePage((page) => Math.min(page, Math.max(0, totalTablePages - 1)));
+    }, [totalTablePages]);
 
     const tableVariants = useMemo(() => {
         if (!settings || !materials || !products) return [] as TableVariant[];
