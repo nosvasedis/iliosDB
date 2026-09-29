@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 import { APP_ICON_ONLY, APP_LOGO } from '../constants';
 import { useProducts } from '../hooks/api/useProducts';
-import { useMaterials } from '../hooks/api/useMaterials';
 import { useLegalSettings } from '../hooks/api/useLegalDocuments';
 import { useRealtimeInvalidation } from '../hooks/api/useRealtimeInvalidation';
 import { usePrint } from './PrintContext';
@@ -59,8 +58,10 @@ const InspectionModeShell: React.FC = () => {
   const [isCollapsed, setIsCollapsed] = useState(() =>
     typeof window !== 'undefined' ? prefersCollapsedDesktopSidebar(window.innerWidth) : false
   );
+  // Keep inspection mode inside its legal-data allowlist. Product recipes are
+  // already stripped by the inspection catalogue loader, so loading the full
+  // materials table here would expose unrelated ERP cost and stock data.
   const { data: products, isLoading: loadingProducts, isError: productsError } = useProducts();
-  const { data: materials, isLoading: loadingMaterials, isError: materialsError } = useMaterials();
   const { data: legalSettings } = useLegalSettings();
   const { setLegalDocumentToPrint, setProformaToPrint } = usePrint();
   useRealtimeInvalidation();
@@ -72,11 +73,11 @@ const InspectionModeShell: React.FC = () => {
   const issuerName = legalSettings?.issuer?.business_name || legalSettings?.issuer?.name;
   const environment = legalSettings?.environment?.toUpperCase() || 'DEV';
 
-  if (loadingProducts || loadingMaterials) {
+  if (loadingProducts) {
     return <IliosLoader variant="screen" detail="Προετοιμασία παραστατικών" />;
   }
 
-  if (productsError || materialsError || !products || !materials) {
+  if (productsError || !products) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-600 p-6 text-center">
         <p className="text-lg font-bold text-slate-900 mb-2">Δεν ήταν δυνατή η φόρτωση του συστήματος</p>
@@ -170,7 +171,6 @@ const InspectionModeShell: React.FC = () => {
               <Suspense fallback={<IliosLoader variant="section" detail={tabTitles[activeTab]} />}>
                 <LegalDocumentsPage
                   products={products}
-                  materials={materials}
                   presentation="inspection"
                   activeTab={activeTab}
                   onActiveTabChange={setActiveTab}
