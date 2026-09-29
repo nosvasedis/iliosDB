@@ -28,6 +28,7 @@ describe('product mappers', () => {
           stock_qty: 5,
           sample_qty: 1,
           is_component: false,
+          skip_casting: true,
           suppliers: { name: 'Sup' },
           labor_casting: 1,
           labor_setter: 2,
@@ -77,6 +78,7 @@ describe('product mappers', () => {
     expect(products[0].labor.casting_cost_manual_override).toBe(true);
     expect(products[0].labor.casting_cost).toBe(1);
     expect(products[0].invoice_total_weight_g).toBe(5.5);
+    expect(products[0].skip_casting).toBe(true);
     expect(products[0].created_at).toBe(new Date(0).toISOString());
   });
 
@@ -121,5 +123,6 @@ describe('product mappers', () => {
     expect(products[0].created_at).toBe('2024-01-01T00:00:00.000Z');
     expect(products[0].production_type).toBe(ProductionType.Imported);
     expect(products[0].invoice_total_weight_g).toBeNull();
+    expect(products[0].skip_casting).toBe(false);
   });
 });

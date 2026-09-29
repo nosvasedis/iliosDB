@@ -36,6 +36,7 @@ export interface BuildCurrentTempProductInput {
   sellingPrice: number;
   selectedMolds: ProductMold[];
   isSTX: boolean;
+  skipCasting?: boolean;
   stxDescription: string;
   recipe: RecipeItem[];
   labor: LaborCost;
@@ -78,6 +79,7 @@ export function buildCurrentTempProduct(input: BuildCurrentTempProductInput): Pr
     sample_qty: 0,
     molds: input.selectedMolds,
     is_component: input.isSTX,
+    skip_casting: !!input.skipCasting,
     description: input.stxDescription,
     recipe: input.recipe,
     labor: input.labor,

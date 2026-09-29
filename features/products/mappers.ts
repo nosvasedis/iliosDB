@@ -72,6 +72,7 @@ type RawProductRow = {
   stock_by_size?: Record<string, number> | null;
   sample_stock_by_size?: Record<string, number> | null;
   is_component?: boolean | null;
+  skip_casting?: boolean | null;
   suppliers?: unknown;
   created_at?: string | null;
   labor_casting?: number | string | null;
@@ -289,6 +290,7 @@ function mapProductRow(
     location_available: customAvailable,
     molds,
     is_component: !!row.is_component,
+    skip_casting: !!row.skip_casting,
     variants,
     recipe: recipes,
     collections: maps.collectionsMap.get(row.sku) || [],

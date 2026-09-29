@@ -11,6 +11,11 @@ const hookSource = readFileSync(
   'utf8',
 );
 
+const sbzSettingsSource = readFileSync(
+  new URL('../../components/legal/SbzSettings.tsx', import.meta.url),
+  'utf8',
+);
+
 describe('AADE environment selection contract', () => {
   it('allows environment selection while SBZ activation is checked separately', () => {
     expect(pageSource).not.toContain('hasDevValidation');
@@ -30,5 +35,12 @@ describe('AADE environment selection contract', () => {
     expect(hookSource).toContain(
       'onSuccess: (status) => queryClient.setQueryData(legalKeys.credentials(), status)',
     );
+  });
+
+  it('offers production activation as a collapsed one-time settings action', () => {
+    expect(sbzSettingsSource).toContain("status?.prod?.configured && !status?.productionEnabled");
+    expect(sbzSettingsSource).toContain('<details className=');
+    expect(sbzSettingsSource).toContain("api.callSbz('/sbz/activate', { enabled: true, checks: activationChecks })");
+    expect(sbzSettingsSource).toContain('disabled={busy || !activationConfirmed}');
   });
 });

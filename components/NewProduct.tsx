@@ -21,7 +21,7 @@ interface Props {
 }
 
 export default function NewProduct({ products, materials, molds = [], onCancel, duplicateTemplate }: Props) {
-    const { showToast } = useUI();
+    const { showToast, confirm } = useUI();
     const { data: settings } = useSettings();
     const { data: suppliers } = useSuppliers();
 
@@ -33,6 +33,7 @@ export default function NewProduct({ products, materials, molds = [], onCancel, 
         suppliers,
         duplicateTemplate,
         showToast,
+        confirm,
         onCancel
     });
 

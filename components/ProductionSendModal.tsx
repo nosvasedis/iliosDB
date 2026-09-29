@@ -26,6 +26,13 @@ import {
     updateProductionSendQuantity,
     type ProductionSendQuantityMap,
 } from '../features/production/productionSendPlanner';
+import {
+    PRODUCTION_SEND_STAGE_FILTER_ALL,
+    buildProductionSendStageFilterOptions,
+    filterBatchesByProductionSendStage,
+    filterProductionSendRowsByStage,
+    type ProductionSendStageFilter,
+} from '../features/production/productionSendStageFilter';
 import { planNonDuplicateProductionSendItems } from '../features/production/orderBatchReconcile';
 import {
     planRemoveProductionBatchFromOrder,
@@ -47,6 +54,7 @@ import { StagePipelineBar } from './production/StagePipelineBar';
 import { BulkStageActions } from './production/BulkStageActions';
 import { StageFlowRail } from './production/StageFlowRail';
 import { BatchItemCard, RowItem } from './production/BatchItemCard';
+import { ProductionSendStageFilters } from './production/ProductionSendStageFilters';
 import { inventoryRepository, reservationQuantityForLine } from '../features/inventory';
 
 interface Props {
@@ -102,6 +110,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
     // Filters
     const [filterGender, setFilterGender] = useState<'All' | Gender>('All');
     const [filterCollection, setFilterCollection] = useState<number | 'All'>('All');
+    const [filterStage, setFilterStage] = useState<ProductionSendStageFilter>(PRODUCTION_SEND_STAGE_FILTER_ALL);
     const [searchInput, setSearchInput] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [toSendQuantities, setToSendQuantities] = useState<ProductionSendQuantityMap>({});
@@ -330,7 +339,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
         return () => window.removeEventListener('keydown', handler);
     }, [zoomImageUrl]);
 
-    const filteredRows = useMemo(() => {
+    const genderCollectionRows = useMemo(() => {
         return rows.filter(row => {
             if (filterGender !== 'All' && !isSpecialCreationSku(row.sku) && row.gender !== filterGender) return false;
             if (filterCollection !== 'All') {
@@ -338,6 +347,24 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                 const product = products.find(p => p.sku === row.sku);
                 if (!product?.collections?.includes(filterCollection)) return false;
             }
+            return true;
+        });
+    }, [rows, filterGender, filterCollection, products]);
+
+    const stageFilterOptions = useMemo(
+        () => buildProductionSendStageFilterOptions(genderCollectionRows.flatMap((row) => row.batchDetails)),
+        [genderCollectionRows],
+    );
+
+    useEffect(() => {
+        if (filterStage === PRODUCTION_SEND_STAGE_FILTER_ALL) return;
+        if (!stageFilterOptions.some((option) => option.key === filterStage)) {
+            setFilterStage(PRODUCTION_SEND_STAGE_FILTER_ALL);
+        }
+    }, [filterStage, stageFilterOptions]);
+
+    const filteredRows = useMemo(() => {
+        return filterProductionSendRowsByStage(genderCollectionRows, filterStage).filter(row => {
             if (searchTerm) {
                 const term = searchTerm.toLowerCase();
                 const product = products.find(p => p.sku === row.sku);
@@ -354,11 +381,11 @@ export default function ProductionSendModal({ order: orderProp, products, materi
             }
             return true;
         });
-    }, [rows, filterGender, filterCollection, products, searchTerm]);
+    }, [genderCollectionRows, filterStage, products, searchTerm]);
 
     const visibleActiveBatches = useMemo(
-        () => filteredRows.flatMap((row) => row.batchDetails),
-        [filteredRows]
+        () => filteredRows.flatMap((row) => filterBatchesByProductionSendStage(row.batchDetails, filterStage)),
+        [filteredRows, filterStage]
     );
 
     const visiblePopupBatchIds = useMemo(
@@ -1219,15 +1246,23 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                 </select>
                             )}
 
-                            <div className="relative group shrink-0">
-                                <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={13} />
-                                <input
-                                    type="text"
-                                    placeholder="Αναζήτηση..."
-                                    value={searchInput}
-                                    onChange={(e) => setSearchInput(e.target.value)}
-                                    className="pl-7 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-bold outline-none focus:ring-2 focus:ring-blue-500/20 w-28 focus:w-44 transition-all text-slate-700 placeholder:text-slate-400"
+                            <div className="flex items-center gap-1.5 shrink-0 pl-2 border-l border-slate-200">
+                                <ProductionSendStageFilters
+                                    options={stageFilterOptions}
+                                    value={filterStage}
+                                    onChange={setFilterStage}
                                 />
+
+                                <div className="relative group shrink-0">
+                                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={13} />
+                                    <input
+                                        type="text"
+                                        placeholder="Αναζήτηση..."
+                                        value={searchInput}
+                                        onChange={(e) => setSearchInput(e.target.value)}
+                                        className="pl-7 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-bold outline-none focus:ring-2 focus:ring-blue-500/20 w-28 focus:w-44 transition-all text-slate-700 placeholder:text-slate-400"
+                                    />
+                                </div>
                             </div>
                         </div>
 
@@ -1313,7 +1348,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                             </button>
                                             <span className="text-[11px] font-black text-slate-500">
                                                 Επιλ: <span className="text-slate-900">{totalSelectedCount}</span>
-                                                {searchTerm && selectedVisibleActiveCount !== totalSelectedCount && (
+                                                {(searchTerm || filterStage !== PRODUCTION_SEND_STAGE_FILTER_ALL) && selectedVisibleActiveCount !== totalSelectedCount && (
                                                     <span className="text-slate-400 ml-1">({selectedVisibleActiveCount} ορατές)</span>
                                                 )}
                                             </span>
@@ -1348,6 +1383,9 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                 <div className="px-3 pb-3" style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
                                     {rowVirtualizer.getVirtualItems().map(virtualRow => {
                                         const row = filteredRows[virtualRow.index];
+                                        const displayRow = filterStage === PRODUCTION_SEND_STAGE_FILTER_ALL
+                                            ? row
+                                            : { ...row, batchDetails: filterBatchesByProductionSendStage(row.batchDetails, filterStage) };
                                         const product = products.find(p => p.sku === row.sku);
                                         const currentSend = Math.min(row.remainingQty, Math.max(0, toSendQuantities[row.originalIndex] || 0));
                                         return (
@@ -1365,7 +1403,7 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                             >
                                                 <div className="pb-3">
                                                     <BatchItemCard
-                                                        row={row}
+                                                        row={displayRow}
                                                         product={product}
                                                         currentSend={currentSend}
                                                         discountFactor={discountFactor}
@@ -1394,7 +1432,22 @@ export default function ProductionSendModal({ order: orderProp, products, materi
                                     })}
                                 </div>
                             ) : (
-                                <div className="text-center py-10 text-slate-400 italic text-sm">Δεν βρέθηκαν είδη.</div>
+                                <div className="text-center py-10 text-slate-400 text-sm">
+                                    {filterStage !== PRODUCTION_SEND_STAGE_FILTER_ALL ? (
+                                        <div className="flex flex-col items-center gap-2">
+                                            <p className="italic">Δεν βρέθηκαν είδη σε αυτό το στάδιο.</p>
+                                            <button
+                                                type="button"
+                                                onClick={() => setFilterStage(PRODUCTION_SEND_STAGE_FILTER_ALL)}
+                                                className="text-[11px] font-black text-blue-600 hover:text-blue-800 hover:underline"
+                                            >
+                                                Εμφάνιση όλων
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <p className="italic">Δεν βρέθηκαν είδη.</p>
+                                    )}
+                                </div>
                             )}
                         </div>
                     </div>

@@ -71,12 +71,12 @@ export interface VariantTechnicianContext {
  */
 export function resolveCastingCost(
   labor: Partial<LaborCost>,
-  product: Pick<Product, 'weight_g' | 'secondary_weight_g' | 'is_component'>,
+  product: Pick<Product, 'weight_g' | 'secondary_weight_g' | 'is_component' | 'skip_casting'>,
 ): number {
   if (labor.casting_cost_manual_override) {
     return labor.casting_cost || 0;
   }
-  if (product.is_component) return 0;
+  if (product.is_component || product.skip_casting) return 0;
   return getCastingWeightBasis(product) * DEFAULT_CASTING_RATE;
 }
 
@@ -268,7 +268,7 @@ export function computeAutoLaborCosts(
   const updates: Partial<LaborCost> = {};
 
   if (!labor.casting_cost_manual_override) {
-    updates.casting_cost = product.is_component
+    updates.casting_cost = (product.is_component || product.skip_casting)
       ? 0
       : parseFloat((getCastingWeightBasis(product) * DEFAULT_CASTING_RATE).toFixed(4));
   }

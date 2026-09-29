@@ -5,11 +5,17 @@
  */
 
 import { handleSbzRoute } from './sbz.ts';
+import {
+  CATALOG_PREPARE_FAILED_ERROR,
+  CATALOG_PREPARE_FAILED_STATUS,
+  CATALOG_PREPARE_HEADER,
+  segmentCatalogImage,
+} from './catalogSegment.ts';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': `Content-Type, Authorization, ${CATALOG_PREPARE_HEADER}`,
   'Access-Control-Max-Age': '86400',
 };
 
@@ -1680,7 +1686,19 @@ export default {
       }
 
       if (request.method === 'POST') {
-        await env.R2_BUCKET.put(key, request.body, {
+        if (request.headers.get(CATALOG_PREPARE_HEADER) === '1') {
+          const originalBytes = new Uint8Array(await request.arrayBuffer());
+          const segmented = await segmentCatalogImage(env, originalBytes);
+          if (!segmented) {
+            return jsonResponse({ error: CATALOG_PREPARE_FAILED_ERROR }, CATALOG_PREPARE_FAILED_STATUS, CORS_HEADERS);
+          }
+          return new Response(segmented.body, {
+            status: 200,
+            headers: { ...CORS_HEADERS, 'Content-Type': 'image/png' },
+          });
+        }
+        const originalBytes = new Uint8Array(await request.arrayBuffer());
+        await env.R2_BUCKET.put(key, originalBytes, {
           httpMetadata: {
             contentType: request.headers.get('Content-Type') || 'image/jpeg',
             cacheControl: 'public, max-age=31536000',

@@ -1,0 +1,49 @@
+/* Scoped to the SKU card so other registry views keep their own presentation. */
+.sku-details {
+    font-family: "Segoe UI", "Inter", sans-serif;
+    color: #334155;
+    -webkit-font-smoothing: antialiased;
+    font-variant-numeric: tabular-nums;
+}
+.sku-details .font-black { font-weight: 700; }
+.sku-details .font-mono { font-family: inherit; font-variant-numeric: tabular-nums; }
+.sku-details .tracking-widest,
+.sku-details .tracking-wider { letter-spacing: .025em; }
+.sku-details button,
+.sku-details input,
+.sku-details select { transition-duration: 150ms; }
+.sku-details button:focus-visible,
+.sku-details input:focus-visible,
+.sku-details select:focus-visible {
+    outline: 2px solid #0284c7;
+    outline-offset: 3px;
+}
+.sku-details button:disabled { cursor: not-allowed; }
+.sku-section { --section-color: #475569; --section-tint: #f8fafc; }
+.sku-section[data-tone="identity"] { --section-color: #1d4ed8; --section-tint: #eff6ff; }
+.sku-section[data-tone="weight"] { --section-color: #0f766e; --section-tint: #f0fdfa; }
+.sku-section[data-tone="commerce"],
+.sku-section[data-tone="analysis"] { --section-color: #047857; --section-tint: #ecfdf5; }
+.sku-section[data-tone="molds"],
+.sku-section[data-tone="policy"] { --section-color: #b45309; --section-tint: #fffbeb; }
+.sku-section[data-tone="supplier"],
+.sku-section[data-tone="variants"] { --section-color: #6d28d9; --section-tint: #f5f3ff; }
+.sku-section[data-tone="costing"] { --section-color: #4338ca; --section-tint: #eef2ff; }
+.sku-section[data-tone="labor"] { --section-color: #c2410c; --section-tint: #fff7ed; }
+.sku-section[data-tone="recipe"] { --section-color: #0369a1; --section-tint: #f0f9ff; }
+.sku-section-heading {
+    margin: -1.25rem -1.25rem 1.25rem;
+    padding: .875rem 1.25rem;
+    border-radius: 1rem 1rem 0 0;
+    background: linear-gradient(105deg, var(--section-tint), #fff);
+}
+.sku-section-heading h4 { color: var(--section-color); }
+@media (hover: none) {
+    .sku-details .sku-image-action { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .sku-details *, .sku-details *::before, .sku-details *::after {
+        animation-duration: .01ms !important;
+        transition-duration: .01ms !important;
+    }
+}

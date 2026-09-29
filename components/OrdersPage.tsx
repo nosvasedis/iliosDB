@@ -22,6 +22,12 @@ import ShipmentUndoConfirmationModal from './deliveries/ShipmentUndoConfirmation
 import { invalidateAndRefetchAfterShipmentChange, invalidateOrdersAndBatches } from '../lib/queryInvalidation';
 import { buildPartialOrderFromBatches, buildOrderLabelPrintItems, buildSyntheticAggregatedBatches, getShipmentPrintDecision, getShipmentStageBreakdown, getShipmentSummary, getShipmentValue, buildOrderRevisions, orderMatchesSearch, estimateOrderListRowHeight, canOfferRemainingTransfer, orderKeys } from '../features/orders';
 import DebouncedSearchInput from './orders/DebouncedSearchInput';
+import { CircularSelectButton, ORDER_BULK_SELECTED_ROW_CLASS } from './orders/CircularSelectButton';
+import { OrderBulkActionBar } from './orders/OrderBulkActionBar';
+import { OrderBulkTagModal } from './orders/OrderBulkTagModal';
+import { OrderBulkSellerModal } from './orders/OrderBulkSellerModal';
+import { getSelectAllState, pruneSelectedIds, selectedOrdersFromIds, selectVisibleIds, toggleSelectedId } from '../features/orders/bulkSelection';
+import { useOrderBulkActions } from '../hooks/useOrderBulkActions';
 import { canAccessOrderProductionManagement, getOrderStatusClasses, getOrderStatusLabel, getOrderStatusIcon } from '../features/orders/statusPresentation';
 import { getTagColor } from '../features/orders/tagColors';
 import { OrdersFilterPanel, OrderFilters, DEFAULT_FILTERS, countActiveFilters } from './orders/OrdersFilterPanel';
@@ -59,6 +65,7 @@ interface Props {
     onPrintAnalytics?: (order: Order) => void;
     onPrintPartialOrder?: (order: Order, selectedBatches: ProductionBatch[]) => void;
     onOpenDeliveries?: (order: Order) => void;
+    onPrintOrders?: (orders: Order[]) => void;
 }
 
 type OrderSortMode =
@@ -950,7 +957,7 @@ const PrintOptionsModal = ({ order, onClose, onPrintOrder, onPrintRemainingOrder
     );
 };
 
-export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrder, onPrintShipment, onPrintLabels, materials, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintAnalytics, onPrintPartialOrder, onOpenDeliveries }: Props) {
+export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrder, onPrintShipment, onPrintLabels, materials, onPrintAggregated, onPrintPreparation, onPrintTechnician, onPrintAnalytics, onPrintPartialOrder, onOpenDeliveries, onPrintOrders }: Props) {
     const queryClient = ReactQuery.useQueryClient();
     const { showToast, confirm } = useUI();
     const { profile } = useAuth();
@@ -983,6 +990,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
 
     // View State
     const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
+    const [multiSelectIds, setMultiSelectIds] = useState<Set<string>>(new Set());
     const [searchFilter, setSearchFilter] = useState('');
     const [filters, setFilters] = useState<OrderFilters>(DEFAULT_FILTERS);
     const [sortMode, setSortMode] = useState<OrderSortMode>('date_newest');
@@ -1312,6 +1320,31 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
 
         return sorted;
     }, [orders, activeTab, searchFilter, filters, orderMetaById, sortMode]);
+
+    const selectedOrders = useMemo(
+        () => selectedOrdersFromIds(multiSelectIds, orders || []),
+        [multiSelectIds, orders],
+    );
+    const selectAllState = useMemo(
+        () => getSelectAllState(multiSelectIds, filteredOrders),
+        [multiSelectIds, filteredOrders],
+    );
+    const bulkActions = useOrderBulkActions({
+        selectedIds: multiSelectIds,
+        setSelectedIds: setMultiSelectIds,
+        selectedOrders,
+        archive: activeTab === 'active',
+        onPrintOrders,
+    });
+
+    useEffect(() => {
+        if (!orders) return;
+        setMultiSelectIds((prev) => {
+            const next = pruneSelectedIds(prev, orders);
+            if (next.size === prev.size && [...next].every((id) => prev.has(id))) return prev;
+            return next;
+        });
+    }, [orders]);
 
     const ordersScrollRef = useRef<HTMLDivElement>(null);
     const listFilterKey = `${searchFilter}|${activeTab}|${sortMode}|${filters.statuses.size}|${filters.datePreset}|${filters.sellers.size}|${filters.tags.size}|${filters.tagLogic}`;
@@ -1682,14 +1715,20 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                         <div className="inline-flex items-center rounded-xl bg-slate-100 p-0.5 border border-slate-200/50 shadow-sm">
                             <button
                                 type="button"
-                                onClick={() => setActiveTab('active')}
+                                onClick={() => {
+                                    setActiveTab('active');
+                                    setMultiSelectIds(new Set());
+                                }}
                                 className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-all duration-200 ${activeTab === 'active' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-100' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 <ShoppingCart size={16} /> Ενεργές
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setActiveTab('archived')}
+                                onClick={() => {
+                                    setActiveTab('archived');
+                                    setMultiSelectIds(new Set());
+                                }}
                                 className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-all duration-200 ${activeTab === 'archived' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-100' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 <Archive size={16} /> Αρχείο
@@ -1803,11 +1842,19 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
             )}
           />
 
-          <div ref={ordersScrollRef} className="flex-1 overflow-auto min-h-0">
+          <div ref={ordersScrollRef} className={`flex-1 overflow-auto min-h-0 ${multiSelectIds.size > 0 ? 'pb-28' : ''}`}>
                 <div className="rounded-3xl border border-slate-100 bg-slate-50/70 p-2 shadow-sm">
                     <div className="sticky top-0 z-10 mb-2 rounded-2xl border border-slate-100 bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
                         <div className="flex items-center justify-between gap-3">
-                            <div className="text-xs font-black uppercase tracking-widest text-slate-400">Λίστα Παραγγελιών</div>
+                            <div className="flex items-center gap-2">
+                                <CircularSelectButton
+                                    selected={selectAllState === 'all'}
+                                    someSelected={selectAllState === 'some'}
+                                    onToggle={() => setMultiSelectIds((prev) => selectVisibleIds(prev, filteredOrders))}
+                                    title={selectAllState === 'all' ? 'Αποεπιλογή όλων' : 'Επιλογή όλων'}
+                                />
+                                <div className="text-xs font-black uppercase tracking-widest text-slate-400">Λίστα Παραγγελιών</div>
+                            </div>
                             <div className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-600">
                                 {filteredOrders.length} {filteredOrders.length === 1 ? 'παραγγελία' : 'παραγγελίες'}
                             </div>
@@ -1826,6 +1873,7 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                 const isRetailOrder = order.customer_id === RETAIL_CUSTOMER_ID || order.customer_name === RETAIL_CUSTOMER_NAME;
                                 const retailClientLabel = orderMeta?.retailClientLabel || '';
                                 const transferIndicators = getOrderTransferIndicators(order.notes);
+                                const isSelected = multiSelectIds.has(order.id);
                                 return (
                                     <div
                                         key={order.id}
@@ -1834,8 +1882,18 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                                         className="absolute left-0 top-0 w-full pb-2"
                                         style={{ transform: `translateY(${virtualRow.start}px)` }}
                                     >
-                                        <div className="group grid w-full grid-cols-[minmax(9rem,1fr)_minmax(14rem,2fr)_minmax(8rem,0.8fr)_minmax(7rem,0.8fr)_minmax(13rem,1.4fr)_minmax(8rem,0.7fr)] gap-0 rounded-2xl border border-slate-200/80 bg-white text-sm shadow-sm ring-1 ring-transparent transition-[border-color,box-shadow,ring-color] hover:border-emerald-200 hover:shadow-md hover:ring-emerald-100">
-                                        <div className="p-4 pl-5">
+                                        <div className={`group grid w-full grid-cols-[2.25rem_minmax(9rem,1fr)_minmax(14rem,2fr)_minmax(8rem,0.8fr)_minmax(7rem,0.8fr)_minmax(13rem,1.4fr)_minmax(8rem,0.7fr)] gap-0 rounded-2xl border text-sm shadow-sm transition-[border-color,box-shadow,ring-color] ${
+                                            isSelected
+                                                ? ORDER_BULK_SELECTED_ROW_CLASS
+                                                : 'border-slate-200/80 bg-white ring-1 ring-transparent hover:border-emerald-200 hover:shadow-md hover:ring-emerald-100'
+                                        }`}>
+                                        <div className="flex items-start justify-center p-4">
+                                            <CircularSelectButton
+                                                selected={isSelected}
+                                                onToggle={() => setMultiSelectIds((prev) => toggleSelectedId(prev, order.id))}
+                                            />
+                                        </div>
+                                        <div className="p-4 pl-2">
                                             <div className="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 font-mono text-xs font-black text-slate-800 ring-1 ring-slate-200">
                                                 #{order.id}
                                             </div>
@@ -2440,6 +2498,38 @@ export default function OrdersPage({ products, onPrintOrder, onPrintRemainingOrd
                         }
                     }}
                     onPrintOrder={onPrintOrder}
+                />
+            )}
+
+            {(multiSelectIds.size > 0 || bulkActions.isProcessing) && (
+                <OrderBulkActionBar
+                    count={multiSelectIds.size}
+                    isProcessing={bulkActions.isProcessing}
+                    progressPercent={bulkActions.progressPercent}
+                    archiveMode={activeTab === 'archived' ? 'restore' : 'archive'}
+                    canCancel={bulkActions.canCancel}
+                    onArchive={() => void bulkActions.handleArchive()}
+                    onPrint={bulkActions.handlePrint}
+                    onTag={() => bulkActions.setTagModalOpen(true)}
+                    onSeller={() => bulkActions.setSellerModalOpen(true)}
+                    onCancel={() => void bulkActions.handleCancel()}
+                    onClear={bulkActions.handleClear}
+                />
+            )}
+            {bulkActions.tagModalOpen && (
+                <OrderBulkTagModal
+                    count={selectedOrders.length}
+                    isProcessing={bulkActions.isProcessing}
+                    onClose={() => bulkActions.setTagModalOpen(false)}
+                    onSave={(tag) => void bulkActions.handleAddTag(tag)}
+                />
+            )}
+            {bulkActions.sellerModalOpen && (
+                <OrderBulkSellerModal
+                    count={selectedOrders.length}
+                    isProcessing={bulkActions.isProcessing}
+                    onClose={() => bulkActions.setSellerModalOpen(false)}
+                    onSave={(seller) => void bulkActions.handleAssignSeller(seller)}
                 />
             )}
         </div>

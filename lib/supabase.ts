@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, OrderItem, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, BatchStageHistoryEntry, SyncOfflineResult, LegalSettings, LegalNumberingSequence, LegalNumberingAlignmentPreview, LegalNumberingAlignmentResult, LegalCarrier, LegalDocument, LegalDocumentLine, LegalTransmission, LegalDeliveryEvent, AadeProxyResult, AadeCredentialStatus, AadeCredentialSavePayload, AadeRegistryCredentialSavePayload, AadeVatRegistryResult, PublicVatLookupResult, LegalRegistryConnectionStatus, ProformaDocument, ProformaDocumentLine, LegalSyncParams, LegalSyncRun, AadeDocumentType, LegalExternalItemAlias, LegalOrderLinkMode, LegalOrderLineAllocation } from '../types';
 import { INITIAL_SETTINGS, MOCK_MATERIALS, requiresAssemblyStage, requiresSettingStage } from '../constants';
 import { getVariantComponents } from '../utils/pricingEngine';
+import { CATALOG_IMAGE_PREPARE_HEADER, CatalogPrepareFailedError, compressImage } from '../utils/imageHelpers';
 import { offlineDb } from './offlineDb';
 import {
     BACKUP_TABLE_REGISTRY,
@@ -163,7 +164,7 @@ const sanitizeProductData = (data: any) => {
         'sku', 'prefix', 'category', 'description', 'gender', 'image_url',
         'weight_g', 'secondary_weight_g', 'invoice_total_weight_g', 'plating_type', 'production_type',
         'active_price', 'draft_price', 'selling_price', 'stock_qty', 'sample_qty',
-        'is_component', 'supplier_id', 'supplier_sku', 'supplier_cost',
+        'is_component', 'skip_casting', 'supplier_id', 'supplier_sku', 'supplier_cost',
         'labor_casting', 'labor_setter', 'labor_technician', 'labor_plating_x',
         'labor_plating_d', 'labor_subcontract', 'labor_stone_setting',
         'labor_casting_manual_override', 'labor_technician_manual_override',
@@ -1105,19 +1106,25 @@ const getRetailCustomerPayload = (): Partial<Customer> => ({
     created_at: new Date(0).toISOString()
 });
 
-export const uploadProductImage = async (file: Blob, sku: string): Promise<string | null> => {
-    // Feature 3C: Local Image Storage Support
-    let useLocal = isLocalMode || !navigator.onLine;
-    if (!useLocal) {
-        try {
-            const settings = await api.getSettings();
-            if (settings?.local_image_storage) useLocal = true;
-        } catch (e) {
-            console.warn("Could not fetch settings for image upload, defaulting to standard behavior", e);
-        }
-    }
+const buildCatalogImageFileName = (sku: string, suffix: string): string => {
+    const safeSku = sku.replace(/[^a-zA-Z0-9-\u0370-\u03FF]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    return `${safeSku.toUpperCase()}_${suffix}`;
+};
 
-    if (useLocal) {
+export const shouldStoreImageLocally = async (): Promise<boolean> => {
+    if (isLocalMode || typeof navigator === 'undefined' || !navigator.onLine) return true;
+    try {
+        const settings = await api.getSettings();
+        return !!settings?.local_image_storage;
+    } catch (e) {
+        console.warn("Could not fetch settings for image upload, defaulting to standard behavior", e);
+        return false;
+    }
+};
+
+export const uploadProductImage = async (file: Blob, sku: string): Promise<string | null> => {
+    if (await shouldStoreImageLocally()) {
+        const compact = await compressImage(file);
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onloadend = () => {
@@ -1128,15 +1135,12 @@ export const uploadProductImage = async (file: Blob, sku: string): Promise<strin
                 }
             };
             reader.onerror = reject;
-            reader.readAsDataURL(file);
+            reader.readAsDataURL(compact);
         });
     }
 
-    if (!navigator.onLine || isLocalMode) throw new Error("Image upload requires internet.");
-    const safeSku = sku.replace(/[^a-zA-Z0-9-\u0370-\u03FF]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-    const fileName = `${safeSku.toUpperCase()}_${Date.now()}.jpg`;
-    const uploadUrl = `${CLOUDFLARE_WORKER_URL}/${encodeURIComponent(fileName)}`;
-    const response = await fetch(uploadUrl, {
+    const fileName = buildCatalogImageFileName(sku, `${Date.now()}.jpg`);
+    const response = await fetch(`${CLOUDFLARE_WORKER_URL}/${encodeURIComponent(fileName)}`, {
         method: 'POST',
         mode: 'cors',
         headers: { 'Content-Type': 'image/jpeg', 'Authorization': AUTH_KEY_SECRET },
@@ -1144,6 +1148,32 @@ export const uploadProductImage = async (file: Blob, sku: string): Promise<strin
     });
     if (!response.ok) throw new Error(`Status ${response.status}`);
     return `${R2_PUBLIC_URL}/${encodeURIComponent(fileName)}`;
+};
+
+export const segmentProductImage = async (file: Blob, sku: string): Promise<Blob> => {
+    if (isLocalMode || typeof navigator === 'undefined' || !navigator.onLine) {
+        throw new CatalogPrepareFailedError(0);
+    }
+    const fileName = buildCatalogImageFileName(sku, `segment_${Date.now()}.png`);
+    let response: Response;
+    try {
+        response = await fetch(`${CLOUDFLARE_WORKER_URL}/${encodeURIComponent(fileName)}`, {
+            method: 'POST',
+            mode: 'cors',
+            headers: {
+                'Content-Type': 'image/jpeg',
+                'Authorization': AUTH_KEY_SECRET,
+                [CATALOG_IMAGE_PREPARE_HEADER]: '1',
+            },
+            body: file,
+        });
+    } catch {
+        throw new CatalogPrepareFailedError(0);
+    }
+    if (!response.ok) {
+        throw new CatalogPrepareFailedError(response.status);
+    }
+    return await response.blob();
 };
 
 export const deleteProduct = async (sku: string, imageUrl?: string | null): Promise<{ success: boolean; error?: string }> => {

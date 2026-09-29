@@ -1,11 +1,12 @@
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender, PlatingType, ProductionType } from '../types';
-import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Weight, BookOpen, ChevronLeft, ChevronRight, Tag, Puzzle, Gem, Palette, X, Camera, LayoutGrid, List, CheckSquare, Printer, Factory, ShoppingBag, FolderOpen, Lock } from 'lucide-react';
+import { Product, ProductVariant, GlobalSettings, Collection, Material, Mold, Gender, PlatingType } from '../types';
+import { Search, Filter, Layers, Database, PackagePlus, ImageIcon, User, Users as UsersIcon, Edit3, TrendingUp, Tag, Puzzle, Gem, Palette, X, Camera, LayoutGrid, List, CheckSquare, Printer, Factory, ShoppingBag, FolderOpen, Lock, ChevronLeft, ChevronRight } from 'lucide-react';
 import ProductDetails from './ProductDetails';
 import NewProduct from './NewProduct';
 import BarcodeScanner from './BarcodeScanner';
 import SkuColorizedText from './SkuColorizedText';
+import ProductCard from './ProductRegistry/ProductCard';
 import { useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { invalidateProductsAndCatalog } from '../lib/queryInvalidation';
@@ -31,6 +32,8 @@ import {
     getGroupedProductCategories,
     getStoneChipStyle,
     RegistrySortSelect,
+    SKIP_CASTING_LABEL,
+    formatRegistryWeight,
     type RegistrySortMode,
 } from '../features/products';
 
@@ -94,238 +97,6 @@ const getPaginationRange = (current: number, total: number) => {
     }
     return range.filter((item, pos, self) => item !== '...' || self[pos - 1] !== '...');
 };
-
-const formatWeight = (value: number) => value.toLocaleString('el-GR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-});
-
-// ==========================================
-// GRID VIEW PRODUCT CARD - MEMOIZED
-// ==========================================
-const ProductCard: React.FC<{
-    product: Product;
-    settings: GlobalSettings;
-    materials: Material[];
-    allProducts: Product[];
-    productsMap?: Map<string, Product>;
-    materialsMap?: Map<string, Material>;
-    onSelectProduct: (product: Product) => void;
-    isSelected: boolean;
-}> = React.memo(({ product, settings, materials, allProducts, productsMap, materialsMap, onSelectProduct, isSelected }) => {
-    const [viewIndex, setViewIndex] = useState(0);
-
-    const variants = product.variants || [];
-    const hasVariants = variants.length > 0;
-    const variantCount = variants.length;
-
-    const sortedVariants = useMemo(() => {
-        if (!hasVariants) return [];
-        return [...variants].sort((a, b) => {
-            const priority = (suffix: string) => {
-                // Priority Order: Lustre > P > D > X > H
-                if (suffix === '' || !['P', 'D', 'X', 'H'].some(c => suffix.startsWith(c))) return 0;
-                if (suffix.startsWith('P')) return 1;
-                if (suffix.startsWith('D')) return 2;
-                if (suffix.startsWith('X')) return 3;
-                if (suffix.startsWith('H')) return 4;
-                return 5;
-            };
-            return priority(a.suffix) - priority(b.suffix);
-        });
-    }, [variants]);
-
-    let currentVariant: ProductVariant | null = null;
-    if (hasVariants) {
-        currentVariant = sortedVariants[viewIndex % variantCount];
-    }
-
-    const masterCostCalc = useMemo(
-        () => calculateProductCost(product, settings, materials, allProducts, 0, new Set(), undefined, productsMap, materialsMap),
-        [product, settings, materials, allProducts, productsMap, materialsMap]
-    );
-    const masterCost = masterCostCalc.total;
-
-    let displayPrice = product.selling_price;
-    let displayCost = masterCost;
-    let displaySku = product.sku;
-    let displayLabel = 'Βασικό';
-
-    if (currentVariant) {
-        displaySku = `${product.sku}${currentVariant.suffix}`;
-        displayLabel = currentVariant.description || currentVariant.suffix;
-        if (currentVariant.selling_price) displayPrice = currentVariant.selling_price;
-
-        // DYNAMIC COST CALCULATION FIX:
-        // Instead of using stored `currentVariant.active_price` (which might be stale),
-        // we calculate it on the fly using the current global settings (silver price).
-        const variantEst = estimateVariantCost(product, currentVariant.suffix, settings, materials, allProducts, undefined, productsMap, materialsMap);
-        displayCost = variantEst.total;
-    }
-
-    const profit = displayPrice - displayCost;
-    const margin = displayPrice > 0 ? (profit / displayPrice) * 100 : 0;
-
-    const nextView = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (hasVariants) setViewIndex((prev: number) => (prev + 1) % variantCount);
-    };
-
-    const prevView = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (hasVariants) setViewIndex((prev: number) => (prev - 1 + variantCount) % variantCount);
-    };
-
-    // --- WEIGHT CALCULATIONS (In-House vs STX) ---
-    const secondaryWeight = product.secondary_weight_g || 0;
-    const inHouseWeight = product.weight_g + secondaryWeight;
-
-    const stxWeight = useMemo(() => {
-        if (!product.recipe) return 0;
-        return product.recipe.reduce((acc, item) => {
-            if (item.type === 'component') {
-                const comp = productsMap ? productsMap.get(item.sku) : allProducts.find(p => p.sku === item.sku);
-                if (comp) {
-                    const compWeight = comp.weight_g + (comp.secondary_weight_g || 0);
-                    return acc + (compWeight * item.quantity);
-                }
-            }
-            return acc;
-        }, 0);
-    }, [product.recipe, allProducts, productsMap]);
-
-    const totalWeight = inHouseWeight + stxWeight;
-    const hasWeightBreakdown = secondaryWeight > 0 || stxWeight > 0;
-    const invoiceTotalWeight = useMemo(
-        () => resolveInvoiceTotalWeight(product, allProducts, materials),
-        [product, allProducts, materials],
-    );
-
-    return (
-        <div
-            onClick={() => onSelectProduct(product)}
-            className={`group bg-white rounded-3xl border shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col overflow-hidden hover:-translate-y-1 relative h-full ${isSelected ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-100'}`}
-        >
-            {hasVariants && (
-                <div className="absolute top-3 left-3 z-10 bg-[#060b00]/90 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm border border-white/10">
-                    <Layers size={10} className="text-amber-400" />
-                    <span>{variantCount}</span>
-                </div>
-            )}
-
-            <div className="aspect-square bg-slate-50 relative overflow-hidden shrink-0">
-                {product.image_url ? (
-                    <img
-                        src={product.image_url}
-                        alt={product.sku}
-                        loading="lazy"
-                        decoding="async"
-                        className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700 ease-out"
-                    />
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center text-slate-300">
-                        <ImageIcon size={40} />
-                    </div>
-                )}
-
-                <div className="absolute bottom-3 left-3 z-10 bg-white/90 backdrop-blur-md text-slate-600 text-[10px] font-bold px-2 py-1 rounded-lg shadow-sm border border-slate-100 max-w-[calc(100%-1.5rem)] truncate">
-                    {product.category}
-                </div>
-            </div>
-
-            <div className="p-5 flex-1 flex flex-col relative min-h-0">
-                <div className="flex justify-between items-start mb-3">
-                    <div className="min-w-0 pr-2">
-                        <h3 className="text-[16px] leading-[1.05] break-all">
-                            <SkuColorizedText
-                                sku={displaySku}
-                                gender={product.gender}
-                                masterClassName="text-slate-800 group-hover:text-emerald-700 transition-colors"
-                            />
-                        </h3>
-                        <div className="text-xs font-bold text-slate-400 mt-1 truncate flex items-center gap-1">
-                            {hasVariants && <Tag size={10} />} {displayLabel}
-                        </div>
-                    </div>
-
-                    {hasVariants && variantCount > 1 && (
-                        <div className="flex items-center bg-slate-100 rounded-lg p-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                            <button onClick={prevView} className="p-1 hover:bg-white hover:text-emerald-600 hover:shadow-sm rounded-md transition-all text-slate-400">
-                                <ChevronLeft size={16} />
-                            </button>
-                            <div className="w-px h-3 bg-slate-200 mx-0.5"></div>
-                            <button onClick={nextView} className="p-1 hover:bg-white hover:text-emerald-600 hover:shadow-sm rounded-md transition-all text-slate-400">
-                                <ChevronRight size={16} />
-                            </button>
-                        </div>
-                    )}
-                </div>
-
-                <div className="mb-4 rounded-xl border border-slate-100 bg-slate-50/70 px-2.5 py-2 text-[10px]">
-                    <div className="flex min-w-0 items-center gap-2" title="Βασικό + δευτερεύον + βάρος STX">
-                        <div className="flex shrink-0 items-center gap-1 font-bold uppercase tracking-wide text-slate-400">
-                            <Weight size={10} />
-                            <span>Βάρος</span>
-                        </div>
-                        <div className="ml-auto flex min-w-0 flex-wrap items-baseline justify-end gap-x-1 font-mono font-bold tabular-nums text-slate-600">
-                            {hasWeightBreakdown ? (
-                                <>
-                                    <span title="Βασικό βάρος">{formatWeight(product.weight_g)}</span>
-                                    {secondaryWeight > 0 ? (
-                                        <><span className="text-slate-300">+</span><span title="Δευτερεύον βάρος">{formatWeight(secondaryWeight)}</span></>
-                                    ) : null}
-                                    {stxWeight > 0 ? (
-                                        <><span className="text-slate-300">+</span><span className="text-blue-500" title="Βάρος STX">{formatWeight(stxWeight)}</span></>
-                                    ) : null}
-                                    <span className="text-slate-300">=</span>
-                                    <span className="text-slate-800">{formatWeight(totalWeight)}g</span>
-                                </>
-                            ) : (
-                                <span className="text-slate-800">{formatWeight(product.weight_g)}g</span>
-                            )}
-                        </div>
-                    </div>
-                    <div className="mt-1.5 flex min-w-0 items-center justify-between gap-2 border-t border-slate-200/70 pt-1.5">
-                        <div className="flex shrink-0 items-center gap-1 font-medium text-slate-400">
-                            <BookOpen size={10} />
-                            <span>{product.recipe.length + 1} υλικά</span>
-                        </div>
-                        <div
-                            className={`min-w-0 truncate text-[9px] font-semibold ${invoiceTotalWeight.source === 'missing' ? 'text-amber-600' : 'text-slate-500'}`}
-                            title="Συνολικό Βάρος"
-                        >
-                            <span className="text-slate-400">Συνολικό Βάρος</span>{' '}
-                            <span className="font-mono font-bold tabular-nums text-slate-700">
-                                {invoiceTotalWeight.value === null ? '—' : `${formatWeight(invoiceTotalWeight.value)}g`}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="mt-auto pt-3 border-t border-slate-100 grid grid-cols-2 gap-4 items-end shrink-0">
-                    <div>
-                        <div className="text-[9px] uppercase font-bold text-slate-400 mb-0.5">Χονδρικη</div>
-                        <div className={`text-xl font-black leading-none ${displayPrice > 0 ? 'text-[#060b00]' : 'text-slate-300'}`}>
-                            {displayPrice > 0 ? formatCurrency(displayPrice) : '-'}
-                        </div>
-                    </div>
-
-                    <div className="text-right">
-                        <div className="text-[9px] uppercase font-bold text-slate-400 mb-0.5">Περιθωριο</div>
-                        <div className={`flex items-center justify-end gap-1 font-bold text-sm ${margin < 30 ? 'text-red-500' : 'text-emerald-600'}`}>
-                            {displayPrice > 0 ? (
-                                <>
-                                    <TrendingUp size={12} />
-                                    {margin.toFixed(0)}%
-                                </>
-                            ) : '-'}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}); // ProductCard End
 
 const SubFilterButton: React.FC<{
     label: string;
@@ -463,9 +234,6 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     const [tablePage, setTablePage] = useState(0);
     const TABLE_PAGE_SIZE = 50;
 
-    // Reset page when filters change
-    useEffect(() => { setTablePage(0); }, [filteredProducts, viewMode]);
-
     const allTableVariants = useMemo(() => {
         if (viewMode !== 'table') return [];
         return filteredProducts.flatMap((product) => {
@@ -497,8 +265,13 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     const [gridPage, setGridPage] = useState(0);
     const GRID_PAGE_SIZE = 60;
 
-    // Reset pages when filters change
-    useEffect(() => { setTablePage(0); setGridPage(0); }, [filteredProducts, viewMode]);
+    // Reset pages only when the actual filter/sort/view inputs change. Keying this on
+    // `filteredProducts` would also reset on every realtime cache rebuild of the products
+    // array (which happens even for a photo-only update), bouncing the user to page 1.
+    useEffect(() => {
+        setTablePage(0);
+        setGridPage(0);
+    }, [deferredSearchTerm, filterCategory, filterGender, subFilters, sortBy, showStxOnly, viewMode]);
 
     const pagedProducts = useMemo(() => {
         const start = gridPage * GRID_PAGE_SIZE;
@@ -507,6 +280,11 @@ export default function ProductRegistry({ setPrintItems }: Props) {
 
     const totalGridPages = Math.ceil(filteredProducts.length / GRID_PAGE_SIZE);
 
+    // Keep the current page valid when the list shrinks (e.g. a realtime deletion).
+    useEffect(() => {
+        setGridPage((page) => Math.min(page, Math.max(0, totalGridPages - 1)));
+    }, [totalGridPages]);
+
     // Only the current page slice is fed to the virtualizer
     const tableVariantRows = useMemo(() => {
         const start = tablePage * TABLE_PAGE_SIZE;
@@ -514,6 +292,11 @@ export default function ProductRegistry({ setPrintItems }: Props) {
     }, [allTableVariants, tablePage]);
 
     const totalTablePages = Math.ceil(allTableVariants.length / TABLE_PAGE_SIZE);
+
+    // Keep the current page valid when the list shrinks (e.g. a realtime deletion).
+    useEffect(() => {
+        setTablePage((page) => Math.min(page, Math.max(0, totalTablePages - 1)));
+    }, [totalTablePages]);
 
     const tableVariants = useMemo(() => {
         if (!settings || !materials || !products) return [] as TableVariant[];
@@ -822,10 +605,13 @@ export default function ProductRegistry({ setPrintItems }: Props) {
                                                         <>
                                                             <div className="text-[10px] uppercase font-bold text-slate-400">Βάρος</div>
                                                             <div className="text-sm font-bold tabular-nums text-slate-700">
-                                                                {formatWeight(item.weight)}g
+                                                                {item.product.skip_casting ? SKIP_CASTING_LABEL : `${formatRegistryWeight(item.weight)}g`}
                                                             </div>
+                                                            {item.product.skip_casting && item.weight > 0 && (
+                                                                <div className="text-[9px] font-semibold tabular-nums text-slate-500">{formatRegistryWeight(item.weight)}g</div>
+                                                            )}
                                                             <div className={`mt-0.5 truncate text-[9px] font-semibold ${invoiceTotalWeight.source === 'missing' ? 'text-amber-600' : 'text-slate-400'}`} title="Συνολικό Βάρος">
-                                                                Σ&nbsp;{invoiceTotalWeight.value === null ? '—' : `${formatWeight(invoiceTotalWeight.value)}g`}
+                                                                Σ&nbsp;{invoiceTotalWeight.value === null ? '—' : `${formatRegistryWeight(invoiceTotalWeight.value)}g`}
                                                             </div>
                                                         </>
                                                     )}

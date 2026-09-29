@@ -10,7 +10,7 @@ interface LabelPrintSettingsPanelProps {
   onFormatChange: (format: LabelPrintFormat) => void;
   onShowPriceChange: (showPrice: boolean) => void;
   onPriceTierChange: (priceTier: LabelPriceTier) => void;
-  layout?: 'stack' | 'inline';
+  layout?: 'stack' | 'inline' | 'toolbar';
 }
 
 const segmented = 'flex gap-2 bg-slate-50 p-1 rounded-xl';
@@ -89,6 +89,29 @@ const LabelPrintSettingsPanel: React.FC<LabelPrintSettingsPanelProps> = ({
       </div>
     </div>
   );
+
+  if (layout === 'toolbar') {
+    const selectClass = 'rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:opacity-40';
+    return (
+      <div className="flex flex-1 flex-nowrap items-center gap-3 whitespace-nowrap">
+        <label className="flex shrink-0 items-center gap-2 text-xs font-medium text-slate-500" title="Διαστάσεις και διάταξη της ετικέτας">
+          <Tag size={14} /> Μορφή
+          <select aria-label="Μορφή ετικέτας" value={format} onChange={e => onFormatChange(e.target.value as LabelPrintFormat)} className={selectClass}>
+            <option value="standard">Χονδρική</option>
+            <option value="retail">Λιανική</option>
+          </select>
+        </label>
+        <label className="flex shrink-0 cursor-pointer items-center gap-2 border-l border-slate-200 pl-3 text-xs font-medium text-slate-600" title="Εμφάνιση τιμής στην εκτυπωμένη ετικέτα">
+          <input type="checkbox" checked={showPrice} onChange={e => onShowPriceChange(e.target.checked)} className="h-4 w-4 rounded accent-sky-600" />
+          Με τιμή
+        </label>
+        <select aria-label="Τιμή ετικέτας" title="Τιμή ετικέτας: χονδρική ή λιανική ×3" disabled={!showPrice} value={priceTier} onChange={e => onPriceTierChange(e.target.value as LabelPriceTier)} className={selectClass}>
+          <option value="wholesale">Χονδρική</option>
+          <option value="retail">Λιανική ×3</option>
+        </select>
+      </div>
+    );
+  }
 
   if (layout === 'inline') {
     return (
