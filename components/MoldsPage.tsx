@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Mold } from '../types';
-import { Trash2, Plus, MapPin, Gem, Search, X, Check, MoreHorizontal, Puzzle } from 'lucide-react';
+import { Trash2, Plus, MapPin, Gem, Search, X, Check, MoreHorizontal, Puzzle, ArrowDown } from 'lucide-react';
 import { filterMoldsByCategory, isLstxMold, MoldCategoryTab } from '../utils/moldCategories';
 import { supabase } from '../lib/supabase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -14,9 +14,10 @@ interface MoldCardProps {
     mold: Mold;
     onSaveRow: (m: Mold) => Promise<void>;
     onDelete: (code: string) => Promise<void>;
+    highlighted?: boolean;
 }
 
-const MoldCard: React.FC<MoldCardProps> = ({ mold, onSaveRow, onDelete }) => {
+const MoldCard: React.FC<MoldCardProps> = ({ mold, onSaveRow, onDelete, highlighted = false }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<Mold>(mold);
 
@@ -37,7 +38,7 @@ const MoldCard: React.FC<MoldCardProps> = ({ mold, onSaveRow, onDelete }) => {
     return (
         <div className={`
             bg-white rounded-2xl border transition-all duration-200 flex flex-col justify-between
-            ${isEditing ? 'border-amber-400 shadow-lg ring-4 ring-amber-500/10 z-10' : 'border-slate-100 hover:border-slate-300 hover:shadow-md'}
+            ${isEditing ? 'border-amber-400 shadow-lg ring-4 ring-amber-500/10 z-10' : (highlighted ? 'border-amber-400 shadow-lg ring-4 ring-amber-400/40' : 'border-slate-100 hover:border-slate-300 hover:shadow-md')}
         `}>
             <div className="p-4 space-y-3">
                 <div className="flex justify-between items-start">
@@ -133,6 +134,13 @@ export default function MoldsPage({ resourceTab = 'molds', onResourceTabChange }
     // Modals / FAB
     const [isCreating, setIsCreating] = useState(false);
     const [newMold, setNewMold] = useState<Mold>({ code: 'L', location: '', description: '', weight_g: 0 });
+
+    // Floating search + highlight
+    const [isFabSearchOpen, setIsFabSearchOpen] = useState(false);
+    const [highlightCode, setHighlightCode] = useState<string | null>(null);
+    const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+    // Floating actions appear only after the header scrolls out of view
     const [showFab, setShowFab] = useState(false);
     const headerRef = useRef<HTMLDivElement>(null);
 
@@ -162,6 +170,82 @@ export default function MoldsPage({ resourceTab = 'molds', onResourceTabChange }
 
     const defaultMoldCode = moldTab === 'lstx' ? 'LSTX' : 'L';
 
+    // Next free ascending standard code (L1220 -> L1221); LSTX codes are ignored.
+    const nextStandardCode = useMemo(() => {
+        const max = (molds || []).reduce((acc, m) => {
+            const match = m.code.trim().toUpperCase().match(/^L(\d+)$/);
+            return match ? Math.max(acc, parseInt(match[1], 10)) : acc;
+        }, 0);
+        return `L${max + 1}`;
+    }, [molds]);
+
+    const makeBlankMold = (): Mold => ({
+        code: moldTab === 'lstx' ? defaultMoldCode : nextStandardCode,
+        location: '',
+        description: '',
+        weight_g: 0,
+    });
+
+    const openCreateModal = () => {
+        setNewMold(makeBlankMold());
+        setIsCreating(true);
+    };
+
+    const scrollToLatest = () => {
+        const scrollContainer = document.querySelector('main > div.overflow-y-auto');
+        if (scrollContainer instanceof HTMLElement) {
+            scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: 'smooth' });
+        }
+    };
+
+    const scrollToMold = (code: string) => {
+        setHighlightCode(code);
+        window.setTimeout(() => {
+            cardRefs.current[code]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 80);
+    };
+
+    const closeFabSearch = () => {
+        setIsFabSearchOpen(false);
+        setSearchTerm('');
+        setHighlightCode(null);
+    };
+
+    // Search across every λάστιχο (both categories) so results are never hidden by the active tab.
+    const fabSearchMatches = useMemo(() => {
+        if (!searchTerm.trim()) return [];
+        const q = searchTerm.trim().toUpperCase();
+        return (molds || []).filter(m =>
+            m.code.toUpperCase().includes(q) || (m.description || '').toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [molds, searchTerm]);
+
+    // Auto-switch to the category that actually contains the match.
+    useEffect(() => {
+        if (!isFabSearchOpen || !fabSearchMatches.length) return;
+        const targetTab = isLstxMold(fabSearchMatches[0].code) ? 'lstx' : 'standard';
+        if (targetTab !== moldTab) setMoldTab(targetTab);
+    }, [isFabSearchOpen, fabSearchMatches, moldTab]);
+
+    // When the search narrows to a single λάστιχο, jump straight to it.
+    useEffect(() => {
+        if (!isFabSearchOpen || !searchTerm.trim() || filteredMolds.length !== 1) return;
+        scrollToMold(filteredMolds[0].code);
+    }, [isFabSearchOpen, searchTerm, filteredMolds]);
+
+    // Fade the highlight back out after a moment.
+    useEffect(() => {
+        if (!highlightCode) return;
+        const t = window.setTimeout(() => setHighlightCode(null), 2500);
+        return () => window.clearTimeout(t);
+    }, [highlightCode]);
+
+    const handleFabSearchSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const match = fabSearchMatches[0];
+        if (match) scrollToMold(match.code);
+    };
+
     const handleCreate = async () => {
         if (!newMold.code || newMold.code === defaultMoldCode) {
             showToast("Ο Κωδικός είναι υποχρεωτικός και πρέπει να είναι συμπληρωμένος.", 'error');
@@ -181,7 +265,7 @@ export default function MoldsPage({ resourceTab = 'molds', onResourceTabChange }
             if (error) throw error;
 
             queryClient.invalidateQueries({ queryKey: ['molds'] });
-            setNewMold({ code: defaultMoldCode, location: '', description: '', weight_g: 0 });
+            setNewMold(makeBlankMold());
             setIsCreating(false);
             showToast("Το λάστιχο προστέθηκε.", 'success');
         } catch (e) {
@@ -249,10 +333,7 @@ export default function MoldsPage({ resourceTab = 'molds', onResourceTabChange }
                             </div>
                         </div>
                         <button
-                            onClick={() => {
-                                setNewMold({ code: defaultMoldCode, location: '', description: '', weight_g: 0 });
-                                setIsCreating(true);
-                            }}
+                            onClick={openCreateModal}
                             className={`text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all hover:-translate-y-0.5 ${moldTab === 'lstx' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-[#060b00] hover:bg-slate-800'}`}
                         >
                             <Plus size={18} /> {moldTab === 'lstx' ? 'Νέο LSTX' : 'Νέο Λάστιχο'}
@@ -314,12 +395,14 @@ export default function MoldsPage({ resourceTab = 'molds', onResourceTabChange }
                 {filteredMolds.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {filteredMolds.map(mold => (
-                            <MoldCard
-                                key={mold.code}
-                                mold={mold}
-                                onSaveRow={handleSaveRow}
-                                onDelete={handleDelete}
-                            />
+                            <div key={mold.code} ref={el => { cardRefs.current[mold.code] = el; }}>
+                                <MoldCard
+                                    mold={mold}
+                                    highlighted={highlightCode === mold.code}
+                                    onSaveRow={handleSaveRow}
+                                    onDelete={handleDelete}
+                                />
+                            </div>
                         ))}
                     </div>
                 ) : (
@@ -374,14 +457,58 @@ export default function MoldsPage({ resourceTab = 'molds', onResourceTabChange }
                 </div>
             )}
 
-            {/* FLOATING ACTION BUTTON */}
-            <div className={`fixed bottom-8 right-8 z-[100] transition-all duration-300 ${showFab ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
+            {/* FLOATING ACTIONS — shown after scrolling past the header */}
+            <div className={`fixed bottom-8 right-8 z-[100] flex items-end gap-3 transition-all duration-300 ${showFab ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
+                {/* Jump to latest (bottom of the list) */}
                 <button
-                    onClick={() => {
-                        setNewMold({ code: defaultMoldCode, location: '', description: '', weight_g: 0 });
-                        setIsCreating(true);
-                    }}
-                    className={`flex items-center justify-center gap-3 text-white rounded-full font-bold shadow-2xl transition-all duration-200 ease-in-out transform hover:-translate-y-1 hover:scale-105 h-16 w-16 sm:w-auto sm:h-auto sm:px-6 sm:py-4 ${moldTab === 'lstx' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-[#060b00] hover:bg-black'}`}
+                    type="button"
+                    onClick={scrollToLatest}
+                    title="Μετάβαση στο τελευταίο λάστιχο"
+                    aria-label="Μετάβαση στο τελευταίο λάστιχο"
+                    className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition-all duration-200 hover:-translate-y-1 hover:text-[#060b00] sm:h-12 sm:w-12"
+                >
+                    <ArrowDown size={22} />
+                </button>
+
+                {/* Expandable search — works from any scroll position */}
+                {isFabSearchOpen ? (
+                    <form
+                        onSubmit={handleFabSearchSubmit}
+                        className="flex items-center gap-2 rounded-full border border-slate-200 bg-white py-2 pl-4 pr-2 shadow-xl animate-in fade-in slide-in-from-right-2 duration-200"
+                    >
+                        <Search size={18} className="shrink-0 text-slate-400" />
+                        <input
+                            autoFocus
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            placeholder="Αναζήτηση λάστιχου..."
+                            className="w-40 bg-transparent text-sm font-bold text-slate-700 outline-none sm:w-56"
+                        />
+                        <button
+                            type="button"
+                            onClick={closeFabSearch}
+                            aria-label="Κλείσιμο αναζήτησης"
+                            className="rounded-full p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                        >
+                            <X size={18} />
+                        </button>
+                    </form>
+                ) : (
+                    <button
+                        type="button"
+                        onClick={() => setIsFabSearchOpen(true)}
+                        title="Αναζήτηση λάστιχου"
+                        aria-label="Αναζήτηση λάστιχου"
+                        className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-xl transition-all duration-200 hover:-translate-y-1 hover:text-[#060b00] sm:h-12 sm:w-12"
+                    >
+                        <Search size={22} />
+                    </button>
+                )}
+
+                {/* New mold FAB */}
+                <button
+                    onClick={openCreateModal}
+                    className={`flex h-16 w-16 items-center justify-center gap-3 rounded-full font-bold text-white shadow-2xl transition-all duration-200 ease-in-out transform hover:-translate-y-1 hover:scale-105 sm:h-auto sm:w-auto sm:px-6 sm:py-4 ${moldTab === 'lstx' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-[#060b00] hover:bg-black'}`}
                 >
                     <Plus size={24} /> <span className="hidden sm:inline whitespace-nowrap">{moldTab === 'lstx' ? 'Νέο LSTX' : 'Νέο Λάστιχο'}</span>
                 </button>
