@@ -63,7 +63,7 @@ export function isInspectionTableAllowed(tableName: string): boolean {
 }
 
 export function isInspectionWorkerRouteAllowed(route: string): boolean {
-  return route.startsWith('/aade/');
+  return route.startsWith('/aade/') || route.startsWith('/sbz/');
 }
 
 export const INSPECTION_ALLOWED_RPCS = new Set([

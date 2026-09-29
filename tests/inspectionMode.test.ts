@@ -10,6 +10,7 @@ vi.mock('../lib/offlineDb', () => ({
 import {
   INSPECTION_SESSION_KEY,
   assertInspectionTableAllowed,
+  assertInspectionWorkerRouteAllowed,
   enterInspectionMode,
   exitInspectionMode,
   isEditableTarget,
@@ -87,8 +88,10 @@ describe('inspection allowlist', () => {
     expect(isInspectionTableAllowed('production_batches')).toBe(false);
   });
 
-  it('allows only aade worker routes', () => {
+  it('allows only provider and supporting AADE worker routes', () => {
     expect(isInspectionWorkerRouteAllowed('/aade/send-invoices')).toBe(true);
+    expect(isInspectionWorkerRouteAllowed('/sbz/submit')).toBe(true);
+    expect(isInspectionWorkerRouteAllowed('/sbz/reconcile')).toBe(true);
     expect(isInspectionWorkerRouteAllowed('/admin/create-seller')).toBe(false);
   });
 
@@ -137,6 +140,13 @@ describe('inspection mode session flag', () => {
     await exitInspectionMode();
     expect(sessionStorage.getItem(INSPECTION_SESSION_KEY)).toBeNull();
     expect(reload).toHaveBeenCalled();
+  });
+
+  it('allows SBZ issuance and reconciliation routes while blocking unrelated worker actions', () => {
+    sessionStorage.setItem(INSPECTION_SESSION_KEY, '1');
+    expect(() => assertInspectionWorkerRouteAllowed('/sbz/submit')).not.toThrow();
+    expect(() => assertInspectionWorkerRouteAllowed('/sbz/reconcile')).not.toThrow();
+    expect(() => assertInspectionWorkerRouteAllowed('/admin/create-seller')).toThrow(/blocked/i);
   });
 
   it('sets flag and reloads on enterInspectionMode', async () => {

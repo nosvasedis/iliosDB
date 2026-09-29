@@ -38,25 +38,28 @@ const LegalDocumentsPage = lazyWithChunkRecovery(
 );
 
 const inspectionNavItems: Array<{ id: LegalTab; label: string; icon: LucideIcon }> = [
-  { id: 'new', label: 'Δημιουργία παραστατικού', icon: FileCheck2 },
+  { id: 'new', label: 'Δημιουργία', icon: FileCheck2 },
   { id: 'archive', label: 'Αρχείο', icon: Archive },
-  { id: 'sync', label: 'Συγχρονισμός ΑΑΔΕ', icon: RefreshCw },
+  { id: 'sync', label: 'Συγχρονισμός', icon: RefreshCw },
   { id: 'delivery', label: 'Διακίνηση', icon: Truck },
-  { id: 'settings', label: 'Τεχνικές ρυθμίσεις', icon: Settings },
+  { id: 'settings', label: 'Ρυθμίσεις', icon: Settings },
 ];
 
 const tabTitles: Record<LegalTab, string> = {
   new: 'Δημιουργία παραστατικού',
   archive: 'Αρχείο παραστατικών',
-  sync: 'Συγχρονισμός με myDATA',
+  sync: 'Συγχρονισμός παραστατικών μέσω SBZ',
   delivery: 'Διακίνηση',
-  settings: 'Τεχνικές ρυθμίσεις',
+  settings: 'Ρυθμίσεις παραστατικών',
 };
 
 const InspectionModeShell: React.FC = () => {
   const [activeTab, setActiveTab] = useState<LegalTab>('new');
   const [isCollapsed, setIsCollapsed] = useState(() =>
     typeof window !== 'undefined' ? prefersCollapsedDesktopSidebar(window.innerWidth) : false
+  );
+  const [isOnline, setIsOnline] = useState(() =>
+    typeof navigator === 'undefined' ? true : navigator.onLine
   );
   // Keep inspection mode inside its legal-data allowlist. Product recipes are
   // already stripped by the inspection catalogue loader, so loading the full
@@ -70,8 +73,20 @@ const InspectionModeShell: React.FC = () => {
     applyInspectionDocumentMetadata();
   }, []);
 
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   const issuerName = legalSettings?.issuer?.business_name || legalSettings?.issuer?.name;
-  const environment = legalSettings?.environment?.toUpperCase() || 'DEV';
+  const isProduction = legalSettings?.environment === 'prod';
+  const environment = isProduction ? 'ΠΑΡΑΓΩΓΗ' : 'ΔΟΚΙΜΕΣ';
 
   if (loadingProducts) {
     return <IliosLoader variant="screen" detail="Προετοιμασία παραστατικών" />;
@@ -116,7 +131,7 @@ const InspectionModeShell: React.FC = () => {
               <img src={APP_ICON_ONLY} alt="Ilios" className="h-8 w-8 object-contain" />
             )}
             <div className={isCollapsed ? 'mt-0.5' : 'absolute right-2 top-2'}>
-              <SidebarConnectionBadge isLocalMode={false} isOnline isSyncing={false} pendingCount={0} />
+              <SidebarConnectionBadge isLocalMode={false} isOnline={isOnline} isSyncing={false} pendingCount={0} />
             </div>
           </div>
 
@@ -138,7 +153,7 @@ const InspectionModeShell: React.FC = () => {
             <p
               className="mb-1.5 mt-1 text-center text-[9px] font-black uppercase tracking-[0.16em] text-amber-400/80"
             >
-              {isCollapsed ? environment : `ΑΑΔΕ ${environment}`}
+              {isCollapsed ? (isProduction ? 'PROD' : 'TEST') : `SBZ ${environment}`}
             </p>
             <SidebarVersionMark compact={isCollapsed} />
           </div>
@@ -152,7 +167,7 @@ const InspectionModeShell: React.FC = () => {
                   {tabTitles[activeTab]}
                 </h1>
                 <p className="text-sm text-slate-500 font-medium">
-                  Διαχείριση τιμολογίων, προτιμολογίων και διαβίβασης στην ΑΑΔΕ
+                  Τιμολόγηση χονδρικής μέσω SBZ, πιστωτικά και αρχείο
                 </p>
               </div>
               <div className="text-xs font-bold text-slate-400 md:text-right">

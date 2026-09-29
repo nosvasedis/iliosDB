@@ -42,6 +42,11 @@ describe('InspectionModeShell', () => {
 
     expect(useMaterials).not.toHaveBeenCalled();
     expect(html).toContain('legal-documents');
+    expect(html).toContain('Τιμολόγηση χονδρικής μέσω SBZ, πιστωτικά και αρχείο');
+    expect(html).toContain('SBZ ΔΟΚΙΜΕΣ');
+    expect(html).toContain('Συγχρονισμός');
+    expect(html).not.toContain('Συγχρονισμός ΑΑΔΕ');
+    expect(html).not.toContain('διαβίβασης στην ΑΑΔΕ');
     expect(html).not.toContain('Δεν ήταν δυνατή η φόρτωση του συστήματος');
   });
 });
