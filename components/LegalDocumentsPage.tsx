@@ -169,7 +169,7 @@ function creationTypeToLegalKind(type: CreationDocumentType): LegalDocumentKind 
 
 interface LegalDocumentsPageProps {
   products: Product[];
-  materials: Material[];
+  materials?: Material[];
   onPrintLegalDocument: (payload: { document: LegalDocument; lines: LegalDocumentLine[] } | null) => void;
   onPrintProforma?: (payload: { document: ProformaDocument; lines: ProformaDocumentLine[] } | null) => void;
   presentation?: 'default' | 'inspection';
@@ -738,7 +738,7 @@ const NumberingAlignmentModal = ({
 
 export default function LegalDocumentsPage({
   products,
-  materials,
+  materials = [],
   onPrintLegalDocument,
   onPrintProforma,
   presentation = 'default',
