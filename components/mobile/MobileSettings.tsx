@@ -1,3 +1,5 @@
+import CatalogueRepricingPanel from '../CatalogueRepricingPanel';
+import PricingRulesSettings from '../PricingRulesSettings';
 
 import React, { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -282,6 +284,9 @@ export default function MobileSettings() {
                         </div>
                     </div>
                 </div>
+
+                <PricingRulesSettings settings={localSettings} onChange={setLocalSettings} />
+            <CatalogueRepricingPanel settings={localSettings} />
 
                 {/* Backup & System */}
                 <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3">

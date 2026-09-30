@@ -1,3 +1,4 @@
+import type { PricingSettings } from '../../utils/pricingRules';
 import React, { useMemo } from 'react';
 import { FINISH_CODES } from '../../constants';
 import { LaborCost, Product } from '../../types';
@@ -19,6 +20,7 @@ type TechnicianProduct = Pick<
 >;
 
 export interface TechnicianLaborFormulaRowProps {
+  settings?: PricingSettings;
   icon: React.ReactNode;
   labor: LaborCost;
   product: TechnicianProduct;
@@ -37,6 +39,7 @@ function finishLabel(code: string): string {
 }
 
 export const TechnicianLaborFormulaRow: React.FC<TechnicianLaborFormulaRowProps> = ({
+  settings,
   icon,
   labor,
   product,
@@ -49,8 +52,8 @@ export const TechnicianLaborFormulaRow: React.FC<TechnicianLaborFormulaRowProps>
   onToggleOverride,
 }) => {
   const masterLine = useMemo(
-    () => getTechnicianFormulaLine(labor, product, useSplitTechnician),
-    [labor, product, useSplitTechnician],
+    () => getTechnicianFormulaLine(labor, product, useSplitTechnician, settings),
+    [labor, product, useSplitTechnician, settings],
   );
 
   const selectedFinishCode = useMemo(() => {
@@ -68,7 +71,7 @@ export const TechnicianLaborFormulaRow: React.FC<TechnicianLaborFormulaRowProps>
   let contextLabel: string | undefined;
 
   if (showVariantRule) {
-    line = getTechnicianAutoLineForFinish(product, selectedFinishCode ?? 'P');
+    line = getTechnicianAutoLineForFinish(product, selectedFinishCode ?? 'P', settings);
     readOnly = true;
     contextLabel = finishLabel(selectedFinishCode ?? '');
   }
@@ -78,10 +81,10 @@ export const TechnicianLaborFormulaRow: React.FC<TechnicianLaborFormulaRowProps>
     if (product.is_component) return undefined;
     if (readOnly) return undefined;
     if (useSplitTechnician) {
-      return `${SPLIT_TECHNICIAN_HINT} · ${getTechnicianSplitDetailHint(product)}`;
+      return `${SPLIT_TECHNICIAN_HINT} · ${getTechnicianSplitDetailHint(product, settings)}`;
     }
     return undefined;
-  }, [line.isOverridden, readOnly, product, useSplitTechnician]);
+  }, [line.isOverridden, readOnly, product, useSplitTechnician, settings]);
 
   const showTierScale = !product.is_component;
   const tierPrimaryWeight = useSplitTechnician && !readOnly

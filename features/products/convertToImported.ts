@@ -1,10 +1,10 @@
+import { getPricingRules } from '../../utils/pricingRules';
 import { GlobalSettings, Material, Product, ProductionType, Supplier } from '../../types';
 import {
   calculateProductCost,
   estimateVariantCost,
   getIliosSuggestedPriceForProduct,
 } from '../../utils/pricingEngine';
-import { DEFAULT_PLATING_RATE } from '../../utils/laborFormula';
 
 export interface ImportedConversionInput {
   supplierId?: string | null;
@@ -66,7 +66,7 @@ export function computeImportedConversion(
       setter_cost: 0,
       technician_cost: Number(input.technicianCostPerGram) || 0,
       stone_setting_cost: Number(input.stoneSettingCost) || 0,
-      plating_cost_x: input.platingCostPerGram === undefined ? DEFAULT_PLATING_RATE : Number(input.platingCostPerGram) || 0,
+      plating_cost_x: input.platingCostPerGram === undefined ? getPricingRules(settings).plating_rate : Number(input.platingCostPerGram) || 0,
       plating_cost_d: product.labor.plating_cost_d || 0,
       subcontract_cost: product.labor.subcontract_cost || 0,
       casting_cost_manual_override: false,

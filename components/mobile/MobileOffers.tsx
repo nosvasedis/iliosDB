@@ -203,7 +203,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
                 const tempSettings = { ...settings, silver_price_gram: customSilverPrice };
                 const costCalc = calculateProductCost(product, tempSettings, materials, products);
                 const weight = costCalc.breakdown.details?.total_weight || (product.weight_g + (product.secondary_weight_g || 0));
-                const unitPrice = calculateSuggestedWholesalePrice(weight, costCalc.breakdown.silver, costCalc.breakdown.labor, costCalc.breakdown.materials);
+                const unitPrice = calculateSuggestedWholesalePrice(weight, costCalc.breakdown.silver, costCalc.breakdown.labor, costCalc.breakdown.materials, settings);
 
                 // Check if exists
                 const existingIdx = newItems.findIndex(i => i.sku === product.sku && i.variant_suffix === variant?.suffix);
@@ -248,7 +248,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
             const tempSettings = { ...settings, silver_price_gram: customSilverPrice };
             const costCalc = calculateProductCost(p, tempSettings, materials, products);
             const weight = costCalc.breakdown.details?.total_weight || (p.weight_g + (p.secondary_weight_g || 0));
-            const unitPrice = calculateSuggestedWholesalePrice(weight, costCalc.breakdown.silver, costCalc.breakdown.labor, costCalc.breakdown.materials);
+            const unitPrice = calculateSuggestedWholesalePrice(weight, costCalc.breakdown.silver, costCalc.breakdown.labor, costCalc.breakdown.materials, settings);
 
             if (p.variants && p.variants.length > 0) {
                 p.variants.forEach(v => {
@@ -293,7 +293,7 @@ export default function MobileOffers({ onPrintOffer }: Props) {
             const tempSettings = { ...settings, silver_price_gram: customSilverPrice };
             const costCalc = calculateProductCost(product, tempSettings, materials, products);
             const weight = costCalc.breakdown.details?.total_weight || (product.weight_g + (product.secondary_weight_g || 0));
-            const newPrice = calculateSuggestedWholesalePrice(weight, costCalc.breakdown.silver, costCalc.breakdown.labor, costCalc.breakdown.materials);
+            const newPrice = calculateSuggestedWholesalePrice(weight, costCalc.breakdown.silver, costCalc.breakdown.labor, costCalc.breakdown.materials, settings);
 
             return { ...item, price_at_order: newPrice };
         });

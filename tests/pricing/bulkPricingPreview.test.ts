@@ -3,7 +3,6 @@ import { Gender, GlobalSettings, Material, Product, ProductionType } from '../..
 import {
   buildBulkPricingPreview,
   countManualSellingPrices,
-  detectLegacyManualPriceCandidates,
   filterPricingList,
   getCommitCandidates,
   isSellingPriceManual,
@@ -148,7 +147,7 @@ describe('bulkPricingPreview', () => {
     expect(summary.total).toBe(2);
   });
 
-  it('detects legacy manual candidates when price differs from formula', () => {
+  it('keeps stale formula prices automatic without inferring a manual override', () => {
     const product = makeProduct({
       variants: [
         {
@@ -161,10 +160,14 @@ describe('bulkPricingPreview', () => {
       ],
     });
 
-    const candidates = detectLegacyManualPriceCandidates([product], settings, materials);
-    expect(candidates).toHaveLength(1);
-    expect(candidates[0].variantSuffix).toBe('P');
-    expect(candidates[0].currentPrice).toBe(99);
+    const preview = buildBulkPricingPreview([product], settings, materials, {
+      mode: 'selling', markupMode: 'formula', markupPercent: 0,
+    });
+    expect(preview).toHaveLength(1);
+    expect(preview[0].currentPrice).toBe(99);
+    expect(preview[0].isManualPrice).toBe(false);
+    expect(preview[0].status).toBe('will_update');
+    expect(product.variants![0].selling_price_manual_override).toBe(false);
   });
 
   it('counts manual selling prices across inventory', () => {

@@ -387,7 +387,8 @@ export default function MobileBatchPrint({ onPrintPhotoCatalog }: Props) {
                     <div className="print-area flex flex-wrap content-start">
                         {queue.flatMap(item => Array(item.qty).fill(item)).map((item, idx) => (
                             <div key={idx} className="mb-4 print:mb-0">
-                                <BarcodeView 
+                                <BarcodeView
+                                settings={settings}
                                     product={item.product}
                                     variant={item.variant}
                                     width={printFormat === 'retail' ? (settings.retail_barcode_width_mm || 72) : settings.barcode_width_mm} 

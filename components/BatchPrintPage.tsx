@@ -865,6 +865,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
                                     <div className="max-h-72 overflow-y-auto custom-scrollbar divide-y divide-slate-100">
                                         {parsedLabelQueue.entries.map(item => {
                                             const text = buildLabelText({
+                                                settings,
                                                 product: item.product,
                                                 variant: item.variant,
                                                 format: labelFormat,
@@ -1252,6 +1253,7 @@ export default function BatchPrintPage({ allProducts, allCollections, setPrintIt
 
             {editingLabelItem && (
                 <LabelPreviewEditModal
+                    settings={settings}
                     product={editingLabelItem.product}
                     variant={editingLabelItem.variant}
                     size={editingLabelItem.size}

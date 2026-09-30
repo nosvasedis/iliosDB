@@ -1,3 +1,4 @@
+import type { PricingSettings } from '../utils/pricingRules';
 import React, { useEffect, useState, useMemo } from 'react';
 import { Product, ProductVariant } from '../types';
 import { INITIAL_SETTINGS } from '../constants';
@@ -20,6 +21,7 @@ import {
 import { buildLabelQrSvgDataUrl } from '../features/printing/qrCodeImage';
 
 interface Props {
+    settings?: PricingSettings;
     product: Product;
     variant?: ProductVariant;
     width: number;
@@ -32,6 +34,7 @@ interface Props {
 }
 
 const BarcodeView: React.FC<Props> = ({
+    settings,
     product,
     variant,
     width,
@@ -54,14 +57,14 @@ const BarcodeView: React.FC<Props> = ({
     const showPrice = showPriceProp ?? format !== 'retail';
     const priceTier = priceTierProp ?? 'wholesale';
     const labelText = useMemo(() => buildLabelText({
-        product,
+        settings,        product,
         variant,
         format,
         size,
         showPrice,
         priceTier,
         overrides: labelOverrides,
-    }), [product, variant, format, size, showPrice, priceTier, labelOverrides]);
+    }), [product, variant, format, size, showPrice, priceTier, labelOverrides, settings]);
 
     useEffect(() => {
         let cancelled = false;

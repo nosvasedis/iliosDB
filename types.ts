@@ -165,6 +165,23 @@ export interface Product {
   collections?: number[];
 }
 
+export interface PricingRules {
+  casting_rate: number;
+  plating_rate: number;
+  stx_technician_rate: number;
+  technician_threshold_1: number;
+  technician_threshold_2: number;
+  technician_threshold_3: number;
+  technician_rate_1: number;
+  technician_rate_2: number;
+  technician_rate_3: number;
+  technician_rate_4: number;
+  ilios_labor_material_multiplier: number;
+  ilios_weight_surcharge: number;
+  retail_multiplier: number;
+  price_rounding_step: number;
+}
+
 export interface GlobalSettings {
   silver_price_gram: number;
   loss_percentage: number;
@@ -174,6 +191,7 @@ export interface GlobalSettings {
   retail_barcode_height_mm: number; // New
   last_calc_silver_price: number; // Historical anchor for last mass update
   local_image_storage?: boolean;
+  pricing_rules?: Partial<PricingRules>;
 }
 
 export interface PriceSnapshot {

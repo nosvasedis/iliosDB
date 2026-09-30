@@ -43,6 +43,10 @@ const makeVariant = (overrides: Partial<ProductVariant> = {}): ProductVariant =>
 });
 
 describe('BarcodeView', () => {
+  it('uses the configured retail multiplier in the rendered label', () => {
+    const html = renderToStaticMarkup(<BarcodeView product={makeProduct()} variant={makeVariant()} width={50} height={30} format="standard" showPrice priceTier="retail" settings={{ pricing_rules: { retail_multiplier: 4 } }} />);
+    expect(html).toContain('80,00€');
+  });
   it('renders a DM ring size inline with the larger standard-label price', () => {
     const html = renderToStaticMarkup(
       <BarcodeView

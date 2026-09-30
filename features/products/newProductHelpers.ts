@@ -165,7 +165,7 @@ export function calculateIliosVariantPrice(
   const materialCost = est.breakdown.materials;
   const totalWeight = est.breakdown.details?.total_weight || (weight + secondaryWeight);
 
-  return calculateSuggestedWholesalePrice(totalWeight, silverCost, laborCost, materialCost);
+  return calculateSuggestedWholesalePrice(totalWeight, silverCost, laborCost, materialCost, settings);
 }
 
 export function calculateIliosMasterPrice(
@@ -181,7 +181,7 @@ export function calculateIliosMasterPrice(
   const silverCost = costBreakdown?.silver ?? est.breakdown.silver ?? 0;
   const laborCost = costBreakdown?.labor ?? est.breakdown.labor ?? 0;
   const materialCost = costBreakdown?.materials ?? est.breakdown.materials ?? 0;
-  return calculateSuggestedWholesalePrice(weight + secondaryWeight, silverCost, laborCost, materialCost);
+  return calculateSuggestedWholesalePrice(weight + secondaryWeight, silverCost, laborCost, materialCost, settings);
 }
 
 export const buildIliosMasterPrice = calculateIliosMasterPrice;

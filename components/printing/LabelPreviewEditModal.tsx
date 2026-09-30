@@ -1,3 +1,4 @@
+import type { PricingSettings } from '../../utils/pricingRules';
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { RotateCcw as ResetIcon, Save, X } from 'lucide-react';
@@ -14,6 +15,7 @@ import {
 } from '../../features/printing/labelPrintSettings';
 
 interface LabelPreviewEditModalProps {
+    settings?: PricingSettings;
   product: Product;
   variant?: ProductVariant;
   size?: string;
@@ -29,6 +31,7 @@ interface LabelPreviewEditModalProps {
 }
 
 const LabelPreviewEditModal: React.FC<LabelPreviewEditModalProps> = ({
+    settings,
   product,
   variant,
   size,
@@ -43,7 +46,7 @@ const LabelPreviewEditModal: React.FC<LabelPreviewEditModalProps> = ({
   onClose,
 }) => {
   const labelText = buildLabelText({
-    product,
+        settings,    product,
     variant,
     format,
     size,
@@ -75,6 +78,7 @@ const LabelPreviewEditModal: React.FC<LabelPreviewEditModalProps> = ({
           <div className="flex min-h-[260px] items-center justify-center bg-slate-100 p-6">
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-inner">
               <BarcodeView
+                settings={settings}
                 product={product}
                 variant={variant}
                 width={width}

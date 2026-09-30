@@ -123,6 +123,7 @@ const BarcodeGallery = React.memo(({ product, variants, onPrint, settings, activ
               <div className="custom-scrollbar relative flex min-h-[96px] w-full items-center justify-center overflow-x-auto rounded-lg border border-slate-100 bg-slate-50/40 p-2">
                 <div className={`${format === 'retail' ? 'origin-center scale-110' : ''} transition-transform`}>
                   <BarcodeView
+                                settings={settings}
                     product={product}
                     variant={variant}
                     width={previewWidth}
@@ -166,6 +167,7 @@ const BarcodeGallery = React.memo(({ product, variants, onPrint, settings, activ
 
       {editingItem && (
         <LabelPreviewEditModal
+                    settings={settings}
           product={product}
           variant={editingItem.variant}
           format={format}

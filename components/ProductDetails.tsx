@@ -1,3 +1,4 @@
+import { getPricingRules } from '../utils/pricingRules';
 
 import './ProductDetails/productDetails.css';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -5,7 +6,6 @@ import { createPortal } from 'react-dom';
 import { Product, Material, RecipeItem, LaborCost, ProductVariant, Gender, GlobalSettings, Collection, Mold, ProductionType, PlatingType, ProductMold, Supplier, MaterialType } from '../types';
 import { calculateProductCost, analyzeSku, estimateVariantCost, getPrevalentVariant, getVariantComponents, roundPrice, SupplierAnalysis, formatCurrency, transliterateForBarcode, formatDecimal, getIliosSuggestedPriceForProduct, shouldUseSplitTechnicianCost, hasMixedTechnicianVariants } from '../utils/pricingEngine';
 import {
-    DEFAULT_PLATING_RATE,
     applyFormulaRateChange,
     applyFormulaTotalChange,
     computeAutoLaborCosts,
@@ -604,14 +604,14 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             };
 
             if (prev.production_type === ProductionType.InHouse) {
-                mergeLabor(computeAutoLaborCosts(prev, allProducts, shouldUseSplitTechnicianCost(prev)));
+                mergeLabor(computeAutoLaborCosts(prev, allProducts, shouldUseSplitTechnicianCost(prev), settings));
             } else if (prev.production_type === ProductionType.Imported) {
                 if (!prev.labor.plating_cost_x_manual_override && prev.labor.plating_cost_x === 0) {
-                    mergeLabor({ plating_cost_x: DEFAULT_PLATING_RATE });
+                    mergeLabor({ plating_cost_x: getPricingRules(settings).plating_rate });
                 }
                 if (!prev.labor.plating_cost_d_manual_override) {
                     const dWeight = getPlatingDWeightBasis(prev, allProducts);
-                    mergeLabor({ plating_cost_d: parseFloat((dWeight * DEFAULT_PLATING_RATE).toFixed(2)) });
+                    mergeLabor({ plating_cost_d: parseFloat((dWeight * getPricingRules(settings).plating_rate).toFixed(2)) });
                 }
             }
 
@@ -632,6 +632,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
         editedProduct.labor.plating_cost_x_manual_override,
         editedProduct.labor.plating_cost_d_manual_override,
         allProducts,
+        settings,
     ]);
 
     useEffect(() => {
@@ -688,7 +689,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             return;
         }
         const price = masterCost / (1 - marginDecimal);
-        setCalculatedPrice(roundPrice(price));
+        setCalculatedPrice(roundPrice(price, settings));
     };
 
     const handleStandardFormula = () => {
@@ -781,7 +782,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
             const totalCost = est.total;
             const marginDecimal = margin / 100;
             if (marginDecimal >= 1) return 0;
-            return roundPrice(totalCost / (1 - marginDecimal));
+            return roundPrice(totalCost / (1 - marginDecimal), settings);
         }
     };
 
@@ -1188,20 +1189,20 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
     );
 
     const castingFormula = useMemo(
-        () => getCastingFormulaLine(editedProduct.labor, editedProduct),
-        [editedProduct.labor, editedProduct.weight_g, editedProduct.secondary_weight_g, editedProduct.is_component],
+        () => getCastingFormulaLine(editedProduct.labor, editedProduct, settings),
+        [editedProduct.labor, editedProduct.weight_g, editedProduct.secondary_weight_g, editedProduct.is_component, settings, editedProduct.skip_casting],
     );
     const technicianFormula = useMemo(
-        () => getTechnicianFormulaLine(editedProduct.labor, editedProduct, useSplitTechnician),
-        [editedProduct.labor, editedProduct.weight_g, editedProduct.secondary_weight_g, editedProduct.is_component, useSplitTechnician],
+        () => getTechnicianFormulaLine(editedProduct.labor, editedProduct, useSplitTechnician, settings),
+        [editedProduct.labor, editedProduct.weight_g, editedProduct.secondary_weight_g, editedProduct.is_component, useSplitTechnician, settings, editedProduct.skip_casting],
     );
     const platingXFormula = useMemo(
-        () => getPlatingXFormulaLine(editedProduct.labor, editedProduct, allProducts),
-        [editedProduct.labor, editedProduct.weight_g, editedProduct.recipe, allProducts],
+        () => getPlatingXFormulaLine(editedProduct.labor, editedProduct, allProducts, settings),
+        [editedProduct.labor, editedProduct.weight_g, editedProduct.recipe, allProducts, settings, editedProduct.skip_casting],
     );
     const platingDFormula = useMemo(
-        () => getPlatingDFormulaLine(editedProduct.labor, editedProduct, allProducts),
-        [editedProduct.labor, editedProduct.secondary_weight_g, editedProduct.recipe, allProducts],
+        () => getPlatingDFormulaLine(editedProduct.labor, editedProduct, allProducts, settings),
+        [editedProduct.labor, editedProduct.secondary_weight_g, editedProduct.recipe, allProducts, settings, editedProduct.skip_casting],
     );
 
     const patchLaborFormula = (
@@ -2033,6 +2034,7 @@ export default function ProductDetails({ product, allProducts, allMaterials, onC
                                                 />
                                                 <LaborCostInput label="Καρφωτής (€)" value={editedProduct.labor.setter_cost} onChange={v => setEditedProduct({ ...editedProduct, labor: { ...editedProduct.labor, setter_cost: v } })} icon={<Gem size={14} />} />
                                                 <TechnicianLaborFormulaRow
+                                                    settings={settings}
                                                     icon={<Hammer size={14} />}
                                                     labor={editedProduct.labor}
                                                     product={editedProduct}

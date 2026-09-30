@@ -1,8 +1,8 @@
+import { getPricingRules } from '../utils/pricingRules';
 import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { GlobalSettings, Material, Product, Supplier } from '../types';
 import { formatCurrency, formatDecimal } from '../utils/pricingEngine';
-import { DEFAULT_PLATING_RATE } from '../utils/laborFormula';
 import { computeImportedConversion, type ImportedConversionInput } from '../features/products/convertToImported';
 import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle, Coins, Gem, Globe, Hammer, Info, ShoppingBag, Weight, X } from 'lucide-react';
 
@@ -40,7 +40,7 @@ export default function ConvertToImportedModal({
     const [supplierSku, setSupplierSku] = useState(product.supplier_sku || '');
     const [supplierCost, setSupplierCost] = useState<number | ''>(product.supplier_cost ?? '');
     const [technicianCostPerGram, setTechnicianCostPerGram] = useState<number | ''>('');
-    const [platingCostPerGram, setPlatingCostPerGram] = useState<number | ''>(DEFAULT_PLATING_RATE);
+    const [platingCostPerGram, setPlatingCostPerGram] = useState<number | ''>(getPricingRules(settings).plating_rate);
     const [stoneSettingCost, setStoneSettingCost] = useState<number | ''>(product.labor.stone_setting_cost || '');
     const [weightG, setWeightG] = useState<number | ''>(product.weight_g || '');
     const [secondaryWeightG, setSecondaryWeightG] = useState<number | ''>(product.secondary_weight_g || '');

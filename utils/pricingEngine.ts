@@ -1,9 +1,11 @@
+import { DEFAULT_PRICING_RULES, getPricingRules, type PricingSettings } from './pricingRules';
 import { Product, GlobalSettings, Material, PlatingType, Gender, ProductVariant, ProductionType, RecipeItem, LaborCost } from '../types';
 import { STONE_CODES_MEN, STONE_CODES_WOMEN, FINISH_CODES } from '../constants';
 import {
-    DEFAULT_CASTING_RATE,
     calculateTechnicianCostFromWeight,
     resolveCastingCost,
+    getPlatingXFormulaLine,
+    getPlatingDFormulaLine,
     resolveTechnicianCostMaster,
     resolveTechnicianCostVariant,
 } from './laborFormula';
@@ -28,9 +30,10 @@ export const formatCurrency = (num: number | null | undefined): string => {
 /**
  * Rounds a price to the nearest 10 cents (e.g., 21.54 -> 21.50, 21.56 -> 21.60).
  */
-export const roundPrice = (price: number): number => {
+export const roundPrice = (price: number, settings?: PricingSettings): number => {
     if (price === 0) return 0;
-    return parseFloat((Math.round(price * 10) / 10).toFixed(2));
+    const cents = Math.round(getPricingRules(settings).price_rounding_step * 100);
+    return parseFloat((Math.round(price * 100 / cents) * cents / 100).toFixed(2));
 };
 
 /**
@@ -45,10 +48,10 @@ export const codifyPrice = (price: number): string => {
     return `1${cents}9`;
 };
 
-export const RETAIL_LABEL_PRICE_MULTIPLIER = 3;
+export const RETAIL_LABEL_PRICE_MULTIPLIER = DEFAULT_PRICING_RULES.retail_multiplier;
 
-export const getLabelDisplayPrice = (wholesale: number, tier: 'wholesale' | 'retail'): number =>
-    tier === 'retail' ? wholesale * RETAIL_LABEL_PRICE_MULTIPLIER : wholesale;
+export const getLabelDisplayPrice = (wholesale: number, tier: 'wholesale' | 'retail', settings?: PricingSettings): number =>
+    tier === 'retail' ? wholesale * getPricingRules(settings).retail_multiplier : wholesale;
 
 /**
  * Calculates the Ilios Standard Suggested Wholesale Price.
@@ -58,20 +61,22 @@ export const calculateSuggestedWholesalePrice = (
     totalWeight: number,
     silverCost: number,
     laborCost: number,
-    materialCost: number
+    materialCost: number,
+    settings?: PricingSettings
 ): number => {
+    const rules = getPricingRules(settings);
     const nonMetalCost = laborCost + materialCost;
-    const weightSurcharge = totalWeight * 2;
-    const suggestedPrice = (nonMetalCost * 2) + silverCost + weightSurcharge;
-    return roundPrice(suggestedPrice);
+    const weightSurcharge = totalWeight * rules.ilios_weight_surcharge;
+    const suggestedPrice = (nonMetalCost * rules.ilios_labor_material_multiplier) + silverCost + weightSurcharge;
+    return roundPrice(suggestedPrice, settings);
 };
 
-export const calculateTechnicianCost = (weight_g: number): number =>
-    calculateTechnicianCostFromWeight(weight_g);
+export const calculateTechnicianCost = (weight_g: number, settings?: PricingSettings): number =>
+    calculateTechnicianCostFromWeight(weight_g, settings);
 
-export const calculatePlatingCost = (weight_g: number, plating_type: PlatingType): number => {
+export const calculatePlatingCost = (weight_g: number, plating_type: PlatingType, settings?: PricingSettings): number => {
     if (plating_type === PlatingType.GoldPlated || plating_type === PlatingType.Platinum) {
-        return weight_g * 0.60;
+        return weight_g * getPricingRules(settings).plating_rate;
     }
     return 0;
 };
@@ -119,10 +124,10 @@ export const analyzeSupplierValue = (
     });
 
     const intrinsicValue = silverCost + materialCost;
-    const estCasting = weight * DEFAULT_CASTING_RATE;
-    const estTechnician = calculateTechnicianCost(weight);
+    const estCasting = weight * getPricingRules(settings).casting_rate;
+    const estTechnician = calculateTechnicianCost(weight, settings);
     const estPlating = (reportedLabor.plating_cost_x > 0 || reportedLabor.plating_cost_d > 0)
-        ? calculatePlatingCost(weight, PlatingType.GoldPlated)
+        ? calculatePlatingCost(weight, PlatingType.GoldPlated, settings)
         : 0;
 
     const estimatedInternalLabor = estCasting + estTechnician + estPlating;
@@ -155,9 +160,9 @@ export const analyzeSupplierValue = (
         else verdict = 'Overpriced';
 
         return {
-            intrinsicValue: roundPrice(intrinsicValue),
-            theoreticalMakeCost: roundPrice(theoreticalMakeCost),
-            supplierPremium: roundPrice(supplierPremium),
+            intrinsicValue: roundPrice(intrinsicValue, settings),
+            theoreticalMakeCost: roundPrice(theoreticalMakeCost, settings),
+            supplierPremium: roundPrice(supplierPremium, settings),
             premiumPercent: parseFloat(premiumPercent.toFixed(1)),
             verdict,
             effectiveSilverPrice: parseFloat(effectiveSilverPrice.toFixed(3)),
@@ -168,8 +173,8 @@ export const analyzeSupplierValue = (
         };
     }
     return {
-        intrinsicValue: roundPrice(intrinsicValue),
-        theoreticalMakeCost: roundPrice(theoreticalMakeCost),
+        intrinsicValue: roundPrice(intrinsicValue, settings),
+        theoreticalMakeCost: roundPrice(theoreticalMakeCost, settings),
         supplierPremium: 0,
         premiumPercent: 0,
         verdict: 'Fair',
@@ -216,7 +221,7 @@ export const calculateProductCost = (
         const stoneCost = product.labor.stone_setting_cost || 0;
         const totalCost = silverCost + technicianCost + platingCost + stoneCost;
         return {
-            total: roundPrice(totalCost),
+            total: roundPrice(totalCost, settings),
             rawTotal: totalCost,
             breakdown: { silver: silverCost, labor: technicianCost + platingCost, materials: stoneCost, details: { technician_cost: technicianCost, plating_cost: platingCost, stone_setting_cost: stoneCost, total_weight: totalWeight } }
         };
@@ -247,22 +252,28 @@ export const calculateProductCost = (
 
     const labor: Partial<LaborCost> = product.labor || {};
     const useSplitTechnician = shouldUseSplitTechnicianCost(product);
-    const technicianCost = resolveTechnicianCostMaster(labor, product, useSplitTechnician);
-    const castingCost = resolveCastingCost(labor, product);
+    const technicianCost = resolveTechnicianCostMaster(labor, product, useSplitTechnician, settings);
+    const castingCost = resolveCastingCost(labor, product, settings);
 
+    const platingX = settings.pricing_rules?.plating_rate !== undefined
+        ? getPlatingXFormulaLine(labor as LaborCost, product, allProducts, settings).total
+        : labor.plating_cost_x || 0;
+    const platingD = settings.pricing_rules?.plating_rate !== undefined
+        ? getPlatingDFormulaLine(labor as LaborCost, product, allProducts, settings).total
+        : labor.plating_cost_d || 0;
     // Master calculation determines plating based on its own type
     let platingCost = 0;
     if (product.plating_type === PlatingType.GoldPlated || product.plating_type === PlatingType.Platinum) {
-        platingCost = labor.plating_cost_x || 0;
+        platingCost = platingX;
     } else if (product.plating_type === PlatingType.TwoTone) {
-        platingCost = labor.plating_cost_d || 0;
+        platingCost = platingD;
     }
 
     const laborTotal = castingCost + (labor.setter_cost || 0) + technicianCost + (labor.subcontract_cost || 0) + platingCost;
     const totalCost = silverBaseCost + materialsCost + laborTotal;
 
     return {
-        total: roundPrice(totalCost),
+        total: roundPrice(totalCost, settings),
         rawTotal: totalCost,
         breakdown: {
             silver: silverBaseCost,
@@ -619,7 +630,7 @@ export const estimateVariantCost = (
 
         const totalCost = silverCost + technicianCost + stoneCost + platingCost;
         return {
-            total: roundPrice(totalCost),
+            total: roundPrice(totalCost, settings),
             rawTotal: totalCost,
             breakdown: {
                 silver: silverCost,
@@ -665,9 +676,15 @@ export const estimateVariantCost = (
         }
     });
 
-    const technicianCost = resolveTechnicianCostVariant(labor, masterProduct, { finishCode: finish.code });
-    const castingCost = resolveCastingCost(labor, masterProduct);
+    const technicianCost = resolveTechnicianCostVariant(labor, masterProduct, { finishCode: finish.code }, settings);
+    const castingCost = resolveCastingCost(labor, masterProduct, settings);
 
+    const platingX = settings.pricing_rules?.plating_rate !== undefined
+        ? getPlatingXFormulaLine(labor as LaborCost, masterProduct, allProducts, settings).total
+        : labor.plating_cost_x || 0;
+    const platingD = settings.pricing_rules?.plating_rate !== undefined
+        ? getPlatingDFormulaLine(labor as LaborCost, masterProduct, allProducts, settings).total
+        : labor.plating_cost_d || 0;
     let platingLabor = 0;
 
     // STRICT PLATING LOGIC
@@ -680,15 +697,15 @@ export const estimateVariantCost = (
     if (finish.code === 'P') {
         platingLabor = 0; // Explicitly remove plating cost
     } else if (['X', 'H'].includes(finish.code)) {
-        platingLabor = labor.plating_cost_x || 0;
+        platingLabor = platingX;
     } else if (finish.code === 'D') {
-        platingLabor = labor.plating_cost_d || 0;
+        platingLabor = platingD;
     } else {
         // Empty suffix or just stone suffix
         if (masterProduct.plating_type === PlatingType.GoldPlated || masterProduct.plating_type === PlatingType.Platinum) {
-            platingLabor = labor.plating_cost_x || 0;
+            platingLabor = platingX;
         } else if (masterProduct.plating_type === PlatingType.TwoTone) {
-            platingLabor = labor.plating_cost_d || 0;
+            platingLabor = platingD;
         }
     }
 
@@ -696,7 +713,7 @@ export const estimateVariantCost = (
     const totalCost = silverCost + materialsCost + laborTotal;
 
     return {
-        total: roundPrice(totalCost),
+        total: roundPrice(totalCost, settings),
         rawTotal: totalCost,
         breakdown: {
             silver: silverCost,
@@ -733,7 +750,7 @@ export const getIliosSuggestedPriceForProduct = (
         ? estimateVariantCost(product, variantSuffix, settings, allMaterials, allProducts, undefined, productsMap, materialsMap)
         : calculateProductCost(product, settings, allMaterials, allProducts, 0, new Set(), undefined, productsMap, materialsMap);
     const weight = costCalc.breakdown.details?.total_weight ?? (product.weight_g + (product.secondary_weight_g || 0));
-    return calculateSuggestedWholesalePrice(weight, costCalc.breakdown.silver, costCalc.breakdown.labor, costCalc.breakdown.materials);
+    return calculateSuggestedWholesalePrice(weight, costCalc.breakdown.silver, costCalc.breakdown.labor, costCalc.breakdown.materials, settings);
 };
 
 export const getPrevalentVariant = (variants: ProductVariant[] | undefined): ProductVariant | null => {

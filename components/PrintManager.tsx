@@ -390,6 +390,7 @@ export const PrintManager: React.FC<PrintManagerProps> = ({
                     <div className="print-area">
                         {printItems.flatMap(item => Array.from({ length: item.quantity }, () => ({ product: item.product, variant: item.variant, size: item.size, format: item.format || 'standard', showPrice: item.showPrice, priceTier: item.priceTier, labelOverrides: item.labelOverrides }))).map((item, idx) => (
                             <BarcodeView
+                                settings={settings}
                                 key={`${idx}`}
                                 product={item.product}
                                 variant={item.variant}

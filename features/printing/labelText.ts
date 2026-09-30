@@ -1,3 +1,4 @@
+import type { PricingSettings } from '../../utils/pricingRules';
 import { Product, ProductVariant } from '../../types';
 import { FINISH_CODES, STONE_CODES_MEN, STONE_CODES_WOMEN } from '../../constants';
 import { formatCurrency, getLabelDisplayPrice } from '../../utils/pricingEngine';
@@ -56,6 +57,7 @@ export function composeStandardLabelPriceLine(
 }
 
 interface BuildLabelTextInput {
+  settings?: PricingSettings;
   product: Product;
   variant?: ProductVariant;
   format?: LabelFormat;
@@ -106,14 +108,16 @@ export function getDefaultLabelPrice(
   variant: ProductVariant | undefined,
   showPrice: boolean,
   priceTier: LabelPriceTier,
+  settings?: PricingSettings,
 ): string {
   if (!showPrice) return '';
   const wholesalePrice = variant?.selling_price ?? product?.selling_price ?? 0;
-  const displayPrice = getLabelDisplayPrice(wholesalePrice, priceTier);
+  const displayPrice = getLabelDisplayPrice(wholesalePrice, priceTier, settings);
   return displayPrice > 0 ? formatCurrency(displayPrice) : '';
 }
 
 export function buildLabelText({
+  settings,
   product,
   variant,
   format = 'standard',
@@ -131,7 +135,7 @@ export function buildLabelText({
     suffix: variant?.suffix || '',
     stone: getDefaultLabelStone(product, variant),
     brand: 'ILIOS',
-    price: getDefaultLabelPrice(product, variant, showPrice, priceTier),
+    price: getDefaultLabelPrice(product, variant, showPrice, priceTier, settings),
     metal: '925°',
     size: size || '',
   };

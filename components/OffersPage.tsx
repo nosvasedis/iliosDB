@@ -196,7 +196,7 @@ export default function OffersPage({ products, materials, settings, collections,
         let totalWeight = costCalc.breakdown.details?.total_weight || (product.weight_g + (product.secondary_weight_g || 0));
 
         // Calculate wholesale price based on the Ilios formula
-        const suggestedPrice = calculateSuggestedWholesalePrice(totalWeight, breakdown.silver, breakdown.labor, breakdown.materials);
+        const suggestedPrice = calculateSuggestedWholesalePrice(totalWeight, breakdown.silver, breakdown.labor, breakdown.materials, settings);
         return suggestedPrice;
     };
 

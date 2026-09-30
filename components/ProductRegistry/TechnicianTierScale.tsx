@@ -1,3 +1,4 @@
+import { getPricingRules, type PricingSettings } from '../../utils/pricingRules';
 import React from 'react';
 import { getTechnicianRateForWeight } from '../../utils/laborFormula';
 
@@ -45,12 +46,13 @@ export const TECHNICIAN_TIERS: TechnicianTier[] = [
   },
 ];
 
-function tierForWeight(weightG: number): TechnicianTier | null {
+function tierForWeight(weightG: number, tiers: TechnicianTier[]): TechnicianTier | null {
   if (weightG <= 0) return null;
-  return TECHNICIAN_TIERS.find((t) => t.matches(weightG)) ?? null;
+  return tiers.find((t) => t.matches(weightG)) ?? null;
 }
 
 interface Props {
+  settings?: PricingSettings;
   /** Weight used to pick the highlighted tier (total weight for lump sum). */
   primaryWeightG: number;
   /** D-split: secondary piece uses its own tier. */
@@ -59,12 +61,22 @@ interface Props {
 }
 
 export const TechnicianTierScale: React.FC<Props> = ({
+  settings,
   primaryWeightG,
   secondaryWeightG = 0,
   compact = false,
 }) => {
-  const primaryTier = tierForWeight(primaryWeightG);
-  const secondaryTier = secondaryWeightG > 0 ? tierForWeight(secondaryWeightG) : null;
+  const rules = getPricingRules(settings);
+  const limits = [rules.technician_threshold_1, rules.technician_threshold_2, rules.technician_threshold_3, Infinity];
+  const rates = [rules.technician_rate_1, rules.technician_rate_2, rules.technician_rate_3, rules.technician_rate_4];
+  const tiers = TECHNICIAN_TIERS.map((tier, index) => ({
+    ...tier,
+    rate: rates[index],
+    label: index === 3 ? '>' + String(limits[2]).replace('.', ',') + 'g' : '≤' + String(limits[index]).replace('.', ',') + 'g',
+    matches: (weight: number) => weight > (index === 0 ? 0 : limits[index - 1]) && weight <= limits[index],
+  }));
+  const primaryTier = tierForWeight(primaryWeightG, tiers);
+  const secondaryTier = secondaryWeightG > 0 ? tierForWeight(secondaryWeightG, tiers) : null;
 
   return (
     <div className={`mt-2 ${compact ? 'space-y-1' : 'space-y-1.5'}`}>
@@ -72,7 +84,7 @@ export const TechnicianTierScale: React.FC<Props> = ({
         Κλιμάκωση τεχνίτη
       </div>
       <div className="flex flex-wrap gap-1">
-        {TECHNICIAN_TIERS.map((tier) => {
+        {tiers.map((tier) => {
           const isPrimary = primaryTier?.id === tier.id;
           const isSecondary = secondaryTier?.id === tier.id && !isPrimary;
           const isActive = isPrimary || isSecondary;
@@ -103,9 +115,9 @@ export const TechnicianTierScale: React.FC<Props> = ({
       </div>
       {secondaryTier && primaryTier && (
         <p className="text-[10px] text-slate-400 leading-snug">
-          Έντονη: κύριο ({primaryWeightG.toFixed(2)}g × {getTechnicianRateForWeight(primaryWeightG).toFixed(2)}€)
+          Έντονη: κύριο ({primaryWeightG.toFixed(2)}g × {getTechnicianRateForWeight(primaryWeightG, settings).toFixed(2)}€)
           {secondaryWeightG > 0 && (
-            <> · Δευτερεύον ({secondaryWeightG.toFixed(2)}g × {getTechnicianRateForWeight(secondaryWeightG).toFixed(2)}€)</>
+            <> · Δευτερεύον ({secondaryWeightG.toFixed(2)}g × {getTechnicianRateForWeight(secondaryWeightG, settings).toFixed(2)}€)</>
           )}
         </p>
       )}

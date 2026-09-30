@@ -1,5 +1,6 @@
+import { getPricingRules } from '../utils/pricingRules';
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Product, GlobalSettings, Material, PriceSnapshot, PriceSnapshotItem } from '../types';
 import { RefreshCw, CheckCircle, AlertCircle, Loader2, DollarSign, ArrowRight, TrendingUp, Percent, History, Save, X, RotateCcw, Eye, Trash2, ArrowUpRight, ArrowDownRight, Anchor, Info, Tag, Layers, Search, Lock, ChevronDown, ChevronUp, Wand2 } from 'lucide-react';
 import { formatCurrency, formatDecimal, getIliosSuggestedPriceForProduct } from '../utils/pricingEngine';
@@ -7,7 +8,6 @@ import {
   buildBulkPricingPreview,
   BulkPricingItem,
   countManualSellingPrices,
-  detectLegacyManualPriceCandidates,
   filterPricingList,
   flattenInventoryForPricing,
   getCommitCandidates,
@@ -39,8 +39,6 @@ interface SnapshotComparisonItem extends PriceSnapshotItem {
     diff: number;
 }
 
-const LEGACY_BACKFILL_KEY = 'ilios_pricing_legacy_backfill_v1';
-
 export default function PricingManager({ products, settings, materials }: Props) {
   const [mode, setMode] = useState<Mode>('cost');
   const [markupMode, setMarkupMode] = useState<MarkupMode>('adjust');
@@ -60,7 +58,6 @@ export default function PricingManager({ products, settings, materials }: Props)
   const [forceApplyFormula, setForceApplyFormula] = useState(false);
   const [includeManualPrices, setIncludeManualPrices] = useState(false);
   const [manualPanelOpen, setManualPanelOpen] = useState(false);
-  const legacyBackfillStartedRef = useRef(false);
 
   const [isSnapshotting, setIsSnapshotting] = useState(false);
   const [snapshotNote, setSnapshotNote] = useState('');
@@ -93,44 +90,6 @@ export default function PricingManager({ products, settings, materials }: Props)
   };
 
   const manualPriceCount = useMemo(() => countManualSellingPrices(products), [products]);
-
-  useEffect(() => {
-    if (mode !== 'selling' || legacyBackfillStartedRef.current) return;
-    if (typeof window !== 'undefined' && window.localStorage.getItem(LEGACY_BACKFILL_KEY) === 'done') return;
-
-    legacyBackfillStartedRef.current = true;
-    const candidates = detectLegacyManualPriceCandidates(products, settings, materials);
-    if (candidates.length === 0) {
-      window.localStorage.setItem(LEGACY_BACKFILL_KEY, 'done');
-      return;
-    }
-
-    (async () => {
-      try {
-        for (const candidate of candidates) {
-          if (candidate.isVariant && candidate.variantSuffix !== null) {
-            await supabase
-              .from('product_variants')
-              .update({ selling_price_manual_override: true })
-              .match({ product_sku: candidate.masterSku, suffix: candidate.variantSuffix || '' });
-          } else {
-            await supabase
-              .from('products')
-              .update({ selling_price_manual_override: true })
-              .eq('sku', candidate.masterSku);
-          }
-        }
-        window.localStorage.setItem(LEGACY_BACKFILL_KEY, 'done');
-        await invalidateProductsAndCatalog(queryClient);
-        showToast(
-          `Εντοπίστηκαν ${candidates.length} κωδικοί με τιμή που διαφέρει από τον τύπο Ilios — σημειώθηκαν ως χειροκίνητοι.`,
-          'info',
-        );
-      } catch (error) {
-        console.error(error);
-      }
-    })();
-  }, [mode, products, settings, materials, queryClient, showToast]);
 
   const flattenedInventory = useMemo(
     () => flattenInventoryForPricing(products, pricingMode),
@@ -589,7 +548,7 @@ export default function PricingManager({ products, settings, materials }: Props)
                   </div>
                 ) : (
                   <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-lg">
-                    (Μη-Μέταλλο ×2) + Ασήμι + (Βάρος ×2)
+                    (Μη-Μέταλλο ×{getPricingRules(settings).ilios_labor_material_multiplier}) + Ασήμι + (Βάρος ×{getPricingRules(settings).ilios_weight_surcharge})
                   </span>
                 )}
                 {manualPriceCount > 0 && (

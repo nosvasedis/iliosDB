@@ -1,3 +1,4 @@
+import { pricingRulesMatch, validatePricingRules } from '../utils/pricingRules';
 
 import { createClient } from '@supabase/supabase-js';
 import { CalendarDayEvent, GlobalSettings, Material, Product, Mold, ProductVariant, RecipeItem, Gender, PlatingType, Collection, Order, OrderItem, ProductionBatch, OrderStatus, ProductionStage, Customer, Warehouse, Supplier, BatchType, MaterialType, PriceSnapshot, PriceSnapshotItem, ProductionType, Offer, SupplierOrder, AuditLog, VatRegime, OrderDeliveryPlan, OrderDeliveryReminder, OrderShipment, OrderShipmentItem, BatchStageHistoryEntry, SyncOfflineResult, LegalSettings, LegalNumberingSequence, LegalNumberingAlignmentPreview, LegalNumberingAlignmentResult, LegalCarrier, LegalDocument, LegalDocumentLine, LegalTransmission, LegalDeliveryEvent, AadeProxyResult, AadeCredentialStatus, AadeCredentialSavePayload, AadeRegistryCredentialSavePayload, AadeVatRegistryResult, PublicVatLookupResult, LegalRegistryConnectionStatus, ProformaDocument, ProformaDocumentLine, LegalSyncParams, LegalSyncRun, AadeDocumentType, LegalExternalItemAlias, LegalOrderLinkMode, LegalOrderLineAllocation } from '../types';
@@ -407,6 +408,7 @@ function mergeGlobalSettingsFromDb(
     local: GlobalSettings | null,
 ): GlobalSettings {
     return {
+        ...((data.pricing_rules ?? local?.pricing_rules) && !validatePricingRules((data.pricing_rules ?? local?.pricing_rules) as GlobalSettings['pricing_rules']) ? { pricing_rules: (data.pricing_rules ?? local?.pricing_rules) as GlobalSettings['pricing_rules'] } : {}),
         silver_price_gram: Number(data.silver_price_gram),
         loss_percentage: Number(data.loss_percentage),
         barcode_width_mm: readSettingsNumber(data.barcode_width_mm, local?.barcode_width_mm, INITIAL_SETTINGS.barcode_width_mm),
@@ -2030,7 +2032,27 @@ export const api = {
     },
 
     updateSettings: async (settings: GlobalSettings): Promise<void> => {
+        if (settings.pricing_rules) {
+            const validationError = validatePricingRules(settings.pricing_rules);
+            if (validationError) throw new Error(validationError);
+        }
         const payload = { ...settings, id: 1 };
+        const cached = await offlineDb.getTable('global_settings');
+        const pricingChanged = !pricingRulesMatch(cached?.[0]?.pricing_rules, settings.pricing_rules);
+        if (pricingChanged && !isLocalMode) {
+            if (!navigator.onLine) throw new Error('Η αποθήκευση παραμέτρων τιμολόγησης απαιτεί σύνδεση.');
+            const { data, error } = await supabase.from('global_settings').update(payload)
+                .eq('id', 1).eq('pricing_rules', JSON.stringify(cached?.[0]?.pricing_rules ?? {})).select('pricing_rules').single();
+            // Compare structurally: PostgreSQL jsonb may reorder keys.
+            if (error || !data || !pricingRulesMatch(data.pricing_rules, settings.pricing_rules)) {
+                throw error || new Error('Οι ρυθμίσεις άλλαξαν σε άλλη συσκευή. Φορτώστε ξανά πριν την αποθήκευση.');
+            }
+            await offlineDb.saveTable('global_settings', [settings]);
+            return;
+        }
+        // General settings edits and offline queue replays must not replace a
+        // pricing policy changed by another device.
+        if (!isLocalMode) delete payload.pricing_rules;
         // Mirror locally first so reload keeps user values even if cloud sync is pending.
         await offlineDb.saveTable('global_settings', [settings]);
         const result = await safeMutate('global_settings', 'UPSERT', payload, { onConflict: 'id' });

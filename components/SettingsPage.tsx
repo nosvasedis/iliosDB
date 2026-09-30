@@ -1,3 +1,5 @@
+import CatalogueRepricingPanel from './CatalogueRepricingPanel';
+import PricingRulesSettings from './PricingRulesSettings';
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { GlobalSettings, Product } from '../types';
@@ -635,6 +637,9 @@ export default function SettingsPage() {
                 title="Ρυθμίσεις Συστήματος"
                 subtitle="Παράμετροι τιμολόγησης και διαχείριση δεδομένων."
             />
+
+            <PricingRulesSettings settings={settings} onChange={setSettings} />
+            <CatalogueRepricingPanel settings={settings} />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">

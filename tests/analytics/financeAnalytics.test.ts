@@ -276,12 +276,12 @@ describe('buildFinanceAnalytics', () => {
 
     const line = analytics.itemsBreakdown[0];
     // Suffix "X" is finish (Επίχρυσο), not a stone code — recipe uses base material cost (1€), not variant_prices.X (4€).
-    expect(line.estimatedCost).toBeCloseTo(8.9);
-    expect(line.profit).toBeCloseTo(41.1);
+    expect(line.estimatedCost).toBeCloseTo(9);
+    expect(line.profit).toBeCloseTo(41);
     expect(line.costBreakdown).toMatchObject({
       silver: 2,
       materials: 1,
-      labor: 5.9, // casting 0.3 + technician 2.6 + plating 3
+      labor: 6, // casting 0.4 + technician 2.6 + plating 3
     });
   });
 

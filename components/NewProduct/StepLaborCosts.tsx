@@ -29,11 +29,12 @@ export const StepLaborCosts: React.FC<Props> = ({ formState, allProducts }) => {
         weight_g: state.weight,
         secondary_weight_g: state.secondaryWeight,
         is_component: state.isSTX,
+        skip_casting: state.isAssembly,
         recipe: state.recipe,
         plating_type: state.plating,
         gender: state.gender || Gender.Unisex,
         variants: state.variants,
-    }), [state.weight, state.secondaryWeight, state.isSTX, state.recipe, state.plating, state.gender, state.variants]);
+    }), [state.weight, state.secondaryWeight, state.isSTX, state.isAssembly, state.recipe, state.plating, state.gender, state.variants]);
 
     const useSplitTechnician = useMemo(
         () => shouldUseSplitTechnicianCost(productLike),
@@ -45,16 +46,16 @@ export const StepLaborCosts: React.FC<Props> = ({ formState, allProducts }) => {
     );
 
     const castingFormula = useMemo(
-        () => getCastingFormulaLine(state.labor, productLike),
-        [state.labor, productLike],
+        () => getCastingFormulaLine(state.labor, productLike, state.settings),
+        [state.labor, productLike, state.settings],
     );
     const platingXFormula = useMemo(
-        () => getPlatingXFormulaLine(state.labor, productLike, allProducts),
-        [state.labor, productLike, allProducts],
+        () => getPlatingXFormulaLine(state.labor, productLike, allProducts, state.settings),
+        [state.labor, productLike, allProducts, state.settings],
     );
     const platingDFormula = useMemo(
-        () => getPlatingDFormulaLine(state.labor, productLike, allProducts),
-        [state.labor, productLike, allProducts],
+        () => getPlatingDFormulaLine(state.labor, productLike, allProducts, state.settings),
+        [state.labor, productLike, allProducts, state.settings],
     );
 
     const patchLabor = (patch: Partial<LaborCost>, weightPatch?: { weight?: number; secondaryWeight?: number }) => {
@@ -111,6 +112,7 @@ export const StepLaborCosts: React.FC<Props> = ({ formState, allProducts }) => {
                         onChange={val => setters.setLabor({ ...state.labor, setter_cost: val })}
                     />
                     <TechnicianLaborFormulaRow
+                        settings={state.settings}
                         icon={<Hammer size={14} />}
                         labor={state.labor}
                         product={productLike}
@@ -118,7 +120,7 @@ export const StepLaborCosts: React.FC<Props> = ({ formState, allProducts }) => {
                         hasMixedTechnician={hasMixedTechnician}
                         onRateChange={(r, basis) => handleFormulaRateChange('technician', r, basis)}
                         onWeightChange={(w) => {
-                            const { rate } = getTechnicianFormulaLine(state.labor, productLike, useSplitTechnician);
+                            const { rate } = getTechnicianFormulaLine(state.labor, productLike, useSplitTechnician, state.settings);
                             if (state.isSTX) {
                                 patchLabor(applyFormulaRateChange('technician', rate, w), { weight: w });
                             } else {

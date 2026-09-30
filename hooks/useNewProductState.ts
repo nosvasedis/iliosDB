@@ -1,7 +1,8 @@
+import { getPricingRules } from '../utils/pricingRules';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Material, Gender, PlatingType, RecipeItem, LaborCost, ProductVariant, ProductionType, Mold, ProductMold } from '../types';
 import { parseSku, calculateProductCost, analyzeSku, estimateVariantCost } from '../utils/pricingEngine';
-import { DEFAULT_PLATING_RATE, computeAutoLaborCosts, getPlatingDWeightBasis } from '../utils/laborFormula';
+import { computeAutoLaborCosts, getPlatingDWeightBasis } from '../utils/laborFormula';
 import { shouldUseSplitTechnicianCost } from '../utils/pricingEngine';
 import { prepareUploadSource } from '../utils/imageHelpers';
 import { uploadCatalogPhotoWithChoice } from '../utils/catalogPhotoUpload';
@@ -214,7 +215,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             }),
                 variants,
             };
-            const auto = computeAutoLaborCosts(tempProduct, products, shouldUseSplitTechnicianCost(tempProduct));
+            const auto = computeAutoLaborCosts(tempProduct, products, shouldUseSplitTechnicianCost(tempProduct), settings);
             setLabor(prev => {
                 let changed = false;
                 const next = { ...prev };
@@ -232,7 +233,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
                 let next = prev;
                 let changed = false;
                 if (!prev.plating_cost_x_manual_override && prev.plating_cost_x === 0) {
-                    next = { ...next, plating_cost_x: DEFAULT_PLATING_RATE };
+                    next = { ...next, plating_cost_x: getPricingRules(settings).plating_rate };
                     changed = true;
                 }
                 if (!prev.plating_cost_d_manual_override) {
@@ -242,7 +243,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
                         selectedMolds, isSTX, skipCasting: isAssembly, stxDescription, recipe, labor: prev,
                     });
                     const dWeight = getPlatingDWeightBasis(tempProduct, products);
-                    const costD = parseFloat((dWeight * DEFAULT_PLATING_RATE).toFixed(2));
+                    const costD = parseFloat((dWeight * getPricingRules(settings).plating_rate).toFixed(2));
                     if (prev.plating_cost_d !== costD) {
                         next = { ...next, plating_cost_d: costD };
                         changed = true;
@@ -251,7 +252,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
                 return changed ? next : prev;
             });
         }
-    }, [weight, secondaryWeight, recipe, products, productionType, isSTX, isAssembly, plating, gender, variants, labor.casting_cost_manual_override, labor.technician_cost_manual_override, labor.plating_cost_x_manual_override, labor.plating_cost_d_manual_override]);
+    }, [weight, secondaryWeight, recipe, products, productionType, isSTX, isAssembly, plating, gender, variants, labor.casting_cost_manual_override, labor.technician_cost_manual_override, labor.plating_cost_x_manual_override, labor.plating_cost_d_manual_override, settings]);
 
     useEffect(() => {
         if (newVariantSuffix) {
@@ -733,7 +734,7 @@ export const useNewProductState = ({ products, materials, molds, settings, suppl
             selectedMolds, moldSearch, otherMolds, suggestedMolds,
             newMoldCode, newMoldLoc, newMoldDesc, isCreatingMold,
             isRecipeModalOpen, showAnalysisHelp,
-            finalStacks, currentTempProduct
+            finalStacks, currentTempProduct, settings
         },
         setters: {
             setCurrentStep, nextStep, prevStep,

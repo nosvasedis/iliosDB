@@ -98,10 +98,10 @@ export function buildBulkPricingPreview(
         newVal = currentVal;
       } else {
         if (options.markupMode === 'adjust') {
-          newVal = roundPrice(currentVal * (1 + options.markupPercent / 100));
+          newVal = roundPrice(currentVal * (1 + options.markupPercent / 100), settings);
         } else if (options.markupMode === 'target') {
           const margin = options.markupPercent / 100;
-          newVal = margin >= 1 ? 0 : roundPrice(freshCost / (1 - margin));
+          newVal = margin >= 1 ? 0 : roundPrice(freshCost / (1 - margin), settings);
         } else if (options.markupMode === 'formula') {
           newVal = suggestedPrice ?? currentVal;
         }
@@ -222,64 +222,6 @@ export function countManualSellingPrices(products: Product[]): number {
     }
   });
   return count;
-}
-
-export interface LegacyManualPriceCandidate {
-  masterSku: string;
-  variantSuffix: string | null;
-  isVariant: boolean;
-  currentPrice: number;
-  suggestedPrice: number;
-}
-
-export function detectLegacyManualPriceCandidates(
-  products: Product[],
-  settings: GlobalSettings,
-  materials: Material[],
-): LegacyManualPriceCandidate[] {
-  const candidates: LegacyManualPriceCandidate[] = [];
-
-  products.forEach((product) => {
-    const processRow = (
-      variantSuffix: string | null,
-      currentPrice: number,
-      isVariant: boolean,
-      manualOverride: boolean,
-    ) => {
-      if (manualOverride || currentPrice <= 0) return;
-      const suggestedPrice = getIliosSuggestedPriceForProduct(
-        product,
-        variantSuffix,
-        settings,
-        materials,
-        products,
-      );
-      if (!pricesMatch(currentPrice, suggestedPrice)) {
-        candidates.push({
-          masterSku: product.sku,
-          variantSuffix,
-          isVariant,
-          currentPrice,
-          suggestedPrice,
-        });
-      }
-    };
-
-    if (product.variants && product.variants.length > 0) {
-      product.variants.forEach((variant) => {
-        processRow(
-          variant.suffix,
-          variant.selling_price || 0,
-          true,
-          !!variant.selling_price_manual_override,
-        );
-      });
-    } else {
-      processRow(null, product.selling_price || 0, false, !!product.selling_price_manual_override);
-    }
-  });
-
-  return candidates;
 }
 
 export function pricingItemMatchesSearch(item: BulkPricingItem, normalizedTerm: string): boolean {
