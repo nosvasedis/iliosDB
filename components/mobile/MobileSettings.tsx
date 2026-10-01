@@ -1,4 +1,3 @@
-import CatalogueRepricingPanel from '../CatalogueRepricingPanel';
 import PricingRulesSettings from '../PricingRulesSettings';
 
 import React, { useRef, useState } from 'react';
@@ -285,9 +284,6 @@ export default function MobileSettings() {
                     </div>
                 </div>
 
-                <PricingRulesSettings settings={localSettings} onChange={setLocalSettings} />
-            <CatalogueRepricingPanel settings={localSettings} />
-
                 {/* Backup & System */}
                 <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3">
                     <h3 className="text-xs font-bold text-slate-400 uppercase mb-2 flex items-center gap-2"><Database size={14} /> Backup & Δεδομένα</h3>
@@ -301,6 +297,8 @@ export default function MobileSettings() {
                         <span className={`font-bold ${isOnline ? 'text-emerald-600' : 'text-red-500'}`}>{isOnline ? 'Online' : 'Offline'}</span>
                     </div>
                 </div>
+
+                <PricingRulesSettings settings={localSettings} onChange={setLocalSettings} />
 
                 <button onClick={handleLogout} className="w-full bg-red-50 text-red-600 font-bold py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-red-100 transition-colors mt-4"><LogOut size={20} /> Αποσύνδεση</button>
                 <div className="text-center text-[10px] text-slate-300 mt-4 flex items-center justify-center gap-1"><ShieldCheck size={12} /> Secure Connection • Ilios ERP</div>

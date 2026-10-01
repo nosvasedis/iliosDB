@@ -1,4 +1,3 @@
-import CatalogueRepricingPanel from './CatalogueRepricingPanel';
 import PricingRulesSettings from './PricingRulesSettings';
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
@@ -638,9 +637,6 @@ export default function SettingsPage() {
                 subtitle="Παράμετροι τιμολόγησης και διαχείριση δεδομένων."
             />
 
-            <PricingRulesSettings settings={settings} onChange={setSettings} />
-            <CatalogueRepricingPanel settings={settings} />
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
                     <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2 pb-4 border-b border-slate-50">
@@ -780,6 +776,8 @@ export default function SettingsPage() {
                     </div>
                 </div>
             </div>
+
+            <PricingRulesSettings settings={settings} onChange={setSettings} />
 
             <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-full max-w-4xl px-8 pointer-events-none">
                 <div className="flex justify-end pointer-events-auto">

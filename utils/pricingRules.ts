@@ -67,7 +67,7 @@ export const PRICING_RULE_FIELDS: Array<{ key: keyof PricingRules; label: string
   { key: 'technician_rate_3', label: 'Τεχνίτης — 3η κλίμακα', unit: '€/g' },
   { key: 'technician_rate_4', label: 'Τεχνίτης — πάνω από το 3ο όριο', unit: '€/g' },
   { key: 'ilios_labor_material_multiplier', label: 'Ilios Formula — εργατικά + υλικά', unit: '×' },
-  { key: 'ilios_weight_surcharge', label: 'Ilios Formula — προσαύξηση βάρους', unit: '€/g' },
+  { key: 'ilios_weight_surcharge', label: 'Ilios Formula — προσαύξηση κόστους', unit: '€/g' },
   { key: 'retail_multiplier', label: 'Τιμή λιανικής στις ετικέτες', unit: '× χονδρική' },
   { key: 'price_rounding_step', label: 'Βήμα στρογγυλοποίησης τιμών', unit: '€' },
 ];
