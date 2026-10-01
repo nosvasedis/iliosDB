@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ScanBarcode, X, Hash, Layers, Plus, ImageIcon, StickyNote, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { ScanBarcode, X, Hash, Layers, Plus, ImageIcon, StickyNote, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, ZoomIn } from 'lucide-react';
 import { getVariantComponents, getVariantSuffixDisplayCodes } from '../../utils/pricingEngine';
 import { useOrderState, FINISH_COLORS, STONE_TEXT_COLORS } from '../../hooks/useOrderState';
 import {
@@ -13,6 +13,7 @@ import { PRODUCT_OPTION_COLORS, PRODUCT_OPTION_COLOR_LABELS, isXrCordEnamelSku }
 import { SPECIAL_CREATION_SKU } from '../../utils/specialCreationSku';
 import type { Product } from '../../types';
 import FulfillmentModeToggle from '../customerService/FulfillmentModeToggle';
+import ProductImageZoom from './ProductImageZoom';
 
 interface Props {
     orderState: ReturnType<typeof useOrderState>;
@@ -50,6 +51,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
     const [suggestionsExpanded, setSuggestionsExpanded] = useState(false);
     const [setMatesExpanded, setSetMatesExpanded] = useState(true);
     const [rangeSizesBySku, setRangeSizesBySku] = useState<Record<string, string>>({});
+    const [imagePreview, setImagePreview] = useState<{ imageUrl: string; sku: string } | null>(null);
     const suggestionsScrollRef = useRef<HTMLDivElement>(null);
 
     const virtualRows = state.smartSuggestions?.virtualRows ?? [];
@@ -97,6 +99,28 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
         return null;
     };
 
+    const productImage = (product: Product | undefined, className: string, iconSize = 16) => {
+        if (!product?.image_url) {
+            return <div className={`${className} flex items-center justify-center`}><ImageIcon size={iconSize} className="text-slate-300" /></div>;
+        }
+        const imageUrl = product.image_url;
+        return (
+            <button
+                type="button"
+                aria-label={`Μεγέθυνση φωτογραφίας ${product.sku}`}
+                title="Πατήστε για μεγέθυνση"
+                className={`${className} relative cursor-zoom-in group/image focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500`}
+                onClick={(event) => {
+                    event.stopPropagation();
+                    setImagePreview({ imageUrl, sku: product.sku });
+                }}
+            >
+                <img src={imageUrl} className="w-full h-full object-cover" alt={product.sku} />
+                <ZoomIn size={12} aria-hidden="true" className="absolute bottom-0.5 right-0.5 text-white bg-black/50 rounded-sm opacity-0 group-hover/image:opacity-100 group-focus-visible/image:opacity-100" />
+            </button>
+        );
+    };
+
     const productRow = (p: Product, dense?: boolean) => {
         const col = collectionLabel(p, state.collectionNameById);
         const typed = typedVariantFromScanInput();
@@ -120,13 +144,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                     hint ? 'border-amber-400/90 ring-2 ring-amber-400/35 ring-offset-1' : 'border-slate-200'
                 } ${dense ? 'p-2 pr-3' : 'p-2'}`}
             >
-                <div className={`${dense ? 'w-9 h-9' : 'w-10 h-10'} bg-slate-100 rounded-lg overflow-hidden shrink-0 border border-slate-100`}>
-                    {p.image_url ? (
-                        <img src={p.image_url} className="w-full h-full object-cover" alt="" />
-                    ) : (
-                        <ImageIcon size={dense ? 14 : 16} className="m-auto text-slate-300" />
-                    )}
-                </div>
+                {productImage(p, `${dense ? 'w-9 h-9' : 'w-10 h-10'} bg-slate-100 rounded-lg overflow-hidden shrink-0 border border-slate-100`, dense ? 14 : 16)}
                 <div className="min-w-0 flex-1">
                     <div className="font-black text-sm text-slate-800 leading-none group-hover:text-emerald-700 transition-colors font-mono">
                         {p.sku}
@@ -407,13 +425,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                     <div className="bg-white p-5 rounded-3xl border border-emerald-100 shadow-xl animate-in zoom-in-95 duration-200 space-y-6">
                         <div className="flex justify-between items-start">
                             <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 bg-slate-100 rounded-xl overflow-hidden border border-slate-200">
-                                    {state.activeMaster.image_url ? (
-                                        <img src={state.activeMaster.image_url} className="w-full h-full object-cover" alt="" />
-                                    ) : (
-                                        <ImageIcon className="m-3 text-slate-300" />
-                                    )}
-                                </div>
+                                {productImage(state.activeMaster, 'w-12 h-12 bg-slate-100 rounded-xl overflow-hidden shrink-0 border border-slate-200', 24)}
                                 <div>
                                     <h3 className="font-black text-xl text-slate-900 leading-none">{state.activeMaster.sku}</h3>
                                     <p className="text-xs text-slate-500 font-bold mt-1 uppercase">{state.activeMaster.category}</p>
@@ -643,13 +655,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                                             isReady ? 'bg-white border-slate-100' : 'bg-amber-50/70 border-amber-100'
                                         }`}
                                     >
-                                        <div className="w-12 h-12 rounded-lg bg-slate-100 overflow-hidden border border-slate-100">
-                                            {row.product?.image_url ? (
-                                                <img src={row.product.image_url} className="w-full h-full object-cover" alt="" />
-                                            ) : (
-                                                <ImageIcon size={16} className="m-4 text-slate-300" />
-                                            )}
-                                        </div>
+                                        {productImage(row.product, 'w-12 h-12 rounded-lg bg-slate-100 overflow-hidden border border-slate-100')}
                                         <div className="min-w-0">
                                             <div className="font-black text-sm text-slate-800 font-mono truncate">{row.displaySku}</div>
                                             <div className="text-[11px] text-slate-500 font-bold truncate">
@@ -706,6 +712,7 @@ export const SmartEntryPanel: React.FC<Props> = ({ orderState, isItemsExpanded }
                     </div>
                 </div>
             )}
+            {imagePreview && <ProductImageZoom key={imagePreview.imageUrl} imageUrl={imagePreview.imageUrl} sku={imagePreview.sku} onClose={() => setImagePreview(null)} />}
         </div>
     );
 };
