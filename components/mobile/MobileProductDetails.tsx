@@ -635,9 +635,18 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                                               </div>
                                           );
                                       }
-                                      const name = materials?.find(m => m.id === r.id)?.name || r.id;
+                                      const material = materials?.find(m => m.id === r.id);
+                                      const name = material?.name || r.id;
                                       return (
-                                          <div key={idx} className="flex justify-between items-center text-sm p-2 bg-slate-50 rounded-lg"><span className="font-bold text-slate-700">{name}</span><span className="font-mono font-bold text-slate-500">x{r.quantity}</span></div>
+                                          <div key={idx} className="flex justify-between items-start gap-3 text-sm p-2 bg-slate-50 rounded-lg">
+                                              <div className="min-w-0 flex-1">
+                                                  <div className="font-bold text-slate-700 break-words">{name}</div>
+                                                  {material?.description?.trim() ? (
+                                                      <p className="mt-1 text-xs font-medium leading-relaxed text-slate-500 whitespace-pre-wrap break-words">{material.description}</p>
+                                                  ) : null}
+                                              </div>
+                                              <span className="font-mono font-bold text-slate-500 shrink-0">x{r.quantity}</span>
+                                          </div>
                                       );
                                   })}
                               </div>
@@ -651,20 +660,17 @@ export default function MobileProductDetails({ product, onClose, warehouses, set
                                       const moldInfo = molds?.find(md => md.code === m.code);
                                       const moldDescription = moldInfo?.description || '';
                                       return (
-                                          <div key={idx} className="flex justify-between items-center text-sm p-2 bg-amber-50 rounded-lg border border-amber-100">
-                                              <div className="flex items-center gap-2 min-w-0">
-                                                  <span className="font-black text-amber-800 font-mono">{m.code}</span>
-                                                  {moldDescription ? (
-                                                      <span
-                                                          className="text-[10px] text-slate-600 font-bold truncate max-w-[120px]"
-                                                          title={moldDescription}
-                                                      >
-                                                          {moldDescription}
-                                                      </span>
+                                          <div key={idx} className="flex justify-between items-start gap-3 text-sm p-2 bg-amber-50 rounded-lg border border-amber-100">
+                                              <div className="min-w-0 flex-1">
+                                                  <div className="flex items-center gap-2">
+                                                      <span className="font-black text-amber-800 font-mono">{m.code}</span>
+                                                      <span className="text-xs text-slate-500 font-bold shrink-0">x{m.quantity}</span>
+                                                  </div>
+                                                  {moldDescription.trim() ? (
+                                                      <p className="mt-1 text-xs text-slate-600 font-medium leading-relaxed whitespace-pre-wrap break-words">{moldDescription}</p>
                                                   ) : null}
-                                                  <span className="text-xs text-slate-500 font-bold shrink-0">x{m.quantity}</span>
                                               </div>
-                                              <span className="text-[10px] text-amber-600 font-bold uppercase">{moldInfo?.location ?? ''}</span>
+                                              <span className="text-[10px] text-amber-600 font-bold uppercase shrink-0">{moldInfo?.location ?? ''}</span>
                                           </div>
                                       );
                                   })}
