@@ -12,34 +12,6 @@ const getClient = () => {
 };
 
 /**
- * Generates marketing text description.
- */
-export const generateMarketingCopy = async (
-    prompt: string, 
-    imageBase64?: string, 
-    mimeType: string = 'image/jpeg'
-): Promise<string> => {
-  try {
-    const ai = getClient();
-    const parts: any[] = [];
-    if (imageBase64) parts.push({ inlineData: { data: cleanBase64(imageBase64), mimeType } });
-    parts.push({ text: prompt });
-
-    const response: GenerateContentResponse = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: { parts },
-      config: {
-          systemInstruction: "Είσαι κορυφαίος Copywriter Κοσμημάτων. Γράψε στα Ελληνικά.",
-          temperature: 0.7
-      }
-    });
-    return response.text || "Δεν υπήρξε απάντηση.";
-  } catch (error: any) {
-    throw new Error(`Αποτυχία: ${error.message}`);
-  }
-};
-
-/**
  * Generates a collection description based on products.
  */
 export const generateCollectionDescription = async (
@@ -85,88 +57,6 @@ export const generateCollectionDescription = async (
         return response.text?.trim() || "";
     } catch (error: any) {
         throw new Error(`AI Generation failed: ${error.message}`);
-    }
-};
-
-export const generateVirtualModel = async (
-    imageBase64: string, 
-    gender: 'Men' | 'Women' | 'Unisex',
-    category: string,
-    userInstructions?: string,
-    useProModel: boolean = false
-): Promise<string | null> => {
-  const ai = getClient();
-  const genderPrompt = gender === 'Men' ? 'handsome Greek male model' : 'beautiful Greek female model';
-  let promptText = `High-end editorial fashion photography. A ${genderPrompt} wearing the jewelry item provided. ${userInstructions || ''}`;
-  try {
-    const response = await ai.models.generateContent({
-      model: useProModel ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image',
-      contents: {
-        parts: [
-          { inlineData: { data: cleanBase64(imageBase64), mimeType: 'image/jpeg' } },
-          { text: promptText },
-        ],
-      },
-    });
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
-      if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
-    }
-    return null;
-  } catch (error: any) {
-    throw new Error(`Αποτυχία: ${error.message}`);
-  }
-};
-
-export const generateTrendAnalysis = async (query: string): Promise<string> => {
-    try {
-        const ai = getClient();
-        const response: GenerateContentResponse = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: `Ανάλυσε τις τρέχουσες τάσεις κοσμημάτων για: ${query}.`,
-            config: { tools: [{ googleSearch: {} }] }
-        });
-        return response.text || "Δεν βρέθηκαν δεδομένα.";
-    } catch (error: any) {
-        throw new Error(`Αποτυχία: ${error.message}`);
-    }
-};
-
-/**
- * Identifies a product SKU from an image by comparing it against a provided list.
- */
-export const identifyProductFromImage = async (imageBase64: string, productContext: string): Promise<string> => {
-    try {
-        const ai = getClient();
-        const response: GenerateContentResponse = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: {
-                parts: [
-                    { inlineData: { data: cleanBase64(imageBase64), mimeType: 'image/jpeg' } },
-                    { text: `You are a jewelry forensic expert. 
-                    
-                    CRITICAL TASK: Find the EXACT SKU from the reference list that matches the jewelry in the photo.
-                    
-                    SPECIAL FOCUS FOR RINGS (RN/DA):
-                    1. MOTIF SHAPE: Is it a signet? Round? Rectangular? Does it have a specific symbol (Cross, Star)?
-                    2. BAND DETAILS: Is the band wide or thin? Smooth or hammered? Simple or double-shank?
-                    3. STONE SETTING: Are stones Flush-set? Pave? Bezel? Claw?
-                    
-                    LOGIC STEPS:
-                    1. Analyze Category first (Ring, Bracelet, Pendant).
-                    2. Analyze Material/Texture (Solid Silver vs Cord, Patina vs Mirror-finish).
-                    3. Compare the image visual cues with the provided descriptions in the Reference List.
-                    4. Check for SKU prefix logic (DA = Women Ring, RN = Men Ring, XR = Men Bracelet).
-                    
-                    REFERENCE LIST (SKU | Category | Description):
-                    ${productContext}
-                    
-                    Output ONLY the SKU string. If no high-confidence match exists, output "UNKNOWN".` },
-                ],
-            },
-        });
-        return response.text?.trim() || "UNKNOWN";
-    } catch (error: any) {
-        throw new Error(`AI Identification failed: ${error.message}`);
     }
 };
 

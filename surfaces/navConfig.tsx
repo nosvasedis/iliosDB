@@ -14,7 +14,6 @@ import {
   Printer,
   Package,
   ShoppingCart,
-  Sparkles,
   ScrollText,
   Settings as SettingsIcon,
   Users,
@@ -85,7 +84,6 @@ export const adminNavSections: NavSection<AdminPage>[] = [
 ];
 
 export const adminFooterNavItems: SurfaceNavItem<AdminPage>[] = [
-  { id: 'ai-studio', icon: Sparkles, label: 'AI Studio' },
   { id: 'settings', icon: SettingsIcon, label: 'Ρυθμίσεις' },
 ];
 

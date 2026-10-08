@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Product, GlobalSettings, OrderStatus } from '../../types';
-import { Activity, Factory, Coins, Plus, ScanBarcode, Zap, Package, ShoppingCart, Users, ScrollText, Settings, CheckCircle, Truck } from 'lucide-react';
+import { Activity, Factory, Coins, Plus, ScanBarcode, Package, ShoppingCart, Users, ScrollText, Settings, CheckCircle, Truck } from 'lucide-react';
 import MobileScreenHeader from './MobileScreenHeader';
 import DashboardStatCarousel, { type DashboardStatSlide } from '../dashboard/DashboardStatCarousel';
 import { formatCurrency, formatDecimal } from '../../utils/pricingEngine';
@@ -170,12 +170,6 @@ export default function MobileDashboard({ products, settings, onNavigate }: Prop
                         label="Προϊόντα"
                         color="bg-orange-100 text-orange-700"
                         onClick={() => onNavigate && onNavigate('registry')}
-                    />
-                    <QuickAction
-                        icon={<Zap size={20} />}
-                        label="AI Studio"
-                        color="bg-purple-100 text-purple-700"
-                        onClick={() => onNavigate && onNavigate('ai-studio')}
                     />
                     <QuickAction
                         icon={<Users size={20} />}

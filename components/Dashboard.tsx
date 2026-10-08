@@ -70,7 +70,7 @@ import { FinancePeriodMode, isWithinFinancePeriod } from '../utils/financeAnalyt
 interface Props {
   products: Product[];
   settings: GlobalSettings;
-  onNavigate?: (page: 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'ai-studio' | 'pricelist' | 'analytics' | 'offers' | 'deliveries' | 'legal') => void;
+  onNavigate?: (page: 'dashboard' | 'registry' | 'inventory' | 'pricing' | 'settings' | 'resources' | 'collections' | 'batch-print' | 'orders' | 'production' | 'customers' | 'pricelist' | 'analytics' | 'offers' | 'deliveries' | 'legal') => void;
 }
 
 const STAGE_LABELS: Record<string, string> = {

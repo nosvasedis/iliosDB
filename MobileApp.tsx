@@ -46,7 +46,6 @@ const MobileProductDetails = lazyMobilePage(() => import('./components/mobile/Mo
 const MobileResources = lazyMobilePage(() => import('./components/mobile/MobileResources'));
 const MobileCustomers = lazyMobilePage(() => import('./components/mobile/MobileCustomers'));
 const MobileRegistry = lazyMobilePage(() => import('./components/mobile/MobileRegistry'));
-const MobileAiStudio = lazyMobilePage(() => import('./components/mobile/MobileAiStudio'));
 const MobileSettings = lazyMobilePage(() => import('./components/mobile/MobileSettings'));
 const MobilePricing = lazyMobilePage(() => import('./components/mobile/MobilePricing'));
 const MobileBatchPrint = lazyMobilePage(() => import('./components/mobile/MobileBatchPrint'));
@@ -70,7 +69,6 @@ const mobileLoadingDetails: Record<MobileAdminPage, string> = {
   inventory: 'Αποθήκη',
   menu: 'Μενού',
   registry: 'Μητρώο',
-  'ai-studio': 'AI Studio',
   settings: 'Ρυθμίσεις',
   resources: 'Υλικά & λάστιχα',
   customers: 'Πελάτες',
@@ -231,7 +229,6 @@ export default function MobileApp({ isOnline = true, isSyncing = false, pendingI
     inventory: <MobileInventory products={products} onProductSelect={handleProductSelect} />,
     menu: <MobileMenu onNavigate={handleNavigate} activePage={activePage} />,
     registry: <MobileRegistry products={products} onProductSelect={handleProductSelect} />,
-    'ai-studio': <MobileAiStudio />,
     settings: <MobileSettings />,
     resources: <MobileResources />,
     customers: <MobileCustomers mode="customers" />,

@@ -77,7 +77,6 @@ const ProductionPage = lazyPage(() => import('./components/ProductionPage'));
 const CustomersPage = lazyPage(() => import('./components/CustomersPage'));
 const SuppliersPage = lazyPage(() => import('./components/SuppliersPage'));
 const SellersPage = lazyPage(() => import('./components/SellersPage'));
-const AiStudio = lazyPage(() => import('./components/AiStudio'));
 const PriceListPage = lazyPage(() => import('./components/PriceListPage'));
 const AnalyticsView = lazyPage(() => import('./components/AnalyticsView'));
 const OffersPage = lazyPage(() => import('./components/OffersPage'));
@@ -101,7 +100,6 @@ const adminLoadingDetails: Record<AdminPage, string> = {
   customers: 'Πελάτες',
   suppliers: 'Προμηθευτές',
   sellers: 'Πλασιέ',
-  'ai-studio': 'AI Studio',
   pricelist: 'Τιμοκατάλογος',
   analytics: 'Οικονομικά',
   offers: 'Προσφορές',
@@ -435,7 +433,6 @@ function ErpAppContent() {
     customers: <CustomersPage onPrintOrder={setOrderToPrint} />,
     suppliers: <SuppliersPage />,
     sellers: <SellersPage />,
-    'ai-studio': <AiStudio />,
     pricelist: <PriceListPage products={products} collections={collections} onPrint={(data) => setPriceListPrintData(data)} />,
     analytics: <AnalyticsView products={products} onBack={() => handleNav('dashboard')} onPrint={(data) => setAnalyticsPrintData({ ...data, title: 'Οικονομική Ανάλυση' })} />,
     offers: <OffersPage products={products} materials={materials} settings={settings} collections={collections} onPrintOffer={setOfferToPrint} />,

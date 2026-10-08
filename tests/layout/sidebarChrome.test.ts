@@ -84,6 +84,6 @@ describe('admin sidebar grouping', () => {
       'consignments',
       'repairs',
     ]);
-    expect(adminFooterNavItems.map((item) => item.id)).toEqual(['ai-studio', 'settings']);
+    expect(adminFooterNavItems.map((item) => item.id)).toEqual(['settings']);
   });
 });

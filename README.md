@@ -42,9 +42,9 @@ Full visibility into the workshop floor:
 - **Stock Intelligence**: Real-time alerts for low stock and sample quantities.
 - **Collections**: Organizing products into marketing-ready sets and catalogs.
 
-### 🤖 AI Studio & Analytics
+### 🤖 Automation & Analytics
 
-- **Gemini AI Integration**: Intelligent automation and data insights powered by Google’s LLMs.
+- **Gemini AI Integration**: Collection descriptions and SKU extraction from images.
 - **Business Intelligence**: Deep-dive analytics into sales performance and material utilization.
 - **Financial Reporting**: Automatic generation of price lists, offers, and invoices.
 
@@ -66,7 +66,7 @@ Full visibility into the workshop floor:
 
 - Node.js (v24+ recommended)
 - Supabase Account (for Database/Auth)
-- Google AI Studio API Key (for AI Studio)
+- Google Gemini API Key (for collection descriptions and SKU extraction)
 
 ### Installation
 

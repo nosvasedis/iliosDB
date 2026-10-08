@@ -829,15 +829,6 @@ export interface EnhancedProductionBatch extends ProductionBatch {
   overridden_price?: number;
 }
 
-export interface ChatMessage {
-  id: string;
-  role: 'user' | 'model';
-  text?: string;
-  image?: string;
-  attachedProductSku?: string;
-  isTrendAnalysis?: boolean;
-}
-
 export interface UserProfile {
   id: string;
   email: string;
@@ -1631,15 +1622,4 @@ export interface AuditLog {
   action: string;
   details?: any;
   created_at: string;
-}
-
-declare global {
-  interface AIStudio {
-    hasSelectedApiKey: () => Promise<boolean>;
-    openSelectKey: () => Promise<void>;
-  }
-
-  interface Window {
-    aistudio?: AIStudio;
-  }
 }
