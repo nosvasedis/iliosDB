@@ -68,6 +68,7 @@ import {
   isOfficialLegalDocumentPrint,
 } from '../../utils/legalDocuments';
 import { formatOrderId } from '../../utils/orderUtils';
+import IssuedSkuSearch from './IssuedSkuSearch';
 
 const PAGE_SIZE = 50;
 
@@ -1602,6 +1603,7 @@ export default function LegalArchiveWorkspace(props: LegalArchiveWorkspaceProps)
 
   return (
     <div className="space-y-4">
+      <IssuedSkuSearch records={props.records} loading={props.loading} renderDetails={renderDetails} />
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 bg-white p-4 sm:p-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
